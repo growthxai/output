@@ -207,6 +207,24 @@ export async function startDockerCompose(
   };
 }
 
+export function startDockerComposeDetached(
+  dockerComposePath: string,
+  pullPolicy?: PullPolicy
+): void {
+  const args = [
+    'compose',
+    '-f', dockerComposePath,
+    '--project-directory', process.cwd(),
+    'up', '-d'
+  ];
+
+  if ( pullPolicy ) {
+    args.push( '--pull', pullPolicy );
+  }
+
+  execFileSync( 'docker', args, { stdio: 'inherit', cwd: process.cwd() } );
+}
+
 export async function stopDockerCompose( dockerComposePath: string ): Promise<void> {
   ux.stdout( '⏹️  Stopping services...\n' );
   execFileSync(

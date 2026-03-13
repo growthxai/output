@@ -80,7 +80,7 @@ services:
       temporal:
         condition: service_healthy
       worker:
-        condition: service_healthy
+        condition: service_started
     image: outputai/api:${OUTPUT_API_VERSION:-0.1.0}
     init: true
     networks:
@@ -109,7 +109,7 @@ services:
       interval: 3s
       timeout: 10s
       retries: 20
-      start_period: 30s
+      start_period: 300s
     init: true
     networks:
       - main

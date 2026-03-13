@@ -1,0 +1,34 @@
+name: Dev Integration Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'test_workflows/**'
+      - 'api/**'
+      - 'sdk/**'
+
+jobs:
+  dev-integration:
+    name: Dev Integration Test
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    permissions:
+      contents: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test_workflows/.env
+        run: |
+          printf 'ANTHROPIC_API_KEY=%s\nOPENAI_API_KEY=%s\n' \
+            "${ANTHROPIC_API_KEY:-dummy}" \
+            "${OPENAI_API_KEY:-dummy}" > test_workflows/.env
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run dev integration test
+        run: ./ops/dev_integration_test.sh
