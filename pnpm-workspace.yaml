@@ -4,7 +4,7 @@ packages:
   - 'test_workflows'
 
 catalog:
-  '@aws-sdk/client-s3': 3.1004.0
+  '@aws-sdk/client-s3': 3.1008.0
   '@temporalio/activity': 1.15.0
   '@temporalio/client': 1.15.0
   '@temporalio/common': 1.15.0
