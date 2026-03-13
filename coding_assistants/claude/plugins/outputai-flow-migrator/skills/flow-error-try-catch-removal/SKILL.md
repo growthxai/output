@@ -218,7 +218,7 @@ export default class UserProcessingWorkflow {
 ### After (Output SDK without Try-Catch)
 
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { getUserData, processUser, saveResults } from './steps.js';
 import { WorkflowInputSchema, WorkflowOutputSchema } from './types.js';
 

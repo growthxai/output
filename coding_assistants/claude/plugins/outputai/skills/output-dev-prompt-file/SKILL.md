@@ -287,8 +287,8 @@ Focus on the most important concepts that would benefit from visual explanation.
 ### With generateText and Output.object()
 
 ```typescript
-import { generateText, Output } from '@output.ai/llm';
-import { z } from '@output.ai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
 
 const { output } = await generateText({
   prompt: 'generateImageIdeas@v1',  // References prompts/generateImageIdeas@v1.prompt
@@ -310,7 +310,7 @@ const { output } = await generateText({
 ### With generateText
 
 ```typescript
-import { generateText } from '@output.ai/llm';
+import { generateText } from '@outputai/llm';
 
 const { result } = await generateText({
   prompt: 'summarize@v1',

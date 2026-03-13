@@ -84,7 +84,7 @@ import { anotherEvaluator } from './other_evaluators.js'; // ✗
 ### Core Imports
 
 ```typescript
-// CORRECT - Import from @output.ai/core
+// CORRECT - Import from @outputai/core
 import {
   evaluator,
   z,
@@ -92,7 +92,7 @@ import {
   EvaluationNumberResult,
   EvaluationStringResult,
   EvaluationFeedback
-} from '@output.ai/core';
+} from '@outputai/core';
 
 // WRONG - Never import z from zod
 import { z } from 'zod';
@@ -101,8 +101,8 @@ import { z } from 'zod';
 ### LLM Client Import (for LLM-powered evaluators)
 
 ```typescript
-// CORRECT - Use @output.ai/llm wrapper
-import { generateText, Output } from '@output.ai/llm';
+// CORRECT - Use @outputai/llm wrapper
+import { generateText, Output } from '@outputai/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -123,7 +123,7 @@ import { BlogContent } from './types';
 ## Basic Structure
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult } from '@output.ai/core';
+import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
 
 export const myEvaluator = evaluator({
   name: 'my_evaluator',
@@ -185,7 +185,7 @@ fn: async (input) => {
 Use for pass/fail or true/false evaluations:
 
 ```typescript
-import { EvaluationBooleanResult } from '@output.ai/core';
+import { EvaluationBooleanResult } from '@outputai/core';
 
 return new EvaluationBooleanResult({
   value: true,           // boolean result
@@ -199,7 +199,7 @@ return new EvaluationBooleanResult({
 Use for numeric scores or ratings:
 
 ```typescript
-import { EvaluationNumberResult } from '@output.ai/core';
+import { EvaluationNumberResult } from '@outputai/core';
 
 return new EvaluationNumberResult({
   value: 85,             // numeric result (e.g., 0-100 score)
@@ -213,7 +213,7 @@ return new EvaluationNumberResult({
 Use for categorical or text-based evaluations:
 
 ```typescript
-import { EvaluationStringResult } from '@output.ai/core';
+import { EvaluationStringResult } from '@outputai/core';
 
 return new EvaluationStringResult({
   value: 'positive',     // string result (e.g., category, sentiment, label)
@@ -238,7 +238,7 @@ return new EvaluationStringResult({
 ### Boolean Evaluator - Content Validation
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult } from '@output.ai/core';
+import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
 
 export const evaluateCompleteness = evaluator({
   name: 'evaluate_completeness',
@@ -264,7 +264,7 @@ export const evaluateCompleteness = evaluator({
 ### Boolean Evaluator - Pattern Detection
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult } from '@output.ai/core';
+import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
 
 export const evaluateGibberish = evaluator({
   name: 'evaluate_gibberish',
@@ -285,7 +285,7 @@ export const evaluateGibberish = evaluator({
 ### Number Evaluator - Quality Score
 
 ```typescript
-import { evaluator, z, EvaluationNumberResult } from '@output.ai/core';
+import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
 
 export const evaluateReadability = evaluator({
   name: 'evaluate_readability',
@@ -313,7 +313,7 @@ export const evaluateReadability = evaluator({
 ### String Evaluator - Sentiment Classification
 
 ```typescript
-import { evaluator, z, EvaluationStringResult } from '@output.ai/core';
+import { evaluator, z, EvaluationStringResult } from '@outputai/core';
 
 export const evaluateSentiment = evaluator({
   name: 'evaluate_sentiment',
@@ -357,8 +357,8 @@ export const evaluateSentiment = evaluator({
 ### Using generateText with Output.object() for Evaluation
 
 ```typescript
-import { evaluator, z, EvaluationNumberResult } from '@output.ai/core';
-import { generateText, Output } from '@output.ai/llm';
+import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
 
 export const evaluateSignalToNoise = evaluator({
   name: 'evaluate_signal_to_noise',
@@ -392,8 +392,8 @@ export const evaluateSignalToNoise = evaluator({
 ### LLM Boolean Evaluation
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult } from '@output.ai/core';
-import { generateText, Output } from '@output.ai/llm';
+import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
 
 export const evaluateFactualAccuracy = evaluator({
   name: 'evaluate_factual_accuracy',
@@ -429,8 +429,8 @@ export const evaluateFactualAccuracy = evaluator({
 ### LLM String Evaluation - Content Classification
 
 ```typescript
-import { evaluator, z, EvaluationStringResult } from '@output.ai/core';
-import { generateText, Output } from '@output.ai/llm';
+import { evaluator, z, EvaluationStringResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
 
 export const evaluateContentCategory = evaluator({
   name: 'evaluate_content_category',
@@ -466,10 +466,10 @@ export const evaluateContentCategory = evaluator({
 
 ## EvaluationResult with Feedback
 
-Use the `feedback` field to provide actionable improvement suggestions alongside your evaluation result. Import `EvaluationFeedback` from `@output.ai/core` to create feedback objects.
+Use the `feedback` field to provide actionable improvement suggestions alongside your evaluation result. Import `EvaluationFeedback` from `@outputai/core` to create feedback objects.
 
 ```typescript
-import { evaluator, z, EvaluationStringResult, EvaluationFeedback } from '@output.ai/core';
+import { evaluator, z, EvaluationStringResult, EvaluationFeedback } from '@outputai/core';
 
 export const evaluateWithFeedback = evaluator({
   name: 'evaluate_with_feedback',
@@ -508,7 +508,7 @@ export const evaluateWithFeedback = evaluator({
 Use the `dimensions` field to nest `EvaluationResult` instances for sub-scores. Each dimension should use the `name` field to identify it.
 
 ```typescript
-import { evaluator, z, EvaluationStringResult, EvaluationNumberResult } from '@output.ai/core';
+import { evaluator, z, EvaluationStringResult, EvaluationNumberResult } from '@outputai/core';
 
 export const evaluateMultiDimensional = evaluator({
   name: 'evaluate_multi_dimensional',
@@ -544,8 +544,8 @@ export const evaluateMultiDimensional = evaluator({
 Based on a real workflow evaluator file:
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult } from '@output.ai/core';
-import { generateText, Output } from '@output.ai/llm';
+import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
 import { blogContentSchema } from './types.js';
 import type { BlogContent, QualityMetrics } from './types.js';
 
@@ -710,8 +710,8 @@ dimensions: [
 
 ## Verification Checklist
 
-- [ ] `evaluator`, `z`, result types imported from `@output.ai/core`
-- [ ] `generateText` and `Output` imported from `@output.ai/llm` if using LLM (not direct provider)
+- [ ] `evaluator`, `z`, result types imported from `@outputai/core`
+- [ ] `generateText` and `Output` imported from `@outputai/llm` if using LLM (not direct provider)
 - [ ] LLM output schemas use `.describe()` instead of `.min()/.max()` on `z.number()`
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each evaluator
@@ -721,7 +721,7 @@ dimensions: [
 - [ ] Confidence score between 0.0 and 1.0
 - [ ] Evaluators only import allowed dependencies (local files, shared code)
 - [ ] No imports of other evaluators, steps, or workflows
-- [ ] `EvaluationFeedback` imported from `@output.ai/core` when using feedback
+- [ ] `EvaluationFeedback` imported from `@outputai/core` when using feedback
 - [ ] Feedback objects include `issue`, `suggestion`, and `priority`
 - [ ] Dimensions use the `name` field to identify sub-evaluations
 

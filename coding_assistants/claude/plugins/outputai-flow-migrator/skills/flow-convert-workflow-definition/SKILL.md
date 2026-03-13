@@ -25,7 +25,7 @@ This skill guides the conversion of Flow SDK workflow classes to Output SDK func
 | Input/Output | TypeScript interfaces | Zod schemas |
 | Activity Calls | Direct function calls | Step calls with object params |
 | Error Handling | Try-catch blocks | Let errors propagate |
-| Imports | @flow/sdk | @output.ai/core |
+| Imports | @flow/sdk | @outputai/core |
 
 ## Conversion Pattern
 
@@ -73,7 +73,7 @@ export class DataProcessingWorkflow implements Workflow<WorkflowInput, WorkflowO
 
 ```typescript
 // workflow.ts
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { fetchUser, processData, saveResults } from './steps.js';
 
 const WorkflowInputSchema = z.object( {
@@ -205,7 +205,7 @@ import { Workflow, WorkflowScope } from '@flow/sdk';
 import { z } from 'zod';
 
 // After
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 ```
 
 ## Important Conventions
@@ -249,7 +249,7 @@ Workflows can invoke other workflows directly:
 
 ```typescript
 // parent/workflow.ts
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import childWorkflow from '../child/workflow.js';
 
 export default workflow( {
@@ -326,7 +326,7 @@ export class GenerateReportWorkflow implements Workflow<ReportInput, ReportOutpu
 
 ```typescript
 // workflow.ts
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import {
   validateInput,
   fetchUserProfile,
@@ -391,7 +391,7 @@ export default workflow( {
 - [ ] Workflow name matches legacy name (if needed)
 - [ ] Steps called with object parameters
 - [ ] Try-catch blocks removed
-- [ ] Imports use `@output.ai/core`
+- [ ] Imports use `@outputai/core`
 - [ ] File imports have `.js` extension
 - [ ] `export default` used
 

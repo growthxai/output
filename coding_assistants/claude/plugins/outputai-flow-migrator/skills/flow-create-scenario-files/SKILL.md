@@ -253,7 +253,7 @@ Test complex inputs:
 
 ```typescript
 // types.ts
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 export const AnalyzeDocumentInputSchema = z.object( {
   documentId: z.string(),

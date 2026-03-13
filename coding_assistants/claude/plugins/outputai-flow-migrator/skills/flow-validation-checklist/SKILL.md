@@ -25,7 +25,7 @@ This skill provides a comprehensive checklist to validate a completed Flow to Ou
 - [ ] Workflow input/output schemas defined with Zod
 - [ ] Steps use typed input parameters
 - [ ] Zod schemas match original type definitions
-- [ ] All `z` imports from `@output.ai/core` (not `zod`)
+- [ ] All `z` imports from `@outputai/core` (not `zod`)
 
 **Validation Commands:**
 
@@ -34,7 +34,7 @@ This skill provides a comprehensive checklist to validate a completed Flow to Ou
 grep -r "from 'zod'" src/workflows/my_workflow/
 grep -r 'from "zod"' src/workflows/my_workflow/
 
-# Should return nothing - all zod should be from @output.ai/core
+# Should return nothing - all zod should be from @outputai/core
 ```
 
 ```bash
@@ -78,10 +78,10 @@ head -10 src/workflows/my_workflow/*.prompt
 
 ### 3. API & Imports
 
-- [ ] All files import `z` from `@output.ai/core`
-- [ ] `step()` and `workflow()` imported from `@output.ai/core`
-- [ ] LLM calls use `generateText()` from `@output.ai/llm` (with `Output.object()` for structured output)
-- [ ] `ValidationError`/`FatalError` imported from `@output.ai/core`
+- [ ] All files import `z` from `@outputai/core`
+- [ ] `step()` and `workflow()` imported from `@outputai/core`
+- [ ] LLM calls use `generateText()` from `@outputai/llm` (with `Output.object()` for structured output)
+- [ ] `ValidationError`/`FatalError` imported from `@outputai/core`
 - [ ] No leftover Flow SDK imports
 
 **Validation Commands:**
@@ -96,8 +96,8 @@ grep -r "WorkflowScope" src/workflows/my_workflow/
 
 ```bash
 # Verify correct imports
-grep -r "@output.ai/core" src/workflows/my_workflow/
-grep -r "@output.ai/llm" src/workflows/my_workflow/
+grep -r "@outputai/core" src/workflows/my_workflow/
+grep -r "@outputai/llm" src/workflows/my_workflow/
 ```
 
 ### 4. File Structure

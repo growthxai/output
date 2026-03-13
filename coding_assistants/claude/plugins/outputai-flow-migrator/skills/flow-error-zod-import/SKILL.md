@@ -8,7 +8,7 @@ allowed-tools: [Bash, Read, Write, Grep, Edit]
 
 ## Overview
 
-This skill helps diagnose and fix a critical issue where Zod schemas are imported from the wrong source during migration. Output SDK requires schemas to be imported from `@output.ai/core`, not directly from `zod`.
+This skill helps diagnose and fix a critical issue where Zod schemas are imported from the wrong source during migration. Output SDK requires schemas to be imported from `@outputai/core`, not directly from `zod`.
 
 ## When to Use This Skill
 
@@ -26,7 +26,7 @@ This skill helps diagnose and fix a critical issue where Zod schemas are importe
 
 ## Root Cause
 
-The issue occurs when you import `z` from `zod` instead of `@output.ai/core`. While both provide Zod schemas, they create different schema instances that aren't compatible with each other within the Output SDK context.
+The issue occurs when you import `z` from `zod` instead of `@outputai/core`. While both provide Zod schemas, they create different schema instances that aren't compatible with each other within the Output SDK context.
 
 **Why this matters**: Output SDK uses a specific version of Zod internally for serialization and validation. When you use a different Zod instance, the schemas are technically different objects even if they define the same shape. This causes runtime validation failures and TypeScript errors.
 
@@ -62,8 +62,8 @@ export const myStep = step({
 ### Correct (Output SDK Pattern)
 
 ```typescript
-// CORRECT: Import z from @output.ai/core
-import { z, step } from '@output.ai/core';
+// CORRECT: Import z from @outputai/core
+import { z, step } from '@outputai/core';
 
 const inputSchema = z.object( {
   name: z.string()
@@ -102,13 +102,13 @@ To:
 
 ```typescript
 // Correct
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 ```
 
 **Tip**: Often you can combine with other imports:
 
 ```typescript
-import { z, step, workflow } from '@output.ai/core';
+import { z, step, workflow } from '@outputai/core';
 ```
 
 ### Step 3: Verify No Direct Zod Dependencies
@@ -119,7 +119,7 @@ Check your imports don't accidentally use zod elsewhere:
 grep -r "import.*zod" src/
 ```
 
-All matches should show `@output.ai/core`, not `zod`.
+All matches should show `@outputai/core`, not `zod`.
 
 ## Complete Migration Example
 
@@ -151,7 +151,7 @@ export async function getUser(userId: string): Promise<User> {
 
 ```typescript
 // src/workflows/my-workflow/types.ts
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 export const UserSchema = z.object( {
   id: z.string(),
@@ -163,7 +163,7 @@ export type User = z.infer<typeof UserSchema>;
 
 ```typescript
 // src/workflows/my-workflow/steps.ts
-import { z, step } from '@output.ai/core';
+import { z, step } from '@outputai/core';
 import { UserSchema, User } from './types.js';
 
 export const getUser = step( {
@@ -214,7 +214,7 @@ module.exports = {
     'no-restricted-imports': ['error', {
       paths: [{
         name: 'zod',
-        message: "Import { z } from '@output.ai/core' instead of 'zod'"
+        message: "Import { z } from '@outputai/core' instead of 'zod'"
       }]
     }]
   }
@@ -223,7 +223,7 @@ module.exports = {
 
 ### IDE Settings
 
-Configure your editor to auto-import from `@output.ai/core`:
+Configure your editor to auto-import from `@outputai/core`:
 
 For VS Code, add to settings.json:
 ```json
@@ -239,7 +239,7 @@ For VS Code, add to settings.json:
 Even one wrong import can cause issues:
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 import { z as zod } from 'zod';  // This causes problems!
 ```
 
@@ -259,7 +259,7 @@ If using external Zod schemas, you may need to recreate them:
 
 ```typescript
 // Don't use: externalLibrary.schema
-// Instead: recreate the schema with @output.ai/core's z
+// Instead: recreate the schema with @outputai/core's z
 ```
 
 ## Related Skills

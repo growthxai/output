@@ -224,8 +224,8 @@ export async function summarize( text: string ): Promise<string> {
 }
 
 // After (steps.ts)
-import { step, z } from '@output.ai/core';
-import { generateText } from '@output.ai/llm';
+import { step, z } from '@outputai/core';
+import { generateText } from '@outputai/llm';
 
 export const summarize = step( {
   name: 'summarize',
@@ -325,8 +325,8 @@ Provide a comprehensive analysis.
 ### After: steps.ts (Using the Prompt)
 
 ```typescript
-import { step, z } from '@output.ai/core';
-import { generateText, Output } from '@output.ai/llm';
+import { step, z } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
 import { AnalysisResultSchema, AnalysisResult } from './types.js';
 
 const AnalyzeDocumentInputSchema = z.object( {

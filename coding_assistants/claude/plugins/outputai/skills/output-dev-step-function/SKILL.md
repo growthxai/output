@@ -83,8 +83,8 @@ import { anotherStep } from './other_steps.js'; // ✗
 ### Core Imports
 
 ```typescript
-// CORRECT - Import from @output.ai/core
-import { step, z, FatalError, ValidationError } from '@output.ai/core';
+// CORRECT - Import from @outputai/core
+import { step, z, FatalError, ValidationError } from '@outputai/core';
 
 // WRONG - Never import z from zod
 import { z } from 'zod';
@@ -93,8 +93,8 @@ import { z } from 'zod';
 ### HTTP Client Import
 
 ```typescript
-// CORRECT - Use @output.ai/http wrapper
-import { httpClient } from '@output.ai/http';
+// CORRECT - Use @outputai/http wrapper
+import { httpClient } from '@outputai/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -105,8 +105,8 @@ import axios from 'axios';
 ### LLM Client Import
 
 ```typescript
-// CORRECT - Use @output.ai/llm wrapper
-import { generateText, Output } from '@output.ai/llm';
+// CORRECT - Use @outputai/llm wrapper
+import { generateText, Output } from '@outputai/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -128,9 +128,9 @@ import { InputSchema, OutputSchema } from './types';
 ## Basic Structure
 
 ```typescript
-import { step, z, FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
-import { generateText, Output } from '@output.ai/llm';
+import { step, z, FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
+import { generateText, Output } from '@outputai/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
 
@@ -195,8 +195,8 @@ fn: async (input) => {
 ### Creating an HTTP Client
 
 ```typescript
-import { httpClient } from '@output.ai/http';
-import { FatalError, ValidationError } from '@output.ai/core';
+import { httpClient } from '@outputai/http';
+import { FatalError, ValidationError } from '@outputai/core';
 
 const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 const FATAL_STATUS_CODES = [401, 403, 404];
@@ -252,7 +252,7 @@ const contentType = response.headers.get('content-type');
 ### Using generateText with Output.object()
 
 ```typescript
-import { generateText, Output } from '@output.ai/llm';
+import { generateText, Output } from '@outputai/llm';
 
 export const analyzeContent = step({
   name: 'analyzeContent',
@@ -280,7 +280,7 @@ export const analyzeContent = step({
 ### Using generateText
 
 ```typescript
-import { generateText } from '@output.ai/llm';
+import { generateText } from '@outputai/llm';
 
 export const generateSummary = step({
   name: 'generateSummary',
@@ -307,7 +307,7 @@ export const generateSummary = step({
 Use FatalError for permanent failures that should not be retried:
 
 ```typescript
-import { FatalError } from '@output.ai/core';
+import { FatalError } from '@outputai/core';
 
 // Authentication failures
 if (response.status === 401) {
@@ -335,7 +335,7 @@ if (!process.env.API_KEY) {
 Use ValidationError for temporary failures that may succeed on retry:
 
 ```typescript
-import { ValidationError } from '@output.ai/core';
+import { ValidationError } from '@outputai/core';
 
 // Rate limiting
 if (response.status === 429) {
@@ -367,9 +367,9 @@ if (results.length === 0) {
 Based on a real workflow step:
 
 ```typescript
-import { step, z, FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
-import { generateText, Output } from '@output.ai/llm';
+import { step, z, FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
+import { generateText, Output } from '@outputai/llm';
 
 import { GeminiImageService } from '../../shared/clients/gemini_client.js';
 import {
@@ -526,9 +526,9 @@ fn: async (input) => {
 
 ## Verification Checklist
 
-- [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@output.ai/core`
-- [ ] `httpClient` imported from `@output.ai/http` (not axios)
-- [ ] `generateText` and `Output` imported from `@output.ai/llm` (not direct provider)
+- [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
+- [ ] `httpClient` imported from `@outputai/http` (not axios)
+- [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
 - [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()`) on number schemas
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each step

@@ -67,7 +67,7 @@ After generation, review each file to understand the template structure:
 
 **workflow.ts** - Contains a basic workflow template:
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { exampleStep } from './steps.js';
 import { WorkflowInputSchema } from './types.js';
 
@@ -85,7 +85,7 @@ export default workflow({
 
 **steps.ts** - Contains example step template:
 ```typescript
-import { step, z } from '@output.ai/core';
+import { step, z } from '@outputai/core';
 import { ExampleStepInputSchema } from './types.js';
 
 export const exampleStep = step({
@@ -102,7 +102,7 @@ export const exampleStep = step({
 
 **types.ts** - Contains schema definitions:
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 export const WorkflowInputSchema = z.object({
   // Define input fields
@@ -124,7 +124,7 @@ export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 In `types.ts`, define your actual input/output schemas:
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 export const WorkflowInputSchema = z.object({
   content: z.string().describe('Content to process'),
@@ -144,8 +144,8 @@ export type WorkflowOutput = { processed: string };
 Replace the example step with your actual step implementations:
 
 ```typescript
-import { step, z, FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { step, z, FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 import { ProcessContentInputSchema } from './types.js';
 
 export const processContent = step({
@@ -167,7 +167,7 @@ export const processContent = step({
 Wire up your steps in the workflow:
 
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { processContent } from './steps.js';
 import { WorkflowInputSchema } from './types.js';
 
@@ -249,7 +249,7 @@ npx output workflow run {workflowName} --input path/to/scenarios/basic_input.jso
 
 Common issues after skeleton generation:
 - Import paths missing `.js` extension
-- Schema imported from `zod` instead of `@output.ai/core`
+- Schema imported from `zod` instead of `@outputai/core`
 - Missing step exports
 
 ## Customization Tips
@@ -309,7 +309,7 @@ After generating and customizing the skeleton:
 - [ ] Workflow folder follows `snake_case` naming
 - [ ] `workflow.ts` has correct name in camelCase
 - [ ] All imports use `.js` extension
-- [ ] `z` is imported from `@output.ai/core`
+- [ ] `z` is imported from `@outputai/core`
 - [ ] Types are defined in `types.ts`
 - [ ] Steps are defined in `steps.ts` or `steps/` folder
 - [ ] At least one test scenario exists

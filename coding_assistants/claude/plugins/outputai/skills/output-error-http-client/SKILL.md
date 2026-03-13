@@ -8,7 +8,7 @@ allowed-tools: [Bash, Read]
 
 ## Overview
 
-This skill helps diagnose and fix issues caused by using axios, fetch, or other HTTP clients directly instead of Output SDK's `httpClient` from `@output.ai/http`. The Output SDK client provides tracing, automatic retries, and better error handling.
+This skill helps diagnose and fix issues caused by using axios, fetch, or other HTTP clients directly instead of Output SDK's `httpClient` from `@outputai/http`. The Output SDK client provides tracing, automatic retries, and better error handling.
 
 ## When to Use This Skill
 
@@ -59,13 +59,13 @@ export const fetchData = step({
 
 ## Solution
 
-Use `httpClient` from `@output.ai/http`:
+Use `httpClient` from `@outputai/http`:
 
 ### Basic Usage
 
 ```typescript
-import { z, step } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { z, step } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 export const fetchData = step({
   name: 'fetchData',
@@ -89,7 +89,7 @@ export const fetchData = step({
 ### With Full Configuration
 
 ```typescript
-import { httpClient } from '@output.ai/http';
+import { httpClient } from '@outputai/http';
 
 const client = httpClient({
   prefixUrl: 'https://api.example.com',
@@ -158,7 +158,7 @@ const data = await client.get('search', {
 
 ```typescript
 import axios from 'axios';
-import { step } from '@output.ai/core';
+import { step } from '@outputai/core';
 
 export const createUser = step({
   name: 'createUser',
@@ -186,8 +186,8 @@ export const createUser = step({
 ### After (Correct - using httpClient)
 
 ```typescript
-import { z, step } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { z, step } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 export const createUser = step({
   name: 'createUser',
@@ -227,7 +227,7 @@ export const createUser = step({
 The httpClient provides structured error handling:
 
 ```typescript
-import { httpClient, HTTPError } from '@output.ai/http';
+import { httpClient, HTTPError } from '@outputai/http';
 
 export const fetchData = step({
   name: 'fetchData',

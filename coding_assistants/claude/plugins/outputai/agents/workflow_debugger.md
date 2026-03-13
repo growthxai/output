@@ -83,7 +83,7 @@ This will show us exactly where the workflow failed and what error occurred. Whi
 
 **User**: "The trace shows an error about incompatible schemas in step 'processData'."
 
-**Agent**: This is likely the Zod import source issue. Check your step file - you're probably importing `z` from `zod` instead of `@output.ai/core`. These create different schema instances that aren't compatible.
+**Agent**: This is likely the Zod import source issue. Check your step file - you're probably importing `z` from `zod` instead of `@outputai/core`. These create different schema instances that aren't compatible.
 
 Change:
 ```typescript
@@ -92,7 +92,7 @@ import { z } from 'zod';
 
 To:
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 ```
 
 After making this change, run the workflow again with `npx output workflow run <workflowName>` to verify the fix.

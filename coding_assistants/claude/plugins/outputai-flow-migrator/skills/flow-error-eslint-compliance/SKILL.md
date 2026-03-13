@@ -140,11 +140,11 @@ Use single quotes for strings, not double quotes.
 ```typescript
 // WRONG
 const name = "workflow";
-import { step } from "@output.ai/core";
+import { step } from "@outputai/core";
 
 // CORRECT
 const name = 'workflow';
-import { step } from '@output.ai/core';
+import { step } from '@outputai/core';
 ```
 
 ### 7. Spaces Around Operators
@@ -226,8 +226,8 @@ npx eslint --fix src/workflows/my-workflow/*.ts
 ### Before (Non-Compliant)
 
 ```typescript
-import {z} from "@output.ai/core";
-import {step, workflow} from "@output.ai/core";
+import {z} from "@outputai/core";
+import {step, workflow} from "@outputai/core";
 
 const InputSchema = z.object({
   user_id: z.string(),
@@ -251,8 +251,8 @@ export const searchStep = step({
 ### After (ESLint Compliant)
 
 ```typescript
-import { z } from '@output.ai/core';
-import { step, workflow } from '@output.ai/core';
+import { z } from '@outputai/core';
+import { step, workflow } from '@outputai/core';
 
 const InputSchema = z.object( {
   userId: z.string(),
@@ -283,7 +283,7 @@ import {z} from "zod";
 import { WorkflowScope } from "@flow/sdk";
 
 // Output SDK style (consistent single quotes, spacing)
-import { z, step, workflow } from '@output.ai/core';
+import { z, step, workflow } from '@outputai/core';
 ```
 
 ### Function Parameter Style

@@ -27,7 +27,7 @@ This separation enables automatic retries, resumption, and debugging.
 | **Evaluator** | Quality assessment | Returns confidence-scored results for validation loops |
 | **Scenario** | Test input data | JSON files matching workflow's inputSchema |
 | **Prompt** | LLM templates | Liquid.js templating with YAML frontmatter config |
-| **Eval Test** | Offline quality testing | Dataset-driven verification with `verify()` from `@output.ai/evals` |
+| **Eval Test** | Offline quality testing | Dataset-driven verification with `verify()` from `@outputai/evals` |
 
 ## Project Structure
 
@@ -65,7 +65,7 @@ src/
 ## Code Reuse Rules
 
 **Shared directory** (`src/shared/`):
-- `shared/clients/` - API clients using `@output.ai/http` for external services
+- `shared/clients/` - API clients using `@outputai/http` for external services
 - `shared/utils/` - Helper functions and utilities
 
 **Allowed imports:**
@@ -80,10 +80,10 @@ src/
 
 | Rule | Correct | Incorrect |
 |------|---------|-----------|
-| Zod import | `import { z } from '@output.ai/core'` | `import { z } from 'zod'` |
-| HTTP client | `import { httpClient } from '@output.ai/http'` | `import axios from 'axios'` |
-| Credentials | `import { credentials } from '@output.ai/credentials'` | `process.env.SECRET` |
-| LLM calls | `import { generateText, Output } from '@output.ai/llm'` | Direct provider SDK |
+| Zod import | `import { z } from '@outputai/core'` | `import { z } from 'zod'` |
+| HTTP client | `import { httpClient } from '@outputai/http'` | `import axios from 'axios'` |
+| Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
+| LLM calls | `import { generateText, Output } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
 | Workflow I/O | Call steps for any I/O | Direct fetch/http in workflow |
 
@@ -143,7 +143,7 @@ src/
 | `output-error-try-catch` | Missing error handling in steps |
 | `output-error-missing-schemas` | Incomplete Zod schema exports |
 | `output-error-direct-io` | I/O operations in workflow files |
-| `output-error-http-client` | Using axios instead of @output.ai/http |
+| `output-error-http-client` | Using axios instead of @outputai/http |
 
 #### Meta/Lifecycle (3)
 | Skill | Purpose |
@@ -160,11 +160,11 @@ src/
 | `output-dev-step-function` | Writing step functions for I/O |
 | `output-dev-types-file` | Zod schema definitions |
 | `output-dev-evaluator-function` | Quality assessment functions |
-| `output-dev-eval-testing` | Offline eval tests with `@output.ai/evals` |
+| `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
 | `output-dev-prompt-file` | LLM prompt templates with Liquid.js |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
-| `output-dev-credentials` | Encrypted secrets management with `@output.ai/credentials` |
+| `output-dev-credentials` | Encrypted secrets management with `@outputai/credentials` |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
 
 ---
@@ -221,7 +221,7 @@ output credentials get <path>                # Get single credential value
 
 ### Workflow Pattern
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { fetchData, processData } from './steps.js';
 
 export const inputSchema = z.object({ url: z.string().url() });
@@ -244,8 +244,8 @@ See `output-dev-workflow-function` for comprehensive patterns.
 
 ### Step Pattern
 ```typescript
-import { step, z } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { step, z } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 export const fetchData = step(
   { name: 'fetchData', inputSchema: z.string(), outputSchema: z.any() },
@@ -265,9 +265,9 @@ Clients live in `src/shared/clients/` and are shared across all workflows.
 
 ```typescript
 // src/shared/clients/example.ts
-import { FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
-import { credentials } from '@output.ai/credentials';
+import { FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
 
 const API_KEY = credentials.require('example.api_key');
 
@@ -304,7 +304,7 @@ See `output-dev-http-client-create` for comprehensive patterns.
 Evaluators return confidence-scored results. Three result types available:
 
 ```typescript
-import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult, EvaluationStringResult } from '@output.ai/core';
+import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult, EvaluationStringResult } from '@outputai/core';
 
 // Boolean evaluator - pass/fail checks
 export const evaluateCompleteness = evaluator({
@@ -356,8 +356,8 @@ Provide {{ numberOfPoints | default: 3 }} key insights.
 
 **Using in steps:**
 ```typescript
-import { generateText, Output } from '@output.ai/llm';
-import { z } from '@output.ai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
 
 // Structured output
 const { output } = await generateText({

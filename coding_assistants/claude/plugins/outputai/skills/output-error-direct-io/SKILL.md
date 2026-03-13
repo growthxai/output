@@ -88,8 +88,8 @@ export default workflow({
 ### After (Correct)
 
 ```typescript
-import { z, step, workflow } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { z, step, workflow } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 // Create a step for the I/O operation
 export const fetchData = step({
@@ -139,7 +139,7 @@ export default workflow({
 ### After (Correct)
 
 ```typescript
-import { z, step, workflow } from '@output.ai/core';
+import { z, step, workflow } from '@outputai/core';
 import { prisma } from '../lib/db';
 
 export const fetchUser = step({

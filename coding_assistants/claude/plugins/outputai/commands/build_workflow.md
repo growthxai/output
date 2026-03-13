@@ -47,7 +47,7 @@ Read and understand the plan document.
 Update `$3/workflow.ts` with the workflow definition.
 
 <implementation_checklist>
-  - Import required dependencies (workflow, z from '@output.ai/core')
+  - Import required dependencies (workflow, z from '@outputai/core')
   - Define inputSchema based on plan specifications
   - Define outputSchema based on plan specifications
   - Import step functions from steps.ts
@@ -58,7 +58,7 @@ Update `$3/workflow.ts` with the workflow definition.
 
 <workflow_template>
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 import { stepName } from './steps.js';
 
 const inputSchema = z.object( {
@@ -92,7 +92,7 @@ export default workflow( {
 Update `$3/steps.ts` with all step definitions from the plan.
 
 <implementation_checklist>
-  - Import required dependencies (step, z from '@output.ai/core')
+  - Import required dependencies (step, z from '@outputai/core')
   - Implement each step with proper schema validation
   - Add error handling and retry logic as specified
   - Ensure step names match plan specifications
@@ -101,7 +101,7 @@ Update `$3/steps.ts` with all step definitions from the plan.
 
 <step_template>
 ```typescript
-import { step, z } from '@output.ai/core';
+import { step, z } from '@outputai/core';
 
 export const stepName = step( {
   name: 'stepName',
@@ -137,8 +137,8 @@ If the plan includes evaluator functions, implement them in `$3/evaluators.ts`.
 </decision_tree>
 
 <implementation_checklist>
-  - Import required dependencies (evaluator, z, result types from '@output.ai/core')
-  - Import generateText and Output from '@output.ai/llm' if using LLM-powered evaluators
+  - Import required dependencies (evaluator, z, result types from '@outputai/core')
+  - Import generateText and Output from '@outputai/llm' if using LLM-powered evaluators
   - Implement each evaluator with proper schema validation
   - Use appropriate result types (EvaluationBooleanResult, EvaluationNumberResult, EvaluationStringResult)
   - Include confidence scores (0.0-1.0)
@@ -149,7 +149,7 @@ If the plan includes evaluator functions, implement them in `$3/evaluators.ts`.
 
 <evaluator_template>
 ```typescript
-import { evaluator, z, EvaluationBooleanResult } from '@output.ai/core';
+import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
 
 export const evaluateName = evaluator({
   name: 'evaluate_name',
@@ -187,8 +187,8 @@ If the plan includes LLM-based steps, create prompt templates in `$3/prompts/`.
 
 <llm_step_template>
 ```typescript
-import { step, z } from '@output.ai/core';
-import { generateText } from '@output.ai/llm';
+import { step, z } from '@outputai/core';
+import { generateText } from '@outputai/llm';
 
 export const llmStep = step( {
   name: 'llmStep',

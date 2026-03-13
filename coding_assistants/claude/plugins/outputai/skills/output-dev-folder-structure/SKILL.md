@@ -22,7 +22,7 @@ This skill documents the standard folder structure for Output SDK workflows. Fol
 ```
 src/
 ├── shared/                          # Shared code across workflows
-│   ├── clients/                     # API clients (using @output.ai/http)
+│   ├── clients/                     # API clients (using @outputai/http)
 │   ├── utils/                       # Utility functions & helpers
 │   ├── services/                    # Business logic services
 │   ├── steps/                       # Shared steps (optional)
@@ -66,7 +66,7 @@ src/
 ### types.ts (Required)
 - Contains Zod schemas for input/output validation
 - Exports TypeScript types derived from schemas
-- Imports `z` from `@output.ai/core` (never from `zod`)
+- Imports `z` from `@outputai/core` (never from `zod`)
 
 **Related Skill**: `output-dev-types-file`
 

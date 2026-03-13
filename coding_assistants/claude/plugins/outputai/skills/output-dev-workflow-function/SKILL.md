@@ -22,8 +22,8 @@ This skill documents how to create `workflow.ts` files for Output SDK workflows.
 ### 1. Import Pattern
 
 ```typescript
-// CORRECT - Import from @output.ai/core
-import { workflow, z } from '@output.ai/core';
+// CORRECT - Import from @outputai/core
+import { workflow, z } from '@outputai/core';
 
 // WRONG - Never import z from zod
 import { z } from 'zod';
@@ -72,7 +72,7 @@ export default workflow({
 ## Basic Structure
 
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 
 import { stepOne, stepTwo } from './steps.js';
 import { WorkflowInputSchema, WorkflowOutput } from './types.js';
@@ -144,7 +144,7 @@ fn: async (input): Promise<WorkflowOutput> => {
 Based on a real workflow (`image_infographic_nano`):
 
 ```typescript
-import { workflow, z } from '@output.ai/core';
+import { workflow, z } from '@outputai/core';
 
 import {
   generateImageIdeas,
@@ -303,7 +303,7 @@ fn: async (input) => {
 
 ## Verification Checklist
 
-- [ ] `workflow` and `z` imported from `@output.ai/core`
+- [ ] `workflow` and `z` imported from `@outputai/core`
 - [ ] All imports use `.js` extension
 - [ ] Default export used for the workflow
 - [ ] `name` is camelCase and unique

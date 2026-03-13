@@ -20,8 +20,8 @@ Ensure you have a deep understanding of the Output SDK and its capabilities. If 
 Before proceeding with any workflow operation, verify:
 
 - **ES Modules**: All imports MUST use `.js` extension for ESM modules
-- **HTTP Client**: NEVER use axios directly - always use @output.ai/http wrapper
-- **LLM Client**: NEVER use a direct llm call - always use @output.ai/llm wrapper
+- **HTTP Client**: NEVER use axios directly - always use @outputai/http wrapper
+- **LLM Client**: NEVER use a direct llm call - always use @outputai/llm wrapper
 - **Worker Restarts**: Remember to restart worker after creating workflows: `overmind restart worker`
 - **Documentation**: Run `yarn g:workflow-doc` after modifications
 

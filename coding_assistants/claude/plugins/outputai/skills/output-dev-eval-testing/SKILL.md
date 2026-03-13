@@ -1,6 +1,6 @@
 ---
 name: output-dev-eval-testing
-description: Create offline evaluation tests for Output SDK workflows using @output.ai/evals. Use when implementing test evaluators with verify(), creating dataset YAML files, building eval workflows, or running workflow tests via CLI.
+description: Create offline evaluation tests for Output SDK workflows using @outputai/evals. Use when implementing test evaluators with verify(), creating dataset YAML files, building eval workflows, or running workflow tests via CLI.
 allowed-tools: [Bash, Read, Write, Edit]
 ---
 
@@ -8,9 +8,9 @@ allowed-tools: [Bash, Read, Write, Edit]
 
 ## Overview
 
-The `@output.ai/evals` package provides an offline evaluation framework for testing workflow quality using datasets and evaluators. This is **complementary** to the runtime `evaluator()` from `@output.ai/core`:
+The `@outputai/evals` package provides an offline evaluation framework for testing workflow quality using datasets and evaluators. This is **complementary** to the runtime `evaluator()` from `@outputai/core`:
 
-| Aspect | Runtime Evaluators (`@output.ai/core`) | Offline Eval Tests (`@output.ai/evals`) |
+| Aspect | Runtime Evaluators (`@outputai/core`) | Offline Eval Tests (`@outputai/evals`) |
 |--------|----------------------------------------|------------------------------------------|
 | **When** | During workflow execution | After execution, at test time |
 | **Where** | `evaluators.ts` in workflow folder | `tests/evals/` in workflow folder |
@@ -23,7 +23,7 @@ Use offline eval testing when you want to validate workflow behavior against kno
 ## When to Use This Skill
 
 - Creating files in `tests/evals/` or `tests/datasets/`
-- Writing evaluators that use `verify()` from `@output.ai/evals`
+- Writing evaluators that use `verify()` from `@outputai/evals`
 - Creating YAML dataset files for test cases
 - Building eval workflows with `evalWorkflow()`
 - Running `output workflow test` commands
@@ -51,12 +51,12 @@ src/workflows/{workflow_name}/
 
 ## Creating Evaluators with `verify()`
 
-Import `verify` and `Verdict` from `@output.ai/evals` (not `@output.ai/core`):
+Import `verify` and `Verdict` from `@outputai/evals` (not `@outputai/core`):
 
 ```typescript
 // tests/evals/evaluators.ts
-import { verify, Verdict } from '@output.ai/evals';
-import { z } from '@output.ai/core';
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
 ```
 
 ### `verify()` Signature
@@ -86,8 +86,8 @@ verify(options, checkFn)
 ### Basic Example
 
 ```typescript
-import { verify, Verdict } from '@output.ai/evals';
-import { z } from '@output.ai/core';
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
 
 export const evaluateSum = verify(
   {
@@ -157,7 +157,7 @@ All deterministic helpers return results with confidence `1.0`.
 For subjective quality assessments, use judge functions with `.prompt` files:
 
 ```typescript
-import { verify, judgeVerdict, judgeScore, judgeLabel } from '@output.ai/evals';
+import { verify, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
 
 // Returns pass/partial/fail verdict from an LLM
 export const evaluateTopic = verify(
@@ -233,7 +233,7 @@ The eval workflow wires evaluators together and defines how to interpret results
 
 ```typescript
 // tests/evals/workflow.ts
-import { evalWorkflow } from '@output.ai/evals';
+import { evalWorkflow } from '@outputai/evals';
 import { evaluateSum } from './evaluators.js';
 
 export default evalWorkflow({
@@ -440,8 +440,8 @@ output workflow dataset list blog_generator
 
 ## Verification Checklist
 
-- [ ] Evaluators import `verify`, `Verdict` from `@output.ai/evals` (not `@output.ai/core`)
-- [ ] Eval workflow imports `evalWorkflow` from `@output.ai/evals`
+- [ ] Evaluators import `verify`, `Verdict` from `@outputai/evals` (not `@outputai/core`)
+- [ ] Eval workflow imports `evalWorkflow` from `@outputai/evals`
 - [ ] All imports use `.js` extension
 - [ ] Eval workflow name follows `{workflow_name}_eval` pattern
 - [ ] Dataset YAML files are in `tests/datasets/`
@@ -451,11 +451,11 @@ output workflow dataset list blog_generator
 - [ ] `interpret` type matches evaluator return type
 - [ ] Ground truth keys in dataset match evaluator names
 - [ ] Judge `.prompt` files are in `tests/evals/` alongside evaluators
-- [ ] `z` is imported from `@output.ai/core` (not `zod`)
+- [ ] `z` is imported from `@outputai/core` (not `zod`)
 
 ## Related Skills
 
-- `output-dev-evaluator-function` — Runtime evaluators using `evaluator()` from `@output.ai/core`
+- `output-dev-evaluator-function` — Runtime evaluators using `evaluator()` from `@outputai/core`
 - `output-dev-scenario-file` — Creating scenario JSON files for workflow execution
 - `output-dev-folder-structure` — Understanding project directory layout
 - `output-dev-prompt-file` — Creating `.prompt` files for LLM operations

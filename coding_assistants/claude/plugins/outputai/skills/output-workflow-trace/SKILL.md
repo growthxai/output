@@ -63,7 +63,7 @@ Open **http://localhost:8080** in your browser for a visual workflow inspection:
 
 | Error Message | Likely Cause |
 |---------------|--------------|
-| "incompatible schema" | Zod import issue - using `zod` instead of `@output.ai/core` |
+| "incompatible schema" | Zod import issue - using `zod` instead of `@outputai/core` |
 | "non-deterministic" | Using Math.random(), Date.now(), etc. in workflow code |
 | "FatalError" with retry context | Try-catch wrapping step calls |
 | "undefined is not a function" | Missing schema definitions |

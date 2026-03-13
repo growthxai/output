@@ -19,11 +19,11 @@ This skill documents how to create `types.ts` files for Output SDK workflows. Th
 
 ## Critical Import Rule
 
-**ALWAYS** import `z` from `@output.ai/core`, **NEVER** from `zod` directly:
+**ALWAYS** import `z` from `@outputai/core`, **NEVER** from `zod` directly:
 
 ```typescript
 // CORRECT
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // WRONG - will cause runtime errors
 import { z } from 'zod';
@@ -34,7 +34,7 @@ import { z } from 'zod';
 ## Basic Structure
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // 1. Workflow Input Schema
 export const WorkflowInputSchema = z.object({
@@ -64,7 +64,7 @@ export type StepNameOutput = z.infer<typeof StepNameOutputSchema>;
 ### Basic Types
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // Strings
 const stringField = z.string();
@@ -89,7 +89,7 @@ const enumWithDefault = z.enum(['small', 'medium', 'large']).default('medium');
 ### Complex Types
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // Arrays
 const stringArray = z.array(z.string());
@@ -119,7 +119,7 @@ const keyValueMap = z.record(z.string(), z.number());
 ### Validation Patterns
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // String Validations
 const emailField = z.string().email();
@@ -161,7 +161,7 @@ const workflowOutputSchema = z.object({
 Based on a real workflow (`image_infographic_nano`):
 
 ```typescript
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 
 // ============================================
 // Workflow Schemas
@@ -267,7 +267,7 @@ export type User = z.infer<typeof UserSchema>;
 
 ## Verification Checklist
 
-- [ ] `z` is imported from `@output.ai/core`
+- [ ] `z` is imported from `@outputai/core`
 - [ ] WorkflowInputSchema is defined and exported
 - [ ] WorkflowInput type is exported
 - [ ] WorkflowOutput type is defined

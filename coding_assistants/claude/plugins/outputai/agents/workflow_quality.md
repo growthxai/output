@@ -35,22 +35,22 @@ Use the `workflow-prompt-writer` subagent for:
 
 ### Import Conventions
 
-**CRITICAL**: Always import `z` from `@output.ai/core`, NEVER from `zod` directly:
+**CRITICAL**: Always import `z` from `@outputai/core`, NEVER from `zod` directly:
 ```typescript
 // Wrong
 import { z } from 'zod';
 
 // Correct
-import { z } from '@output.ai/core';
+import { z } from '@outputai/core';
 ```
 
-**CRITICAL**: Always use `@output.ai/credentials` for secrets, NEVER `process.env`:
+**CRITICAL**: Always use `@outputai/credentials` for secrets, NEVER `process.env`:
 ```typescript
 // Wrong
 const apiKey = process.env.SERVICE_API_KEY;
 
 // Correct
-import { credentials } from '@output.ai/credentials';
+import { credentials } from '@outputai/credentials';
 const apiKey = credentials.require('service.api_key');
 ```
 
@@ -112,9 +112,9 @@ fn: async (input) => {
 
 ### HTTP Client Usage
 
-Never use axios directly. Use `@output.ai/http`:
+Never use axios directly. Use `@outputai/http`:
 ```typescript
-import { httpClient } from '@output.ai/http';
+import { httpClient } from '@outputai/http';
 
 const client = httpClient({
   prefixUrl: 'https://api.example.com',
@@ -131,9 +131,9 @@ const result = await client.post('endpoint', { json: payload }).json();
 
 ### LLM Integration
 
-Never call LLM APIs directly. Use `@output.ai/llm`:
+Never call LLM APIs directly. Use `@outputai/llm`:
 ```typescript
-import { generateText, Output } from '@output.ai/llm';
+import { generateText, Output } from '@outputai/llm';
 
 // Text generation
 const { result: text } = await generateText({
@@ -155,7 +155,7 @@ const { output: data } = await generateText({
 
 Define input/output schemas with Zod:
 ```typescript
-import { step, z } from '@output.ai/core';
+import { step, z } from '@outputai/core';
 
 export const processData = step({
   name: 'processData',
@@ -197,7 +197,7 @@ export const riskyStep = step({
 
 Use appropriate error types:
 ```typescript
-import { FatalError, ValidationError } from '@output.ai/core';
+import { FatalError, ValidationError } from '@outputai/core';
 
 // Non-retryable error (workflow fails immediately)
 throw new FatalError('Critical failure - do not retry');
@@ -230,7 +230,7 @@ Workflows can only import from:
 ## Common Pitfalls
 
 ### 1. Zod Import Source
-Always import `z` from `@output.ai/core`, never from `zod` directly. Different `z` instances create incompatible schemas.
+Always import `z` from `@outputai/core`, never from `zod` directly. Different `z` instances create incompatible schemas.
 
 ### 2. Direct API Calls
 Never make HTTP/LLM calls directly in workflows. Always wrap in steps.
@@ -245,7 +245,7 @@ Don't wrap step calls in try-catch. Let failures propagate for proper retry hand
 Always define inputSchema and outputSchema for type safety and validation.
 
 ### 6. Credentials Usage
-Never use `process.env` for secrets. Use `credentials.require()` from `@output.ai/credentials` for mandatory secrets and `credentials.get()` with a default for optional values. See `output-dev-credentials` skill for setup and migration guidance.
+Never use `process.env` for secrets. Use `credentials.require()` from `@outputai/credentials` for mandatory secrets and `credentials.get()` with a default for optional values. See `output-dev-credentials` skill for setup and migration guidance.
 
 ## Evaluator Quality Checks
 
@@ -267,10 +267,10 @@ When reviewing evaluator implementations:
 ## Example Interaction
 
 **User**: "My workflow is failing with a type error on the schema"
-**Agent**: Check that you're importing `z` from `@output.ai/core`, not `zod`. Different `z` instances create incompatible schemas.
+**Agent**: Check that you're importing `z` from `@outputai/core`, not `zod`. Different `z` instances create incompatible schemas.
 
 **User**: "How do I make an HTTP request in my workflow?"
-**Agent**: Create a step that uses `@output.ai/http`. Never make HTTP calls directly in the workflow function.
+**Agent**: Create a step that uses `@outputai/http`. Never make HTTP calls directly in the workflow function.
 
 ---
 *This agent specializes in Output SDK implementation best practices and code quality.*

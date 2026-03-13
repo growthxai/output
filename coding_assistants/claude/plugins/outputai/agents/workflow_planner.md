@@ -43,9 +43,9 @@ Designing Output SDK workflow architecture and structure.
 
 Planning step functions that handle all I/O operations.
 
-- HTTP client integrations using `@output.ai/http`
-- Credentials management using `@output.ai/credentials`
-- LLM operations using `@output.ai/llm`
+- HTTP client integrations using `@outputai/http`
+- Credentials management using `@outputai/credentials`
+- LLM operations using `@outputai/llm`
 - Error handling with FatalError and ValidationError
 - Retry strategies and timeout configurations
 
@@ -76,7 +76,7 @@ Planning quality assessment and validation evaluators.
 - LLM-powered vs. rule-based evaluation
 - Multi-dimensional assessment with dimensions field
 - Feedback generation with EvaluationFeedback
-- Offline eval testing as a complementary approach (see `output-dev-eval-testing` skill for dataset-driven verification with `@output.ai/evals`)
+- Offline eval testing as a complementary approach (see `output-dev-eval-testing` skill for dataset-driven verification with `@outputai/evals`)
 
 ## Common Skills
 
@@ -163,17 +163,17 @@ Delegate to these specialized agents when appropriate:
 ### Critical Import Rules
 
 ```typescript
-// Zod schemas - ALWAYS from @output.ai/core
-import { z } from '@output.ai/core';
+// Zod schemas - ALWAYS from @outputai/core
+import { z } from '@outputai/core';
 
 // HTTP clients - NEVER use axios
-import { httpClient } from '@output.ai/http';
+import { httpClient } from '@outputai/http';
 
 // LLM operations - NEVER call providers directly
-import { generateText, Output } from '@output.ai/llm';
+import { generateText, Output } from '@outputai/llm';
 
 // Error types
-import { FatalError, ValidationError } from '@output.ai/core';
+import { FatalError, ValidationError } from '@outputai/core';
 ```
 
 ### ES Module Imports
@@ -200,7 +200,7 @@ The workflow `fn` must be deterministic:
 ```
 src/
 ├── shared/                          # Shared code across workflows
-│   ├── clients/                     # API clients (using @output.ai/http)
+│   ├── clients/                     # API clients (using @outputai/http)
 │   ├── utils/                       # Utility functions & helpers
 │   ├── services/                    # Business logic services
 │   ├── steps/                       # Shared steps (optional)

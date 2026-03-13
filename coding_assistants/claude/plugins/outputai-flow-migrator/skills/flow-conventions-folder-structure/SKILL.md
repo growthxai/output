@@ -43,7 +43,7 @@ src/
 ```
 src/
 ├── shared/                          # Shared code across workflows
-│   ├── clients/                     # API clients (using @output.ai/http)
+│   ├── clients/                     # API clients (using @outputai/http)
 │   ├── utils/                       # Utility functions & helpers
 │   ├── services/                    # Business logic services
 │   ├── steps/                       # Shared steps (optional)

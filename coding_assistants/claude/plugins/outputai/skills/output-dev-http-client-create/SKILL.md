@@ -60,8 +60,8 @@ import { JinaClient } from '../clients/jina_client.js';
 ### HTTP Client Import
 
 ```typescript
-// CORRECT - Use @output.ai/http wrapper
-import { httpClient } from '@output.ai/http';
+// CORRECT - Use @outputai/http wrapper
+import { httpClient } from '@outputai/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -70,8 +70,8 @@ import axios from 'axios';
 ### Error Types Import
 
 ```typescript
-// CORRECT - Import error types from @output.ai/core
-import { FatalError, ValidationError } from '@output.ai/core';
+// CORRECT - Import error types from @outputai/core
+import { FatalError, ValidationError } from '@outputai/core';
 
 // WRONG - Custom error classes
 class MyCustomError extends Error { ... }
@@ -80,8 +80,8 @@ class MyCustomError extends Error { ... }
 ### Credentials Import
 
 ```typescript
-// CORRECT - Use @output.ai/credentials for secrets
-import { credentials } from '@output.ai/credentials';
+// CORRECT - Use @outputai/credentials for secrets
+import { credentials } from '@outputai/credentials';
 const apiKey = credentials.require('service.api_key');
 
 // WRONG - Never use process.env for secrets
@@ -93,9 +93,9 @@ const apiKey = process.env.SERVICE_API_KEY;
 ### Simple Function-Based Client
 
 ```typescript
-import { FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
-import { credentials } from '@output.ai/credentials';
+import { FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
 
 const API_KEY = credentials.require('service.api_key');
 const BASE_URL = 'https://api.service.com';
@@ -139,8 +139,8 @@ export async function fetchServiceData(query: string): Promise<ServiceResponse> 
 ### Class-Based Client
 
 ```typescript
-import { FatalError, ValidationError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { FatalError, ValidationError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 export interface ServiceOptions {
   model?: string;
@@ -202,8 +202,8 @@ export class ServiceClient {
 ### Example 1: Jina Client (Function-Based)
 
 ```typescript
-import { FatalError } from '@output.ai/core';
-import { httpClient } from '@output.ai/http';
+import { FatalError } from '@outputai/core';
+import { httpClient } from '@outputai/http';
 
 const JINA_API_KEY = process.env.JINA_API_KEY || '';
 const JINA_BASE_URL = 'https://r.jina.ai';
@@ -279,7 +279,7 @@ export async function scrapeTextWithJina(url: string): Promise<string> {
 
 ```typescript
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { FatalError, ValidationError } from '@output.ai/core';
+import { FatalError, ValidationError } from '@outputai/core';
 
 export interface GeminiImageGenerationOptions {
   prompt: string;
@@ -411,10 +411,10 @@ const client = httpClient({
 
 ### 1. Use Credentials for API Keys
 
-Prefer `@output.ai/credentials` over `process.env` for secrets management. See `output-dev-credentials` skill for details.
+Prefer `@outputai/credentials` over `process.env` for secrets management. See `output-dev-credentials` skill for details.
 
 ```typescript
-import { credentials } from '@output.ai/credentials';
+import { credentials } from '@outputai/credentials';
 
 // credentials.require() throws MissingCredentialError if not found
 const apiKey = credentials.require('service.api_key');
@@ -471,8 +471,8 @@ export interface ServiceResponse {
 
 - [ ] Client file located in `src/shared/clients/` directory
 - [ ] File named `{service}_client.ts`
-- [ ] `httpClient` imported from `@output.ai/http` (not axios)
-- [ ] `FatalError` and `ValidationError` imported from `@output.ai/core`
+- [ ] `httpClient` imported from `@outputai/http` (not axios)
+- [ ] `FatalError` and `ValidationError` imported from `@outputai/core`
 - [ ] API key validation in constructor/initialization
 - [ ] Retry configuration for appropriate status codes
 - [ ] FatalError used for 401, 403, 404 responses

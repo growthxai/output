@@ -77,7 +77,7 @@ Always define both `inputSchema` and `outputSchema` for every step:
 ### Complete Step Definition
 
 ```typescript
-import { z, step } from '@output.ai/core';
+import { z, step } from '@outputai/core';
 
 export const processData = step({
   name: 'processData',
