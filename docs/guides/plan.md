@@ -135,7 +135,7 @@ Output is the first framework designed with AI Coding in mind. We are fully inte
 
 The CLI is how you interact with Output - whether directly or through Claude Code. This isn't a reference page, it's a teaching page that explains the development workflow. Start with the mental model: Output projects have workflows that you develop locally and run against Temporal. The CLI bridges your code and the runtime. Cover each command in depth:
 
-**`output init <project-name>`** - Creates a new project folder and scaffolds the complete structure. You don't need to create the folder first - the CLI creates it. Generates: `.env.example`, `.gitignore`, `package.json` with Output dependencies, `tsconfig.json`, `README.md`, `.outputai/` folder for Claude Code integration, and `src/simple/` with an example workflow. Show the output, explain each file's purpose. Works seamlessly with VS Code Claude Code extension.
+**`output init <project-name>`** - Creates a new project folder and scaffolds the complete structure. You don't need to create the folder first - the CLI creates it. Generates: `.env.example`, `.gitignore`, `package.json` with Output dependencies, `tsconfig.json`, `README.md`, `.outputai/` folder for Claude Code integration, `config/costs.yml` for LLM pricing overrides, and `src/simple/` with an example workflow. Show the output, explain each file's purpose. Works seamlessly with VS Code Claude Code extension.
 
 **`output dev`** - Starts the development environment. This is the command you run and leave running. It starts the Temporal worker, watches for file changes, and hot-reloads workflows. Explain what "worker" means: it's the process that executes your workflow code. Show how to read the worker logs.
 
