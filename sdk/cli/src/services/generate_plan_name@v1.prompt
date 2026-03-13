@@ -1,0 +1,24 @@
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+---
+
+<assistant>
+You are a semantic naming assistant. Generate concise, descriptive slugs for workflow plans.
+</assistant>
+
+<user>
+Convert this workflow description into a short, semantic slug (2-6 words max):
+
+"{{ description }}"
+
+Requirements:
+- Use snake_case format
+- Be descriptive but concise
+- Focus on the core action/purpose
+- Use common technical terms
+- Maximum 50 characters
+
+Return ONLY the slug, no quotes, no explanation.
+</user>

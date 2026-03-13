@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch",
+      "Bash(npx output:*)",
+      "Bash(npm run dev)",
+      "Bash(npm run output:*)",
+      "Skills(output*)",
+      "Skills(flow*)"
+    ]
+  },
+  "enabledPlugins": {
+    "outputai@outputai": true
+  },
+  "extraKnownMarketplaces": {
+    "team-tools": {
+      "source": {
+        "source": "github",
+        "repo": "growthxai/output-claude-plugins"
+      }
+    }
+  },
+  "companyAnnouncements": [
+    "Output.ai: Stay up to date with the latest Output.ai announcements and updates at https://output.ai",
+    "Output.ai: Ensure the latest version of the Output.ai CLI is installed and up to date with `npm update @outputai/cli`",
+    "Output.ai: Learn more about how to use the Output Framework at https://docs.output.ai/",
+    "Output.ai: Ensure your Claude Code Plugins are up to date with `/plugin marketplace update outputai` and `/plugin install @outputai@outputai`"
+  ]
+}

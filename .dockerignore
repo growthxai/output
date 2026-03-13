@@ -1,0 +1,11 @@
+node_modules
+api/node_modules
+sdk/*/node_modules
+test_workflows/node_modules
+.git
+*.log
+.env
+temp/
+dist/
+logs/
+.vscode/

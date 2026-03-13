@@ -1,0 +1,151 @@
+---
+title: "@outputai/http"
+description: "Make traceable HTTP requests from your steps"
+---
+
+The `@outputai/http` package gives you an HTTP client that automatically shows up in your [traces](/operations/tracing). Every request — URL, method, status code, timing — is recorded as a child node in the trace tree, so you can see exactly what API calls your steps made and how long they took.
+
+Under the hood, it wraps [ky](https://github.com/sindresorhus/ky), a lightweight HTTP client built on `fetch`.
+
+## Installation
+
+```bash
+npm install @outputai/http
+```
+
+## Creating a Client
+
+The typical pattern is to create a client per external service in your [clients directory](/clients), then import it in your steps:
+
+```typescript clients/jina.ts
+import { httpClient } from '@outputai/http';
+
+export const jina = httpClient({
+  prefixUrl: 'https://r.jina.ai',
+  headers: {
+    'Authorization': `Bearer ${process.env.JINA_API_KEY}`,
+    'Accept': 'application/json'
+  },
+  timeout: 30000
+});
+```
+
+You can extend clients to create specialized instances:
+
+```typescript
+const authenticatedClient = jina.extend({
+  headers: { 'X-Custom-Header': 'value' }
+});
+```
+
+## HTTP Methods
+
+```typescript
+// GET
+const response = await client.get('https://acme.com');
+const data = await response.json();
+
+// POST
+const response = await client.post('companies', {
+  json: { url: 'https://acme.com' }
+});
+const result = await response.json();
+
+// PUT
+await client.put('companies/123', {
+  json: { industry: 'SaaS' }
+});
+
+// DELETE
+await client.delete('companies/123');
+```
+
+## Using in Steps
+
+Wrap HTTP calls in steps for automatic retry and tracing:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { jina } from '../../clients/jina.js';
+import { ScrapePageInput, ScrapePageOutput } from './types.js';
+
+export const scrapePage = step({
+  name: 'scrapePage',
+  description: 'Scrape a web page using Jina Reader API',
+  inputSchema: ScrapePageInput,
+  outputSchema: ScrapePageOutput,
+  fn: async (url) => {
+    const response = await jina.get(url);
+    const data = await response.json();
+
+    return {
+      title: data.data?.title ?? '',
+      content: data.data?.content ?? '',
+      url: data.data?.url ?? url
+    };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const ScrapePageInput = z.string();
+//
+// export const ScrapePageOutput = z.object({
+//   title: z.string(),
+//   content: z.string(),
+//   url: z.string()
+// });
+```
+
+## Tracing
+
+All requests made with `@outputai/http` are automatically traced — no configuration needed. In your trace files, HTTP calls appear as children of the step that made them:
+
+```json
+{
+  "kind": "http",
+  "name": "request",
+  "input": { "method": "GET", "url": "https://r.jina.ai/https://acme.com" },
+  "output": { "status": 200, "statusText": "OK" }
+}
+```
+
+See [Tracing](/operations/tracing) for details on the trace format.
+
+## Error Handling
+
+The client throws `HTTPError` for non-2xx responses and `TimeoutError` for timeouts:
+
+```typescript
+import { HTTPError, TimeoutError } from '@outputai/http';
+
+try {
+  const response = await jina.get(url);
+  return response.json();
+} catch (error) {
+  if (error instanceof HTTPError) {
+    if (error.response.status === 404) {
+      return null; // Page not found
+    }
+    // 429, 500, etc. — let the step retry
+    throw error;
+  }
+  if (error instanceof TimeoutError) {
+    throw error; // Step will retry
+  }
+  throw error;
+}
+```
+
+Since steps retry automatically, you generally just need to handle cases where retrying won't help (like a 404). For everything else, let the error propagate and the step's retry policy will handle it.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OUTPUT_TRACE_HTTP_VERBOSE` | Set to `true` or `1` to include request/response headers and bodies in trace files (otherwise only method, URL, and status are recorded) |
+
+## API Reference
+
+For complete TypeScript API documentation, see the [HTTP Module API Reference](https://output-ai-reference-code-docs.onrender.com/modules/http_src.html).

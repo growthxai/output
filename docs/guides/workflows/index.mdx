@@ -1,0 +1,271 @@
+---
+title: "The workflow.ts File"
+description: "Define durable, deterministic orchestration logic"
+---
+
+Every Output project starts with a `workflow.ts` file. This is where you define **what** happens and **in what order** — fetch company data, then enrich it with an LLM, then push it to your CRM. The workflow orchestrates; the [steps](/steps) do the actual work.
+
+## Basic Workflow
+
+Here's a workflow that enriches a sales lead by looking up the company and generating a summary:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { LeadEnrichmentInput, LeadEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  description: 'Enrich a sales lead with company data and AI summary',
+  inputSchema: LeadEnrichmentInput,
+  outputSchema: LeadEnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+    const summary = await generateSummary(company);
+    return { company: company.name, summary };
+  },
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LeadEnrichmentInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const LeadEnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string()
+// });
+```
+
+The `fn` function is your workflow logic. It calls steps in sequence, and each step's result is automatically cached — if a step fails and the workflow retries, previously completed steps won't re-execute.
+
+## Workflow Function
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `name` | `string` | Unique identifier for the workflow |
+| `description` | `string` | Human-readable description |
+| `inputSchema` | `ZodSchema` | Zod schema for input validation |
+| `outputSchema` | `ZodSchema` | Zod schema for output validation |
+| `fn` | `function` | The workflow implementation |
+| `options` | `object` | Optional workflow options (see [Options](#options)) |
+
+## Workflow Rules
+
+Workflows must be **deterministic** — given the same input, they must always follow the same path. This is because Output (via Temporal) replays your workflow code to recover state after failures. If the code produces different results on replay, recovery breaks.
+
+In practice this means:
+
+<CardGroup cols={2}>
+  <Card title="Do" icon="check">
+    - Call steps and evaluators
+    - Use conditionals and loops
+    - Import from allowed files
+  </Card>
+  <Card title="Don't" icon="xmark">
+    - Make API calls directly
+    - Use `Date.now()` or `Math.random()`
+    - Import component files from wrong locations
+  </Card>
+</CardGroup>
+
+Any I/O (API calls, LLM requests, database queries) goes in steps. The workflow just decides which steps to call and in what order.
+
+### Allowed Imports
+
+Workflows can import from:
+
+**Components (detected by convention):**
+- `steps.ts` — A single file named `steps.ts` in the workflow directory
+- `steps/*.ts` — Any file inside a `steps/` directory in the workflow directory
+- `evaluators.ts` — A single file named `evaluators.ts` in the workflow directory
+- `evaluators/*.ts` — Any file inside an `evaluators/` directory in the workflow directory
+- `shared/steps/*.ts` — Shared steps available to all workflows
+- `shared/evaluators/*.ts` — Shared evaluators available to all workflows
+
+**Non-component files (any name or organization):**
+- Type definitions, constants, helpers, utilities
+- API clients from `src/clients/`
+
+## Project Structure
+
+Each workflow is a self-contained directory with a standard set of files. API clients live in `src/clients/` at the top level — they're standalone modules any step can import:
+
+```
+src/
+├── clients/                        # API clients (one file per external API)
+│   ├── clearbit.ts
+│   ├── hubspot.ts
+│   └── tavily.ts
+├── shared/                         # Shared steps and evaluators
+│   ├── steps/
+│   │   └── normalize_company.ts
+│   └── evaluators/
+│       └── data_quality.ts
+└── workflows/
+    ├── lead_enrichment/            # A typical workflow
+    │   ├── workflow.ts             # Orchestration logic
+    │   ├── steps.ts                # Step definitions
+    │   ├── types.ts                # TypeScript types
+    │   ├── prompts/                # Prompt files
+    │   │   └── summarize_company@v1.prompt
+    │   └── scenarios/              # Test inputs
+    │       └── test_input.json
+    │
+    └── outreach/                   # Related workflows can be grouped
+        ├── personalization/
+        │   ├── workflow.ts
+        │   └── steps.ts
+        └── sequence_builder/
+            ├── workflow.ts
+            └── steps.ts
+```
+
+<Note>
+The workflow file must be named `workflow.ts`. Steps are detected from `steps.ts` or any file inside a `steps/` directory. Evaluators follow the same pattern with `evaluators.ts` or `evaluators/`. Shared components must be under `shared/steps/` or `shared/evaluators/`. Everything else (types, utils, clients) can be organized however you prefer.
+</Note>
+
+## Options
+
+### Activity options
+
+You can configure how steps behave — timeouts, retry counts, backoff — using the `options.activityOptions` property. These apply to all steps in the workflow:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { LeadEnrichmentInput, LeadEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: LeadEnrichmentInput,
+  outputSchema: LeadEnrichmentOutput,
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 5
+      },
+      startToCloseTimeout: '10m'
+    }
+  },
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+    return { summary: await generateSummary(company) };
+  },
+});
+```
+
+Individual steps can override these with their own `options.activityOptions` — see [step options](/steps#options).
+
+The fields under `activityOptions` are supported by Output and relayed directly to [Temporal](https://temporal.io/), our runtime. The full list of [Activity options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions):
+
+- `activityId`
+- `allowEagerDispatch`
+- `cancellationType`
+- `heartbeatTimeout`
+- `priority`
+- `retry`
+- `scheduleToCloseTimeout`
+- `scheduleToStartTimeout`
+- `startToCloseTimeout`
+- `summary`
+
+Default values:
+
+```js
+{
+  startToCloseTimeout: '20m',
+  retry: {
+    initialInterval: '10s',
+    backoffCoefficient: 2.0,
+    maximumInterval: '2m',
+    maximumAttempts: 3,
+    nonRetryableErrorTypes: [ ValidationError.name, FatalError.name ]
+  }
+}
+```
+
+Steps that throw `ValidationError` or `FatalError` are never retried — these signal problems that won't fix themselves on retry (bad input, missing credentials).
+
+### Native options
+
+Output supports one native workflow option besides activity options:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `disableTrace` | `boolean` | When `true`, disables trace file generation for this workflow. Only has effect when [tracing](/operations/tracing) is enabled globally. |
+
+Example — skip tracing for high-volume workflows you don't need to inspect:
+
+```typescript workflow.ts
+export default workflow({
+  name: 'internal_sync',
+  description: 'High-volume sync — no trace needed',
+  inputSchema: SyncInput,
+  outputSchema: SyncOutput,
+  options: {
+    disableTrace: true
+  },
+  fn: async (input) => { /* ... */ }
+});
+```
+
+This only has effect when tracing is enabled globally; if tracing is off, the flag does nothing.
+
+## Workflow Context
+
+The `fn` function receives a `context` object as its second argument, giving you access to workflow execution info:
+
+```typescript workflow.ts
+fn: async (input, context) => {
+  const workflowId = context.info.workflowId;
+  // ...
+}
+```
+
+- `context.control.continueAsNew()` — Continue the workflow as a new execution with fresh history
+- `context.control.isContinueAsNewSuggested()` — Check if continue-as-new is recommended
+- `context.info.workflowId` — The workflow execution ID
+
+See the [Execution Context guide](/workflows/context) for the full API.
+
+## File Structure
+
+Workflows support two organization patterns:
+
+**Flat files:**
+```
+src/workflows/lead_enrichment/
+├── workflow.ts      # Workflow definition (required)
+├── steps.ts         # Step implementations (required)
+├── evaluators.ts    # Evaluators (optional)
+├── types.ts         # TypeScript types (optional, any name works)
+└── prompts/         # LLM prompts (optional)
+```
+
+**Folder-based:**
+```
+src/workflows/lead_enrichment/
+├── workflow.ts
+├── steps/
+│   ├── lookup_company.ts
+│   └── generate_summary.ts
+├── evaluators/
+│   └── quality.ts
+├── types.ts
+└── prompts/
+```
+
+Both patterns can be used together in the same project. Use flat files when you have a few steps, switch to folders when a workflow grows.
+
+## What's Next
+
+Once you have a workflow, you'll want to explore these related concepts:
+
+- [Steps](/steps) — Where I/O happens: API calls, LLM requests, database queries
+- [Child Workflows](/workflows/child-workflows) — Compose workflows by calling other workflows
+- [Parallel Execution](/workflows/tools) — Run multiple steps concurrently with `executeInParallel`
+- [External Integration](/workflows/external-integration) — Send data out, receive input, and query status
+- [Connecting to External APIs](/clients) — Build typed, traced API clients

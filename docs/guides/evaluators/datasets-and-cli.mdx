@@ -1,0 +1,236 @@
+---
+title: "Running Eval Workflows"
+description: "Wire evaluators into an eval workflow and run them against datasets from the CLI"
+---
+
+Once you've written evaluators with `verify()` and `Verdict`, you need an eval workflow that ties them together. The eval workflow defines which evaluators to run, how to interpret their results, and whether each one is required or informational.
+
+## Creating an Eval Workflow
+
+`evalWorkflow()` connects your evaluators and tells the framework how to interpret their results. The eval workflow file lives at `tests/evals/workflow.ts` inside your workflow directory.
+
+A minimal example with one evaluator:
+
+```typescript tests/evals/workflow.ts
+import { evalWorkflow } from '@outputai/evals';
+import { evaluateSum } from './evaluators.js';
+
+export default evalWorkflow( {
+  name: 'simple_eval',
+  evals: [
+    {
+      evaluator: evaluateSum,
+      criticality: 'required',
+      interpret: { type: 'boolean' }
+    }
+  ]
+} );
+```
+
+A more realistic example mixing deterministic checks and LLM judges:
+
+```typescript tests/evals/workflow.ts
+import { evalWorkflow } from '@outputai/evals';
+import {
+  lengthOfOutput,
+  evaluateTopic,
+  evaluateQuality,
+  evaluateContent,
+  evaluateTone
+} from './evaluators.js';
+
+export default evalWorkflow( {
+  name: 'blog_generator_eval',
+  evals: [
+    {
+      evaluator: lengthOfOutput,
+      criticality: 'required',
+      interpret: { type: 'boolean' }
+    },
+    {
+      evaluator: evaluateTopic,
+      criticality: 'required',
+      interpret: { type: 'verdict' }
+    },
+    {
+      evaluator: evaluateQuality,
+      criticality: 'required',
+      interpret: { type: 'number', pass: 0.7, partial: 0.4 }
+    },
+    {
+      evaluator: evaluateContent,
+      criticality: 'informational',
+      interpret: { type: 'boolean' }
+    },
+    {
+      evaluator: evaluateTone,
+      criticality: 'informational',
+      interpret: { type: 'string', pass: [ 'professional', 'informative' ], partial: [ 'casual' ] }
+    }
+  ]
+} );
+```
+
+Each entry in the `evals` array has three fields:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `evaluator` | Function | — | An evaluator created with `verify()` |
+| `criticality` | `'required' \| 'informational'` | `'required'` | Whether failure should fail the case |
+| `interpret` | `InterpretConfig` | — | How to convert the raw result to a verdict |
+
+### Criticality
+
+- **`required`** (default): If this evaluator fails, the entire case fails. Use for checks that gate quality — topic relevance, minimum length, factual accuracy.
+- **`informational`**: Failure is reported but doesn't affect the case verdict. Use for metrics you want to track without gating on — tone classification, style scores, auxiliary checks.
+
+### Interpret Types
+
+Your evaluators return raw values (booleans, numbers, strings, verdicts). The `interpret` config tells the framework how to convert those into pass/partial/fail:
+
+| Type | Config | Pass | Partial | Fail |
+|------|--------|------|---------|------|
+| `boolean` | `{ type: 'boolean' }` | `value === true` | — | `value === false` |
+| `verdict` | `{ type: 'verdict' }` | `value === 'pass'` | `value === 'partial'` | `value === 'fail'` |
+| `number` | `{ type: 'number', pass: 0.7, partial: 0.4 }` | `value >= 0.7` | `value >= 0.4` | `value < 0.4` |
+| `string` | `{ type: 'string', pass: ['a', 'b'], partial: ['c'] }` | `value in ['a', 'b']` | `value in ['c']` | otherwise |
+
+The `partial` threshold is optional for both `number` and `string` types — omit it to have only pass and fail.
+
+### Case Verdict Aggregation
+
+Each dataset case runs all evaluators. The case-level verdict follows these rules:
+
+1. If any **required** evaluator fails, the case **fails**
+2. Else if any **required** evaluator is partial, the case is **partial**
+3. Otherwise, the case **passes**
+
+Informational evaluators never affect the case verdict.
+
+## Running Evals from the CLI
+
+The `output workflow test` command runs your eval workflow against [datasets](/evaluators/datasets).
+
+### Common Commands
+
+```bash
+# Run evals using cached output (no workflow re-execution)
+output workflow test blog_generator --cached
+
+# Run evals with fresh workflow execution and save results
+output workflow test blog_generator --save
+
+# Run specific datasets only
+output workflow test blog_generator --dataset happy_path,edge_case
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cached` | `false` | Use cached output from `last_output` in datasets, skip workflow execution |
+| `--save` | `false` | Run workflow fresh and save output/eval results back to dataset files |
+| `--dataset` | all | Comma-separated list of dataset names to run |
+| `--format` | `text` | Output format (`text` or `json`) |
+
+Use `--cached` during development when iterating on evaluators — it's fast because it skips the workflow entirely. Use `--save` when you want to capture fresh output and eval results.
+
+## Putting It All Together
+
+Here's the complete setup for a blog generator workflow:
+
+**1. Write evaluators** — mix deterministic checks and LLM judges:
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict, judgeVerdict, judgeScore } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+const blogInput = z.object( { topic: z.string() } );
+const blogOutput = z.object( { title: z.string(), blog_post: z.string() } );
+
+// Deterministic: check minimum length
+export const lengthOfOutput = verify(
+  { name: 'length_of_output', input: blogInput, output: blogOutput },
+  ( { output, context } ) =>
+    Verdict.gte( output.blog_post.length, Number( context.ground_truth.min_length ?? 100 ) )
+);
+
+// LLM judge: is the blog on-topic?
+export const evaluateTopic = verify(
+  { name: 'evaluate_topic', input: blogInput, output: blogOutput },
+  async ( { input, output, context } ) =>
+    judgeVerdict( {
+      prompt: 'judge_topic@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        required_topic: String( context.ground_truth.required_topic ?? input.topic )
+      }
+    } )
+);
+
+// LLM judge: rate quality 0-1
+export const evaluateQuality = verify(
+  { name: 'evaluate_quality', input: blogInput, output: blogOutput },
+  async ( { input, output } ) =>
+    judgeScore( {
+      prompt: 'judge_quality@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        topic: input.topic
+      }
+    } )
+);
+```
+
+**2. Wire into an eval workflow:**
+
+```typescript tests/evals/workflow.ts
+import { evalWorkflow } from '@outputai/evals';
+import { lengthOfOutput, evaluateTopic, evaluateQuality } from './evaluators.js';
+
+export default evalWorkflow( {
+  name: 'blog_generator_eval',
+  evals: [
+    { evaluator: lengthOfOutput, criticality: 'required', interpret: { type: 'boolean' } },
+    { evaluator: evaluateTopic, criticality: 'required', interpret: { type: 'verdict' } },
+    { evaluator: evaluateQuality, criticality: 'required', interpret: { type: 'number', pass: 0.7, partial: 0.4 } }
+  ]
+} );
+```
+
+**3. Create [datasets](/evaluators/datasets):**
+
+```yaml tests/datasets/stripe_blog.yml
+name: stripe_blog
+input:
+  topic: "Stripe the payment processor"
+ground_truth:
+  evals:
+    length_of_output:
+      min_length: 100
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+last_output:
+  output:
+    title: "Stripe: The Modern Payment Processing Platform"
+    blog_post: "Stripe has revolutionized online payment processing..."
+  executionTimeMs: 5000
+  date: '2026-02-16T00:00:00.000Z'
+```
+
+**4. Run:**
+
+```bash
+output workflow test blog_generator --cached
+```
+
+## What's Next
+
+- [Workflow Evaluators](/evaluators/workflow-evaluators) — Writing evaluators with `verify()`, Verdict helpers, and judge functions
+- [Verdict Helpers](/evaluators/verdicts) — Complete reference for deterministic assertions and manual verdicts
+- [Datasets](/evaluators/datasets) — Defining test cases with inputs and ground truth
+- [LLM-as-a-Judge Best Practices](/evaluators/best-practices) — Writing effective judge prompts and choosing grading scales
+- [`@outputai/evals` API Reference](/packages/evals) — Complete package reference
+- [CLI Commands](/packages/cli#evaluation-commands) — Full CLI reference for eval and dataset commands

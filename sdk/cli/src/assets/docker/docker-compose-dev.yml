@@ -1,0 +1,146 @@
+name: ${DOCKER_SERVICE_NAME:-output-sdk}
+services:
+  redis:
+    image: redis:8-alpine
+    networks:
+      - main
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 5
+      start_period: 3s
+
+  postgresql:
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    image: postgres:17.5
+    networks:
+      - main
+    expose:
+      - 5432
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U temporal -d temporal']
+      interval: 2s
+      timeout: 2s
+      retries: 5
+      start_period: 3s
+
+  temporal:
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+    image: temporalio/auto-setup:latest
+    networks:
+      - main
+    ports:
+      - '7233:7233'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'tctl --address temporal:7233 cluster health 2>&1 | grep -q "temporal.api.workflowservice.v1.WorkflowService: SERVING"'
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  temporal-ui:
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:latest
+    networks:
+      - main
+    ports:
+      - '8080:8080'
+
+  api:
+    depends_on:
+      temporal:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    image: outputai/api:${OUTPUT_API_VERSION:-0.1.0}
+    init: true
+    networks:
+      - main
+    env_file:
+      - path: ./${OUTPUT_WORKFLOWS_DIR:-.}/.env
+        required: false
+    environment:
+      - NODE_ENV=development
+      - OUTPUT_API_PORT=3001
+      - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
+      - OUTPUT_AWS_REGION=${AWS_REGION:-us-west-1}
+      - OUTPUT_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - OUTPUT_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - TEMPORAL_ADDRESS=temporal:7233
+    ports:
+      - '3001:3001'
+
+  worker:
+    depends_on:
+      temporal:
+        condition: service_healthy
+    image: node:24.13.0-slim
+    healthcheck:
+      test: [ 'CMD', 'npx', '--yes', 'output-healthcheck' ]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    init: true
+    networks:
+      - main
+    env_file:
+      - path: ./${OUTPUT_WORKFLOWS_DIR:-.}/.env
+        required: false
+    environment:
+      - NODE_ENV=development
+      - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
+      - OUTPUT_REDIS_URL=redis://redis:6379
+      - OUTPUT_TRACE_LOCAL_ON=${OUTPUT_TRACE_LOCAL_ON:-true}
+      - OUTPUT_TRACE_HOST_PATH=${PWD}/logs
+      - OUTPUT_TRACE_HTTP_VERBOSE=${OUTPUT_TRACE_HTTP_VERBOSE:-true}
+      - TEMPORAL_ADDRESS=temporal:7233
+      - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
+    command: >
+      sh -c "
+        npm run output:worker:install &&
+        echo 'Installed dependencies' &&
+        npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
+      "
+    working_dir: /app/${OUTPUT_WORKFLOWS_DIR:-.}
+    volumes:
+      - ./:/app
+      - worker_node_modules:/app/${OUTPUT_WORKFLOWS_DIR:-.}/node_modules
+
+volumes:
+  postgres:
+  redis:
+  worker_node_modules:
+
+networks:
+  main:
+    driver: bridge

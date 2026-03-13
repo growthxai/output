@@ -1,0 +1,85 @@
+name: output-sdk
+services:
+  redis:
+    image: redis:8-alpine
+    networks:
+      - main
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 5
+      start_period: 3s
+
+  postgresql:
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    image: postgres:17.5
+    networks:
+      - main
+    expose:
+      - 5432
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U temporal -d temporal']
+      interval: 2s
+      timeout: 2s
+      retries: 5
+      start_period: 3s
+
+  temporal:
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+    image: temporalio/auto-setup:latest
+    networks:
+      - main
+    ports:
+      - '7233:7233'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'tctl --address temporal:7233 cluster health 2>&1 | grep -q "temporal.api.workflowservice.v1.WorkflowService: SERVING"'
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  temporal-ui:
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    image: temporalio/ui:latest
+    networks:
+      - main
+    ports:
+      - '8080:8080'
+
+volumes:
+  postgres:
+  redis:
+
+networks:
+  main:
+    name: main
+    driver: bridge

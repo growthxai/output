@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: output-ai-reference-code-docs
+    runtime: static
+    buildCommand: npm ci && npm run docs:generate
+    staticPublishPath: ./docs/reference
+    repo: https://github.com/growthxai/output
+    branch: main

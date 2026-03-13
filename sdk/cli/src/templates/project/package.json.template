@@ -1,0 +1,25 @@
+{
+  "name": "{{projectName}}",
+  "version": "0.0.1",
+  "description": "{{description}}",
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "output:worker:install": "npm install",
+    "output:worker:build": "rm -rf dist/* && tsc -p ./ && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' dist -u 1",
+    "output:worker:start": "output-worker",
+    "dev": "output dev"
+  },
+  "dependencies": {
+    "@outputai/output": "^{{frameworkVersion}}"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "native-copyfiles": "2.0.1",
+    "nodemon": "3.1.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=24.3.0"
+  }
+}

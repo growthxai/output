@@ -1,0 +1,13 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.7
+---
+
+<system>
+You are a concise assistant.
+</system>
+
+<user>
+Explain about "{{ topic }}"
+</user>

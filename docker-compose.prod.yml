@@ -1,0 +1,22 @@
+include:
+  - docker-compose.temporal.yml
+
+services:
+  api:
+    depends_on:
+      temporal:
+        condition: service_healthy
+    init: true
+    build:
+      context: .
+      dockerfile: ops/api.Dockerfile
+    networks:
+      - main
+    environment:
+      - OUTPUT_API_PORT=3001
+      - OUTPUT_CATALOG_ID=main
+      - OUTPUT_API_AUTH_TOKEN=local-token
+      - TEMPORAL_ADDRESS=temporal:7233
+    command: npm run start --prefix /app/api
+    ports:
+      - '3001:3001'

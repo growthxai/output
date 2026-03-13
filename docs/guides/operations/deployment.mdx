@@ -1,0 +1,59 @@
+---
+title: "Deployment overview"
+description: "Deploy your Output workflows to production"
+---
+
+This section covers deploying Output workflows to a production environment. Whether you're running a single worker or scaling across multiple instances, the deployment architecture stays the same.
+
+## What you're deploying
+
+An Output deployment consists of two core services, with an optional third for remote tracing:
+
+| Service | Required | Purpose |
+|---------|----------|----------|
+| **API** | Yes | HTTP endpoint for triggering workflows, listing available workflows, and retrieving results. Deployed from a pre-built Docker image — no custom code needed. |
+| **Worker** | Yes | Runs your workflows. Contains your workflow code, connects to the Temporal backend, and executes workflow steps. |
+| **Redis** | No | Enables remote trace file generation and S3 upload for debugging production runs. See [Tracing](/operations/tracing) for details. |
+
+The API is a lightweight HTTP server that accepts workflow execution requests, routes them to the Temporal backend, and returns results. It ships as a pre-built Docker image so there's no custom code to maintain.
+
+The Worker is the core of your deployment — it contains your workflow code and connects to the Temporal backend for orchestration. Workers scale horizontally; you can add more instances to handle increased load without changing your workflow code.
+
+<Note>
+These guides assume you're using **Temporal Cloud** for workflow orchestration. If you need help setting up Temporal Cloud, see the [Temporal Cloud documentation](https://docs.temporal.io/cloud).
+</Note>
+
+## Prerequisites
+
+Before deploying to any platform, ensure you have:
+
+- A Temporal backend with a dedicated namespace (e.g. [Temporal Cloud](https://temporal.io/cloud))
+- Your workflow repository on GitHub
+- API keys for any services your workflows use (Anthropic, OpenAI, etc.)
+
+## Platform guides
+
+Choose your deployment platform:
+
+<CardGroup cols={3}>
+  <Card title="Railway" icon="train" href="/operations/deployment/railway">
+    Simple Docker-based deployments with automatic scaling.
+  </Card>
+  <Card title="Render" icon="cloud" href="/operations/deployment/render">
+    Infrastructure-as-code deployments with a single render.yaml Blueprint.
+  </Card>
+  <Card title="Advanced" icon="gear" href="/operations/deployment/advanced">
+    Remote tracing with Redis and S3 for production debugging.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Tracing" icon="magnifying-glass" href="/operations/tracing">
+    Configure production tracing and S3 storage
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/operations/error-handling">
+    Handle failures gracefully in production
+  </Card>
+</CardGroup>

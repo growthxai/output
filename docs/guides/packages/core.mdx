@@ -1,0 +1,250 @@
+---
+title: "@outputai/core"
+description: "Workflow orchestration, worker runtime, and the building blocks for every Output app"
+---
+
+The `@outputai/core` package is the foundation of every Output app. It gives you `workflow`, `step`, and `evaluator` — the three building blocks for defining what your app does. It also provides the worker runtime that connects to Temporal and runs your workflows in production.
+
+## Installation
+
+```bash
+npm install @outputai/core
+```
+
+## What's in the Package
+
+```typescript
+import {
+  // Building blocks
+  workflow,
+  step,
+  evaluator,
+
+  // Evaluation result types
+  EvaluationBooleanResult,
+  EvaluationNumberResult,
+  EvaluationStringResult,
+  EvaluationFeedback,
+
+  // HTTP from workflows
+  sendHttpRequest,
+  sendPostRequestAndAwaitWebhook,
+
+  // Error types
+  FatalError,
+  ValidationError,
+
+  // Zod (re-exported for convenience)
+  z
+} from '@outputai/core';
+```
+
+| Export | Description |
+|--------|-------------|
+| `workflow` | Define orchestration logic that coordinates steps |
+| `step` | Define units of work that handle I/O (API calls, database queries, etc.) |
+| `evaluator` | Define steps that score content and return evaluation results |
+| `EvaluationBooleanResult` | Pass/fail evaluation result |
+| `EvaluationNumberResult` | Numeric score evaluation result |
+| `EvaluationStringResult` | Category/label evaluation result |
+| `EvaluationFeedback` | Structured feedback (issue + suggestion + priority) |
+| `sendHttpRequest` | Send HTTP requests from within workflows |
+| `sendPostRequestAndAwaitWebhook` | Send a POST and pause until a webhook responds |
+| `FatalError` | Non-retryable error — stops immediately |
+| `ValidationError` | Schema validation failure — stops immediately |
+| `z` | Zod schema library for input/output validation |
+
+For full details on `workflow`, `step`, and `evaluator`, see [Workflows](/workflows), [Steps](/steps), and [Evaluators](/evaluators).
+
+## Worker Runtime
+
+When you run `output dev`, the CLI starts Docker Compose which launches a worker container. The worker:
+
+1. **Scans your project** for workflow files (`workflow.js`), step files (`steps.js`), evaluator files (`evaluators.js`), and shared components in `shared/steps/` and `shared/evaluators/`
+2. **Creates a catalog** of all discovered workflows and their activities with metadata (name, description, schemas)
+3. **Connects to Temporal** at the configured address
+4. **Starts processing** workflow executions
+
+### File Discovery
+
+The worker scans your `src/` directory for these file patterns:
+
+| Location | Purpose |
+|----------|---------|
+| `workflows/*/workflow.js` | Workflow definition |
+| `workflows/*/steps.js` | Step implementations |
+| `workflows/*/evaluators.js` | Evaluator implementations |
+| `shared/steps/*.js` | Shared steps (importable by any workflow) |
+| `shared/evaluators/*.js` | Shared evaluators (importable by any workflow) |
+
+Each discovered component is logged during startup:
+
+```
+[Scanner] [info] Workflow loaded {"name":"lead_enrichment","path":"src/workflows/lead_enrichment/workflow.js"}
+[Scanner] [info] Component loaded {"type":"step","name":"lookupCompany","path":"src/workflows/lead_enrichment/steps.js"}
+```
+
+### Architecture
+
+Output is built on [Temporal.io](https://temporal.io) for durable execution. Your abstractions map to Temporal primitives:
+
+| Output.ai | Temporal |
+|-----------|---------|
+| `workflow()` | Workflow |
+| `step()` | Activity |
+| `evaluator()` | Activity |
+
+When you call a step from a workflow, Output executes it as a durable activity with automatic retries, schema validation, and tracing. If the worker crashes mid-execution, Temporal replays the workflow and skips already-completed steps.
+
+## Error Hooks
+
+Core lets you observe errors from workflows, steps/evaluators, and the runtime without affecting execution. You register a handler with `onError` from the core package’s hooks API. The worker loads hook files at startup (paths are listed in `package.json` under `output.hookFiles`). In those files you import from `@outputai/core`.
+
+Your handler receives a payload with `source` (`'workflow'`, `'activity'`, or `'runtime'`), the `error`, and when applicable `workflowName` and `activityName`. The framework runs your handler inside a try/catch: if the handler throws, the error is logged and execution continues. Use error hooks for logging, metrics, or alerting; see [Error Hooks](/operations/error-hooks) for setup, configuration, and payload details.
+
+## HTTP from Workflows
+
+### sendHttpRequest
+
+Send HTTP requests directly from workflow code (not from steps):
+
+```typescript workflow.ts
+import { workflow, sendHttpRequest } from '@outputai/core';
+import { EnrichmentInput, EnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: EnrichmentInput,
+  outputSchema: EnrichmentOutput,
+  fn: async (input) => {
+    const response = await sendHttpRequest({
+      url: 'https://api.example.com/companies',
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer token' }
+    });
+
+    return { company: response.name, summary: response.description };
+  }
+});
+```
+
+For POST or PUT requests, include a `payload`:
+
+```typescript
+const response = await sendHttpRequest({
+  url: 'https://api.example.com/companies',
+  method: 'POST',
+  payload: { domain: 'acme.com' }
+});
+```
+
+<Warning>
+`sendHttpRequest` is only callable from within workflows. Steps and evaluators can make HTTP requests directly using fetch or any HTTP client.
+</Warning>
+
+### sendPostRequestAndAwaitWebhook
+
+Send a POST request and pause the workflow until a webhook response comes back. See [External Integration](/workflows/external-integration#pattern-1-workflow-initiates-the-request) for the full guide.
+
+```typescript
+import { sendPostRequestAndAwaitWebhook } from '@outputai/core';
+
+const response = await sendPostRequestAndAwaitWebhook({
+  url: 'https://your-app.com/callback',
+  payload: { data: 'value' }
+});
+```
+
+The workflow pauses after sending the request and waits for a response at `/workflow/:id/feedback`. Once the external system sends feedback via the API, the workflow resumes with the received payload.
+
+## File Structure
+
+Each workflow lives in its own directory:
+
+```text
+src/workflows/
+└── lead_enrichment/
+    ├── workflow.ts           # Workflow definition
+    ├── steps.ts              # Step implementations
+    ├── evaluators.ts         # Evaluators (optional)
+    ├── types.ts              # Zod schemas
+    ├── prompts/              # LLM prompt templates
+    │   └── generate_summary@v1.prompt
+    └── scenarios/            # Test scenarios
+        └── test_input.json
+```
+
+## Environment Variables
+
+The worker reads these environment variables:
+
+### Connection and catalog
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OUTPUT_CATALOG_ID` | — | **Required.** Name of the local catalog (use your email) |
+| `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal backend address |
+| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace |
+| `TEMPORAL_API_KEY` | — | API key for remote Temporal (blank for local) |
+
+### Worker concurrency and polling
+
+These map to Temporal’s [Worker task slots and pollers](https://docs.temporal.io/develop/worker-performance): they control how many tasks the worker runs at once (executor slots) and how many long-polling connections fetch tasks from the task queue. Tune them for your workload and host resources. Temporal recommends keeping poller count lower than executor slot count.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Max Activity Task executions at once (task slots). Each step (API, LLM, etc.) is one activity; lower to reduce memory under load. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Max Workflow Task executions at once. Workflows are lightweight; this can be high. |
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Max number of Workflow Executions in the [sticky workflow cache](https://docs.temporal.io/sticky-execution). Lower values free memory sooner after traffic spikes. |
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | Max concurrent pollers for Activity Task Queues. Increase to ingest work faster when slots are often free. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS` | `5` | Max concurrent pollers for Workflow Task Queues. |
+
+### Activity heartbeating
+
+The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescript/failure-detection#activity-heartbeats) to the Temporal Service so it knows the activity is still making progress. If no heartbeat is received within the activity’s **Heartbeat Timeout** (set per activity in workflow options, e.g. `heartbeatTimeout` in `proxyActivities`), the server considers the activity timed out and may schedule another [Activity Task Execution](https://docs.temporal.io/tasks#activity-task-execution) per the retry policy. That makes heartbeats important during deploys: when a worker restarts, the server detects missing heartbeats and retries on another worker instead of waiting for the full Start-To-Close Timeout. Set each activity’s Heartbeat Timeout longer than `OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS` so the server does not time out before the next heartbeat.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS` | `120000` (2 min) | How often the worker sends a heartbeat while an activity is running. Must be less than the activity’s Heartbeat Timeout. |
+| `OUTPUT_ACTIVITY_HEARTBEAT_ENABLED` | `true` | Whether to send heartbeats. Set to `false` only if you do not use long-running activities or Heartbeat Timeouts. |
+
+### Tracing
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OUTPUT_TRACE_LOCAL_ON` | — | Enable local trace files — see [Tracing](/operations/tracing) |
+| `OUTPUT_TRACE_REMOTE_ON` | — | Enable S3 trace upload (requires Redis + AWS) |
+| `OUTPUT_TRACE_HOST_PATH` | — | Host path for Docker trace file mounting |
+| `OUTPUT_TRACE_REMOTE_S3_BUCKET` | — | S3 bucket for remote traces |
+| `OUTPUT_REDIS_URL` | — | Redis address (required for remote tracing) |
+| `OUTPUT_REDIS_TRACE_TTL` | `604800` (7 days) | TTL in seconds for Redis keys holding workflow trace data before S3 upload |
+| `OUTPUT_AWS_REGION` | — | AWS region for S3 bucket |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key |
+
+## Logging
+
+The worker uses Winston for structured logging.
+
+**Development** (colorized, human-readable):
+```
+[info] {Core.Worker} Loading workflows... { callerDir: "/app/src" }
+[info] {Core.Scanner} Workflow loaded { name: "lead_enrichment", path: "..." }
+```
+
+**Production** (`NODE_ENV=production`, JSON):
+```json
+{"level":"info","message":"Loading workflows...","namespace":"Worker","service":"output-worker","environment":"production","timestamp":"..."}
+```
+
+| Level | Production | Development |
+|-------|------------|-------------|
+| error | Yes | Yes |
+| warn  | Yes | Yes |
+| info  | Yes | Yes |
+| http  | — | Yes |
+| debug | — | Yes |
+
+## API Reference
+
+For complete TypeScript API documentation, see the [Core Module API Reference](https://output-ai-reference-code-docs.onrender.com/modules/core_src.html).

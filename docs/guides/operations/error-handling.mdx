@@ -1,0 +1,119 @@
+---
+title: "Error Handling"
+description: "How errors in steps, evaluators, and workflows are handled and when execution stops"
+---
+
+When something throws in your workflow, Output handles it differently depending on where it happens. Steps and evaluators are retried automatically. Workflow-level errors fail the execution. You can control this behavior with retry options, non-retryable errors, and try/catch.
+
+## Steps and Evaluators
+
+When a step or evaluator throws, we retry it automatically with exponential backoff. After all retries are exhausted, the error propagates to the workflow and the execution fails.
+
+Default retry behavior:
+
+| Setting | Default |
+|---------|---------|
+| `initialInterval` | 10s |
+| `backoffCoefficient` | 2.0 |
+| `maximumAttempts` | 3 |
+| `nonRetryableErrorTypes` | `['ValidationError', 'FatalError']` |
+
+This means a failing step waits 10s, then 20s, then fails for good. You can override these per step via the `options.activityOptions` property — see [Step Options](/steps#options).
+
+## Workflows
+
+Errors in the workflow `fn` itself are **not retried**. If the workflow function throws — or if a step throws after exhausting retries — the workflow execution fails.
+
+You can catch step errors with try/catch and handle them however you want:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { EnrichmentInput, EnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: EnrichmentInput,
+  outputSchema: EnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+
+    let summary;
+    try {
+      summary = await generateSummary(company);
+    } catch (error) {
+      // Step failed after all retries — use a fallback
+      summary = `${company.name} is a company in the ${company.industry} industry.`;
+    }
+
+    return { company: company.name, summary };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const EnrichmentInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const EnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string()
+// });
+```
+
+If you don't catch the error, the workflow fails.
+
+## FatalError and ValidationError
+
+Sometimes retrying won't help — the API key is invalid, the resource doesn't exist, or the data is fundamentally wrong. For these cases, throw `FatalError` or `ValidationError` to fail immediately without retries.
+
+| Error | Use when |
+|-------|----------|
+| `FatalError` | The failure is not recoverable. Retrying would not help (e.g. invalid API key, resource not found, business rule violation). |
+| `ValidationError` | The data is invalid. Use for custom validation checks alongside the framework's built-in schema validation. |
+
+Both are exported from `@outputai/core`:
+
+```typescript steps.ts
+import { step, FatalError, ValidationError } from '@outputai/core';
+import { getContact } from '../../clients/hubspot.js';
+import { LookupContactInput, LookupContactOutput } from './types.js';
+
+export const lookupContact = step({
+  name: 'lookupContact',
+  description: 'Look up a contact in HubSpot',
+  inputSchema: LookupContactInput,
+  outputSchema: LookupContactOutput,
+  fn: async (email) => {
+    const contact = await getContact(email);
+
+    if (contact.error === 'INVALID_API_KEY') {
+      // Don't retry — the key won't fix itself
+      throw new FatalError('HubSpot API key is invalid');
+    }
+
+    if (!contact.properties?.email) {
+      // Data doesn't match what we need
+      throw new ValidationError('Contact has no email address');
+    }
+
+    return {
+      exists: true,
+      contactId: contact.id,
+      lifecycleStage: contact.properties.lifecyclestage
+    };
+  }
+});
+```
+
+## Schema Validation
+
+The framework validates inputs and outputs automatically using your Zod schemas. When validation fails, it throws a `ValidationError` with a message that tells you exactly what went wrong.
+
+**Steps and evaluators:** Input is validated against `inputSchema` before `fn` runs. The return value is validated against `outputSchema` after `fn` returns. If either fails, the step fails immediately (no retries).
+
+**Workflows:** Input is validated against `inputSchema` before the workflow starts. Output is validated against `outputSchema` after the workflow returns. If either fails, the execution fails.
+
+The error message includes context like `"Step lookupContact input validation failed: ..."` so you can trace exactly where and why validation failed.

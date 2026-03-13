@@ -1,0 +1,21 @@
+node_modules
+.pnpm-store/
+.DS_Store
+.env
+temp/
+dist/
+logs/
+.vscode/
+docs/reference/
+
+# Encrypted credentials keys (never commit)
+**/config/credentials.key
+**/config/credentials/*.key
+# Per-workflow credentials keys
+**/src/workflows/*/credentials.key
+
+# LLM Tools / Plugings / Systems
+plans/
+.kiro/
+.agent-os/
+agent-os/

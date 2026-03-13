@@ -1,0 +1,32 @@
+---
+title: "Configuration"
+description: "Base URL and environment variables for the Output API server"
+---
+
+## Base URL
+
+```
+http://localhost:3001
+```
+
+In production, set the `OUTPUT_API_PORT` environment variable to change the port.
+
+## Environment Variables
+
+The API server reads these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NODE_ENV` | `development` | Set to `production` to enable auth and production behavior |
+| `OUTPUT_API_PORT` | `3000` | HTTP port (e.g. `output dev` often uses 3001) |
+| `OUTPUT_API_SERVICE_NAME` | `output-api` | Service name for logging |
+| `OUTPUT_API_AUTH_TOKEN` | — | **Required in production.** Basic auth token for all endpoints except `/health` |
+| `OUTPUT_CATALOG_ID` | — | **Required.** Task queue and catalog workflow ID (must match worker) |
+| `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal server address |
+| `TEMPORAL_NAMESPACE` | `default` | Temporal namespace |
+| `TEMPORAL_API_KEY` | — | Temporal Cloud API key (optional for local) |
+| `TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT` | `24h` | Max workflow execution duration |
+| `TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING` | `300000` | Max wait for workflow result (ms, 5 min) |
+| `OUTPUT_AWS_REGION` | `us-west-1` | AWS region for S3 trace uploads |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key for remote traces |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key for remote traces |

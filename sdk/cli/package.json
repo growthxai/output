@@ -1,0 +1,88 @@
+{
+  "name": "@outputai/cli",
+  "version": "0.1.0",
+  "description": "CLI for Output.ai workflow generation",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "./bin",
+    "./dist",
+    "./oclif.manifest.json"
+  ],
+  "bin": {
+    "output": "./bin/run.js"
+  },
+  "scripts": {
+    "build": "rm -rf ./dist && tsc && npm run copy-assets",
+    "copy-assets": "./bin/copyassets.sh",
+    "test": "vitest run",
+    "generate:api": "orval --config ./orval.config.ts",
+    "set-sdk-version": "./scripts/set_sdk_version.js",
+    "prebuild": "npm run generate:api"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.1.71",
+    "@aws-sdk/client-s3": "catalog:",
+    "@hackylabs/deep-redact": "3.0.5",
+    "@inquirer/prompts": "8.3.0",
+    "@oclif/core": "4.8.3",
+    "@oclif/plugin-help": "6.2.37",
+    "@outputai/credentials": "workspace:",
+    "@outputai/evals": "workspace:",
+    "@outputai/llm": "workspace:",
+    "change-case": "5.4.4",
+    "cli-progress": "3.12.0",
+    "cli-table3": "0.6.5",
+    "date-fns": "4.1.0",
+    "debug": "4.4.3",
+    "dotenv": "17.3.1",
+    "handlebars": "4.7.8",
+    "js-yaml": "catalog:",
+    "json-schema-library": "11.0.4",
+    "ky": "catalog:",
+    "log-update": "7.2.0",
+    "semver": "catalog:",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "3.11.6",
+    "@types/debug": "4.1.12",
+    "@types/js-yaml": "catalog:",
+    "@types/semver": "7.7.1",
+    "orval": "8.5.3"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "imports": {
+    "#*": "./dist/*"
+  },
+  "oclif": {
+    "bin": "output",
+    "dirname": "output",
+    "commands": "./dist/commands",
+    "hooks": {
+      "init": "./dist/hooks/init"
+    },
+    "plugins": [
+      "@oclif/plugin-help"
+    ],
+    "additionalHelpFlags": [
+      "-h"
+    ],
+    "additionalVersionFlags": [
+      "-v"
+    ],
+    "topicSeparator": " ",
+    "topics": {
+      "workflow": {
+        "description": "Manage Output.ai workflows"
+      },
+      "credentials": {
+        "description": "Manage encrypted credentials"
+      }
+    }
+  }
+}

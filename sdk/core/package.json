@@ -1,0 +1,67 @@
+{
+  "name": "@outputai/core",
+  "version": "0.1.0",
+  "description": "The core module of the output framework",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    },
+    "./hooks": {
+      "types": "./src/hooks/index.d.ts",
+      "import": "./src/hooks/index.js"
+    },
+    "./sdk_activity_integration": {
+      "types": "./src/activity_integration/index.d.ts",
+      "import": "./src/activity_integration/index.js"
+    },
+    "./sdk_utils": {
+      "types": "./src/utils/index.d.ts",
+      "import": "./src/utils/index.js"
+    }
+  },
+  "files": [
+    "./src",
+    "./bin"
+  ],
+  "bin": {
+    "output-worker": "./bin/worker.sh",
+    "outputai": "./bin/worker.sh",
+    "output-healthcheck": "./bin/healthcheck.mjs"
+  },
+  "scripts": {
+    "worker": "node ./src/worker/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@babel/generator": "7.29.1",
+    "@babel/parser": "7.29.0",
+    "@babel/traverse": "7.29.0",
+    "@babel/types": "7.29.0",
+    "@temporalio/activity": "catalog:",
+    "@temporalio/client": "catalog:",
+    "@temporalio/common": "catalog:",
+    "@temporalio/worker": "catalog:",
+    "@temporalio/workflow": "catalog:",
+    "redis": "5.11.0",
+    "stacktrace-parser": "0.1.11",
+    "undici": "7.22.0",
+    "winston": "catalog:",
+    "zod": "catalog:"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "imports": {
+    "#bus": "./src/bus.js",
+    "#consts": "./src/consts.js",
+    "#errors": "./src/errors.js",
+    "#logger": "./src/logger.js",
+    "#utils": "./src/utils/index.js",
+    "#tracing": "./src/tracing/internal_interface.js",
+    "#async_storage": "./src/async_storage.js",
+    "#internal_activities": "./src/internal_activities/index.js"
+  }
+}

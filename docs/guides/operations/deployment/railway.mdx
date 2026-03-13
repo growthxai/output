@@ -1,0 +1,314 @@
+---
+title: "Deploy to Railway"
+description: "Step-by-step guide to deploying Output workflows on Railway"
+---
+
+[Railway](https://railway.com) is a great fit for Output deployments — it handles Docker builds automatically and scales horizontally out of the box.
+
+Here's what we'll do:
+
+- [**Set up Railway project**](#step-1-set-up-railway-project) — Create the project and connect your GitHub repo
+- [**Deploy the Output API**](#step-2-deploy-the-output-api) — Get the API running and verify it connects to Temporal
+- [**Create the worker Dockerfile**](#step-3-create-the-worker-dockerfile) — Add the `ops/` directory and Dockerfile to your repo
+- [**Deploy the worker**](#step-4-configure-and-deploy-the-worker) — Configure and deploy the worker service
+- [**Verify**](#step-5-verify) — Confirm everything is connected end-to-end
+
+## Project structure
+
+After running `output init`, your repository looks like this:
+
+```
+your-workflows/
+├── src/
+│   └── workflows/
+│       └── your_workflow/
+│           ├── workflow.ts
+│           ├── steps.ts
+│           └── ...
+├── package.json
+└── tsconfig.json
+```
+
+This is the default structure — it doesn't include any deployment configuration yet. During this guide, we'll add an `ops/` directory containing a Dockerfile for the worker.
+
+## Step 1: Set up Railway project
+
+1. Go to [Railway's dashboard](https://railway.com/dashboard) and click **New Project**
+2. Select **Deploy from GitHub repo** and connect your repository
+3. Railway will detect your project — don't deploy yet, we need to configure services first
+
+## Step 2: Deploy the Output API
+
+The Output API is published as a Docker image. Deploy it first so you can verify the connection to Temporal before adding the worker.
+
+1. Click **+ New** → **Docker Image**
+2. Enter: `docker.io/outputai/api:0.1.0`
+3. Configure variables:
+
+```bash
+# Temporal connection
+TEMPORAL_ADDRESS=<region>.aws.api.temporal.io:7233
+TEMPORAL_NAMESPACE=<your-namespace>
+TEMPORAL_API_KEY=<your-temporal-api-key>
+
+# Task queue the worker will listen on. Must match the OUTPUT_CATALOG_ID used by the worker.
+OUTPUT_CATALOG_ID=main
+
+# Generate a secure token for API authentication
+OUTPUT_API_AUTH_TOKEN=<generate-a-secure-token>
+```
+
+4. Go to **Settings** → **Networking** and generate a Railway domain (or add your custom domain)
+
+5. Configure scaling:
+
+| Setting | Recommended Value |
+|---------|-------------------|
+| Min Instances | 1 |
+| Max Instances | 3 (adjust based on load) |
+| Target CPU | 60% |
+| Target Memory | 60% |
+
+6. Deploy the service and verify it's running:
+
+```bash
+curl https://your-api.railway.app/health
+```
+
+You should get a `200 OK` response.
+
+<Tip>
+Use the same `OUTPUT_API_AUTH_TOKEN` value when calling the API from your application. Railway can auto-generate secure values — click the dice icon next to the variable value.
+</Tip>
+
+## Step 3: Create the worker Dockerfile
+
+With the API running, we'll prepare the worker. First, add the `ops/` directory and a Dockerfile to your repository.
+
+Create `ops/Dockerfile`:
+
+```dockerfile ops/Dockerfile
+FROM node:24.13.0-slim
+
+ENV NODE_ENV=development
+
+WORKDIR /app
+
+# Required for Temporal's Rust-based client
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm run output:worker:install
+
+# Build the worker
+COPY src/ ./src/
+COPY tsconfig.json ./
+RUN npm run output:worker:build
+
+# Clean up source files after build
+RUN rm -rf ./src tsconfig.json
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Production settings
+ENV NODE_ENV=production
+ENV PATH="/app/node_modules/.bin:$PATH"
+ENV NODE_OPTIONS="--max-old-space-size=3700"
+
+CMD ["output-worker"]
+```
+
+<Tip>
+The `NODE_OPTIONS` setting allocates 3.7GB of memory to Node.js. Adjust this based on your Railway plan and workflow memory requirements.
+</Tip>
+
+Commit the new `ops/` directory and push to GitHub before continuing:
+
+```bash
+git add ops/
+git commit -m "Add worker Dockerfile for Railway deployment"
+git push
+```
+
+## Step 4: Configure and deploy the worker
+
+1. Click on the service Railway created from your repo (or create a new one pointing to your repo)
+2. Go to **Settings** and configure:
+
+| Setting | Value |
+|---------|-------|
+| **Root Directory** | `/` (or your monorepo path) |
+| **Dockerfile Path** | `ops/Dockerfile` |
+| **Watch Paths** | `src/**` (optional, for filtered deployments) |
+
+3. Go to **Variables** and add:
+
+```bash
+# Temporal connection
+TEMPORAL_ADDRESS=<region>.aws.api.temporal.io:7233
+TEMPORAL_NAMESPACE=<your-namespace>
+TEMPORAL_API_KEY=<your-temporal-api-key>
+
+# Task queue for the worker to listen on. Must match the OUTPUT_CATALOG_ID used in the API.
+OUTPUT_CATALOG_ID=main
+
+# LLM API keys
+ANTHROPIC_API_KEY=<your-key>
+OPENAI_API_KEY=<your-key>
+
+# Add any other API keys your workflows need
+```
+
+<Warning>
+Use Railway's **Raw Editor** to paste multiple variables at once. For sensitive values, Railway encrypts them automatically.
+</Warning>
+
+4. Configure **Scaling** (in Settings → Deploy):
+
+| Setting | Recommended Value |
+|---------|-------------------|
+| Min Instances | 1 |
+| Max Instances | 10 (adjust based on load) |
+| Target CPU | 60% |
+| Target Memory | 60% |
+
+5. Deploy the worker service
+
+## Step 5: Verify
+
+Now that the worker is deployed, verify it has connected to the API and your workflows are registered.
+
+1. Check that the API can see your workflows via the catalog endpoint:
+
+```bash
+curl -H "Authorization: Basic <your-api-auth-token>" \
+  https://your-api.railway.app/workflow/catalog
+```
+
+You should see a JSON response listing your registered workflows. If the list is empty, the worker may still be starting up — check the worker logs in Railway and try again after a moment.
+
+2. Run a workflow end-to-end:
+
+```bash
+curl -X POST https://your-api.railway.app/workflow/run \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic <your-api-auth-token>" \
+  -d '{
+    "workflowName": "your_workflow",
+    "input": { "key": "value" }
+  }'
+```
+
+## Config as code (optional)
+
+Railway supports configuration in a `railway.json` file. This is useful for reproducible deployments:
+
+```json railway.json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "ops/Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "output-worker",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 3
+  }
+}
+```
+
+<Note>
+Railway's config-as-code only covers build/deploy settings for a single service, not full project scaffolding. Environment variables must still be set in the dashboard.
+</Note>
+
+## Environment-specific configuration
+
+Use Railway's [environments](https://docs.railway.com/reference/environments) for staging vs production:
+
+```json railway.json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "dockerfilePath": "ops/Dockerfile"
+  },
+  "deploy": {
+    "restartPolicyType": "ON_FAILURE"
+  },
+  "environments": {
+    "production": {
+      "deploy": {
+        "numReplicas": 3,
+        "restartPolicyMaxRetries": 5
+      }
+    },
+    "staging": {
+      "deploy": {
+        "numReplicas": 1,
+        "restartPolicyMaxRetries": 1
+      }
+    }
+  }
+}
+```
+
+## Monitoring
+
+### Railway dashboard
+
+Railway provides built-in metrics for:
+- CPU and memory usage
+- Network traffic
+- Deployment history and logs
+
+### Temporal Cloud
+
+Monitor workflow executions in the [Temporal Cloud UI](https://cloud.temporal.io):
+- Active workflows
+- Failed executions
+- Workflow history
+
+### Traces
+
+If you've enabled [remote tracing](/operations/deployment/advanced#remote-tracing-with-redis), traces are stored in Redis and optionally uploaded to S3.
+
+## Scaling considerations
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Low traffic | 1 worker, 1 API instance |
+| Moderate traffic | 2-5 workers, 2 API instances |
+| High traffic | 5-30 workers, 3+ API instances |
+| Burst workloads | Configure aggressive auto-scaling thresholds (40-50% CPU) |
+
+Workers scale independently from the API. If workflows are queuing up in Temporal, add more workers. If API response times are slow, add more API instances.
+
+## Troubleshooting
+
+### Worker not picking up jobs
+
+1. Check the Temporal UI for pending workflows
+2. Verify `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` are correct
+3. Check worker logs in Railway for connection errors
+
+### Trace files not appearing
+
+1. Verify `OUTPUT_REDIS_URL` is set and Redis is running
+2. Check `OUTPUT_TRACE_REMOTE_ON=true` is set
+3. For S3, verify AWS credentials have write access to the bucket
+
+### Out of memory errors
+
+1. Increase `NODE_OPTIONS` memory allocation
+2. Upgrade Railway plan for more resources
+3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+
+### Build failures
+
+1. Check Dockerfile path is correct
+2. Verify all dependencies are in `package.json`
+3. Review build logs for specific errors

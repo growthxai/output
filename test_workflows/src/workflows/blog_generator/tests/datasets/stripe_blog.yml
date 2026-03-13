@@ -1,0 +1,45 @@
+name: stripe_blog
+input:
+  topic: "Stripe the payment processor"
+  requirements: "Include a link to https://stripe.com/en-gb/pricing"
+last_output:
+  output:
+    title: "Stripe: The Modern Payment Processing Platform"
+    blog_post: |
+      Stripe has revolutionized online payment processing since its founding in 2010 by brothers Patrick and John Collison. What started as a simple idea — making it easy for developers to accept payments online — has grown into one of the most influential financial technology companies in the world.
+
+      ## The Rise of Stripe
+
+      Before Stripe, integrating payment processing into a website or application was a notoriously painful experience. Developers had to navigate complex banking relationships, deal with cumbersome APIs, and manage extensive compliance requirements. Stripe changed all of that by offering a clean, developer-friendly API that could be integrated in minutes rather than weeks.
+
+      ## Key Features
+
+      Stripe offers a comprehensive suite of payment tools. Their core payment processing handles credit cards, debit cards, and dozens of alternative payment methods across 135+ currencies. Beyond basic payments, Stripe provides billing and subscription management, fraud detection through Stripe Radar, and financial reporting tools.
+
+      ## Pricing and Accessibility
+
+      One of the things that makes Stripe appealing is its transparent pricing model. You can find their full pricing details at https://stripe.com/en-gb/pricing. Their pay-as-you-go model means businesses only pay for what they use, with no setup fees or monthly charges for basic payment processing.
+
+      ## The Developer Experience
+
+      What truly sets Stripe apart is its developer experience. Their documentation is widely regarded as some of the best in the industry. The API is RESTful, well-documented, and comes with official client libraries for every major programming language. Stripe also provides extensive testing tools, including a sandbox environment where developers can simulate transactions without processing real payments.
+
+      ## Impact on the Industry
+
+      Stripe has processed hundreds of billions of dollars in payments and powers businesses of all sizes — from startups to Fortune 500 companies like Amazon, Google, and Shopify. Their infrastructure handles millions of API requests per day with high reliability and low latency.
+
+      ## Conclusion
+
+      Stripe continues to expand beyond payments into areas like business incorporation (Stripe Atlas), corporate cards (Stripe Issuing), and even climate initiatives (Stripe Climate). As the digital economy grows, Stripe remains at the forefront of making financial infrastructure accessible to businesses worldwide.
+    word_count: 350
+  executionTimeMs: 5000
+  date: '2026-02-16T00:00:00.000Z'
+ground_truth:
+  notes: "Known good case"
+  evals:
+    length_of_output:
+      min_length: 100
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+    evaluate_content:
+      required_content: "https://stripe.com/en-gb/pricing"

@@ -1,0 +1,463 @@
+---
+title: "@outputai/llm"
+description: "Generate and stream text, objects, and arrays from LLMs with prompt file management"
+---
+
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and message template in one place.
+
+## Installation
+
+```bash
+npm install @outputai/llm
+```
+
+## Generate Functions
+
+`generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. Use `streamText` for streaming responses:
+
+| Output Shape | How | Use when you need |
+|--------------|-----|-------------------|
+| Unstructured text | `generateText({ prompt })` | Summaries, emails, explanations |
+| Streamed text | `streamText({ prompt })` | Real-time output, long responses, UX responsiveness |
+| Typed object | `generateText({ prompt, output: Output.object({ schema }) })` | Structured data, evaluator judgments |
+| Array of objects | `generateText({ prompt, output: Output.array({ element }) })` | Lists, multiple items |
+| One of N choices | `generateText({ prompt, output: Output.choice({ options }) })` | Classification, routing |
+
+### Text Output
+
+Generate unstructured text from a prompt file:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+import { GenerateSummaryInput, GenerateSummaryOutput } from './types.js';
+
+export const generateSummary = step({
+  name: 'generateSummary',
+  description: 'Generate a company summary from research data',
+  inputSchema: GenerateSummaryInput,
+  outputSchema: GenerateSummaryOutput,
+  fn: async (input) => {
+    const { result } = await generateText({
+      prompt: 'generate_summary@v1',
+      variables: {
+        companyName: input.name,
+        industry: input.industry,
+        size: input.size
+      }
+    });
+
+    return result;
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const GenerateSummaryInput = z.object({
+//   name: z.string(),
+//   industry: z.string(),
+//   size: z.number()
+// });
+//
+// export const GenerateSummaryOutput = z.string();
+```
+
+`result` is a convenience alias for `response.text`.
+
+### Streaming
+
+Stream text from a prompt file. Unlike `generateText`, `streamText` returns immediately with a stream result — properties like `text`, `usage`, and `finishReason` are promises that resolve when the stream completes.
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { streamText } from '@outputai/llm';
+import { GenerateContentInput, GenerateContentOutput } from './types.js';
+
+export const generateContent = step({
+  name: 'generateContent',
+  description: 'Streams text generation and collects chunks',
+  inputSchema: GenerateContentInput,
+  outputSchema: GenerateContentOutput,
+  fn: async ({ topic }) => {
+    const result = streamText({
+      prompt: 'stream_content@v1',
+      variables: { topic }
+    });
+
+    const chunks: string[] = [];
+    for await (const chunk of result.textStream) {
+      chunks.push(chunk);
+    }
+
+    const content = chunks.join('');
+    return {
+      content,
+      chunkCount: chunks.length,
+      avgChunkSize: Math.round(content.length / chunks.length)
+    };
+  }
+});
+```
+
+Note that `streamText` is not `async` — it returns a stream result synchronously. Iterate `textStream` to process chunks as they arrive. You can also `await result.text` to get the full text in one shot, but that collapses the stream and is functionally identical to `generateText`.
+
+To process chunks with side effects (e.g., writing to stdout):
+
+```typescript
+const result = streamText({
+  prompt: 'generate@v1',
+  variables: { topic: 'AI safety' }
+});
+
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+You can apply stream transforms like `smoothStream` for more natural output pacing:
+
+```typescript
+import { streamText, smoothStream } from '@outputai/llm';
+
+const result = streamText({
+  prompt: 'generate@v1',
+  variables: { topic },
+  experimental_transform: smoothStream()
+});
+```
+
+Use streaming callbacks for side effects without consuming the stream manually:
+
+```typescript
+const result = streamText({
+  prompt: 'generate@v1',
+  variables: { topic },
+  onChunk({ chunk }) {
+    // Called for each chunk
+  },
+  onFinish({ text, usage }) {
+    // Called when generation completes
+  },
+  onError({ error }) {
+    // Called on stream error
+  }
+});
+```
+
+### Object Output
+
+Generate a structured object matching a Zod schema. This is what you'll use most in evaluators:
+
+```typescript evaluators.ts
+import { evaluator, EvaluationBooleanResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+import { JudgeSummaryInput } from './types.js';
+
+export const judgeSummaryQuality = evaluator({
+  name: 'judgeSummaryQuality',
+  description: 'Judge whether a company summary is accurate and useful',
+  inputSchema: JudgeSummaryInput,
+  fn: async (input) => {
+    const { output } = await generateText({
+      prompt: 'judge_summary@v1',
+      variables: {
+        summary: input.summary,
+        companyName: input.companyName
+      },
+      output: Output.object({
+        schema: z.object({
+          reasoning: z.string(),
+          passes: z.boolean(),
+          confidence: z.number()
+        })
+      })
+    });
+
+    return new EvaluationBooleanResult({
+      value: output.passes,
+      confidence: output.confidence,
+      reasoning: output.reasoning
+    });
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const JudgeSummaryInput = z.object({
+//   summary: z.string(),
+//   companyName: z.string()
+// });
+```
+
+`output` contains the typed object matching your schema.
+
+### Array Output
+
+Generate an array of structured items:
+
+```typescript
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+
+const { output } = await generateText({
+  prompt: 'extract_contacts@v1',
+  variables: { companyData: JSON.stringify(company) },
+  output: Output.array({
+    element: z.object({
+      name: z.string(),
+      role: z.string(),
+      email: z.string().optional()
+    })
+  })
+});
+
+// output is an array of { name, role, email } objects
+```
+
+### Choice Output
+
+Select one value from a set of options:
+
+```typescript
+import { generateText, Output } from '@outputai/llm';
+
+const { output } = await generateText({
+  prompt: 'classify_lead@v1',
+  variables: { activity: leadActivity },
+  output: Output.choice({ options: ['hot', 'warm', 'cold', 'unknown'] })
+});
+
+// output is one of 'hot', 'warm', 'cold', 'unknown'
+```
+
+## Response Object
+
+`generateText` returns the full [AI SDK response](https://sdk.vercel.ai/docs/reference/ai-sdk-core/generate-text#returns):
+
+| Field | Description |
+|-------|-------------|
+| `result` | Convenience alias for `text` |
+| `text` | The raw generated text |
+| `output` | The structured output when using `Output.*` helpers |
+| `usage` | Token counts: `inputTokens`, `outputTokens`, `totalTokens` |
+| `finishReason` | Why generation stopped (`'stop'`, `'length'`, `'tool-calls'`, etc.) |
+| `response` | Raw provider response metadata |
+| `warnings` | Any warnings from the provider |
+| `toolCalls` | Tool calls made by the model (when using tools) |
+
+**Streaming response shape.** `streamText` returns a different result type. Stream iterables (`textStream`, `fullStream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `textStream` | `AsyncIterable<string>` | Async iterable of text chunks |
+| `fullStream` | `AsyncIterable<TextStreamPart>` | Async iterable of all stream events (text deltas, tool calls, etc.) |
+| `text` | `Promise<string>` | Full text, resolved on completion |
+| `usage` | `Promise<LanguageModelUsage>` | Token counts, resolved on completion |
+| `finishReason` | `Promise<FinishReason>` | Why generation stopped, resolved on completion |
+| `toolCalls` | `Promise` | Tool calls made during streaming, resolved on completion |
+| `response` | `Promise` | Raw provider response metadata |
+| `warnings` | `Promise` | Any warnings from the provider |
+
+## Prompt Files
+
+Instead of hardcoding model config and messages in your code, you write `.prompt` files that live in your workflow's `prompts/` folder. See the [Prompts Guide](/prompts) for the full documentation.
+
+```yaml prompts/generate_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.7
+---
+
+<system>
+You write concise company summaries for sales teams.
+</system>
+
+<user>
+Write a 2-3 paragraph summary of {{ companyName }}.
+
+Industry: {{ industry }}
+Company size: {{ size }} employees
+</user>
+```
+
+### Configuration Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `provider` | `string` | `anthropic`, `openai`, `azure`, `vertex`, or `bedrock` |
+| `model` | `string` | Model identifier |
+| `temperature` | `number` | Sampling temperature (0.0-2.0) |
+| `maxTokens` | `number` | Maximum output tokens |
+| `tools` | `object` | Provider-specific tools (web search, etc.) |
+| `providerOptions` | `object` | Provider-specific options — see [ProviderOptions Guide](/prompts#provider-options) |
+
+## Providers
+
+### Anthropic
+
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+---
+```
+
+Requires `ANTHROPIC_API_KEY` environment variable.
+
+### OpenAI
+
+```yaml
+---
+provider: openai
+model: gpt-4o
+---
+```
+
+Requires `OPENAI_API_KEY` environment variable.
+
+### Azure OpenAI
+
+```yaml
+---
+provider: azure
+model: gpt-4o
+---
+```
+
+Requires `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_API_VERSION`.
+
+### Vertex AI
+
+```yaml
+---
+provider: vertex
+model: gemini-1.5-pro
+---
+```
+
+Requires Google Cloud authentication and configuration.
+
+### Amazon Bedrock
+
+```yaml
+---
+provider: bedrock
+model: anthropic.claude-sonnet-4-20250514-v1:0
+---
+```
+
+Requires AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) or IAM role-based authentication. Set `AWS_SESSION_TOKEN` when using temporary credentials (e.g., from `aws sts assume-role`).
+
+For cross-region inference, use the regional inference profile format: `us.anthropic.claude-sonnet-4-20250514-v1:0`.
+
+Always set `maxTokens` in your Bedrock prompt files. Unlike the direct Anthropic provider (which auto-detects per-model limits), the Bedrock SDK has no client-side defaults and relies on server-side defaults that may be lower than the model's capacity.
+
+When using `providerOptions`, use the `bedrock` namespace (not `anthropic`):
+
+```yaml
+providerOptions:
+  bedrock:
+    guardrailConfig:
+      guardrailIdentifier: my-guardrail
+      guardrailVersion: "1"
+```
+
+## Provider Tools
+
+Many providers offer built-in tools like web search. Configure them in YAML front matter:
+
+```yaml prompts/research@v1.prompt
+---
+provider: vertex
+model: gemini-2.0-flash
+tools:
+  googleSearch:
+    mode: MODE_DYNAMIC
+    dynamicThreshold: 0.8
+---
+
+<user>
+Research {{ topic }} and provide sources
+</user>
+```
+
+This is equivalent to calling `vertex.tools.googleSearch({ mode: 'MODE_DYNAMIC', dynamicThreshold: 0.8 })` at the code level, but keeps your prompt self-contained.
+
+YAML tools are merged with code-level tools, so you can combine provider tools (from YAML) with custom tools (from code). Code-level tools take precedence if names conflict.
+
+For provider-specific tool options, see:
+- [Vertex AI Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/google-vertex#provider-instance-methods)
+- [OpenAI Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/openai#provider-instance-methods)
+- [Anthropic Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/anthropic#provider-instance-methods)
+- [Amazon Bedrock Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/amazon-bedrock#provider-instance-methods)
+
+## Tool Calling
+
+Use tools with `generateText` to enable function calling:
+
+```typescript
+import { generateText, tool } from '@outputai/llm';
+import { z } from '@outputai/core';
+
+const { result, toolCalls } = await generateText({
+  prompt: 'agent@v1',
+  variables: { task: 'Research competitor pricing' },
+  tools: {
+    searchWeb: tool({
+      description: 'Search the web for information',
+      parameters: z.object({ query: z.string() }),
+      execute: async ({ query }) => fetchSearchResults(query)
+    })
+  },
+  toolChoice: 'auto'
+});
+```
+
+## AI SDK Pass-Through Options
+
+All generate functions accept additional [AI SDK options](https://sdk.vercel.ai/docs) passed through to the provider:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `tools` | `ToolSet` | Tools the model can call (generateText and streamText) |
+| `toolChoice` | `'auto' \| 'none' \| 'required'` | Tool selection strategy |
+| `maxRetries` | `number` | Max retry attempts (default: 2) |
+| `seed` | `number` | Seed for deterministic output |
+| `abortSignal` | `AbortSignal` | Cancel the request |
+| `topP` | `number` | Nucleus sampling (0-1) |
+| `topK` | `number` | Top-K sampling |
+| `onChunk` | `Function` | Callback for each stream chunk (streamText only) |
+| `onFinish` | `Function` | Callback when stream completes (streamText only) |
+| `onError` | `Function` | Callback on stream error (streamText only) |
+| `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streamText only) |
+
+Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
+
+## LLM call cost event
+
+Each `generateText` and `streamText` call emits a `llm:call_cost` event after the LLM responds. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('llm:call_cost', handler)` from `@outputai/core/hooks` in a hook file listed under `output.hookFiles`. The payload includes token usage, computed cost, workflow/activity context, and model id. For payload details, setup, and cost structure, see [LLM costs](/operations/llm-costs).
+
+## loadPrompt
+
+Load and render a prompt file without generating — useful for debugging:
+
+```typescript
+import { loadPrompt } from '@outputai/llm';
+
+const prompt = loadPrompt('generate_summary@v1', {
+  companyName: 'Acme Corp',
+  industry: 'SaaS',
+  size: 250
+});
+
+console.log(prompt.config);   // { provider: 'anthropic', model: '...', temperature: 0.7 }
+console.log(prompt.messages);  // Rendered message array
+```
+
+## API Reference
+
+For complete TypeScript API documentation, see the [LLM Module API Reference](https://output-ai-reference-code-docs.onrender.com/modules/llm_src.html).

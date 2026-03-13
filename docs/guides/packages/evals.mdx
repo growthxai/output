@@ -1,0 +1,482 @@
+---
+title: "@outputai/evals"
+description: "Workflow evaluation using datasets, typed evaluators, and deterministic or LLM-based assertions"
+---
+
+The `@outputai/evals` package lets you test workflow quality across datasets — without modifying your workflow code. You define evaluators with `verify()`, write datasets in YAML, and run them with the CLI. Each dataset case feeds a saved workflow input/output pair through your evaluators, and the framework reports pass/partial/fail verdicts per case.
+
+This is the complement to [evaluators as steps](/evaluators) that run inside workflows. Those evaluators power generate-evaluate-retry loops in production. Workflow evaluators answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?" For the full guide, see [Workflow Evaluators](/evaluators/workflow-evaluators).
+
+## Installation
+
+```bash
+npm install @outputai/evals
+```
+
+Peer dependencies: `@outputai/core`, `@outputai/llm`
+
+## What's in the Package
+
+```typescript
+import {
+  // Eval workflow
+  evalWorkflow,
+
+  // Evaluator creation
+  verify,
+
+  // Deterministic + LLM assertion helpers
+  Verdict,
+
+  // LLM judge functions
+  judgeVerdict,
+  judgeScore,
+  judgeBoolean,
+  judgeLabel,
+
+  // Result interpretation
+  interpretResult,
+  aggregateCaseVerdict,
+
+  // CLI rendering
+  renderEvalOutput,
+  computeExitCode
+} from '@outputai/evals';
+```
+
+| Export | Description |
+|--------|-------------|
+| `evalWorkflow` | Define an eval workflow that tests datasets against evaluators |
+| `verify` | Create a typed evaluator with Zod schemas for input/output |
+| `Verdict` | Deterministic assertion helpers (equals, gte, contains, etc.) and LLM result wrappers |
+| `judgeVerdict` | LLM judge that returns pass/partial/fail |
+| `judgeScore` | LLM judge that returns a numeric score |
+| `judgeBoolean` | LLM judge that returns true/false |
+| `judgeLabel` | LLM judge that returns a string label |
+| `interpretResult` | Convert an evaluator result to a pass/partial/fail verdict |
+| `aggregateCaseVerdict` | Combine multiple evaluator results into a single case verdict |
+| `renderEvalOutput` | Format eval results for CLI output |
+| `computeExitCode` | Return 1 if any case failed, 0 otherwise |
+
+## Creating Evaluators with verify()
+
+`verify()` creates a typed evaluator that receives the workflow's input, output, and optional ground truth from the dataset. It wraps `evaluator()` from `@outputai/core` so it integrates with both the eval workflow and the Temporal worker.
+
+```typescript
+import { verify } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+const myEvaluator = verify(
+  {
+    name: 'my_evaluator',
+    input: z.object({ /* workflow input schema */ }),
+    output: z.object({ /* workflow output schema */ })
+  },
+  ({ input, output, context }) => {
+    // input: typed workflow input
+    // output: typed workflow output
+    // context.ground_truth: Record<string, unknown> from dataset YAML
+    return Verdict.equals(output.result, context.ground_truth.expected);
+  }
+);
+```
+
+The `input` and `output` schemas are optional — they default to `z.any()` if omitted. The check function receives a `CheckContext`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input` | `TInput` | The workflow input from the dataset |
+| `output` | `TOutput` | The workflow output (cached or freshly executed) |
+| `context.ground_truth` | `Record<string, unknown>` | Ground truth values from the dataset YAML |
+
+### Basic Example
+
+A deterministic evaluator that checks a sum calculation:
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const evaluateSum = verify(
+  {
+    name: 'evaluate_sum',
+    input: z.object({ values: z.array(z.number()) }),
+    output: z.object({ result: z.number() })
+  },
+  ({ input, output }) =>
+    Verdict.equals(output.result, input.values.reduce((a, b) => a + b, 0))
+);
+```
+
+### Ground Truth Example
+
+Evaluators can read per-evaluator ground truth from the dataset. The framework merges global ground truth with evaluator-specific overrides:
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const lengthOfOutput = verify(
+  {
+    name: 'length_of_output',
+    input: z.object({ topic: z.string() }),
+    output: z.object({ title: z.string(), blog_post: z.string() })
+  },
+  ({ output, context }) =>
+    Verdict.gte(output.blog_post.length, Number(context.ground_truth.min_length ?? 100))
+);
+```
+
+The ground truth comes from the dataset YAML:
+
+```yaml tests/datasets/stripe_blog.yml
+name: stripe_blog
+input:
+  topic: "Stripe the payment processor"
+ground_truth:
+  notes: "Known good case"
+  evals:
+    length_of_output:
+      min_length: 100
+    evaluate_content:
+      required_content: "https://stripe.com"
+```
+
+Global ground truth fields (like `notes`) are available to all evaluators. Fields under `evals.<evaluator_name>` are merged in for that specific evaluator, overriding globals with the same key.
+
+## Verdict Helpers
+
+The `Verdict` object provides deterministic assertion helpers and LLM result wrappers. All deterministic helpers return results with confidence `1.0`.
+
+### Deterministic Assertions
+
+| Helper | Arguments | Passes when |
+|--------|-----------|-------------|
+| `Verdict.equals(actual, expected)` | any, any | `actual === expected` |
+| `Verdict.closeTo(actual, expected, tolerance)` | number, number, number | `\|actual - expected\| <= tolerance` |
+| `Verdict.gt(actual, threshold)` | number, number | `actual > threshold` |
+| `Verdict.gte(actual, threshold)` | number, number | `actual >= threshold` |
+| `Verdict.lt(actual, threshold)` | number, number | `actual < threshold` |
+| `Verdict.lte(actual, threshold)` | number, number | `actual <= threshold` |
+| `Verdict.inRange(actual, min, max)` | number, number, number | `min <= actual <= max` |
+| `Verdict.contains(haystack, needle)` | string, string | `haystack.includes(needle)` |
+| `Verdict.matches(value, pattern)` | string, RegExp | `pattern.test(value)` |
+| `Verdict.includesAll(actual, expected)` | array, array | `actual` contains every element of `expected` |
+| `Verdict.includesAny(actual, expected)` | array, array | `actual` contains at least one element of `expected` |
+| `Verdict.isTrue(value)` | boolean | `value === true` |
+| `Verdict.isFalse(value)` | boolean | `value === false` |
+
+### Manual Verdicts
+
+| Helper | Arguments | Result |
+|--------|-----------|--------|
+| `Verdict.pass(reasoning?)` | string? | Pass with confidence 1.0 |
+| `Verdict.partial(confidence, reasoning?, feedback?)` | number, string?, FeedbackArg[]? | Partial with custom confidence |
+| `Verdict.fail(reasoning, feedback?)` | string, FeedbackArg[]? | Fail with confidence 0.0 |
+
+### LLM Result Wrappers
+
+These wrap LLM judge output into evaluation results with confidence `0.9`:
+
+| Helper | Arguments | Result type |
+|--------|-----------|-------------|
+| `Verdict.fromJudge({ verdict, reasoning })` | object | Verdict (pass/partial/fail) |
+| `Verdict.score(value, reasoning?)` | number, string? | Number |
+| `Verdict.label(value, reasoning?)` | string, string? | String |
+
+## LLM Judge Functions
+
+For subjective evaluation — "is this blog post on-topic?", "rate the quality 0-100" — use the judge functions. They load a `.prompt` file, call the LLM, and return a typed evaluation result.
+
+```typescript tests/evals/evaluators.ts
+import { verify, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+const blogInput = z.object({ topic: z.string() });
+const blogOutput = z.object({ title: z.string(), blog_post: z.string() });
+
+export const evaluateTopic = verify(
+  { name: 'evaluate_topic', input: blogInput, output: blogOutput },
+  async ({ input, output, context }) =>
+    judgeVerdict({
+      prompt: 'judge_topic@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        required_topic: String(context.ground_truth.required_topic ?? input.topic)
+      }
+    })
+);
+
+export const evaluateQuality = verify(
+  { name: 'evaluate_quality', input: blogInput, output: blogOutput },
+  async ({ input, output }) =>
+    judgeScore({
+      prompt: 'judge_quality@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        topic: input.topic
+      }
+    })
+);
+
+export const evaluateTone = verify(
+  { name: 'evaluate_tone', input: blogInput, output: blogOutput },
+  async ({ output }) =>
+    judgeLabel({
+      prompt: 'judge_tone@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post
+      }
+    })
+);
+```
+
+| Function | Expected schema | Returns |
+|----------|----------------|---------|
+| `judgeVerdict` | `{ verdict: 'pass'\|'partial'\|'fail', reasoning: string }` | `EvaluationVerdictResult` |
+| `judgeScore` | `{ score: number, reasoning: string }` | `EvaluationNumberResult` |
+| `judgeBoolean` | `{ result: boolean, reasoning: string }` | `EvaluationBooleanResult` |
+| `judgeLabel` | `{ label: string, reasoning: string }` | `EvaluationStringResult` |
+
+All judge functions accept a `JudgeArgs` object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prompt` | `string` | Prompt filename (e.g., `'judge_topic@v1'`) |
+| `variables` | `Record<string, string \| number \| boolean>` | Template variables |
+| `schema` | `ZodType` | Custom output schema (overrides the default) |
+
+Judge `.prompt` files live in the same `tests/evals/` directory as your evaluators:
+
+```yaml tests/evals/judge_topic@v1.prompt
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Assess whether a blog post is faithfully about the required topic.
+
+Return a JSON object with:
+- verdict: "pass" if the blog clearly focuses on the topic, "partial" if it mentions but lacks depth, "fail" if not about the topic
+- reasoning: brief explanation of your judgment
+</system>
+
+<user>
+Required topic: {{ required_topic }}
+
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Judge whether this blog post is faithfully about the required topic.
+</user>
+```
+
+## Creating an Eval Workflow
+
+`evalWorkflow()` ties your evaluators together into a workflow that the CLI can run against datasets:
+
+```typescript tests/evals/workflow.ts
+import { evalWorkflow } from '@outputai/evals';
+import { evaluateSum } from './evaluators.js';
+
+export default evalWorkflow({
+  name: 'simple_eval',
+  evals: [
+    {
+      evaluator: evaluateSum,
+      criticality: 'required',
+      interpret: { type: 'boolean' }
+    }
+  ]
+});
+```
+
+Each entry in the `evals` array defines:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `evaluator` | Function | — | An evaluator created with `verify()` |
+| `criticality` | `'required' \| 'informational'` | `'required'` | Whether failure should fail the case |
+| `interpret` | `InterpretConfig` | — | How to convert the evaluator result to a verdict |
+
+A more complete example mixing deterministic and LLM evaluators:
+
+```typescript tests/evals/workflow.ts
+import { evalWorkflow } from '@outputai/evals';
+import {
+  lengthOfOutput,
+  evaluateTopic,
+  evaluateQuality,
+  evaluateContent,
+  evaluateTone
+} from './evaluators.js';
+
+export default evalWorkflow({
+  name: 'blog_generator_eval',
+  evals: [
+    {
+      evaluator: lengthOfOutput,
+      criticality: 'required',
+      interpret: { type: 'boolean' }
+    },
+    {
+      evaluator: evaluateTopic,
+      criticality: 'required',
+      interpret: { type: 'verdict' }
+    },
+    {
+      evaluator: evaluateQuality,
+      criticality: 'required',
+      interpret: { type: 'number', pass: 0.7, partial: 0.4 }
+    },
+    {
+      evaluator: evaluateContent,
+      criticality: 'informational',
+      interpret: { type: 'boolean' }
+    },
+    {
+      evaluator: evaluateTone,
+      criticality: 'informational',
+      interpret: { type: 'string', pass: ['professional', 'informative'], partial: ['casual'] }
+    }
+  ]
+});
+```
+
+### Criticality
+
+- **`required`** (default): If this evaluator fails, the entire case fails.
+- **`informational`**: Failure is reported but doesn't affect the case verdict. Use for metrics you want to track without gating on.
+
+### Interpret Types
+
+The `interpret` config tells the framework how to convert the raw evaluator result into a pass/partial/fail verdict:
+
+| Type | Config | Pass when | Partial when | Fail when |
+|------|--------|-----------|--------------|-----------|
+| `boolean` | `{ type: 'boolean' }` | `value === true` | — | `value === false` |
+| `verdict` | `{ type: 'verdict' }` | `value === 'pass'` | `value === 'partial'` | `value === 'fail'` |
+| `number` | `{ type: 'number', pass: 0.7, partial: 0.4 }` | `value >= pass` | `value >= partial` | otherwise |
+| `string` | `{ type: 'string', pass: ['a', 'b'], partial: ['c'] }` | `value in pass` | `value in partial` | otherwise |
+
+The `partial` threshold is optional for both `number` and `string` types — omit it to have only pass and fail.
+
+### Case Verdict Aggregation
+
+Each dataset case runs all evaluators. The case-level verdict is determined by:
+
+1. If any **required** evaluator fails → case **fails**
+2. Else if any **required** evaluator is partial → case is **partial**
+3. Otherwise → case **passes**
+
+Informational evaluators never affect the case verdict.
+
+## Datasets
+
+Datasets are YAML files that live in `tests/datasets/` within your workflow directory. Each file defines one test case:
+
+```yaml tests/datasets/basic_input.yml
+name: basic_input
+input:
+  values:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+last_output:
+  output:
+    result: 15
+  executionTimeMs: 100
+  date: '2026-02-13T00:00:00.000Z'
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique name for this test case |
+| `input` | Yes | The workflow input |
+| `ground_truth` | No | Expected values for evaluators to check against |
+| `last_output` | No | Cached workflow output (used with `--cached` flag) |
+| `last_eval` | No | Cached evaluation results from the last run |
+
+You can write datasets by hand, or generate them from workflow executions using the CLI — see [Dataset Commands](/packages/cli#dataset-commands).
+
+### Ground Truth Structure
+
+Ground truth supports global values and per-evaluator overrides:
+
+```yaml
+ground_truth:
+  # Global — available to all evaluators
+  notes: "Known good case"
+  min_length: 100
+
+  # Per-evaluator overrides
+  evals:
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+    evaluate_content:
+      required_content: "https://stripe.com"
+```
+
+When an evaluator runs, the framework merges global ground truth with its evaluator-specific values. Per-evaluator values override globals with the same key.
+
+## Directory Structure
+
+Eval files live alongside your workflow in a `tests/` directory:
+
+```text
+src/workflows/
+└── blog_generator/
+    ├── workflow.ts
+    ├── steps.ts
+    ├── evaluators.ts          # Inline evaluators (for production loops)
+    ├── types.ts
+    ├── prompts/
+    │   └── generate_blog@v1.prompt
+    └── tests/
+        ├── evals/
+        │   ├── workflow.ts    # evalWorkflow() definition
+        │   ├── evaluators.ts  # Workflow evaluators (verify + Verdict)
+        │   ├── judge_topic@v1.prompt
+        │   └── judge_quality@v1.prompt
+        └── datasets/
+            ├── happy_path.yml
+            ├── edge_case.yml
+            └── stripe_blog.yml
+```
+
+The eval workflow file (`tests/evals/workflow.ts`) is discovered automatically by the worker alongside your regular workflow.
+
+## Running Evaluations
+
+Use the CLI to run evaluations and manage datasets. See [CLI Evaluation Commands](/packages/cli#evaluation-commands) for the full reference.
+
+```bash
+# Run evals using cached output (no workflow re-execution)
+output workflow test blog_generator --cached
+
+# Run evals with fresh workflow execution and save results
+output workflow test blog_generator --save
+
+# Run specific datasets only
+output workflow test blog_generator --dataset happy_path,edge_case
+
+# List available datasets
+output workflow dataset list blog_generator
+
+# Generate a dataset from a scenario
+output workflow dataset generate blog_generator my_scenario --name new_case
+```
+
+## API Reference
+
+For complete TypeScript API documentation, see the [Evals Module API Reference](https://output-ai-reference-code-docs.onrender.com/modules/evals_src.html).

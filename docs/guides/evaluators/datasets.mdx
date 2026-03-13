@@ -1,0 +1,136 @@
+---
+title: "Datasets"
+description: "Define test cases as YAML files with inputs, cached outputs, and ground truth for workflow evaluators"
+---
+
+Datasets are YAML files that define test cases for your [workflow evaluators](/evaluators/workflow-evaluators). Each file contains a workflow input, optionally a cached output, and ground truth values that evaluators can check against.
+
+Datasets live in `tests/datasets/` within your workflow directory:
+
+```text
+src/workflows/
+  blog_generator/
+    workflow.ts
+    tests/
+      evals/
+        workflow.ts
+        evaluators.ts
+      datasets/
+        happy_path.yml
+        edge_case.yml
+        stripe_blog.yml
+```
+
+## Basic Dataset
+
+The simplest dataset has a name, input, and cached output:
+
+```yaml tests/datasets/basic_input.yml
+name: basic_input
+input:
+  values:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+last_output:
+  output:
+    result: 15
+  executionTimeMs: 100
+  date: '2026-02-13T00:00:00.000Z'
+```
+
+The `last_output` contains the workflow's cached result. When you run evals with `--cached`, the framework uses this output instead of re-executing the workflow.
+
+## Dataset with Ground Truth
+
+For evaluators that need expected values, add a `ground_truth` section:
+
+```yaml tests/datasets/stripe_blog.yml
+name: stripe_blog
+input:
+  topic: "Stripe the payment processor"
+  requirements: "Include a link to https://stripe.com/en-gb/pricing"
+ground_truth:
+  notes: "Known good case"
+  evals:
+    length_of_output:
+      min_length: 100
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+    evaluate_content:
+      required_content: "https://stripe.com/en-gb/pricing"
+last_output:
+  output:
+    title: "Stripe: The Modern Payment Processing Platform"
+    blog_post: |
+      Stripe has revolutionized online payment processing...
+  executionTimeMs: 5000
+  date: '2026-02-16T00:00:00.000Z'
+```
+
+## Dataset Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique name for this test case |
+| `input` | Yes | The workflow input (must match your workflow's input schema) |
+| `ground_truth` | No | Expected values for evaluators to check against |
+| `last_output` | No | Cached workflow output (used with `--cached` flag) |
+| `last_eval` | No | Cached evaluation results from the last run |
+
+## Ground Truth Structure
+
+Ground truth supports global values and per-evaluator overrides:
+
+```yaml
+ground_truth:
+  # Global values — available to all evaluators
+  notes: "Known good case"
+  min_length: 100
+
+  # Per-evaluator overrides
+  evals:
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+    evaluate_content:
+      required_content: "https://stripe.com"
+```
+
+When an evaluator runs, the framework merges global ground truth with evaluator-specific values. Per-evaluator values override globals with the same key. In your evaluator, access them through `context.ground_truth`:
+
+```typescript
+( { output, context } ) =>
+  Verdict.gte( output.blog_post.length, Number( context.ground_truth.min_length ?? 100 ) )
+```
+
+## Managing Datasets with the CLI
+
+### Listing Datasets
+
+```bash
+output workflow dataset list blog_generator
+```
+
+### Generating Datasets
+
+You can generate datasets from scenario files, trace files, or production traces:
+
+```bash
+# Generate a dataset from a scenario file
+output workflow dataset generate blog_generator my_scenario --name new_case
+
+# Generate from a trace file
+output workflow dataset generate blog_generator --trace path/to/trace.json
+
+# Download recent traces from S3 and generate datasets
+output workflow dataset generate blog_generator --download --limit 10
+```
+
+Generating datasets from traces is useful when you want to test against real production inputs. Download traces from S3, pick interesting ones, and the CLI creates dataset YAML files with the input and output already filled in.
+
+## What's Next
+
+- [Running Eval Workflows](/evaluators/datasets-and-cli) — Wire evaluators into an eval workflow and run them from the CLI
+- [Workflow Evaluators](/evaluators/workflow-evaluators) — Writing evaluators with `verify()`, Verdict helpers, and judge functions

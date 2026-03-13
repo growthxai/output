@@ -1,0 +1,280 @@
+---
+title: "Production Prompts"
+description: "Write effective prompts for production AI workflows"
+---
+
+Production prompts need to be reliable, not clever. This guide covers patterns that work consistently across thousands of runs.
+
+## System Messages
+
+The system message defines who the LLM is and how it behaves. Be specific.
+
+**Vague (bad):**
+```yaml
+<system>
+You are a helpful assistant.
+</system>
+```
+
+**Specific (good):**
+```yaml
+<system>
+You are a sales research assistant at a B2B SaaS company. You help sales teams prepare for calls by summarizing prospect information.
+
+Rules:
+- Be factual and concise
+- Never make up information — if something is unclear, say so
+- Focus on business-relevant details: what they do, who they sell to, recent news
+- Skip generic company boilerplate
+</system>
+```
+
+The specific version produces consistent, useful output. The vague version produces whatever the model feels like.
+
+### Constraints Matter
+
+Explicit constraints prevent the most common failure modes:
+
+```yaml
+<system>
+You classify leads by buying intent based on their activity.
+
+Constraints:
+- Only use the categories: high, medium, low, unknown
+- When uncertain between two categories, choose the lower intent
+- Never create new categories
+- If activity data is insufficient, classify as "unknown"
+</system>
+```
+
+Without constraints, the model might invent categories, misclassify edge cases inconsistently, or add explanations you don't want.
+
+## Temperature Settings
+
+Temperature controls randomness. Match it to your task:
+
+| Temperature | Use Case | Example |
+|-------------|----------|---------|
+| `0` | Judges, extraction, classification | Evaluator prompts, extracting entities, classifying leads |
+| `0.3` | Analysis, summarization | Company research summaries, content analysis |
+| `0.7` | General tasks, balanced creativity | Drafting emails, writing descriptions |
+| `1.0+` | Brainstorming, creative writing | Generating variations, ideation |
+
+For production workflows, err toward lower temperatures. A temperature of 0 means the same input produces the same output — essential for debugging and testing. Judge prompts should always use temperature 0.
+
+```yaml judge_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0
+---
+
+<system>
+You evaluate company research summaries for a sales team. A good summary must:
+
+1. Mention what the company does (their core product or service)
+2. Identify their target market or customer base
+3. Include at least one specific, verifiable fact
+4. Be 2-4 paragraphs long
+5. Not contain any claims that aren't supported by the provided source data
+</system>
+```
+
+## Structured Output
+
+When you need to parse the result programmatically, use `generateText` with `Output.object()` and a Zod schema instead of asking for JSON in the prompt.
+
+**Unreliable (parsing JSON from text):**
+```yaml
+<user>
+Extract the company info and return as JSON with fields: name, industry, employee_count.
+</user>
+```
+
+**Reliable (schema-validated):**
+```typescript
+const { output } = await generateText({
+  prompt: 'extract_company@v1',
+  variables: { content: websiteContent },
+  output: Output.object({
+    schema: z.object({
+      name: z.string(),
+      industry: z.string(),
+      employeeCount: z.number().nullable()
+    })
+  })
+});
+```
+
+The schema is validated server-side by the LLM provider. You get typed output or an error — no parsing surprises.
+
+### Keep Schemas Simple
+
+Complex nested schemas confuse models. If your schema has more than 5-6 fields or deep nesting, split it into multiple calls.
+
+**Too complex:**
+```typescript
+const schema = z.object({
+  company: z.object({
+    name: z.string(),
+    details: z.object({
+      industry: z.string(),
+      subIndustry: z.string(),
+      // ... 10 more nested fields
+    })
+  }),
+  competitors: z.array(z.object({
+    // ... another complex structure
+  }))
+});
+```
+
+**Better — split into focused calls:**
+```typescript
+const { output: company } = await generateText({ prompt: 'extract_company@v1', output: Output.object({ schema: companySchema }), ... });
+const { output: competitors } = await generateText({ prompt: 'find_competitors@v1', output: Output.array({ element: competitorSchema }), ... });
+```
+
+## Few-Shot Examples
+
+Show the LLM what you want with 2-3 examples. This works better than lengthy instructions.
+
+```yaml
+<user>
+Classify this lead's buying intent: high, medium, low, or unknown.
+
+Examples:
+- "Downloaded pricing page, requested demo, visited 5 pages" → high
+- "Read two blog posts, signed up for newsletter" → medium
+- "Visited homepage once from a Google ad" → low
+
+Lead activity: {{ activity }}
+</user>
+```
+
+Few-shot examples are especially effective for:
+- Classification tasks
+- Formatting requirements
+- Edge case handling
+- Tone matching
+
+## Common Mistakes
+
+### 1. No Role Definition
+
+```yaml
+# Bad — no context for the model
+<user>
+Summarize this company: {{ content }}
+</user>
+```
+
+```yaml
+# Good — clear role and purpose
+<system>
+You create concise company summaries for sales teams.
+Your audience is busy sales reps who want key takeaways before a call.
+</system>
+
+<user>
+Summarize this company: {{ content }}
+</user>
+```
+
+### 2. Unbounded Creativity
+
+```yaml
+# Bad — model will write a novel
+<user>
+Write about {{ company_name }}.
+</user>
+```
+
+```yaml
+# Good — clear bounds
+<user>
+Write a 2-paragraph company overview for {{ company_name }}.
+
+Paragraph 1: What they do and who they serve.
+Paragraph 2: Recent developments or notable achievements.
+</user>
+```
+
+### 3. Asking for Everything at Once
+
+```yaml
+# Bad — too many things, inconsistent results
+<user>
+Analyze this company: give me an overview, list competitors,
+identify their tech stack, summarize recent news, and predict
+their growth trajectory.
+</user>
+```
+
+```yaml
+# Good — focused request, combine in workflow
+<user>
+Based on this content, identify 3-5 direct competitors for {{ company_name }}.
+Only list companies that compete for the same customers.
+</user>
+```
+
+Run multiple focused prompts and combine results in your workflow. This is what steps are for.
+
+## Writing Style Guidelines
+
+For prompts that generate customer-facing content, define explicit style rules:
+
+```yaml
+<system>
+You write company research briefs for sales teams.
+
+Writing guidelines:
+- Voice: Professional but conversational, not corporate
+- Objectivity: State facts, avoid superlatives ("leading", "best-in-class")
+- Language: Clear and direct, no jargon unless industry-specific
+- Structure: Use bullet points for lists, short paragraphs for narrative
+- Length: 200-300 words unless specified otherwise
+</system>
+```
+
+These constraints produce consistent output that matches your brand voice.
+
+## Output Shape Selection
+
+Match the `Output.*` helper to your output shape:
+
+| Need | Output Helper | Example |
+|------|---------------|---------|
+| Free-form text | _(none)_ | Summaries, emails, explanations |
+| Typed object | `Output.object({ schema })` | Extracted data, evaluator judgments |
+| List of items | `Output.array({ element })` | Contacts, competitors, action items |
+| One of N choices | `Output.choice({ options })` | Lead classification, sentiment |
+
+```typescript
+// Classification → Output.choice
+const { output: intent } = await generateText({
+  prompt: 'classify_lead@v1',
+  variables: { activity: leadActivity },
+  output: Output.choice({ options: ['high', 'medium', 'low', 'unknown'] })
+});
+
+// Extraction → Output.object
+const { output: company } = await generateText({
+  prompt: 'extract_company@v1',
+  variables: { content: websiteContent },
+  output: Output.object({ schema: companySchema })
+});
+
+// List → Output.array
+const { output: competitors } = await generateText({
+  prompt: 'find_competitors@v1',
+  variables: { companyName: 'Acme Corp', industry: 'SaaS' },
+  output: Output.array({ element: z.object({ name: z.string(), reason: z.string() }) })
+});
+```
+
+## Further Reading
+
+- [Anthropic's prompt engineering guide](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering)
+- [LLM-as-a-Judge Best Practices](/evaluators/best-practices) — Writing effective judge prompts specifically

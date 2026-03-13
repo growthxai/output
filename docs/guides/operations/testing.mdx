@@ -1,0 +1,246 @@
+---
+title: "Testing Workflows and Steps"
+description: "Write deterministic unit tests for workflows, steps, and evaluators by calling them as plain functions"
+---
+
+Most of the interesting work in an Output app happens inside LLM calls — and LLM output is non-deterministic by nature. The same prompt can produce different results every time. That's why the primary quality tools for LLM-heavy apps are [evaluators](/evaluators) (LLM-as-a-judge) and humans reviewing [trace files](/operations/tracing) to annotate failure modes. Those are your first line of defense.
+
+But there's still plenty of deterministic logic worth testing the traditional way: data transformations, branching logic, schema validation, retry loops, and the glue code that ties your steps together. This page covers how to write those unit tests.
+
+Every exported step, evaluator, and workflow is a callable async function. Import it and call it — no Temporal server needed.
+
+## Testing Steps
+
+Import the step and call it with input that matches its `inputSchema`. The return value is validated against `outputSchema` automatically.
+
+```typescript steps.spec.ts
+import { describe, it, expect } from 'vitest';
+import { lookupCompany } from './steps.js';
+
+describe('lookupCompany', () => {
+  it('returns company data for a valid domain', async () => {
+    const result = await lookupCompany('acme.com');
+
+    expect(result).toHaveProperty('name');
+    expect(result).toHaveProperty('industry');
+    expect(result.size).toBeGreaterThan(0);
+  });
+});
+```
+
+If the input doesn't match `inputSchema` or the return value doesn't match `outputSchema`, it throws a `ValidationError` — see [Error Handling](/operations/error-handling).
+
+<Note>
+This test calls the real step implementation, including any API calls it makes. For fast, isolated tests, mock the external dependencies — see [Mocking Steps and Dependencies](#mocking-steps-and-dependencies) below.
+</Note>
+
+## Testing Evaluators
+
+Same pattern. Import the evaluator and call it with input. The result is an `EvaluationResult` with `value`, `confidence`, and optional `reasoning`.
+
+Deterministic evaluators are especially good candidates for unit tests since they have predictable outputs:
+
+```typescript evaluators.spec.ts
+import { describe, it, expect } from 'vitest';
+import { checkSummaryStructure } from './evaluators.js';
+
+describe('checkSummaryStructure', () => {
+  it('passes a well-formed summary', async () => {
+    const result = await checkSummaryStructure({
+      summary: 'Acme Corp is a B2B SaaS company that provides CRM tools for mid-market sales teams. Founded in 2018, they have 250 employees and recently raised a Series B.',
+      companyName: 'Acme Corp'
+    });
+
+    expect(result.value).toBe(true);
+    expect(result.confidence).toBe(1.0);
+  });
+
+  it('fails a summary that is too short', async () => {
+    const result = await checkSummaryStructure({
+      summary: 'Acme Corp sells software.',
+      companyName: 'Acme Corp'
+    });
+
+    expect(result.value).toBe(false);
+    expect(result.reasoning).toContain('too short');
+  });
+});
+```
+
+You can test LLM-based evaluators the same way — just know that each test run makes a real API call, so it costs money and it will be unpredictable. If your judge prompt is well-designed (temperature set, clear criteria — see [Best Practices](/evaluators/best-practices)), the results should be somewhat consistent enough to assert against. Just keep these tests separate from your fast unit tests.
+
+## Testing Workflows
+
+When a workflow runs outside Temporal (like in Vitest), it executes as a plain async function with a mock context. You'll typically want to mock your steps so the workflow logic runs without real API calls — this is where deterministic testing shines. You're testing your branching logic, retry loops, and data flow, not the LLM output.
+
+```typescript workflow.spec.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { lookupCompany, generateSummary } from './steps.js';
+
+vi.mock('./steps.js', () => ({
+  lookupCompany: vi.fn(),
+  generateSummary: vi.fn()
+}));
+
+import leadEnrichmentWorkflow from './workflow.js';
+
+describe('lead_enrichment workflow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('enriches a company and generates a summary', async () => {
+    vi.mocked(lookupCompany).mockResolvedValue({
+      name: 'Acme Corp',
+      industry: 'SaaS',
+      size: 250
+    });
+    vi.mocked(generateSummary).mockResolvedValue(
+      'Acme Corp is a SaaS company with 250 employees.'
+    );
+
+    const result = await leadEnrichmentWorkflow({
+      companyDomain: 'acme.com'
+    });
+
+    expect(lookupCompany).toHaveBeenCalledWith('acme.com');
+    expect(generateSummary).toHaveBeenCalled();
+    expect(result.company).toBe('Acme Corp');
+    expect(result.summary).toBeDefined();
+  });
+});
+```
+
+With mocked steps, you're testing that the workflow calls the right steps in the right order with the right data — and that it assembles the final output correctly. The LLM quality itself is handled by evaluators in production.
+
+### Mock Context
+
+Outside Temporal, the framework injects a default mock context:
+
+- `context.info.workflowId` → `'test-workflow'`
+- `context.control.continueAsNew` → no-op async function
+- `context.control.isContinueAsNewSuggested()` → `false`
+
+You can override these by passing a `context` in the second argument. This is useful when your workflow logic depends on the workflow ID or other context values:
+
+```typescript
+const result = await leadEnrichmentWorkflow(
+  { companyDomain: 'acme.com' },
+  {
+    context: {
+      info: { workflowId: 'test-run-123' }
+    }
+  }
+);
+
+expect(result.workflowId).toBe('test-run-123');
+```
+
+The `context` override only applies outside Temporal. When running in production, the real Temporal context is used.
+
+### Mocking Steps and Dependencies
+
+In workflow tests, mock your step modules so no real I/O happens:
+
+```typescript
+vi.mock('./steps.js', () => ({
+  lookupCompany: vi.fn(),
+  generateSummary: vi.fn()
+}));
+```
+
+If your workflow uses `sleep` or other utilities from `@outputai/core`, mock those too:
+
+```typescript
+vi.mock('@outputai/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@outputai/core')>();
+  return {
+    ...actual,
+    sleep: vi.fn().mockResolvedValue(undefined)
+  };
+});
+```
+
+### Testing Retry Logic
+
+If your workflow has a generate-evaluate-retry loop, you can test the branching by controlling what the mocked evaluator returns:
+
+```typescript workflow.spec.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { lookupCompany, generateSummary } from './steps.js';
+import { judgeSummaryQuality } from './evaluators.js';
+
+vi.mock('./steps.js', () => ({
+  lookupCompany: vi.fn(),
+  generateSummary: vi.fn()
+}));
+
+vi.mock('./evaluators.js', () => ({
+  judgeSummaryQuality: vi.fn()
+}));
+
+import leadEnrichmentWorkflow from './workflow.js';
+
+describe('lead_enrichment retry logic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    vi.mocked(lookupCompany).mockResolvedValue({
+      name: 'Acme Corp',
+      industry: 'SaaS',
+      size: 250
+    });
+  });
+
+  it('retries when the evaluator fails', async () => {
+    vi.mocked(generateSummary)
+      .mockResolvedValueOnce('Bad summary')
+      .mockResolvedValueOnce('Acme Corp is a SaaS company with 250 employees.');
+
+    vi.mocked(judgeSummaryQuality)
+      .mockResolvedValueOnce({ value: false, confidence: 0.3, reasoning: 'Too vague' })
+      .mockResolvedValueOnce({ value: true, confidence: 0.9, reasoning: 'Looks good' });
+
+    const result = await leadEnrichmentWorkflow({
+      companyDomain: 'acme.com'
+    });
+
+    expect(generateSummary).toHaveBeenCalledTimes(2);
+    expect(judgeSummaryQuality).toHaveBeenCalledTimes(2);
+    expect(result.summary).toBe('Acme Corp is a SaaS company with 250 employees.');
+  });
+});
+```
+
+This is the sweet spot for deterministic testing in an LLM app — you're verifying that your workflow responds correctly to different evaluator outcomes without involving any actual LLM calls.
+
+## What to Test vs. What to Evaluate
+
+| What you're checking | Best tool |
+|----------------------|-----------|
+| Data transformations, schema validation | Unit tests |
+| Workflow branching and retry logic | Unit tests (mock steps + evaluators) |
+| Step calls the right API with the right params | Unit tests (mock the client) |
+| LLM output quality (accuracy, tone, relevance) | [Evaluators](/evaluators) (LLM-as-a-judge) |
+| End-to-end behavior across multiple LLM calls | [Tracing](/operations/tracing) + human review |
+| Regressions in LLM output over time | [Offline evals](/packages/evals) with saved datasets |
+
+The general rule: if the outcome is predictable, write a unit test. If it depends on LLM output, use evaluators and tracing instead.
+
+## Offline Evaluation with Datasets
+
+Unit tests verify deterministic logic. But how do you catch regressions in LLM output quality across a set of known inputs? That's what offline evaluation is for.
+
+The [`@outputai/evals`](/packages/evals) package lets you run your workflow against saved datasets and check output quality using typed evaluators — without modifying your workflow code. You define evaluators with `verify()`, write dataset YAML files with expected inputs and ground truth, and run them via the CLI:
+
+```bash
+# Run evaluations using cached output (no workflow re-execution)
+output workflow test blog_generator --cached
+
+# Run with fresh execution and save results back to datasets
+output workflow test blog_generator --save
+```
+
+Evaluators can be deterministic (checking length, format, required fields) or use LLM judges for subjective quality. Results are reported as pass/partial/fail per dataset case, with a summary showing the overall acceptable rate.
+
+See the [`@outputai/evals` package docs](/packages/evals) for the full guide on creating evaluators, writing datasets, and configuring eval workflows. See [CLI Evaluation Commands](/packages/cli#evaluation-commands) for the command reference.

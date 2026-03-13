@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Run pre-commit checks
+if npx --version >/dev/null 2>&1; then
+  npx lint-staged || exit 1
+  ./ops/extra_files_warning.sh
+else
+  printf "\e[1;33mYou have set up 'Husky' pre-commit hooks, but you don't have npx in your environment. Falling back to docker.\e[0m\n"
+  docker run --rm --entrypoint bash \
+    -v $(pwd):/app \
+    -w /app node:24.13.0 -c "(npx lint-staged || exit 1) && ./ops/extra_files_warning.sh"
+fi

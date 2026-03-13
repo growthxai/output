@@ -1,0 +1,291 @@
+---
+title: "Step Patterns & Best Practices"
+description: "Organize steps, extract utilities, share across workflows, and use evaluators for flow control"
+---
+
+As your workflow grows, you'll need patterns for keeping steps clean and organized. This guide covers how to structure step files, extract reusable logic, share steps across workflows, and use evaluators to control flow.
+
+## Extracting Logic to utils.ts
+
+Steps are where most of your code lives. Sometimes they start to get complex — lots of data transformation, scoring logic, response parsing. When a step's `fn` gets hard to read, you can extract some of that logic into a `utils.ts` file.
+
+Here's a step that's a potential candidate for extraction:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { lookupCompany as fetchFromClearbit } from '../../../clients/clearbit.js';
+import { LookupCompanyInput, LookupCompanyOutput } from './types.js';
+
+export const lookupCompany = step({
+  name: 'lookupCompany',
+  description: 'Look up and normalize company data from Clearbit',
+  inputSchema: LookupCompanyInput,
+  outputSchema: LookupCompanyOutput,
+  fn: async (domain) => {
+    const raw = await fetchFromClearbit(domain);
+
+    const name = raw.name?.trim() || raw.domain;
+    const industry = raw.category?.industry || 'Unknown';
+    const size = raw.metrics?.employees || 0;
+    const sizeCategory =
+      size > 1000 ? 'enterprise' :
+      size > 100 ? 'mid-market' : 'smb';
+    const techStack = (raw.tech || [])
+      .filter((t) => t.category === 'analytics' || t.category === 'crm')
+      .map((t) => t.name);
+
+    return { name, industry, size, sizeCategory, techStack };
+  }
+});
+```
+
+You can extract the transformation logic to a utility file:
+
+```typescript utils.ts
+export function normalizeCompanyData(raw) {
+  const name = raw.name?.trim() || raw.domain;
+  const industry = raw.category?.industry || 'Unknown';
+  const size = raw.metrics?.employees || 0;
+  const sizeCategory =
+    size > 1000 ? 'enterprise' :
+    size > 100 ? 'mid-market' : 'smb';
+  const techStack = (raw.tech || [])
+    .filter((t) => t.category === 'analytics' || t.category === 'crm')
+    .map((t) => t.name);
+
+  return { name, industry, size, sizeCategory, techStack };
+}
+```
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { lookupCompany as fetchFromClearbit } from '../../../clients/clearbit.js';
+import { normalizeCompanyData } from './utils.js';
+import { LookupCompanyInput, LookupCompanyOutput } from './types.js';
+
+export const lookupCompany = step({
+  name: 'lookupCompany',
+  description: 'Look up and normalize company data from Clearbit',
+  inputSchema: LookupCompanyInput,
+  outputSchema: LookupCompanyOutput,
+  fn: async (domain) => {
+    const raw = await fetchFromClearbit(domain);
+    return normalizeCompanyData(raw);
+  }
+});
+```
+
+The step is now two lines: fetch and transform. The transformation logic is testable on its own, reusable by other steps, and easy to understand at a glance.
+
+Good candidates for `utils.ts`:
+- Data transformation and normalization
+- Scoring algorithms and threshold checks
+- Prompt variable formatting
+- Response parsing and cleanup
+
+## File Organization
+
+Most workflows use a single `steps.ts` file — you can put as many steps as you want in there, and that's perfectly fine. But sometimes a workflow has steps that naturally group around different concerns: some deal with data fetching, others with enrichment, others with notifications. When that happens, you can split them into a `steps/` folder with one file per group.
+
+**Single file** — the default for most workflows:
+```
+src/workflows/lead_enrichment/
+├── workflow.ts
+├── steps.ts          # All steps in one file
+├── utils.ts          # Shared helpers
+└── types.ts
+```
+
+**Folder-based** — when you want to group related steps into separate files:
+```
+src/workflows/lead_enrichment/
+├── workflow.ts
+├── steps/
+│   ├── data_fetching.ts     # lookupCompany, searchNews
+│   ├── enrichment.ts        # generateSummary, scoreLead
+│   └── notifications.ts     # sendSlackAlert, updateCRM
+├── utils.ts
+└── types.ts
+```
+
+Both patterns work — Output detects steps from either `steps.ts` or any file inside a `steps/` directory. The folder approach isn't about the number of steps; it's about organizing related steps together so they're easier to find and reason about.
+
+<Note>
+You can mix patterns across workflows in the same project. One workflow might use `steps.ts` while another uses `steps/`. Output handles both.
+</Note>
+
+## Shared Steps
+
+When multiple workflows need the same step, put it in `src/shared/steps/`. This is common for things like CRM lookups, email verification, or enrichment calls that several workflows depend on.
+
+For example, looking up a contact in HubSpot is something both your lead enrichment and outreach workflows might need:
+
+```typescript src/shared/steps/lookup_hubspot_contact.ts
+import { step } from '@outputai/core';
+import { getContact } from '../../clients/hubspot.js';
+import { LookupContactInput, LookupContactOutput } from './types.js';
+
+export const lookupHubspotContact = step({
+  name: 'lookupHubspotContact',
+  description: 'Look up a contact in HubSpot by email',
+  inputSchema: LookupContactInput,
+  outputSchema: LookupContactOutput,
+  fn: async (email) => {
+    const contact = await getContact(email);
+    return {
+      exists: !!contact,
+      contactId: contact?.id,
+      lifecycleStage: contact?.properties?.lifecyclestage,
+      owner: contact?.properties?.hubspot_owner_id
+    };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LookupContactInput = z.string();
+//
+// export const LookupContactOutput = z.object({
+//   exists: z.boolean(),
+//   contactId: z.string().optional(),
+//   lifecycleStage: z.string().optional(),
+//   owner: z.string().optional()
+// });
+```
+
+Import shared steps in any workflow:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupHubspotContact } from '../../shared/steps/lookup_hubspot_contact.js';
+import { enrichLead, generateSummary } from './steps.js';
+import { LeadEnrichmentInput, LeadEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: LeadEnrichmentInput,
+  outputSchema: LeadEnrichmentOutput,
+  fn: async (input) => {
+    const contact = await lookupHubspotContact(input.email);
+    const lead = await enrichLead(input.companyDomain);
+    const summary = await generateSummary(lead);
+    return { company: lead.name, summary, existsInCRM: contact.exists };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LeadEnrichmentInput = z.object({
+//   email: z.string(),
+//   companyDomain: z.string()
+// });
+//
+// export const LeadEnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string(),
+//   existsInCRM: z.boolean()
+// });
+```
+
+If the shared logic is more than a single step — say it involves multiple steps in sequence with its own retry boundaries — you might want a [child workflow](/workflows/child-workflows) instead. But for a single reusable operation like a CRM lookup, a shared step is enough.
+
+<Warning>
+Shared steps can only be imported by workflows, not by other steps. This enforces the activity isolation rule — steps can't call other steps.
+</Warning>
+
+## Evaluators for Flow Control
+
+Evaluators are a special type of step that score LLM output. They use the same `@outputai/llm` module and follow the same import rules as regular steps. What makes them powerful is using the score to control what happens next — retry if quality is low, skip a step if confidence is high, or branch to a different path.
+
+Here's an evaluator that judges the quality of an AI-generated company summary:
+
+```typescript evaluators.ts
+import { evaluator, EvaluationStringResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import { JudgeSummaryInput, JudgeSummaryOutput } from './types.js';
+
+export const judgeSummaryQuality = evaluator({
+  name: 'judgeSummaryQuality',
+  description: 'Score the quality of an AI-generated company summary',
+  inputSchema: JudgeSummaryInput,
+  outputSchema: JudgeSummaryOutput,
+  fn: async (data) => {
+    const { output } = await generateText({
+      prompt: 'judge_summary@v1',
+      variables: { summary: data.output, companyName: data.input.name },
+      output: Output.object({ schema: JudgeSummaryOutput })
+    });
+
+    return new EvaluationStringResult({
+      value: output.feedback,
+      confidence: output.score / 100
+    });
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const JudgeSummaryInput = z.object({
+//   input: z.object({ name: z.string() }),
+//   output: z.string()
+// });
+//
+// export const JudgeSummaryOutput = z.object({
+//   score: z.number().min(0).max(100),
+//   feedback: z.string()
+// });
+```
+
+The real value shows up in workflows. Call an evaluator after an LLM step, check the score, and decide what to do next:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { judgeSummaryQuality } from './evaluators.js';
+import { LeadEnrichmentInput, LeadEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: LeadEnrichmentInput,
+  outputSchema: LeadEnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+
+    let summary;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+      summary = await generateSummary(company);
+      const quality = await judgeSummaryQuality({
+        input: { name: company.name },
+        output: summary
+      });
+
+      if (quality.confidence >= 0.7) break;
+      attempts++;
+    }
+
+    return { company: company.name, summary };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LeadEnrichmentInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const LeadEnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string()
+// });
+```
+
+This pattern — generate, evaluate, retry if needed — is the core of LLM-as-a-judge. The evaluator gives your workflow a way to check its own work and improve automatically.
+
+See the [Evaluators guide](/evaluators) for the full API, evaluation result types, and shared evaluator patterns.

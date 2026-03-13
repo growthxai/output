@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - '/'
+      - '/api'
+      - '/sdk/core'
+      - '/sdk/llm'
+      - '/test_workflows'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 25
+    groups:
+      patch-updates:
+        update-types: ['patch']
+        applies-to: 'version-updates'
+      minor-dev-updates:
+        update-types: ['minor']
+        dependency-type: 'development'

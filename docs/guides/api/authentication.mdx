@@ -1,0 +1,13 @@
+---
+title: "Authentication"
+description: "How authentication works for the Output API"
+---
+
+In development, all endpoints are open. In production (`NODE_ENV=production`), requests require Basic auth using the `OUTPUT_API_AUTH_TOKEN` environment variable:
+
+```bash
+curl -H "Authorization: Basic $OUTPUT_API_AUTH_TOKEN" \
+  https://api.example.com/workflow/run
+```
+
+The `/health` endpoint is always accessible without authentication.

@@ -1,0 +1,120 @@
+---
+title: "Output.ai"
+description: "The open-source TypeScript framework for building AI workflows and agents. Designed for Claude Code — describe what you want, Claude builds it, with all the best practices already in place."
+---
+
+Output is the open-source TypeScript framework for building AI workflows and agents. Designed for Claude Code — describe what you want, Claude builds it, with all the best practices already in place. Prompts, evals, tracing, cost tracking, orchestration, credentials. One framework. No SaaS fragmentation.
+
+## Build AI using AI
+
+Output is the first framework designed for AI coding agents. The entire codebase is structured so Claude Code can scaffold, plan, generate, test, and iterate on your workflows.
+
+**Each workflow is a folder.** `workflow.ts`, `steps.ts`, `types.ts`, `prompts/`, `evaluators.ts` — everything your agent needs to understand context lives together.
+
+**Ships with Claude Code integration.** Native commands, sub-agents, and a CLAUDE.md that teaches Claude the framework's patterns. Describe what you want in plain English. Claude builds it.
+
+```bash
+# Tell Claude what you want
+"Create a workflow that researches a company and generates a sales brief"
+
+# Claude scaffolds the workflow, steps, prompts, and evals
+# You refine from there
+```
+
+Beginners ship professional code from day one — the conventions teach best practices. Experienced AI engineers stop rebuilding the same infrastructure.
+
+## Everything included
+
+No more stitching together SaaS subscriptions. Output handles the fundamentals in one place:
+
+**Where do prompts live?** In your repo as `.prompt` files — version-controlled, reviewable, deployable with your code. Not scattered strings. Not locked in external dashboards.
+
+**How do you test non-deterministic code?** LLM-as-judge evaluators with confidence scores. Programmatic quality gates, not vibes.
+
+**How do you track costs?** Every LLM call traces token counts and model info. Query execution history anytime.
+
+**How do you handle secrets?** AI apps need a lot of API keys. Sharing `.env` files is risky, and coding agents shouldn't see your secrets. Encrypted credentials, scoped per environment, managed through the CLI.
+
+**How do you scale?** Temporal is already there under the hood. You don't think about it until you need it.
+
+## The Code
+
+Two functions to organize your code: `workflow()` for orchestration, `step()` for I/O.
+
+```typescript
+// workflow.ts - orchestration only
+import { workflow, z } from '@outputai/core';
+import { scrapeWebsite, summarizeContent } from './steps.js';
+
+export default workflow({
+  name: 'research_company',
+  inputSchema: z.object({
+    companyUrl: z.string().url()
+  }),
+  outputSchema: z.object({
+    summary: z.string()
+  }),
+  fn: async ({ companyUrl }) => {
+    const content = await scrapeWebsite(companyUrl);
+    const summary = await summarizeContent(content);
+    return { summary };
+  }
+});
+```
+
+```typescript
+// steps.ts - where I/O happens
+import { step, z } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+import { httpClient } from '@outputai/http';
+
+export const scrapeWebsite = step({
+  name: 'scrapeWebsite',
+  inputSchema: z.string().url(),
+  outputSchema: z.string(),
+  fn: async (url) => {
+    const client = httpClient({ timeout: 30000 });
+    const response = await client.get(url);
+    return response.text();
+  }
+});
+
+export const summarizeContent = step({
+  name: 'summarizeContent',
+  inputSchema: z.string(),
+  outputSchema: z.string(),
+  fn: async (content) => {
+    return generateText({
+      prompt: 'summarize@v1',
+      variables: { content }
+    });
+  }
+});
+```
+
+## What's Included
+
+<CardGroup cols={2}>
+  <Card title="Prompt Management" icon="file-code">
+    `.prompt` files with LiquidJS templating. Version-controlled, reviewable in PRs, deployed with your code.
+  </Card>
+  <Card title="Multi-Provider LLM" icon="brain">
+    Anthropic, OpenAI, Azure, Vertex AI, Bedrock. Switch providers by changing one line in your prompt file.
+  </Card>
+  <Card title="LLM-as-Judge Evals" icon="scale-balanced">
+    Built-in evaluators with confidence scores and reasoning. Test non-deterministic code programmatically.
+  </Card>
+  <Card title="Tracing and Cost Tracking" icon="chart-line">
+    Every operation traced automatically. Token counts, costs, latency. JSON on disk, zero config. You own your data.
+  </Card>
+  <Card title="Durable Orchestration" icon="rotate">
+    Temporal under the hood. Automatic retries, workflow history, replay on failure. You don't think about it until you need it.
+  </Card>
+  <Card title="Encrypted Credentials" icon="lock">
+    AES-256-GCM encrypted secrets, scoped per environment and workflow. No more sharing `.env` files or external vault subscriptions.
+  </Card>
+</CardGroup>
+
+<Card title="Get Started" icon="rocket" href="/getting-started">
+  Set up your first Output project in 5 minutes
+</Card>

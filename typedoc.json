@@ -1,0 +1,32 @@
+{
+  "entryPoints": [
+    "./sdk/core/src/hooks/index.d.ts",
+    "./sdk/core/src/index.d.ts",
+    "./sdk/credentials/src/index.ts",
+    "./sdk/evals/src/index.ts",
+    "./sdk/http/src/index.ts",
+    "./sdk/core/src/activity_integration/index.d.ts",
+    "./sdk/core/src/utils/index.d.ts",
+    "./sdk/llm/src/index.d.ts"
+  ],
+  "entryPointStrategy": "resolve",
+  "excludeExternals": true,
+  "skipErrorChecking": true,
+  "disableSources": true,
+  "outputs": [
+    {
+      "name": "html",
+      "path": "./docs/reference",
+      "options": {
+        "navigation": {
+          "includeCategories": true,
+          "includeGroups": true,
+          "excludeReferences": false,
+          "includeFolders": true
+        }
+      }
+    }
+  ],
+  "theme": "default",
+  "readme": "none"
+}

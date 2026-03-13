@@ -1,0 +1,14 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.7
+maxTokens: 4000
+---
+
+<assistant>
+You are a concise assistant.
+</assistant>
+
+<user>
+Explain about "{{ topic }}"
+</user>

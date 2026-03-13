@@ -1,0 +1,239 @@
+---
+title: "Composing with Child Workflows"
+description: "Compose workflows by invoking other workflows"
+---
+
+As your system grows, you'll have workflows that make sense as standalone units — a notification sender, a company enrichment pipeline, a report generator. Child workflows let you call one workflow from another, giving each its own execution context and retry boundaries. This is an abstraction of Temporal's [child workflow execution](https://docs.temporal.io/develop/typescript/child-workflows) concept.
+
+## Basic Usage
+
+Import a workflow and call it like a regular async function:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+import { LeadPipelineInput, LeadPipelineOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_pipeline',
+  description: 'Full lead enrichment pipeline',
+  inputSchema: LeadPipelineInput,
+  outputSchema: LeadPipelineOutput,
+  fn: async (input) => {
+    const enriched = await enrichCompanyWorkflow({ domain: input.companyDomain });
+    return enriched;
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LeadPipelineInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const LeadPipelineOutput = z.object({
+//   name: z.string(),
+//   summary: z.string()
+// });
+```
+
+The child workflow runs with its own retry boundaries — if `enrich_company` fails and retries, it doesn't affect the parent's execution history.
+
+## Invocation Patterns
+
+```typescript
+// With input
+const result = await enrichCompanyWorkflow({ domain: 'acme.com' });
+
+// With input and options
+const result = await enrichCompanyWorkflow(
+  { domain: 'acme.com' },
+  {
+    options: {
+      retry: {
+        maximumAttempts: 1
+      }
+    }
+  }
+);
+
+// Without input but with options (pass undefined as first argument)
+const result = await generateReportWorkflow(
+  undefined,
+  {
+    options: {
+      retry: {
+        maximumAttempts: 99
+      }
+    }
+  }
+);
+
+// Without input and without options
+const result = await generateReportWorkflow();
+```
+
+## Configuration Options
+
+The second argument to a child workflow invocation is a configuration object:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `options` | `TemporalActivityOptions` | Override activity options for all steps in the child workflow. Options are merged with the child workflow's own options. See [Activity Options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions) for available options. |
+| `detached` | `boolean` | If `true`, the child workflow uses `ParentClosePolicy.ABANDON` instead of `TERMINATE`. See [Lifecycle](#lifecycle) below. |
+
+### Activity Options Override
+
+Options set on a child workflow invocation apply to all steps within that child workflow. Steps can still override these with their own `options` property.
+
+```typescript
+// All steps in enrich_company will use maximumAttempts: 1
+await enrichCompanyWorkflow(
+  { domain: input.companyDomain },
+  {
+    options: {
+      retry: {
+        maximumAttempts: 1
+      }
+    }
+  }
+);
+```
+
+## Lifecycle
+
+When you call a child workflow, you have three choices: wait for it, fire it off and forget about it, or start it without waiting but let it die if the parent dies. Here's the breakdown:
+
+| Pattern | Code | Parent Waits? | Child Survives Parent Termination? |
+|---------|------|---------------|-----------------------------------|
+| **Attached (awaited)** | `await enrichCompanyWorkflow(input)` | Yes | No |
+| **Detached (fire-and-forget)** | `sendNotificationWorkflow(input, { detached: true })` | No | Yes |
+| **Not awaited (attached)** | `enrichCompanyWorkflow(input)` | No | No |
+
+### Attached (Awaited)
+
+The parent waits for the child to finish before continuing. If the parent is terminated, the child is terminated too:
+
+```typescript
+const enriched = await enrichCompanyWorkflow({ domain: input.companyDomain });
+// Parent continues only after enrichment completes
+```
+
+<Note>
+When using `await`, the `detached` flag has no effect since the parent waits for the child to complete.
+</Note>
+
+### Detached (Fire-and-Forget)
+
+The parent doesn't wait, and the child keeps running even if the parent terminates. Use this for things like sending notifications or logging — work that should finish regardless of what happens to the parent:
+
+```typescript
+sendNotificationWorkflow(
+  { recipientEmail: lead.email, message: 'Your report is ready' },
+  { detached: true }
+);
+// Parent continues immediately, notification sends in the background
+```
+
+### Not Awaited (Attached)
+
+The parent doesn't wait, but the child is terminated if the parent terminates. Use this when you want to kick off work in parallel but don't need the result:
+
+```typescript
+enrichCompanyWorkflow({ domain: input.companyDomain });
+// Parent continues immediately
+// But if parent terminates, enrichment is cancelled
+```
+
+## When to Use Child Workflows
+
+**Use child workflows when:**
+- You have a reusable pipeline called from multiple places (e.g. `enrich_company` called from both `lead_pipeline` and `account_research`)
+- You want independent retry boundaries — a failing child doesn't blow up the parent's execution history
+- A sub-task should outlive the parent (detached mode for notifications, webhooks)
+- You're organizing a large system into smaller, independently testable units
+
+**Don't use child workflows when:**
+- You just need to reuse a step — import the step directly
+- The logic is tightly coupled to the parent and doesn't make sense on its own
+
+## Examples
+
+### Parallel Child Workflows
+
+Enrich multiple companies at once by running child workflows in parallel:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+import { BatchEnrichmentInput, BatchEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'batch_enrichment',
+  description: 'Enrich multiple companies in parallel',
+  inputSchema: BatchEnrichmentInput,
+  outputSchema: BatchEnrichmentOutput,
+  fn: async (input) => {
+    const results = await Promise.all(
+      input.domains.map(domain =>
+        enrichCompanyWorkflow({ domain })
+      )
+    );
+    return { results };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const BatchEnrichmentInput = z.object({
+//   domains: z.array(z.string())
+// });
+//
+// export const BatchEnrichmentOutput = z.object({
+//   results: z.array(z.object({ name: z.string(), summary: z.string() }))
+// });
+```
+
+### Fire-and-Forget Notification
+
+Process an order and send a notification without blocking:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import sendNotificationWorkflow from '../send_notification/workflow.js';
+import { processOrder } from './steps.js';
+import { OrderInput, OrderOutput } from './types.js';
+
+export default workflow({
+  name: 'order_pipeline',
+  description: 'Process order and notify customer',
+  inputSchema: OrderInput,
+  outputSchema: OrderOutput,
+  fn: async (input) => {
+    const order = await processOrder(input.orderId);
+
+    // Notification sends in the background — doesn't block the return
+    sendNotificationWorkflow(
+      { email: input.customerEmail, message: `Order ${input.orderId}: ${order.status}` },
+      { detached: true }
+    );
+
+    return { orderId: input.orderId, status: order.status };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const OrderInput = z.object({
+//   orderId: z.string(),
+//   customerEmail: z.string()
+// });
+//
+// export const OrderOutput = z.object({
+//   orderId: z.string(),
+//   status: z.string()
+// });
+```

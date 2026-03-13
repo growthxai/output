@@ -1,0 +1,25 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Classify the writing tone of a blog post.
+
+Choose exactly one tone from: "professional", "informative", "casual", "academic"
+
+Return a JSON object with:
+- tone: one of the above tone values
+- reasoning: a brief explanation of your classification
+</system>
+
+<user>
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Classify the writing tone of this blog post.
+</user>

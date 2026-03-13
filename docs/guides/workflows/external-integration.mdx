@@ -1,0 +1,753 @@
+---
+title: "External Integration"
+description: "Send data out, receive input, and query status while workflows run"
+---
+
+Your workflow doesn't run in isolation. It needs to notify your dashboard when a step completes, wait for a human to approve a document, let a monitoring service check progress, or accept configuration changes mid-run. Output gives you primitives for both directions: sending data out and receiving data in.
+
+## Quick Reference
+
+| I need to... | Use | Direction |
+|--------------|-----|-----------|
+| Notify a service or call a webhook | `sendHttpRequest` | Out |
+| Send a request, pause until callback | `sendPostRequestAndAwaitWebhook` | Out, then In |
+| Let external systems push data in | Signal | In |
+| Let a dashboard read current state | Query | In |
+| Accept a change and confirm it worked | Update | In |
+
+## Sending Data Out
+
+### Post a Notification
+
+The simplest integration: call an external API when something happens. Use `sendHttpRequest` to POST to a webhook — notify any HTTP-based service, kick off a Zapier automation, etc.
+
+```typescript
+// src/workflows/content_pipeline/workflow.ts
+import { workflow, sendHttpRequest } from '@outputai/core';
+import { research, draft, review } from './steps.js';
+
+export default workflow({
+  name: 'content_pipeline',
+  description: 'Research, draft, and review content with progress notifications',
+  fn: async (input) => {
+    const researchResults = await research(input.topic);
+
+    // Notify your dashboard or monitoring service
+    await sendHttpRequest({
+      url: `${process.env.INTERNAL_API_URL}/events`,
+      method: 'POST',
+      payload: {
+        event: 'step_complete',
+        workflow: 'content_pipeline',
+        step: 'research',
+        data: { topic: input.topic }
+      }
+    });
+
+    const content = await draft({ topic: input.topic, research: researchResults });
+
+    await sendHttpRequest({
+      url: `${process.env.INTERNAL_API_URL}/events`,
+      method: 'POST',
+      payload: {
+        event: 'step_complete',
+        workflow: 'content_pipeline',
+        step: 'draft',
+        data: { title: content.title }
+      }
+    });
+
+    const reviewed = await review(content);
+    return reviewed;
+  }
+});
+```
+
+Each `sendHttpRequest` fires and continues — the workflow doesn't wait for a response beyond the HTTP acknowledgment.
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `url` | `string` | The request URL (required) |
+| `method` | `'GET' \| 'POST' \| 'PUT' \| 'DELETE' \| 'PATCH'` | HTTP method (default: `GET`) |
+| `payload` | `object` | Request body for POST/PUT (optional) |
+| `headers` | `Record<string, string>` | HTTP headers (optional) |
+
+The response includes `status`, `statusText`, `headers`, `body`, and `ok`.
+
+### Signed Webhooks
+
+When sending data out, it's common practice for the receiving end to require a shared secret that is signed. Here's an example for how to sign a webhook payload using HMAC-SHA256:
+
+<Note>
+Signing must happen in a **step**, not directly in the workflow. Cryptographic operations like `crypto.createHmac` are non-deterministic and must run inside a step.
+</Note>
+
+```typescript
+// src/workflows/signed_webhook/steps.ts
+import { step, z } from '@outputai/core';
+import crypto from 'crypto';
+
+export const sendSignedWebhook = step({
+  name: 'sendSignedWebhook',
+  description: 'Send a webhook with HMAC signature',
+  inputSchema: z.object({
+    url: z.string(),
+    payload: z.record(z.unknown())
+  }),
+  outputSchema: z.object({ status: z.number() }),
+  fn: async ({ url, payload }) => {
+    const secret = process.env.WEBHOOK_SECRET;
+    const body = JSON.stringify(payload);
+
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(body)
+      .digest('hex');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Signature': signature
+      },
+      body
+    });
+
+    return { status: response.status };
+  }
+});
+```
+
+```typescript
+// src/workflows/signed_webhook/workflow.ts
+import { workflow } from '@outputai/core';
+import { sendSignedWebhook } from './steps.js';
+
+export default workflow({
+  name: 'order_complete',
+  fn: async (input) => {
+    // ... process order ...
+
+    await sendSignedWebhook({
+      url: 'https://partner-api.example.com/webhooks',
+      payload: {
+        event: 'order_complete',
+        orderId: input.orderId,
+        total: input.total
+      }
+    });
+
+    return { success: true };
+  }
+});
+```
+
+The receiver verifies by computing the same HMAC and comparing signatures.
+
+## Receiving Data In
+
+Sometimes your workflow needs input from the outside world while it's running. A human approves a document. A dashboard checks progress. An operator changes a setting. Output exposes three primitives for this, built on [Temporal's message passing](https://docs.temporal.io/develop/typescript/message-passing).
+
+| Primitive | Blocks caller? | Can change state? | Returns value? | Use when... |
+|-----------|---------------|-------------------|----------------|-------------|
+| **Signal** | No | Yes | No | Fire-and-forget input (stop, add data) |
+| **Query** | Yes | No | Yes | Read current state (progress, status) |
+| **Update** | Yes | Yes | Yes | Change state and confirm (set threshold) |
+
+### Query: Read State Without Changing It
+
+A **query** lets external systems read workflow state. The workflow keeps running — queries are read-only and don't affect execution.
+
+<Note>
+**Why two imports?** Output wraps Temporal for workflow orchestration. High-level helpers like `workflow` and `sendHttpRequest` come from `@outputai/core`. Low-level primitives like `defineQuery`, `defineSignal`, and `setHandler` come directly from `@temporalio/workflow` — Output doesn't wrap these since Temporal's API is already clean.
+</Note>
+
+**Job:** Your dashboard needs to show which step the workflow is on.
+
+```typescript
+// src/workflows/content_pipeline/workflow.ts
+import { workflow } from '@outputai/core';
+import { defineQuery, setHandler } from '@temporalio/workflow';
+import { research, draft, review } from './steps.js';
+
+// defineQuery<ReturnType>('name') - the generic specifies what the query returns
+const getProgress = defineQuery<{ step: string; completed: number; total: number }>('getProgress');
+
+export default workflow({
+  name: 'content_pipeline',
+  description: 'Content pipeline with progress query',
+  fn: async (input) => {
+    let currentStep = 'research';
+    let completedSteps = 0;
+    const totalSteps = 3;
+
+    setHandler(getProgress, () => ({
+      step: currentStep,
+      completed: completedSteps,
+      total: totalSteps
+    }));
+
+    const researchResults = await research(input.topic);
+    completedSteps = 1;
+    currentStep = 'draft';
+
+    const content = await draft({ topic: input.topic, research: researchResults });
+    completedSteps = 2;
+    currentStep = 'review';
+
+    const reviewed = await review(content);
+    completedSteps = 3;
+    currentStep = 'done';
+
+    return reviewed;
+  }
+});
+```
+
+Query the workflow via HTTP:
+
+```bash
+curl -X POST http://localhost:3001/workflow/content_pipeline-abc123/query/getProgress \
+  -H "Content-Type: application/json"
+```
+
+Response:
+```json
+{ "step": "draft", "completed": 1, "total": 3 }
+```
+
+Your dashboard can poll this endpoint to show a progress bar — no webhooks needed.
+
+<Tip>
+**About the `payload` wrapper**: When sending data to signals, queries, or updates, wrap your data in `{ "payload": {...} }`. The API extracts `payload` and passes it to your handler. For queries with no arguments, send an empty object: `{ "payload": {} }` or omit the body entirely.
+</Tip>
+
+### Query with Arguments
+
+Queries can accept arguments from the caller. Use this to filter results, control verbosity, or request specific data.
+
+**Job:** An agent makes multiple tool calls per step. The dashboard wants to show either a summary or detailed tool call history.
+
+```typescript
+// Define query with input arguments: defineQuery<ReturnType, [ArgumentType]>
+const getProgress = defineQuery<
+  ProgressResult,
+  [{ verbose?: boolean; toolCallId?: string }]
+>('getProgress');
+
+// In your workflow
+interface ToolCall {
+  id: string;
+  tool: string;
+  input: unknown;
+  output: unknown;
+  timestamp: number;
+}
+
+const toolCalls: ToolCall[] = [];
+let currentStep = 'planning';
+
+setHandler(getProgress, (args) => {
+  // Return specific tool call if requested
+  if (args.toolCallId) {
+    const call = toolCalls.find(t => t.id === args.toolCallId);
+    return { toolCall: call ?? null };
+  }
+
+  // Return full history or summary
+  if (args.verbose) {
+    return { currentStep, toolCalls, totalCalls: toolCalls.length };
+  }
+  return { currentStep, totalCalls: toolCalls.length };
+});
+
+// During execution, record each tool call
+const searchResult = await webSearch({ query: 'AI safety' });
+toolCalls.push({
+  id: `tc-${toolCalls.length + 1}`,
+  tool: 'web_search',
+  input: { query: 'AI safety' },
+  output: searchResult,
+  timestamp: Date.now()
+});
+```
+
+Query with arguments:
+
+```bash
+# Summary view
+curl -X POST http://localhost:3001/workflow/agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": {} }'
+# { "currentStep": "research", "totalCalls": 5 }
+
+# Detailed view
+curl -X POST http://localhost:3001/workflow/agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "verbose": true } }'
+# { "currentStep": "research", "totalCalls": 5, "toolCalls": [...] }
+
+# Specific tool call
+curl -X POST http://localhost:3001/workflow/agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "toolCallId": "tc-3" } }'
+# { "toolCall": { "id": "tc-3", "tool": "web_search", ... } }
+```
+
+### Signal: Push Data In
+
+A **signal** pushes data into a running workflow. The caller doesn't wait for processing — the API returns immediately. Use signals for fire-and-forget input like "stop processing" or "here's new data."
+
+**Job:** An operator wants to stop a long-running research workflow early.
+
+```typescript
+// src/workflows/iterative_research/workflow.ts
+import { workflow } from '@outputai/core';
+import { defineSignal, setHandler, condition } from '@temporalio/workflow';
+import { executeResearch, validateQuality } from './steps.js';
+
+const stopSignal = defineSignal('stop');
+
+export default workflow({
+  name: 'iterative_research',
+  description: 'Research with early stop capability',
+  fn: async (input) => {
+    let shouldStop = false;
+    let results = [];
+
+    setHandler(stopSignal, () => {
+      shouldStop = true;
+    });
+
+    for (let iteration = 1; iteration <= 3; iteration++) {
+      const iterationResults = await executeResearch({
+        topic: input.topic,
+        iteration
+      });
+      results.push(...iterationResults);
+
+      const quality = await validateQuality(results);
+
+      // Check if operator sent stop signal
+      if (shouldStop) {
+        break;
+      }
+
+      // Also stop if quality is good enough
+      if (quality.score >= 0.8) {
+        break;
+      }
+    }
+
+    return { results, iterations: results.length };
+  }
+});
+```
+
+Send the stop signal:
+
+```bash
+curl -X POST http://localhost:3001/workflow/iterative_research-abc123/signal/stop
+```
+
+The workflow checks `shouldStop` between iterations and exits early. The operator gets `200 OK` immediately — they don't wait for the workflow to actually stop.
+
+### Update: Change State and Get Confirmation
+
+An **update** changes workflow state and returns a result. The caller blocks until the workflow processes the update. Use updates when you need confirmation that a change was applied.
+
+**Job:** An admin wants to change the quality threshold mid-workflow and see the previous value.
+
+```typescript
+// src/workflows/iterative_research/workflow.ts
+import { workflow } from '@outputai/core';
+import { defineUpdate, setHandler } from '@temporalio/workflow';
+import { executeResearch, validateQuality } from './steps.js';
+
+const setThreshold = defineUpdate<number, [{ threshold: number }]>('setThreshold');
+
+export default workflow({
+  name: 'iterative_research',
+  description: 'Research with adjustable quality threshold',
+  fn: async (input) => {
+    let qualityThreshold = 0.8;
+
+    setHandler(setThreshold, (params) => {
+      const previous = qualityThreshold;
+      qualityThreshold = params.threshold;
+      return previous;  // Caller receives this
+    });
+
+    // ... research iterations using qualityThreshold ...
+  }
+});
+```
+
+Send the update:
+
+```bash
+curl -X POST http://localhost:3001/workflow/iterative_research-abc123/update/setThreshold \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "threshold": 0.9 } }'
+```
+
+Response:
+```json
+0.8
+```
+
+The admin sees the previous threshold (0.8) and knows their change was applied.
+
+## Waiting for External Input
+
+Two patterns for pausing a workflow until the outside world responds.
+
+### Pattern 1: Workflow Initiates the Request
+
+Use `sendPostRequestAndAwaitWebhook` when your workflow knows who to ask and wants to pause until they respond.
+
+**Job:** Send a document for human approval, pause until they decide.
+
+```typescript
+// src/workflows/document_approval/workflow.ts
+import { workflow, sendPostRequestAndAwaitWebhook } from '@outputai/core';
+import { generateDocument } from './steps.js';
+
+export default workflow({
+  name: 'document_approval',
+  description: 'Generate document and wait for human approval',
+  fn: async (input) => {
+    const document = await generateDocument(input);
+
+    // Workflow pauses here until approval service calls back
+    const approval = await sendPostRequestAndAwaitWebhook({
+      url: 'https://approval-service.example.com/request',
+      payload: {
+        documentId: document.id,
+        title: document.title
+      }
+    }) as { approved: boolean; comments?: string };
+
+    return {
+      documentId: document.id,
+      approved: approval.approved,
+      comments: approval.comments
+    };
+  }
+});
+```
+
+Output automatically includes the `workflowId` in the request. The approval service stores it and calls back when the human decides:
+
+```bash
+curl -X POST http://localhost:3001/workflow/document_approval-abc123/feedback \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "approved": true, "comments": "Looks good" } }'
+```
+
+The workflow resumes with the approval data.
+
+### Pattern 2: External System Initiates
+
+Use a signal with `condition()` when external systems contact your workflow unprompted. The `condition()` function pauses the workflow until a predicate becomes true — the workflow stays durable and doesn't consume resources while waiting.
+
+**Job:** Wait for Stripe to confirm a payment succeeded.
+
+```typescript
+// src/workflows/order_processing/workflow.ts
+import { workflow } from '@outputai/core';
+import { defineSignal, setHandler, condition } from '@temporalio/workflow';
+import { createOrder, fulfillOrder } from './steps.js';
+
+const paymentComplete = defineSignal<[{ paymentId: string; amount: number }]>('paymentComplete');
+
+export default workflow({
+  name: 'order_processing',
+  description: 'Process order after payment confirmation',
+  fn: async (input) => {
+    const order = await createOrder(input);
+
+    let payment: { paymentId: string; amount: number } | null = null;
+
+    setHandler(paymentComplete, (data) => {
+      payment = data;
+    });
+
+    // Workflow pauses here, no CPU consumed
+    await condition(() => payment !== null);
+
+    // Payment received, continue processing
+    const result = await fulfillOrder({
+      orderId: order.id,
+      paymentId: payment!.paymentId
+    });
+
+    return result;
+  }
+});
+```
+
+Configure Stripe to send webhooks to your Output API. When Stripe confirms payment:
+
+```bash
+curl -X POST http://localhost:3001/workflow/order_processing-abc123/signal/paymentComplete \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "paymentId": "pi_123", "amount": 9900 } }'
+```
+
+The workflow wakes up and continues.
+
+### Which Pattern to Use?
+
+| Scenario | Pattern |
+|----------|---------|
+| Workflow knows who to ask (approval service, specific user) | `sendPostRequestAndAwaitWebhook` |
+| External system contacts workflow unprompted (webhook, event) | Signal + `condition()` |
+| Need to poll for updates while waiting | Add a query alongside the signal |
+
+## Full Example: Research Agent with Human Override
+
+A research agent that runs autonomously but accepts human intervention. Combines all the patterns: signals to stop or add questions, queries to check progress and tool calls, and updates to change settings.
+
+```typescript
+// src/workflows/research_agent/workflow.ts
+import { workflow } from '@outputai/core';
+import {
+  defineSignal,
+  defineQuery,
+  defineUpdate,
+  setHandler
+} from '@temporalio/workflow';
+import { planQuestions, executeQuestion, synthesize } from './steps.js';
+
+// Types
+interface ToolCall {
+  id: string;
+  question: string;
+  result: unknown;
+  timestamp: number;
+}
+
+interface ProgressArgs {
+  verbose?: boolean;
+  toolCallId?: string;
+}
+
+// Define message handlers
+const stopSignal = defineSignal('stop');
+const addQuestionSignal = defineSignal<[{ question: string }]>('addQuestion');
+const getProgress = defineQuery<unknown, [ProgressArgs]>('getProgress');
+const setMaxIterations = defineUpdate<number, [{ max: number }]>('setMaxIterations');
+
+export default workflow({
+  name: 'research_agent',
+  description: 'Autonomous research with human override capabilities',
+  fn: async (input) => {
+    // State
+    let shouldStop = false;
+    let maxIterations = 3;
+    let currentIteration = 0;
+    let questionsCompleted = 0;
+    let totalQuestions = 0;
+    let qualityScore: number | null = null;
+    let additionalQuestions: string[] = [];
+    const toolCalls: ToolCall[] = [];
+
+    // Signals
+    setHandler(stopSignal, () => {
+      shouldStop = true;
+    });
+
+    setHandler(addQuestionSignal, (params) => {
+      additionalQuestions.push(params.question);
+    });
+
+    // Query with arguments - return different data based on request
+    setHandler(getProgress, (args = {}) => {
+      // Return specific tool call
+      if (args.toolCallId) {
+        return { toolCall: toolCalls.find(t => t.id === args.toolCallId) ?? null };
+      }
+
+      // Return verbose or summary
+      const summary = {
+        iteration: currentIteration,
+        questionsCompleted,
+        totalQuestions,
+        qualityScore
+      };
+
+      if (args.verbose) {
+        return { ...summary, toolCalls };
+      }
+      return summary;
+    });
+
+    // Update
+    setHandler(setMaxIterations, (params) => {
+      const previous = maxIterations;
+      maxIterations = params.max;
+      return previous;
+    });
+
+    // Main research loop
+    for (let i = 1; i <= maxIterations && !shouldStop; i++) {
+      currentIteration = i;
+
+      const questions = await planQuestions({
+        topic: input.topic,
+        previousResults: toolCalls.map(t => t.result),
+        additionalQuestions
+      });
+      additionalQuestions = [];
+
+      totalQuestions = questions.length;
+      questionsCompleted = 0;
+
+      for (const question of questions) {
+        if (shouldStop) break;
+
+        const result = await executeQuestion({ question });
+
+        // Track each tool call for querying
+        toolCalls.push({
+          id: `tc-${toolCalls.length + 1}`,
+          question,
+          result,
+          timestamp: Date.now()
+        });
+        questionsCompleted++;
+      }
+
+      const synthesis = await synthesize(toolCalls.map(t => t.result));
+      qualityScore = synthesis.score;
+
+      if (qualityScore >= 0.85) {
+        break;
+      }
+    }
+
+    return {
+      results: toolCalls,
+      iterations: currentIteration,
+      finalScore: qualityScore
+    };
+  }
+});
+```
+
+### Interacting with the Agent
+
+**Start the research:**
+```bash
+curl -X POST http://localhost:3001/workflow/start \
+  -H "Content-Type: application/json" \
+  -d '{ "workflowName": "research_agent", "input": { "topic": "AI safety" } }'
+```
+
+**Check progress (summary):**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": {} }'
+# { "iteration": 2, "questionsCompleted": 3, "totalQuestions": 5, "qualityScore": 0.72 }
+```
+
+**Check progress (with full tool call history):**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "verbose": true } }'
+# { "iteration": 2, ..., "toolCalls": [{ "id": "tc-1", "question": "...", "result": {...} }, ...] }
+```
+
+**Inspect a specific tool call:**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/query/getProgress \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "toolCallId": "tc-3" } }'
+# { "toolCall": { "id": "tc-3", "question": "What are current AI safety challenges?", ... } }
+```
+
+**Add a question the agent should investigate:**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/signal/addQuestion \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "question": "What are the key alignment proposals?" } }'
+```
+
+**Extend the research (and see old limit):**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/update/setMaxIterations \
+  -H "Content-Type: application/json" \
+  -d '{ "payload": { "max": 5 } }'
+# Returns: 3
+```
+
+**Stop early when quality is good enough:**
+```bash
+curl -X POST http://localhost:3001/workflow/research_agent-abc123/signal/stop
+```
+
+## Reference
+
+### Outbound Functions
+
+Both are imported from `@outputai/core` and used inside workflow `fn`.
+
+**`sendHttpRequest(options)`** — Fire-and-forget HTTP request.
+
+| Option | Type | Required |
+|--------|------|----------|
+| `url` | `string` | Yes |
+| `method` | `'GET' \| 'POST' \| 'PUT' \| 'DELETE' \| 'PATCH'` | No (default: `GET`) |
+| `payload` | `object` | No |
+| `headers` | `Record<string, string>` | No |
+
+**`sendPostRequestAndAwaitWebhook(options)`** — POST then pause until callback.
+
+| Option | Type | Required |
+|--------|------|----------|
+| `url` | `string` | Yes |
+| `payload` | `object` | No |
+| `headers` | `Record<string, string>` | No |
+
+Callback endpoint: `POST /workflow/:id/feedback` with `{ "payload": {...} }`.
+
+### Inbound Primitives
+
+All are imported from `@temporalio/workflow` and used inside workflow `fn`.
+
+**Signal** — Async, no return value.
+```typescript
+const mySignal = defineSignal<[PayloadType]>('signalName');
+setHandler(mySignal, (payload) => { /* mutate state */ });
+```
+HTTP: `POST /workflow/:id/signal/signalName` with `{ "payload": {...} }`
+
+**Query** — Sync, read-only, returns value.
+```typescript
+const myQuery = defineQuery<ReturnType>('queryName');
+setHandler(myQuery, () => { return currentState; });
+```
+HTTP: `POST /workflow/:id/query/queryName`
+
+**Update** — Sync, can mutate, returns value.
+```typescript
+const myUpdate = defineUpdate<ReturnType, [PayloadType]>('updateName');
+setHandler(myUpdate, (payload) => { /* mutate */ return result; });
+```
+HTTP: `POST /workflow/:id/update/updateName` with `{ "payload": {...} }`
+
+**Condition** — Pause until predicate is true.
+```typescript
+await condition(() => someState !== null);
+```
+
+### Error Handling
+
+If the workflow doesn't exist, the API returns a `404` error. If the workflow exists but doesn't have a handler for the given signal/query/update name, Temporal throws an error. Make sure your handler names match between the workflow code and the API calls.
+
+For advanced patterns (validators, async handlers, timeouts), see [Temporal's message passing docs](https://docs.temporal.io/develop/typescript/message-passing).

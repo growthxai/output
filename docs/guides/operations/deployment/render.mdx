@@ -1,0 +1,337 @@
+---
+title: "Deploy to Render"
+description: "Step-by-step guide to deploying Output workflows on Render"
+---
+
+[Render](https://render.com) is a cloud platform that supports infrastructure-as-code via a `render.yaml` Blueprint. You define your services in a single file, connect your GitHub repo, and Render handles the rest.
+
+Here's what we'll do:
+
+- [**Create the worker Dockerfile**](#step-1-create-the-worker-dockerfile) — Add the `ops/` directory and Dockerfile to your repo
+- [**Create the Render Blueprint**](#step-2-create-the-render-blueprint) — Define the API, worker, and optional Redis in `render.yaml`
+- [**Deploy**](#step-3-deploy) — Connect your repo and provision all services
+- [**Verify**](#step-4-verify) — Confirm everything is connected end-to-end
+
+## Project structure
+
+After running `output init`, your repository looks like this:
+
+```
+your-workflows/
+├── src/
+│   └── workflows/
+│       └── your_workflow/
+│           ├── workflow.ts
+│           ├── steps.ts
+│           └── ...
+├── package.json
+└── tsconfig.json
+```
+
+This is the default structure — it doesn't include any deployment configuration yet. During this guide, we'll add an `ops/` directory containing a Dockerfile for the worker, and a `render.yaml` Blueprint at the root.
+
+## Step 1: Create the worker Dockerfile
+
+Create the `ops/` directory and add `ops/render.Dockerfile` for your worker:
+
+```dockerfile ops/render.Dockerfile
+FROM node:24.13.0-slim
+
+ENV NODE_ENV=development
+
+WORKDIR /app
+
+# Required for Temporal's Rust-based client
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies (copy first to leverage Docker cache)
+COPY package.json package-lock.json ./
+RUN npm run output:worker:install
+
+# Build the worker
+COPY src/ ./src/
+COPY tsconfig.json ./
+RUN npm run output:worker:build
+
+# Clean up source files after build
+RUN rm -rf ./src tsconfig.json
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Production settings
+ENV NODE_ENV=production
+ENV PATH="/app/node_modules/.bin:$PATH"
+ENV NODE_OPTIONS="--max-old-space-size=3700"
+
+CMD ["output-worker"]
+```
+
+<Tip>
+The `NODE_OPTIONS` setting allocates 3.7GB of memory to Node.js. Adjust this based on your Render plan and workflow memory requirements.
+</Tip>
+
+Don't commit yet — we'll add the `render.yaml` Blueprint next and commit everything together.
+
+## Step 2: Create the Render Blueprint
+
+Render's [Blueprint Spec](https://docs.render.com/infrastructure-as-code) lets you define your entire infrastructure in a single `render.yaml` file. When you connect your repo, Render reads this file and provisions all services automatically.
+
+Create `render.yaml` at the root of your repository:
+
+```yaml render.yaml
+previews:
+  generation: off
+services:
+  # API Service - deploys from pre-built Docker image
+  - type: web
+    name: your-project-output-api
+    runtime: image
+    image:
+      url: docker.io/outputai/api:1.9
+    plan: pro
+    region: oregon
+    envVars:
+      - key: TEMPORAL_ADDRESS
+        value: <region>.aws.api.temporal.io:7233
+      - key: TEMPORAL_NAMESPACE
+        value: <your-namespace>
+      - key: TEMPORAL_API_KEY
+        sync: false
+      # Task queue the worker will listen on. Must match the OUTPUT_CATALOG_ID used by the worker.
+      - key: OUTPUT_CATALOG_ID
+        value: main
+      - key: OUTPUT_API_AUTH_TOKEN
+        generateValue: true
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetCPUPercent: 60
+      targetMemoryPercent: 60
+
+  # Worker Service - builds from your GitHub repo
+  - type: worker
+    name: your-project-output-worker
+    runtime: docker
+    repo: https://github.com/your-org/your-workflows
+    branch: main
+    plan: pro
+    region: oregon
+    dockerfilePath: ./ops/render.Dockerfile
+    envVars:
+      # Must match the OUTPUT_CATALOG_ID used in the API
+      - key: OUTPUT_CATALOG_ID
+        value: main
+      - key: TEMPORAL_ADDRESS
+        value: <region>.aws.api.temporal.io:7233
+      - key: TEMPORAL_NAMESPACE
+        value: <your-namespace>
+      - key: TEMPORAL_API_KEY
+        sync: false
+      # LLM API keys
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    scaling:
+      minInstances: 1
+      maxInstances: 10
+      targetCPUPercent: 60
+      targetMemoryPercent: 60
+```
+
+### Adding Redis for remote tracing
+
+For production debugging, you can add Redis as a Render service and reference it using `fromService`. This keeps everything in one Blueprint and Render handles the connection string automatically:
+
+```yaml render.yaml
+services:
+  # ... API and Worker services from above ...
+
+  # Redis for remote tracing
+  - type: redis
+    name: your-project-output-cache
+    plan: pro
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+```
+
+Then add these env vars to your worker service to enable remote tracing:
+
+```yaml
+    envVars:
+      # ... other env vars ...
+      - key: OUTPUT_REDIS_URL
+        fromService:
+          type: redis
+          name: your-project-output-cache
+          property: connectionString
+      - key: OUTPUT_TRACE_REMOTE_ON
+        value: true
+      # Optional: persist traces to S3
+      - key: OUTPUT_TRACE_REMOTE_S3_BUCKET
+        value: your-traces-bucket
+      - key: OUTPUT_AWS_REGION
+        value: us-west-1
+      - key: OUTPUT_AWS_ACCESS_KEY_ID
+        sync: false
+      - key: OUTPUT_AWS_SECRET_ACCESS_KEY
+        sync: false
+```
+
+The `fromService` reference automatically injects the Redis connection string — no need to manage it manually. See [Advanced configuration](/operations/deployment/advanced) for more on remote tracing.
+
+### Blueprint key concepts
+
+**Service types:**
+- `type: web` — The API. Render assigns it a public URL and routes HTTP traffic to it.
+- `type: worker` — The worker. No public URL, just runs your Dockerfile.
+
+**Secret handling with `sync: false`:**
+
+Variables marked `sync: false` are secrets. Render prompts you to enter their values when you first deploy the Blueprint. They won't be committed to your repo.
+
+```yaml
+- key: TEMPORAL_API_KEY
+  sync: false               # Render prompts for this during setup
+```
+
+**Auto-generated values:**
+
+Use `generateValue: true` for tokens that just need to be a random secure string. Render generates and stores the value for you.
+
+```yaml
+- key: OUTPUT_API_AUTH_TOKEN
+  generateValue: true       # Render creates a random secure value
+```
+
+Commit the new files and push to GitHub before continuing:
+
+```bash
+git add ops/ render.yaml
+git commit -m "Add worker Dockerfile and Render Blueprint"
+git push
+```
+
+## Step 3: Deploy
+
+1. Go to [Render's dashboard](https://dashboard.render.com) and click **New** → **Blueprint**
+2. Connect your GitHub repository
+3. Render detects `render.yaml` and shows the services it will create
+4. Enter values for any `sync: false` secrets when prompted
+5. Click **Apply** to provision all services
+
+<Note>
+Render assigns a `.onrender.com` subdomain to web services automatically. You can add a custom domain in the service settings.
+</Note>
+
+## Step 4: Verify
+
+Once both services are running, verify the API is up and the worker has registered your workflows.
+
+1. Check the API is healthy:
+
+```bash
+curl https://your-project-output-api.onrender.com/health
+```
+
+You should get a `200 OK` response.
+
+2. Confirm the worker has connected and your workflows are registered via the catalog endpoint:
+
+```bash
+curl -H "Authorization: Basic <your-api-auth-token>" \
+  https://your-project-output-api.onrender.com/workflow/catalog
+```
+
+You should see a JSON response listing your registered workflows. If the list is empty, the worker may still be starting up — check the worker logs in Render and try again after a moment.
+
+3. Run a workflow end-to-end:
+
+```bash
+curl -X POST https://your-project-output-api.onrender.com/workflow/run \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Basic <your-api-auth-token>" \
+  -d '{
+    "workflowName": "your_workflow",
+    "input": { "key": "value" }
+  }'
+```
+
+## Tuning worker concurrency
+
+For high-throughput workloads, you can tune how aggressively the worker pulls and executes tasks from Temporal. Add these to your worker's `envVars`:
+
+```yaml
+- key: TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS
+  value: 150
+- key: TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS
+  value: 600
+- key: TEMPORAL_MAX_CACHED_WORKFLOWS
+  value: 50
+- key: TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS
+  value: 10
+- key: TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS
+  value: 10
+```
+
+The defaults work for most workloads. Only tune these if you're seeing task queue backlog in the Temporal UI.
+
+## Monitoring
+
+### Render dashboard
+
+Render provides built-in metrics for:
+- CPU and memory usage per service
+- Deploy history and logs
+
+### Temporal Cloud
+
+Monitor workflow executions in the [Temporal Cloud UI](https://cloud.temporal.io):
+- Active workflows
+- Failed executions
+- Workflow history
+
+### Traces
+
+If you've enabled [remote tracing](/operations/deployment/advanced#remote-tracing-with-redis), traces are stored in Redis and optionally uploaded to S3.
+
+## Scaling considerations
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Low traffic | 1 worker, 1 API instance |
+| Moderate traffic | 2-5 workers, 2 API instances |
+| High traffic | 5-30 workers, 3+ API instances |
+| Burst workloads | Configure aggressive auto-scaling thresholds (40-50% CPU/memory) |
+
+Workers scale independently from the API. If workflows are queuing up in Temporal, add more workers. If API response times are slow, add more API instances.
+
+## Troubleshooting
+
+### Worker not picking up jobs
+
+1. Check the Temporal UI for pending workflows
+2. Verify `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, and `TEMPORAL_API_KEY` are correct
+3. Check worker logs in Render for connection errors
+
+### Trace files not appearing
+
+1. Verify `OUTPUT_REDIS_URL` is set and Redis is running
+2. Check `OUTPUT_TRACE_REMOTE_ON=true` is set
+3. For S3, verify AWS credentials have write access to the bucket
+
+### Out of memory errors
+
+1. Increase `NODE_OPTIONS` memory allocation in the Dockerfile
+2. Upgrade Render plan for more resources
+3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+
+### Build failures
+
+1. Check Dockerfile path matches `dockerfilePath` in `render.yaml`
+2. Verify all dependencies are in `package.json`
+3. Review build logs in the Render dashboard

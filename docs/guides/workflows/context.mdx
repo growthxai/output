@@ -1,0 +1,168 @@
+---
+title: "Execution Context"
+description: "Access workflow execution information and control flow"
+---
+
+Sometimes your workflow needs to know about itself — its execution ID for logging, or whether it's been running long enough that it should checkpoint and start fresh. The `context` object gives you this. It's the second argument to your workflow's `fn`, and it's always there whether you use it or not.
+
+## Basic Usage
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { LeadEnrichmentInput, LeadEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  description: 'Enrich a sales lead with company data and AI summary',
+  inputSchema: LeadEnrichmentInput,
+  outputSchema: LeadEnrichmentOutput,
+  fn: async (input, context) => {
+    const company = await lookupCompany(input.companyDomain);
+    const summary = await generateSummary(company);
+    return {
+      company: company.name,
+      summary,
+      workflowId: context.info.workflowId
+    };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LeadEnrichmentInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const LeadEnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string(),
+//   workflowId: z.string()
+// });
+```
+
+The `context` is always the second argument, even if your workflow has no `inputSchema`. In that case, use `_input` to signal you're ignoring it: `fn: async (_input, context) => { ... }`.
+
+## Context Structure
+
+| Namespace | Description |
+|-----------|-------------|
+| `context.control` | Functions to control workflow execution flow |
+| `context.info` | Information about the current workflow execution |
+
+## Workflow Information
+
+### `context.info.workflowId`
+
+The unique Temporal workflow ID for this execution. Include it in your output when you need to correlate results with external systems, track executions in logs, or pass a reference to another service.
+
+See the [Temporal workflow ID documentation](https://docs.temporal.io/workflow-execution/workflowid-runid#workflow-id) for more details.
+
+## Control Functions
+
+### `continueAsNew()`
+
+Every step your workflow executes adds to its execution history. For short workflows this doesn't matter, but if you're looping over thousands of leads or running a long-lived polling workflow, that history grows. `continueAsNew` checkpoints the current state and starts a fresh execution — same workflow, clean history.
+
+The new execution is in the same chain as the previous one but generates a separate trace file. See [Tracing — continue-as-new](/operations/tracing#continue-as-new) for how traces are correlated across runs.
+
+`continueAsNew` must be the last thing your workflow does — call it with `return`:
+
+```typescript
+fn: async (input, context) => {
+  const result = await enrichLead(input.companyDomain);
+
+  if (result.needsMoreData) {
+    // Checkpoint and restart with updated input
+    return context.control.continueAsNew({
+      companyDomain: input.companyDomain,
+      attempt: (input.attempt ?? 0) + 1
+    });
+  }
+
+  return { company: result.name, summary: result.summary };
+}
+```
+
+If your workflow has an `inputSchema`, pass the input object for the new execution. If it has no `inputSchema`, call without arguments: `context.control.continueAsNew()`.
+
+The function's return type matches your `outputSchema` for type-checking, but it never actually returns — the execution is replaced.
+
+See the [Temporal continue-as-new documentation](https://docs.temporal.io/develop/typescript/continue-as-new) for more details.
+
+### `isContinueAsNewSuggested()`
+
+Rather than guessing when to checkpoint, ask Temporal. This returns `true` when the runtime thinks your history is getting large enough that you should continue as new. Check it at loop boundaries:
+
+```typescript
+fn: async (input, context) => {
+  const remainingLeads = [...input.leads];
+
+  while (remainingLeads.length > 0) {
+    const lead = remainingLeads.shift();
+    await enrichLead(lead);
+
+    if (context.control.isContinueAsNewSuggested()) {
+      return context.control.continueAsNew({
+        leads: remainingLeads
+      });
+    }
+  }
+
+  return { completed: true };
+}
+```
+
+See the [Temporal continue-as-new testing guide](https://docs.temporal.io/develop/typescript/continue-as-new#how-to-test) for more details.
+
+## Full Example
+
+A workflow that processes a large batch of leads, checkpointing when Temporal suggests it:
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { enrichLead } from './steps.js';
+import { BatchEnrichmentInput, BatchEnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'batch_enrichment',
+  description: 'Enrich leads in batches with automatic checkpointing',
+  inputSchema: BatchEnrichmentInput,
+  outputSchema: BatchEnrichmentOutput,
+  fn: async (input, context) => {
+    const remaining = [...input.leads];
+    let enriched = input.enrichedCount;
+
+    while (remaining.length > 0) {
+      const lead = remaining.shift();
+      await enrichLead(lead);
+      enriched++;
+
+      if (context.control.isContinueAsNewSuggested()) {
+        return context.control.continueAsNew({
+          leads: remaining,
+          enrichedCount: enriched
+        });
+      }
+    }
+
+    return { totalEnriched: enriched };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const BatchEnrichmentInput = z.object({
+//   leads: z.array(z.object({
+//     domain: z.string(),
+//     name: z.string()
+//   })),
+//   enrichedCount: z.number().default(0)
+// });
+//
+// export const BatchEnrichmentOutput = z.object({
+//   totalEnriched: z.number()
+// });
+```

@@ -1,0 +1,523 @@
+---
+title: "Connecting to External APIs"
+description: "Build typed, observable API clients for reliable third-party integrations"
+---
+
+AI workflows talk to external APIs constantly — search engines, content services, data providers, internal tools. You could install a dedicated SDK for each one, but that adds maintenance overhead. Writing raw `fetch` calls works, but you lose visibility into what's happening across your workflow and becomes tedious to maintain.
+
+Output ships `httpClient` from `@outputai/http` as the standard way to write API clients. Every request is automatically traced, so you see exactly what your workflow called in the same trace as the step that called it, what came back, and how long it took. You (or Claude Code) write thin, typed wrappers — one file per API — that your steps import.
+
+## Your First Client
+
+Here's a simple client that searches the web using [Tavily](https://tavily.com). Create a file at `src/clients/tavily.ts`:
+
+```typescript src/clients/tavily.ts
+import { httpClient } from '@outputai/http';
+import { FatalError } from '@outputai/core';
+
+const getApiKey = () => {
+  const key = process.env.TAVILY_API_KEY;
+  if (!key) {
+    throw new FatalError('TAVILY_API_KEY environment variable is required');
+  }
+  return key;
+};
+
+const createClient = () =>
+  httpClient({
+    prefixUrl: 'https://api.tavily.com',
+    timeout: 60000,
+  });
+
+export const tavilyClient = {
+  search: async (query: string): Promise<{ title: string; url: string; content: string }[]> => {
+    const client = createClient();
+
+    const data = await client
+      .post('search', {
+        json: { api_key: getApiKey(), query, max_results: 5 },
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .json<{ results: Array<{ title: string; url: string; content: string }> }>();
+
+    return data.results;
+  },
+};
+```
+
+That's a complete, working client. Let's break down what's happening:
+
+**`createClient()`** builds an HTTP client with a base URL and timeout. Every request through this client is automatically traced — you'll see the URL, status code, and timing in your workflow trace. The `prefixUrl` means you only write relative paths like `'search'` instead of the full URL.
+
+**`getApiKey()`** reads the API key from an environment variable. It throws a `FatalError` if the key is missing — this tells Output "don't retry this step, it will never succeed without the key." More on this in [Error Handling](#error-handling).
+
+**The exported object** (`tavilyClient`) exposes typed methods that your steps call. Steps never see HTTP details — they call `tavilyClient.search('AI frameworks')` and get back an array of results.
+
+Use it from a step like this:
+
+```typescript steps.ts
+import { step, z } from '@outputai/core';
+import { tavilyClient } from '../../clients/tavily.js';
+
+export const searchWeb = step({
+  name: 'searchWeb',
+  inputSchema: z.object({ query: z.string() }),
+  outputSchema: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    content: z.string(),
+  })),
+  fn: async (input) => {
+    return tavilyClient.search(input.query);
+  },
+});
+```
+
+## Authentication Patterns
+
+Different APIs authenticate differently. The client above passes the API key in the request body, but most APIs use headers. Here are the common patterns.
+
+### Bearer Token
+
+The most common pattern — pass a token in the `Authorization` header. Many internal APIs and services like OpenAI, Perplexity, and HubSpot use this:
+
+```typescript src/clients/hubspot.ts
+const createClient = () =>
+  httpClient({
+    prefixUrl: 'https://api.hubapi.com',
+    timeout: 30000,
+    headers: {
+      Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+  });
+```
+
+### API Key in Headers
+
+Some APIs use a custom header name like `x-api-key` instead of the standard `Authorization` header:
+
+```typescript src/clients/exa.ts
+const createClient = () =>
+  httpClient({
+    prefixUrl: 'https://api.exa.ai',
+    timeout: 60000,
+  });
+
+// Then pass the key per-request
+const response = await client.post('search', {
+  json: { query },
+  headers: {
+    'x-api-key': process.env.EXA_API_KEY,
+    'Content-Type': 'application/json',
+  },
+});
+```
+
+You can set this in `createClient()` instead if every request uses the same key. Per-request headers are useful when you want the base client to be reusable.
+
+### Basic Auth
+
+Older APIs sometimes use HTTP Basic authentication, which encodes a username and password as a Base64 string. `Buffer.from()` is Node.js's built-in way to do this encoding:
+
+```typescript src/clients/image_service.ts
+const createClient = () => {
+  const userId = process.env.SERVICE_USER_ID;
+  const apiKey = process.env.SERVICE_API_KEY;
+  return httpClient({
+    prefixUrl: 'https://api.example.com/v1',
+    timeout: 120000,
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${userId}:${apiKey}`).toString('base64')}`,
+    },
+  });
+};
+```
+
+## Validating Responses with Zod
+
+API responses can change without warning — a field gets renamed, a type changes, a new required field appears. If you pass unvalidated data through your workflow, these changes cause confusing errors far from the source.
+
+Zod schemas catch this at the boundary. Define what the API should return, and parse the response immediately:
+
+```typescript src/clients/clearbit.ts
+import { httpClient } from '@outputai/http';
+import { z } from '@outputai/core';
+
+const createClient = () =>
+  httpClient({
+    prefixUrl: 'https://company.clearbit.com/v2',
+    timeout: 30000,
+    headers: {
+      Authorization: `Bearer ${process.env.CLEARBIT_API_KEY}`,
+    },
+  });
+
+const CompanySchema = z.object({
+  name: z.string(),
+  domain: z.string(),
+  description: z.string().nullable(),
+  category: z.object({
+    industry: z.string().nullable(),
+    sector: z.string().nullable(),
+  }),
+  metrics: z.object({
+    employees: z.number().nullable(),
+    estimatedAnnualRevenue: z.string().nullable(),
+  }),
+});
+
+export type Company = z.infer<typeof CompanySchema>;
+
+export const clearbitClient = {
+  lookupCompany: async (domain: string): Promise<Company | null> => {
+    const client = createClient();
+
+    try {
+      const data = await client
+        .get(`companies/find`, { searchParams: { domain } })
+        .json();
+
+      return CompanySchema.parse(data);
+    } catch {
+      return null;
+    }
+  },
+};
+```
+
+If Clearbit changes `estimatedAnnualRevenue` from a string to a number, `CompanySchema.parse()` throws immediately with a clear message like `Expected string, received number at "metrics.estimatedAnnualRevenue"`. You'll know exactly what broke and where.
+
+The `z.infer<typeof CompanySchema>` line generates a TypeScript type from the schema, so you get autocomplete and type checking throughout your workflow without writing the type separately.
+
+## Error Handling
+
+When an API call fails, you need to decide: should Output retry the step, or is the error permanent?
+
+`httpClient` throws two error types:
+- **`HTTPError`** — The server responded with a non-2xx status code (like 404, 429, or 500)
+- **`TimeoutError`** — The request took longer than the timeout you set
+
+By default, Output retries failed steps automatically. This is great for transient errors (server hiccups, network blips), but you don't want to retry when the API key is missing or the resource doesn't exist. Here's how to handle the common cases:
+
+```typescript src/clients/search.ts
+import { httpClient, HTTPError, TimeoutError } from '@outputai/http';
+import { FatalError } from '@outputai/core';
+
+const getApiKey = () => {
+  const key = process.env.SEARCH_API_KEY;
+  if (!key) {
+    // FatalError tells Output: "stop retrying, this will never work"
+    throw new FatalError('SEARCH_API_KEY environment variable is required');
+  }
+  return key;
+};
+
+export const searchClient = {
+  query: async (q: string): Promise<SearchResult[]> => {
+    const client = createClient();
+
+    try {
+      const response = await client
+        .get('search', { searchParams: { q, api_key: getApiKey() } })
+        .json<SearchResponse>();
+
+      return response.results ?? [];
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        // 429: Rate limited. Let the step retry with backoff.
+        if (error.response.status === 429) throw error;
+
+        // 404: Not found. Return empty results instead of failing.
+        if (error.response.status === 404) return [];
+      }
+      // Everything else (5xx, TimeoutError): let it propagate.
+      // Output will retry the step automatically.
+      throw error;
+    }
+  },
+};
+```
+
+The key insight: **throw errors you want retried, return gracefully for expected failures, and use `FatalError` for configuration problems.** Output's retry policy handles the rest — you set the retry count and backoff in your [step options](/steps#options) or [workflow options](/workflows#activity-options).
+
+## Adding More Methods
+
+As you integrate deeper with an API, you'll need more than one method. Group related operations in a single client object. Here's what a multi-method client looks like:
+
+```typescript src/clients/web_search.ts
+export const webSearchClient = {
+  search: async (query: string, maxResults = 10): Promise<SearchResponse> => {
+    const client = createClient();
+    return client
+      .post('search', { json: { api_key: getApiKey(), query, max_results: maxResults } })
+      .json();
+  },
+
+  extract: async (urls: string[]): Promise<ExtractResponse> => {
+    const client = createClient();
+    return client
+      .post('extract', { json: { api_key: getApiKey(), urls } })
+      .json();
+  },
+
+  crawl: async (url: string, maxDepth = 1): Promise<CrawlResponse> => {
+    const client = createClient();
+    return client
+      .post('crawl', { json: { api_key: getApiKey(), url, max_depth: maxDepth } })
+      .json();
+  },
+};
+```
+
+Each method creates a fresh client instance, keeping things stateless. Your steps call whichever method they need — `webSearchClient.search(...)`, `webSearchClient.extract(...)` — without knowing the HTTP details.
+
+## Async Task Polling
+
+Some APIs don't return results immediately. Instead, they give you a task ID and you poll until the work is done. Research APIs and batch processing services commonly work this way:
+
+```typescript src/clients/research.ts
+import { httpClient } from '@outputai/http';
+import { FatalError } from '@outputai/core';
+
+// Clients run inside steps (activities), not workflows.
+// Use setTimeout-based sleep here — Output's sleep() is only for workflow code.
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const researchClient = {
+  run: async (instructions: string): Promise<ResearchResult> => {
+    const client = createClient();
+    const headers = { 'x-api-key': getApiKey(), 'Content-Type': 'application/json' };
+
+    // Start the task
+    const { taskId } = await client
+      .post('research/v1', { json: { instructions }, headers })
+      .json<{ taskId: string }>();
+
+    // Poll every 2 seconds until it's done
+    for (let i = 0; i < 600; i++) {
+      await sleep(2000);
+      const task = await client
+        .get(`research/v1/${taskId}`, { headers })
+        .json<{ status: string; output?: ResearchResult; error?: string }>();
+
+      if (task.status === 'completed') return task.output!;
+      if (task.status === 'failed') throw new Error(`Research failed: ${task.error}`);
+    }
+
+    throw new Error('Research timed out after 20 minutes');
+  },
+};
+```
+
+<Warning>
+When using polling, set the step's `startToCloseTimeout` high enough to cover the maximum polling duration. If the API might take 20 minutes, your step timeout needs to be longer than that. See [step options](/steps#options) for timeout configuration.
+</Warning>
+
+## Project Organization
+
+Put clients in `src/clients/`, one file per external API:
+
+```
+src/
+├── clients/
+│   ├── clearbit.ts         # Company data API
+│   ├── hubspot.ts          # CRM API
+│   └── tavily.ts           # Web search API
+└── workflows/
+    └── lead_enrichment/
+        ├── workflow.ts
+        └── steps.ts         # Imports from ../../clients/
+```
+
+Steps import from client files — they never create `httpClient` instances directly. When an API changes its auth or base URL, you update one file and every workflow that uses it picks up the change.
+
+## Debugging
+
+When an API call isn't returning what you expect, turn on verbose logging to see the full request and response bodies in your traces:
+
+```bash
+OUTPUT_TRACE_HTTP_VERBOSE=1 output dev
+```
+
+This captures everything flowing through `httpClient` — request bodies, response bodies, headers, timing. Sensitive headers like `authorization` and `api-key` are automatically redacted so you can safely share traces.
+
+Turn this off in production. Response bodies from search APIs and content services can be large, and you don't want that in every trace.
+
+## Complete Example: Tavily Client
+
+Here's the full Tavily client with search, extract, and crawl methods. This is a production-ready example you can copy and adapt — it demonstrates environment variable validation, typed interfaces, multiple methods, and transforming the API's `snake_case` responses into `camelCase` for your TypeScript code:
+
+```typescript src/clients/tavily.ts
+import { httpClient } from '@outputai/http';
+import { FatalError } from '@outputai/core';
+
+const TAVILY_API_URL = 'https://api.tavily.com';
+
+const getApiKey = () => {
+  const key = process.env.TAVILY_API_KEY;
+  if (!key) {
+    throw new FatalError('TAVILY_API_KEY environment variable is required');
+  }
+  return key;
+};
+
+const createClient = () =>
+  httpClient({
+    prefixUrl: TAVILY_API_URL,
+    timeout: 60000,
+  });
+
+// --- Types ---
+
+export interface TavilySearchParams {
+  query: string;
+  maxResults?: number;
+  searchDepth?: 'basic' | 'advanced';
+  includeAnswer?: boolean;
+  includeRawContent?: boolean;
+  topic?: 'general' | 'news';
+  includeDomains?: string[];
+  excludeDomains?: string[];
+}
+
+export interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  rawContent?: string;
+  score: number;
+  publishedDate?: string;
+}
+
+export interface TavilySearchResponse {
+  query: string;
+  answer?: string;
+  results: TavilySearchResult[];
+}
+
+export interface TavilyExtractResult {
+  url: string;
+  rawContent: string;
+}
+
+export interface TavilyExtractResponse {
+  results: TavilyExtractResult[];
+  failedResults?: Array<{ url: string; error: string }>;
+}
+
+export interface TavilyCrawlResult {
+  url: string;
+  rawContent: string;
+}
+
+export interface TavilyCrawlResponse {
+  baseUrl: string;
+  results: TavilyCrawlResult[];
+}
+
+// --- Client ---
+
+export const tavilyClient = {
+  search: async (params: TavilySearchParams): Promise<TavilySearchResponse> => {
+    const client = createClient();
+
+    const data = await client
+      .post('search', {
+        json: {
+          api_key: getApiKey(),
+          query: params.query,
+          max_results: params.maxResults ?? 10,
+          search_depth: params.searchDepth ?? 'basic',
+          include_answer: params.includeAnswer ?? true,
+          include_raw_content: params.includeRawContent ?? false,
+          topic: params.topic ?? 'general',
+          ...(params.includeDomains && { include_domains: params.includeDomains }),
+          ...(params.excludeDomains && { exclude_domains: params.excludeDomains }),
+        },
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .json<{
+        query: string;
+        answer?: string;
+        results: Array<{
+          title: string;
+          url: string;
+          content: string;
+          raw_content?: string;
+          score: number;
+          published_date?: string;
+        }>;
+      }>();
+
+    return {
+      query: data.query,
+      answer: data.answer,
+      results: data.results.map((r) => ({
+        title: r.title,
+        url: r.url,
+        content: r.content,
+        rawContent: r.raw_content,
+        score: r.score,
+        publishedDate: r.published_date,
+      })),
+    };
+  },
+
+  extract: async (urls: string[]): Promise<TavilyExtractResponse> => {
+    const client = createClient();
+
+    const data = await client
+      .post('extract', {
+        json: {
+          api_key: getApiKey(),
+          urls,
+          extract_depth: 'basic',
+          format: 'markdown',
+        },
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .json<{
+        results: Array<{ url: string; raw_content: string }>;
+        failed_results?: Array<{ url: string; error: string }>;
+      }>();
+
+    return {
+      results: data.results.map((r) => ({ url: r.url, rawContent: r.raw_content })),
+      failedResults: data.failed_results,
+    };
+  },
+
+  crawl: async (url: string, options?: { maxDepth?: number; limit?: number }): Promise<TavilyCrawlResponse> => {
+    const client = createClient();
+
+    const data = await client
+      .post('crawl', {
+        json: {
+          api_key: getApiKey(),
+          url,
+          max_depth: options?.maxDepth ?? 1,
+          limit: options?.limit ?? 50,
+          format: 'markdown',
+        },
+        headers: { 'Content-Type': 'application/json' },
+      })
+      .json<{
+        base_url: string;
+        results: Array<{ url: string; raw_content: string }>;
+      }>();
+
+    return {
+      baseUrl: data.base_url,
+      results: data.results.map((r) => ({ url: r.url, rawContent: r.raw_content })),
+    };
+  },
+};
+```
+
+## What's Next
+
+- [@outputai/http API reference](/packages/http) — Full `httpClient` API, `.extend()`, and configuration options
+- [Steps](/steps) — Where clients get used: wrapping API calls in retryable steps
+- [Tracing](/operations/tracing) — How request traces appear in the Temporal UI
+- [Error Handling](/operations/error-handling) — `FatalError`, `ValidationError`, and retry policies

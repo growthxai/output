@@ -1,0 +1,80 @@
+---
+title: "Features"
+description: "Overview of the Output API capabilities"
+---
+
+The Output API server gives you HTTP endpoints for running workflows, checking their status, and retrieving results. It starts automatically when you run `output dev` and listens on port 3001.
+
+## Running Workflows
+
+### Run and Wait
+
+`POST /workflow/run` — Run a workflow synchronously. The request blocks until the workflow completes and returns the result.
+
+### Start Without Waiting
+
+`POST /workflow/start` — Start a workflow asynchronously. Returns the workflow ID immediately. Use the status and result endpoints to check on it later.
+
+## Checking Status and Results
+
+### Get Status
+
+`GET /workflow/:id/status` — Returns the current status of a workflow execution. Status values: `running`, `completed`, `failed`, `canceled`, `terminated`, `timed_out`, `continued_as_new`.
+
+### Get Result
+
+`GET /workflow/:id/result` — Returns the output and trace info for a completed workflow. Returns `424` if the workflow is still running.
+
+### List Runs
+
+`GET /workflow/runs` — Returns a list of workflow runs with optional filtering by workflow type and limit.
+
+## Signals, Queries, and Updates
+
+Send signals to a running workflow, query its state, or execute an update. The workflow must define handlers for the given signal, query, or update name — see [External Integration](/workflows/external-integration) for workflow usage.
+
+### Signal
+
+`POST /workflow/:id/signal/:signal` — Send a signal to a workflow. The request returns when the signal is accepted (the workflow may process it asynchronously). See [External Integration](/workflows/external-integration#signal-push-data-in) for defining signal handlers.
+
+### Query
+
+`POST /workflow/:id/query/:query` — Send a read-only query to a workflow and receive the result. Queries do not change workflow state. See [External Integration](/workflows/external-integration#query-read-state-without-changing-it) for defining query handlers.
+
+### Update
+
+`POST /workflow/:id/update/:update` — Execute an update on a workflow and wait for the result. Updates can change workflow state. See [External Integration](/workflows/external-integration#update-change-state-and-get-confirmation) for defining update handlers.
+
+## Stopping Workflows
+
+### Stop (Graceful)
+
+`PATCH /workflow/:id/stop` — Gracefully stop a running workflow.
+
+### Terminate (Force)
+
+`POST /workflow/:id/terminate` — Force terminate a workflow immediately without allowing cleanup.
+
+## Webhooks
+
+### Send Feedback
+
+`POST /workflow/:id/feedback` — Resume a workflow that's waiting on a webhook. Used with `sendPostRequestAndAwaitWebhook` — see [External Integration](/workflows/external-integration#pattern-1-workflow-initiates-the-request).
+
+## Workflow Discovery
+
+### Get Catalog
+
+`GET /workflow/catalog` — Returns all available workflows with their input and output schemas.
+
+`GET /workflow/catalog/:id` — Get a specific catalog by ID.
+
+## Debugging
+
+### Get Trace Log
+
+`GET /workflow/:id/trace-log` — Returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format.
+
+<Note>
+For remote traces, the API server needs AWS credentials (`OUTPUT_AWS_ACCESS_KEY_ID`, `OUTPUT_AWS_SECRET_ACCESS_KEY`, `OUTPUT_AWS_REGION`).
+</Note>

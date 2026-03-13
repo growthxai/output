@@ -1,0 +1,25 @@
+{
+  "name": "@outputai/http",
+  "version": "0.1.0",
+  "description": "Framework abstraction to make HTTP calls with tracing",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf ./dist && tsc"
+  },
+  "dependencies": {
+    "@outputai/core": "workspace:",
+    "ky": "catalog:"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "imports": {
+    "#*": "./dist/*"
+  }
+}

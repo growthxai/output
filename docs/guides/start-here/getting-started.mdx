@@ -1,0 +1,622 @@
+---
+title: "Getting Started"
+description: "Create your first Output workflow in minutes"
+---
+
+## TL;DR
+
+This is the quick and dirty way to get started – but be sure to read the full guide below.
+
+```bash
+# Prerequisites: Node.js 20+, Docker Desktop
+
+# Install VS Code Claude Code extension (recommended)
+# https://marketplace.visualstudio.com/items?itemName=anthropics.claude-code
+
+# Create project
+npx @outputai/cli init
+cd <project-name>
+
+# Add your Anthropic API key to .env
+# Start services
+npx output dev
+
+# Temporal UI: http://localhost:8080
+
+# Run example workflow in a new terminal:
+npx output workflow run blog_evaluator paulgraham_hwh
+
+# Inspect the execution trace:
+npx output workflow debug <workflow-id>
+```
+
+
+
+---
+
+## Getting Started: Step-by-step
+
+<Note>
+**How this tutorial works**: We'll use Claude Code throughout - Output is designed to work with Claude Code natively - we'll ask things in plain English, and Claude Code builds it. Along the way, we show the CLI commands running under the hood—so you understand both approaches, or you can just use the CLI directly if you prefer.
+</Note>
+
+### Prerequisites
+
+Before starting, you'll need:
+
+- **Node.js 20+** — [Download here](https://nodejs.org/)
+- **Docker Desktop** — [Download here](https://www.docker.com/products/docker-desktop/) we'll need for running some of dependencies (PostgreSQL, Redis, Temporal)
+- **VS Code with Claude Code** — [Install extension](https://marketplace.visualstudio.com/items?itemName=anthropics.claude-code). You can use the CLI directly if you prefer or Claude Code outside of VS Code as well - your choice, but AI assisted is how we recommend you use Output.
+- **Anthropic API key** — [Get one here](https://console.anthropic.com/)
+
+### Create Your Project
+
+Open your terminal and run:
+
+```bash
+npx @outputai/cli init
+```
+
+The CLI will prompt you. Enter these values:
+
+| Prompt | Enter |
+|--------|-------|
+| What is your project name? | `content-workflows` |
+| What folder name should be used? | Press Enter (uses default) |
+| What is your project description? | Press Enter (uses default) |
+| Would you like to configure environment variables now? | `Y` |
+| ANTHROPIC_API_KEY (secret): | Paste your Anthropic API key |
+| OPENAI_API_KEY (secret): | Press Enter to skip (or paste if you have one) |
+
+The CLI creates the project, configures your `.env`, and installs dependencies. Here's what you get:
+
+```
+content-workflows/
+├── src/
+│   ├── shared/                      # Shared code across workflows
+│   │   ├── clients/                 # API clients
+│   │   │   └── jina.ts              # Jina Reader API client
+│   │   └── utils/                   # Utility functions
+│   │       └── url.ts               # URL validation
+│   └── workflows/
+│       └── blog_evaluator/          # Example workflow
+│           ├── types.ts             # Schema definitions
+│           ├── workflow.ts          # Workflow orchestration
+│           ├── steps.ts             # Step implementations
+│           ├── evaluators.ts        # LLM evaluators
+│           ├── utils.ts             # Workflow-specific utilities
+│           ├── prompts/             # LLM prompt files
+│           │   └── signal_noise@v1.prompt
+│           └── scenarios/           # Test inputs
+│               └── paulgraham_hwh.json
+├── .env.example                     # Environment template
+└── package.json
+```
+
+### Start Development Services
+
+Navigate into your project and start the dev environment:
+
+```bash
+cd content-workflows
+npx output dev
+```
+
+This starts the services needed for development (Temporal, Redis, PostgreSQL, worker). Keep this terminal running.
+
+<Tip>
+The first run downloads Docker images - this takes a few minutes. Subsequent starts are fast.
+</Tip>
+
+### Open VS Code with Claude Code
+
+Open a **new terminal** and launch VS Code:
+
+```bash
+cd content-workflows
+code .
+```
+
+Start a Claude Code session (Cmd+Shift+P → "Claude Code: Open"). From here on, we'll interact with Output through Claude Code.
+
+### Run the Example Workflow
+
+Tell Claude Code:
+
+> "Run the blog_evaluator workflow with the test scenario"
+
+**Under the hood**, Claude Code runs:
+
+```bash
+npx output workflow run blog_evaluator paulgraham_hwh
+```
+
+You'll see output like:
+
+```bash
+
+Using scenario: src/workflows/blog_evaluator/scenarios/paulgraham_hwh.json
+
+Executing workflow: blog_evaluator...
+
+Workflow ID: blog_evaluator-22b798f9-4812-4f48-80b2-89fac07285ed
+
+Output:
+{
+  "url": "https://paulgraham.com/hwh.html",
+  "title": "How to Work Hard",
+  "signalToNoiseScore": 82,
+  "confidence": 0.85,
+  "summary": "Signal-to-noise score: 82/100"
+}
+```
+
+For more ways to run workflows — async execution, inline JSON input, the HTTP API, and more — see [Running Workflows](/workflows/running) and the [API Reference](/api).
+
+### Explore Execution via UI
+
+For execution, Output uses Temporal.io - a battle-tested workflow engine. You can use the Temporal UI at [http://localhost:8080](http://localhost:8080) to inspect your workflow runs.
+
+This is likely your first experience with Temporal. The UI can feel overwhelming at first - there's a lot of information. Don't worry about understanding everything now. The key thing to know: Temporal records every workflow execution, and this UI lets you inspect them.
+
+You'll see your workflow run listed. Click into it to see:
+
+- **Input**: The question you asked
+- **Output**: The LLM's answer
+- **Event History**: Every step that executed, with timing
+
+This is one way to monitor executions. Every step recorded, every retry visible, every failure debuggable—and you can replay any execution to debug issues. However, Output also records every run in a trace file (covered in the next section), and when using Claude Code for development, you'll rarely need to look at the Temporal UI. Claude Code can analyze traces and fix issues for you.
+
+{/* TODO: Add Temporal UI tutorial in guides section */}
+
+### Explore Execution Traces
+
+Output traces **every operation** - not just LLM calls, but HTTP requests, step executions, and timing data. This happens automatically with zero configuration.
+
+The quickest way to inspect a run is `output workflow debug` with the workflow ID from the previous step:
+
+```bash
+npx output workflow debug <workflow-id>
+```
+
+This prints a tree showing every step that ran, what it received, what it returned, and how long it took:
+
+```
+Trace Log:
+──────────────────────────────────────────────────────────────────────────────
+┌─ [blog_evaluator] completed
+│  ├─ [fetch_blog_content] [END] 430ms
+│  │  ├─ input: {"url":"https://paulgraham.com/hwh.html"}
+│  │  └─ output: {"title":"How to Work Hard","content":"...","tokenCount":3241}
+│  └─ [evaluate_signal_to_noise] [END] 890ms
+│     ├─ input: {"title":"How to Work Hard","content":"..."}
+│     └─ output: {"score":82}
+──────────────────────────────────────────────────────────────────────────────
+```
+
+Use `--format json` to get the full untruncated trace, including complete LLM inputs and outputs.
+
+Traces are also saved as JSON files in your project's `logs/runs/` directory — you can open them directly or share them with teammates:
+
+```bash
+ls logs/runs/blog_evaluator/
+```
+
+**Why trace everything?**
+
+Your data should live close to your code and belong to you—not locked in a third-party dashboard. With traces, you can inspect every API call, understand costs by token count, extract scenarios for testing, and most importantly, use them as part of your iteration cycle with Claude Code. When something fails, ask Claude Code to analyze the trace and fix it.
+
+Traces can also be sent to S3 for production storage. See the [Tracing guide](/operations/tracing) for configuration.
+
+### Understand the Code
+
+Let's look at what makes up a workflow. The `blog_evaluator` example demonstrates the key patterns:
+
+<CodeGroup>
+```typescript workflow.ts
+// src/workflows/blog_evaluator/workflow.ts
+import { workflow, z } from '@outputai/core';
+import { validateUrl } from '../../shared/utils/url.js';
+import { fetchContent } from './steps.js';
+import { evaluateSignalToNoise } from './evaluators.js';
+import { createWorkflowOutput } from './utils.js';
+import { workflowInputSchema, workflowOutputSchema } from './types.js';
+
+export default workflow({
+  name: 'blog_evaluator',
+  description: 'Evaluate a blog post for signal-to-noise ratio',
+  inputSchema: workflowInputSchema,
+  outputSchema: workflowOutputSchema,
+  fn: async (input) => {
+    const validatedUrl = validateUrl(input.url);
+    const blogContent = await fetchContent({ url: validatedUrl });
+    const evaluation = await evaluateSignalToNoise(blogContent);
+
+    return createWorkflowOutput(blogContent, evaluation.value);
+  },
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 3
+      }
+    }
+  }
+});
+```
+
+```typescript steps.ts
+// src/workflows/blog_evaluator/steps.ts
+import { step, z } from '@outputai/core';
+import { fetchBlogContent } from '../../clients/jina.js';
+
+export const fetchContent = step({
+  name: 'fetch_blog_content',
+  description: 'Fetch blog content from URL using Jina Reader API',
+  inputSchema: z.object({
+    url: z.string().url()
+  }),
+  outputSchema: z.object({
+    title: z.string(),
+    url: z.string(),
+    content: z.string(),
+    tokenCount: z.number()
+  }),
+  fn: async ({ url }) => {
+    const response = await fetchBlogContent(url);
+    return {
+      title: response.data.title,
+      url: response.data.url,
+      content: response.data.content,
+      tokenCount: response.data.usage.tokens
+    };
+  }
+});
+```
+
+```typescript evaluators.ts
+// src/workflows/blog_evaluator/evaluators.ts
+import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import type { BlogContent } from './types.js';
+
+const blogContentSchema = z.object({
+  title: z.string(),
+  url: z.string(),
+  content: z.string(),
+  tokenCount: z.number()
+});
+
+export const evaluateSignalToNoise = evaluator({
+  name: 'evaluate_signal_to_noise',
+  description: 'Evaluate the signal-to-noise ratio of blog content',
+  inputSchema: blogContentSchema,
+  fn: async (input: BlogContent) => {
+    const { output } = await generateText({
+      prompt: 'signal_noise@v1',
+      variables: {
+        title: input.title,
+        content: input.content
+      },
+      output: Output.object({
+        schema: z.object({
+          score: z.number().min(0).max(100).describe('Signal-to-noise score 0-100')
+        })
+      })
+    });
+
+    return new EvaluationNumberResult({
+      value: output.score,
+      confidence: 0.85
+    });
+  }
+});
+```
+
+```yaml signal_noise@v1.prompt
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.3
+maxTokens: 256
+---
+
+<system>
+You are an expert content analyst. Evaluate blog posts for their signal-to-noise ratio.
+</system>
+
+<user>
+Analyze this blog post for signal-to-noise ratio.
+
+Title: {{ title }}
+
+Content:
+{{ content }}
+
+Score 0-100 where:
+- 0-20: Mostly filler/noise
+- 21-40: More noise than signal
+- 41-60: Balanced
+- 61-80: Good signal, minimal noise
+- 81-100: Exceptional, dense valuable content
+
+Return only the score.
+</user>
+```
+</CodeGroup>
+
+**workflow.ts** — The control flow. Decides what runs and in what order. Think of it as the conductor—it coordinates, but doesn't do the work itself. The `options.activityOptions.retry` configures automatic retries at the workflow level. (No I/O here—this matters later when we cover rewinding and replaying workflows.)
+
+**steps.ts** — The actual work. API calls, database queries—anything that talks to the outside world (aka I/O) goes here. If a step fails, Output retries it automatically.
+
+**evaluators.ts** — The quality assessment layer. Evaluators wrap LLM calls and return structured results with confidence scores. Use them when you need to assess or score content rather than transform it. The `EvaluationNumberResult` provides a standardized way to return numeric evaluations with confidence levels.
+
+**signal_noise@v1.prompt** — The LLM prompt. Settings at the top (provider, model), then the actual prompt with variables like `{{ title }}` and `{{ content }}`. There's a powerful templating language under the hood (Liquid.js) that we'll cover in detail later.
+
+### Building Something Real: Web Summarization
+
+The example workflow is a good "Hello World", but let's build something real: a workflow that scrapes a webpage and summarizes its content.
+
+Tell Claude Code:
+
+> "Delete the simple workflow and create a new workflow called 'summarize_url' that scrapes a webpage in markdown format and summarizes its content. At the end we want a structured output with the title, summary, and full page (markdown) content. For the scraping we'll need an API client for Jina (https://jina.ai/) reader"
+
+**Under the hood**, Claude Code:
+
+```bash
+# Remove the example workflow
+rm -rf src/workflows/blog_evaluator/
+
+# Create a plan from your description
+npx output workflow plan "summarize_url workflow that scrapes a webpage..."
+
+# Generate the workflow from the plan
+npx output workflow generate summarize_url --plan-file .outputai/plans/summarize_url.md
+```
+
+Here's what it generates:
+
+```typescript workflow.ts
+// src/workflows/summarize_url/workflow.ts
+import { workflow, z } from '@outputai/core';
+import { scrapeUrl, summarizeContent } from './steps.js';
+
+export default workflow({
+  name: 'summarize_url',
+  description: 'Scrape a webpage and summarize its content',
+  inputSchema: z.object({
+    url: z.string().url().describe('The URL to scrape and summarize')
+  }),
+  outputSchema: z.object({
+    title: z.string().describe('Page title'),
+    summary: z.string().describe('Summary of the page content'),
+    wordCount: z.number().describe('Word count of original content')
+  }),
+  fn: async input => {
+    const { title, content } = await scrapeUrl(input.url);
+    const summary = await summarizeContent(content);
+    return {
+      title,
+      summary,
+      wordCount: content.split(/\s+/).length
+    };
+  }
+});
+```
+
+```typescript steps.ts
+// src/workflows/summarize_url/steps.ts
+import { step, z } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+import { jinaClient } from '../../clients/jina.js';  // src/clients/jina.ts
+
+export const scrapeUrl = step({
+  name: 'scrapeUrl',
+  description: 'Fetch and extract content from a URL using Jina Reader',
+  inputSchema: z.string().url(),
+  outputSchema: z.object({
+    title: z.string(),
+    content: z.string()
+  }),
+  fn: async url => {
+    const markdown = await jinaClient.read(url);
+
+    // Extract title from first heading or first line
+    const titleMatch = markdown.match(/^#\s+(.+)$/m);
+    const title = titleMatch ? titleMatch[1] : 'Untitled';
+
+    return { title, content: markdown };
+  }
+});
+
+export const summarizeContent = step({
+  name: 'summarizeContent',
+  description: 'Summarize text content using an LLM',
+  inputSchema: z.string(),
+  outputSchema: z.string(),
+  fn: async content => {
+    const truncated = content.slice(0, 10000);
+
+    return generateText({
+      prompt: 'summarize@v1',
+      variables: { content: truncated }
+    });
+  }
+});
+```
+
+```typescript src/clients/jina.ts
+// src/clients/jina.ts
+import { httpClient } from '@outputai/http';
+
+const client = httpClient({
+  prefixUrl: 'https://r.jina.ai',
+  timeout: 30000
+});
+
+export const jinaClient = {
+  /**
+   * Convert a URL to clean markdown using Jina Reader
+   */
+  read: async (url: string): Promise<string> => {
+    const response = await client.get(url);
+    return response.text();
+  }
+};
+```
+
+```yaml summarize@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+---
+
+<system>
+You are a concise summarizer. Create a clear, informative summary of the provided content.
+Focus on the main points and key takeaways. Keep the summary to 2-3 paragraphs.
+</system>
+
+<user>
+Summarize the following content:
+
+{{ content }}
+</user>
+```
+
+```json scenarios/test_url.json
+{
+  "url": "https://en.wikipedia.org/wiki/Ada_Lovelace"
+}
+```
+
+Notice the **API client pattern**: the Jina client lives in `src/clients/jina.ts`, separate from the workflow. It wraps `@outputai/http` which gives you automatic tracing and retries. When you need to integrate with other APIs (Stripe, Slack, your own backend), create similar clients in `src/clients/`.
+
+Now run it:
+
+> "Run the summarize_url workflow with the test scenario"
+
+**Under the hood**:
+
+```bash
+npx output workflow run summarize_url test_url
+```
+
+
+You'll see a structured summary of the Wikipedia page about Ada Lovelace.
+
+Open the execution interface at [http://localhost:8080](http://localhost:8080) to see both steps in the execution history: `scrapeUrl` followed by `summarizeContent`. Each step shows its input and output. You can also inspect the detailed trace in the `logs/runs/summarize_url/` folder.
+
+### Adding Parallel Steps
+
+Let's make this more interesting. Tell Claude Code:
+
+> "Add a generateFaq step that creates 5 FAQs from the content. Run it in parallel with the summarization step."
+
+Here's what changes:
+
+```typescript workflow.ts
+// src/workflows/summarize_url/workflow.ts
+import { workflow, z } from '@outputai/core';
+import { scrapeUrl, summarizeContent, generateFaq } from './steps.js';
+
+export default workflow({
+  name: 'summarize_url',
+  description: 'Scrape a webpage, summarize it, and generate FAQs',
+  inputSchema: z.object({
+    url: z.string().url().describe('The URL to scrape and summarize')
+  }),
+  outputSchema: z.object({
+    title: z.string().describe('Page title'),
+    summary: z.string().describe('Summary of the page content'),
+    faqs: z.array(z.object({
+      question: z.string(),
+      answer: z.string()
+    })).describe('Frequently asked questions'),
+    wordCount: z.number().describe('Word count of original content')
+  }),
+  fn: async input => {
+    const { title, content } = await scrapeUrl(input.url);
+
+    // Run summarization and FAQ generation in parallel
+    const [summary, faqs] = await Promise.all([
+      summarizeContent(content),
+      generateFaq(content)
+    ]);
+
+    return {
+      title,
+      summary,
+      faqs,
+      wordCount: content.split(/\s+/).length
+    };
+  }
+});
+```
+
+```typescript steps.ts (add to existing)
+export const generateFaq = step({
+  name: 'generateFaq',
+  description: 'Generate FAQs from content using an LLM',
+  inputSchema: z.string(),
+  outputSchema: z.array(z.object({
+    question: z.string(),
+    answer: z.string()
+  })),
+  fn: async content => {
+    const truncated = content.slice(0, 10000);
+
+    const { output } = await generateText({
+      prompt: 'generate_faq@v1',
+      variables: { content: truncated },
+      output: Output.array({
+        element: z.object({
+          question: z.string(),
+          answer: z.string()
+        })
+      })
+    });
+    return output;
+  }
+});
+```
+
+```yaml generate_faq@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+---
+
+<system>
+You are a helpful assistant that generates frequently asked questions.
+Create 5 Q&A pairs based on the content. Questions should be what a reader would naturally ask.
+Answers should be concise and directly from the content.
+</system>
+
+<user>
+Generate 5 FAQs from this content:
+
+{{ content }}
+</user>
+```
+
+Run it again and check the execution interface. You'll see `summarizeContent` and `generateFaq` running at the same time—parallel execution with just `Promise.all`. That's the power of steps: each is independently retryable, traceable, and can run concurrently when the workflow allows it.
+
+### Next Steps
+
+You've built your first real Output workflow. Here's where to go next:
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/cli">
+    All commands in depth—run, start, status, terminate, and more.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/workflows">
+    Control flow, child workflows, scenarios, and advanced patterns.
+  </Card>
+  <Card title="Claude Code Integration" icon="wand-magic-sparkles" href="/claude-code">
+    Deep dive on AI-assisted workflow development.
+  </Card>
+  <Card title="Course" icon="graduation-cap" href="/guides/course">
+    8-lesson progressive tutorial building production workflows.
+  </Card>
+</CardGroup>

@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# IDE & Editor
+.vscode/
+.idea/
+*~
+.env
+.DS_Store
+.env.local
+.env.*.local
+
+# Encrypted credentials keys (never commit)
+**/config/credentials.key
+**/config/credentials/*.key
+**/src/workflows/*/credentials.key
+
+# TypeScript
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# OS specific
+Thumbs.db
+.DS_Store

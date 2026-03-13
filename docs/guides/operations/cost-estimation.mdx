@@ -1,0 +1,268 @@
+---
+title: "Cost Estimation"
+description: "Estimate the dollar cost of a workflow execution from its trace — LLM tokens, API calls, and external services"
+---
+
+Every workflow run has a cost: LLM tokens, third-party API calls, search credits. The `output workflow cost` command reads a [trace file](/operations/tracing) and calculates an estimated dollar cost for the entire execution — broken down by LLM model, API service, and individual step.
+
+The CLI ships with built-in pricing for common LLM models and can be extended with pricing for any external API your workflows call. You can override or add pricing by placing a `config/costs.yml` file in your project root.
+
+## Quick Start
+
+Make sure [tracing is enabled](/operations/tracing#enabling-tracing), then run a workflow and calculate its cost:
+
+```bash
+# Run a workflow (produces a trace file)
+output workflow run lead_enrichment acme
+
+# Calculate cost from the latest trace
+output workflow cost lead_enrichment
+
+# Or point directly at a trace file
+output workflow cost lead_enrichment logs/runs/lead_enrichment/2026-03-01_lead_enrichment-abc123.json
+```
+
+The output shows a summary of LLM and API costs:
+
+```
+Trace: logs/runs/lead_enrichment/2026-03-01_lead_enrichment-abc123.json
+Workflow: lead_enrichment
+Duration: 12.4s
+
+LLM Costs:
+  Model                   Calls        Cost
+  ──────────────────────────────────────────
+  claude-sonnet-4          3 calls     $0.0842
+  gpt-4o-mini              1 call      $0.0012
+  ──────────────────────────────────────────
+  Subtotal                 4 calls     $0.0854
+
+API Costs:
+  Service       Calls        Cost
+  ──────────────────────────────────────────
+  tavily         2 calls     $0.02
+  jina           1 call      $0.0001
+  ──────────────────────────────────────────
+  Subtotal       3 calls     $0.0201
+
+══════════════════════════════════════════════
+TOTAL ESTIMATED COST                    $0.11
+══════════════════════════════════════════════
+```
+
+Use `--verbose` for a per-call breakdown showing individual steps, token counts, and usage details.
+
+## How It Works
+
+The cost calculator walks the trace tree and extracts two kinds of billable events:
+
+1. **LLM calls** (`kind: "llm"`) — Reads the `model` from the loaded prompt config and the `usage` object (input tokens, output tokens, cached tokens, reasoning tokens). Multiplies each by the model's per-million-token price.
+
+2. **HTTP calls** (`kind: "http"`) — Matches the request URL against known service patterns in the pricing config. Depending on the service type, calculates cost from token usage, API units, per-request pricing, or a cost field in the response body.
+
+Failed HTTP calls (status >= 400) are excluded — most APIs don't charge for errors.
+
+## Pricing Configuration
+
+Pricing is defined in a YAML file with two top-level sections: `models` for LLM pricing and `services` for API pricing.
+
+The CLI ships with built-in pricing at `sdk/cli/src/assets/config/costs.yml` covering Anthropic, OpenAI, Google, and Perplexity models, plus common services like Jina, Tavily, Semrush, Exa, and DataForSEO.
+
+### Overriding with a Project Config
+
+To customize pricing, create `config/costs.yml` in your project root:
+
+```
+your-project/
+├── config/
+│   └── costs.yml       # Your overrides — merged on top of built-in pricing
+├── src/
+│   └── workflows/
+└── .env
+```
+
+The CLI loads the built-in config first, then merges your project config on top. This means you only need to include entries you want to add or override — you don't need to copy the entire built-in file.
+
+```yaml
+# config/costs.yml
+# Only include what you need to add or change
+
+models:
+  # Override pricing for a model
+  claude-sonnet-4:
+    provider: anthropic
+    input: 3.00
+    output: 15.00
+    cached_input: 0.30
+
+  # Add a model the CLI doesn't know about
+  my-fine-tuned-model:
+    provider: openai
+    input: 6.00
+    output: 12.00
+
+services:
+  # Add pricing for an API your workflows use
+  clearbit:
+    type: request
+    url_pattern: "api.clearbit.com"
+    endpoints:
+      enrichment:
+        pattern: "/v2/companies"
+        price: 0.05
+```
+
+### Model Pricing
+
+Each entry under `models` maps a model identifier to its per-million-token prices:
+
+```yaml
+models:
+  claude-sonnet-4:
+    provider: anthropic       # For reference only — not used in calculations
+    input: 3.00               # $ per 1M input tokens
+    output: 15.00             # $ per 1M output tokens
+    cached_input: 0.30        # $ per 1M cached input tokens (optional)
+    reasoning: 60.00          # $ per 1M reasoning tokens (optional, for o1/o3)
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `provider` | Yes | Provider name (informational) |
+| `input` | Yes | Price per 1M input tokens |
+| `output` | Yes | Price per 1M output tokens |
+| `cached_input` | No | Price per 1M cached input tokens |
+| `reasoning` | No | Price per 1M reasoning tokens. Falls back to `output` price if not set |
+
+Model names are matched by exact key first, then by prefix. So `claude-sonnet-4` matches both `claude-sonnet-4` and `claude-sonnet-4-20250514`.
+
+### Service Pricing
+
+Each entry under `services` defines how to calculate cost for HTTP calls to a specific API. The `url_pattern` field matches against the request URL, and the `type` determines the calculation method.
+
+Four pricing types are supported:
+
+#### `token` — Price per million tokens
+
+For APIs that report token usage in their response body (like Jina Reader):
+
+```yaml
+services:
+  jina:
+    type: token
+    url_pattern: "r.jina.ai"
+    usage_path: "body.data.usage.tokens"   # Path to token count in response
+    per_million: 0.045                      # $ per 1M tokens
+```
+
+For APIs with separate input/output token counts:
+
+```yaml
+services:
+  perplexity_api:
+    type: token
+    url_pattern: "api.perplexity.ai"
+    usage_path: "body.usage"
+    input_field: "prompt_tokens"            # Field name within usage object
+    output_field: "completion_tokens"
+    input_per_million: 1.00
+    output_per_million: 1.00
+```
+
+#### `unit` — Price per API unit
+
+For APIs that charge by units rather than tokens (like Semrush):
+
+```yaml
+services:
+  semrush:
+    type: unit
+    url_pattern: "api.semrush.com"
+    price_per_unit: 0.00025                 # $ per unit
+    endpoints:
+      backlinks_overview:
+        pattern: "type=backlinks_overview"  # URL substring to match
+        units_per_request: 10               # Fixed units per call
+      domain_organic:
+        pattern: "type=domain_organic"
+        units_per_line: 10                  # Units per line in response body
+```
+
+#### `request` — Fixed price per request
+
+For APIs with simple per-request pricing (like Tavily):
+
+```yaml
+services:
+  tavily:
+    type: request
+    url_pattern: "api.tavily.com"
+    endpoints:
+      search:
+        pattern: "/search"
+        price: 0.01                         # $ per request
+      extract:
+        pattern: "/extract"
+        price_per_item: 0.005               # $ per item in request body
+        items_path: "body.urls"             # Path to array of items in request
+```
+
+For APIs where price depends on the model used:
+
+```yaml
+services:
+  some_ai_api:
+    type: request
+    url_pattern: "api.example.com"
+    model_path: "input.body.model"          # Path to model name in request
+    models:
+      fast: 0.001
+      pro: 0.01
+    default_price: 0.005                    # Fallback if model not matched
+```
+
+#### `response_cost` — Cost reported in response
+
+For APIs that return the actual cost in the response body (like Exa):
+
+```yaml
+services:
+  exa:
+    type: response_cost
+    url_pattern: "api.exa.ai"
+    cost_path: "output.body.costDollars.total"  # Path to cost in response
+```
+
+### Service Config Reference
+
+| Field | Used by | Description |
+|-------|---------|-------------|
+| `type` | All | Pricing type: `token`, `unit`, `request`, `response_cost` |
+| `url_pattern` | All | Substring matched against HTTP request URL |
+| `usage_path` | `token` | Dot-path to token count in response |
+| `per_million` | `token` | Price per 1M tokens (single count) |
+| `input_field` / `output_field` | `token` | Field names for separate input/output counts |
+| `input_per_million` / `output_per_million` | `token` | Prices for separate input/output tokens |
+| `price_per_unit` | `unit` | Price per API unit |
+| `endpoints` | `unit`, `request` | Endpoint-specific patterns and pricing |
+| `model_path` | `request` | Dot-path to model name in request |
+| `models` | `request` | Map of model names to per-request prices |
+| `default_price` | `request` | Fallback price when model not matched |
+| `cost_path` | `response_cost` | Dot-path to dollar cost in response |
+| `billable_method` | `response_cost` | HTTP method to count when no cost data present |
+| `fallback_models` | `response_cost` | Map of model names to fallback prices |
+| `default_fallback` | `response_cost` | Fallback price when no cost data and no model match |
+
+## Unknown Models
+
+When the calculator encounters an LLM model that isn't in the pricing config, it reports the cost as $0 and prints a warning:
+
+```
+Warning: Unknown models (add to config/costs.yml): my-custom-model
+```
+
+Add the model to your project's `config/costs.yml` to include it in future calculations.
+
+## CLI Reference
+
+See [`output workflow cost`](/packages/cli#output-workflow-cost) for the full command reference.

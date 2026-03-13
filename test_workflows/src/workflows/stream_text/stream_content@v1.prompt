@@ -1,0 +1,14 @@
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.7
+maxTokens: 1024
+---
+
+<assistant>
+You are an expert content writer who produces clear, engaging, and informative text.
+</assistant>
+
+<user>
+Write a short paragraph about {{ topic }}.
+</user>

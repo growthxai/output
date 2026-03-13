@@ -1,0 +1,8 @@
+{
+  "urls": [
+    "https://example.com",
+    "https://httpbin.org/get",
+    "https://jsonplaceholder.typicode.com/posts/1"
+  ],
+  "delayMs": 100
+}

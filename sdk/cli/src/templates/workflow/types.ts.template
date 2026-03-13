@@ -1,0 +1,13 @@
+import { z } from '@outputai/core';
+
+// TODO: Define schemas that match your workflow's input and output
+export const workflowInputSchema = z.object( {
+  text: z.string().describe( 'The input text to process' )
+} );
+
+export const workflowOutputSchema = z.object( {
+  result: z.string().describe( 'The processed result' )
+} );
+
+export type WorkflowInput = z.infer<typeof workflowInputSchema>;
+export type WorkflowOutput = z.infer<typeof workflowOutputSchema>;

@@ -1,0 +1,20 @@
+name: stripe_blog_low_quality
+input:
+  topic: "Stripe the payment processor"
+  requirements: "Include a link to https://stripe.com/en-gb/pricing"
+last_output:
+  output:
+    title: "Payment Processing"
+    blog_post: "Payment processing is important for businesses. There are many options available."
+    word_count: 12
+  executionTimeMs: 1200
+  date: '2026-02-16T00:00:00.000Z'
+ground_truth:
+  notes: "Known low quality case"
+  evals:
+    length_of_output:
+      min_length: 100
+    evaluate_topic:
+      required_topic: "Stripe the payment processor"
+    evaluate_content:
+      required_content: "https://stripe.com/en-gb/pricing"

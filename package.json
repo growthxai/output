@@ -1,0 +1,61 @@
+{
+  "name": "output",
+  "version": "0.1.0",
+  "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
+  "type": "module",
+  "scripts": {
+    "prepare": "command -v git > /dev/null && husky || true",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.js",
+    "test:all": "npm test && npm run test:integration",
+    "build:packages": "pnpm -r run build",
+    "dev": "npm run build:packages && npm run dev:build:api && npm run dev:up",
+    "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
+    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows ./sdk/cli/bin/run.js dev --image-pull-policy never",
+    "docs:generate": "typedoc",
+    "docs:validate": "typedoc --emit none",
+    "release": "./ops/release.sh"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@stylistic/eslint-plugin": "5.10.0",
+    "@types/node": "24.10.15",
+    "eslint": "10.0.3",
+    "eslint-plugin-check-file": "3.3.1",
+    "globals": "17.4.0",
+    "husky": "9.1.7",
+    "lint-staged": "16.3.2",
+    "native-copyfiles": "2.0.1",
+    "semver": "catalog:",
+    "supertest": "7.2.2",
+    "typedoc": "0.28.17",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.57.0",
+    "vite-tsconfig-paths": "6.1.1",
+    "vitest": "4.0.18"
+  },
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/growthxai/output-sdk"
+  },
+  "private": "true",
+  "packageManager": "pnpm@10.30.2",
+  "lint-staged": {
+    "*": [
+      "./ops/format_files.sh"
+    ]
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-xml-parser@>=5.0.9 <=5.3.3": ">=5.3.4",
+      "fast-xml-parser@>=4.1.3 <5.3.6": ">=5.3.6",
+      "fast-xml-parser@>=4.1.3 <5.3.5": ">=5.3.5",
+      "minimatch@<3.1.3": ">=3.1.3",
+      "minimatch@>=5.0.0 <5.1.7": ">=5.1.7",
+      "minimatch@>=9.0.0 <9.0.6": ">=9.0.6"
+    }
+  }
+}

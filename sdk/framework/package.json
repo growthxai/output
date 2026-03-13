@@ -1,0 +1,29 @@
+{
+  "name": "@outputai/output",
+  "version": "0.1.0",
+  "description": "The Output.ai Framework",
+  "type": "module",
+  "dependencies": {
+    "@outputai/core": "workspace:",
+    "@outputai/credentials": "workspace:",
+    "@outputai/evals": "workspace:",
+    "@outputai/llm": "workspace:",
+    "@outputai/http": "workspace:",
+    "@outputai/cli": "workspace:"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/growthxai/output"
+  },
+  "keywords": [
+    "temporal",
+    "workflow",
+    "llm",
+    "ai",
+    "sdk"
+  ]
+}

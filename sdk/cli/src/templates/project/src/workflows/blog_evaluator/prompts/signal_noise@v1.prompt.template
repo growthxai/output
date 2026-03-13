@@ -1,0 +1,26 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.3
+maxTokens: 4096
+---
+
+<system>
+You are an expert content analyst. Evaluate blog posts for their signal-to-noise ratio.
+</system>
+
+<user>
+Analyze this blog post for signal-to-noise ratio.
+
+Title: \{{ title }}
+
+Content:
+\{{ content }}
+
+Score 0-100 where:
+- 0-20: Mostly filler/noise
+- 21-40: More noise than signal
+- 41-60: Balanced
+- 61-80: Good signal, minimal noise
+- 81-100: Exceptional, dense valuable content
+</user>

@@ -1,0 +1,523 @@
+---
+title: "LLM-as-a-Judge Best Practices"
+description: "Write effective judge prompts, choose the right grading scale, and build reliable evaluators for production"
+---
+
+Building evaluators that work reliably in production takes more than wrapping an LLM call in an `evaluator()`. This guide covers how to design judge prompts, pick grading scales, avoid common pitfalls, and structure evaluators that give your workflows useful signal.
+
+## Start with Failure Modes, Not Metrics
+
+The most common mistake is building evaluators before understanding what actually goes wrong. Don't start with "I need a quality score." Start by looking at 20-50 real outputs from your workflow and identifying specific failure patterns.
+
+For a lead enrichment summary, you might find:
+- The summary hallucinates details not in the source data
+- It's too generic — could describe any company
+- It misses the prospect's industry or key product
+- It's too long and buries the useful information
+
+Each of these is a concrete, testable failure mode. Build evaluators that check for *these specific things*, not abstract "quality."
+
+```typescript evaluators.ts
+import { evaluator, EvaluationBooleanResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+import { CheckHallucinationInput } from './types.js';
+
+// Good: checks a specific failure mode
+export const checkForHallucinations = evaluator({
+  name: 'checkForHallucinations',
+  description: 'Check if summary contains claims not supported by source data',
+  inputSchema: CheckHallucinationInput,
+  fn: async (input) => {
+    const { output } = await generateText({
+      prompt: 'check_hallucination@v1',
+      variables: {
+        summary: input.summary,
+        sourceData: input.sourceData
+      },
+      output: Output.object({
+        schema: z.object({
+          unsupportedClaims: z.array(z.string()),
+          hasHallucinations: z.boolean(),
+          confidence: z.number()
+        })
+      })
+    });
+
+    return new EvaluationBooleanResult({
+      value: !output.hasHallucinations,
+      confidence: output.confidence,
+      reasoning: output.unsupportedClaims.length > 0
+        ? `Unsupported claims: ${output.unsupportedClaims.join('; ')}`
+        : 'All claims supported by source data'
+    });
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const CheckHallucinationInput = z.object({
+//   summary: z.string(),
+//   sourceData: z.string()
+// });
+```
+
+## Prefer Pass/Fail Over Numeric Scales
+
+When an LLM rates something 6 out of 10, what does that mean? Is it good enough? Almost good? The number sounds precise but it's actually vague — the LLM isn't calibrated, and a 6 from one run might be a 7 from another.
+
+Binary pass/fail forces clarity. Either the summary mentions the company's industry or it doesn't. Either the email has a clear call-to-action or it doesn't. This makes your evaluators more consistent and your workflow logic simpler.
+
+```typescript
+// Vague — what do you do with a 6?
+if (quality.value >= 6) { /* good enough? */ }
+
+// Clear — either it passes or it doesn't
+if (quality.value === true) { /* move on */ }
+```
+
+When you do need more granularity, use three categories instead of a numeric scale: `pass`, `borderline`, `fail`. This gives you a middle ground without the false precision of 1-10 scores.
+
+```typescript evaluators.ts
+import { evaluator, EvaluationStringResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+import { JudgeSummaryInput } from './types.js';
+
+export const judgeSummaryQuality = evaluator({
+  name: 'judgeSummaryQuality',
+  description: 'Judge summary quality with a three-tier scale',
+  inputSchema: JudgeSummaryInput,
+  fn: async (input) => {
+    const { output } = await generateText({
+      prompt: 'judge_summary@v1',
+      variables: {
+        summary: input.summary,
+        companyName: input.companyName,
+        sourceData: input.sourceData
+      },
+      output: Output.object({
+        schema: z.object({
+          reasoning: z.string(),
+          verdict: z.enum(['pass', 'borderline', 'fail']),
+          confidence: z.number()
+        })
+      })
+    });
+
+    return new EvaluationStringResult({
+      value: output.verdict,
+      confidence: output.confidence,
+      reasoning: output.reasoning
+    });
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const JudgeSummaryInput = z.object({
+//   summary: z.string(),
+//   companyName: z.string(),
+//   sourceData: z.string()
+// });
+```
+
+## Writing Judge Prompts
+
+The judge prompt is everything. A vague prompt produces vague evaluations. Here's how to write prompts that give consistent, useful results.
+
+### Be Specific About Criteria
+
+Don't ask "is this good?" — define what "good" means for your use case.
+
+**Vague (unreliable):**
+```yaml judge_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0
+---
+
+<system>
+You judge the quality of company summaries.
+</system>
+
+<user>
+Is this summary good?
+
+Summary: {{ summary }}
+</user>
+```
+
+**Specific (reliable):**
+```yaml judge_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0
+---
+
+<system>
+You evaluate company research summaries for a sales team. A good summary must:
+
+1. Mention what the company does (their core product or service)
+2. Identify their target market or customer base
+3. Include at least one specific, verifiable fact (founding year, employee count, funding, etc.)
+4. Be 2-4 paragraphs long
+5. Not contain any claims that aren't supported by the provided source data
+
+When uncertain, err on the side of failing the summary. A sales rep using bad information is worse than asking for a rewrite.
+</system>
+
+<user>
+Evaluate this summary of {{ company_name }}.
+
+Summary:
+{{ summary }}
+
+Source data used to generate it:
+{{ source_data }}
+
+Does this summary pass all five criteria?
+</user>
+```
+
+### Ask for Reasoning Before the Verdict
+
+LLMs produce better judgments when they think through the evaluation before committing to a score. Structure your schema so the reasoning comes first.
+
+```typescript
+schema: z.object({
+  reasoning: z.string(),  // Think first
+  verdict: z.enum(['pass', 'fail']),  // Then decide
+  confidence: z.number()
+})
+```
+
+In your judge prompt, you can reinforce this:
+
+```yaml
+<user>
+...
+
+Think through each criterion step by step, then give your verdict.
+</user>
+```
+
+### Use Temperature 0
+
+Judge prompts should use `temperature: 0` for maximum consistency. You want the same input to produce the same evaluation every time. Save creativity for the generation step, not the judging step.
+
+### Define Each Label
+
+If you're using categories like `pass`/`borderline`/`fail`, define exactly what each one means in the prompt:
+
+```yaml
+<system>
+...
+
+Scoring guide:
+- pass: The summary meets all five criteria with no issues
+- borderline: The summary meets most criteria but has minor gaps (e.g., missing one specific fact, slightly too short)
+- fail: The summary is missing key information, contains unsupported claims, or is clearly not useful for a sales call
+</system>
+```
+
+## One Evaluator, One Concern
+
+Don't build a single evaluator that judges accuracy, tone, length, and relevance all at once. Split them up. Each evaluator should check one specific thing.
+
+This matters for two reasons:
+1. **Debugging** — When a summary fails, you know *why* it failed. "Failed hallucination check" is actionable. "Got a quality score of 4" is not.
+2. **Flow control** — Different failures need different responses. A hallucinated summary should be regenerated. A summary that's too short might just need a different prompt variant.
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { lookupCompany, generateSummary } from './steps.js';
+import { checkForHallucinations, checkCompleteness } from './evaluators.js';
+import { EnrichmentInput, EnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: EnrichmentInput,
+  outputSchema: EnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+
+    let summary;
+    let attempts = 0;
+
+    while (attempts < 3) {
+      summary = await generateSummary(company);
+
+      const factCheck = await checkForHallucinations({
+        summary,
+        sourceData: JSON.stringify(company)
+      });
+
+      if (!factCheck.value) {
+        // Hallucinated — must regenerate
+        attempts++;
+        continue;
+      }
+
+      const completeness = await checkCompleteness({
+        summary,
+        companyName: company.name
+      });
+
+      if (completeness.value) break;
+      attempts++;
+    }
+
+    return { company: company.name, summary };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const EnrichmentInput = z.object({
+//   companyDomain: z.string()
+// });
+//
+// export const EnrichmentOutput = z.object({
+//   company: z.string(),
+//   summary: z.string()
+// });
+```
+
+## Layer Deterministic Checks Before LLM Judges
+
+LLM judges cost money and take time. Don't burn an LLM call on something you can check with code. Run cheap deterministic evaluators first, and only call the LLM judge if the basic checks pass.
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { generateSummary, lookupCompany } from './steps.js';
+import { checkSummaryStructure } from './evaluators.js';
+import { judgeSummaryQuality } from './evaluators.js';
+import { EnrichmentInput, EnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: EnrichmentInput,
+  outputSchema: EnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+
+    let summary;
+    let attempts = 0;
+
+    while (attempts < 3) {
+      summary = await generateSummary(company);
+
+      // Cheap check first — no LLM call
+      const structure = await checkSummaryStructure({
+        summary,
+        companyName: company.name
+      });
+
+      if (!structure.value) {
+        attempts++;
+        continue;
+      }
+
+      // Expensive check only if structure passes
+      const quality = await judgeSummaryQuality({
+        summary,
+        companyName: company.name,
+        sourceData: JSON.stringify(company)
+      });
+
+      if (quality.value === 'pass') break;
+      attempts++;
+    }
+
+    return { company: company.name, summary };
+  }
+});
+```
+
+## Evaluators in Agent Loops
+
+The generate-evaluate-retry pattern is the foundation of agentic workflows. An agent that can check its own work and improve is fundamentally more reliable than one that generates a single output and hopes for the best.
+
+The pattern scales beyond simple retry loops. You can use evaluator results to:
+- **Switch strategies** — if a summary keeps failing the hallucination check, try a different prompt or a more conservative model
+- **Accumulate context** — pass the evaluator's reasoning back into the next generation as feedback
+- **Gate progression** — only move to the next stage of a pipeline when the current output meets quality thresholds
+
+```typescript workflow.ts
+import { workflow } from '@outputai/core';
+import { generateSummary, generateSummaryConservative, lookupCompany } from './steps.js';
+import { judgeSummaryQuality } from './evaluators.js';
+import { EnrichmentInput, EnrichmentOutput } from './types.js';
+
+export default workflow({
+  name: 'lead_enrichment',
+  inputSchema: EnrichmentInput,
+  outputSchema: EnrichmentOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.companyDomain);
+
+    // First attempt with the standard prompt
+    let summary = await generateSummary(company);
+    let quality = await judgeSummaryQuality({
+      summary,
+      companyName: company.name,
+      sourceData: JSON.stringify(company)
+    });
+
+    if (quality.value !== 'pass') {
+      // Second attempt — feed the failure reasoning back in
+      summary = await generateSummary({
+        ...company,
+        previousAttemptFeedback: quality.reasoning
+      });
+      quality = await judgeSummaryQuality({
+        summary,
+        companyName: company.name,
+        sourceData: JSON.stringify(company)
+      });
+    }
+
+    if (quality.value !== 'pass') {
+      // Third attempt — switch to a conservative prompt
+      summary = await generateSummaryConservative(company);
+    }
+
+    return { company: company.name, summary };
+  }
+});
+```
+
+## Weighted Rubric Evaluators
+
+Sometimes you need more nuance than a single pass/fail but want to avoid the inconsistency of asking an LLM for a numeric score. The solution: ask the LLM a series of specific yes/no questions, then compute a weighted score from the boolean answers yourself.
+
+This gives you the best of both worlds — the LLM makes simple binary decisions it's good at, and you control the scoring logic deterministically.
+
+```typescript evaluators.ts
+import { evaluator, EvaluationNumberResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+import { RubricInput } from './types.js';
+
+const RUBRIC = [
+  { key: 'mentionsProduct', weight: 0.25, label: 'Mentions core product or service' },
+  { key: 'identifiesMarket', weight: 0.20, label: 'Identifies target market' },
+  { key: 'hasSpecificFacts', weight: 0.20, label: 'Includes verifiable facts' },
+  { key: 'noHallucinations', weight: 0.25, label: 'No unsupported claims' },
+  { key: 'appropriateLength', weight: 0.10, label: 'Appropriate length (2-4 paragraphs)' }
+] as const;
+
+export const scoreSummaryRubric = evaluator({
+  name: 'scoreSummaryRubric',
+  description: 'Score a summary using a weighted yes/no rubric',
+  inputSchema: RubricInput,
+  fn: async (input) => {
+    const { output } = await generateText({
+      prompt: 'rubric_check@v1',
+      variables: {
+        summary: input.summary,
+        companyName: input.companyName,
+        sourceData: input.sourceData
+      },
+      output: Output.object({
+        schema: z.object({
+          mentionsProduct: z.boolean(),
+          identifiesMarket: z.boolean(),
+          hasSpecificFacts: z.boolean(),
+          noHallucinations: z.boolean(),
+          appropriateLength: z.boolean()
+        })
+      })
+    });
+
+    // Compute weighted score from boolean answers
+    const score = RUBRIC.reduce((total, criterion) => {
+      return total + (output[criterion.key] ? criterion.weight : 0);
+    }, 0);
+
+    const failed = RUBRIC
+      .filter(c => !output[c.key])
+      .map(c => c.label);
+
+    return new EvaluationNumberResult({
+      value: score,
+      confidence: 1.0,
+      reasoning: failed.length > 0
+        ? `Failed: ${failed.join(', ')}`
+        : 'All criteria met'
+    });
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const RubricInput = z.object({
+//   summary: z.string(),
+//   companyName: z.string(),
+//   sourceData: z.string()
+// });
+```
+
+The confidence is `1.0` because the scoring logic itself is deterministic — it's the LLM's yes/no answers that carry the uncertainty, and those are simple enough to be reliable. The weights and criteria live in your code, so you can tune them without touching the prompt.
+
+Use the score in your workflow to set thresholds:
+
+```typescript
+const rubric = await scoreSummaryRubric({
+  summary,
+  companyName: company.name,
+  sourceData: JSON.stringify(company)
+});
+
+if (rubric.value >= 0.8) {
+  // Good enough — move on
+} else if (rubric.value >= 0.5) {
+  // Borderline — retry with feedback
+} else {
+  // Too many failures — switch strategy
+}
+```
+
+This pattern scales well. You can add new criteria, rebalance weights, or change thresholds without rewriting the judge prompt. And because each criterion is a separate boolean, you get clear visibility into exactly what passed and what didn't.
+
+## Common Pitfalls
+
+### Using the Same Model to Generate and Judge
+
+If Claude generates a summary and Claude judges it, there's a self-enhancement bias — the model tends to rate its own output more favorably. When possible, use a different model for judging, or at minimum validate your judge against human-labeled examples.
+
+### Trusting High Pass Rates
+
+If your evaluator passes 100% of outputs, it's not checking hard enough. A useful evaluator should catch real failures. If everything passes, either your generator is perfect (unlikely) or your judge criteria are too loose.
+
+### Numeric Scales Without Clear Anchors
+
+If you must use numeric scores, anchor every point on the scale with a concrete example or definition. "7 out of 10" means nothing without context. "7 = meets all criteria but lacks specific financial data" is actionable.
+
+### Evaluating Too Many Things at Once
+
+A prompt that asks "rate this on accuracy, tone, completeness, and relevance" will produce muddled scores. The LLM trades off attention between criteria and the results become inconsistent. Split into separate evaluators.
+
+### Skipping the Manual Review Phase
+
+Before trusting an evaluator in production, run it against 30-50 examples and compare its judgments to your own. If you disagree with the evaluator more than 10-15% of the time, the judge prompt needs work.
+
+## Checklist
+
+When building a new evaluator:
+
+1. **Identify the failure mode** — What specific problem are you catching?
+2. **Can you check it with code?** — If yes, write a deterministic evaluator first
+3. **Define clear criteria** — Write them down before writing the prompt
+4. **Pick the simplest scale** — Pass/fail first, ternary if needed, numeric only as a last resort
+5. **Ask for reasoning first** — Structure the schema so the LLM thinks before judging
+6. **Use temperature 0** — Consistency over creativity for judges
+7. **Validate against your own judgment** — Run 30-50 examples and check alignment
+8. **Test in your workflow** — Does the evaluator's signal actually improve the output?

@@ -1,0 +1,215 @@
+---
+title: "Tracing: Full Visibility"
+description: "How workflow execution is traced, where traces are stored, and how to enable local or remote tracing"
+---
+
+When an LLM workflow fails or produces bad output, you need to understand what happened — what data each step received, what the LLM returned, and where things went wrong. Tracing gives you that visibility. Every workflow run produces a trace: a tree of events showing the workflow and every step, evaluator, child workflow, LLM call, and HTTP call with their inputs, outputs, errors, and timing.
+
+Traces are written automatically when the worker runs. You don't need to add any instrumentation to your code — just turn tracing on and tell it where to write.
+
+## What Gets Traced
+
+Each workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
+
+- **Steps and evaluators** — input, output (or error), start/end timestamps
+- **LLM calls** — the prompt name, variables, loaded config, the result, and token usage (`inputTokens`, `outputTokens`, `totalTokens`)
+- **HTTP calls** — method, URL, status code
+- **Child workflows** — nested as their own trees with the same structure
+
+This means you can open a trace file and see the full picture: which steps ran, what the LLM received and returned, how many tokens it used, and exactly where a failure happened.
+
+## Enabling Tracing
+
+Tracing is **off by default**. You enable it with environment variables. Local tracing writes JSON files to disk — no extra services needed. Remote tracing uploads to S3 when a run completes (requires Redis to correlate events). You can disable trace generation for specific workflows with `options.disableTrace: true` — see [Workflow options](/workflows#native-options).
+
+**Local only (recommended to start):**
+
+```bash
+OUTPUT_TRACE_LOCAL_ON=true
+```
+
+Trace files appear at `logs/runs/<workflowName>/<timestamp>_<workflowId>.json` under your project root.
+
+**Local + remote:**
+
+```bash
+OUTPUT_TRACE_LOCAL_ON=true
+OUTPUT_TRACE_REMOTE_ON=true
+OUTPUT_REDIS_URL=redis://localhost:6379
+OUTPUT_TRACE_REMOTE_S3_BUCKET=my-traces
+OUTPUT_AWS_REGION=us-east-1
+OUTPUT_AWS_ACCESS_KEY_ID=...
+OUTPUT_AWS_SECRET_ACCESS_KEY=...
+```
+
+### All Environment Variables
+
+| Variable | Required when | Description |
+|----------|---------------|-------------|
+| `OUTPUT_TRACE_LOCAL_ON` | Local tracing | Set to `true` to write trace files to disk |
+| `OUTPUT_TRACE_REMOTE_ON` | Remote tracing | Set to `true` to upload traces to S3 on run completion |
+| `OUTPUT_REDIS_URL` | Remote tracing | Redis address for correlating events before S3 upload |
+| `OUTPUT_REDIS_TRACE_TTL` | Remote tracing | TTL in seconds for Redis keys that accumulate trace events before a workflow is uploaded. Default: 7 days (`604800`). |
+| `OUTPUT_TRACE_REMOTE_S3_BUCKET` | Remote tracing | S3 bucket name |
+| `OUTPUT_AWS_REGION` | Remote tracing | AWS region for the bucket |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | Remote tracing | AWS access key |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | Remote tracing | AWS secret key |
+| `OUTPUT_TRACE_HOST_PATH` | Docker setups | Host path where trace files are mounted. The worker writes inside the container; this tells the API and CLI what path to report so you can open files on the host |
+
+## Reading a Trace
+
+Each trace file is a single JSON object — the root workflow node. Every node in the tree has the same shape:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique identifier for this node |
+| `kind` | `workflow`, `step`, `evaluator`, `llm`, or `http` |
+| `name` | Workflow name or activity type |
+| `startedAt` / `endedAt` | Unix timestamps (ms) |
+| `input` | What the node received |
+| `output` | What the node returned (absent on error) |
+| `error` | Error details with `name`, `message`, `stack` (absent on success) |
+| `children` | Array of child nodes (same shape) |
+
+### Step with an LLM Call
+
+This is the most common trace shape you'll see. The step has the LLM call as a child, so you can see exactly what prompt was loaded, what variables were passed, what the LLM returned, and how many tokens it used:
+
+```json
+{
+  "id": "1",
+  "kind": "step",
+  "name": "lead_enrichment#generateSummary",
+  "startedAt": 1761952643861,
+  "endedAt": 1761952649808,
+  "input": { "name": "Acme Corp", "industry": "SaaS", "size": 250 },
+  "output": "Acme Corp is a B2B SaaS company...",
+  "children": [
+    {
+      "id": "generateText-1761952643867",
+      "kind": "llm",
+      "name": "generateText",
+      "startedAt": 1761952643867,
+      "endedAt": 1761952649806,
+      "input": {
+        "prompt": "generate_summary@v1",
+        "variables": { "companyName": "Acme Corp", "industry": "SaaS" },
+        "loadedPrompt": {
+          "name": "generate_summary@v1",
+          "config": { "provider": "anthropic", "model": "claude-sonnet-4-20250514" }
+        }
+      },
+      "output": {
+        "result": "Acme Corp is a B2B SaaS company...",
+        "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 }
+      },
+      "children": []
+    }
+  ]
+}
+```
+
+### Failed Step
+
+When a step fails, it has an `error` object instead of `output`. The error includes the name, message, and stack trace:
+
+```json
+{
+  "id": "1",
+  "kind": "step",
+  "name": "lead_enrichment#lookupCompany",
+  "startedAt": 1766083745644,
+  "endedAt": 1766083745645,
+  "error": {
+    "name": "FatalError",
+    "message": "HubSpot API key is invalid",
+    "stack": "FatalError: HubSpot API key is invalid\n    at fn (...steps.js:7:15)\n..."
+  },
+  "children": []
+}
+```
+
+The parent workflow node also gets an `error` when the run fails, so you can see at the root level that something went wrong.
+
+### Full Workflow Trace
+
+A complete trace puts it all together — the workflow root with all its step children:
+
+```json
+{
+  "id": "lead_enrichment-758d51b8-7bc0-40a4-b851-c692dff14910",
+  "kind": "workflow",
+  "name": "lead_enrichment",
+  "startedAt": 1769527009211,
+  "endedAt": 1769527009265,
+  "input": { "companyDomain": "acme.com" },
+  "output": {
+    "output": { "company": "Acme Corp", "summary": "Acme Corp is a B2B SaaS company..." },
+    "trace": {
+      "destinations": {
+        "local": "/path/to/logs/runs/lead_enrichment/2026-01-27_lead_enrichment-758d51b8-....json",
+        "remote": null
+      }
+    }
+  },
+  "children": [
+    {
+      "id": "1",
+      "kind": "step",
+      "name": "lead_enrichment#lookupCompany",
+      "startedAt": 1769527009222,
+      "endedAt": 1769527009223,
+      "input": "acme.com",
+      "output": { "name": "Acme Corp", "industry": "SaaS", "size": 250 },
+      "children": []
+    },
+    {
+      "id": "2",
+      "kind": "step",
+      "name": "lead_enrichment#generateSummary",
+      "input": { "name": "Acme Corp", "industry": "SaaS", "size": 250 },
+      "output": "Acme Corp is a B2B SaaS company...",
+      "children": [{ "kind": "llm", "..." : "..." }]
+    },
+    {
+      "id": "3",
+      "kind": "evaluator",
+      "name": "lead_enrichment#judgeSummaryQuality",
+      "input": { "summary": "Acme Corp is a B2B SaaS company...", "companyName": "Acme Corp" },
+      "output": { "value": true, "confidence": 0.92, "reasoning": "Meets all criteria" },
+      "children": [{ "kind": "llm", "..." : "..." }]
+    }
+  ]
+}
+```
+
+### Child Workflows
+
+Child workflows appear as `kind: "workflow"` children with their own nested tree of steps:
+
+```json
+{
+  "id": "parent-44710c05-child-081d68e7",
+  "kind": "workflow",
+  "name": "child_workflow",
+  "startedAt": 1766179342625,
+  "endedAt": 1766179342636,
+  "input": { "companyDomain": "acme.com" },
+  "output": { "result": "..." },
+  "children": [
+    { "kind": "step", "name": "child_workflow#someStep", "..." : "..." }
+  ]
+}
+```
+
+### Continue-as-New
+
+When a workflow calls [continueAsNew](/workflows/context#continueasnew), the trace records `"<continued_as_new>"` as the output for that run. The new run keeps the same workflow ID but gets a new start time — each run produces its own trace file. To see the full chain, list trace files for that workflow name and match by workflow ID; sort by timestamp for order.
+
+## Accessing Traces
+
+You can access traces in three ways:
+
+- **Directly** — Open the JSON files at `logs/runs/<workflowName>/`
+- **Via API** — See [Get workflow trace log](/api#get-workflow-trace-log)
+- **Via CLI** — See [output workflow debug](/packages/cli#output-workflow-debug)

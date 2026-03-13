@@ -1,0 +1,216 @@
+# {{WorkflowName}} Workflow
+
+{{description}}
+
+## Overview
+
+This was generated using the Output.ai CLI. It provides a starting point for building AI applications with production-ready LLM integration, built-in prompt management, evaluation, and observability.
+
+## Files
+
+- `workflow.ts` - Main workflow definition with input/output schemas
+- `steps.ts` - Activity/step definitions with input/output schemas
+- `evaluators.ts` - Quality evaluators for workflow outputs
+- `types.ts` - Shared Zod schemas and TypeScript types
+- `prompts/` - LLM prompt templates
+- `scenarios/` - Test input scenarios
+
+## File Organization
+
+You can organize your workflow files in two ways:
+
+**Flat files:**
+```
+workflow/
+├── workflow.ts
+├── steps.ts
+├── evaluators.ts
+├── types.ts
+└── utils.ts
+```
+
+**Folder-based:**
+```
+workflow/
+├── workflow.ts
+├── steps/
+│   ├── fetch_data.ts
+│   └── process_data.ts
+├── evaluators/
+│   └── quality.ts
+└── utils/
+    └── helpers.ts
+```
+
+## Import Rules
+
+**Important:** Steps and evaluators are isolated execution units that cannot call each other.
+
+**Steps can import from:**
+- Local utilities (`./utils.ts`, `./utils/*.ts`)
+- Shared utilities (`../../shared/utils/*.ts`)
+- Clients (`../../clients/*.ts`)
+
+**Steps cannot import from:**
+- Other steps or evaluators (activity isolation)
+- Workflow files
+
+**Workflows can import from:**
+- Steps, evaluators, and utilities (local and shared)
+
+## Setup
+
+### Environment Variables
+
+Before running the workflow, configure your API keys in the `.env` file:
+
+```bash
+# Required for LLM functionality
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+```
+
+## Usage
+
+### Workflow Input
+
+The workflow expects input matching the input schema defined in `types.ts`.
+
+Example:
+```json
+{
+  "text": "Your input text"
+}
+```
+
+### Workflow Output
+
+The workflow returns output matching the output schema defined in `types.ts`.
+
+Example:
+```json
+{
+  "result": "The processed result"
+}
+```
+
+## Development
+
+### Workflow Structure
+
+The workflow follows the Output.ai conventions:
+
+```typescript
+import { workflow } from '@outputai/core';
+import { myStep } from './steps.js';
+import { workflowInputSchema, workflowOutputSchema } from './types.js';
+
+export default workflow( {
+  name: 'workflowName',
+  description: 'Workflow description',
+  inputSchema: workflowInputSchema,
+  outputSchema: workflowOutputSchema,
+  fn: async ( input ) => {
+    const result = await myStep( input );
+    return { result };
+  }
+} );
+```
+
+### Adding New Steps
+
+Define steps in `steps.ts` with schemas:
+
+```typescript
+import { step, z } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+
+export const myStep = step( {
+  name: 'my_step',
+  description: 'Description of what this step does',
+  inputSchema: z.object( {
+    text: z.string()
+  } ),
+  outputSchema: z.object( {
+    result: z.string()
+  } ),
+  fn: async ( { text } ) => {
+    const { output } = await generateText( {
+      prompt: 'my_prompt@v1',
+      variables: { text },
+      output: Output.object( {
+        schema: z.object( { result: z.string() } )
+      } )
+    } );
+    return output;
+  }
+} );
+```
+
+### Adding Evaluators
+
+Define evaluators in `evaluators.ts`:
+
+```typescript
+import { evaluator, z, EvaluationVerdictResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+
+export const evaluateQuality = evaluator( {
+  name: 'evaluate_quality',
+  description: 'Evaluate output quality',
+  inputSchema: z.object( {
+    input: z.string(),
+    output: z.string()
+  } ),
+  fn: async ( { input, output } ) => {
+    const { output: evaluation } = await generateText( {
+      prompt: 'evaluate@v1',
+      variables: { input, output },
+      output: Output.object( { schema: EvaluationVerdictResult.schema } )
+    } );
+
+    return new EvaluationVerdictResult( evaluation );
+  }
+} );
+```
+
+### Creating Prompt Templates
+
+Create prompt files in `prompts/` following the pattern:
+- File naming: `promptName@v1.prompt`
+- Include YAML frontmatter with provider, model, temperature, and maxTokens
+- Use LiquidJS syntax for variables: `{{ variableName }}`
+
+Example prompt file:
+```
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.3
+maxTokens: 1024
+---
+
+<system>
+You are an expert analyst.
+</system>
+
+<user>
+{{ text }}
+</user>
+```
+
+## Testing
+
+To test your workflow:
+
+1. Start development services with `npx output dev`
+2. Execute the workflow in a new terminal:
+
+```bash
+npx output workflow run {{workflowName}} test_input
+```
+
+## Resources
+
+- [Output.ai Documentation](https://docs.output.ai)
+- [Temporal Documentation](https://docs.temporal.io)

@@ -1,0 +1,24 @@
+{
+  "name": "test_workflows",
+  "version": "0.1.0",
+  "description": "A simple output core abstract",
+  "type": "module",
+  "scripts": {
+    "output:worker:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
+    "output:worker:build": "rm -rf dist/* && tsc && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' dist -u 1",
+    "output:worker:start": "output-worker"
+  },
+  "dependencies": {
+    "@outputai/core": "workspace:^",
+    "@outputai/credentials": "workspace:^",
+    "@outputai/evals": "workspace:^",
+    "@outputai/http": "workspace:^",
+    "@outputai/llm": "workspace:^",
+    "@temporalio/workflow": "catalog:"
+  },
+  "output": {
+    "hookFiles": [
+      "./src/error_hooks.js"
+    ]
+  }
+}

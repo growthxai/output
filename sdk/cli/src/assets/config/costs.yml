@@ -1,0 +1,309 @@
+# LLM Token Pricing Configuration
+# Prices are per million tokens (as of Feb 2026)
+# Update these values as pricing changes
+
+models:
+  # =============================================================================
+  # Anthropic
+  # =============================================================================
+  claude-haiku-4-5:
+    provider: anthropic
+    input: 1.00
+    output: 5.00
+    cached_input: 0.10
+
+  claude-sonnet-4:
+    provider: anthropic
+    input: 3.00
+    output: 15.00
+    cached_input: 0.30
+
+  claude-opus-4:
+    provider: anthropic
+    input: 15.00
+    output: 75.00
+    cached_input: 1.50
+
+  claude-opus-4-6:
+    provider: anthropic
+    input: 5.00
+    output: 25.00
+    cached_input: 0.50
+
+  claude-opus-4-5:
+    provider: anthropic
+    input: 5.00
+    output: 25.00
+    cached_input: 0.50
+
+  claude-sonnet-4-5:
+    provider: anthropic
+    input: 3.00
+    output: 15.00
+    cached_input: 0.30
+
+  # Legacy models
+  claude-3-5-sonnet-20241022:
+    provider: anthropic
+    input: 3.00
+    output: 15.00
+    cached_input: 0.30
+
+  claude-3-5-haiku-20241022:
+    provider: anthropic
+    input: 0.80
+    output: 4.00
+    cached_input: 0.08
+
+  # =============================================================================
+  # OpenAI
+  # =============================================================================
+
+  # GPT-5 series
+  gpt-5.2:
+    provider: openai
+    input: 1.75
+    output: 14.00
+    cached_input: 0.175
+
+  gpt-5.2-pro:
+    provider: openai
+    input: 21.00
+    output: 168.00
+
+  gpt-5-mini:
+    provider: openai
+    input: 0.25
+    output: 2.00
+    cached_input: 0.025
+
+  gpt-5-nano:
+    provider: openai
+    input: 0.05
+    output: 0.40
+    cached_input: 0.005
+
+  # GPT-4.1 series
+  gpt-4.1:
+    provider: openai
+    input: 2.00
+    output: 8.00
+    cached_input: 0.50
+
+  gpt-4.1-mini:
+    provider: openai
+    input: 0.40
+    output: 1.60
+    cached_input: 0.10
+
+  gpt-4.1-nano:
+    provider: openai
+    input: 0.10
+    output: 0.40
+    cached_input: 0.025
+
+  # GPT-4o series (legacy)
+  gpt-4o:
+    provider: openai
+    input: 2.50
+    output: 10.00
+    cached_input: 1.25
+
+  gpt-4o-mini:
+    provider: openai
+    input: 0.15
+    output: 0.60
+    cached_input: 0.075
+
+  gpt-4-turbo:
+    provider: openai
+    input: 10.00
+    output: 30.00
+
+  gpt-4:
+    provider: openai
+    input: 30.00
+    output: 60.00
+
+  gpt-3.5-turbo:
+    provider: openai
+    input: 0.50
+    output: 1.50
+
+  # Reasoning models (o-series)
+  o1:
+    provider: openai
+    input: 15.00
+    output: 60.00
+    cached_input: 7.50
+    reasoning: 60.00
+
+  o1-mini:
+    provider: openai
+    input: 1.10
+    output: 4.40
+    cached_input: 0.55
+    reasoning: 4.40
+
+  o3-mini:
+    provider: openai
+    input: 1.10
+    output: 4.40
+    cached_input: 0.55
+    reasoning: 4.40
+
+  o4-mini:
+    provider: openai
+    input: 1.10
+    output: 4.40
+    cached_input: 0.275
+
+  # =============================================================================
+  # Google
+  # =============================================================================
+  gemini-1.5-pro:
+    provider: google
+    input: 1.25
+    output: 5.00
+    cached_input: 0.3125
+
+  gemini-1.5-flash:
+    provider: google
+    input: 0.075
+    output: 0.30
+    cached_input: 0.01875
+
+  gemini-2.0-flash:
+    provider: google
+    input: 0.10
+    output: 0.40
+
+  # =============================================================================
+  # Perplexity (usage-based, approximate)
+  # =============================================================================
+  llama-3.1-sonar-small-128k-online:
+    provider: perplexity
+    input: 0.20
+    output: 0.20
+
+  llama-3.1-sonar-large-128k-online:
+    provider: perplexity
+    input: 1.00
+    output: 1.00
+
+  llama-3.1-sonar-huge-128k-online:
+    provider: perplexity
+    input: 5.00
+    output: 5.00
+
+# =============================================================================
+# API Services - Extensible pricing for non-LLM APIs
+# =============================================================================
+#
+# Pricing types:
+#   - token: Price per million tokens (usage extracted from response)
+#   - unit: Price per API unit (usage extracted or calculated from response)
+#   - request: Fixed price per request
+#
+# To add a new provider:
+#   1. Add entry with url_pattern to match HTTP calls
+#   2. Set type and pricing
+#   3. Optional: usage_path to extract usage from response body
+#
+services:
+  # ---------------------------------------------------------------------------
+  # Jina Reader API - Token-based
+  # Pricing: https://jina.ai/reader/
+  # ---------------------------------------------------------------------------
+  jina:
+    type: token
+    url_pattern: "r.jina.ai"
+    usage_path: "body.data.usage.tokens"
+    per_million: 0.045                      # $0.045 per 1M tokens
+
+  # ---------------------------------------------------------------------------
+  # Semrush API - Unit-based (converted to dollars)
+  # Pricing: https://developer.semrush.com/api/basics/api-units-balance/
+  # ---------------------------------------------------------------------------
+  semrush:
+    type: unit
+    url_pattern: "api.semrush.com"
+    price_per_unit: 0.00025                 # ~$0.25 per 1000 units
+    endpoints:
+      backlinks_overview:
+        pattern: "type=backlinks_overview"
+        units_per_request: 10
+      domain_organic:
+        pattern: "type=domain_organic"
+        units_per_line: 10
+      phrase_related:
+        pattern: "type=phrase_related"
+        units_per_line: 40
+      domain_ranks:
+        pattern: "type=domain_ranks"
+        units_per_request: 10
+
+  # ---------------------------------------------------------------------------
+  # Exa Research API - Cost from response
+  # Pricing: https://exa.ai/pricing
+  #
+  # Exa's pricing structure (per 1k tasks):
+  #   - Agent search operations: $5 (all models)
+  #   - Agent page reads: $5 (exa-research/fast) or $10 (exa-research-pro) per 1k pages
+  #   - Reasoning tokens: $5 per 1M tokens
+  #
+  # The API returns actual cost in response.body.costDollars.total
+  # which accounts for searches, page reads, and reasoning tokens.
+  # ---------------------------------------------------------------------------
+  exa:
+    type: response_cost
+    url_pattern: "api.exa.ai"
+    cost_path: "output.body.costDollars.total"
+    # Exa uses async flow: POST creates task, GET returns results with costDollars
+    # Only count GET responses that have costDollars.total - no fallback needed
+    # For traces without verbose HTTP bodies, Exa costs will show as $0
+
+  # ---------------------------------------------------------------------------
+  # Tavily API - Request-based
+  # Pricing: https://tavily.com/pricing
+  # ---------------------------------------------------------------------------
+  tavily:
+    type: request
+    url_pattern: "api.tavily.com"
+    endpoints:
+      search:
+        pattern: "/search"
+        price: 0.01
+      extract:
+        pattern: "/extract"
+        price_per_item: 0.005
+        items_path: "body.urls"
+
+  # ---------------------------------------------------------------------------
+  # DataForSEO API - Request-based
+  # Pricing: https://dataforseo.com/pricing
+  # ---------------------------------------------------------------------------
+  dataforseo:
+    type: request
+    url_pattern: "api.dataforseo.com"
+    endpoints:
+      whois:
+        pattern: "/whois"
+        price: 0.015
+      bulk_traffic:
+        pattern: "/bulk_traffic"
+        price_per_item: 0.075
+        items_path: "body[0].targets"
+
+  # ---------------------------------------------------------------------------
+  # Perplexity API (direct HTTP calls, not via LLM SDK)
+  # Pricing: https://docs.perplexity.ai/guides/pricing
+  # ---------------------------------------------------------------------------
+  perplexity_api:
+    type: token
+    url_pattern: "api.perplexity.ai"
+    usage_path: "body.usage"
+    input_field: "prompt_tokens"
+    output_field: "completion_tokens"
+    input_per_million: 1.00
+    output_per_million: 1.00

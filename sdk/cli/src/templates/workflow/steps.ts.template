@@ -1,0 +1,20 @@
+import { step, z } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+
+export const processText = step( {
+  name: 'process_text',
+  description: 'Process text using an LLM',
+  inputSchema: z.object( {
+    text: z.string()
+  } ),
+  outputSchema: z.string(),
+  // TODO: Update or replace the generateText call to fit your use case
+  fn: async ( { text } ) => {
+    const { result } = await generateText( {
+      prompt: 'example@v1',
+      variables: { text }
+    } );
+
+    return result;
+  }
+} );

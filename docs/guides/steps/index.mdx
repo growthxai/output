@@ -1,0 +1,175 @@
+---
+title: "The steps.ts File"
+description: "Reusable units of work that handle I/O operations"
+---
+
+Workflows orchestrate, but they can't do any real work themselves — no API calls, no database queries, no LLM requests. That's by design. Output replays workflow code to recover from failures, so if you made an API call directly in a workflow, it could run twice. Steps are the boundary: they run once, their results are cached, and if something fails, only the failed step retries.
+
+## Basic Step
+
+Here's a step that looks up a company using an external API:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { lookupCompany as fetchFromClearbit } from '../../../clients/clearbit.js';
+import { LookupCompanyInput, LookupCompanyOutput } from './types.js';
+
+export const lookupCompany = step({
+  name: 'lookupCompany',
+  description: 'Look up company data from Clearbit',
+  inputSchema: LookupCompanyInput,
+  outputSchema: LookupCompanyOutput,
+  fn: async (domain) => {
+    const company = await fetchFromClearbit(domain);
+    return { name: company.name, industry: company.industry, size: company.employees };
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const LookupCompanyInput = z.string();
+//
+// export const LookupCompanyOutput = z.object({
+//   name: z.string(),
+//   industry: z.string(),
+//   size: z.number()
+// });
+```
+
+Steps are called from workflows like regular async functions — `await lookupCompany('acme.com')`. The workflow decides *when* to call each step; the step does the actual work.
+
+## Step Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `string` | Unique identifier for the step |
+| `description` | `string` | Human-readable description |
+| `inputSchema` | `ZodSchema` | Zod schema for input validation |
+| `outputSchema` | `ZodSchema` | Zod schema for output validation |
+| `options` | `object` | Optional workflow options (see [Options](#options)) |
+| `fn` | `function` | The step implementation |
+
+## Steps vs Workflows
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project">
+    - Orchestrate steps in sequence or parallel
+    - Must be deterministic (no I/O)
+    - Replayed on failure to recover state
+  </Card>
+  <Card title="Steps" icon="list-check">
+    - Where I/O happens: APIs, databases, LLMs
+    - Results cached — won't re-run on replay
+    - Automatically retried on failure
+  </Card>
+</CardGroup>
+
+The rule is simple: if it talks to something external, it goes in a step.
+
+## Calling an LLM
+
+Steps are where you make LLM calls using `@outputai/llm`. The prompt file handles the model configuration; the step handles the orchestration:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+import { GenerateSummaryInput, GenerateSummaryOutput } from './types.js';
+
+export const generateSummary = step({
+  name: 'generateSummary',
+  description: 'Generate an AI summary of company data',
+  inputSchema: GenerateSummaryInput,
+  outputSchema: GenerateSummaryOutput,
+  fn: async (input) => {
+    const { result } = await generateText({
+      prompt: 'summarize_company@v1',
+      variables: {
+        companyName: input.name,
+        industry: input.industry,
+        size: input.size
+      }
+    });
+    return result;
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const GenerateSummaryInput = z.object({
+//   name: z.string(),
+//   industry: z.string(),
+//   size: z.number()
+// });
+//
+// export const GenerateSummaryOutput = z.string();
+```
+
+The `prompt` references a `.prompt` file in your workflow's `prompts/` directory. See [Writing Prompt Files](/prompts) for how to create them.
+
+## Options
+
+Steps accept an optional `options` property to configure retry behavior and timeouts. Use `options.activityOptions` for Temporal activity options. Options set on a workflow apply to all its steps; a step can override them with its own `options.activityOptions`:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { searchNews as fetchFromTavily } from '../../../clients/tavily.js';
+import { SearchNewsInput, SearchNewsOutput } from './types.js';
+
+export const searchNews = step({
+  name: 'searchNews',
+  description: 'Search for recent news about a company',
+  inputSchema: SearchNewsInput,
+  outputSchema: SearchNewsOutput,
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 5,
+        initialInterval: '1s',
+        backoffCoefficient: 2
+      }
+    }
+  },
+  fn: async (query) => {
+    const articles = await fetchFromTavily(query);
+    return articles;
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const SearchNewsInput = z.string();
+//
+// export const SearchNewsOutput = z.array(z.object({
+//   title: z.string(),
+//   url: z.string(),
+//   snippet: z.string()
+// }));
+```
+
+For the full list of supported options and default values, see [Activity Options](/workflows#activity-options) in the Workflows guide. Evaluators use the same options.
+
+## Import Rules
+
+<Warning>
+Steps are isolated execution units. A step cannot call another step or an evaluator — only workflows can do that.
+</Warning>
+
+**Steps can import:**
+- [Clients](/clients) from `src/clients/`
+- Type definitions, constants, helpers, utilities
+- Any file that is not a component file (steps, evaluators, or workflow)
+
+**Steps cannot import:**
+- Other steps (activity calling activity)
+- Evaluators (they are also activities)
+- Workflow files
+
+This isolation exists because of how Temporal executes activities. Each step runs independently, and Temporal needs to be able to retry or replay any step without side effects from other steps.
+
+## What's Next
+
+- [Step Patterns & Best Practices](/steps/best-practices) — Extract utilities, organize step files, share steps across workflows, and use evaluators for flow control
+- [Evaluators](/evaluators) — Score LLM output and control workflow flow with LLM-as-a-judge

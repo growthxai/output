@@ -1,0 +1,88 @@
+name: Publish Dev
+
+on:
+  issue_comment:
+    types: [created]
+
+env:
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+jobs:
+  authorize:
+    name: Check commenter permissions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.perm.outputs.allowed }}
+    steps:
+      - name: Determine permission
+        id: perm
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commenter = context.payload.comment.user.login;
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: commenter
+            });
+            const allowed = ['admin', 'maintain', 'write'].includes(data.permission);
+            core.setOutput('allowed', allowed ? 'true' : 'false');
+
+  publish:
+    name: Publish NPM Pre-release Packages
+    runs-on: ubuntu-latest
+    needs: authorize
+    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, '/publish-dev') && needs.authorize.outputs.allowed == 'true' }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    container:
+      image: node:24.13.0
+    steps:
+      - name: Get PR Number
+        id: pr
+        run: |
+          echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory /__w/output/output
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Validate
+        run: ./ops/validate.sh
+
+      - name: Publish
+        id: publish
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          PR_NUM="${{ steps.pr.outputs.number }}"
+
+          ./ops/publish_npm_dev.sh "$PR_NUM" "$SHORT_SHA" | tee /tmp/output.txt
+
+          SUMMARY=$(sed -n '/^## Published packages/,$p' /tmp/output.txt)
+          {
+            echo 'summary<<EOF'
+            echo "$SUMMARY"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }},
+              body: `${{ steps.publish.outputs.summary }}`
+            });

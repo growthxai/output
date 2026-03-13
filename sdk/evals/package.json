@@ -1,0 +1,29 @@
+{
+  "name": "@outputai/evals",
+  "version": "0.1.0",
+  "description": "Offline evaluation framework for Output.ai workflows",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "output-workflow-bundle": "./dist/index_sandbox.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "./dist"
+  ],
+  "scripts": {
+    "build": "rm -rf ./dist && tsc"
+  },
+  "dependencies": {
+    "@outputai/core": "workspace:",
+    "@outputai/llm": "workspace:"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  }
+}

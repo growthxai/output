@@ -1,0 +1,431 @@
+---
+title: "Verdict Helpers"
+description: "Deterministic assertions, manual verdicts, and LLM result wrappers for workflow evaluators"
+---
+
+The `Verdict` object from `@outputai/evals` provides helpers for returning evaluation results from your [workflow evaluators](/evaluators/workflow-evaluators). There are three categories: deterministic assertions for programmatic checks, manual verdicts for custom logic, and LLM result wrappers for judge output.
+
+```typescript
+import { Verdict } from '@outputai/evals';
+```
+
+## Deterministic Assertions
+
+These helpers compare values and return an `EvaluationBooleanResult` with `confidence: 1.0`. The reasoning is auto-generated based on the comparison result — you don't need to write it yourself.
+
+### Verdict.equals
+
+Strict equality check (`===`).
+
+```typescript
+Verdict.equals( actual: unknown, expected: unknown ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Value equals expected: 15' }
+Verdict.equals( output.result, 15 )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Expected 15, got 10' }
+Verdict.equals( 10, 15 )
+```
+
+Uses `===` comparison, so `Verdict.equals(1, '1')` will fail. Objects are compared by reference, not by deep equality — use for primitives.
+
+### Verdict.closeTo
+
+Checks if a number is within a tolerance of an expected value.
+
+```typescript
+Verdict.closeTo( actual: number, expected: number, tolerance: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '0.31 is within 0.05 of 0.3' }
+Verdict.closeTo( 0.31, 0.3, 0.05 )
+
+// Fail: { value: false, confidence: 1.0, reasoning: '0.5 is not within 0.05 of 0.3 (diff: 0.2)' }
+Verdict.closeTo( 0.5, 0.3, 0.05 )
+```
+
+Passes when `Math.abs(actual - expected) <= tolerance`. The tolerance is inclusive. Use this for floating-point comparisons where exact equality is unreliable.
+
+### Verdict.gt
+
+Strict greater-than (`>`).
+
+```typescript
+Verdict.gt( actual: number, threshold: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '8 > 5' }
+Verdict.gt( 8, 5 )
+
+// Fail (equal is not greater): { value: false, confidence: 1.0, reasoning: '5 is not greater than 5' }
+Verdict.gt( 5, 5 )
+```
+
+### Verdict.gte
+
+Greater-than-or-equal (`>=`).
+
+```typescript
+Verdict.gte( actual: number, threshold: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '5 >= 5' }
+Verdict.gte( 5, 5 )
+
+// Fail: { value: false, confidence: 1.0, reasoning: '3 is not greater than or equal to 5' }
+Verdict.gte( 3, 5 )
+```
+
+Common use: checking minimum lengths or scores from ground truth.
+
+```typescript
+export const lengthOfOutput = verify(
+  { name: 'length_of_output', input: blogInput, output: blogOutput },
+  ( { output, context } ) =>
+    Verdict.gte( output.blog_post.length, Number( context.ground_truth.min_length ?? 100 ) )
+);
+```
+
+### Verdict.lt
+
+Strict less-than (`<`).
+
+```typescript
+Verdict.lt( actual: number, threshold: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '3 < 5' }
+Verdict.lt( 3, 5 )
+```
+
+### Verdict.lte
+
+Less-than-or-equal (`<=`).
+
+```typescript
+Verdict.lte( actual: number, threshold: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '5 <= 5' }
+Verdict.lte( 5, 5 )
+```
+
+### Verdict.inRange
+
+Inclusive range check — both boundaries are included.
+
+```typescript
+Verdict.inRange( actual: number, min: number, max: number ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: '7 is in range [1, 10]' }
+Verdict.inRange( 7, 1, 10 )
+
+// Pass (boundaries are inclusive):
+Verdict.inRange( 1, 1, 10 )
+Verdict.inRange( 10, 1, 10 )
+
+// Fail: { value: false, confidence: 1.0, reasoning: '15 is not in range [1, 10]' }
+Verdict.inRange( 15, 1, 10 )
+```
+
+Equivalent to `actual >= min && actual <= max`.
+
+### Verdict.contains
+
+Substring search using `String.includes()`.
+
+```typescript
+Verdict.contains( haystack: string, needle: string ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'String contains "stripe.com"' }
+Verdict.contains( output.blog_post, 'stripe.com' )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'String does not contain "pricing"' }
+Verdict.contains( 'Hello world', 'pricing' )
+```
+
+Case-sensitive. An empty needle always passes.
+
+### Verdict.matches
+
+Regular expression test using `RegExp.test()`.
+
+```typescript
+Verdict.matches( value: string, pattern: RegExp ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Value matches /https?:\/\//' }
+Verdict.matches( output.url, /https?:\/\// )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Value does not match /^\d{4}-\d{2}-\d{2}$/' }
+Verdict.matches( 'not-a-date', /^\d{4}-\d{2}-\d{2}$/ )
+```
+
+### Verdict.includesAll
+
+Checks that an array contains every expected element.
+
+```typescript
+Verdict.includesAll( actual: unknown[], expected: unknown[] ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Array includes all expected values' }
+Verdict.includesAll( [ 'a', 'b', 'c', 'd' ], [ 'a', 'c' ] )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Array is missing: ["d"]' }
+Verdict.includesAll( [ 'a', 'b', 'c' ], [ 'a', 'd' ] )
+```
+
+Order doesn't matter. Uses `===` for element comparison, so this works best with primitives (strings, numbers).
+
+### Verdict.includesAny
+
+Checks that an array contains at least one expected element.
+
+```typescript
+Verdict.includesAny( actual: unknown[], expected: unknown[] ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Array includes: ["b"]' }
+Verdict.includesAny( [ 'a', 'b', 'c' ], [ 'b', 'x', 'y' ] )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Array includes none of: ["x","y"]' }
+Verdict.includesAny( [ 'a', 'b', 'c' ], [ 'x', 'y' ] )
+```
+
+The success message shows which elements were found.
+
+### Verdict.isTrue
+
+Strict boolean check against `true`.
+
+```typescript
+Verdict.isTrue( value: boolean ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Value is true' }
+Verdict.isTrue( true )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Expected true, got false' }
+Verdict.isTrue( false )
+```
+
+Uses strict equality (`===`). Truthy values like `1` or `"true"` will fail — only boolean `true` passes.
+
+### Verdict.isFalse
+
+Strict boolean check against `false`.
+
+```typescript
+Verdict.isFalse( value: boolean ): EvaluationBooleanResult
+```
+
+```typescript
+// Pass: { value: true, confidence: 1.0, reasoning: 'Value is false' }
+Verdict.isFalse( false )
+
+// Fail: { value: false, confidence: 1.0, reasoning: 'Expected false, got true' }
+Verdict.isFalse( true )
+```
+
+Uses strict equality. Falsy values like `0` or `""` will fail — only boolean `false` passes.
+
+## Manual Verdicts
+
+When no deterministic helper fits your logic, construct verdicts directly. These return `EvaluationVerdictResult` with the verdict value `'pass'`, `'partial'`, or `'fail'`.
+
+### Verdict.pass
+
+```typescript
+Verdict.pass( reasoning?: string ): EvaluationVerdictResult
+```
+
+Returns a pass verdict with `confidence: 1.0`.
+
+```typescript
+Verdict.pass()
+// { value: 'pass', confidence: 1.0 }
+
+Verdict.pass( 'All criteria met' )
+// { value: 'pass', confidence: 1.0, reasoning: 'All criteria met' }
+```
+
+### Verdict.partial
+
+```typescript
+Verdict.partial( confidence: number, reasoning?: string, feedback?: FeedbackArg[] ): EvaluationVerdictResult
+```
+
+Returns a partial verdict with caller-specified confidence. Use when the result is in between pass and fail.
+
+```typescript
+Verdict.partial( 0.6, 'Meets most criteria but missing specific facts' )
+// { value: 'partial', confidence: 0.6, reasoning: 'Meets most criteria but missing specific facts' }
+```
+
+You can attach structured feedback to explain specific issues:
+
+```typescript
+Verdict.partial( 0.5, 'Some issues found', [
+  { issue: 'Missing company founding year', suggestion: 'Add founding year to the summary', priority: 'medium' },
+  { issue: 'No source citations', suggestion: 'Include at least one verifiable source', priority: 'high' }
+] )
+```
+
+Feedback objects accept these fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `issue` | Yes | What the problem is |
+| `suggestion` | No | How to fix it |
+| `reference` | No | A reference URL or identifier |
+| `priority` | No | `'low'` \| `'medium'` \| `'high'` \| `'critical'` |
+
+### Verdict.fail
+
+```typescript
+Verdict.fail( reasoning: string, feedback?: FeedbackArg[] ): EvaluationVerdictResult
+```
+
+Returns a fail verdict with `confidence: 0.0`. The reasoning is required — you must explain why the evaluation failed.
+
+```typescript
+Verdict.fail( 'Blog post is empty' )
+// { value: 'fail', confidence: 0.0, reasoning: 'Blog post is empty' }
+
+Verdict.fail( 'Multiple critical issues', [
+  { issue: 'Content is off-topic', priority: 'critical' },
+  { issue: 'Contains hallucinated facts', priority: 'critical' }
+] )
+```
+
+### Using Manual Verdicts in Evaluators
+
+Manual verdicts are useful when your check logic doesn't map cleanly to a single assertion:
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const evaluateStructure = verify(
+  {
+    name: 'evaluate_structure',
+    input: z.object( { topic: z.string() } ),
+    output: z.object( { title: z.string(), blog_post: z.string() } )
+  },
+  ( { output } ) => {
+    const hasTitle = output.title.length > 0;
+    const hasContent = output.blog_post.length >= 100;
+    const hasHeadings = /^##\s/m.test( output.blog_post );
+
+    if ( hasTitle && hasContent && hasHeadings ) {
+      return Verdict.pass( 'Has title, sufficient content, and section headings' );
+    }
+
+    const issues = [];
+    if ( !hasTitle ) issues.push( { issue: 'Missing title', priority: 'critical' } );
+    if ( !hasContent ) issues.push( { issue: 'Content too short', priority: 'high' } );
+    if ( !hasHeadings ) issues.push( { issue: 'No section headings', priority: 'medium' } );
+
+    if ( !hasTitle || !hasContent ) {
+      return Verdict.fail( `Missing: ${issues.map( i => i.issue ).join( ', ' )}`, issues );
+    }
+
+    return Verdict.partial( 0.7, 'Content present but could be better structured', issues );
+  }
+);
+```
+
+## LLM Result Wrappers
+
+When you call the LLM yourself (instead of using the [judge functions](/evaluators/workflow-evaluators#llm-judge-functions)), these wrappers convert raw LLM output into evaluation results. All set `confidence: 0.9` to reflect the inherent uncertainty of LLM-generated judgments.
+
+### Verdict.fromJudge
+
+```typescript
+Verdict.fromJudge( { verdict, reasoning }: { verdict: 'pass' | 'partial' | 'fail', reasoning: string } ): EvaluationVerdictResult
+```
+
+Wraps an LLM verdict into an `EvaluationVerdictResult`.
+
+```typescript
+import { verify, Verdict } from '@outputai/evals';
+import { generateText, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+
+export const evaluateAccuracy = verify(
+  { name: 'evaluate_accuracy' },
+  async ( { output } ) => {
+    const { output: judgment } = await generateText( {
+      prompt: 'judge_accuracy@v1',
+      variables: { content: output.summary },
+      output: Output.object( {
+        schema: z.object( {
+          verdict: z.enum( [ 'pass', 'partial', 'fail' ] ),
+          reasoning: z.string()
+        } )
+      } )
+    } );
+
+    return Verdict.fromJudge( judgment );
+    // { value: 'pass'|'partial'|'fail', confidence: 0.9, reasoning: '...' }
+  }
+);
+```
+
+### Verdict.score
+
+```typescript
+Verdict.score( value: number, reasoning?: string ): EvaluationNumberResult
+```
+
+Wraps a numeric score into an `EvaluationNumberResult`.
+
+```typescript
+Verdict.score( 0.85, 'High quality content with minor formatting issues' )
+// { value: 0.85, confidence: 0.9, reasoning: 'High quality content with minor formatting issues' }
+```
+
+### Verdict.label
+
+```typescript
+Verdict.label( value: string, reasoning?: string ): EvaluationStringResult
+```
+
+Wraps a classification label into an `EvaluationStringResult`.
+
+```typescript
+Verdict.label( 'professional', 'Formal tone with industry terminology' )
+// { value: 'professional', confidence: 0.9, reasoning: 'Formal tone with industry terminology' }
+```
+
+## Confidence Levels
+
+| Category | Confidence | Why |
+|----------|-----------|-----|
+| Deterministic assertions (`equals`, `gt`, `contains`, etc.) | `1.0` | Programmatically certain |
+| `Verdict.pass()` | `1.0` | Explicitly marked as passing |
+| `Verdict.fail()` | `0.0` | Explicitly marked as failing |
+| `Verdict.partial()` | Caller-specified | Custom confidence for partial results |
+| LLM wrappers (`fromJudge`, `score`, `label`) | `0.9` | LLM output has inherent uncertainty |
+
+## What's Next
+
+- [Workflow Evaluators](/evaluators/workflow-evaluators) — Creating evaluators with `verify()` and judge functions
+- [Datasets](/evaluators/datasets) — Defining test cases with inputs and ground truth
+- [Running Eval Workflows](/evaluators/datasets-and-cli) — Wiring evaluators into eval workflows and running them from the CLI

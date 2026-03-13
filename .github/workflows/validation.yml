@@ -1,0 +1,27 @@
+name: Validation
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  main:
+    name: Validate
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    container:
+      image: node:24.13.0
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Validate
+        run: ./ops/validate.sh
+
+      - name: Extra files check
+        run: ./ops/extra_files_error.sh

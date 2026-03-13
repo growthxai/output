@@ -1,0 +1,19 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0.7
+maxTokens: 4000
+---
+
+<system>
+You are a professional blog writer. Write well-structured, informative blog posts.
+</system>
+
+<user>
+Write a blog post about: {{ topic }}
+{% if requirements != '' %}
+Additional requirements: {{ requirements }}
+{% endif %}
+
+Return a JSON object with title, blog_post (the full text), and word_count.
+</user>

@@ -1,0 +1,253 @@
+---
+title: "Workflow Evaluators"
+description: "Test workflow quality across datasets without modifying your workflow code"
+---
+
+Your workflows have [evaluators as steps](/evaluators) that power generate-evaluate-retry loops in production. Workflow evaluators answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?"
+
+Workflow evaluators run _outside_ your workflow. You define evaluators with `verify()`, write test cases as YAML datasets, and run them with the CLI. The framework feeds each dataset case through your evaluators and reports pass/partial/fail verdicts. Nothing in your production workflow changes.
+
+This is how you catch regressions when you update a prompt, swap a model, or refactor a step. Run evals before deploying and you'll know if quality dropped.
+
+## Evaluators as Steps vs Workflow Evaluators
+
+These serve different purposes and live in different places:
+
+| | Evaluators as Steps | Workflow Evaluators |
+|---|---|---|
+| **Purpose** | Control workflow flow at runtime | Test quality across datasets |
+| **Runs** | Inside production workflows | Outside, via CLI |
+| **Created with** | `evaluator()` from `@outputai/core` | `verify()` from `@outputai/evals` |
+| **File location** | `src/workflows/<name>/evaluators.ts` | `src/workflows/<name>/tests/evals/evaluators.ts` |
+| **Affects output** | Yes — retry, branch, gate | No — reports results only |
+| **Uses** | Quality gates, self-correcting agents | Regression testing, prompt comparison, CI/CD |
+
+Evaluators as steps are documented in [The evaluators.ts File](/evaluators). This section covers workflow evaluators.
+
+## Directory Structure
+
+Eval files live alongside your workflow in a `tests/` directory:
+
+```text
+src/workflows/
+  blog_generator/
+    workflow.ts
+    steps.ts
+    evaluators.ts              # Inline evaluators (production)
+    types.ts
+    prompts/
+      generate_blog@v1.prompt
+    tests/
+      evals/
+        workflow.ts            # evalWorkflow() definition
+        evaluators.ts          # Workflow evaluators (verify + Verdict)
+        judge_topic@v1.prompt  # Judge prompt files
+        judge_quality@v1.prompt
+      datasets/
+        happy_path.yml         # Test cases
+        edge_case.yml
+```
+
+The eval workflow file (`tests/evals/workflow.ts`) is discovered automatically by the worker alongside your regular workflow.
+
+## Writing Evaluators with verify()
+
+`verify()` creates a typed evaluator that receives the workflow's input, output, and optional ground truth from the dataset. It wraps `evaluator()` from `@outputai/core`, so it integrates with both the eval workflow and the Temporal worker.
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const evaluateSum = verify(
+  {
+    name: 'evaluate_sum',
+    input: z.object( { values: z.array( z.number() ) } ),
+    output: z.object( { result: z.number() } )
+  },
+  ( { input, output } ) =>
+    Verdict.equals( output.result, input.values.reduce( ( a, b ) => a + b, 0 ) )
+);
+```
+
+The check function receives a `CheckContext` with three fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input` | `TInput` | The workflow input from the dataset |
+| `output` | `TOutput` | The workflow output (cached or freshly executed) |
+| `context.ground_truth` | `Record<string, unknown>` | Ground truth values from the dataset YAML |
+
+The `input` and `output` schemas are optional — they default to `z.any()` if omitted. When provided, they give you type safety inside the check function.
+
+### Using Ground Truth
+
+Evaluators can read expected values from the dataset's `ground_truth` field. This lets you define per-case expectations without hardcoding them:
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const lengthOfOutput = verify(
+  {
+    name: 'length_of_output',
+    input: z.object( { topic: z.string() } ),
+    output: z.object( { title: z.string(), blog_post: z.string() } )
+  },
+  ( { output, context } ) =>
+    Verdict.gte( output.blog_post.length, Number( context.ground_truth.min_length ?? 100 ) )
+);
+```
+
+The `min_length` value comes from the dataset YAML — see [Ground Truth Structure](/evaluators/datasets#ground-truth-structure) for how this works.
+
+## Verdict Helpers
+
+The `Verdict` object provides helpers for returning evaluation results. There are three categories:
+
+- **Deterministic assertions** — `equals`, `gte`, `contains`, `matches`, etc. Return `EvaluationBooleanResult` with `confidence: 1.0`.
+- **Manual verdicts** — `pass()`, `partial()`, `fail()`. Return `EvaluationVerdictResult` for custom logic.
+- **LLM result wrappers** — `fromJudge()`, `score()`, `label()`. Wrap LLM output with `confidence: 0.9`.
+
+```typescript tests/evals/evaluators.ts
+import { verify, Verdict } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+export const evaluateContent = verify(
+  {
+    name: 'evaluate_content',
+    input: z.object( { topic: z.string() } ),
+    output: z.object( { title: z.string(), blog_post: z.string() } )
+  },
+  ( { output, context } ) => {
+    const required = String( context.ground_truth.required_content ?? '' );
+    if ( !required ) {
+      return Verdict.isTrue( true );
+    }
+    return Verdict.contains( output.blog_post, required );
+  }
+);
+```
+
+For the complete reference with signatures, examples, and edge cases for every Verdict method, see [Verdict Helpers](/evaluators/verdicts).
+
+## LLM Judge Functions
+
+For subjective evaluation — "is this blog post on-topic?", "rate the quality" — use the judge functions. They load a `.prompt` file, call the LLM, and return a typed evaluation result.
+
+Four judge functions are available:
+
+| Function | Returns | Use for |
+|----------|---------|---------|
+| `judgeVerdict` | `pass` / `partial` / `fail` | Subjective quality gates |
+| `judgeScore` | `number` | Numeric ratings |
+| `judgeBoolean` | `true` / `false` | Binary subjective checks |
+| `judgeLabel` | `string` | Classifications |
+
+```typescript tests/evals/evaluators.ts
+import { verify, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
+import { z } from '@outputai/core';
+
+const blogInput = z.object( { topic: z.string() } );
+const blogOutput = z.object( { title: z.string(), blog_post: z.string() } );
+
+export const evaluateTopic = verify(
+  { name: 'evaluate_topic', input: blogInput, output: blogOutput },
+  async ( { input, output, context } ) =>
+    judgeVerdict( {
+      prompt: 'judge_topic@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        required_topic: String( context.ground_truth.required_topic ?? input.topic )
+      }
+    } )
+);
+
+export const evaluateQuality = verify(
+  { name: 'evaluate_quality', input: blogInput, output: blogOutput },
+  async ( { input, output } ) =>
+    judgeScore( {
+      prompt: 'judge_quality@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post,
+        topic: input.topic
+      }
+    } )
+);
+
+export const evaluateTone = verify(
+  { name: 'evaluate_tone', input: blogInput, output: blogOutput },
+  async ( { output } ) =>
+    judgeLabel( {
+      prompt: 'judge_tone@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post
+      }
+    } )
+);
+```
+
+All judge functions accept a `JudgeArgs` object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prompt` | `string` | Prompt filename (e.g., `'judge_topic@v1'`) |
+| `variables` | `Record<string, string \| number \| boolean>` | Template variables |
+| `schema` | `ZodType` | Optional custom output schema (overrides the default) |
+
+### Writing Judge Prompts
+
+Judge `.prompt` files live in the same `tests/evals/` directory as your evaluators. Each judge function expects a specific output schema from the LLM:
+
+| Function | Expected JSON fields |
+|----------|---------------------|
+| `judgeVerdict` | `{ verdict: 'pass'\|'partial'\|'fail', reasoning: string }` |
+| `judgeScore` | `{ score: number, reasoning: string }` |
+| `judgeBoolean` | `{ result: boolean, reasoning: string }` |
+| `judgeLabel` | `{ label: string, reasoning: string }` |
+
+Here's a judge prompt for topic evaluation:
+
+```yaml tests/evals/judge_topic@v1.prompt
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Assess whether a blog post is faithfully about the required topic.
+
+Return a JSON object with:
+- verdict: "pass" if the blog clearly focuses on the topic, "partial" if it mentions the topic but lacks depth, "fail" if it is not about the topic
+- reasoning: a brief explanation of your judgment
+</system>
+
+<user>
+Required topic: {{ required_topic }}
+
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Judge whether this blog post is faithfully about the required topic.
+</user>
+```
+
+Use `temperature: 0` for judge prompts — you want consistency, not creativity. For best practices on writing effective judge prompts, see [LLM-as-a-Judge Best Practices](/evaluators/best-practices).
+
+### LLM Result Wrappers
+
+If you're calling the LLM yourself instead of using the judge functions, the `Verdict` object provides wrappers to convert raw LLM output into evaluation results (with confidence `0.9`). See [LLM Result Wrappers](/evaluators/verdicts#llm-result-wrappers) for the full reference.
+
+## What's Next
+
+- [Verdict Helpers](/evaluators/verdicts) — Complete reference for all Verdict methods with signatures and examples
+- [Datasets](/evaluators/datasets) — Defining test cases with inputs and ground truth
+- [Running Eval Workflows](/evaluators/datasets-and-cli) — Wire evaluators into an eval workflow and run from the CLI
+- [LLM-as-a-Judge Best Practices](/evaluators/best-practices) — Writing effective judge prompts and choosing grading scales
+- [`@outputai/evals` API Reference](/packages/evals) — Complete package reference

@@ -1,0 +1,225 @@
+---
+title: "Running Workflows"
+description: "Execute workflows from the CLI — synchronously, asynchronously, and with scenario files"
+---
+
+You've defined a workflow. Now you need to run it. Output gives you two execution modes:
+
+- **Synchronous** — `output workflow run` executes the workflow and waits for the result. Use this during development and for short-lived workflows.
+- **Asynchronous** — `output workflow start` kicks off the workflow and returns immediately. Use `status` and `result` to check on it later. Use this for long-running workflows or batch jobs.
+
+Both modes accept input the same way: either a **scenario file** or inline JSON. Scenario files are covered [at the end of this page](#scenario-files).
+
+## Running a Workflow
+
+`output workflow run` executes a workflow and waits for the result:
+
+```bash
+# Using a scenario file (recommended)
+output workflow run lead_enrichment acme
+
+# Using inline JSON
+output workflow run lead_enrichment --input '{"companyDomain": "acme.com"}'
+
+# Using a JSON file path
+output workflow run lead_enrichment --input ./test_input.json
+```
+
+The command blocks until the workflow completes, then prints the output:
+
+```
+Using scenario: src/workflows/lead_enrichment/scenarios/acme.json
+
+Executing workflow: lead_enrichment...
+
+Workflow ID: lead_enrichment-22b798f9-4812-4f48-80b2-89fac07285ed
+
+Output:
+{
+  "company": "Acme Corp",
+  "summary": "Enterprise software company focused on..."
+}
+```
+
+Use `--format json` if you need machine-readable output, for example when piping to another command or in scripts:
+
+```bash
+output workflow run lead_enrichment acme --format json
+```
+
+If the workflow fails, the command prints the error and exits with code 1.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | — | JSON string or file path (overrides scenario) |
+| `--task-queue, -q` | — | Task queue name |
+| `--format, -f` | text | Output format: `json`, `text` |
+
+## Starting a Workflow Asynchronously
+
+`output workflow start` fires off a workflow without waiting. It returns a workflow ID immediately:
+
+```bash
+output workflow start lead_enrichment acme
+```
+
+```
+Workflow started successfully
+
+Workflow ID: lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+
+Use "workflow status <workflow-id>" to check the workflow status
+Use "workflow result <workflow-id>" to get the workflow result when complete
+```
+
+This is the right choice when:
+
+- The workflow takes minutes or longer to complete
+- You're launching multiple workflows in a batch
+- You want to check results later rather than keeping a terminal open
+
+The flags are the same as `run`, minus `--format` (there's no result to format yet).
+
+## Checking Status
+
+Poll a running workflow with `output workflow status`:
+
+```bash
+output workflow status lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+```
+
+```
+Workflow ID: lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+Status: running
+
+Started At: 2026-03-06T10:30:45.123Z
+```
+
+The status will be one of:
+
+| Status | Meaning |
+|--------|---------|
+| `running` | Still executing |
+| `completed` | Finished successfully |
+| `failed` | Completed with an error |
+| `canceled` | Stopped gracefully via `workflow stop` |
+| `terminated` | Force-stopped via `workflow terminate` |
+| `timed_out` | Exceeded the execution timeout |
+
+## Getting Results
+
+Once a workflow completes, retrieve its output with `output workflow result`:
+
+```bash
+output workflow result lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+```
+
+```
+Workflow ID: lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+
+Output:
+{
+  "company": "Acme Corp",
+  "summary": "Enterprise software company focused on..."
+}
+```
+
+If the workflow failed, you'll see the error instead:
+
+```
+Workflow ID: lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+
+Status: failed
+Error: Step 'lookup_company' failed: 404 Not Found
+```
+
+Use `--format json` for the full structured response including status, output, and error fields.
+
+## Debugging Execution
+
+When something goes wrong — or you just want to understand what happened — use `output workflow debug` to see the execution trace:
+
+```bash
+output workflow debug lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
+```
+
+This prints a tree showing every step that ran, what it received, what it returned, and how long it took:
+
+```
+Trace Log:
+──────────────────────────────────────────────────────────────────────────────
+┌─ [lead_enrichment] completed
+│  ├─ [lookup_company] [END] 150ms
+│  │  ├─ input: {"companyDomain":"acme.com"}
+│  │  └─ output: {"name":"Acme Corp","domain":"acme.com",...}
+│  └─ [generate_summary] [END] 1200ms
+│     ├─ input: {"name":"Acme Corp","domain":"acme.com",...}
+│     └─ output: "Enterprise software company focused on..."
+──────────────────────────────────────────────────────────────────────────────
+```
+
+The text format truncates long values for readability. Use `--format json` to get the full untruncated trace — this is especially useful when you need to see complete LLM inputs and outputs:
+
+```bash
+output workflow debug lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab --format json
+```
+
+<Tip>
+Traces are also saved as JSON files in your project's `logs/runs/` directory. You can open these directly, share them with teammates, or feed them to Claude Code for analysis.
+</Tip>
+
+## Stopping Workflows
+
+If you need to cancel a running workflow:
+
+- **`output workflow stop <workflowId>`** — Graceful cancellation. The workflow has a chance to clean up.
+- **`output workflow terminate <workflowId>`** — Immediate kill. Use for stuck workflows or cleanup after branch switches.
+
+```bash
+# Graceful stop
+output workflow stop lead_enrichment-a1b2c3d4
+
+# Force terminate with a reason
+output workflow terminate lead_enrichment-a1b2c3d4 --reason "Cleaning up old runs"
+```
+
+## Quick Reference
+
+| What you want to do | Command |
+|----------------------|---------|
+| Run and wait for result | `output workflow run <name> [scenario]` |
+| Start without waiting | `output workflow start <name> [scenario]` |
+| Check if still running | `output workflow status <workflowId>` |
+| Get the final output | `output workflow result <workflowId>` |
+| See the execution trace | `output workflow debug <workflowId>` |
+| Stop gracefully | `output workflow stop <workflowId>` |
+| Force stop | `output workflow terminate <workflowId>` |
+
+For the full CLI reference including all flags and additional commands like `workflow cost` and `workflow test`, see the [CLI package docs](/packages/cli).
+
+## Scenario Files
+
+A scenario file is a plain JSON file that contains the input for a workflow run. It lives in the workflow's `scenarios/` directory and matches the workflow's `inputSchema`:
+
+```
+src/workflows/lead_enrichment/
+├── workflow.ts
+├── steps.ts
+└── scenarios/
+    ├── acme.json
+    └── small_company.json
+```
+
+```json scenarios/acme.json
+{
+  "companyDomain": "acme.com"
+}
+```
+
+Scenarios are useful because they're repeatable — you can re-run the same input without retyping it, share them with teammates, and check them into version control. Think of them as saved test inputs for your workflow.
+
+The scenario name is the filename without `.json`. To run with the `acme` scenario:
+
+```bash
+output workflow run lead_enrichment acme
+```

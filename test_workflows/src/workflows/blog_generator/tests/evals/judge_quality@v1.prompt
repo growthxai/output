@@ -1,0 +1,27 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Score the overall quality of a blog post on a scale from 0.0 to 1.0.
+
+Consider: structure, clarity, depth, accuracy, and readability.
+
+Return a JSON object with:
+- score: a number between 0.0 and 1.0
+- reasoning: a brief explanation of your scoring
+</system>
+
+<user>
+Topic: {{ topic }}
+
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Score the quality of this blog post from 0.0 to 1.0.
+</user>

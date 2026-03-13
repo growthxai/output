@@ -1,0 +1,52 @@
+include:
+  - docker-compose.temporal.yml
+
+services:
+  api:
+    init: true
+    depends_on:
+      temporal:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+    image: node:24.13.0-slim
+    networks:
+      - main
+    environment:
+      - OUTPUT_API_PORT=3001
+      - OUTPUT_CATALOG_ID=main
+      - TEMPORAL_ADDRESS=temporal:7233
+    command: node /app/api/src/api.js
+    ports:
+      - '3001:3001'
+    volumes:
+      - ./:/app
+
+  worker:
+    init: true
+    depends_on:
+      temporal:
+        condition: service_healthy
+    image: node:24.13.0-slim
+    healthcheck:
+      test: [ 'CMD', 'npx', '--yes', 'output-healthcheck' ]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    networks:
+      - main
+    env_file: './test_workflows/.env'
+    environment:
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      - TEST_API_URL=http://api:3001
+      - TEMPORAL_ADDRESS=temporal:7233
+      - OUTPUT_CATALOG_ID=main
+      - OUTPUT_REDIS_URL=redis://redis:6379
+      - OUTPUT_TRACE_LOCAL_ON=true
+      - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
+      - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
+    command: bash -c "corepack enable && npm run build:packages && cd test_workflows && npm run output:worker:build && exec npm run output:worker:start"
+    working_dir: /app
+    volumes:
+      - ./:/app

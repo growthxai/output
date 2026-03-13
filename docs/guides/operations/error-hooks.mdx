@@ -1,0 +1,75 @@
+---
+title: "Error Hooks"
+description: "Observe workflow, activity, and runtime errors without affecting execution"
+---
+
+Error hooks let you run code whenever a workflow, activity (step/evaluator), or runtime error occurs. Use them for logging, metrics, or alerting. When an error is emitted, all registered handlers are triggered at the same time (concurrently). Handler code is invoked asynchronously and never throws — any error in your handler is caught and logged by the framework.
+
+## Setup
+
+### 1. Create a hook file
+
+Create a file that registers your handler. Import `onError` from `@outputai/core/hooks`.
+
+```javascript
+// src/error_hooks.js
+import { onError } from '@outputai/core/hooks';
+
+onError(async ({ source, error, workflowName, activityName }) => {
+  console.log('Error', { source, error, workflowName, activityName });
+});
+```
+
+### 2. Register the file in package.json
+
+List your hook file(s) under `output.hookFiles`. Paths are relative to the package root. The worker loads these files at startup.
+
+```json
+{
+  "name": "my-workflows",
+  "output": {
+    "hookFiles": ["./src/error_hooks.js"]
+  }
+}
+```
+
+You can register multiple files: `"hookFiles": ["./src/error_hooks.js", "./src/other_hooks.js"]`.
+
+## The three sources
+
+Errors are emitted from three origins. The payload passed to your handler always includes `source` and `error`; workflow- and activity-scoped errors also include the names below.
+
+| Source      | When it fires | `workflowName` | `activityName` |
+|------------|----------------|----------------|----------------|
+| `activity` | A step or evaluator fails (after retries are exhausted). | ✅ Set | ✅ Set |
+| `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | ✅ Set | ❌ Not set |
+| `runtime`  | An error outside workflow/activity scope (e.g. in the worker/runtime). | ❌ Not set | ❌ Not set |
+
+So:
+
+- For **activity** errors you get `source: 'activity'`, `workflowName`, `activityName`, and `error`.
+- For **workflow** errors you get `source: 'workflow'`, `workflowName`, and `error` (no `activityName`).
+- For **runtime** errors you get `source: 'runtime'` and `error` only.
+
+Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
+
+## Handler safety: no throws
+
+Your handler is wrapped in a try/catch. If the handler throws or rejects, the framework catches it, logs it (e.g. `onError hook error` with the error), and does not rethrow. Execution of the workflow and worker continues. You can focus on side effects (logging, metrics, alerts) without worrying about breaking the run.
+
+## Example
+
+```javascript
+// src/error_hooks.js
+import { onError } from '@outputai/core/hooks';
+
+onError(async ({ source, error, workflowName, activityName }) => {
+  if (source === 'activity') {
+    console.error(`Step/evaluator failed: ${workflowName} / ${activityName}`, error);
+  } else if (source === 'workflow') {
+    console.error(`Workflow failed: ${workflowName}`, error);
+  } else {
+    console.error('Runtime error', error);
+  }
+});
+```

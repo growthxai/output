@@ -1,0 +1,329 @@
+---
+title: "Writing Prompt Files"
+description: "Version-controlled prompts with YAML configuration and XML message blocks"
+---
+
+Prompts in Output live in `.prompt` files inside a `prompts/` folder — version-controlled, reviewable, and deployed with your code. No more strings scattered across your codebase or prompts locked in external dashboards.
+
+```yaml generate_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+maxTokens: 2000
+---
+
+<system>
+You are a sales research assistant. You help sales teams prepare for calls by summarizing company information.
+
+Be factual and concise. Never make up information. If something is unclear from the provided data, say so.
+</system>
+
+<user>
+Research this company and provide a brief summary for a sales call:
+
+Company: {{ company_name }}
+Website content: {{ website_content }}
+
+Include: what they do, target market, recent news if available, and potential pain points we could address.
+</user>
+```
+
+A prompt file has two parts: YAML frontmatter (configuration) and message blocks (the actual prompt content).
+
+## File Naming
+
+Prompt files use the pattern `name@version.prompt`:
+
+- `generate_summary@v1.prompt`
+- `judge_summary@v1.prompt`
+- `classify_lead@v2.prompt`
+
+The version lets you iterate on prompts while keeping old versions around. When you reference a prompt in code, use the name without the `.prompt` extension:
+
+```typescript
+await generateText({
+  prompt: 'generate_summary@v1',
+  variables: { company_name: 'Acme Corp', website_content: '...' }
+});
+```
+
+Output searches recursively from your workflow's directory to find the prompt file.
+
+## File Organization
+
+Place prompt files in a `prompts/` subfolder within your workflow directory:
+
+```
+src/workflows/
+├── lead_enrichment/
+│   ├── workflow.ts
+│   ├── steps.ts
+│   ├── evaluators.ts
+│   ├── types.ts
+│   └── prompts/
+│       ├── generate_summary@v1.prompt
+│       └── judge_summary@v1.prompt
+├── classify_tickets/
+│   ├── workflow.ts
+│   ├── steps.ts
+│   └── prompts/
+│       └── classify@v1.prompt
+└── shared/
+    └── prompts/
+        └── check_factuality@v1.prompt   # Shared across workflows
+```
+
+The recursive search means you can also keep prompts alongside your workflow code if you prefer a flatter structure. For prompts used by multiple workflows, create a shared `prompts/` folder at a higher level.
+
+## Frontmatter
+
+The YAML frontmatter configures the LLM call.
+
+### Required Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `provider` | LLM provider | `anthropic`, `openai`, `azure`, `vertex`, `bedrock` |
+| `model` | Model identifier | `claude-sonnet-4-20250514`, `gpt-4o` |
+
+### Optional Fields
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `temperature` | Randomness (0-2) | `0` for judges, `0.3` for summaries, `0.7` for general |
+| `maxTokens` | Max output tokens | `2000` |
+| `providerOptions` | Provider-specific config | See below |
+
+All fields use **camelCase**. Using `max_tokens` instead of `maxTokens` will fail validation.
+
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+maxTokens: 2000
+---
+```
+
+### Configuration Structure
+
+Prompt configurations have two layers:
+
+**1. Top-level config** — Standard AI SDK options:
+```yaml
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.7        # Standard option
+maxTokens: 4000         # Standard option
+```
+
+**2. providerOptions** — Provider-specific and special options:
+```yaml
+providerOptions:
+  thinking:             # Special: AI SDK extension (top-level)
+    type: enabled
+    budgetTokens: 5000
+  anthropic:            # Provider-specific options (nested)
+    effort: medium
+```
+
+**When to use providerOptions:**
+- Provider-specific options that aren't standard across all providers
+- Special AI SDK extensions like `thinking` or `order` (AI Gateway)
+- Multi-provider configurations (Vertex with multiple model types)
+
+**When NOT to use providerOptions:**
+- Standard options: `temperature`, `maxTokens`, `topP`, etc.
+- These go at the top level alongside `provider` and `model`
+
+### Provider Options
+
+Use `providerOptions` for provider-specific configuration.
+
+**Anthropic-specific options:**
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+providerOptions:
+  anthropic:            # Namespace for Anthropic-specific options
+    effort: medium      # Not available on other providers
+---
+```
+
+**OpenAI-specific options:**
+```yaml
+---
+provider: openai
+model: gpt-4o
+providerOptions:
+  openai:               # Namespace for OpenAI-specific options
+    maxToolCalls: 1
+    reasoning: true
+---
+```
+
+**Vertex with Gemini (important namespace note):**
+```yaml
+---
+provider: vertex
+model: gemini-2.0-flash
+providerOptions:
+  google:               # Use 'google' for Gemini, not 'vertex'!
+    useSearchGrounding: true
+---
+```
+
+**Extended thinking (special top-level key):**
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+providerOptions:
+  thinking:             # Special: stays at top level (not under 'anthropic')
+    type: enabled
+    budgetTokens: 5000
+  anthropic:            # Provider-specific options
+    effort: medium
+---
+```
+
+**Common Provider Options Reference:**
+
+| Provider | Option | Namespace | Description |
+|----------|--------|-----------|-------------|
+| Anthropic | `effort` | `anthropic:` | Reasoning effort: `low`, `medium`, `high` |
+| OpenAI | `reasoningEffort` | `openai:` | Reasoning effort for o1 models |
+| OpenAI | `maxToolCalls` | `openai:` | Maximum tool calls per turn |
+| Vertex (Gemini) | `useSearchGrounding` | `google:` | Enable Gemini search grounding |
+| Vertex (Claude) | `effort` | `anthropic:` | Claude models on Vertex use anthropic namespace |
+| AI SDK | `thinking` | Top-level | Extended thinking (not under provider) |
+| AI Gateway | `order` | Top-level | Provider routing order |
+
+**Vertex Provider Namespace Guide:**
+
+When using `provider: vertex`, the `providerOptions` namespace depends on the model:
+
+- **Gemini models** → Use `google:` namespace
+- **Claude models** → Use `anthropic:` namespace
+- **Vertex-specific options** → Use `vertex:` namespace
+
+## Message Blocks
+
+Message blocks use XML-style tags to define the conversation structure.
+
+### `<system>`
+
+The system message sets the persona and constraints. It defines *who* the LLM is and *how* it should behave. This stays constant across requests.
+
+```yaml
+<system>
+You are a sales research assistant. You summarize company information for sales teams.
+
+Rules:
+- Be factual and concise
+- Never make up information
+- Focus on business-relevant details
+</system>
+```
+
+### `<user>`
+
+The user message is the actual request — *what* you want right now. This typically contains your variables.
+
+```yaml
+<user>
+Write a company summary for {{ company_name }}.
+
+Industry: {{ industry }}
+Company size: {{ size }} employees
+Website content: {{ website_content }}
+</user>
+```
+
+### `<assistant>`
+
+The assistant block is for conversation history or response prefilling. Use it when you want to prime the model's response format:
+
+```yaml
+<assistant>
+Based on my analysis, here is the company summary:
+</assistant>
+```
+
+### `<tool>`
+
+The tool block is for tool/function call results in multi-turn conversations:
+
+```yaml
+<user>
+What's the latest news about {{ company_name }}?
+</user>
+
+<assistant>
+I'll search for recent news about {{ company_name }}.
+</assistant>
+
+<tool name="web_search" id="search_123">
+{{ search_results }}
+</tool>
+```
+
+The `name` attribute identifies which tool was called, and `id` matches the original tool use request.
+
+## System vs User
+
+A common mistake is putting everything in the user message. The split matters:
+
+**System message** (constant):
+- Who the LLM is ("You are a sales research assistant")
+- Behavioral constraints ("Never make up information")
+- Output format requirements ("Respond in JSON")
+
+**User message** (varies per request):
+- The specific request
+- The data to process
+- Dynamic instructions based on input
+
+This separation makes prompts easier to maintain. When you need to change the task, you edit the user message. When you need to change behavior, you edit the system message.
+
+## Using Prompts
+
+Call prompts from your steps using the generate functions from `@outputai/llm`:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { generateText } from '@outputai/llm';
+import { GenerateSummaryInput, GenerateSummaryOutput } from './types.js';
+
+export const generateSummary = step({
+  name: 'generateSummary',
+  description: 'Generate a company summary from research data',
+  inputSchema: GenerateSummaryInput,
+  outputSchema: GenerateSummaryOutput,
+  fn: async (input) => {
+    const { result } = await generateText({
+      prompt: 'generate_summary@v1',
+      variables: {
+        company_name: input.name,
+        website_content: input.websiteContent
+      }
+    });
+
+    return result;
+  }
+});
+
+// types.ts
+// import { z } from '@outputai/core';
+//
+// export const GenerateSummaryInput = z.object({
+//   name: z.string(),
+//   websiteContent: z.string()
+// });
+//
+// export const GenerateSummaryOutput = z.string();
+```
+
+The `variables` object maps to the `{{ variable }}` placeholders in your prompt. For dynamic content like conditionals and loops, see [Templating](/prompts/templating).

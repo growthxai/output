@@ -1,0 +1,346 @@
+---
+title: "Templating with Variables"
+description: "Use Liquid.js to create dynamic prompts with variables, conditionals, and loops"
+---
+
+Prompt files use [Liquid.js](https://liquidjs.com/) for dynamic content. Instead of hardcoding values, you insert variables that get filled in when the prompt runs.
+
+```yaml generate_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+temperature: 0.3
+---
+
+<system>
+You summarize company information for sales teams.
+</system>
+
+<user>
+Write a {{ max_paragraphs }}-paragraph summary of this company:
+
+{{ company_data }}
+</user>
+```
+
+When you call `generateText({ prompt: 'generate_summary@v1', variables: { max_paragraphs: 2, company_data: '...' } })`, Liquid replaces `{{ max_paragraphs }}` with `2` and `{{ company_data }}` with your content before the prompt is sent to the LLM.
+
+Templates render before YAML parsing, so you can template the frontmatter too — useful for dynamic model selection or configuration.
+
+## Variables
+
+The double-brace syntax `{{ variableName }}` renders values from the `variables` object you pass to the generate function.
+
+```yaml
+<user>
+Write a company summary for {{ company_name }} in the {{ industry }} industry.
+</user>
+```
+
+```typescript
+await generateText({
+  prompt: 'generate_summary@v1',
+  variables: {
+    company_name: 'Acme Corp',
+    industry: 'SaaS'
+  }
+});
+```
+
+For nested objects, use dot notation:
+
+```yaml
+<user>
+Write a summary for {{ company.name }} ({{ company.industry }}, {{ company.size }} employees).
+</user>
+```
+
+```typescript
+variables: {
+  company: { name: 'Acme Corp', industry: 'SaaS', size: 250 }
+}
+```
+
+Undefined variables render as empty strings — no error is thrown, but your prompt may not make sense. Validate inputs in your step before calling the LLM.
+
+## Conditionals
+
+Use `{% if %}` to include content only when a condition is true:
+
+```yaml
+<system>
+You are a sales research assistant.
+{% if include_competitors %}
+When relevant, mention how this company compares to competitors.
+{% endif %}
+</system>
+
+<user>
+Write a summary for {{ company_name }}.
+</user>
+```
+
+With `include_competitors: true`, the competitor instruction is included. With `false` or undefined, it's omitted entirely.
+
+Add `{% else %}` for alternate content:
+
+```yaml
+<user>
+{% if detailed %}
+Provide a comprehensive analysis with industry context, competitive positioning, and growth trajectory.
+{% else %}
+Give a brief overview in 2-3 paragraphs.
+{% endif %}
+</user>
+```
+
+Use `{% unless %}` for the inverse — it renders when the condition is falsy:
+
+```yaml
+{% unless skip_pain_points %}
+Include potential pain points we could address in a sales call.
+{% endunless %}
+```
+
+## Loops
+
+Iterate over arrays with `{% for %}`:
+
+```yaml
+<user>
+Evaluate this company summary against these criteria:
+
+{% for criterion in criteria %}
+{{ forloop.index }}. {{ criterion }}
+{% endfor %}
+
+Summary: {{ summary }}
+</user>
+```
+
+`forloop.index` gives you the 1-based position (1, 2, 3...). Use `forloop.index0` for 0-based indexing.
+
+For arrays of objects:
+
+```yaml
+<user>
+Compare these companies:
+
+{% for company in companies %}
+- {{ company.name }}: {{ company.industry }}, {{ company.size }} employees
+{% endfor %}
+
+Which is the strongest competitor?
+</user>
+```
+
+## Filters
+
+Filters transform values using the pipe syntax `{{ value | filter }}`.
+
+**Text transformations:**
+```yaml
+{{ company_name | upcase }}        # "ACME CORP"
+{{ company_name | downcase }}      # "acme corp"
+{{ company_name | capitalize }}    # "Acme corp"
+```
+
+**Arrays:**
+```yaml
+{{ industries | join: ", " }}    # "SaaS, FinTech, Healthcare"
+{{ companies | first }}          # First element
+{{ companies | last }}           # Last element
+{{ companies | size }}           # Array length
+```
+
+**Default values:**
+```yaml
+{{ tone | default: "professional" }}
+```
+
+If `tone` is undefined or empty, it renders as "professional".
+
+**Chaining filters:**
+```yaml
+{{ company_name | downcase | replace: " ", "-" }}
+# "Acme Corp" becomes "acme-corp"
+```
+
+For the full filter reference, see the [Liquid.js documentation](https://liquidjs.com/filters/overview.html).
+
+## Templating Frontmatter
+
+Variables work in the YAML frontmatter too. This lets you dynamically configure model settings:
+
+```yaml
+---
+provider: {{ provider }}
+model: {{ model_name }}
+temperature: {{ temperature | default: 0.7 }}
+---
+
+<user>
+{{ prompt_text }}
+</user>
+```
+
+```typescript
+await generateText({
+  prompt: 'flexible@v1',
+  variables: {
+    provider: 'anthropic',
+    model_name: 'claude-sonnet-4-20250514',
+    temperature: 0.3,
+    prompt_text: 'Summarize this company...'
+  }
+});
+```
+
+Use this pattern when you need to switch models based on task complexity or cost.
+
+## Common Patterns
+
+**Optional sections based on input:**
+
+```yaml
+<user>
+Research {{ company_name }}.
+
+{% if focus_areas %}
+Focus specifically on:
+{% for area in focus_areas %}
+- {{ area }}
+{% endfor %}
+{% endif %}
+
+{% if competitor_names %}
+Compare against these competitors: {{ competitor_names | join: ", " }}
+{% endif %}
+</user>
+```
+
+**Building structured instructions from an array of rules:**
+
+```yaml
+<system>
+You are a {{ role }} assistant.
+
+Your response must:
+{% for rule in rules %}
+{{ forloop.index }}. {{ rule }}
+{% endfor %}
+</system>
+```
+
+**Conditional system behavior:**
+
+```yaml
+<system>
+You help sales teams research companies.
+{% if include_reasoning %}
+Explain your reasoning before providing the final output.
+{% endif %}
+{% unless allow_creativity %}
+Stick strictly to the facts provided. Do not add information.
+{% endunless %}
+</system>
+```
+
+## Cheatsheet
+
+Quick reference for the most common Liquid.js syntax.
+
+### Output
+
+| Syntax | Description | Example |
+|--------|-------------|---------|
+| `{{ variable }}` | Output a variable | `{{ name }}` → `Acme Corp` |
+| `{{ obj.property }}` | Dot notation | `{{ company.industry }}` → `SaaS` |
+| `{{ array[0] }}` | Array index | `{{ items[0] }}` → first item |
+
+### Tags
+
+| Syntax | Description |
+|--------|-------------|
+| `{% if condition %}...{% endif %}` | Conditional block |
+| `{% if condition %}...{% else %}...{% endif %}` | If/else |
+| `{% elsif condition %}` | Else if |
+| `{% unless condition %}...{% endunless %}` | Negative conditional |
+| `{% for item in array %}...{% endfor %}` | Loop over array |
+| `{% assign var = value %}` | Create a variable |
+| `{% capture var %}...{% endcapture %}` | Capture block into variable |
+| `{% comment %}...{% endcomment %}` | Comment (not rendered) |
+
+### Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `==` | Equals | `{% if status == "active" %}` |
+| `!=` | Not equals | `{% if type != "draft" %}` |
+| `>`, `<`, `>=`, `<=` | Comparison | `{% if count > 0 %}` |
+| `and` | Logical and | `{% if a and b %}` |
+| `or` | Logical or | `{% if a or b %}` |
+| `contains` | String/array contains | `{% if tags contains "saas" %}` |
+
+### Loop Variables
+
+| Variable | Description |
+|----------|-------------|
+| `forloop.index` | Current iteration (1-based) |
+| `forloop.index0` | Current iteration (0-based) |
+| `forloop.first` | True if first iteration |
+| `forloop.last` | True if last iteration |
+| `forloop.length` | Total iterations |
+
+### String Filters
+
+| Filter | Example | Result |
+|--------|---------|--------|
+| `upcase` | `{{ "hello" \| upcase }}` | `HELLO` |
+| `downcase` | `{{ "HELLO" \| downcase }}` | `hello` |
+| `capitalize` | `{{ "hello world" \| capitalize }}` | `Hello world` |
+| `strip` | `{{ "  hi  " \| strip }}` | `hi` |
+| `truncate: n` | `{{ "hello world" \| truncate: 5 }}` | `he...` |
+| `truncatewords: n` | `{{ "one two three" \| truncatewords: 2 }}` | `one two...` |
+| `replace: a, b` | `{{ "hello" \| replace: "l", "x" }}` | `hexxo` |
+| `remove: str` | `{{ "hello" \| remove: "l" }}` | `heo` |
+| `append: str` | `{{ "hello" \| append: "!" }}` | `hello!` |
+| `prepend: str` | `{{ "world" \| prepend: "hello " }}` | `hello world` |
+| `split: delim` | `{{ "a,b,c" \| split: "," }}` | `["a","b","c"]` |
+
+### Array Filters
+
+| Filter | Example | Result |
+|--------|---------|--------|
+| `join: delim` | `{{ arr \| join: ", " }}` | `a, b, c` |
+| `first` | `{{ arr \| first }}` | First element |
+| `last` | `{{ arr \| last }}` | Last element |
+| `size` | `{{ arr \| size }}` | Array length |
+| `reverse` | `{{ arr \| reverse }}` | Reversed array |
+| `sort` | `{{ arr \| sort }}` | Sorted array |
+| `uniq` | `{{ arr \| uniq }}` | Unique elements |
+| `map: prop` | `{{ users \| map: "name" }}` | Array of names |
+| `where: prop, val` | `{{ users \| where: "active", true }}` | Filtered array |
+
+### Other Filters
+
+| Filter | Example | Result |
+|--------|---------|--------|
+| `default: val` | `{{ x \| default: "none" }}` | `none` if x is nil/empty |
+| `date: format` | `{{ now \| date: "%Y-%m-%d" }}` | `2024-01-15` |
+| `json` | `{{ obj \| json }}` | JSON string |
+| `escape` | `{{ html \| escape }}` | HTML-escaped string |
+| `newline_to_br` | `{{ text \| newline_to_br }}` | `\n` → `<br>` |
+
+### Number Filters
+
+| Filter | Example | Result |
+|--------|---------|--------|
+| `plus: n` | `{{ 5 \| plus: 3 }}` | `8` |
+| `minus: n` | `{{ 5 \| minus: 3 }}` | `2` |
+| `times: n` | `{{ 5 \| times: 3 }}` | `15` |
+| `divided_by: n` | `{{ 10 \| divided_by: 3 }}` | `3` |
+| `modulo: n` | `{{ 10 \| modulo: 3 }}` | `1` |
+| `round` | `{{ 4.6 \| round }}` | `5` |
+| `ceil` | `{{ 4.2 \| ceil }}` | `5` |
+| `floor` | `{{ 4.8 \| floor }}` | `4` |

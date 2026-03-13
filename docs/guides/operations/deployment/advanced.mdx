@@ -1,0 +1,69 @@
+---
+title: "Advanced configuration"
+description: "Remote tracing, S3 upload, and other optional production features"
+---
+
+These features are not required for running workflows in production. Start with the [Railway](/operations/deployment/railway) or [Render](/operations/deployment/render) guides first, then come back here when you need production debugging visibility.
+
+## Remote tracing with Redis
+
+By default, workers don't generate trace files in production. Local tracing writes to disk, which works in development but isn't practical when your worker runs in a container that gets replaced on every deploy.
+
+Remote tracing solves this. The worker streams trace events to Redis as workflows execute. When a run completes, the trace is assembled and optionally uploaded to S3 as a JSON file. You can then pull traces via the API or CLI to debug failures without SSH access to your worker.
+
+### What you need
+
+- A **Redis instance** accessible from your worker. Most hosting providers offer managed Redis — check your provider's add-on marketplace or database options.
+- An **S3 bucket** (optional) if you want traces persisted beyond Redis TTL. Any S3-compatible storage works.
+
+### Worker environment variables
+
+Add these to your worker service's environment:
+
+```bash
+# Required for remote tracing
+OUTPUT_REDIS_URL=redis://<your-redis-host>:6379
+OUTPUT_TRACE_REMOTE_ON=true
+
+# Optional: persist traces to S3
+OUTPUT_TRACE_REMOTE_S3_BUCKET=<your-bucket-name>
+OUTPUT_AWS_REGION=<your-region>
+OUTPUT_AWS_ACCESS_KEY_ID=<your-key>
+OUTPUT_AWS_SECRET_ACCESS_KEY=<your-secret>
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OUTPUT_REDIS_URL` | Yes | Redis connection string. The worker uses this to buffer trace events during workflow execution. |
+| `OUTPUT_TRACE_REMOTE_ON` | Yes | Set to `true` to enable remote tracing. |
+| `OUTPUT_REDIS_TRACE_TTL` | No | TTL in seconds for trace data in Redis. Default: 7 days (`604800`). |
+| `OUTPUT_TRACE_REMOTE_S3_BUCKET` | No | S3 bucket name. When set, completed traces are uploaded as JSON files. |
+| `OUTPUT_AWS_REGION` | With S3 | AWS region for the S3 bucket. |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | With S3 | AWS access key with write access to the bucket. |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | With S3 | AWS secret key. |
+
+<Note>
+The API service does **not** need Redis configuration. Only the worker streams trace events.
+</Note>
+
+### Verifying it works
+
+1. Deploy the worker with the new environment variables
+2. Run a workflow through the API
+3. Check that traces appear:
+
+```bash
+# Via the CLI
+npx output workflow debug <workflow-id>
+
+# Via S3 (if configured)
+aws s3 ls s3://<your-bucket>/traces/
+```
+
+If traces don't appear, check the worker logs for Redis connection errors and verify `OUTPUT_REDIS_URL` is reachable from the worker.
+
+### How it works
+
+The worker emits trace events to Redis as each step, LLM call, and HTTP request executes. Redis acts as a temporary buffer — events are keyed by workflow run ID and expire after the configured TTL. When a workflow completes (or fails), the worker assembles the full trace tree from Redis and uploads it to S3 if configured.
+
+This means traces are available in Redis immediately during execution, and in S3 shortly after completion. See [Tracing](/operations/tracing) for the full trace format and how to read trace files.

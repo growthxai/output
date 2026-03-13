@@ -1,0 +1,25 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Assess whether a blog post is faithfully about the required topic.
+
+Return a JSON object with:
+- verdict: "pass" if the blog clearly focuses on the topic, "partial" if it mentions the topic but lacks depth, "fail" if it is not about the topic
+- reasoning: a brief explanation of your judgment
+</system>
+
+<user>
+Required topic: {{ required_topic }}
+
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Judge whether this blog post is faithfully about the required topic.
+</user>

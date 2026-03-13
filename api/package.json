@@ -1,0 +1,30 @@
+{
+  "name": "output-api",
+  "version": "0.1.0",
+  "description": "A simple flow core abstract",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run generate:openapi",
+    "generate:openapi": "node ./scripts/generate_openapi.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "catalog:",
+    "@temporalio/client": "catalog:",
+    "express": "5.2.1",
+    "morgan": "1.10.1",
+    "nanoid": "5.1.6",
+    "winston": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "swagger-jsdoc": "6.2.8"
+  },
+  "license": "UNLISENCED",
+  "private": true,
+  "imports": {
+    "#configs": "./src/configs.js",
+    "#utils": "./src/utils.js",
+    "#logger": "./src/logger.js"
+  }
+}

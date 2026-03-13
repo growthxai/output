@@ -1,0 +1,23 @@
+import { workflow } from '@outputai/core';
+import { processText } from './steps.js';
+import { workflowInputSchema, workflowOutputSchema } from './types.js';
+
+export default workflow( {
+  name: '{{workflowName}}',
+  description: '{{description}}',
+  inputSchema: workflowInputSchema,
+  outputSchema: workflowOutputSchema,
+  // TODO: Update the workflow function to match your use case
+  fn: async ( { text } ) => {
+    const result = await processText( { text } );
+
+    return { result };
+  },
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 3
+      }
+    }
+  }
+} );

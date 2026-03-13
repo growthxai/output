@@ -1,0 +1,7 @@
+{
+  "urls": [
+    "https://api.example.com/resource/1",
+    "https://api.example.com/resource/2"
+  ],
+  "delayMs": 500
+}

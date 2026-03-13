@@ -1,0 +1,21 @@
+import { evaluator, z, EvaluationVerdictResult } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+
+// TODO: Update the evaluator to assess your workflow's output quality
+export const evaluate{{WorkflowName}} = evaluator( {
+  name: 'evaluate_{{workflowName}}',
+  description: 'Evaluate the quality of {{workflowName}} output',
+  inputSchema: z.object( {
+    input: z.string(),
+    output: z.string()
+  } ),
+  fn: async ( { input, output } ) => {
+    const { output: evaluation } = await generateText( {
+      prompt: 'example@v1',
+      variables: { text: `Input: ${input}\nOutput: ${output}\n\nDoes the output adequately address the input?` },
+      output: Output.object( { schema: EvaluationVerdictResult.schema } )
+    } );
+
+    return new EvaluationVerdictResult( evaluation );
+  }
+} );

@@ -1,0 +1,34 @@
+---
+title: "Error Responses"
+description: "Error codes and response format for the Output API"
+---
+
+Error responses are JSON. The body includes:
+
+- **error** — Error type name (e.g. `WorkflowNotFoundError`).
+- **message** — Human-readable description.
+- **issues** — (400 only) Array of validation details from the schema.
+- **workflowId** — (when applicable) Workflow ID tied to the error.
+
+For `503`, the server may send a `Retry-After` header suggesting when to retry.
+
+| Code | Error | Cause |
+|------|-------|-------|
+| 400 | ValidationError | Invalid request body or query. |
+| 404 | WorkflowNotFoundError | Workflow execution ID, workflow type, or catalog not found. |
+| 408 | WorkflowExecutionTimedOutError | Synchronous run timed out before the workflow completed. |
+| 424 | WorkflowNotCompletedError | Result or trace requested but the workflow is still running. |
+| 503 | CatalogNotAvailableError | Catalog workflow unavailable; retry after a short delay. |
+| 500 | (varies) | Server or Temporal connection error. |
+
+**400 ValidationError** — Request body or query parameters failed schema validation (e.g. missing required fields, wrong types). The `issues` array lists each validation failure.
+
+**404 WorkflowNotFoundError** — The given workflow execution ID does not exist, the workflow type is not in the catalog for the task queue, or the catalog workflow itself was not found.
+
+**408 WorkflowExecutionTimedOutError** — Returned only by `POST /workflow/run` when the workflow did not complete within the request timeout (or the configured max waiting time).
+
+**424 WorkflowNotCompletedError** — Returned by `GET /workflow/:id/result` and `GET /workflow/:id/trace-log` when the workflow is still running and has no final result or trace yet.
+
+**503 CatalogNotAvailableError** — The catalog workflow is not reachable (e.g. worker not running or still starting). Retry after a few seconds; the response may include a `Retry-After` header.
+
+**500** — Unexpected server or Temporal backend error (e.g. connection failure). Check logs for details.

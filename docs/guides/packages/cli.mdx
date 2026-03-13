@@ -1,0 +1,495 @@
+---
+title: "@outputai/cli"
+description: "Command-line interface for creating, running, and debugging Output workflows"
+---
+
+The `output` CLI is how you create projects, start development services, run workflows, and debug executions. It's the main way you interact with Output during development.
+
+## Installation
+
+```bash
+npm install -g @outputai/cli
+```
+
+## Quick Start
+
+```bash
+# Create a new project
+npx @outputai/cli init
+cd <project-name>
+
+# Start development services (Temporal, API, worker)
+npx output dev
+
+# Run a workflow with a test scenario
+npx output workflow run lead_enrichment acme
+```
+
+## Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `output init` | Create a new project |
+| `output dev` | Start development services |
+| `output update` | Update CLI and agent configuration |
+| `output workflow plan` | Generate a workflow plan from a description |
+| `output workflow generate` | Generate workflow code from a plan |
+| `output workflow list` | List available workflows |
+| `output workflow runs list` | List recent workflow runs |
+| `output workflow run` | Run a workflow and wait for the result |
+| `output workflow start` | Start a workflow without waiting |
+| `output workflow status` | Check workflow execution status |
+| `output workflow result` | Get a completed workflow's result |
+| `output workflow stop` | Stop a workflow gracefully |
+| `output workflow terminate` | Force-stop a workflow |
+| `output workflow debug` | Show the execution trace |
+| `output workflow cost` | Calculate execution cost from a trace |
+| `output workflow test` | Run evaluations against a workflow |
+| `output workflow dataset list` | List datasets for a workflow |
+| `output workflow dataset generate` | Generate a dataset from a scenario or trace |
+
+## Project Commands
+
+### output init
+
+Create a new Output project with the standard file structure:
+
+```bash
+output init [folder-name]
+```
+
+<ParamField path="folder-name" type="string">
+  Name of the project folder to create
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--skip-env` | false | Skip interactive environment variable setup |
+
+### output dev
+
+Start all development services via Docker Compose:
+
+```bash
+output dev
+```
+
+This starts:
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Temporal UI** | [http://localhost:8080](http://localhost:8080) | Monitor and debug workflows |
+| **Temporal Server** | localhost:7233 | gRPC endpoint |
+| **API Server** | [http://localhost:3001](http://localhost:3001) | REST API for running workflows |
+| **Worker** | — | Processes workflows with auto-reload |
+| **PostgreSQL** | localhost:5432 | Temporal persistence |
+| **Redis** | localhost:6379 | Caching layer |
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--compose-file, -f` | — | Path to custom docker-compose file |
+| `--no-watch` | false | Disable file watching |
+
+### output dev eject
+
+Export the Docker Compose configuration so you can customize it:
+
+```bash
+output dev eject
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--output, -o` | docker-compose.yml | Output path |
+| `--force, -f` | false | Overwrite existing file |
+
+### output update
+
+Update the Output CLI and agent configuration:
+
+```bash
+output update
+```
+
+With no flags, updates everything. Use flags to update specific components:
+
+| Flag | Description |
+|------|-------------|
+| `--cli` | Update CLI packages only |
+| `--agents` | Update Claude Code agent configuration only |
+
+## Workflow Commands
+
+### output workflow plan
+
+Generate a workflow plan from a natural language description. The command prompts for a description, generates a plan using AI, and lets you iterate on it interactively. Type `ACCEPT` to save.
+
+```bash
+output workflow plan
+output workflow plan --description "Enrich leads by looking up company data and generating a summary"
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--description, -d` | — | Workflow description (prompts if not provided) |
+| `--force-agent-file-write` | false | Force overwrite agent templates |
+
+### output workflow generate
+
+Generate workflow code from a plan or description:
+
+```bash
+output workflow generate <name>
+```
+
+<ParamField path="name" type="string" required>
+  Name of the workflow to generate
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--skeleton, -s` | false | Generate minimal skeleton without examples |
+| `--description, -d` | — | Workflow description |
+| `--output-dir, -o` | workflows/ | Output directory |
+| `--force, -f` | false | Overwrite existing directory |
+| `--plan-file, -p` | — | Path to plan file for AI-assisted implementation |
+
+```bash
+# Generate a skeleton workflow
+output workflow generate lead_enrichment --skeleton
+
+# Generate from a saved plan
+output workflow generate lead_enrichment --plan-file .outputai/plans/2025_01_15_lead_enrichment/PLAN.md
+```
+
+### output workflow list
+
+List available workflows from the catalog:
+
+```bash
+output workflow list
+output workflow list --format json --detailed
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | list | Output format: list, table, json |
+| `--detailed, -d` | false | Show schemas and descriptions |
+| `--filter` | — | Filter by name |
+
+### output workflow runs list
+
+List recent workflow runs, optionally filtered by workflow name:
+
+```bash
+output workflow runs list
+output workflow runs list lead_enrichment --limit 10
+output workflow runs list lead_enrichment --format json
+```
+
+<ParamField path="workflowName" type="string">
+  Filter by workflow name (optional)
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit, -l` | 100 | Maximum runs to return |
+| `--format, -f` | table | Output format: table, json, text |
+
+### output workflow run
+
+Run a workflow synchronously and wait for the result:
+
+```bash
+output workflow run <workflowName> [scenario]
+```
+
+<ParamField path="workflowName" type="string" required>
+  Name of the workflow to execute
+</ParamField>
+
+<ParamField path="scenario" type="string">
+  Scenario name — resolved from the workflow's scenarios/ directory
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | — | JSON input or file path (overrides scenario) |
+| `--task-queue, -q` | — | Task queue name |
+| `--format, -f` | text | Output format: json, text |
+
+```bash
+# Using a scenario file (recommended for repeatable tests)
+output workflow run lead_enrichment acme
+
+# Using inline JSON
+output workflow run lead_enrichment --input '{"companyDomain": "acme.com"}'
+
+# Using a file path
+output workflow run lead_enrichment --input ./test_input.json
+```
+
+### output workflow start
+
+Start a workflow asynchronously — returns the workflow ID immediately without waiting:
+
+```bash
+output workflow start <workflowName> [scenario]
+```
+
+<ParamField path="workflowName" type="string" required>
+  Name of the workflow to start
+</ParamField>
+
+<ParamField path="scenario" type="string">
+  Scenario name — resolved from the workflow's scenarios/ directory
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | — | JSON input or file path (overrides scenario) |
+| `--task-queue, -q` | — | Task queue name |
+
+### output workflow status
+
+Check whether a workflow is still running, completed, or failed:
+
+```bash
+output workflow status <workflowId>
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | text | Output format: json, text |
+
+### output workflow result
+
+Get the output of a completed workflow:
+
+```bash
+output workflow result <workflowId>
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | text | Output format: json, text |
+
+### output workflow stop
+
+Stop a running workflow gracefully:
+
+```bash
+output workflow stop <workflowId>
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+### output workflow terminate
+
+Force-stop a workflow immediately. Use this for stuck workflows or cleaning up after branch switches:
+
+```bash
+output workflow terminate <workflowId>
+output workflow terminate wf-12345 --reason "Cleaning up old workflows"
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--reason, -r` | — | Reason for termination |
+
+Unlike `stop` (which cancels gracefully), `terminate` kills the workflow immediately.
+
+### output workflow debug
+
+Show the execution trace for a workflow — what steps ran, what they received and returned, and where failures happened. See [Tracing](/operations/tracing) for details on trace format.
+
+```bash
+output workflow debug <workflowId>
+output workflow debug wf-12345 --format json
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | text | Output format: json, text |
+
+<Tip>
+Use `--format json` to get the full untruncated trace. The text format truncates long values for readability, but the JSON format preserves everything.
+</Tip>
+
+### output workflow cost
+
+Calculate the estimated dollar cost of a workflow execution from its trace. Covers LLM token costs and API service costs. See [Cost Estimation](/operations/cost-estimation) for details on pricing configuration and the `config/costs.yml` override file.
+
+```bash
+output workflow cost <workflowId> [tracePath]
+```
+
+<ParamField path="workflowId" type="string" required>
+  Workflow ID to calculate cost for
+</ParamField>
+
+<ParamField path="tracePath" type="string">
+  Path to a local trace JSON file. If omitted, fetches the latest trace for the workflow.
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | text | Output format: json, text |
+| `--verbose` | false | Show per-call breakdown with token counts and individual step costs |
+
+```bash
+# Cost from latest trace
+output workflow cost lead_enrichment_QlcADmOM
+
+# Cost from a specific trace file
+output workflow cost lead_enrichment_QlcADmOM logs/runs/lead_enrichment/2026-03-01_trace.json
+
+# Detailed per-call breakdown
+output workflow cost lead_enrichment_QlcADmOM --verbose
+
+# Machine-readable output
+output workflow cost lead_enrichment_QlcADmOM --format json
+```
+
+<Tip>
+If the report shows "Unknown models", add them to `config/costs.yml` in your project root. See [Cost Estimation — Pricing Configuration](/operations/cost-estimation#pricing-configuration) for the format.
+</Tip>
+
+## Evaluation Commands
+
+These commands run offline evaluations against your workflows using the [`@outputai/evals`](/packages/evals) package. You define evaluators, write dataset YAML files, and use these commands to execute and manage them.
+
+### output workflow test
+
+Run evaluations against a workflow using its datasets:
+
+```bash
+output workflow test <workflowName>
+```
+
+<ParamField path="workflowName" type="string" required>
+  Name of the workflow to test
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--cached` | false | Use cached output from dataset files (skip workflow execution). Exclusive with `--save` |
+| `--save` | false | Run workflow and save output back to dataset files. Exclusive with `--cached` |
+| `--dataset, -d` | — | Comma-separated list of dataset names to run |
+| `--format, -f` | text | Output format: text, json |
+
+```bash
+# Run evals using cached output (fast — no workflow execution)
+output workflow test simple --cached
+
+# Run evals with fresh execution and save results back to datasets
+output workflow test simple --save
+
+# Run specific datasets only
+output workflow test simple --dataset basic_input,edge_case
+
+# Get JSON output for CI integration
+output workflow test simple --cached --format json
+```
+
+### Dataset Commands
+
+### output workflow dataset list
+
+List datasets for a workflow:
+
+```bash
+output workflow dataset list <workflowName>
+```
+
+<ParamField path="workflowName" type="string" required>
+  Workflow name to list datasets for
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format, -f` | table | Output format: table, json, text |
+
+```bash
+output workflow dataset list simple
+output workflow dataset list simple --format json
+```
+
+### output workflow dataset generate
+
+Generate a dataset for a workflow from a scenario, inline JSON, trace file, or S3:
+
+```bash
+output workflow dataset generate <workflowName> [scenario]
+```
+
+<ParamField path="workflowName" type="string" required>
+  Name of the workflow
+</ParamField>
+
+<ParamField path="scenario" type="string">
+  Scenario name — resolved from the workflow's scenarios/ directory
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--input, -i` | — | Workflow input as JSON string or file path (overrides scenario) |
+| `--name, -n` | — | Dataset name (defaults to scenario name or trace filename) |
+| `--trace, -t` | — | Path to a local trace file to extract dataset from. Exclusive with `--download` |
+| `--download, -d` | false | Download traces from S3 and create datasets. Exclusive with `--trace` |
+| `--limit, -l` | 5 | Maximum number of traces to download from S3 |
+
+```bash
+# Generate from a scenario
+output workflow dataset generate simple basic_input
+
+# Generate with inline JSON input
+output workflow dataset generate simple --input '{"values": [1, 2, 3]}' --name custom_case
+
+# Generate from a local trace file
+output workflow dataset generate simple --trace logs/runs/simple/trace.json --name from_trace
+
+# Download recent traces from S3 and create datasets
+output workflow dataset generate simple --download --limit 10
+```
+
+## Environment Configuration
+
+By default, the CLI loads environment variables from `.env` in the current directory. To use a different env file:
+
+```bash
+# Use production environment
+OUTPUT_CLI_ENV=.env.prod output workflow list
+
+# Use staging environment
+OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OUTPUT_CLI_ENV` | `.env` | Path to custom env file (relative or absolute) |
+| `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands |
+| `OUTPUT_API_AUTH_TOKEN` | — | API auth token for requests (required in production) |
+| `OUTPUT_DEBUG` | — | Set to `true` to enable CLI debug mode |
+| `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` |
+| `OUTPUT_API_VERSION` | `1.9` | API Docker image tag. Set to `dev` for local builds |
+| `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |

@@ -1,0 +1,15 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0.3
+maxTokens: 4096
+---
+
+<system>
+You are a helpful assistant for the {{workflowName}} workflow.
+</system>
+
+<!-- TODO: Update this prompt to fit your use case -->
+<user>
+\{{ text }}
+</user>

@@ -1,0 +1,18 @@
+packages:
+  - 'api'
+  - 'sdk/*'
+  - 'test_workflows'
+
+catalog:
+  '@aws-sdk/client-s3': 3.1004.0
+  '@temporalio/activity': 1.15.0
+  '@temporalio/client': 1.15.0
+  '@temporalio/common': 1.15.0
+  '@temporalio/worker': 1.15.0
+  '@temporalio/workflow': 1.15.0
+  '@types/js-yaml': 4.0.9
+  js-yaml: 4.1.1
+  ky: 1.14.3
+  semver: 7.7.4
+  winston: 3.19.0
+  zod: 4.3.6
