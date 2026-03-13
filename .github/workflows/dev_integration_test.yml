@@ -21,6 +21,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: corepack enable && pnpm install --frozen-lockfile
+
       - name: Create test_workflows/.env
         run: |
           printf 'ANTHROPIC_API_KEY=%s\nOPENAI_API_KEY=%s\n' \
@@ -31,4 +39,4 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Run workflow system integration test
-        run: ./ops/dev_integration_test.sh
+        run: npx vitest run --config vitest.integration.config.js ops/test_workflow_cli.integration.test.js

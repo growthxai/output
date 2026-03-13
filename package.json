@@ -14,7 +14,7 @@
     "dev": "npm run build:packages && npm run dev:build:api && npm run dev:up",
     "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
     "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows ./sdk/cli/bin/run.js dev --image-pull-policy never",
-    "test:dev-integration": "./ops/dev_integration_test.sh",
+    "test:dev-integration": "vitest run --config vitest.integration.config.js ops/test_workflow_cli.integration.test.js",
     "docs:generate": "typedoc",
     "docs:validate": "typedoc --emit none",
     "release": "./ops/release.sh"
