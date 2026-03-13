@@ -1,4 +1,4 @@
-name: Dev Integration Test
+name: Workflow System Integration Test
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   dev-integration:
-    name: Dev Integration Test
+    name: Workflow System Integration Test
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
@@ -30,5 +30,5 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Run dev integration test
+      - name: Run workflow system integration test
         run: ./ops/dev_integration_test.sh
