@@ -16,7 +16,7 @@
     "team-tools": {
       "source": {
         "source": "github",
-        "repo": "growthxai/output-claude-plugins"
+        "repo": "growthxai/output"
       }
     }
   },
