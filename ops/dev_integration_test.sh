@@ -55,31 +55,10 @@ docker build -f ops/api.Dockerfile -t outputai/api:dev . --quiet
 print "Starting dev environment..."
 "$CLI" dev --detached --image-pull-policy missing
 
-# Phase 1: wait for the API process to be accepting connections.
-# The API starts once Temporal is healthy (~30-60s). With service_started
-# for the worker dependency, the API no longer waits for the worker build.
-print "Waiting for API to be ready..."
-MAX_ATTEMPTS=60
-ATTEMPT=0
-until curl -sf http://localhost:3001/health > /dev/null 2>&1; do
-  ATTEMPT=$((ATTEMPT + 1))
-  if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-    print "TIMEOUT: API did not start after $((MAX_ATTEMPTS * 3))s" "✗"
-    echo "--- docker compose ps ---"
-    docker compose -f "$COMPOSE_FILE" --project-directory "$(pwd)" ps 2>/dev/null || true
-    echo "--- API container logs ---"
-    docker compose -f "$COMPOSE_FILE" --project-directory "$(pwd)" logs api --tail 50 2>/dev/null || true
-    exit 1
-  fi
-  sleep 3
-done
-print "API is up (after $((ATTEMPT * 3))s)"
-
-# Phase 2: wait for the worker to connect and register the catalog workflow.
-# GET /workflow/catalog returns 503 until the catalog is available; before
-# build:packages finishes inside the worker container the CLI itself also
-# fails (dist/ not written yet) — both are non-zero exits so the loop handles
-# both states naturally. In CI this typically takes 3-5 minutes total.
+# Wait for the worker to become healthy and the catalog to be registered.
+# The API depends on service_healthy for the worker, so it won't start until
+# the worker is ready — meaning workflow list also gates API availability.
+# In CI this typically takes 3-5 minutes total.
 print "Waiting for worker to connect (polling via CLI workflow list)..."
 MAX_ATTEMPTS=200
 ATTEMPT=0
