@@ -147,8 +147,8 @@ importers:
         specifier: 8.3.0
         version: 8.3.0(@types/node@24.10.15)
       '@oclif/core':
-        specifier: 4.8.3
-        version: 4.8.3
+        specifier: 4.9.0
+        version: 4.9.0
       '@oclif/plugin-help':
         specifier: 6.2.37
         version: 6.2.37
@@ -1307,8 +1307,8 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@oclif/core@4.8.3':
-    resolution: {integrity: sha512-f7Rc1JBZO0wNMyDmNzP5IFOv5eM97S9pO4JUFdu2OLyk73YeBI9wog1Yyf666NOQvyptkbG1xh8inzMDQLNTyQ==}
+  '@oclif/core@4.9.0':
+    resolution: {integrity: sha512-k/ntRgDcUprTT+aaNoF+whk3cY3f9fRD2lkF6ul7JeCUg2MaMXVXZXfbRhJCfsiX51X8/5Pqo0LGdO9SLYXNHg==}
     engines: {node: '>=18.0.0'}
 
   '@oclif/plugin-help@6.2.37':
@@ -5398,7 +5398,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@oclif/core@4.8.3':
+  '@oclif/core@4.9.0':
     dependencies:
       ansi-escapes: 4.3.2
       ansis: 3.17.0
@@ -5421,7 +5421,7 @@ snapshots:
 
   '@oclif/plugin-help@6.2.37':
     dependencies:
-      '@oclif/core': 4.8.3
+      '@oclif/core': 4.9.0
 
   '@opentelemetry/api@1.9.0': {}
 
