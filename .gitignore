@@ -19,3 +19,8 @@ plans/
 .kiro/
 .agent-os/
 agent-os/
+
+# Claude Things
+.claude/settings.local.json
+.claude/worktrees/
+
