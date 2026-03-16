@@ -5,6 +5,10 @@ updates:
       - '/'
       - '/api'
       - '/sdk/core'
+      - '/sdk/cli'
+      - '/sdk/http'
+      - '/sdk/evals'
+      - '/sdk/credentials'
       - '/sdk/llm'
       - '/test_workflows'
     schedule:
@@ -14,6 +18,6 @@ updates:
       patch-updates:
         update-types: ['patch']
         applies-to: 'version-updates'
-      minor-dev-updates:
+      dev-updates:
         update-types: ['minor']
-        dependency-type: 'development'
+        applies-to: 'version-updates'
