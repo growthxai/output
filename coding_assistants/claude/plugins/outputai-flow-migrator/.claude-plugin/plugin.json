@@ -1,6 +1,6 @@
 {
   "name": "outputai-flow-migrator",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Migration tools for converting Flow SDK workflows to Output SDK",
   "author": {
     "name": "Output.ai",
