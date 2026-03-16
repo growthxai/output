@@ -2,8 +2,6 @@
 # Prices are per million tokens, in USD
 # Entries here are merged with built-in defaults (project values take precedence)
 # Model names support prefix matching: 'claude-sonnet-4' matches 'claude-sonnet-4-20250514'
-# You can also add a services: block to override API service pricing
-
 # models:
 #   # =============================================================================
 #   # Anthropic
@@ -19,3 +17,13 @@
 #     input: 3.00
 #     output: 15.00
 #     cached_input: 0.30
+
+# services:
+#   # =============================================================================
+#   # Jina Reader API - Token-based
+#   # =============================================================================
+#   jina:
+#     type: token
+#     url_pattern: "r.jina.ai"
+#     usage_path: "body.data.usage.tokens"
+#     per_million: 0.045
