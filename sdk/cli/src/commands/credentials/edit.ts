@@ -46,14 +46,19 @@ export default class CredentialsEdit extends Command {
       );
     }
 
-    const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
+    const editorEnv = process.env.EDITOR || process.env.VISUAL || 'vi';
+    const [ editorCmd, ...editorArgs ] = editorEnv.split( /\s+/ );
     const plaintext = decryptCredentials( environment, workflow );
     const tmpFile = path.join( os.tmpdir(), `output-credentials-${Date.now()}.yml` );
 
     try {
       fs.writeFileSync( tmpFile, plaintext, { mode: 0o600 } );
 
-      const result = spawnSync( editor, [ tmpFile ], { stdio: 'inherit' } );
+      const result = spawnSync( editorCmd, [ ...editorArgs, tmpFile ], { stdio: 'inherit' } );
+
+      if ( result.error ) {
+        this.error( `Failed to launch editor: ${result.error.message}` );
+      }
 
       if ( result.status !== 0 ) {
         this.error( `Editor exited with non-zero status: ${result.status}` );
