@@ -1,18 +1,20 @@
-# LLM Token Pricing Configuration
-# Prices are per million tokens
-# Use this file to optionally override LLM costs
+# Token & API Pricing Configuration
+# Prices are per million tokens, in USD
+# Entries here are merged with built-in defaults (project values take precedence)
+# Model names support prefix matching: 'claude-sonnet-4' matches 'claude-sonnet-4-20250514'
+# You can also add a services: block to override API service pricing
 
 # models:
 #   # =============================================================================
 #   # Anthropic
 #   # =============================================================================
-#   claude-haiku-4-5-20251001:
+#   claude-haiku-4-5:
 #     provider: anthropic
 #     input: 1.00
 #     output: 5.00
 #     cached_input: 0.10
 
-#   claude-sonnet-4-20250514:
+#   claude-sonnet-4:
 #     provider: anthropic
 #     input: 3.00
 #     output: 15.00
