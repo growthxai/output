@@ -1,6 +1,6 @@
 {
   "name": "output",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
   "type": "module",
   "scripts": {
@@ -26,15 +26,15 @@
     "eslint-plugin-check-file": "3.3.1",
     "globals": "17.4.0",
     "husky": "9.1.7",
-    "lint-staged": "16.3.2",
+    "lint-staged": "16.4.0",
     "native-copyfiles": "2.0.1",
     "semver": "catalog:",
     "supertest": "7.2.2",
     "typedoc": "0.28.17",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.57.0",
+    "typescript-eslint": "8.57.1",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.0.18"
+    "vitest": "4.1.0"
   },
   "license": "UNLICENSED",
   "repository": {
