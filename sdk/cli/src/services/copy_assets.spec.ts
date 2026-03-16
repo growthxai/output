@@ -19,4 +19,9 @@ describe( 'copy-assets build output', () => {
       expect( fs.existsSync( filePath ), `Missing dotfile template in dist: ${dotfile}` ).toBe( true );
     }
   } );
+
+  it( 'should include config templates in dist/templates/project/', () => {
+    const configFile = path.join( distTemplatesDir, 'config', 'costs.yml.template' );
+    expect( fs.existsSync( configFile ), 'Missing config/costs.yml.template in dist' ).toBe( true );
+  } );
 } );
