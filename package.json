@@ -15,10 +15,10 @@
     "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
     "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows ./sdk/cli/bin/run.js dev --image-pull-policy never",
     "docs:generate": "typedoc",
-    "docs:validate": "typedoc --emit none",
-    "release": "./ops/release.sh"
+    "docs:validate": "typedoc --emit none"
   },
   "devDependencies": {
+    "@changesets/cli": "2.30.0",
     "@eslint/js": "10.0.1",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.10.15",

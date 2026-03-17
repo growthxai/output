@@ -1,6 +1,6 @@
 {
   "name": "test_workflows",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "A simple output core abstract",
   "type": "module",
   "private": true,
