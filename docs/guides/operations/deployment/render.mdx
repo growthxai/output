@@ -66,7 +66,10 @@ USER appuser
 # Production settings
 ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:$PATH"
-ENV NODE_OPTIONS="--max-old-space-size=3700"
+
+# V8 heap = 80% of container memory (leaves room for Temporal Rust runtime + OS)
+ENV NODE_OPTIONS="--max-old-space-size-percentage=80 --heapsnapshot-signal=SIGUSR2"
+
 
 CMD ["output-worker"]
 ```
