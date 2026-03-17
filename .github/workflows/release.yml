@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable pnpm
         run: corepack enable
@@ -50,3 +51,15 @@ jobs:
             ./ops/validate.sh &&
             ./ops/publish_npm_prod.sh &&
             ./ops/publish_api_image.sh
+
+      - name: Get version
+        id: version
+        if: steps.changesets.outputs.published == 'true'
+        run: echo "version=$(node -p "require('./sdk/core/package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Push tag
+        if: steps.changesets.outputs.published == 'true'
+        uses: actions-ecosystem/action-push-tag@v1
+        with:
+          tag: v${{ steps.version.outputs.version }}
+          message: v${{ steps.version.outputs.version }}
