@@ -1,6 +1,6 @@
 {
   "name": "output",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
   "type": "module",
   "scripts": {
