@@ -42,18 +42,13 @@ jobs:
     container:
       image: node:24.13.0
     steps:
-      - name: Get PR Number
-        id: pr
-        run: |
-          echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+          ref: refs/pull/${{ github.event.issue.number }}/head
 
       - name: Configure Git Safe Directory
-        run: git config --global --add safe.directory /__w/output/output
+        run: git config --global --add safe.directory ${{ github.workspace }}
 
       - name: Enable pnpm
         run: corepack enable
@@ -62,27 +57,18 @@ jobs:
         run: ./ops/validate.sh
 
       - name: Publish
-        id: publish
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          PR_NUM="${{ steps.pr.outputs.number }}"
-
-          ./ops/publish_npm_dev.sh "$PR_NUM" "$SHORT_SHA" | tee /tmp/output.txt
-
-          SUMMARY=$(sed -n '/^## Published packages/,$p' /tmp/output.txt)
-          {
-            echo 'summary<<EOF'
-            echo "$SUMMARY"
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+        run: ./ops/publish_npm_dev.sh
 
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
+            const path = require('path');
+            const summary = require(path.join(process.env.GITHUB_WORKSPACE || '.', 'pnpm-publish-summary.json'));
+            const body = '```json\n' + JSON.stringify(summary, null, 2) + '\n```';
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ steps.pr.outputs.number }},
-              body: `${{ steps.publish.outputs.summary }}`
+              issue_number: context.payload.issue.number,
+              body
             });

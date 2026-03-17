@@ -24,3 +24,5 @@ agent-os/
 .claude/settings.local.json
 .claude/worktrees/
 
+# Pnpm publish report
+pnpm-publish-summary.json
