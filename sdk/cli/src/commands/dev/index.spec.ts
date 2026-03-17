@@ -213,7 +213,8 @@ describe( 'dev command', () => {
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
         '/path/to/docker-compose-dev.yml',
-        'always' // default pull policy
+        'always', // default pull policy
+        undefined
       );
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'File watching enabled' ) );
 
@@ -270,7 +271,8 @@ describe( 'dev command', () => {
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
         '/path/to/docker-compose-dev.yml',
-        'missing'
+        'missing',
+        undefined
       );
 
       // Cancel the promise (it will be rejected but we don't care)
@@ -296,7 +298,8 @@ describe( 'dev command', () => {
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
         '/path/to/docker-compose-dev.yml',
-        'never'
+        'never',
+        undefined
       );
 
       // Cancel the promise (it will be rejected but we don't care)
