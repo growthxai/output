@@ -1,0 +1,4 @@
+services:
+  worker:
+    healthcheck:
+      start_period: 300s

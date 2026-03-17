@@ -21,14 +21,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create test_workflows/.env
-        run: |
-          printf 'ANTHROPIC_API_KEY=%s\nOPENAI_API_KEY=%s\n' \
-            "${ANTHROPIC_API_KEY:-dummy}" \
-            "${OPENAI_API_KEY:-dummy}" > test_workflows/.env
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
       - name: Run workflow system integration test
         run: ./ops/dev_integration_test.sh
