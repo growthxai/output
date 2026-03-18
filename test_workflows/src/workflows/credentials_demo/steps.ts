@@ -8,3 +8,11 @@ export const readCredential = step( {
   outputSchema: z.union( [ z.string(), z.number(), z.null() ] ),
   fn: async path => credentials.get( path, null ) as string | number | null
 } );
+
+export const readEnvCredential = step( {
+  name: 'readEnvCredential',
+  description: 'Read a credential injected into process.env via the credential: convention',
+  inputSchema: z.string().describe( 'Environment variable name' ),
+  outputSchema: z.string().nullable(),
+  fn: async envVar => process.env[envVar] ?? null
+} );
