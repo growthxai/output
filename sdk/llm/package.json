@@ -15,7 +15,7 @@
     "@ai-sdk/google-vertex": "4.0.80",
     "@ai-sdk/openai": "3.0.41",
     "@ai-sdk/perplexity": "3.0.23",
-    "@exalabs/ai-sdk": "1.0.5",
+    "@exalabs/ai-sdk": "2.0.0",
     "@outputai/core": "workspace:",
     "@perplexity-ai/ai-sdk": "0.1.2",
     "@tavily/ai-sdk": "0.4.1",

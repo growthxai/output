@@ -344,8 +344,8 @@ importers:
         specifier: 3.0.23
         version: 3.0.23(zod@4.3.6)
       '@exalabs/ai-sdk':
-        specifier: 1.0.5
-        version: 1.0.5(ai@6.0.116(zod@4.3.6))
+        specifier: 2.0.0
+        version: 2.0.0(ai@6.0.116(zod@4.3.6))
       '@outputai/core':
         specifier: 'workspace:'
         version: link:../core
@@ -940,10 +940,10 @@ packages:
     resolution: {integrity: sha512-iH1B076HoAshH1mLpHMgwdGeTs0CYwL0SPMkGuSebZrwBp16v415e9NZXg2jtrqPVQjf6IANe2Vtlr5KswtcZQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@exalabs/ai-sdk@1.0.5':
-    resolution: {integrity: sha512-+2Sv8+JmrjFrmpiOlE9bzbZeko8ceym7lR3mkopLtnhjZp+EjDOm3rxaouf7nxwG6E6f0y3F2VZfmt0wupq7eA==}
+  '@exalabs/ai-sdk@2.0.0':
+    resolution: {integrity: sha512-883EwfpesP37OBp23AQgFMsFYqDAWMeo0i2Kh+Oaz4q9gTj++XCh+K6pJgGC3yMgf6oz116+6MXkerziIut1kg==}
     peerDependencies:
-      ai: ^5.0.83
+      ai: ^6.0.0
 
   '@gerrit0/mini-shiki@3.22.0':
     resolution: {integrity: sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ==}
@@ -5362,7 +5362,7 @@ snapshots:
       '@eslint/core': 1.1.1
       levn: 0.4.1
 
-  '@exalabs/ai-sdk@1.0.5(ai@6.0.116(zod@4.3.6))':
+  '@exalabs/ai-sdk@2.0.0(ai@6.0.116(zod@4.3.6))':
     dependencies:
       ai: 6.0.116(zod@4.3.6)
       zod: 3.25.76
