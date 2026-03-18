@@ -1,5 +1,5 @@
 ---
-argument-hint: [workflow-path] [additional-instructions]
+argument-hint: "[workflow-path] [additional-instructions]"
 description: Create a migration plan for converting a Flow SDK workflow to Output SDK
 version: 0.1.0
 model: opus
