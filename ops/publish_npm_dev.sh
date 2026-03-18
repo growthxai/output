@@ -16,7 +16,7 @@ print "Publishing dev packages to NPM" "Run"
 
 print "Bumping"
 update_cmd='v=$(npm version prerelease --preid=dev --no-git-tag-version --allow-same-version --silent) && echo "- $PNPM_PACKAGE_NAME@${v#v}"'
-pnpm -r --include-workspace-root exec sh -c "$update_cmd"
+pnpm -r --include-workspace-root --filter "@outputai/*" --filter "output-api" exec sh -c "$update_cmd"
 
 print "Publishing"
 npm_config_loglevel=warn pnpm publish -r --no-git-checks --tag=dev --report-summary

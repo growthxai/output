@@ -15,9 +15,6 @@ updates:
       interval: weekly
     open-pull-requests-limit: 25
     groups:
-      patch-updates:
-        update-types: ['patch']
-        applies-to: 'version-updates'
-      dev-updates:
-        update-types: ['minor']
+      minor-updates:
+        update-types: ['patch', 'minor']
         applies-to: 'version-updates'

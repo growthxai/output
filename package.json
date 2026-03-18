@@ -1,6 +1,6 @@
 {
   "name": "output",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
   "type": "module",
   "scripts": {
@@ -17,10 +17,10 @@
     "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npm run output -- dev --image-pull-policy missing",
     "test:dev-integration": "./ops/dev_integration_test.sh",
     "docs:generate": "typedoc",
-    "docs:validate": "typedoc --emit none",
-    "release": "./ops/release.sh"
+    "docs:validate": "typedoc --emit none"
   },
   "devDependencies": {
+    "@changesets/cli": "2.30.0",
     "@eslint/js": "10.0.1",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.10.15",
