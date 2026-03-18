@@ -4,13 +4,10 @@
     "name": "Output.ai",
     "email": "support@output.ai"
   },
-  "metadata": {
-    "pluginRoot": "./coding_assistants/claude/plugins"
-  },
   "plugins": [
     {
       "name": "outputai",
-      "source": "./outputai",
+      "source": "./coding_assistants/claude/plugins/outputai",
       "description": "Output.ai Workflow Assistants",
       "version": "0.0.1",
       "author": {
@@ -19,7 +16,7 @@
     },
     {
       "name": "outputai-flow-migrator",
-      "source": "./outputai-flow-migrator",
+      "source": "./coding_assistants/claude/plugins/outputai-flow-migrator",
       "description": "Output.ai Flow SDK to Output SDK Migrator",
       "version": "0.0.1",
       "author": {
