@@ -1,0 +1,16 @@
+{
+  "description": "Output.ai framework session initialization",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/hooks/SESSION_START_CONTEXT.md\" \"${CLAUDE_PLUGIN_ROOT}/skills/output-meta-project-context/SKILL.md\""
+          }
+        ]
+      }
+    ]
+  }
+}

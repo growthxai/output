@@ -40,7 +40,7 @@ interface SettingsJson {
   };
 }
 
-const EXPECTED_MARKETPLACE_REPO = 'growthxai/output-claude-plugins';
+const EXPECTED_MARKETPLACE_REPO = 'growthxai/output';
 
 interface EnsureClaudePluginOptions {
   silent?: boolean;
@@ -232,7 +232,7 @@ async function registerPluginMarketplace( projectRoot: string, silent = false ):
 
   try {
     await executeClaudeCommand(
-      [ 'plugin', 'marketplace', 'add', 'growthxai/output-claude-plugins' ],
+      [ 'plugin', 'marketplace', 'add', 'growthxai/output' ],
       projectRoot,
       { ignoreFailure: true }
     );

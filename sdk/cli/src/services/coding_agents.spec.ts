@@ -55,7 +55,7 @@ describe( 'coding_agents service', () => {
           'team-tools': {
             source: {
               source: 'github',
-              repo: 'growthxai/output-claude-plugins'
+              repo: 'growthxai/output'
             }
           }
         },
@@ -201,7 +201,7 @@ describe( 'coding_agents service', () => {
       await ensureClaudePlugin( '/test/project' );
 
       expect( executeClaudeCommand ).toHaveBeenCalledWith(
-        [ 'plugin', 'marketplace', 'add', 'growthxai/output-claude-plugins' ],
+        [ 'plugin', 'marketplace', 'add', 'growthxai/output' ],
         '/test/project',
         { ignoreFailure: true }
       );
@@ -264,7 +264,7 @@ describe( 'coding_agents service', () => {
       vi.mocked( fs.readFile ).mockResolvedValue( JSON.stringify( {
         extraKnownMarketplaces: {
           'team-tools': {
-            source: { source: 'github', repo: 'growthxai/output-claude-plugins' }
+            source: { source: 'github', repo: 'growthxai/output' }
           }
         },
         enabledPlugins: { 'outputai@outputai': true }

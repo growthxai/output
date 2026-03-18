@@ -1,0 +1,9 @@
+{
+    "name": "outputai",
+    "version": "0.0.1",
+    "description": "Workflow development tools",
+    "author": {
+      "name": "Output.ai",
+      "email": "team@output.ai"
+    }
+  }
