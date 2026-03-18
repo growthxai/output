@@ -181,13 +181,11 @@ export type PullPolicy = 'always' | 'missing' | 'never';
 
 export async function startDockerCompose(
   dockerComposePath: string,
-  pullPolicy?: PullPolicy,
-  composeOverridePath?: string
+  pullPolicy?: PullPolicy
 ): Promise<DockerComposeProcess> {
   const args = [
     'compose',
     '-f', dockerComposePath,
-    ...( composeOverridePath ? [ '-f', composeOverridePath ] : [] ),
     '--project-directory', process.cwd(),
     'up'
   ];
@@ -211,13 +209,11 @@ export async function startDockerCompose(
 
 export function startDockerComposeDetached(
   dockerComposePath: string,
-  pullPolicy?: PullPolicy,
-  composeOverridePath?: string
+  pullPolicy?: PullPolicy
 ): void {
   const args = [
     'compose',
     '-f', dockerComposePath,
-    ...( composeOverridePath ? [ '-f', composeOverridePath ] : [] ),
     '--project-directory', process.cwd(),
     'up', '-d'
   ];

@@ -127,10 +127,6 @@ export default class Dev extends Command {
       description: 'Start services in detached (background) mode and exit immediately',
       default: false,
       char: 'd'
-    } ),
-    'compose-override': Flags.string( {
-      description: 'Path to an additional docker-compose override file',
-      required: false
     } )
   };
 
@@ -161,13 +157,9 @@ export default class Dev extends Command {
     }
 
     const pullPolicy = flags['image-pull-policy'] as PullPolicy;
-    const composeOverridePath = flags['compose-override'] ?
-      path.resolve( process.cwd(), flags['compose-override'] ) :
-      undefined;
-
     if ( flags.detached ) {
       this.log( '🐳 Starting services in detached mode...\n' );
-      startDockerComposeDetached( dockerComposePath, pullPolicy, composeOverridePath );
+      startDockerComposeDetached( dockerComposePath, pullPolicy );
       this.log( '✅ Services started. Run `output dev` without --detached to monitor status.\n' );
       return;
     }
@@ -189,8 +181,7 @@ export default class Dev extends Command {
     try {
       const { process: dockerProc, waitForHealthy } = await startDockerCompose(
         dockerComposePath,
-        pullPolicy,
-        composeOverridePath
+        pullPolicy
       );
 
       this.dockerProcess = dockerProc;

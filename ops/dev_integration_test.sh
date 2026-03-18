@@ -52,13 +52,12 @@ docker build -f ops/api.Dockerfile -t outputai/api:dev . --quiet
 # --detached runs `docker compose up -d` and exits immediately, so the
 # CLI's 120s health-wait timeout is never reached and containers keep
 # running for our own readiness polling below.
-# --compose-override applies the CI override (extends worker start_period to 300s).
 print "Starting dev environment..."
-"$CLI" dev --detached --image-pull-policy missing --compose-override ops/docker-compose.ci.yml
+"$CLI" dev --detached --image-pull-policy missing
 
-# Wait for the worker to become healthy and the catalog to be registered.
-# The API depends on service_healthy for the worker, so it won't start until
-# the worker is ready — meaning workflow list also gates API availability.
+# Wait for the worker to connect and register the catalog.
+# workflow list fails until both the API is accepting connections and the
+# catalog is registered — covering all readiness in a single poll loop.
 # In CI this typically takes 3-5 minutes total.
 print "Waiting for worker to connect (polling via CLI workflow list)..."
 MAX_ATTEMPTS=200
