@@ -1,0 +1,35 @@
+---
+title: "Claude Code"
+description: "Output.ai ships a Claude Code plugin with commands for planning, building, and debugging workflows"
+---
+
+The Output plugin adds Claude Code commands tuned for Output workflows: `plan-workflow`, `build-workflow`, and `debug-workflow`. These give Claude the context it needs to generate correct, idiomatic Output code.
+
+## Automatic install
+
+When you create a new project, the plugin is installed automatically:
+
+```bash
+npx @outputai/cli init
+```
+
+That's it — the plugin is registered and ready to use.
+
+## Keeping it up to date
+
+To update the plugin alongside your CLI:
+
+```bash
+npx output update --agents
+```
+
+## Manual install via Claude CLI
+
+If you need to install or reinstall the plugin directly:
+
+```bash
+claude plugin marketplace add growthxai/output
+claude plugin install outputai@outputai
+```
+
+The first command registers the Output marketplace. The second installs the plugin from it.

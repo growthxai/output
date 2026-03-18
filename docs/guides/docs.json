@@ -80,6 +80,12 @@
             ]
           },
           {
+            "group": "Coding Assistants",
+            "pages": [
+              "coding-assistants/claude-code"
+            ]
+          },
+          {
             "group": "Production Readiness",
             "pages": [
               "operations/credentials",
