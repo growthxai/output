@@ -9,7 +9,7 @@
       "name": "outputai",
       "source": "./coding_assistants/claude/plugins/outputai",
       "description": "Output.ai Workflow Assistants",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "author": {
         "name": "Output.ai"
       }
