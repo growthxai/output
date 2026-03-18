@@ -19,10 +19,6 @@
     "./sdk_utils": {
       "types": "./src/utils/index.d.ts",
       "import": "./src/utils/index.js"
-    },
-    "./sdk_worker_startup": {
-      "types": "./src/worker/startup_hooks.d.ts",
-      "import": "./src/worker/startup_hooks.js"
     }
   },
   "files": [

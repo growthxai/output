@@ -12,7 +12,6 @@ import { startCatalog } from './start_catalog.js';
 import { messageBus } from '#bus';
 import './log_hooks.js';
 import { BusEventType } from '#consts';
-import { runStartupHooks } from './startup_hooks.js';
 
 const log = createChildLogger( 'Worker' );
 
@@ -41,11 +40,7 @@ const callerDir = process.argv[2];
   log.info( 'Loading activities...', { callerDir } );
   const activities = await loadActivities( callerDir, workflows );
 
-  log.info( 'Running startup hooks...' );
-  const resolved = runStartupHooks();
-  if ( resolved.length > 0 ) {
-    log.info( 'Startup hooks resolved env vars', { vars: resolved } );
-  }
+  messageBus.emit( BusEventType.WORKER_BEFORE_START );
 
   log.info( 'Creating worker entry point...' );
   const workflowsPath = createWorkflowsEntryPoint( workflows );

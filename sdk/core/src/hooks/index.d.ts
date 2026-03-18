@@ -20,6 +20,14 @@ export interface ErrorHookPayload {
 export declare function onError( handler: ( payload: ErrorHookPayload ) => void ): void;
 
 /**
+ * Register a handler to be invoked once, before the worker starts processing tasks.
+ * Runs synchronously after activities are loaded and before Worker.create().
+ *
+ * @param handler - Function called with no arguments.
+ */
+export declare function onBeforeStart( handler: () => void ): void;
+
+/**
  * Register a handler to be invoked when a given event happens
  *
  * @param eventName - The name of the event to subscribe

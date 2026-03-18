@@ -20,6 +20,8 @@ export const LifecycleEvent = {
 };
 
 export const BusEventType = {
+  WORKER_BEFORE_START: 'worker:before_start',
+
   WORKFLOW_START: 'workflow:start',
   WORKFLOW_END: 'workflow:end',
   WORKFLOW_ERROR: 'workflow:error',

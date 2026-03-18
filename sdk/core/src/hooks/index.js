@@ -21,6 +21,8 @@ export const onError = handler => {
     invokeHandler( { source: 'runtime', error } ) );
 };
 
+export const onBeforeStart = handler => messageBus.on( BusEventType.WORKER_BEFORE_START, handler );
+
 export const on = ( eventName, handler ) => {
   messageBus.on( `external:${eventName}`, async payload => {
     try {
