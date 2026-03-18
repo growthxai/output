@@ -6,6 +6,7 @@ import logUpdate from 'log-update';
 import {
   validateDockerEnvironment,
   startDockerCompose,
+  startDockerComposeDetached,
   stopDockerCompose,
   getServiceStatus,
   DockerComposeConfigNotFoundError,
@@ -121,6 +122,11 @@ export default class Dev extends Command {
       description: 'Image pull policy for docker compose (always, missing, never)',
       options: [ 'always', 'missing', 'never' ],
       default: 'always'
+    } ),
+    detached: Flags.boolean( {
+      description: 'Start services in detached (background) mode and exit immediately',
+      default: false,
+      char: 'd'
     } )
   };
 
@@ -150,6 +156,14 @@ export default class Dev extends Command {
       this.log( `Using custom docker-compose file: ${flags['compose-file']}\n` );
     }
 
+    const pullPolicy = flags['image-pull-policy'] as PullPolicy;
+    if ( flags.detached ) {
+      this.log( '🐳 Starting services in detached mode...\n' );
+      startDockerComposeDetached( dockerComposePath, pullPolicy );
+      this.log( '✅ Services started. Run `output dev` without --detached to monitor status.\n' );
+      return;
+    }
+
     this.log( 'File watching enabled - worker will restart automatically on changes\n' );
 
     const cleanup = async () => {
@@ -163,8 +177,6 @@ export default class Dev extends Command {
 
     process.on( 'SIGINT', cleanup );
     process.on( 'SIGTERM', cleanup );
-
-    const pullPolicy = flags['image-pull-policy'] as PullPolicy;
 
     try {
       const { process: dockerProc, waitForHealthy } = await startDockerCompose(

@@ -1,0 +1,30 @@
+name: Workflow System Integration Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'test_workflows/**'
+      - 'api/**'
+      - 'sdk/**'
+
+jobs:
+  dev-integration:
+    name: Workflow System Integration Test
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    permissions:
+      contents: read
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Run workflow system integration test
+        run: ./ops/dev_integration_test.sh
