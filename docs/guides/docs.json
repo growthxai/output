@@ -92,6 +92,12 @@
             ]
           },
           {
+            "group": "Coding Assistants",
+            "pages": [
+              "coding-assistants/claude-code"
+            ]
+          },
+          {
             "group": "Packages",
             "pages": [
               "packages/core",
