@@ -47,9 +47,7 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
-          version: |
-            pnpm changeset version
-            ./ops/set_cli_sdk_version.sh
+          version: pnpm changeset version && ./ops/set_cli_sdk_version.sh
           commit: 'chore(release): version packages'
           title: 'Version Packages'
           publish: |
