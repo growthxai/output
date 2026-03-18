@@ -234,6 +234,9 @@ interface CredentialsProvider {
 
 ## Related Skills
 
+- `output-credentials-init` - Initializing credentials files for the first time
+- `output-credentials-edit` - Viewing and editing credential values
+- `output-credentials-env-vars` - Wiring credentials to env vars with the `credential:` convention
 - `output-dev-http-client-create` - Creating HTTP clients that use credentials
 - `output-dev-step-function` - Using credentials in step functions
 - `output-error-http-client` - Troubleshooting HTTP client issues
