@@ -44,16 +44,16 @@ docker run --rm \
   -w /app \
   node:24.13.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile && npm run build:packages"
 
-# Step 2: build the API docker image (same as npm run dev:build:api)
+# Step 2: build the API docker image.
 print "Building API docker image..."
-docker build -f ops/api.Dockerfile -t outputai/api:dev . --quiet
+npm run dev:build:api
 
 # Step 3: start services via the CLI in detached mode.
 # --detached runs `docker compose up -d` and exits immediately, so the
 # CLI's 120s health-wait timeout is never reached and containers keep
 # running for our own readiness polling below.
 print "Starting dev environment..."
-"$CLI" dev --detached --image-pull-policy missing
+npm run dev:up -- --detached
 
 # Wait for the worker to connect and register the catalog.
 # workflow list fails until both the API is accepting connections and the
