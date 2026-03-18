@@ -66,15 +66,18 @@ const load = (): Record<string, unknown> => {
 const CREDENTIAL_REF_PREFIX = 'credential:';
 
 export const resolveCredentialRefs = (): string[] => {
+  const refs = Object.entries( process.env )
+    .filter( ( [ , v ] ) => typeof v === 'string' && v.startsWith( CREDENTIAL_REF_PREFIX ) );
+
+  if ( refs.length === 0 ) {
+    return [];
+  }
+
   const data = loadGlobal();
   const resolved: string[] = [];
 
-  for ( const [ envVar, value ] of Object.entries( process.env ) ) {
-    if ( typeof value !== 'string' || !value.startsWith( CREDENTIAL_REF_PREFIX ) ) {
-      continue;
-    }
-
-    const credPath = value.slice( CREDENTIAL_REF_PREFIX.length );
+  for ( const [ envVar, value ] of refs ) {
+    const credPath = value!.slice( CREDENTIAL_REF_PREFIX.length );
     const credValue = getNestedValue( data, credPath );
 
     if ( typeof credValue === 'string' && credValue.length > 0 ) {
