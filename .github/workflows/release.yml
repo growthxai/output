@@ -9,11 +9,6 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
-env:
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
 jobs:
   release:
     name: Version PR or Publish
@@ -43,8 +38,14 @@ jobs:
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
-          version: pnpm changeset version
+          version: |
+            pnpm changeset version
+            ./ops/set_cli_sdk_version.sh
           commit: 'chore(release): version packages'
           title: 'Version Packages'
           publish: |
