@@ -11,7 +11,6 @@ print() {
   echo -e "\e[44;30m $sym \e[0m $1"
 }
 
-CLI="./sdk/cli/bin/run.js"
 # Compose file path written by `npm run build:packages` (copy-assets step)
 COMPOSE_FILE="./sdk/cli/dist/assets/docker/docker-compose-dev.yml"
 
@@ -62,7 +61,7 @@ npm run dev:up -- --detached
 print "Waiting for worker to connect (polling via CLI workflow list)..."
 MAX_ATTEMPTS=200
 ATTEMPT=0
-until "$CLI" workflow list > /dev/null 2>&1; do
+until npm run --silent output -- workflow list > /dev/null 2>&1; do
   ATTEMPT=$((ATTEMPT + 1))
   if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
     print "TIMEOUT: Worker did not connect after $((MAX_ATTEMPTS * 3))s" "✗"
@@ -80,7 +79,7 @@ print "Worker connected and catalog available (after $((ATTEMPT * 3))s)"
 # --format json outputs the API response body prefixed with a log line;
 # awk strips everything before the opening '{' before piping to jq.
 print "Running 'simple' workflow with input [1, 2, 3, 4, 5]..."
-CLI_OUTPUT=$("$CLI" workflow run simple \
+CLI_OUTPUT=$(npm run --silent output -- workflow run simple \
   --input '{"values":[1,2,3,4,5]}' \
   --format json) || {
   print "Workflow run failed — dumping logs" "✗"
