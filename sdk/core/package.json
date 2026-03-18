@@ -36,7 +36,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@babel/generator": "7.29.1",
-    "@babel/parser": "7.29.0",
+    "@babel/parser": "7.29.2",
     "@babel/traverse": "7.29.0",
     "@babel/types": "7.29.0",
     "@temporalio/activity": "catalog:",
@@ -46,7 +46,7 @@
     "@temporalio/workflow": "catalog:",
     "redis": "5.11.0",
     "stacktrace-parser": "0.1.11",
-    "undici": "7.22.0",
+    "undici": "7.24.4",
     "winston": "catalog:",
     "zod": "catalog:"
   },
