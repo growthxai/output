@@ -1,10 +1,10 @@
 packages:
-  - 'api'
-  - 'sdk/*'
-  - 'test_workflows'
+  - api
+  - sdk/*
+  - test_workflows
 
 catalog:
-  '@aws-sdk/client-s3': 3.1011.0
+  '@aws-sdk/client-s3': 3.1012.0
   '@temporalio/activity': 1.15.0
   '@temporalio/client': 1.15.0
   '@temporalio/common': 1.15.0
