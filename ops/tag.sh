@@ -7,7 +7,7 @@ cd "${0%/*}/.."
 count=0
 print() {
   sym=${2:-$((++count))}
-  printf "\e[46;30m $sym \e[0m $1\n"
+  printf "\e[42;30m $sym \e[0m $1\n"
 }
 
 print "Tagging version on Git" "Run"
