@@ -1,72 +1,31 @@
 name: Publish Dev
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to checkout and publish (branch, tag, or full SHA). Must exist in this repository.'
+        required: false
+        default: 'main'
+        type: string
 
-env:
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+concurrency:
+  group: publish-npm-dev-manual
+  cancel-in-progress: false
 
 jobs:
-  authorize:
-    name: Check commenter permissions
-    if: github.event.issue.pull_request && contains(github.event.comment.body || '', '/publish-dev')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      allowed: ${{ steps.perm.outputs.allowed }}
-      head_sha: ${{ steps.perm.outputs.head_sha }}
-      head_repository: ${{ steps.perm.outputs.head_repository }}
-    steps:
-      - name: Determine permission and pin PR head
-        id: perm
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const commenter = context.payload.comment.user.login;
-            const { data: permData } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: commenter
-            });
-            const allowed = ['admin', 'maintain', 'write'].includes(permData.permission);
-            if (!allowed) {
-              core.setOutput('allowed', 'false');
-              core.setOutput('head_sha', '');
-              core.setOutput('head_repository', '');
-              return;
-            }
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.issue.number
-            });
-            core.setOutput('allowed', 'true');
-            core.setOutput('head_sha', pr.head.sha);
-            core.setOutput('head_repository', pr.head.repo.full_name);
-
   publish:
-    name: Publish NPM Pre-release Packages
+    name: Publish NPM pre-release packages
     runs-on: ubuntu-latest
-    needs: authorize
-    if: ${{ needs.authorize.outputs.allowed == 'true' }}
     permissions:
       contents: read
-      issues: write
-      pull-requests: write
     container:
       image: node:24.13.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: ${{ needs.authorize.outputs.head_repository }}
-          ref: ${{ needs.authorize.outputs.head_sha }}
-
-      - name: Configure Git Safe Directory
-        run: git config --global --add safe.directory ${{ github.workspace }}
+          ref: ${{ inputs.ref }}
 
       - name: Enable pnpm
         run: corepack enable
@@ -75,18 +34,18 @@ jobs:
         run: ./ops/validate.sh
 
       - name: Publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: ./ops/publish_npm_dev.sh
 
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const path = require('path');
-            const summary = require(path.join(process.env.GITHUB_WORKSPACE || '.', 'pnpm-publish-summary.json'));
-            const body = '```json\n' + JSON.stringify(summary, null, 2) + '\n```';
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              body
-            });
+      - name: Add publish summary to job
+        run: |
+          if [ -f pnpm-publish-summary.json ]; then
+            {
+              echo '### npm publish summary'
+              echo ''
+              echo '```json'
+              cat pnpm-publish-summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
