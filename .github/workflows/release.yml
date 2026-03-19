@@ -50,10 +50,7 @@ jobs:
           version: pnpm run version
           commit: 'chore(release): version packages'
           title: 'Version Packages'
-          publish: |
-            ./ops/validate.sh &&
-            ./ops/publish_npm_prod.sh &&
-            ./ops/publish_api_image.sh
+          publish: pnpm run release:publish
 
       - name: Get version
         id: version
