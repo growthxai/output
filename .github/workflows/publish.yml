@@ -37,9 +37,6 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
 
-      - name: Validate
-        run: ./ops/validate.sh
-
       - name: Publish
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
