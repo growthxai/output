@@ -1,6 +1,6 @@
 {
   "name": "@outputai/evals",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline evaluation framework for Output.ai workflows",
   "type": "module",
   "main": "dist/index.js",
