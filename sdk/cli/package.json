@@ -22,7 +22,7 @@
     "prebuild": "npm run generate:api"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.1.71",
+    "@anthropic-ai/claude-agent-sdk": "0.2.79",
     "@aws-sdk/client-s3": "catalog:",
     "@hackylabs/deep-redact": "3.0.5",
     "@inquirer/prompts": "8.3.2",
@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@types/cli-progress": "3.11.6",
-    "@types/debug": "4.1.12",
+    "@types/debug": "4.1.13",
     "@types/js-yaml": "catalog:",
     "@types/semver": "7.7.1",
     "orval": "8.5.3"
