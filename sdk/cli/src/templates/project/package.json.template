@@ -6,7 +6,7 @@
   "main": "dist/worker.js",
   "scripts": {
     "output:worker:install": "npm install",
-    "output:worker:build": "rm -rf dist/* && tsc -p ./ && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' dist -u 1",
+    "output:worker:build": "rm -rf dist/* && tsc -p ./ && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' './src/**/*.key' dist -u 1",
     "output:worker:start": "output-worker",
     "dev": "output dev"
   },

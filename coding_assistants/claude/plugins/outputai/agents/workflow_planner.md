@@ -91,7 +91,10 @@ Use these skills for detailed implementation patterns. Claude will auto-invoke t
 | `output-dev-step-function` | Writing steps.ts, implementing I/O operations, error handling |
 | `output-dev-evaluator-function` | Writing evaluators.ts, implementing quality assessment, validation logic |
 | `output-dev-http-client-create` | Creating shared HTTP clients in src/clients/ |
-| `output-dev-credentials` | Encrypted secrets management for API keys, tokens, passwords |
+| `output-dev-credentials` | Full credentials system reference — API, scopes, merging, custom providers |
+| `output-credentials-init` | Initialize encrypted credentials files for the first time |
+| `output-credentials-edit` | View and edit credential values |
+| `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 | `output-dev-prompt-file` | Designing .prompt files, Liquid.js templating, LLM configuration |
 | `output-dev-scenario-file` | Creating test scenarios, documenting expected inputs |
 | `output-dev-eval-testing` | Writing offline eval tests, verify() evaluators, dataset YAML files, eval workflows |

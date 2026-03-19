@@ -63,6 +63,32 @@ const load = (): Record<string, unknown> => {
   return loadForWorkflow( workflowName, workflowDir );
 };
 
+const CREDENTIAL_REF_PREFIX = 'credential:';
+
+export const resolveCredentialRefs = (): string[] => {
+  const refs = Object.entries( process.env )
+    .filter( ( [ , v ] ) => typeof v === 'string' && v.startsWith( CREDENTIAL_REF_PREFIX ) );
+
+  if ( refs.length === 0 ) {
+    return [];
+  }
+
+  const data = loadGlobal();
+  const resolved: string[] = [];
+
+  for ( const [ envVar, value ] of refs ) {
+    const credPath = value!.slice( CREDENTIAL_REF_PREFIX.length );
+    const credValue = getNestedValue( data, credPath );
+
+    if ( typeof credValue === 'string' && credValue.length > 0 ) {
+      process.env[envVar] = credValue;
+      resolved.push( envVar );
+    }
+  }
+
+  return resolved;
+};
+
 export const credentials = {
   get: ( path: string, defaultValue: unknown = undefined ): unknown => {
     const data = load();

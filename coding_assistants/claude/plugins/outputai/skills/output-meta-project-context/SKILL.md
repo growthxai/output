@@ -116,7 +116,7 @@ src/
 | `/outputai:build_workflow` | Build/implement workflows | After planning, or for modifications |
 | `/outputai:debug_workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
 
-### Skills (29)
+### Skills (32)
 
 #### Workflow Operations (5)
 | Skill | Purpose |
@@ -152,7 +152,7 @@ src/
 | `output-meta-post-flight` | Post-operation verification |
 | `output-meta-project-context` | Load full project context (this skill) |
 
-#### Development (11)
+#### Development (10)
 | Skill | Purpose |
 |-------|---------|
 | `output-dev-folder-structure` | Project and workflow directory layout |
@@ -164,8 +164,15 @@ src/
 | `output-dev-prompt-file` | LLM prompt templates with Liquid.js |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
-| `output-dev-credentials` | Encrypted secrets management with `@outputai/credentials` |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
+
+#### Credentials (4)
+| Skill | Purpose |
+|-------|---------|
+| `output-dev-credentials` | Full credentials system reference (API, scopes, merging, custom providers) |
+| `output-credentials-init` | Initialize encrypted credentials files for the first time |
+| `output-credentials-edit` | View and edit credential values with `show`/`get`/`edit` commands |
+| `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 
 ---
 
@@ -196,10 +203,10 @@ npx output workflow dataset list <name>      # List datasets for a workflow
 npx output workflow dataset generate <name> --input '{}'  # Generate dataset
 
 # Credentials
-output credentials init                      # Initialize encrypted credentials
-output credentials edit                      # Edit credentials (decrypts, opens $EDITOR)
-output credentials show                      # Show decrypted credentials
-output credentials get <path>                # Get single credential value
+npx output credentials init                  # Initialize encrypted credentials
+npx output credentials edit                  # Edit credentials (decrypts, opens $EDITOR)
+npx output credentials show                  # Show decrypted credentials
+npx output credentials get <path>            # Get single credential value
 ```
 
 ---

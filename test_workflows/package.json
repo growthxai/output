@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "output:worker:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
-    "output:worker:build": "rm -rf dist/* && tsc && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' dist -u 1",
+    "output:worker:build": "rm -rf dist/* && tsc && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' './src/**/*.key' dist -u 1",
     "output:worker:start": "output-worker"
   },
   "dependencies": {

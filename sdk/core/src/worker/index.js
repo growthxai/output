@@ -40,6 +40,8 @@ const callerDir = process.argv[2];
   log.info( 'Loading activities...', { callerDir } );
   const activities = await loadActivities( callerDir, workflows );
 
+  messageBus.emit( BusEventType.WORKER_BEFORE_START );
+
   log.info( 'Creating worker entry point...' );
   const workflowsPath = createWorkflowsEntryPoint( workflows );
 
