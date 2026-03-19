@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -e
-set -o pipefail
+set -eou pipefail
 
 cd "${0%/*}/.."
 
