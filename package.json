@@ -4,8 +4,6 @@
   "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
   "type": "module",
   "scripts": {
-    "version": "changeset version && ./ops/set_cli_sdk_version.sh",
-    "release:publish": "./ops/validate.sh && ./ops/publish_npm_prod.sh && ./ops/publish_api_image.sh",
     "prepare": "command -v git > /dev/null && husky || true",
     "lint": "eslint",
     "lint:fix": "eslint --fix",

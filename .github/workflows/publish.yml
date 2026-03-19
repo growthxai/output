@@ -1,0 +1,51 @@
+name: Publish
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    # Version Packages PRs use head branch changeset-release/<baseBranch> (see changesets/action).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'changeset-release/'))
+    name: Publish and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Squash merge: this is the single commit that landed on main (not the old PR branch tip).
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || 'main' }}
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Validate
+        run: ./ops/validate.sh
+
+      - name: Publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: ./ops/publish.sh
+
+      - name: Tag
+        run: ./ops/tag.sh

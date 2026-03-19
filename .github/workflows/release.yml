@@ -1,5 +1,4 @@
 # Creates a "Version Packages" PR when there are unreleased changesets.
-# When that PR is merged, runs version is already on main; then publish + deploy run.
 name: Release
 
 on:
@@ -8,10 +7,6 @@ on:
   workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
-
-permissions:
-  contents: read
-  pull-requests: read
 
 jobs:
   release:
@@ -39,27 +34,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create Release Pull Request or Publish
-        id: changesets
+      - name: Create Release Pull Request
         uses: changesets/action@v1
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
-          version: pnpm run version
-          commit: 'chore(release): version packages'
-          title: 'Version Packages'
-          publish: pnpm run release:publish
-
-      - name: Get version
-        id: version
-        if: steps.changesets.outputs.published == 'true'
-        run: echo "version=$(node -p "require('./sdk/core/package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Push tag
-        if: steps.changesets.outputs.published == 'true'
-        uses: actions-ecosystem/action-push-tag@v1
-        with:
-          tag: v${{ steps.version.outputs.version }}
-          message: v${{ steps.version.outputs.version }}
+          version: ./ops/bump.sh
