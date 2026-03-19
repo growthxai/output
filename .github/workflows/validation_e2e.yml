@@ -1,4 +1,4 @@
-name: Workflow System Integration Test
+name: End to End Validation
 
 on:
   pull_request:
@@ -9,8 +9,8 @@ on:
       - 'sdk/**'
 
 jobs:
-  dev-integration:
-    name: Workflow System Integration Test
+  test:
+    name: Run end to end tests
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
@@ -26,5 +26,5 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Run workflow system integration test
-        run: ./ops/dev_integration_test.sh
+      - name: Run tests
+        run: ./ops/test_e2e.sh
