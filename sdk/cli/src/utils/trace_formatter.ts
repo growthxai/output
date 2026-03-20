@@ -412,12 +412,12 @@ const buildDebugTreeLines = ( node: unknown, depth: number, isLast: boolean, pre
   const lines = [ indent + getDebugNodeInfo( node ) ];
 
   const detailPrefix = isRoot ? '  ' : prefix + ( isLast ? TREE_CHARS.DETAIL_LAST : TREE_CHARS.DETAIL_BRANCH );
-  if ( typeof node === 'object' && node !== null ) {
+  if ( typeof node === 'object' ) {
     lines.push( ...getDebugNodeDetails( node as DebugNode, detailPrefix ) );
   }
 
   const childPrefix = isRoot ? '' : prefix + ( isLast ? TREE_CHARS.SPACE : TREE_CHARS.VERTICAL );
-  if ( typeof node === 'object' && node !== null ) {
+  if ( typeof node === 'object' ) {
     const debugNode = node as DebugNode;
     if ( Array.isArray( debugNode.children ) ) {
       debugNode.children.forEach( ( child, i ) => {

@@ -66,5 +66,5 @@ class WorkflowExecutionInterceptor {
 
 export const interceptors = () => ( {
   inbound: [ new WorkflowExecutionInterceptor() ],
-  outbound: [ new HeadersInjectionInterceptor( workflowInfo().workflowType ) ]
+  outbound: [ new HeadersInjectionInterceptor() ]
 } );

@@ -75,7 +75,7 @@ export const addEventPhase = ( phase, { kind, name, id, parentId, details, execu
   if ( kind !== ComponentType.INTERNAL_STEP && !executionContext.disableTrace ) {
     traceBus.emit( 'entry', {
       executionContext,
-      entry: { kind, phase, name, id, parentId, phase, timestamp: Date.now(), details: serializeDetails( details ) }
+      entry: { kind, phase, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) }
     } );
   }
 };
