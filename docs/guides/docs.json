@@ -23,6 +23,7 @@
             "group": "Start Here",
             "pages": [
               "start-here/getting-started",
+              "start-here/claude-code",
               "start-here/learning-path"
             ]
           },
@@ -92,9 +93,13 @@
             ]
           },
           {
-            "group": "Coding Assistants",
+            "group": "Integrate with Your App",
+            "openapi": "openapi.json",
             "pages": [
-              "coding-assistants/claude-code"
+              "api/index",
+              "api/configuration",
+              "api/authentication",
+              "api/errors"
             ]
           },
           {
@@ -109,21 +114,6 @@
             ]
           }
         ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "api/index",
-              "api/configuration",
-              "api/authentication",
-              "api/errors"
-            ]
-          }
-        ],
-        "openapi": "openapi.json"
       }
     ]
   },
