@@ -73,7 +73,7 @@ export function loadTools( prompt ) {
     );
   }
 
-  if ( typeof toolsConfig !== 'object' || toolsConfig === null ) {
+  if ( typeof toolsConfig !== 'object' ) {
     throw new Error(
       `tools must be an object, got ${typeof toolsConfig}. ` +
       'Use "tools: { googleSearch: {} }"'
