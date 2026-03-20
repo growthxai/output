@@ -1,5 +1,14 @@
 # @outputai/evals
 
+## 0.1.4
+
+### Patch Changes
+
+- b9b986d: Patching vulnerable dependencies
+- Updated dependencies [b9b986d]
+  - @outputai/core@0.1.4
+  - @outputai/llm@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes

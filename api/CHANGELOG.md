@@ -1,5 +1,11 @@
 # output-api
 
+## 0.1.4
+
+### Patch Changes
+
+- b9b986d: Patching vulnerable dependencies
+
 ## 0.1.3
 
 ## 0.1.2
