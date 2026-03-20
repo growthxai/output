@@ -1,0 +1,89 @@
+---
+title: "Claude Code"
+description: "Output is the first programming framework designed for AI coding agents — and Claude Code is how you use it"
+---
+
+Output was designed for Claude Code from day one. We started with support for multiple coding assistants, then made a deliberate choice: ship only what we trust our own codebase with at GrowthX (we welcome community contributions for other assistants).
+
+Every workflow keeps its files together — `workflow.ts`, `steps.ts`, `types.ts`, prompts, scenarios, traces, cost data — no scattering across folders. Describe what you want in plain English, and Claude Code writes correct, idiomatic Output code. The plugin gives it deep knowledge of the framework's conventions, patterns, and common mistakes.
+
+## Installing the Plugin
+
+When you create a new project with `npx @outputai/cli init`, the plugin is installed automatically. You're ready to go.
+
+To update it alongside your CLI:
+
+```bash
+npx output update --agents
+```
+
+If you ever need to install manually:
+
+```bash
+claude plugin marketplace add growthxai/output
+claude plugin install outputai@outputai
+```
+
+## What the Plugin Gives Claude Code
+
+The Output plugin isn't a wrapper around a few CLI commands. It's a comprehensive system with **3 slash commands**, **5 specialized agents**, and **32 skills** that give Claude Code expert-level knowledge of the Output framework.
+
+When you start a Claude Code session in an Output project, the plugin loads automatically. It injects the full framework context — every convention, every pattern, every rule — so Claude Code understands Output from the first message.
+
+### Slash Commands
+
+In practice, you rarely need to type these directly — Claude Code picks the right skill or command based on what you ask in plain English. But it's useful to know what's available so you understand what's happening under the hood.
+
+| Command | What it does | Example |
+|---------|-------------|---------|
+| `/outputai:plan_workflow` | Produces a detailed implementation plan before writing code. Covers workflow structure, step boundaries, prompt design, error handling, and testing strategy. Saves to `.outputai/plans/`. | `A workflow that researches a company and produces a sales brief` |
+| `/outputai:build_workflow` | Takes a plan and generates working code — `workflow.ts`, `steps.ts`, `types.ts`, prompts, evaluators, and test scenarios. Every file follows Output conventions. | `.outputai/plans/2026_03_19_company_research/PLAN.md` |
+| `/outputai:debug_workflow` | Checks infrastructure, pulls execution traces, identifies the failure, and suggests a fix. Systematic — no guessing. | `The company_research workflow is timing out on the scrape step` |
+
+### Specialized Agents
+
+The plugin includes 5 expert agents that Claude Code delegates to automatically based on what you're asking.
+
+| Agent | Expertise |
+|-------|-----------|
+| **Workflow Planner** | Designs workflow architecture, step boundaries, orchestration patterns |
+| **Workflow Quality** | Reviews code for framework compliance, catches common mistakes |
+| **Workflow Debugger** | Diagnoses execution failures using traces and error patterns |
+| **Prompt Writer** | Creates and reviews `.prompt` files — Liquid.js templates, YAML frontmatter, provider config |
+| **Context Fetcher** | Retrieves existing patterns from your project to ensure consistency |
+
+### Skills
+
+Skills are the building blocks that power the commands and agents — 32 in total across five categories:
+
+- **Development** — Creates every file type in an Output project with correct patterns, imports, and conventions
+- **Workflow operations** — Run, start, check status, retrieve results, list workflows
+- **Monitoring and debugging** — Analyze traces, check service health, identify failure patterns
+- **Error diagnosis** — Six skills for the most common mistakes: wrong `zod` imports, non-determinism in workflows, try-catch swallowing retries, missing schemas, direct I/O in workflow functions, using `axios`/`fetch` instead of `@outputai/http`
+- **Credentials** — Initialize encrypted stores, edit secrets, wire to environment variables
+
+## What Gets Enforced
+
+The plugin enforces Output's conventions so you don't accidentally create patterns that break in production:
+
+- Import `z` from `@outputai/core`, never from `zod` directly
+- All I/O goes in steps, never in workflow functions
+- Use `@outputai/http` for HTTP calls, not `axios` or `fetch`
+- Use `@outputai/llm` for LLM calls, not provider libraries directly
+- ES module imports always use `.js` extensions
+- Every step and workflow has input and output schemas
+- Prompt templates use Liquid.js syntax, not Handlebars
+- Don't wrap step calls in try-catch (it swallows the retry logic)
+
+These aren't arbitrary rules. Each one exists because we hit the bug in production at GrowthX and built the guardrail so you don't have to.
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Learning Path" icon="route" href="/start-here/learning-path">
+    A structured guide through the rest of the documentation.
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/workflows">
+    Deep dive into workflow structure, patterns, and orchestration.
+  </Card>
+</CardGroup>

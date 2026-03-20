@@ -9,130 +9,118 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "tabs": [
-      {
-        "tab": "Guides",
-        "groups": [
-          {
-            "group": " ",
-            "pages": [
-              "index"
-            ]
-          },
-          {
-            "group": "Start Here",
-            "pages": [
-              "start-here/getting-started",
-              "start-here/learning-path"
-            ]
-          },
-          {
-            "group": "Workflows",
-            "pages": [
-              "workflows/index",
-              "workflows/context",
-              "workflows/child-workflows",
-              "workflows/parallel-execution",
-              "workflows/external-integration",
-              "workflows/running"
-            ]
-          },
-          {
-            "group": "Steps",
-            "pages": [
-              "steps/index",
-              "steps/best-practices"
-            ]
-          },
-          {
-            "group": "Prompts",
-            "pages": [
-              "prompts/index",
-              "prompts/templating",
-              "prompts/best-practices"
-            ]
-          },
-          {
-            "group": "Evaluators",
-            "pages": [
-              {
-                "group": "Evaluators as Steps",
-                "pages": [
-                  "evaluators/index",
-                  "evaluators/best-practices"
-                ]
-              },
-              {
-                "group": "Workflow Evaluators and Datasets",
-                "pages": [
-                  "evaluators/workflow-evaluators",
-                  "evaluators/verdicts",
-                  "evaluators/datasets",
-                  "evaluators/datasets-and-cli"
-                ]
-              }
-            ]
-          },
-          {
-            "group": "Clients",
-            "pages": [
-              "clients/index"
-            ]
-          },
-          {
-            "group": "Production Readiness",
-            "pages": [
-              "operations/credentials",
-              "operations/error-handling",
-              "operations/error-hooks",
-              "operations/llm-costs",
-              "operations/testing",
-              "operations/tracing",
-              "operations/cost-estimation"
-            ]
-          },
-          {
-            "group": "Coding Assistants",
-            "pages": [
-              "coding-assistants/claude-code"
-            ]
-          },
-          {
-            "group": "Packages",
-            "pages": [
-              "packages/core",
-              "packages/cli",
-              "packages/credentials",
-              "packages/evals",
-              "packages/http",
-              "packages/llm"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "groups": [
-          {
-            "group": "Overview",
-            "pages": [
-              "api/index",
-              "api/configuration",
-              "api/authentication",
-              "api/errors"
-            ]
-          }
-        ],
-        "openapi": "openapi.json"
-      }
-    ]
-  },
+    "groups": [
+    {
+      "group": " ",
+      "pages": [
+        "index"
+      ]
+    },
+    {
+      "group": "Start Here",
+      "pages": [
+        "start-here/getting-started",
+        "start-here/claude-code",
+        "start-here/learning-path"
+      ]
+    },
+    {
+      "group": "Workflows",
+      "pages": [
+        "workflows/index",
+        "workflows/context",
+        "workflows/child-workflows",
+        "workflows/parallel-execution",
+        "workflows/external-integration",
+        "workflows/running"
+      ]
+    },
+    {
+      "group": "Steps",
+      "pages": [
+        "steps/index",
+        "steps/best-practices"
+      ]
+    },
+    {
+      "group": "Prompts",
+      "pages": [
+        "prompts/index",
+        "prompts/templating",
+        "prompts/best-practices"
+      ]
+    },
+    {
+      "group": "Evaluators",
+      "pages": [
+        {
+          "group": "Evaluators as Steps",
+          "pages": [
+            "evaluators/index",
+            "evaluators/best-practices"
+          ]
+        },
+        {
+          "group": "Workflow Evaluators and Datasets",
+          "pages": [
+            "evaluators/workflow-evaluators",
+            "evaluators/verdicts",
+            "evaluators/datasets",
+            "evaluators/datasets-and-cli"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Clients",
+      "pages": [
+        "clients/index"
+      ]
+    },
+    {
+      "group": "Production Readiness",
+      "pages": [
+        "operations/credentials",
+        "operations/error-handling",
+        "operations/error-hooks",
+        "operations/llm-costs",
+        "operations/testing",
+        "operations/tracing",
+        "operations/cost-estimation"
+      ]
+    },
+    {
+      "group": "Integrate with Your App",
+      "openapi": "openapi.json",
+      "pages": [
+        "api/index",
+        "api/configuration",
+        "api/authentication",
+        "api/errors"
+      ]
+    },
+    {
+      "group": "Packages",
+      "pages": [
+        "packages/core",
+        "packages/cli",
+        "packages/credentials",
+        "packages/evals",
+        "packages/http",
+        "packages/llm"
+      ]
+    }
+  ]},
   "logo": {
     "light": "/logo/logo.svg",
     "dark": "/logo/logo.svg"
   },
   "navbar": {
     "links": [
+      {
+        "label": "Reference",
+        "href": "https://ref.output.ai"
+      },
       {
         "label": "GitHub",
         "href": "https://github.com/growthxai/output"

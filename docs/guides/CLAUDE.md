@@ -6,31 +6,33 @@ This file provides guidance to Claude Code when generating documentation for the
 
 ## 1. Output Framework Overview
 
-Output is an opinionated framework for building AI workflows, extracted from production use at GrowthX.ai. It provides durable execution, prompt management, and LLM integration out of the box.
+Output is the open-source TypeScript framework for building AI workflows and agents. Designed for Claude Code — describe what you want, Claude builds it, with all the best practices already in place. Prompts, evals, tracing, cost tracking, orchestration, credentials. One framework. No SaaS fragmentation.
 
-### Why Output Exists
+### Build AI Using AI
 
-Building AI workflows at scale surfaces the same problems repeatedly:
+Output is the first framework designed for AI coding agents. The entire codebase is structured so Claude Code can scaffold, plan, generate, test, and iterate on your workflows. Each workflow is a folder — `workflow.ts`, `steps.ts`, `types.ts`, `prompts/`, `evaluators.ts` — everything the agent needs to understand context lives together.
 
-- **Prompt management**: Prompts scattered as strings in code or locked in external dashboards. Output uses `.prompt` files - version-controlled, reviewable, deployable with your code.
-- **Failure handling**: LLMs timeout, APIs fail, rate limits hit. Output builds on Temporal for automatic retries and durable execution that survives crashes.
-- **Non-determinism**: LLM outputs vary. Output provides evaluators - LLM-as-judge patterns with confidence scores to programmatically assess quality.
-- **Cost tracking**: Every LLM call traces token counts and model info. Query execution history to see costs by workflow, step, or time period.
-- **Provider switching**: Prompts declare their provider in YAML frontmatter. Switch from Anthropic to OpenAI by changing one line.
-- **API integrations**: The `httpClient` wrapper adds tracing to every request. See which APIs are slow, which fail, debug with full request/response history.
+Beginners ship professional code from day one — the conventions teach best practices. Experienced AI engineers stop rebuilding the same infrastructure.
 
-### Code-First Philosophy
+### Everything Included
 
-Visual workflow builders (n8n, Zapier, Langflow) work for simple automations but hit walls when you need complex loops, conditional error handling, code review, or CI/CD. Output is code-first because LLMs write code faster than you can drag boxes.
+No more stitching together SaaS subscriptions. Output handles the fundamentals in one place:
+
+- **Prompt management**: `.prompt` files with LiquidJS templating — version-controlled, reviewable in PRs, deployed with your code. Not scattered strings. Not locked in external dashboards.
+- **Multi-provider LLM**: Anthropic, OpenAI, Azure, Vertex AI, Bedrock. Switch providers by changing one line in your prompt file.
+- **LLM-as-judge evals**: Built-in evaluators with confidence scores and reasoning. Test non-deterministic code programmatically, not vibes.
+- **Tracing and cost tracking**: Every operation traced automatically. Token counts, costs, latency. JSON on disk, zero config. You own your data.
+- **Durable orchestration**: Temporal under the hood. Automatic retries, workflow history, replay on failure. You don't think about it until you need it.
+- **Encrypted credentials**: AES-256-GCM encrypted secrets, scoped per environment and workflow. No more sharing `.env` files or external vault subscriptions.
 
 ### The Workflow/Step Split
 
-This is the core architectural pattern:
+Two functions to organize your code: `workflow()` for orchestration, `step()` for I/O.
 
 - **Workflows** = Pure orchestration. Control flow, conditionals, loops. No I/O.
 - **Steps** = Where I/O happens. API calls, LLM requests, database queries.
 
-Temporal replays workflow code on failures. If you make an API call directly in a workflow, it might run twice. Steps are the transaction boundary - they run once and their results are cached.
+Temporal replays workflow code on failures. If you make an API call directly in a workflow, it might run twice. Steps are the transaction boundary — they run once and their results are cached.
 
 ---
 
@@ -44,7 +46,7 @@ Output is a monorepo with three packages. When generating documentation, read th
 | `@outputai/llm` | generateText, Output.object, Output.array, Output.choice | `sdk/llm/src/` |
 | `@outputai/http` | Traced HTTP client wrapper | `sdk/http/src/` |
 
-**Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct SDK patterns.
+**Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct framework patterns.
 
 ---
 
@@ -75,6 +77,16 @@ TypeScript/JavaScript engineers who've been building AI features in production. 
 **What Output gives them**: Everything they'd build anyway — prompts, tracing, evals, cost tracking, durable execution — already done, integrated, and structured for AI agents.
 
 **What good docs feel like**: "This is how I'd build it — but it's already done."
+
+### What Beginner-Friendly Looks Like in Practice
+
+These are the concrete techniques used across our guides:
+
+- **Always show both paths**: The AI-assisted way (Claude Code prompt) AND the manual CLI command. Use the "Under the hood" pattern to bridge them — show the natural language request, then the CLI command underneath.
+- **Explain why, not just how**: "Steps are the transaction boundary — they run once and their results are cached" is better than "put I/O in steps."
+- **Use parenthetical asides for important constraints**: "(No I/O here — this matters later when we cover rewinding and replaying workflows.)" Flag constraints at the moment the reader encounters them, without derailing the explanation.
+- **Scaffold, don't lecture**: Trust the reader's intelligence. Provide enough context to follow along without over-explaining basics they can infer.
+- **Real outcomes immediately**: The reader should see a working result within the first few minutes of following a guide, then understand the theory after.
 
 ---
 
@@ -118,6 +130,34 @@ Don't create separate callout boxes for fundamentals. Explain concepts when they
 When deeper explanation is needed, link to external resources:
 "For advanced prompt techniques, see [Anthropic's guide](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering)."
 
+### Recurring Patterns
+
+These patterns appear consistently across our guides. Use them:
+
+**Show → Explain → Deepen → Reference**: Show working code first, explain what each part does, go deeper into rules/options, then link forward to related guides.
+
+**"Under the hood"**: When demonstrating Claude Code workflows, show the natural language prompt as a blockquote, then the CLI command that runs beneath it:
+
+```markdown
+Tell Claude Code:
+
+> "Run the blog_evaluator workflow with the test scenario"
+
+**Under the hood**, Claude Code runs:
+
+\`\`\`bash
+npx output workflow run blog_evaluator paulgraham_hwh
+\`\`\`
+```
+
+**"In practice this means:"**: Use before translating an abstract rule into a concrete example. Pairs well with Do/Don't `<CardGroup>` layouts.
+
+**"Notice the [pattern]"**: Draw the reader's attention to a structural choice in the code they just saw: "Notice the **API client pattern**: the Jina client lives in `src/clients/jina.ts`, separate from the workflow."
+
+**Constraints taught with reasoning**: Never list a rule without its "because." "Don't make API calls directly in workflows — Temporal replays workflow code on failures, so a direct API call might run twice."
+
+**Metaphors — sparingly**: "Think of it as the conductor — it coordinates, but doesn't do the work itself." One metaphor to anchor a concept, then move on. Don't extend or mix metaphors.
+
 ---
 
 ## 5. Writing Guidelines
@@ -132,9 +172,13 @@ When deeper explanation is needed, link to external resources:
 
 ### Code Examples
 
-- Show real, working code - never pseudocode
-- Use realistic variable names and domains (company research, content generation - not foo/bar)
-- Include file paths as comments above code blocks
+- Show real, working code — never pseudocode
+- Use realistic domains: lead enrichment, company research, blog evaluation, content generation, web summarization — never foo/bar/baz
+- Include file path comments above code blocks: `// src/workflows/research/workflow.ts`
+- Use language tags with filenames on code blocks: ````typescript workflow.ts`
+- Use `<CodeGroup>` for multi-file examples (workflow.ts + steps.ts + prompt file together)
+- Progressive complexity: simple example first, then add features in the next example
+- When showing Claude Code–generated code, show the natural language prompt that triggered it
 - Test all examples before publishing
 
 ### Formatting
@@ -142,27 +186,46 @@ When deeper explanation is needed, link to external resources:
 Every MDX page needs frontmatter:
 ```yaml
 ---
-title: Clear, descriptive title
-description: Concise summary for SEO/navigation
+title: "Clear, descriptive title"
+description: "Concise summary for SEO/navigation"
 ---
 ```
 
-Use language tags on all code blocks. Use relative paths for internal links (`/workflows` not full URLs).
+Use language tags on all code blocks. Use relative paths for internal links (`/workflows` not full URLs). When adding a new page, add it to `docs.json` navigation so it appears in the sidebar.
 
----
+### Mintlify Components
 
-## 6. Do Not
+Use these components consistently. Don't invent new patterns.
+
+| Component | When to use | Example |
+|-----------|-------------|---------|
+| `<Note>` | Important context that changes how the reader approaches the content | "How this tutorial works: We'll use Claude Code throughout..." |
+| `<Tip>` | Optimization hints, nice-to-know info that won't break anything if skipped | "The first run downloads Docker images — this takes a few minutes." |
+| `<Warning>` | Risk that should prevent or modify an action | "When using polling, set the step's `startToCloseTimeout` high enough..." |
+| `<CodeGroup>` | Multi-file examples — show workflow.ts, steps.ts, and .prompt files as tabs | Getting Started code walkthrough |
+| `<CardGroup>` + `<Card>` | "Next Steps" navigation at end of pages, or Do/Don't comparison layouts | Workflow Rules (Do vs Don't cards), end-of-guide navigation |
+| Tables | API options, property references, comparison matrices, default values | Workflow Function options, error type references |
+
+**Do not** use `<Info>`, `<Accordion>`, or other Mintlify components not listed above unless specifically discussed.
+
+### Do Not
 
 - Skip frontmatter on any MDX file
 - Use absolute URLs for internal links
 - Over-explain or pad content
 - Use emojis unless explicitly requested
-- Use corporate speak ("leverage", "utilize", "ecosystem")
+- Use corporate speak ("leverage", "utilize", "paradigm shift", "ecosystem")
 - Show pseudocode or incomplete examples
+- Hand-wave with "details omitted for brevity" — show the real code or don't show it
+- Front-load theory in callout boxes — weave concepts into the narrative
+- Use generic domains (foo, bar, baz, MyClass, doSomething)
+- Add prerequisite warnings at the top of pages — assume the reader follows the learning path
+- Use hedging language ("might", "perhaps", "it seems like")
+- Call Output an "SDK" — Output is a framework, not an SDK
 
 ---
 
-## 7. Documentation Writing Framework
+## 6. Documentation Writing Framework
 
 When creating new documentation or making major revisions to existing files in this folder, you MUST follow this sequential workflow. Do not skip steps or combine them.
 
@@ -202,7 +265,7 @@ When creating new documentation or making major revisions to existing files in t
 - Verify all code examples are accurate and tested
 - Check frontmatter is complete
 - Ensure links work and formatting is correct
-- Final review against the "Do Not" list in Section 6
+- Final review against the "Do Not" list in Section 5
 
 ### Framework Enforcement
 

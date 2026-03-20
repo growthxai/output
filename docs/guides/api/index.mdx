@@ -1,80 +1,80 @@
 ---
-title: "Features"
-description: "Overview of the Output API capabilities"
+title: "Overview"
+description: "How your application communicates with Output workflows over HTTP"
 ---
 
-The Output API server gives you HTTP endpoints for running workflows, checking their status, and retrieving results. It starts automatically when you run `output dev` and listens on port 3001.
+Your application talks to Output through a REST API. When you deploy Output, the API server exposes HTTP endpoints for running workflows, checking their status, and retrieving results. Your backend sends a request, Output orchestrates the workflow, and you get structured results back.
 
-## Running Workflows
+During development, the API server starts automatically on port 3001 when you run `output dev`.
 
-### Run and Wait
+## Two Ways to Run Workflows
 
-`POST /workflow/run` — Run a workflow synchronously. The request blocks until the workflow completes and returns the result.
+Choose based on how long your workflow takes and how your application handles responses.
 
-### Start Without Waiting
+### Run and Wait (Synchronous)
 
-`POST /workflow/start` — Start a workflow asynchronously. Returns the workflow ID immediately. Use the status and result endpoints to check on it later.
+`POST /workflow/run` blocks until the workflow completes and returns the result in the response body. Use this when workflows complete quickly (seconds) and your client can wait.
 
-## Checking Status and Results
+```bash
+curl -X POST http://localhost:3001/workflow/run \
+  -H "Content-Type: application/json" \
+  -d '{"workflowName": "summarize_url", "input": {"url": "https://example.com/article"}}'
+```
 
-### Get Status
+### Start and Poll (Asynchronous)
 
-`GET /workflow/:id/status` — Returns the current status of a workflow execution. Status values: `running`, `completed`, `failed`, `canceled`, `terminated`, `timed_out`, `continued_as_new`.
+`POST /workflow/start` returns the workflow ID immediately. Poll for status and retrieve the result when ready. Use this for longer workflows — minutes or more — where blocking a request isn't practical.
 
-### Get Result
+```bash
+# Start the workflow
+curl -X POST http://localhost:3001/workflow/start \
+  -H "Content-Type: application/json" \
+  -d '{"workflowName": "company_research", "input": {"domain": "example.com"}}'
 
-`GET /workflow/:id/result` — Returns the output and trace info for a completed workflow. Returns `424` if the workflow is still running.
+# Check status
+curl http://localhost:3001/workflow/<workflow-id>/status
 
-### List Runs
+# Get result when completed
+curl http://localhost:3001/workflow/<workflow-id>/result
+```
 
-`GET /workflow/runs` — Returns a list of workflow runs with optional filtering by workflow type and limit.
+## Interacting with Running Workflows
 
-## Signals, Queries, and Updates
+Output supports sending data to running workflows and reading their state via signals, queries, and updates. The workflow must define handlers for these — see [External Integration](/workflows/external-integration) for how to set them up.
 
-Send signals to a running workflow, query its state, or execute an update. The workflow must define handlers for the given signal, query, or update name — see [External Integration](/workflows/external-integration) for workflow usage.
-
-### Signal
-
-`POST /workflow/:id/signal/:signal` — Send a signal to a workflow. The request returns when the signal is accepted (the workflow may process it asynchronously). See [External Integration](/workflows/external-integration#signal-push-data-in) for defining signal handlers.
-
-### Query
-
-`POST /workflow/:id/query/:query` — Send a read-only query to a workflow and receive the result. Queries do not change workflow state. See [External Integration](/workflows/external-integration#query-read-state-without-changing-it) for defining query handlers.
-
-### Update
-
-`POST /workflow/:id/update/:update` — Execute an update on a workflow and wait for the result. Updates can change workflow state. See [External Integration](/workflows/external-integration#update-change-state-and-get-confirmation) for defining update handlers.
+| Method | What it does | Use case |
+|--------|-------------|----------|
+| **Signal** `POST /workflow/:id/signal/:name` | Push data into a workflow | Human approval, external events |
+| **Query** `POST /workflow/:id/query/:name` | Read workflow state without changing it | Progress checks, status dashboards |
+| **Update** `POST /workflow/:id/update/:name` | Change state and get confirmation | Configuration changes, priority updates |
 
 ## Stopping Workflows
 
-### Stop (Graceful)
-
-`PATCH /workflow/:id/stop` — Gracefully stop a running workflow.
-
-### Terminate (Force)
-
-`POST /workflow/:id/terminate` — Force terminate a workflow immediately without allowing cleanup.
-
-## Webhooks
-
-### Send Feedback
-
-`POST /workflow/:id/feedback` — Resume a workflow that's waiting on a webhook. Used with `sendPostRequestAndAwaitWebhook` — see [External Integration](/workflows/external-integration#pattern-1-workflow-initiates-the-request).
+- `PATCH /workflow/:id/stop` — Graceful stop. Allows cleanup handlers to run.
+- `POST /workflow/:id/terminate` — Force terminate. Immediate, no cleanup.
 
 ## Workflow Discovery
 
-### Get Catalog
-
-`GET /workflow/catalog` — Returns all available workflows with their input and output schemas.
-
-`GET /workflow/catalog/:id` — Get a specific catalog by ID.
+`GET /workflow/catalog` returns all available workflows with their input and output schemas. Use this to build dynamic UIs or validate inputs before submitting.
 
 ## Debugging
 
-### Get Trace Log
-
-`GET /workflow/:id/trace-log` — Returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format.
+`GET /workflow/:id/trace-log` returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format.
 
 <Note>
 For remote traces, the API server needs AWS credentials (`OUTPUT_AWS_ACCESS_KEY_ID`, `OUTPUT_AWS_SECRET_ACCESS_KEY`, `OUTPUT_AWS_REGION`).
 </Note>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/api/configuration">
+    Base URL, ports, and environment variables for the API server.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    How auth works in development vs production.
+  </Card>
+  <Card title="Error Responses" icon="circle-exclamation" href="/api/errors">
+    Error codes, response format, and how to handle failures.
+  </Card>
+</CardGroup>
