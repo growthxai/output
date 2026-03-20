@@ -1,19 +1,19 @@
 ---
-title: "Workflow Evaluators"
+title: "Overview"
 description: "Test workflow quality across datasets without modifying your workflow code"
 ---
 
-Your workflows have [evaluators as steps](/evaluators) that power generate-evaluate-retry loops in production. Workflow evaluators answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?"
+Your workflows have [evaluator steps](/evaluators/evaluator-step) that power generate-evaluate-retry loops in production. Evaluation workflows answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?"
 
 Workflow evaluators run _outside_ your workflow. You define evaluators with `verify()`, write test cases as YAML datasets, and run them with the CLI. The framework feeds each dataset case through your evaluators and reports pass/partial/fail verdicts. Nothing in your production workflow changes.
 
 This is how you catch regressions when you update a prompt, swap a model, or refactor a step. Run evals before deploying and you'll know if quality dropped.
 
-## Evaluators as Steps vs Workflow Evaluators
+## Evaluator Step vs Evaluation Workflow
 
 These serve different purposes and live in different places:
 
-| | Evaluators as Steps | Workflow Evaluators |
+| | Evaluator Step | Evaluation Workflow |
 |---|---|---|
 | **Purpose** | Control workflow flow at runtime | Test quality across datasets |
 | **Runs** | Inside production workflows | Outside, via CLI |
@@ -22,7 +22,7 @@ These serve different purposes and live in different places:
 | **Affects output** | Yes — retry, branch, gate | No — reports results only |
 | **Uses** | Quality gates, self-correcting agents | Regression testing, prompt comparison, CI/CD |
 
-Evaluators as steps are documented in [The evaluators.ts File](/evaluators). This section covers workflow evaluators.
+Evaluator steps are documented in [Evaluator Step](/evaluators/evaluator-step). This section covers evaluation workflows.
 
 ## Directory Structure
 

@@ -5,7 +5,7 @@ description: "Workflow evaluation using datasets, typed evaluators, and determin
 
 The `@outputai/evals` package lets you test workflow quality across datasets — without modifying your workflow code. You define evaluators with `verify()`, write datasets in YAML, and run them with the CLI. Each dataset case feeds a saved workflow input/output pair through your evaluators, and the framework reports pass/partial/fail verdicts per case.
 
-This is the complement to [evaluators as steps](/evaluators) that run inside workflows. Those evaluators power generate-evaluate-retry loops in production. Workflow evaluators answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?" For the full guide, see [Workflow Evaluators](/evaluators/workflow-evaluators).
+This is the complement to [evaluator steps](/evaluators/evaluator-step) that run inside workflows. Those evaluators power generate-evaluate-retry loops in production. Evaluation workflows answer a different question: "across a set of known inputs, does my workflow still produce acceptable output?" For the full guide, see [Evaluation Workflow](/evaluators/workflow-evaluators).
 
 ## Installation
 

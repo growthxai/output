@@ -18,6 +18,7 @@
     },
     {
       "group": "Start Here",
+      "icon": "rocket",
       "pages": [
         "start-here/getting-started",
         "start-here/claude-code",
@@ -26,6 +27,7 @@
     },
     {
       "group": "Workflows",
+      "icon": "diagram-project",
       "pages": [
         "workflows/index",
         "workflows/context",
@@ -37,6 +39,7 @@
     },
     {
       "group": "Steps",
+      "icon": "layer-group",
       "pages": [
         "steps/index",
         "steps/best-practices"
@@ -44,6 +47,7 @@
     },
     {
       "group": "Prompts",
+      "icon": "message",
       "pages": [
         "prompts/index",
         "prompts/templating",
@@ -51,46 +55,52 @@
       ]
     },
     {
-      "group": "Evaluators",
+      "group": "Clients",
+      "icon": "plug",
       "pages": [
+        "clients/index"
+      ]
+    },
+    {
+      "group": "Costs",
+      "icon": "receipt",
+      "pages": [
+        "costs/index",
+        "costs/cost-events"
+      ]
+    },
+    {
+      "group": "Evaluators",
+      "icon": "scale-balanced",
+      "pages": [
+        "evaluators/index",
+        "evaluators/evaluator-step",
         {
-          "group": "Evaluators as Steps",
-          "pages": [
-            "evaluators/index",
-            "evaluators/best-practices"
-          ]
-        },
-        {
-          "group": "Workflow Evaluators and Datasets",
+          "group": "Evaluation Workflow",
           "pages": [
             "evaluators/workflow-evaluators",
             "evaluators/verdicts",
             "evaluators/datasets",
             "evaluators/datasets-and-cli"
           ]
-        }
-      ]
-    },
-    {
-      "group": "Clients",
-      "pages": [
-        "clients/index"
+        },
+        "evaluators/best-practices"
       ]
     },
     {
       "group": "Production Readiness",
+      "icon": "shield-halved",
       "pages": [
         "operations/credentials",
         "operations/error-handling",
         "operations/error-hooks",
-        "operations/llm-costs",
         "operations/testing",
-        "operations/tracing",
-        "operations/cost-estimation"
+        "operations/tracing"
       ]
     },
     {
       "group": "Integrate with Your App",
+      "icon": "code",
       "openapi": "openapi.json",
       "pages": [
         "api/index",
@@ -101,6 +111,7 @@
     },
     {
       "group": "Packages",
+      "icon": "cube",
       "pages": [
         "packages/core",
         "packages/cli",
