@@ -439,7 +439,7 @@ Options set in the prompt file (temperature, maxTokens) can be overridden at cal
 
 ## LLM call cost event
 
-Each `generateText` and `streamText` call emits a `llm:call_cost` event after the LLM responds. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('llm:call_cost', handler)` from `@outputai/core/hooks` in a hook file listed under `output.hookFiles`. The payload includes token usage, computed cost, workflow/activity context, and model id. For payload details, setup, and cost structure, see [LLM costs](/operations/llm-costs).
+Each `generateText` and `streamText` call emits a `llm:call_cost` event after the LLM responds. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('llm:call_cost', handler)` from `@outputai/core/hooks` in a hook file listed under `output.hookFiles`. The payload includes token usage, computed cost, workflow/activity context, and model id. For payload details, setup, and cost structure, see [Cost Events](/costs/cost-events).
 
 ## loadPrompt
 

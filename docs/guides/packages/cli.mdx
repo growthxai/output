@@ -336,7 +336,7 @@ Use `--format json` to get the full untruncated trace. The text format truncates
 
 ### output workflow cost
 
-Calculate the estimated dollar cost of a workflow execution from its trace. Covers LLM token costs and API service costs. See [Cost Estimation](/operations/cost-estimation) for details on pricing configuration and the `config/costs.yml` override file.
+Calculate the estimated dollar cost of a workflow execution from its trace. Covers LLM token costs and API service costs. See [Cost Estimation](/costs) for details on pricing configuration and the `config/costs.yml` override file.
 
 ```bash
 output workflow cost <workflowId> [tracePath]
@@ -370,7 +370,7 @@ output workflow cost lead_enrichment_QlcADmOM --format json
 ```
 
 <Tip>
-If the report shows "Unknown models", add them to `config/costs.yml` in your project root. See [Cost Estimation — Pricing Configuration](/operations/cost-estimation#pricing-configuration) for the format.
+If the report shows "Unknown models", add them to `config/costs.yml` in your project root. See [Cost Estimation — Pricing Configuration](/costs#pricing-configuration) for the format.
 </Tip>
 
 ## Evaluation Commands
