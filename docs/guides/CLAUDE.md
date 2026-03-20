@@ -66,6 +66,12 @@ Engineers getting into AI development. May come from frontend, backend, ops, or 
 
 **What good docs feel like**: "I built something real and it works — and I didn't have to become an expert first."
 
+**Common traps** (watch for these and preempt them):
+- Putting API calls directly in `workflow()` instead of `step()` — this is the #1 beginner mistake
+- Confusing the orchestration layer (workflow) with the execution layer (step)
+- Not understanding *why* Temporal exists — they'll resist the workflow/step split until they see what happens without it
+- Treating `.prompt` files as just strings — missing that they're version-controlled, templated, and reviewable
+
 ### The Experienced AI Engineer
 
 TypeScript/JavaScript engineers who've been building AI features in production. They know what good AI infrastructure looks like because they've had to build it themselves, piece by piece.
@@ -78,6 +84,23 @@ TypeScript/JavaScript engineers who've been building AI features in production. 
 
 **What good docs feel like**: "This is how I'd build it — but it's already done."
 
+**Fast-paths** (what they already know, so get out of the way):
+- Retry semantics, error handling patterns, async orchestration — show the Output API and move on
+- They'll skim code examples for the shape of the API, not read every line — make examples scannable
+- They want to know what's opinionated vs. configurable — flag Output's decisions and where to override them
+
+### The "Badass User" Principle
+
+Documentation doesn't exist to explain Output. It exists to make the reader capable of building things they couldn't build before. Every guide should answer one question: **"What can the reader do after this that they couldn't do before?"**
+
+Frame guide openings around the capability gained, not the topic covered:
+
+**Good**: "After this guide, you can make any external API call reliable — retries, caching, and failure handling — without thinking about infrastructure."
+
+**Bad**: "This guide covers Output's step() function and its configuration options."
+
+The reader doesn't care about Output. They care about what Output lets them build. Write for the outcome, not the tool.
+
 ### What Beginner-Friendly Looks Like in Practice
 
 These are the concrete techniques used across our guides:
@@ -87,6 +110,7 @@ These are the concrete techniques used across our guides:
 - **Use parenthetical asides for important constraints**: "(No I/O here — this matters later when we cover rewinding and replaying workflows.)" Flag constraints at the moment the reader encounters them, without derailing the explanation.
 - **Scaffold, don't lecture**: Trust the reader's intelligence. Provide enough context to follow along without over-explaining basics they can infer.
 - **Real outcomes immediately**: The reader should see a working result within the first few minutes of following a guide, then understand the theory after.
+- **Simplified models first, refined later**: Give a mental model that's useful now, even if incomplete. "Workflows are the plan, steps are the work" is enough to start. Correct and deepen the model when the reader encounters the edge case that demands it — not before.
 
 ---
 
@@ -96,7 +120,7 @@ Model our documentation after [Ruby on Rails Guides](https://guides.rubyonrails.
 
 ### Structure Principles
 
-**Progressive complexity**: Start with the simplest working example, then layer in features. Each section builds on previous knowledge.
+**Progressive complexity**: Start with the simplest working example, then layer in features. Each section builds on previous knowledge. Introduce a maximum of 2-3 new concepts per section — then give the reader something to do before introducing more. Working memory is the bottleneck, not the reader's intelligence.
 
 **Problem-first framing**: Open with the problem being solved, then show the solution. Not "here's the API" but "here's what you're trying to do."
 
@@ -106,6 +130,8 @@ Model our documentation after [Ruby on Rails Guides](https://guides.rubyonrails.
 ```javascript
 // src/workflows/research/workflow.ts
 ```
+
+**Exposure before mastery**: Not every concept needs deep understanding on first encounter. Some should be planted as seeds and deepened later: "Temporal handles retries under the hood — you'll configure this in the orchestration guide." This prevents the reader from getting stuck on concepts they don't need yet.
 
 ### Page Guidelines
 
@@ -157,6 +183,12 @@ npx output workflow run blog_evaluator paulgraham_hwh
 **Constraints taught with reasoning**: Never list a rule without its "because." "Don't make API calls directly in workflows — Temporal replays workflow code on failures, so a direct API call might run twice."
 
 **Metaphors — sparingly**: "Think of it as the conductor — it coordinates, but doesn't do the work itself." One metaphor to anchor a concept, then move on. Don't extend or mix metaphors.
+
+**"Try this"**: After showing a working example, prompt the reader to modify it. One sentence, immediately actionable: "Try adding a second step that validates the LLM output before returning it." This switches the brain from consumption to construction.
+
+**Pattern exposure through variation**: When teaching a structural pattern, show 2-3 different workflows side by side before explaining. The reader recognizes the recurring shape before you name it.
+
+**Momentum through the hard parts**: Never let more than two sections pass without the reader seeing a working result. Acknowledge difficulty without apologizing, make progress visible: "Your workflow now handles failures automatically — that's production-grade."
 
 ---
 
@@ -229,15 +261,15 @@ Use these components consistently. Don't invent new patterns.
 
 When creating new documentation or making major revisions to existing files in this folder, you MUST follow this sequential workflow. Do not skip steps or combine them.
 
-### Step 1: Topic Understanding
-- Clearly define the topic to be documented
+### Step 1: Define the Reader's Transformation
+- Answer: "After reading this, the reader can ___." Write a concrete capability, not a topic summary.
 - Identify which Output.ai package(s) are involved
-- Determine the scope and boundaries of the documentation
+- Determine what the reader needs to know *before* this guide and what they should *not* need to know yet
 
-### Step 2: Persona Immersion
-- Impersonate both target personas from Section 3:
-  - **Beginner AI Engineer**: What would confuse them? What conventions can guide them? Would Claude Code be able to help them through this?
-  - **Experienced AI Engineer**: What technical depth do they expect? What patterns do they want to see? What do they already know?
+### Step 2: Persona Pressure-Test
+- Walk through the guide mentally as both personas from Section 3:
+  - **Beginner AI Engineer**: Where will they get stuck? What common traps does this guide touch? What's the earliest point they can see something work?
+  - **Experienced AI Engineer**: Where will they skim? Where do they need depth vs. just the API surface?
 - Write down what each persona needs from this documentation
 
 ### Step 3: Source Code Research
@@ -249,6 +281,7 @@ When creating new documentation or making major revisions to existing files in t
 ### Step 4: Outline Review (User Checkpoint)
 - Present a structured outline to the user before writing
 - Include:
+  - The reader's transformation statement ("After this, the reader can ___")
   - Proposed sections and their order
   - Key code examples you plan to include
   - Any gaps or questions discovered during research
@@ -263,6 +296,7 @@ When creating new documentation or making major revisions to existing files in t
 ### Step 6: Polish
 - Apply all style guidelines from Section 4 and 5
 - Verify all code examples are accurate and tested
+- Confirm the guide delivers on the transformation promise from Step 1
 - Check frontmatter is complete
 - Ensure links work and formatting is correct
 - Final review against the "Do Not" list in Section 5

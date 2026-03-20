@@ -1,0 +1,112 @@
+---
+title: "Cost Events"
+description: "Monitor LLM costs in real time with the llm:call_cost hook event — log, alert, or aggregate spend as workflows run"
+---
+
+The [cost estimation CLI](/costs) shows you costs after a workflow finishes. Cost events give you the same data in real time — as each LLM call completes, Output emits a `llm:call_cost` event with the model, token usage, and computed dollar cost.
+
+Use this to log costs to your observability stack, trigger alerts when spend exceeds a threshold, or aggregate cost per workflow over time.
+
+## Setup
+
+Cost events use the same [hooks system](/operations/error-hooks) as error hooks:
+
+1. Create a hook file and import `on` from `@outputai/core/hooks`.
+2. Register a handler for `llm:call_cost`.
+3. Add the file path to `output.hookFiles` in `package.json`.
+
+See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file registration pattern.
+
+```javascript src/llm_cost_hooks.js
+import { on } from '@outputai/core/hooks';
+
+on( 'llm:call_cost', async ( { workflowId, activityId, modelId, usage, cost } ) => {
+  console.log( 'LLM call', {
+    workflowId,
+    activityId,
+    modelId,
+    tokens: usage?.totalTokens,
+    cost: cost?.total
+  } );
+} );
+```
+
+Handler errors are caught and logged by the framework — they never affect the workflow or the LLM call that triggered them.
+
+## When events fire
+
+An `llm:call_cost` event is emitted after every `generateText` and `streamText` call completes. For streaming, the event fires when the stream finishes, not when it starts.
+
+## Payload
+
+The handler receives a single object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the call runs inside a workflow. |
+| `activityId` | `string \| undefined` | Temporal activity ID of the step that made the LLM call. Present when the call runs inside a workflow activity. |
+| `modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
+| `usage` | `object` | Token usage for this call. See [Usage shape](#usage-shape). |
+| `cost` | `object` | Computed dollar cost for this call. See [Cost structure](#cost-structure). |
+
+### Usage shape
+
+`usage` follows the AI SDK's [totalUsage](https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-text#total-usage) shape, aggregated across all steps for that call:
+
+```json
+{
+  "inputTokens": 217,
+  "inputTokenDetails": { "noCacheTokens": 217, "cacheReadTokens": 0, "cacheWriteTokens": 0 },
+  "outputTokens": 9,
+  "outputTokenDetails": { "textTokens": null, "reasoningTokens": null },
+  "totalTokens": 226,
+  "reasoningTokens": null,
+  "cachedInputTokens": 0
+}
+```
+
+When the model uses extended thinking, `reasoningTokens` and `outputTokenDetails.reasoningTokens` are set. Cached prompt tokens are reported in `cachedInputTokens` and `inputTokenDetails.cacheReadTokens`.
+
+### Cost structure
+
+Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. The formula is `(tokens / 1_000_000) * pricePerMillion` for each component. Non-cached input uses `inputTokens - (cachedInputTokens ?? 0)`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total` | `number \| null` | Total estimated cost in dollars. `null` if pricing is unavailable for this model. |
+| `message` | `string` | Present when `total` is `null` — describes why cost could not be computed. |
+| `components` | `object` | Present when cost was calculated. Per-token-type breakdown. |
+
+**Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `input` | Cost for non-cached input (prompt) tokens. |
+| `cachedInput` | Cost for cached input tokens (prompt cache read). |
+| `output` | Cost for output (completion) tokens. |
+| `reasoning` | Cost for reasoning/thinking tokens, when the provider exposes them. Omitted when the provider does not separate reasoning from output. |
+
+Each component is either `{ value: number }` or `{ value: null, message: string }` when that component's pricing is unavailable. When a component has `value: null`, `total` still sums the components that have numeric values.
+
+**Successful calculation:**
+
+```json
+{
+  "total": 0.002341,
+  "components": {
+    "input": { "value": 0.001302 },
+    "cachedInput": { "value": 0 },
+    "output": { "value": 0.001039 },
+    "reasoning": { "value": 0.00027 }
+  }
+}
+```
+
+**Unknown model or pricing unavailable:**
+
+```json
+{
+  "total": null,
+  "message": "Missing cost reference for model"
+}
+```
