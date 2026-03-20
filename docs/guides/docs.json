@@ -122,7 +122,7 @@
         "href": "https://ref.output.ai"
       },
       {
-        "label": "GitHub",
+        "type": "github",
         "href": "https://github.com/growthxai/output"
       }
     ]
