@@ -29,6 +29,7 @@
     "globals": "17.4.0",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
+    "mintlify": "4.2.442",
     "native-copyfiles": "2.0.1",
     "semver": "catalog:",
     "supertest": "7.2.2",
