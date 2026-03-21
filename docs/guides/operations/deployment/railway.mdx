@@ -44,7 +44,7 @@ This is the default structure — it doesn't include any deployment configuratio
 The Output API is published as a Docker image. Deploy it first so you can verify the connection to Temporal before adding the worker.
 
 1. Click **+ New** → **Docker Image**
-2. Enter: `docker.io/outputai/api:0.1.0`
+2. Enter: `docker.io/outputai/api:0.1.4`
 3. Configure variables:
 
 ```bash
@@ -127,7 +127,7 @@ CMD ["output-worker"]
 ```
 
 <Tip>
-The `NODE_OPTIONS` setting allocates 3.7GB of memory to Node.js. Adjust this based on your Railway plan and workflow memory requirements.
+The `NODE_OPTIONS` setting allocates 80% of container memory to the V8 heap, leaving room for the Temporal Rust runtime and OS overhead. Adjust the percentage based on your Railway plan and workflow memory requirements.
 </Tip>
 
 Commit the new `ops/` directory and push to GitHub before continuing:
@@ -259,6 +259,20 @@ Use Railway's [environments](https://docs.railway.com/reference/environments) fo
   }
 }
 ```
+
+## Tuning worker concurrency
+
+For high-throughput workloads, you can tune how aggressively the worker pulls and executes tasks from Temporal. Add these environment variables to the worker service:
+
+```bash
+TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS=150
+TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=600
+TEMPORAL_MAX_CACHED_WORKFLOWS=50
+TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS=10
+TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS=10
+```
+
+The defaults work for most workloads. Only tune these if you're seeing task queue backlog in the Temporal UI.
 
 ## Monitoring
 
