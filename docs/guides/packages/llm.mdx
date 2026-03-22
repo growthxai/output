@@ -5,12 +5,6 @@ description: "Generate and stream text, objects, and arrays from LLMs with promp
 
 The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and message template in one place.
 
-## Installation
-
-```bash
-npm install @outputai/llm
-```
-
 ## Generate Functions
 
 `generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. Use `streamText` for streaming responses:
