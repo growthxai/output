@@ -19,7 +19,7 @@ $ARGUMENTS - Either a workflow name (e.g. `context_competitors`) or a workflow r
 
 2. **Read the trace JSON file.** The final output lives at `output.output` in the JSON root. You only need this field — skip `children` and `input`. Read the file (use `offset`/`limit` if large) and extract the output.
 
-3. **Save a markdown file to `tmp/trace_result_<workflow_name>_<id>.md`** with:
+3. **Save a markdown file to `tmp/trace_result_<workflow_name>_<id>.md`** (create the `tmp/` directory if it doesn't exist) with:
 
    ### Header (brief)
    - One line: workflow name, ID, duration
