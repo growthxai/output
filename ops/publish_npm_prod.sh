@@ -14,6 +14,10 @@ print() {
 
 print "Publishing packages to NPM" "Run"
 
+print "Building"
+pnpm -r run build
+
+print "Publishing"
 pnpm publish -r --no-git-checks
 
 print "Publication Complete" "OK"
