@@ -9,13 +9,13 @@ on:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release:
+  publish:
     # Version Packages PRs use head branch changeset-release/<baseBranch> (see changesets/action).
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
        startsWith(github.event.pull_request.head.ref, 'changeset-release/'))
-    name: Publish and tag
+    name: Publish Production version
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,18 +34,19 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.13'
           cache: 'pnpm'
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Publish
+      - name: Publish NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./ops/publish_npm.sh
+
+      - name: Publish API
+        env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: ./ops/publish.sh
+        run: ./ops/publish_api.sh
 
       - name: Tag
         run: ./ops/tag.sh

@@ -1,0 +1,52 @@
+name: Publish Next
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  publish:
+    name: Publish "next" version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13'
+          cache: 'pnpm'
+
+      - name: Bumping version
+        run: ./ops/bump_prerelease.sh "next.${GITHUB_SHA:0:7}"
+
+      - name: Publish NPM
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./ops/publish_npm.sh "next"
+
+      - name: Publish API
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: ./ops/publish_api.sh --no-aliases
+
+      - name: Print publish summary
+        run: |
+          if [ -f pnpm-publish-summary.json ]; then
+            {
+              echo '### npm publish summary'
+              echo ''
+              echo '```json'
+              cat pnpm-publish-summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

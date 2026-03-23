@@ -28,7 +28,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.13'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -37,6 +37,6 @@ jobs:
       - name: Create Release Pull Request
         uses: changesets/action@v1
         with:
-          version: ./ops/bump.sh
+          version: ./ops/bump_release.sh
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
