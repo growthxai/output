@@ -6,7 +6,7 @@ This project uses the Output.ai framework for building durable, LLM-powered work
 
 **Invoke these skills to load full context:**
 
-1. **`output-meta-project-context`** - Load complete Output SDK documentation, patterns, conventions, and available tools inventory (5 agents, 3 commands, 32 skills)
+1. **`output-meta-project-context`** - Load complete Output SDK documentation, patterns, conventions, and available tools inventory (5 agents, 3 commands, 33 skills)
 
 Please make sure to conciously use appropriate skills and agents for the task at hand.
 

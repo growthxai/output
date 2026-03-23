@@ -1,6 +1,6 @@
 ---
 name: output-meta-project-context
-description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools.
+description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 33 skills).
 allowed-tools: [Read]
 ---
 
@@ -127,12 +127,13 @@ src/
 | `output-workflow-status` | Check async workflow status |
 | `output-workflow-result` | Get async workflow result |
 
-#### Monitoring & Debugging (4)
+#### Monitoring & Debugging (5)
 | Skill | Purpose |
 |-------|---------|
 | `output-workflow-stop` | Stop running workflow |
 | `output-workflow-trace` | Trace workflow execution |
 | `output-workflow-runs-list` | List workflow run history |
+| `output-dev-workflow-cost` | Calculate cost of a workflow run |
 | `output-services-check` | Verify Output services status |
 
 #### Error Diagnosis (6)

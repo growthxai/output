@@ -48,12 +48,17 @@ export function loadPricingConfig( configPath?: string ): PricingConfig {
   const bundledPath = new URL( '../assets/config/costs.yml', import.meta.url ).pathname;
   const bundled = loadYaml( configPath ?? bundledPath );
 
+  if ( !bundled ) {
+    console.warn( 'Warning: bundled pricing config is empty or missing. Add a config/costs.yml to your project to define model pricing.' );
+    return { models: {}, services: {} };
+  }
+
   const projectPath = join( process.cwd(), 'config', 'costs.yml' );
   if ( !configPath && existsSync( projectPath ) ) {
     const project = loadYaml( projectPath );
     return {
-      models: { ...bundled.models, ...project.models },
-      services: { ...bundled.services, ...project.services }
+      models: { ...bundled.models, ...( project?.models ?? {} ) },
+      services: { ...bundled.services, ...( project?.services ?? {} ) }
     };
   }
 
