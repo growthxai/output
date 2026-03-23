@@ -14,7 +14,9 @@ print() {
 
 print "Publishing next packages to NPM" "Run"
 
-SHORT_SHA=$(git rev-parse --short HEAD)
+# Use GITHUB_SHA in CI, fall back to git locally
+SHORT_SHA=${GITHUB_SHA:+${GITHUB_SHA:0:7}}
+SHORT_SHA=${SHORT_SHA:-$(git rev-parse --short HEAD)}
 
 print "Bumping (next.$SHORT_SHA)"
 update_cmd="v=\$(npm version prerelease --preid=next.\${SHORT_SHA} --no-git-tag-version --allow-same-version --silent) && echo \"- \$PNPM_PACKAGE_NAME@\${v#v}\""
