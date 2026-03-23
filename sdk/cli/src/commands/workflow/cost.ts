@@ -14,10 +14,10 @@ export default class WorkflowCost extends Command {
   static override description = 'Calculate the cost of a workflow execution';
 
   static override examples = [
-    '<%= config.bin %> <%= command.id %> my_workflow',
-    '<%= config.bin %> <%= command.id %> my_workflow --verbose',
-    '<%= config.bin %> <%= command.id %> my_workflow path/to/trace.json',
-    '<%= config.bin %> <%= command.id %> my_workflow --format json'
+    '<%= config.bin %> <%= command.id %> my_workflow_id',
+    '<%= config.bin %> <%= command.id %> my_workflow_id --verbose',
+    '<%= config.bin %> <%= command.id %> my_workflow_id path/to/trace.json',
+    '<%= config.bin %> <%= command.id %> my_workflow_id --format json'
   ];
 
   static override args = {
