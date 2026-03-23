@@ -81,7 +81,7 @@ services:
         condition: service_healthy
       worker:
         condition: service_healthy
-    image: outputai/api:${OUTPUT_API_VERSION:-0.1.4}
+    image: outputai/api:${OUTPUT_API_VERSION:-0.1.5}
     init: true
     networks:
       - main
