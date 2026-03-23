@@ -1,6 +1,6 @@
 {
   "name": "@outputai/core",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The core module of the output framework",
   "type": "module",
   "exports": {
