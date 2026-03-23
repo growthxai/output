@@ -22,12 +22,12 @@
     "prebuild": "npm run generate:api"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.79",
+    "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@aws-sdk/client-s3": "catalog:",
     "@hackylabs/deep-redact": "3.0.5",
     "@inquirer/prompts": "8.3.2",
-    "@oclif/core": "4.9.0",
-    "@oclif/plugin-help": "6.2.38",
+    "@oclif/core": "4.10.2",
+    "@oclif/plugin-help": "6.2.40",
     "@outputai/credentials": "workspace:",
     "@outputai/evals": "workspace:",
     "@outputai/llm": "workspace:",
