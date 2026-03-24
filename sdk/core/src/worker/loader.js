@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { EOL } from 'node:os';
 import { fileURLToPath } from 'url';
 import { getTraceDestinations, sendHttpRequest } from '#internal_activities';
@@ -120,14 +121,23 @@ export async function loadWorkflows( rootDir ) {
  * @param {string} rootDir
  * @returns {void}
  */
+const resolveHookFile = ( specifier, rootDir ) => {
+  const require = createRequire( join( rootDir, 'package.json' ) );
+  try {
+    return require.resolve( specifier );
+  } catch {
+    return join( rootDir, specifier );
+  }
+};
+
 export async function loadHooks( rootDir ) {
   const packageFile = join( rootDir, 'package.json' );
   if ( existsSync( packageFile ) ) {
     const pkg = await import( packageFile, { with: { type: 'json' } } );
-    for ( const path of pkg.default.output?.hookFiles ?? [] ) {
-      const hookFile = join( rootDir, path );
+    for ( const specifier of pkg.default.output?.hookFiles ?? [] ) {
+      const hookFile = resolveHookFile( specifier, rootDir );
       await import( hookFile );
-      log.info( 'Hook file loaded', { path } );
+      log.info( 'Hook file loaded', { specifier } );
     }
   }
 };
