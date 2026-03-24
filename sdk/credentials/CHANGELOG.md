@@ -1,5 +1,11 @@
 # @outputai/credentials
 
+## 0.1.8
+
+### Patch Changes
+
+- @outputai/core@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes
