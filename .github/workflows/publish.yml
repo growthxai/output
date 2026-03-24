@@ -46,7 +46,16 @@ jobs:
       - name: Publish NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ./ops/publish_npm.sh
+        run: |
+          ./ops/publish_npm.sh
+          if [ -f pnpm-publish-summary.json ]; then
+            {
+              echo '### npm publish summary'
+              echo '```json'
+              cat pnpm-publish-summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Tag
         run: ./ops/tag.sh

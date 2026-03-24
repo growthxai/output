@@ -37,14 +37,11 @@ jobs:
       - name: Publish NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ./ops/publish_npm.sh "next"
-
-      - name: Print publish summary
         run: |
+          ./ops/publish_npm.sh "next"
           if [ -f pnpm-publish-summary.json ]; then
             {
               echo '### npm publish summary'
-              echo ''
               echo '```json'
               cat pnpm-publish-summary.json
               echo '```'
