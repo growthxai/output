@@ -262,8 +262,8 @@ ${divider}
 ${ux.colorize( 'dim', '💡 Tip: Use ' )}${formatCommand( 'npx output workflow plan' )}${ux.colorize( 'dim', ' to design your first custom workflow' )}
 ${ux.colorize( 'dim', '         with AI assistance.' )}
 
-${ux.colorize( 'dim', '🔑 Credentials: ' )}${ux.colorize( 'cyan', 'https://docs.output.ai/packages/credentials' )}
-${ux.colorize( 'dim', '         manage or rotate your API keys anytime.' )}
+${ux.colorize( 'dim', '🔑 Secrets: Use ' )}${formatCommand( 'npx output credentials show|get|edit' )}
+${ux.colorize( 'dim', '         to manage your project secrets.' )}
 
 ${ux.colorize( 'green', ux.colorize( 'bold', 'Happy building with Output! 🚀' ) )}
 `;
