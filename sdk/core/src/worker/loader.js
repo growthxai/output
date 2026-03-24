@@ -1,5 +1,5 @@
 import { dirname, join } from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { EOL } from 'node:os';
 import { fileURLToPath } from 'url';
 import { getTraceDestinations, sendHttpRequest } from '#internal_activities';
@@ -114,37 +114,18 @@ export async function loadWorkflows( rootDir ) {
   return workflows;
 };
 
-const isPackageSpecifier = specifier => !specifier.startsWith( '.' ) && !specifier.startsWith( '/' );
-
-const readPackageJson = pkgPath => JSON.parse( readFileSync( pkgPath, 'utf8' ) );
-
-const resolveEsmEntry = pkg => pkg.exports?.['.']?.import ?? pkg.exports?.['.']?.default ?? pkg.main ?? 'index.js';
-
-const resolvePackagePath = ( specifier, rootDir ) => {
-  const pkgJsonPath = join( rootDir, 'node_modules', specifier, 'package.json' );
-  if ( !existsSync( pkgJsonPath ) ) {
-    return null;
-  }
-  return join( rootDir, 'node_modules', specifier, resolveEsmEntry( readPackageJson( pkgJsonPath ) ) );
-};
-
 /**
  * Loads the hook files from package.json's output config section.
  *
  * @param {string} rootDir
  * @returns {void}
  */
-const resolveHookFile = ( specifier, rootDir ) =>
-  isPackageSpecifier( specifier ) ?
-    resolvePackagePath( specifier, rootDir ) ?? join( rootDir, specifier ) :
-    join( rootDir, specifier );
-
 export async function loadHooks( rootDir ) {
   const packageFile = join( rootDir, 'package.json' );
   if ( existsSync( packageFile ) ) {
     const pkg = await import( packageFile, { with: { type: 'json' } } );
     for ( const specifier of pkg.default.output?.hookFiles ?? [] ) {
-      const hookFile = resolveHookFile( specifier, rootDir );
+      const hookFile = join( rootDir, specifier );
       await import( hookFile );
       log.info( 'Hook file loaded', { specifier } );
     }

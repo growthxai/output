@@ -23,6 +23,6 @@
     "node": ">=24.3.0"
   },
   "output": {
-    "hookFiles": ["@outputai/credentials"]
+    "hookFiles": ["node_modules/@outputai/credentials/dist/hooks.js"]
   }
 }
