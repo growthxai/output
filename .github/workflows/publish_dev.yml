@@ -36,7 +36,7 @@ jobs:
         run: ./ops/validate.sh
 
       - name: Bumping version
-        run: ./ops/bump_prerelease.sh "dev"
+        run: ./ops/bump_prerelease.sh "dev.${GITHUB_SHA:0:7}"
 
       - name: Publish API
         env:
