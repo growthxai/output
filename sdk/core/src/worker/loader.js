@@ -124,10 +124,10 @@ export async function loadHooks( rootDir ) {
   const packageFile = join( rootDir, 'package.json' );
   if ( existsSync( packageFile ) ) {
     const pkg = await import( packageFile, { with: { type: 'json' } } );
-    for ( const specifier of pkg.default.output?.hookFiles ?? [] ) {
-      const hookFile = join( rootDir, specifier );
+    for ( const path of pkg.default.output?.hookFiles ?? [] ) {
+      const hookFile = join( rootDir, path );
       await import( hookFile );
-      log.info( 'Hook file loaded', { specifier } );
+      log.info( 'Hook file loaded', { path } );
     }
   }
 };
