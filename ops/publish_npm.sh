@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# Publish each package to NPM (if version is not published)
+# Publish each package to NPM
 
 set -e
 
 cd "${0%/*}/.."
+
+tag=${1:-"latest"}
 
 count=0
 print() {
@@ -14,10 +16,13 @@ print() {
 
 print "Publishing packages to NPM" "Run"
 
+print "Installing"
+pnpm install --frozen-lockfile
+
 print "Building"
-pnpm -r run build
+npm run build:packages
 
 print "Publishing"
-pnpm publish -r --no-git-checks
+npm_config_loglevel=warn pnpm publish -r --no-git-checks --tag=$tag --report-summary
 
 print "Publication Complete" "OK"
