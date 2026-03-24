@@ -22,9 +22,7 @@ vi.mock( 'ai', () => ( {
     capturedToolCalls.calls.push( def );
     return { _toolDef: def };
   } ),
-  Output: {
-    object: vi.fn( opts => ( { _outputOpts: opts } ) )
-  }
+  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) )
 } ) );
 
 // ─── Test utilities ───────────────────────────────────────────────────────────
@@ -49,13 +47,9 @@ const importSut = () => import( './agent.js' );
 
 beforeEach( () => {
   state.promptDir = mkdtempSync( join( tmpdir(), 'agent-test-' ) );
-  generateTextImpl.mockReset().mockResolvedValue( {
-    result: 'LLM response text',
-    output: { summary: 'Structured output' }
-  } );
   capturedToolCalls.calls = [];
   vi.clearAllMocks();
-  generateTextImpl.mockResolvedValue( { result: 'LLM response text', output: { summary: 'Structured output' } } );
+  generateTextImpl.mockResolvedValue( { result: 'LLM response text' } );
 } );
 
 describe( 'skill()', () => {
@@ -174,10 +168,11 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     expect( result ).toBe( 'LLM response text' );
   } );
 
-  it( 'returns result.output when outputSchema provided', async () => {
+  it( 'returns parsed outputSchema object when outputSchema provided', async () => {
     const { z } = await import( '@outputai/core' );
     makePromptFile( state.promptDir, 'test@v1' );
     const { agent } = await importSut();
+    generateTextImpl.mockResolvedValue( { result: '{"summary":"Structured output"}' } );
     const testAgent = agent( {
       name: 'test_agent',
       prompt: 'test@v1',
@@ -335,6 +330,6 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
 
     await testAgent( {} );
 
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( { maxSteps: 10 } ) );
+    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen: { type: 'stepCount', count: 10 } } ) );
   } );
 } );

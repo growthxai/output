@@ -5,7 +5,7 @@ import { z, ValidationError, FatalError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { loadContent } from './load_content.js';
 import { generateText } from './ai_sdk.js';
-import { Output, tool } from 'ai';
+import { tool, stepCountIs } from 'ai';
 
 // ─── skill() factory ──────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ const buildSystemSkillsVar = skills =>
 
 const buildLoadSkillTool = skills => tool( {
   description: 'Get detailed instructions for a named skill',
-  parameters: z.object( { name: z.string().describe( 'Name of the skill to load' ) } ),
+  inputSchema: z.object( { name: z.string().describe( 'Name of the skill to load' ) } ),
   execute: async ( { name } ) => {
     const sk = skills.find( s => s.name === name );
     if ( !sk ) {
@@ -93,6 +93,19 @@ const toVariables = input => {
       [ k, ( typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ) ? v : JSON.stringify( v ) ]
     )
   );
+};
+
+const extractJson = text => {
+  try {
+    return JSON.parse( text );
+  } catch {
+    // fall through
+  }
+  const match = text.match( /```(?:json)?\s*([\s\S]*?)\s*```/ );
+  if ( match ) {
+    return JSON.parse( match[1] );
+  }
+  throw new Error( `Could not parse JSON from response: ${text.slice( 0, 200 )}` );
 };
 
 // ─── agent() factory ──────────────────────────────────────────────────────────
@@ -157,11 +170,13 @@ export function agent( {
       prompt,
       promptDir,
       variables,
-      ...( hasTools ? { tools: allTools, maxSteps } : {} ),
-      ...( outputSchema ? { output: Output.object( { schema: outputSchema } ) } : {} ),
+      ...( hasTools ? { tools: allTools, stopWhen: stepCountIs( maxSteps ) } : {} ),
       ...rest
     } );
 
-    return outputSchema ? result.output : result.result;
+    if ( outputSchema ) {
+      return outputSchema.parse( extractJson( result.result ) );
+    }
+    return result.result;
   };
 }
