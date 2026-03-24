@@ -99,6 +99,16 @@
       ]
     },
     {
+      "group": "Deployment",
+      "icon": "cloud-arrow-up",
+      "pages": [
+        "operations/deployment",
+        "operations/deployment/render",
+        "operations/deployment/railway",
+        "operations/deployment/advanced"
+      ]
+    },
+    {
       "group": "Integrate with Your App",
       "icon": "code",
       "openapi": "openapi.json",
