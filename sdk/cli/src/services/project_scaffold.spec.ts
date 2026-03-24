@@ -17,8 +17,18 @@ vi.mock( '@inquirer/prompts', () => ( {
 
 vi.mock( '#utils/file_system.js' );
 vi.mock( '#utils/process.js' );
-vi.mock( './env_configurator.js', () => ( {
-  configureEnvironmentVariables: vi.fn().mockResolvedValue( false )
+vi.mock( './credentials_service.js', () => ( {
+  initCredentialsAtPath: vi.fn()
+} ) );
+vi.mock( './credentials_configurator.js', () => ( {
+  configureCredentials: vi.fn().mockResolvedValue( false )
+} ) );
+vi.mock( 'node:fs/promises', () => ( {
+  default: {
+    mkdir: vi.fn().mockResolvedValue( undefined ),
+    writeFile: vi.fn().mockResolvedValue( undefined ),
+    copyFile: vi.fn().mockResolvedValue( undefined )
+  }
 } ) );
 vi.mock( './template_processor.js' );
 vi.mock( './coding_agents.js' );

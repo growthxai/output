@@ -34,7 +34,7 @@ describe( 'configureEnvironmentVariables', () => {
   } );
 
   it( 'should copy .env.example to .env when skipPrompt is true', async () => {
-    const envExampleContent = 'API_KEY=<SECRET>\nDATABASE_URL=localhost';
+    const envExampleContent = 'API_KEY=<FILL_ME_OUT>\nDATABASE_URL=localhost';
     await fs.writeFile( testState.envExamplePath, envExampleContent );
 
     const result = await configureEnvironmentVariables( testState.tempDir, true );
@@ -266,7 +266,7 @@ EMPTY_KEY=`
     await fs.writeFile(
       testState.envExamplePath,
       `# API Key
-ANTHROPIC_API_KEY=<SECRET>`
+ANTHROPIC_API_KEY=<FILL_ME_OUT>`
     );
 
     const result = await configureEnvironmentVariables( testState.tempDir, false );

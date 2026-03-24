@@ -1,6 +1,7 @@
 import { input, confirm } from '@inquirer/prompts';
 import { ux } from '@oclif/core';
 import { kebabCase, pascalCase } from 'change-case';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -17,7 +18,8 @@ import { getFrameworkVersion } from '#utils/framework_version.js';
 import { getErrorMessage, getErrorCode } from '#utils/error_utils.js';
 import { isDockerInstalled } from '#services/docker.js';
 import { isClaudeCliAvailable } from '#utils/claude.js';
-import { configureEnvironmentVariables } from './env_configurator.js';
+import { initCredentialsAtPath } from './credentials_service.js';
+import { configureCredentials } from './credentials_configurator.js';
 import { getTemplateFiles, processTemplateFile } from './template_processor.js';
 import { initializeAgentConfig } from './coding_agents.js';
 import { getProjectSuccessMessage } from './messages.js';
@@ -145,6 +147,14 @@ async function scaffoldProjectFiles(
   );
 
   return templateFiles.map( f => f.outputName );
+}
+
+const CREDENTIALS_TEMPLATE_CONTENT = 'anthropic:\n  api_key: "<FILL_ME_OUT>"\nopenai:\n  api_key: "<FILL_ME_OUT>"\n';
+
+async function createCredentialsTemplate( projectPath: string ): Promise<void> {
+  const filePath = path.join( projectPath, 'config', 'credentials.yml.template' );
+  await fs.mkdir( path.dirname( filePath ), { recursive: true } );
+  await fs.writeFile( filePath, CREDENTIALS_TEMPLATE_CONTENT, 'utf-8' );
 }
 
 async function executeNpmInstall( projectPath: string ): Promise<void> {
@@ -275,10 +285,20 @@ export async function runInit(
     );
     ux.stdout( `Created ${filesCreated.length} project files` );
 
-    const envConfigured = await configureEnvironmentVariables( config.projectPath, skipEnv );
-    if ( envConfigured ) {
-      ux.stdout( 'Environment variables configured in .env' );
+    await createCredentialsTemplate( config.projectPath );
+    initCredentialsAtPath( config.projectPath );
+    ux.stdout( 'Credentials initialized' );
+
+    const credentialsConfigured = await configureCredentials( config.projectPath, skipEnv );
+    if ( credentialsConfigured ) {
+      ux.stdout( 'API credentials configured' );
     }
+
+    // Copy .env.example to .env (no secrets - they live in credentials.yml.enc)
+    await fs.copyFile(
+      path.join( config.projectPath, '.env.example' ),
+      path.join( config.projectPath, '.env' )
+    );
 
     await executeCommandWithMessages(
       () => initializeAgents( config.projectPath ),
@@ -292,7 +312,7 @@ export async function runInit(
       'Dependencies installed'
     );
 
-    const nextSteps = getProjectSuccessMessage( config.folderName, installSuccess, envConfigured );
+    const nextSteps = getProjectSuccessMessage( config.folderName, installSuccess, credentialsConfigured );
     ux.stdout( 'Project created successfully!' );
     ux.stdout( nextSteps );
   } catch ( error: unknown ) {

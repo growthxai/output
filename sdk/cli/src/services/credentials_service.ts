@@ -103,3 +103,34 @@ export const initCredentials = ( environment: CredentialsEnvironment, workflow?:
 
   return { keyPath, credPath };
 };
+
+export const initCredentialsAtPath = ( projectPath: string ): { keyPath: string; credPath: string } => {
+  const credPath = resolveCredPath( projectPath );
+  const keyPath = resolveKPath( projectPath );
+
+  fs.mkdirSync( path.dirname( keyPath ), { recursive: true } );
+  fs.mkdirSync( path.dirname( credPath ), { recursive: true } );
+
+  const key = generateKey();
+  fs.writeFileSync( keyPath, key, { mode: 0o600 } );
+
+  const template = stringifyYaml( {
+    anthropic: { api_key: '<FILL_ME_OUT>' },
+    openai: { api_key: '<FILL_ME_OUT>' }
+  } );
+
+  fs.writeFileSync( credPath, encrypt( template, key ), 'utf8' );
+
+  return { keyPath, credPath };
+};
+
+export const readKeyAtPath = ( projectPath: string ): string => {
+  const keyPath = resolveKPath( projectPath );
+  return fs.readFileSync( keyPath, 'utf8' ).trim();
+};
+
+export const writeEncryptedAtPath = ( projectPath: string, plaintext: string ): void => {
+  const key = readKeyAtPath( projectPath );
+  const credPath = resolveCredPath( projectPath );
+  fs.writeFileSync( credPath, encrypt( plaintext, key ), 'utf8' );
+};
