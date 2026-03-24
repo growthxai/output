@@ -15,9 +15,7 @@ print() {
 print "Publishing dev packages to NPM" "Run"
 
 print "Bumping"
-sha=${GITHUB_SHA:+${GITHUB_SHA:0:7}}
-sha=${sha:-$(git rev-parse --short HEAD)}
-update_cmd="v=\$(npm version prerelease --preid=dev.${sha} --no-git-tag-version --allow-same-version --silent) && echo \"- \$PNPM_PACKAGE_NAME@\${v#v}\""
+update_cmd='v=$(npm version prerelease --preid=dev --no-git-tag-version --allow-same-version --silent) && echo "- $PNPM_PACKAGE_NAME@${v#v}"'
 pnpm -r --include-workspace-root --filter "@outputai/*" --filter "output-api" exec sh -c "$update_cmd"
 
 print "Publishing"
