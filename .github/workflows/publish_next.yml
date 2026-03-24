@@ -28,16 +28,16 @@ jobs:
       - name: Bumping version
         run: ./ops/bump_prerelease.sh "next.${GITHUB_SHA:0:7}"
 
-      - name: Publish NPM
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ./ops/publish_npm.sh "next"
-
       - name: Publish API
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: ./ops/publish_api.sh --no-aliases
+
+      - name: Publish NPM
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./ops/publish_npm.sh "next"
 
       - name: Print publish summary
         run: |

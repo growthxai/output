@@ -37,16 +37,16 @@ jobs:
           node-version: '24.13'
           cache: 'pnpm'
 
-      - name: Publish NPM
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ./ops/publish_npm.sh
-
       - name: Publish API
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: ./ops/publish_api.sh
+
+      - name: Publish NPM
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./ops/publish_npm.sh
 
       - name: Tag
         run: ./ops/tag.sh
