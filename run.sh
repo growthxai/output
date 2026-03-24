@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This is just a helper scrip to open a docker container and run node commands
+# This is just a helper script to open a docker container and run node commands
 
 set -e
 
@@ -34,12 +34,6 @@ elif [[ $cmd == 'dev:destroy' ]]; then
 
 elif [[ $cmd == 'prod' ]]; then
   docker compose -f ./docker-compose.prod.yml up --build
-
-elif [[ $cmd == 'api:publish' ]]; then
-  set -a
-  source .env
-  set +a
-  ./ops/publish_api_image.sh
 
 elif [[ $cmd == 'prod:destroy' ]]; then
   docker compose -f ./docker-compose.prod.yml down -v

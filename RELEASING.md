@@ -26,23 +26,23 @@ There are three ways packages get published, each tied to a **dist tag** on npm:
 ```
                           ┌──────────────────────────────┐
   You merge a PR          │  push to main triggers two   │
-  ─────────────────────►  │  workflows in parallel:       │
+  ─────────────────────►  │  workflows in parallel:      │
                           │                              │
                           │  1. release.yml              │
                           │     → opens "Version         │
                           │       Packages" PR           │
-                          │       (if changesets exist)   │
+                          │       (if changesets exist)  │
                           │                              │
-                          │  2. publish_npm_next.yml     │
+                          │  2. publish_next.yml         │
                           │     → publishes @next        │
-                          │       immediately             │
+                          │       immediately            │
                           └──────────────────────────────┘
 
   You merge the                publish.yml
   "Version Packages" PR  ───►  → publishes @latest
-                               → creates git tags
+                               → API image + git tags
 
-  You click "Run workflow"     publish_npm_dev.yml
+  You click "Run workflow"     publish_dev.yml
   in GitHub Actions       ───► → publishes @dev
   (any branch/SHA)
 ```
@@ -114,7 +114,7 @@ Nothing special here. Just merge as usual. Two things happen automatically:
 
 1. **`@next` publishes immediately** — your change is available via `@outputai/cli@next` within minutes.
 
-2. **The Release workflow** (`release.yml`) picks up any `.changeset/*.md` files and opens (or updates) a PR titled **"Version Packages"**. This PR:
+2. **The Release workflow** (`release.yml`) looks for `.changeset/*.md` files and opens (or updates) a PR titled **"Version Packages"**. That PR:
    - Deletes the changeset files
    - Bumps `version` in every `package.json`
    - Updates `CHANGELOG.md` in each package
@@ -124,24 +124,25 @@ Nothing special here. Just merge as usual. Two things happen automatically:
 
 ### Step 3: Merge the "Version Packages" PR
 
-When you're ready to cut a stable release, merge the "Version Packages" PR. The **Publish workflow** (`publish.yml`) runs and:
+When you're ready to cut a stable release, merge the "Version Packages" PR so `main` contains the bumped versions and changelogs. That merge starts the **Publish** workflow (`publish.yml`), which executes:
 
-1. Installs dependencies (`pnpm install --frozen-lockfile`)
-2. Builds all packages (`pnpm -r run build`)
-3. Publishes to npm under `@latest` (`pnpm publish -r --no-git-checks`)
-4. Publishes the API Docker image
-5. Creates git tags (e.g., `v0.1.4`)
+1. `ops/publish_npm.sh` — install dependencies, build packages, and publish to npm under `@latest`
+2. `ops/publish_api.sh` — build and push the API Docker image (semver tags and `:latest` on the registry)
+3. `ops/tag.sh` — create and push the release git tag (for example `v0.1.4`)
+
+If you need the same steps without a new merge, you can run that workflow again from the **Actions** tab (`workflow_dispatch`).
 
 That's it. Users running `npx @outputai/cli` will now get the new version.
 
 ## Next Releases (`@next`)
 
-Every push to `main` triggers `publish_npm_next.yml`. This happens automatically — no changeset needed.
+Every push to `main` triggers `publish_next.yml` automatically — no changeset needed. Each run will execute:
 
-What it does:
-1. Runs the full validation suite (install, lint, build, test)
-2. Bumps all packages to a prerelease version tied to the commit SHA (e.g., `0.1.4-next.abc1234`)
-3. Publishes under the `next` dist-tag
+1. `ops/bump_prerelease.sh` — bump all packages to a prerelease tied to the commit SHA (for example `0.1.4-next.abc1234`)
+2. `ops/publish_npm.sh` — publish npm packages under the `next` dist-tag
+3. `ops/publish_api.sh` — build and push the API image without updating the Docker `latest` aliases
+
+We rely on CI having passed on the PR before merge, so this workflow does not run the full `ops/validate.sh` gate again. For more detail on any script, see [`ops/README.md`](ops/README.md).
 
 This means every merged PR is immediately available:
 
@@ -156,11 +157,20 @@ Useful for:
 
 ## Dev Releases (`@dev`)
 
-`publish_npm_dev.yml` is triggered manually from GitHub Actions. You can publish from **any branch or SHA**.
+`publish_dev.yml` is triggered manually from GitHub Actions. You can publish from **any branch or SHA**.
 
 1. Go to **Actions > "Publish Dev" > "Run workflow"**
 2. Optionally enter a branch name or commit SHA (defaults to `main`)
 3. Packages are published with a `-dev.N` prerelease suffix under the `dev` dist-tag
+
+Each run then executes:
+
+1. `ops/validate.sh` — full validation before publish
+2. `ops/bump_prerelease.sh` — bump the `dev` prerelease line
+3. `ops/publish_npm.sh` — publish npm packages under the `dev` dist-tag
+4. `ops/publish_api.sh` — build and push the API image without Docker alias tags
+
+See [`ops/README.md`](ops/README.md) for what each script does and when to be careful.
 
 ```bash
 npx @outputai/cli@dev init my-project
@@ -176,28 +186,15 @@ All publish paths run `pnpm -r run build` before publishing. This compiles TypeS
 
 The build order is managed by pnpm workspace dependencies — packages are built in dependency order automatically.
 
-## Scripts Reference
+## Scripts reference
 
-| Script | Purpose |
-|--------|---------|
-| `ops/publish.sh` | Orchestrates prod publish (npm + Docker) |
-| `ops/publish_npm_prod.sh` | Builds and publishes all packages to `@latest` |
-| `ops/publish_npm_next.sh` | Bumps to `next.{SHA}` prerelease, publishes to `@next` |
-| `ops/publish_npm_dev.sh` | Bumps to `dev.N` prerelease, publishes to `@dev` |
-| `ops/bump.sh` | Runs `changeset version` and syncs CLI SDK version |
-| `ops/tag.sh` | Creates git tags after publish |
-| `ops/validate.sh` | Full validation: install, lint, build, test, docs |
+See [`ops/README.md`](ops/README.md) for what each script under `ops/` is for and important caveats.
 
 ## Troubleshooting
 
 ### Published package is missing `dist/`
 
-The build step was skipped before publish. Re-publish:
-
-```bash
-pnpm -r run build
-pnpm publish -r --no-git-checks
-```
+The build step was not run before publish.
 
 ### `npx @outputai/cli` uses a cached broken version
 

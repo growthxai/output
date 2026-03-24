@@ -1,6 +1,6 @@
 {
   "name": "@outputai/cli",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "CLI for Output.ai workflow generation",
   "type": "module",
   "main": "dist/index.js",
@@ -22,12 +22,12 @@
     "prebuild": "npm run generate:api"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.79",
+    "@anthropic-ai/claude-agent-sdk": "0.2.81",
     "@aws-sdk/client-s3": "catalog:",
     "@hackylabs/deep-redact": "3.0.5",
     "@inquirer/prompts": "8.3.2",
-    "@oclif/core": "4.9.0",
-    "@oclif/plugin-help": "6.2.38",
+    "@oclif/core": "4.10.2",
+    "@oclif/plugin-help": "6.2.40",
     "@outputai/credentials": "workspace:",
     "@outputai/evals": "workspace:",
     "@outputai/llm": "workspace:",
@@ -43,14 +43,14 @@
     "ky": "catalog:",
     "log-update": "7.2.0",
     "semver": "catalog:",
-    "yaml": "^2.7.1"
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@types/cli-progress": "3.11.6",
     "@types/debug": "4.1.13",
     "@types/js-yaml": "catalog:",
     "@types/semver": "7.7.1",
-    "orval": "8.5.3"
+    "orval": "8.6.2"
   },
   "license": "Apache-2.0",
   "publishConfig": {

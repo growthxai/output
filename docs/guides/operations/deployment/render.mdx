@@ -66,13 +66,15 @@ USER appuser
 # Production settings
 ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:$PATH"
-ENV NODE_OPTIONS="--max-old-space-size=3700"
+
+# V8 heap = 80% of container memory (leaves room for Temporal Rust runtime + OS)
+ENV NODE_OPTIONS="--max-old-space-size-percentage=80 --heapsnapshot-signal=SIGUSR2"
 
 CMD ["output-worker"]
 ```
 
 <Tip>
-The `NODE_OPTIONS` setting allocates 3.7GB of memory to Node.js. Adjust this based on your Render plan and workflow memory requirements.
+The `NODE_OPTIONS` setting allocates 80% of container memory to the V8 heap, leaving room for the Temporal Rust runtime and OS overhead. Adjust the percentage based on your Render plan and workflow memory requirements.
 </Tip>
 
 Don't commit yet — we'll add the `render.yaml` Blueprint next and commit everything together.
@@ -92,7 +94,7 @@ services:
     name: your-project-output-api
     runtime: image
     image:
-      url: docker.io/outputai/api:1.9
+      url: docker.io/outputai/api:0.1
     plan: pro
     region: oregon
     envVars:

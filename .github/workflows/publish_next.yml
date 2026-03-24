@@ -1,32 +1,20 @@
-name: Publish
+name: Publish Next
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
-  workflow_dispatch:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   publish:
-    # Version Packages PRs use head branch changeset-release/<baseBranch> (see changesets/action).
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true &&
-       startsWith(github.event.pull_request.head.ref, 'changeset-release/'))
-    name: Publish Production version
+    name: Publish "next" version
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Squash merge: this is the single commit that landed on main (not the old PR branch tip).
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.merge_commit_sha || 'main' }}
 
       - name: Enable pnpm
         run: corepack enable
@@ -37,17 +25,20 @@ jobs:
           node-version: '24.13'
           cache: 'pnpm'
 
+      - name: Bumping version
+        run: ./ops/bump_prerelease.sh "next.${GITHUB_SHA:0:7}"
+
       - name: Publish API
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: ./ops/publish_api.sh
+        run: ./ops/publish_api.sh --no-aliases
 
       - name: Publish NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          ./ops/publish_npm.sh
+          ./ops/publish_npm.sh "next"
           if [ -f pnpm-publish-summary.json ]; then
             {
               echo '### npm publish summary'
@@ -56,6 +47,3 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
-
-      - name: Tag
-        run: ./ops/tag.sh

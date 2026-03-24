@@ -1,5 +1,18 @@
 # @outputai/output
 
+## 0.1.7
+
+### Patch Changes
+
+- ac7fc2b: Bumping dependecies minor, patch versions
+- Updated dependencies [ac7fc2b]
+  - @outputai/core@0.1.7
+  - @outputai/cli@0.1.7
+  - @outputai/llm@0.1.7
+  - @outputai/credentials@0.1.7
+  - @outputai/evals@0.1.7
+  - @outputai/http@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.1.7
+
+### Patch Changes
+
+- ac7fc2b: Bumping dependecies minor, patch versions
+
 ## 0.1.6
 
 ## 0.1.5

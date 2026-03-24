@@ -9,18 +9,14 @@ on:
         default: 'main'
         type: string
 
-concurrency:
-  group: publish-npm-dev-manual
-  cancel-in-progress: false
+concurrency: ${{ github.workflow }}
 
 jobs:
   publish:
-    name: Publish NPM pre-release packages
+    name: Publish "dev" version
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    container:
-      image: node:24.13.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,20 +26,32 @@ jobs:
       - name: Enable pnpm
         run: corepack enable
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13'
+          cache: 'pnpm'
+
       - name: Validate
         run: ./ops/validate.sh
 
-      - name: Publish
+      - name: Bumping version
+        run: ./ops/bump_prerelease.sh "dev.${GITHUB_SHA:0:7}"
+
+      - name: Publish API
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: ./ops/publish_api.sh --no-aliases
+
+      - name: Publish NPM
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: ./ops/publish_npm_dev.sh
-
-      - name: Add publish summary to job
         run: |
+          ./ops/publish_npm.sh "dev"
           if [ -f pnpm-publish-summary.json ]; then
             {
               echo '### npm publish summary'
-              echo ''
               echo '```json'
               cat pnpm-publish-summary.json
               echo '```'
