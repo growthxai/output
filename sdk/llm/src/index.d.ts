@@ -307,3 +307,6 @@ export function streamText<
     variables?: Record<string, string | number | boolean>
   } & StreamTextAiSdkOptions<Tools, Output>
 ): AIStreamTextResult<Tools, Output>;
+
+export { agent, skill } from './agent.js';
+export type { Skill, SkillsArg } from './agent.js';
