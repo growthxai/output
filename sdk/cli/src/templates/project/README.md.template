@@ -19,6 +19,7 @@ src/
         ├── workflow.ts        # Main workflow
         ├── steps.ts           # Workflow steps
         ├── evaluators.ts      # Quality evaluators
+        ├── types.ts           # Shared types and schemas
         ├── utils.ts           # Local utilities
         ├── prompts/           # LLM prompts
         └── scenarios/         # Test scenarios
@@ -55,17 +56,18 @@ The `src/shared/` directory contains code shared across multiple workflows:
 npm install
 ```
 
-### 2. Configure Environment
+### 2. Configure Credentials
 
-Copy `.env.example` to `.env` and add your API keys:
+Initialize and add your API keys using the Output credentials manager:
 
 ```bash
-cp .env.example .env
+npx output credentials init
+npx output credentials edit
 ```
 
-Edit `.env` to add:
-- `ANTHROPIC_API_KEY` - for Claude LLM integration
-- `OPENAI_API_KEY` - for OpenAI LLM integration (optional)
+Add your keys in the editor:
+- `anthropic.api_key` - for Claude LLM integration
+- `openai.api_key` - for OpenAI LLM integration (optional)
 
 ### 3. Start Output Services
 
