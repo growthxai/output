@@ -28,7 +28,8 @@
   "bin": {
     "output-worker": "./bin/worker.sh",
     "outputai": "./bin/worker.sh",
-    "output-healthcheck": "./bin/healthcheck.mjs"
+    "output-healthcheck": "./bin/healthcheck.mjs",
+    "output-copy-assets": "./bin/copy_assets.js"
   },
   "scripts": {
     "worker": "node ./src/worker/index.js"
