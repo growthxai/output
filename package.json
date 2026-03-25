@@ -11,7 +11,7 @@
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "./ops/test_e2e.sh",
     "test:all": "npm test && npm run test:integration npm run test:e2e",
-    "build:packages": "pnpm -r run build",
+    "build:packages": "pnpm -r run build && cp ./api/openapi.json ./docs/guides/openapi.json",
     "dev": "npm run build:packages && npm run dev:build:api && npm run dev:up",
     "output": "./sdk/cli/bin/run.js",
     "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
