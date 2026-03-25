@@ -1,22 +1,16 @@
 #!/usr/bin/env node
-import { glob } from 'node:fs/promises';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFileSync, mkdirSync, globSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-const SRC = 'src';
-const DEST = 'dist';
-const PATTERNS = [ '**/*.prompt', '**/*.yml.enc', '**/*.key', '**/*.md' ];
+const srcDir = 'src';
+const destDir = 'dist';
+const matchers = [ '**/*.prompt', '**/*.yml.enc', '**/*.key', '**/*.md' ];
 
-const allFiles = [];
-for ( const pattern of PATTERNS ) {
-  for await ( const file of glob( pattern, { cwd: SRC } ) ) {
-    allFiles.push( file );
+for ( const pattern of matchers ) {
+  for ( const file of globSync( pattern, { cwd: srcDir } ) ) {
+    const src = join( srcDir, file );
+    const dest = join( destDir, file );
+    mkdirSync( dirname( dest ), { recursive: true } );
+    copyFileSync( src, dest );
   }
 }
-
-await Promise.all( allFiles.map( async file => {
-  const src = join( SRC, file );
-  const dest = join( DEST, file );
-  await mkdir( dirname( dest ), { recursive: true } );
-  await copyFile( src, dest );
-} ) );

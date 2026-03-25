@@ -19,6 +19,21 @@ const loadFile = path => {
   }
 };
 
+const findContent = ( name, dir ) => {
+  for ( const entry of scanDir( dir ) ) {
+    if ( entry.name === name ) {
+      return { dir, content: loadFile( join( dir, entry.name ) ) };
+    }
+    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
+      const result = findContent( name, join( dir, entry.name ) );
+      if ( result ) {
+        return result;
+      }
+    }
+  }
+  return null;
+};
+
 /**
  * Recursively search for a file by its name and load its content.
  *
@@ -26,21 +41,8 @@ const loadFile = path => {
  * @param {string} [dir] - The directory to search for the file, defaults to invocation directory
  * @returns {string | null} - File content or null if not found
  */
-export const loadContent = ( name, dir = resolveInvocationDir() ) => {
-  for ( const entry of scanDir( dir ) ) {
-    if ( entry.name === name ) {
-      return loadFile( join( dir, entry.name ) );
-    }
-
-    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
-      const content = loadContent( name, join( dir, entry.name ) );
-      if ( content ) {
-        return content;
-      }
-    }
-  }
-  return null;
-};
+export const loadContent = ( name, dir = resolveInvocationDir() ) =>
+  findContent( name, dir )?.content ?? null;
 
 /**
  * Recursively search for a file by name and return the directory containing it.
@@ -49,17 +51,5 @@ export const loadContent = ( name, dir = resolveInvocationDir() ) => {
  * @param {string} [dir] - Directory to search, defaults to invocation directory
  * @returns {string | null} - Directory path containing the file, or null if not found
  */
-export const findContentDir = ( name, dir = resolveInvocationDir() ) => {
-  for ( const entry of scanDir( dir ) ) {
-    if ( entry.name === name ) {
-      return dir;
-    }
-    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
-      const result = findContentDir( name, join( dir, entry.name ) );
-      if ( result ) {
-        return result;
-      }
-    }
-  }
-  return null;
-};
+export const findContentDir = ( name, dir = resolveInvocationDir() ) =>
+  findContent( name, dir )?.dir ?? null;

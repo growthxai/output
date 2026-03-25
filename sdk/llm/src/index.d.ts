@@ -308,5 +308,6 @@ export function streamText<
   } & StreamTextAiSdkOptions<Tools, Output>
 ): AIStreamTextResult<Tools, Output>;
 
-export { agent, skill } from './agent.js';
-export type { Skill, SkillsArg } from './agent.js';
+export { agent } from './agent.js';
+export { skill } from './skill.js';
+export type { Skill, SkillsArg } from './skill.js';

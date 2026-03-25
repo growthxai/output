@@ -1,5 +1,6 @@
 export { generateText, streamText } from './ai_sdk.js';
-export { agent, skill } from './agent.js';
+export { agent } from './agent.js';
+export { skill } from './skill.js';
 export { loadPrompt } from './prompt_loader.js';
 export { registerProvider, getRegisteredProviders } from './ai_model.js';
 export { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';

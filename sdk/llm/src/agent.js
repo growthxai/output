@@ -7,28 +7,7 @@ import { loadContent, findContentDir } from './load_content.js';
 import { generateText } from './ai_sdk.js';
 import { tool, stepCountIs, Output } from 'ai';
 
-// ─── skill() factory ──────────────────────────────────────────────────────────
-
-/**
- * Create an inline skill instruction package.
- *
- * @param {object} params
- * @param {string} params.name - Skill identifier
- * @param {string} [params.description] - When to use this skill (defaults to name)
- * @param {string} params.instructions - Full instructions returned when LLM calls load_skill
- * @returns {{ name: string, description: string, instructions: string }}
- */
-export function skill( { name, description, instructions } ) {
-  if ( !name ) {
-    throw new ValidationError( 'skill() requires a name' );
-  }
-  if ( !instructions ) {
-    throw new ValidationError( 'skill() requires instructions' );
-  }
-  return { name, description: description ?? name, instructions };
-}
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+export { skill } from './skill.js';
 
 const readPromptFrontmatter = ( promptName, promptDir ) => {
   const fileName = `${promptName}.prompt`;
@@ -50,8 +29,6 @@ const loadSkillFile = filePath => {
   };
 };
 
-// Validate + load skill file paths declared in prompt frontmatter.
-// Runs synchronously at agent() definition time — fails fast at worker startup.
 const loadPromptSkills = ( skillPaths, promptDir ) => {
   const paths = Array.isArray( skillPaths ) ? skillPaths : [ skillPaths ];
   return paths.flatMap( skillPath => {
@@ -76,7 +53,7 @@ const buildSystemSkillsVar = skills =>
 const buildLoadSkillTool = skills => tool( {
   description: 'Get detailed instructions for a named skill',
   inputSchema: z.object( { name: z.string().describe( 'Name of the skill to load' ) } ),
-  execute: async ( { name } ) => {
+  execute: ( { name } ) => {
     const sk = skills.find( s => s.name === name );
     if ( !sk ) {
       return `Skill "${name}" not found. Available: ${skills.map( s => s.name ).join( ', ' )}`;
@@ -91,12 +68,10 @@ const toVariables = input => {
   }
   return Object.fromEntries(
     Object.entries( input ).map( ( [ k, v ] ) =>
-      [ k, ( typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ) ? v : JSON.stringify( v ) ]
+      [ k, [ 'string', 'number', 'boolean' ].includes( typeof v ) ? v : JSON.stringify( v ) ]
     )
   );
 };
-
-// ─── agent() factory ──────────────────────────────────────────────────────────
 
 /**
  * Create a reusable agent function that composes generateText() with skills and tools.
