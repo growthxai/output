@@ -5,7 +5,7 @@ import { z, ValidationError, FatalError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { loadContent } from './load_content.js';
 import { generateText } from './ai_sdk.js';
-import { tool, stepCountIs } from 'ai';
+import { tool, stepCountIs, Output } from 'ai';
 
 // ─── skill() factory ──────────────────────────────────────────────────────────
 
@@ -95,19 +95,6 @@ const toVariables = input => {
   );
 };
 
-const extractJson = text => {
-  try {
-    return JSON.parse( text );
-  } catch {
-    // fall through
-  }
-  const match = text.match( /```(?:json)?\s*([\s\S]*?)\s*```/ );
-  if ( match ) {
-    return JSON.parse( match[1] );
-  }
-  throw new Error( `Could not parse JSON from response: ${text.slice( 0, 200 )}` );
-};
-
 // ─── agent() factory ──────────────────────────────────────────────────────────
 
 /**
@@ -171,12 +158,10 @@ export function agent( {
       promptDir,
       variables,
       ...( hasTools ? { tools: allTools, stopWhen: stepCountIs( maxSteps ) } : {} ),
+      ...( outputSchema ? { output: Output.object( { schema: outputSchema } ) } : {} ),
       ...rest
     } );
 
-    if ( outputSchema ) {
-      return outputSchema.parse( extractJson( result.result ) );
-    }
-    return result.result;
+    return outputSchema ? result.output : result.result;
   };
 }

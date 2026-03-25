@@ -22,7 +22,10 @@ vi.mock( 'ai', () => ( {
     capturedToolCalls.calls.push( def );
     return { _toolDef: def };
   } ),
-  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) )
+  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) ),
+  Output: {
+    object: vi.fn( ( { schema } ) => ( { _outputSchema: schema } ) )
+  }
 } ) );
 
 // ─── Test utilities ───────────────────────────────────────────────────────────
@@ -172,7 +175,7 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     const { z } = await import( '@outputai/core' );
     makePromptFile( state.promptDir, 'test@v1' );
     const { agent } = await importSut();
-    generateTextImpl.mockResolvedValue( { result: '{"summary":"Structured output"}' } );
+    generateTextImpl.mockResolvedValue( { output: { summary: 'Structured output' } } );
     const testAgent = agent( {
       name: 'test_agent',
       prompt: 'test@v1',
@@ -182,6 +185,21 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     const result = await testAgent( {} );
 
     expect( result ).toEqual( { summary: 'Structured output' } );
+  } );
+
+  it( 'passes Output.object to generateText when outputSchema provided', async () => {
+    const { z } = await import( '@outputai/core' );
+    makePromptFile( state.promptDir, 'test@v1' );
+    const { agent } = await importSut();
+    generateTextImpl.mockResolvedValue( { output: { summary: 'ok' } } );
+    const schema = z.object( { summary: z.string() } );
+    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', outputSchema: schema } );
+
+    await testAgent( {} );
+
+    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      output: expect.objectContaining( { _outputSchema: schema } )
+    } ) );
   } );
 
   it( 'passes complex input values as JSON strings', async () => {
