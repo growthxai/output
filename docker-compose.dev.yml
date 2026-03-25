@@ -16,7 +16,7 @@ services:
       - OUTPUT_API_PORT=3001
       - OUTPUT_CATALOG_ID=main
       - TEMPORAL_ADDRESS=temporal:7233
-    command: node /app/api/src/api.js
+    command: node /app/api/src/index.js
     ports:
       - '3001:3001'
     volumes:
@@ -29,7 +29,7 @@ services:
         condition: service_healthy
     image: node:24.13.0-slim
     healthcheck:
-      test: [ 'CMD', 'npx', '--yes', 'output-healthcheck' ]
+      test: [ 'CMD-SHELL', 'npx', 'output-healthcheck' ]
       interval: 3s
       timeout: 10s
       retries: 20

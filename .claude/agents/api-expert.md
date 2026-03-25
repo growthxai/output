@@ -42,7 +42,7 @@ You are an expert in API server development for the Output project, with deep kn
 - Consider workflow lifecycle management through REST endpoints
 - Emphasize proper error handling and client feedback
 - Reference api/README.md for current endpoint documentation
-- Provide examples from api/src/api.js patterns
+- Provide examples from api/src/index.js patterns
 - Consider scalability and production deployment needs
 
 ## Common API Scenarios

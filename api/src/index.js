@@ -15,16 +15,12 @@ const client = await temporalClient.init().catch( e => {
   process.exit( 1 );
 } );
 
-// set payload limit for POST in application/json format.
-// the default is 100kb but input for some workflows may be much larger.
+// Sets payload limit for POST in application/json format. Some workflow have very large payloads
 app.use( express.json( { limit: '2mb' } ) );
-// set payload limit for POST in application/x-www-form-urlencode format,
-// just for consistency
+// Also sets payload limit for POST in application/x-www-form-urlencode format,
 app.use( express.urlencoded( { extended: true, limit: '2mb' } ) );
-
 // Request ID tracking
 app.use( requestIdMiddleware );
-
 // HTTP request logging via Morgan → Winston
 app.use( createHttpLoggingMiddleware() );
 
@@ -426,8 +422,8 @@ app.post( '/workflow/start', async ( req, res ) => {
     workflowId: z.string().optional(),
     taskQueue: z.string().optional()
   } ).parse( req.body );
-  const result = await client.startWorkflow( workflowName, input, { workflowId, taskQueue } );
-  res.json( result );
+
+  res.json( await client.startWorkflow( workflowName, input, { workflowId, taskQueue } ) );
 } );
 
 /**
@@ -493,8 +489,7 @@ app.get( '/workflow/:id/status', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.patch( '/workflow/:id/stop', async ( req, res ) => {
-  const result = await client.stopWorkflow( req.params.id );
-  res.json( result );
+  res.json( await client.stopWorkflow( req.params.id ) );
 } );
 
 /**

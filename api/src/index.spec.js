@@ -76,7 +76,7 @@ const PORT = 3000;
 
 describe( 'API endpoints', () => {
   beforeAll( async () => {
-    await import( './api.js' );
+    await import( './index.js' );
   } );
 
   beforeEach( () => {
