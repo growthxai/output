@@ -9,7 +9,7 @@ const COMMENT_LINE = /^\s*#/;
 const COMMENTED_VAR = /^\s*#\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/;
 const ACTIVE_VAR = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/;
 const VAR_IN_COMMENT = /^\s*#\s*[A-Z_]+=/;
-const SECRET_MARKER = '<SECRET>';
+const SECRET_MARKER = '<FILL_ME_OUT>';
 
 interface EnvVariable {
   key: string;

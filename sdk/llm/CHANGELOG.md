@@ -1,5 +1,12 @@
 # @outputai/llm
 
+## 0.1.8
+
+### Patch Changes
+
+- f78154c: Updating @exalabs/ai-sdk from 1.0.5 to 2.0.1
+  - @outputai/core@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes

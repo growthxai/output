@@ -168,7 +168,7 @@ ${ux.colorize( 'green', ux.colorize( 'bold', 'Happy customizing! 🛠️' ) )}
 export const getProjectSuccessMessage = (
   folderName: string,
   installSuccess: boolean,
-  envConfigured: boolean = false
+  credentialsConfigured: boolean = false
 ): string => {
   const divider = ux.colorize( 'dim', '─'.repeat( 80 ) );
   const bulletPoint = ux.colorize( 'green', '▸' );
@@ -189,11 +189,11 @@ export const getProjectSuccessMessage = (
     } );
   }
 
-  if ( !envConfigured ) {
+  if ( !credentialsConfigured ) {
     steps.push( {
-      step: 'Configure environment variables',
-      command: 'cp .env.example .env',
-      note: 'Copy .env.example to .env and add your API keys'
+      step: 'Add your API credentials',
+      command: 'npx output credentials edit',
+      note: 'Learn more: https://docs.output.ai/packages/credentials'
     } );
   }
 
@@ -261,6 +261,9 @@ ${divider}
 
 ${ux.colorize( 'dim', '💡 Tip: Use ' )}${formatCommand( 'npx output workflow plan' )}${ux.colorize( 'dim', ' to design your first custom workflow' )}
 ${ux.colorize( 'dim', '         with AI assistance.' )}
+
+${ux.colorize( 'dim', '🔑 Secrets: Use ' )}${formatCommand( 'npx output credentials show|get|edit' )}
+${ux.colorize( 'dim', '         to manage your project secrets.' )}
 
 ${ux.colorize( 'green', ux.colorize( 'bold', 'Happy building with Output! 🚀' ) )}
 `;

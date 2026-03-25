@@ -1,5 +1,15 @@
 # @outputai/cli
 
+## 0.1.8
+
+### Patch Changes
+
+- 834d0aa: Use encrypted credentials in `output init` scaffold by default. API keys are now stored in `config/credentials.yml.enc` instead of `.env`, and `<SECRET>` markers are renamed to `<FILL_ME_OUT>`.
+- Updated dependencies [f78154c]
+  - @outputai/llm@0.1.8
+  - @outputai/credentials@0.1.8
+  - @outputai/evals@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes
