@@ -34,9 +34,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create Release Pull Request
+      - name: Simulate upcoming release
+        run: echo "RELEASE_VERSION=$(./ops/get_bump.sh)" >> "$GITHUB_ENV"
+
+      - name: Create release pull request
         uses: changesets/action@v1
         with:
+          commit: "chore(release): v${{ env.RELEASE_VERSION }}"
+          title: "chore(release): v${{ env.RELEASE_VERSION }}"
           version: ./ops/bump_release.sh
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_GH_TOKEN }}
