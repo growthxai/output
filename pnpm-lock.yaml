@@ -153,6 +153,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
+      js-yaml:
+        specifier: 'catalog:'
+        version: 4.1.1
       swagger-jsdoc:
         specifier: 6.2.8
         version: 6.2.8(openapi-types@12.1.3)

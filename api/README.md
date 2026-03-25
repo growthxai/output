@@ -115,16 +115,18 @@ The AWS credentials are used by the `/workflow/:id/trace-log` endpoint to fetch 
 
 ## Editing the API
 
-**Source of truth**: `src/index.js` with `@swagger` JSDoc comments
+**OpenAPI source of truth**: `openapi.yml` (paths, schemas, responses, security schemes).
+
+**Implementation**: Express routes and handlers live in `src/index.js`. When you add or change an HTTP surface, update `openapi.yml` in the same change so the spec stays accurate.
 
 **Workflow**:
 
-1. Edit Express routes in `src/index.js`;
-2. Edit _@swagger_ comments in the same file to match the new API state;
-3. When building, those comments will generate the `openapi.json` file.
+1. Edit `src/index.js` for runtime behavior;
+2. Edit `openapi.yml` for contract/documentation changes;
+3. The build will generate the JSON spec (`openapi.json`).
 
-**Do not manually edit** `openapi.json` - changes will be overwritten.
+**Do not manually edit** `openapi.json` — it is produced from `openapi.yml` and will be overwritten.
 
 ## OpenAPI Specification
 
-View the full API spec in `openapi.json` or use tools like Swagger UI.
+The generated file is `openapi.json` (from `openapi.yml`). View it directly or load it in Swagger UI or similar tools.

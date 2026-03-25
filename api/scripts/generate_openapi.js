@@ -1,42 +1,38 @@
 #!/usr/bin/env node
 
-import swaggerJsdoc from 'swagger-jsdoc';
-import { writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import yaml from 'js-yaml';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
-const specsFile = join( __dirname, '..', 'src', 'index.js' );
+const specFile = join( __dirname, '..', 'openapi.yml' );
 const outputFile = join( __dirname, '..', 'openapi.json' );
 
-console.log( '\x1b[0;34m%s\x1b[0m', '[API]: Generating OpenAPI spec JSON' );
+console.log( '\x1b[0;34m%s\x1b[0m', '[API]: Convert OpenAPI yml to json' );
 
-const spec = swaggerJsdoc( {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Output.ai API',
-      version: '1.0.0',
-      description: 'API for managing and executing Output.ai workflows'
-    },
-    servers: [
-      {
-        url: 'http://localhost:3001',
-        description: 'Development server'
-      }
-    ],
-    components: {
-      securitySchemes: {
-        BasicAuth: {
-          type: 'http',
-          scheme: 'basic'
-        }
-      }
-    },
-    security: process.env.NODE_ENV === 'production' ? [ { BasicAuth: [] } ] : []
-  },
-  apis: [ specsFile ]
-} );
+if ( !existsSync( specFile ) ) {
+  console.error( `Missing source file ${specFile}` );
+  process.exit( 1 );
+}
+
+// eslint-disable-next-line consistent-return
+const spec = ( () => {
+  try {
+    return yaml.load( readFileSync( specFile, 'utf8' ) );
+  } catch ( error ) {
+    console.error( `Invalid yml file ${specFile}: ${error.message}` );
+    process.exit( 1 );
+  }
+} )();
+
+if ( !/^3\.0\.\d+$/.test( spec?.openapi ) ) {
+  console.error( `Invalid spec at ${specFile}: Must be a valid openapi 3.0.x spec` );
+  process.exit( 1 );
+}
+
+// Production has basic auth, dev don't
+spec.security = process.env.NODE_ENV === 'production' ? [ { BasicAuth: [] } ] : [];
 
 writeFileSync( outputFile, JSON.stringify( spec, null, 2 ) + '\n', 'utf-8' );
 
