@@ -20,9 +20,4 @@ Review the following {{ content_type }} content focusing on {{ focus }}.
 
 Content:
 {{ content }}
-
-Respond with ONLY a raw JSON object (no markdown, no explanation):
-{"issues": ["string describing issue 1", "string describing issue 2"], "suggestions": ["string suggestion 1", "string suggestion 2"], "score": 7, "summary": "one paragraph summary string"}
-
-All values in issues and suggestions must be plain strings.
 </user>
