@@ -41,3 +41,25 @@ export const loadContent = ( name, dir = resolveInvocationDir() ) => {
   }
   return null;
 };
+
+/**
+ * Recursively search for a file by name and return the directory containing it.
+ *
+ * @param {string} name - File name to find
+ * @param {string} [dir] - Directory to search, defaults to invocation directory
+ * @returns {string | null} - Directory path containing the file, or null if not found
+ */
+export const findContentDir = ( name, dir = resolveInvocationDir() ) => {
+  for ( const entry of scanDir( dir ) ) {
+    if ( entry.name === name ) {
+      return dir;
+    }
+    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
+      const result = findContentDir( name, join( dir, entry.name ) );
+      if ( result ) {
+        return result;
+      }
+    }
+  }
+  return null;
+};

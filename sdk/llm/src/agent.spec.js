@@ -122,6 +122,19 @@ describe( 'agent() — definition-time validation', () => {
     const { agent } = await importSut();
     expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).not.toThrow();
   } );
+
+  it( 'resolves skill paths relative to the prompt file, not promptDir', async () => {
+    // Prompt is in a subdirectory (prompts/), skills are co-located with it (prompts/skills/)
+    const promptsDir = join( state.promptDir, 'prompts' );
+    const skillsDir = join( promptsDir, 'skills' );
+    mkdirSync( promptsDir );
+    mkdirSync( skillsDir );
+    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research' );
+    makePromptFile( promptsDir, 'test@v1', [ './skills/' ] );
+    const { agent } = await importSut();
+    // promptDir points at the parent (state.promptDir), but skills are relative to prompt file
+    expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).not.toThrow();
+  } );
 } );
 
 describe( 'agent() — runtime behaviour (no skills)', () => {

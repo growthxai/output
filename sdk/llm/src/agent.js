@@ -3,7 +3,7 @@ import { join, resolve, basename } from 'node:path';
 import matter from 'gray-matter';
 import { z, ValidationError, FatalError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
-import { loadContent } from './load_content.js';
+import { loadContent, findContentDir } from './load_content.js';
 import { generateText } from './ai_sdk.js';
 import { tool, stepCountIs, Output } from 'ai';
 
@@ -31,12 +31,13 @@ export function skill( { name, description, instructions } ) {
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 const readPromptFrontmatter = ( promptName, promptDir ) => {
-  const content = loadContent( `${promptName}.prompt`, promptDir );
-  if ( !content ) {
+  const fileName = `${promptName}.prompt`;
+  const promptFileDir = findContentDir( fileName, promptDir );
+  if ( !promptFileDir ) {
     throw new FatalError( `Prompt "${promptName}" not found in "${promptDir}"` );
   }
-  const { data } = matter( content );
-  return data;
+  const { data } = matter( loadContent( fileName, promptFileDir ) );
+  return { data, promptFileDir };
 };
 
 const loadSkillFile = filePath => {
@@ -137,8 +138,8 @@ export function agent( {
 
   // Load + validate static skills from prompt frontmatter at definition time.
   // Any missing skill files throw FatalError here — caught at worker startup.
-  const frontmatter = readPromptFrontmatter( prompt, promptDir );
-  const promptSkills = frontmatter.skills ? loadPromptSkills( frontmatter.skills, promptDir ) : [];
+  const { data: frontmatter, promptFileDir } = readPromptFrontmatter( prompt, promptDir );
+  const promptSkills = frontmatter.skills ? loadPromptSkills( frontmatter.skills, promptFileDir ) : [];
 
   return async input => {
     const agentSkills = typeof skills === 'function' ? await skills( input ) : skills;
