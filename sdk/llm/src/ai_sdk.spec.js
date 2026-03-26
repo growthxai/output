@@ -20,7 +20,9 @@ vi.mock( './ai_model.js', () => ( {
 
 const aiFns = {
   generateText: vi.fn(),
-  streamText: vi.fn()
+  streamText: vi.fn(),
+  tool: vi.fn( def => def ),
+  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) )
 };
 vi.mock( 'ai', () => ( aiFns ) );
 
@@ -65,6 +67,8 @@ beforeEach( () => {
   loadPromptImpl.mockReset().mockReturnValue( basePrompt );
   extractSourcesFromStepsImpl.mockReset().mockReturnValue( [] );
   calculateLLMCallCostImpl.mockReset().mockResolvedValue( cost );
+  aiFns.tool.mockReset().mockImplementation( def => def );
+  aiFns.stepCountIs.mockReset().mockImplementation( n => ( { type: 'stepCount', count: n } ) );
 
   const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
   aiFns.generateText.mockReset().mockResolvedValue( {
@@ -602,6 +606,114 @@ describe( 'ai_sdk', () => {
     } );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
       expect.objectContaining( { details: expect.objectContaining( { cost: customCost } ) } )
+    );
+  } );
+
+  it( 'generateText: injects _system_skills and load_skill tool when skills provided', async () => {
+    const skills = [
+      { name: 'research', description: 'Research approach', instructions: '# Research\nDo research' }
+    ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    expect( loadPromptImpl ).toHaveBeenCalledWith(
+      'test_prompt@v1',
+      expect.objectContaining( { _system_skills: expect.stringContaining( 'research' ) } )
+    );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toHaveProperty( 'load_skill' );
+  } );
+
+  it( 'generateText: does not inject _system_skills or load_skill when skills is empty', async () => {
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills: [] } );
+
+    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toBeUndefined();
+    expect( callArgs.stopWhen ).toBeUndefined();
+  } );
+
+  it( 'generateText: load_skill execute returns instructions for known skill', async () => {
+    const skills = [
+      { name: 'research', description: 'Research', instructions: '# Research\nDetailed steps' }
+    ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    const result = tools.load_skill.execute( { name: 'research' } );
+    expect( result ).toBe( '# Research\nDetailed steps' );
+  } );
+
+  it( 'generateText: load_skill execute returns error for unknown skill', async () => {
+    const skills = [
+      { name: 'research', description: 'Research', instructions: '# Research' }
+    ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    const result = tools.load_skill.execute( { name: 'unknown' } );
+    expect( result ).toMatch( /not found/ );
+    expect( result ).toContain( 'research' );
+  } );
+
+  it( 'generateText: sets stopWhen via maxSteps when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, maxSteps: 5 } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: { type: 'stepCount', count: 5 } } )
+    );
+  } );
+
+  it( 'generateText: defaults maxSteps to 10 when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: { type: 'stepCount', count: 10 } } )
+    );
+  } );
+
+  it( 'generateText: merges skill tools with user-provided tools', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const userTools = { calculator: { description: 'A calculator' } };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, tools: userTools } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    expect( tools ).toHaveProperty( 'load_skill' );
+    expect( tools ).toHaveProperty( 'calculator' );
+  } );
+
+  it( 'generateText: calls skill function with variables and uses resolved skills', async () => {
+    const resolvedSkill = { name: 'dynamic', description: 'Dynamic skill', instructions: '# Dynamic' };
+    const skillsFn = vi.fn().mockResolvedValue( [ resolvedSkill ] );
+    const vars = { topic: 'AI' };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', variables: vars, skills: skillsFn } );
+
+    expect( skillsFn ).toHaveBeenCalledWith( vars );
+    expect( loadPromptImpl ).toHaveBeenCalledWith(
+      'test_prompt@v1',
+      expect.objectContaining( { _system_skills: expect.stringContaining( 'dynamic' ) } )
+    );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toHaveProperty( 'load_skill' );
+  } );
+
+  it( 'generateText: preserves caller stopWhen when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const customStop = { type: 'custom' };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, stopWhen: customStop } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: customStop } )
     );
   } );
 

@@ -1,10 +1,28 @@
 import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { z } from '@outputai/core';
 import { loadModel, loadTools } from './ai_model.js';
 import * as AI from 'ai';
+import { tool, stepCountIs } from 'ai';
 import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.js';
 import { loadPrompt } from './prompt_loader.js';
 import { extractSourcesFromSteps } from './source_extraction.js';
 import { calculateLLMCallCost } from './cost/index.js';
+
+const buildSystemSkillsVar = skills =>
+  'Available skills (use load_skill to get full instructions):\n' +
+  skills.map( s => `- ${s.name}: ${s.description}` ).join( '\n' );
+
+const buildLoadSkillTool = skills => tool( {
+  description: 'Get detailed instructions for a named skill',
+  inputSchema: z.object( { name: z.string().describe( 'Name of the skill to load' ) } ),
+  execute: ( { name } ) => {
+    const sk = skills.find( s => s.name === name );
+    if ( !sk ) {
+      return `Skill "${name}" not found. Available: ${skills.map( s => s.name ).join( ', ' )}`;
+    }
+    return sk.instructions;
+  }
+} );
 
 // Starts the LLM trace, with the start event
 const startTrace = ( name, details ) => {
@@ -54,16 +72,28 @@ const loadAiSdkOptionsFromPrompt = prompt => {
  * @throws {FatalError} If the prompt file is not found or template rendering fails
  * @returns {Promise<GenerateTextResult>} AI SDK response with text, toolCalls, and metadata
  */
-export async function generateText( { prompt, variables, promptDir, ...extraAiSdkOptions } ) {
-  validateGenerateTextArgs( { prompt, variables } );
-  const loadedPrompt = promptDir ? loadPrompt( prompt, variables, promptDir ) : loadPrompt( prompt, variables );
-  const traceId = startTrace( 'generateText', { prompt, variables, loadedPrompt } );
+export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {
+  const resolvedSkills = typeof skills === 'function' ? await skills( variables ) : skills;
+  const hasSkills = resolvedSkills.length > 0;
+  const allVariables = hasSkills ?
+    { ...variables, _system_skills: buildSystemSkillsVar( resolvedSkills ) } :
+    variables;
+
+  validateGenerateTextArgs( { prompt, variables: allVariables } );
+  const loadedPrompt = promptDir ? loadPrompt( prompt, allVariables, promptDir ) : loadPrompt( prompt, allVariables );
+  const traceId = startTrace( 'generateText', { prompt, variables: allVariables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
+
+  const skillOptions = hasSkills ? {
+    tools: { load_skill: buildLoadSkillTool( resolvedSkills ), ...( extraAiSdkOptions.tools ?? {} ) },
+    ...( !extraAiSdkOptions.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
+  } : {};
 
   try {
     const response = await AI.generateText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
-      ...extraAiSdkOptions
+      ...extraAiSdkOptions,
+      ...skillOptions
     } );
     const { text: result, totalUsage: usage, providerMetadata } = response;
     const sourcesFromTools = extractSourcesFromSteps( response.steps );

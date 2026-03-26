@@ -279,7 +279,13 @@ export function generateText<
   args: {
     prompt: string,
     variables?: Record<string, string | number | boolean>,
-    promptDir?: string
+    promptDir?: string,
+    /**
+     * Skill packages to provide to the LLM. Injects `{{ _system_skills }}` and adds the `load_skill` tool.
+     * Can be a static array or a function that receives the resolved variables and returns skills.
+     */
+    skills?: import( './skill.js' ).Skill[] |
+      ( ( variables?: Record<string, string | number | boolean> ) => import( './skill.js' ).Skill[] | Promise<import( './skill.js' ).Skill[]> )
   } & GenerateTextAiSdkOptions<Tools, Output>
 ): Promise<GenerateTextResult<Tools, Output>>;
 

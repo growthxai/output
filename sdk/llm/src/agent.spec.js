@@ -16,13 +16,7 @@ vi.mock( './ai_sdk.js', () => ( {
   generateText: ( ...args ) => generateTextImpl( ...args )
 } ) );
 
-const capturedToolCalls = vi.hoisted( () => ( { calls: [] } ) );
 vi.mock( 'ai', () => ( {
-  tool: vi.fn( def => {
-    capturedToolCalls.calls.push( def );
-    return { _toolDef: def };
-  } ),
-  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) ),
   Output: {
     object: vi.fn( ( { schema } ) => ( { _outputSchema: schema } ) )
   }
@@ -50,7 +44,6 @@ const importSut = () => import( './agent.js' );
 
 beforeEach( () => {
   state.promptDir = mkdtempSync( join( tmpdir(), 'agent-test-' ) );
-  capturedToolCalls.calls = [];
   vi.clearAllMocks();
   generateTextImpl.mockResolvedValue( { result: 'LLM response text' } );
 } );
@@ -152,7 +145,7 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     } ) );
   } );
 
-  it( 'does not inject _system_skills when no skills', async () => {
+  it( 'passes empty skills array when no skills', async () => {
     makePromptFile( state.promptDir, 'test@v1' );
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
@@ -160,17 +153,7 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     await testAgent( { topic: 'AI' } );
 
     const calledWith = generateTextImpl.mock.calls[0][0];
-    expect( calledWith.variables ).not.toHaveProperty( '_system_skills' );
-  } );
-
-  it( 'does not add load_skill tool when no skills', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( { topic: 'AI' } );
-
-    const calledWith = generateTextImpl.mock.calls[0][0];
+    expect( calledWith.skills ).toEqual( [] );
     expect( calledWith.tools ).toBeUndefined();
   } );
 
@@ -229,7 +212,7 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
 } );
 
 describe( 'agent() — runtime behaviour (with skills)', () => {
-  it( 'injects _system_skills variable with skill names and descriptions', async () => {
+  it( 'passes loaded skills to generateText', async () => {
     const skillsDir = join( state.promptDir, 'skills' );
     mkdirSync( skillsDir );
     makeSkillFile( skillsDir, 'research.md', 'research', 'Structured research approach', '# Research\nDo research' );
@@ -239,56 +222,10 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
 
     await testAgent( {} );
 
-    const { variables } = generateTextImpl.mock.calls[0][0];
-    expect( variables._system_skills ).toContain( 'research' );
-    expect( variables._system_skills ).toContain( 'Structured research approach' );
-    expect( variables._system_skills ).toContain( 'load_skill' );
-  } );
-
-  it( 'adds load_skill tool when skills are present', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    const { tools } = generateTextImpl.mock.calls[0][0];
-    expect( tools ).toHaveProperty( 'load_skill' );
-  } );
-
-  it( 'load_skill tool returns skill instructions for valid name', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research\nDetailed instructions' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    const { tools } = generateTextImpl.mock.calls[0][0];
-    const result = await tools.load_skill._toolDef.execute( { name: 'research' } );
-    expect( result ).toContain( '# Research' );
-    expect( result ).toContain( 'Detailed instructions' );
-  } );
-
-  it( 'load_skill tool returns error message for unknown skill', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    const { tools } = generateTextImpl.mock.calls[0][0];
-    const result = await tools.load_skill._toolDef.execute( { name: 'unknown' } );
-    expect( result ).toMatch( /not found/ );
-    expect( result ).toContain( 'research' );
+    const { skills } = generateTextImpl.mock.calls[0][0];
+    expect( skills ).toHaveLength( 1 );
+    expect( skills[0].name ).toBe( 'research' );
+    expect( skills[0].description ).toBe( 'Structured research approach' );
   } );
 
   it( 'loads all .md files from a skills directory in sorted order', async () => {
@@ -302,9 +239,9 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
 
     await testAgent( {} );
 
-    const { variables } = generateTextImpl.mock.calls[0][0];
-    const skillsText = variables._system_skills;
-    expect( skillsText.indexOf( 'aaa_skill' ) ).toBeLessThan( skillsText.indexOf( 'zzz_skill' ) );
+    const { skills } = generateTextImpl.mock.calls[0][0];
+    expect( skills[0].name ).toBe( 'aaa_skill' );
+    expect( skills[1].name ).toBe( 'zzz_skill' );
   } );
 
   it( 'merges prompt-declared skills with inline agent skills', async () => {
@@ -318,12 +255,13 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
 
     await testAgent( {} );
 
-    const { variables } = generateTextImpl.mock.calls[0][0];
-    expect( variables._system_skills ).toContain( 'file_skill' );
-    expect( variables._system_skills ).toContain( 'inline_skill' );
+    const { skills } = generateTextImpl.mock.calls[0][0];
+    const skillNames = skills.map( s => s.name );
+    expect( skillNames ).toContain( 'file_skill' );
+    expect( skillNames ).toContain( 'inline_skill' );
   } );
 
-  it( 'resolves dynamic skills from a function at runtime', async () => {
+  it( 'passes a skill resolver function to generateText for dynamic skills', async () => {
     makePromptFile( state.promptDir, 'test@v1' );
     const { agent, skill } = await importSut();
     const dynamicSkill = skill( { name: 'dynamic_skill', instructions: '# Dynamic' } );
@@ -331,11 +269,14 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', skills: skillsFn } );
 
     await testAgent( { deep: true } );
-    expect( generateTextImpl.mock.calls[0][0].variables._system_skills ).toContain( 'dynamic_skill' );
+    const skillsArg1 = generateTextImpl.mock.calls[0][0].skills;
+    expect( typeof skillsArg1 ).toBe( 'function' );
+    expect( ( await skillsArg1() ).map( s => s.name ) ).toContain( 'dynamic_skill' );
 
     generateTextImpl.mockClear();
     await testAgent( { deep: false } );
-    expect( generateTextImpl.mock.calls[0][0].variables ).not.toHaveProperty( '_system_skills' );
+    const skillsArg2 = generateTextImpl.mock.calls[0][0].skills;
+    expect( await skillsArg2() ).toHaveLength( 0 );
   } );
 
   it( 'uses promptDir from options when explicitly provided', async () => {
@@ -351,7 +292,7 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
     } ) );
   } );
 
-  it( 'uses maxSteps default of 10 when tools are present', async () => {
+  it( 'passes maxSteps default of 10 to generateText', async () => {
     const skillsDir = join( state.promptDir, 'skills' );
     mkdirSync( skillsDir );
     makeSkillFile( skillsDir, 'skill.md', 'skill', 'A skill', '# Skill' );
@@ -361,6 +302,6 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
 
     await testAgent( {} );
 
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen: { type: 'stepCount', count: 10 } } ) );
+    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( { maxSteps: 10 } ) );
   } );
 } );

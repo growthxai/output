@@ -1,11 +1,11 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, basename } from 'node:path';
 import matter from 'gray-matter';
-import { z, ValidationError, FatalError } from '@outputai/core';
+import { ValidationError, FatalError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { loadContent, findContentDir } from './load_content.js';
 import { generateText } from './ai_sdk.js';
-import { tool, stepCountIs, Output } from 'ai';
+import { Output } from 'ai';
 
 export { skill } from './skill.js';
 
@@ -45,22 +45,6 @@ const loadPromptSkills = ( skillPaths, promptDir ) => {
     return [ loadSkillFile( resolved ) ];
   } );
 };
-
-const buildSystemSkillsVar = skills =>
-  'Available skills (use load_skill to get full instructions):\n' +
-  skills.map( s => `- ${s.name}: ${s.description}` ).join( '\n' );
-
-const buildLoadSkillTool = skills => tool( {
-  description: 'Get detailed instructions for a named skill',
-  inputSchema: z.object( { name: z.string().describe( 'Name of the skill to load' ) } ),
-  execute: ( { name } ) => {
-    const sk = skills.find( s => s.name === name );
-    if ( !sk ) {
-      return `Skill "${name}" not found. Available: ${skills.map( s => s.name ).join( ', ' )}`;
-    }
-    return sk.instructions;
-  }
-} );
 
 const toVariables = input => {
   if ( !input ) {
@@ -116,24 +100,19 @@ export function agent( {
   const { data: frontmatter, promptFileDir } = readPromptFrontmatter( prompt, promptDir );
   const promptSkills = frontmatter.skills ? loadPromptSkills( frontmatter.skills, promptFileDir ) : [];
 
+  // Pre-compute the merged skills at definition time for the static case.
+  // For dynamic skills (function), a closure is created per-call at runtime.
+  const mergedStaticSkills = Array.isArray( skills ) ? [ ...promptSkills, ...skills ] : null;
+
   return async input => {
-    const agentSkills = typeof skills === 'function' ? await skills( input ) : skills;
-    const allSkills = [ ...promptSkills, ...agentSkills ];
-
-    const skillTools = allSkills.length > 0 ? { load_skill: buildLoadSkillTool( allSkills ) } : {};
-    const allTools = { ...tools, ...skillTools };
-    const hasTools = Object.keys( allTools ).length > 0;
-
-    const variables = {
-      ...toVariables( input ),
-      ...( allSkills.length > 0 ? { _system_skills: buildSystemSkillsVar( allSkills ) } : {} )
-    };
-
     const result = await generateText( {
       prompt,
       promptDir,
-      variables,
-      ...( hasTools ? { tools: allTools, stopWhen: stepCountIs( maxSteps ) } : {} ),
+      variables: toVariables( input ),
+      skills: mergedStaticSkills ??
+        ( () => Promise.resolve( skills( input ) ).then( s => [ ...promptSkills, ...s ] ) ),
+      maxSteps,
+      ...( Object.keys( tools ).length > 0 ? { tools } : {} ),
       ...( outputSchema ? { output: Output.object( { schema: outputSchema } ) } : {} ),
       ...rest
     } );
