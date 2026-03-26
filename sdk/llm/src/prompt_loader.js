@@ -32,15 +32,10 @@ export const loadPrompt = ( name, values = {}, dir ) => {
 
   const { config, messages } = parsePrompt( renderedContent );
 
-  const prompt = {
-    name,
-    config,
-    messages,
-    promptFileDir: found.dir
-  };
+  const prompt = { name, config, messages };
 
   validatePrompt( prompt );
 
-  return prompt;
+  return { ...prompt, promptFileDir: found.dir };
 };
 
