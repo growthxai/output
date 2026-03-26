@@ -35,3 +35,15 @@ export declare function skill( params: {
   description?: string;
   instructions: string;
 } ): Skill;
+
+/** Load a single skill from a markdown file. */
+export declare function loadSkillFile( filePath: string ): Skill;
+
+/** Load skills from an array of file/directory paths, resolved relative to promptDir. */
+export declare function loadPromptSkills( skillPaths: string | string[], promptDir: string ): Skill[];
+
+/** Build the `{{ _system_skills }}` template variable listing available skills. */
+export declare function buildSystemSkillsVar( skills: Skill[] ): string;
+
+/** Build the `load_skill` AI SDK tool that returns full instructions for a named skill. */
+export declare function buildLoadSkillTool( skills: Skill[] ): import( 'ai' ).Tool;

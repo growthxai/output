@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -31,11 +31,6 @@ const makePromptFile = ( dir, name, skills = [] ) => {
   const messages = '<system>\n{{ _system_skills }}\n</system>\n<user>\ntest\n</user>\n';
   const content = `---\nprovider: anthropic\nmodel: claude-sonnet-4-6\n${skillsYaml}---\n\n${messages}`;
   writeFileSync( join( dir, `${name}.prompt` ), content );
-};
-
-const makeSkillFile = ( dir, filename, name, description, instructions ) => {
-  const content = `---\nname: ${name}\ndescription: ${description}\n---\n\n${instructions}`;
-  writeFileSync( join( dir, filename ), content );
 };
 
 const importSut = () => import( './agent.js' );
@@ -74,7 +69,6 @@ describe( 'skill()', () => {
 
 describe( 'agent() — definition-time validation', () => {
   it( 'throws ValidationError when name is missing', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
     const { agent } = await importSut();
     expect( () => agent( { prompt: 'test@v1' } ) ).toThrow( /requires a name/ );
   } );
@@ -84,48 +78,8 @@ describe( 'agent() — definition-time validation', () => {
     expect( () => agent( { name: 'test_agent' } ) ).toThrow( /requires a prompt/ );
   } );
 
-  it( 'throws FatalError when prompt file is not found', async () => {
+  it( 'creates successfully with name and prompt', async () => {
     const { agent } = await importSut();
-    expect( () => agent( { name: 'test_agent', prompt: 'nonexistent@v1' } ) ).toThrow( /not found/ );
-  } );
-
-  it( 'throws FatalError when a skill file declared in prompt frontmatter is missing', async () => {
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/missing.md' ] );
-    const { agent } = await importSut();
-    expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).toThrow( /not found/ );
-  } );
-
-  it( 'throws FatalError when a skill directory declared in prompt frontmatter is missing', async () => {
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).toThrow( /not found/ );
-  } );
-
-  it( 'succeeds with valid prompt and no skills', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).not.toThrow();
-  } );
-
-  it( 'succeeds with valid prompt and skill files', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research\nDo research' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/research.md' ] );
-    const { agent } = await importSut();
-    expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).not.toThrow();
-  } );
-
-  it( 'resolves skill paths relative to the prompt file, not promptDir', async () => {
-    // Prompt is in a subdirectory (prompts/), skills are co-located with it (prompts/skills/)
-    const promptsDir = join( state.promptDir, 'prompts' );
-    const skillsDir = join( promptsDir, 'skills' );
-    mkdirSync( promptsDir );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Research skill', '# Research' );
-    makePromptFile( promptsDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    // promptDir points at the parent (state.promptDir), but skills are relative to prompt file
     expect( () => agent( { name: 'test_agent', prompt: 'test@v1' } ) ).not.toThrow();
   } );
 } );
@@ -212,76 +166,31 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
 } );
 
 describe( 'agent() — runtime behaviour (with skills)', () => {
-  it( 'passes loaded skills to generateText', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'research.md', 'research', 'Structured research approach', '# Research\nDo research' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    const { skills } = generateTextImpl.mock.calls[0][0];
-    expect( skills ).toHaveLength( 1 );
-    expect( skills[0].name ).toBe( 'research' );
-    expect( skills[0].description ).toBe( 'Structured research approach' );
-  } );
-
-  it( 'loads all .md files from a skills directory in sorted order', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'zzz.md', 'zzz_skill', 'Last skill', '# ZZZ' );
-    makeSkillFile( skillsDir, 'aaa.md', 'aaa_skill', 'First skill', '# AAA' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    const { skills } = generateTextImpl.mock.calls[0][0];
-    expect( skills[0].name ).toBe( 'aaa_skill' );
-    expect( skills[1].name ).toBe( 'zzz_skill' );
-  } );
-
-  it( 'merges prompt-declared skills with inline agent skills', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'file_skill.md', 'file_skill', 'From file', '# File' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
+  it( 'passes inline skills array directly to generateText', async () => {
     const { agent, skill } = await importSut();
-    const inlineSkill = skill( { name: 'inline_skill', description: 'Inline', instructions: '# Inline' } );
+    const inlineSkill = skill( { name: 'my_skill', description: 'My skill', instructions: '# My Skill' } );
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', skills: [ inlineSkill ] } );
 
     await testAgent( {} );
 
-    const { skills } = generateTextImpl.mock.calls[0][0];
-    const skillNames = skills.map( s => s.name );
-    expect( skillNames ).toContain( 'file_skill' );
-    expect( skillNames ).toContain( 'inline_skill' );
+    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      skills: [ inlineSkill ]
+    } ) );
   } );
 
-  it( 'passes a skill resolver function to generateText for dynamic skills', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
+  it( 'passes skills function reference directly to generateText', async () => {
     const { agent, skill } = await importSut();
     const dynamicSkill = skill( { name: 'dynamic_skill', instructions: '# Dynamic' } );
-    const skillsFn = vi.fn( input => input.deep ? [ dynamicSkill ] : [] );
+    const skillsFn = vars => vars.deep ? [ dynamicSkill ] : [];
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', skills: skillsFn } );
 
     await testAgent( { deep: true } );
-    const skillsArg1 = generateTextImpl.mock.calls[0][0].skills;
-    expect( typeof skillsArg1 ).toBe( 'function' );
-    expect( ( await skillsArg1() ).map( s => s.name ) ).toContain( 'dynamic_skill' );
 
-    generateTextImpl.mockClear();
-    await testAgent( { deep: false } );
-    const skillsArg2 = generateTextImpl.mock.calls[0][0].skills;
-    expect( await skillsArg2() ).toHaveLength( 0 );
+    expect( generateTextImpl.mock.calls[0][0].skills ).toBe( skillsFn );
   } );
 
   it( 'uses promptDir from options when explicitly provided', async () => {
     const explicitDir = mkdtempSync( join( tmpdir(), 'explicit-dir-' ) );
-    makePromptFile( explicitDir, 'test@v1' );
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', promptDir: explicitDir } );
 
@@ -293,10 +202,6 @@ describe( 'agent() — runtime behaviour (with skills)', () => {
   } );
 
   it( 'passes maxSteps default of 10 to generateText', async () => {
-    const skillsDir = join( state.promptDir, 'skills' );
-    mkdirSync( skillsDir );
-    makeSkillFile( skillsDir, 'skill.md', 'skill', 'A skill', '# Skill' );
-    makePromptFile( state.promptDir, 'test@v1', [ './skills/' ] );
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
 
