@@ -3,14 +3,14 @@ import { loadPrompt } from './prompt_loader.js';
 
 // Mock dependencies that perform I/O or validation
 vi.mock( './load_content.js', () => ( {
-  loadContent: vi.fn()
+  loadContentWithDir: vi.fn()
 } ) );
 
 vi.mock( './prompt_validations.js', () => ( {
   validatePrompt: vi.fn()
 } ) );
 
-import { loadContent } from './load_content.js';
+import { loadContentWithDir } from './load_content.js';
 import { validatePrompt } from './prompt_validations.js';
 
 describe( 'loadPrompt', () => {
@@ -25,7 +25,7 @@ model: claude-3-5-sonnet-20241022
 ---
 <user>Hello {{ name }}!</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', { name: 'World' } );
 
@@ -33,11 +33,11 @@ model: claude-3-5-sonnet-20241022
     expect( result.config ).toEqual( { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' } );
     expect( result.messages ).toHaveLength( 1 );
     expect( result.messages[0].content ).toBe( 'Hello World!' );
-    expect( validatePrompt ).toHaveBeenCalledWith( result );
+    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( { name: 'test' } ) );
   } );
 
   it( 'throws error when prompt file not found', () => {
-    loadContent.mockReturnValue( null );
+    loadContentWithDir.mockReturnValue( null );
 
     expect( () => {
       loadPrompt( 'nonexistent' );
@@ -60,7 +60,7 @@ temperature: 0.7
 
 <user>Hello</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {
       provider_name: 'anthropic',
@@ -80,7 +80,7 @@ model: {{ model }}
 
 <user>Tell me about {{ topic }}</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {
       provider: 'openai',
@@ -101,7 +101,7 @@ model: claude-3-5-sonnet-20241022
 
 <user>Hello</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {} );
 
@@ -119,7 +119,7 @@ temperature: 0.7
 
 <user>Hello</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {
       base_model: 'claude-sonnet',
@@ -139,7 +139,7 @@ temperature: 0.7
 
 <user>Hello</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {} );
 
@@ -154,7 +154,7 @@ model: claude-3-5-sonnet-20241022
 
 <user>{% if debug %}Debug mode enabled{% else %}Debug mode disabled{% endif %}</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', { debug: true } );
 
@@ -169,7 +169,7 @@ model: claude-3-5-sonnet-20241022
 
 <user>{% if enabled %}Feature enabled{% else %}Feature disabled{% endif %}</user>`;
 
-    loadContent.mockReturnValue( promptContent );
+    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', { enabled: false } );
 
