@@ -15,15 +15,12 @@ const client = await temporalClient.init().catch( e => {
   process.exit( 1 );
 } );
 
-// Set payload limit for POST in application/json format. Workflows might return large payloads
+// Sets payload limit for POST in application/json format. Some workflow have very large payloads
 app.use( express.json( { limit: '2mb' } ) );
-
-// set payload limit for POST in application/x-www-form-urlencode format, just for consistency
+// Also sets payload limit for POST in application/x-www-form-urlencode format,
 app.use( express.urlencoded( { extended: true, limit: '2mb' } ) );
-
 // Request ID tracking
 app.use( requestIdMiddleware );
-
 // HTTP request logging via Morgan → Winston
 app.use( createHttpLoggingMiddleware() );
 
