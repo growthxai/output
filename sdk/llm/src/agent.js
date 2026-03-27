@@ -1,6 +1,6 @@
 import { ValidationError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
-import { generateText } from './ai_sdk.js';
+import { ToolLoopAgent } from './tool_loop_agent.js';
 import { Output } from 'ai';
 
 export { skill } from './skill.js';
@@ -17,14 +17,15 @@ export function agent( { name, prompt, tools = {}, skills = [], outputSchema, ma
   // breaks the call stack, so resolveInvocationDir() would fail if called lazily.
   const promptDir = explicitPromptDir ?? resolveInvocationDir();
 
-  return async input => generateText( {
+  const inner = ToolLoopAgent( {
     prompt,
     promptDir,
-    variables: input,
     skills,
+    tools,
     maxSteps,
-    ...( Object.keys( tools ).length > 0 ? { tools } : {} ),
     ...( outputSchema ? { output: Output.object( { schema: outputSchema } ) } : {} ),
     ...rest
   } );
+
+  return async input => inner.generate( { variables: input } );
 }

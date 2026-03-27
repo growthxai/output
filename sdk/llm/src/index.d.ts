@@ -99,6 +99,7 @@ export type Prompt = {
 };
 
 // Re-export AI SDK types directly (auto-synced with AI SDK updates)
+export type { Agent } from 'ai';
 export type {
   LanguageModelUsage,
   FinishReason,
@@ -317,3 +318,82 @@ export function streamText<
 export { agent } from './agent.js';
 export { skill } from './skill.js';
 export type { Skill, SkillsArg } from './skill.js';
+
+/**
+ * Create a reusable agent backed by AI SDK's ToolLoopAgent, with Output.ai prompt file
+ * and skill support. Returns an object with `.generate()` and `.stream()` methods.
+ *
+ * `prompt` replaces the AI SDK's `model` + `instructions` — the model and system message
+ * are loaded from the prompt file. All other AI SDK ToolLoopAgent options pass through.
+ *
+ * @example
+ * ```ts
+ * const assistant = ToolLoopAgent({
+ *   prompt: 'writing_assistant@v1',
+ *   skills: [ mySkill ],
+ *   output: Output.object({ schema: z.object({ summary: z.string() }) }),
+ * });
+ *
+ * const result = await assistant.generate({ variables: { content: '...' } });
+ * console.log(result.output);
+ * ```
+ */
+export declare function ToolLoopAgent<Input = Record<string, unknown>>( params: {
+  /** Prompt file name (e.g. 'my_agent@v1') */
+  prompt: string;
+  /** Override the stack-resolved prompt directory (useful in tests) */
+  promptDir?: string;
+  /**
+   * Inline skill packages or a function that produces skills from the agent's input.
+   * Async functions are supported in `.generate()` only.
+   */
+  skills?: import( './skill.js' ).SkillsArg<Input>;
+  /** AI SDK tools available during the reasoning loop */
+  tools?: ToolSet;
+  /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
+  maxSteps?: number;
+  /** Custom stop condition(s) — overrides maxSteps */
+  stopWhen?: import( 'ai' ).StopCondition | import( 'ai' ).StopCondition[];
+  /** Structured output specification */
+  output?: import( 'ai' ).Output<unknown, unknown>;
+  /** Callback after each step */
+  onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+  /** Callback when all steps complete */
+  onFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+  /** Customize each step before execution */
+  prepareStep?: import( 'ai' ).PrepareStepFunction<ToolSet>;
+  /** Generation temperature */
+  temperature?: number;
+  /** Top-p sampling */
+  topP?: number;
+  /** Top-k sampling */
+  topK?: number;
+  /** Random seed for deterministic output */
+  seed?: number;
+  /** Maximum retry attempts (default: 2) */
+  maxRetries?: number;
+} ): {
+  /**
+   * Run the agent and return when complete.
+   * @param options.variables - Template variables to render into prompt messages
+   * @param options.messages - Additional messages appended after prompt messages
+   */
+  generate( options?: {
+    variables?: Input;
+    messages?: import( 'ai' ).ModelMessage[];
+    abortSignal?: AbortSignal;
+    onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+  } ): Promise<import( 'ai' ).GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+  /**
+   * Stream the agent's response. Does not support async skill functions.
+   * @param options.variables - Template variables to render into prompt messages
+   * @param options.messages - Additional messages appended after prompt messages
+   */
+  stream( options?: {
+    variables?: Input;
+    messages?: import( 'ai' ).ModelMessage[];
+    abortSignal?: AbortSignal;
+    onStepFinish?: import( 'ai' ).StreamTextOnStepFinishCallback<ToolSet>;
+    experimental_transform?: import( 'ai' ).StreamTextTransform<ToolSet> | import( 'ai' ).StreamTextTransform<ToolSet>[];
+  } ): import( 'ai' ).StreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>;
+};

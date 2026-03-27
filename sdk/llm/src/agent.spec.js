@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -11,9 +11,10 @@ vi.mock( '@outputai/core/sdk_utils', () => ( {
   resolveInvocationDir: () => state.promptDir
 } ) );
 
-const generateTextImpl = vi.fn();
-vi.mock( './ai_sdk.js', () => ( {
-  generateText: ( ...args ) => generateTextImpl( ...args )
+const generateImpl = vi.fn();
+const ToolLoopAgentImpl = vi.fn( () => ( { generate: generateImpl } ) );
+vi.mock( './tool_loop_agent.js', () => ( {
+  ToolLoopAgent: ( ...args ) => ToolLoopAgentImpl( ...args )
 } ) );
 
 vi.mock( 'ai', () => ( {
@@ -22,26 +23,18 @@ vi.mock( 'ai', () => ( {
   }
 } ) );
 
-// ─── Test utilities ───────────────────────────────────────────────────────────
-
-const makePromptFile = ( dir, name, skills = [] ) => {
-  const skillsYaml = skills.length > 0 ?
-    `skills:\n${skills.map( s => `  - ${s}` ).join( '\n' )}\n` :
-    '';
-  const messages = '<system>\n{{ _system_skills }}\n</system>\n<user>\ntest\n</user>\n';
-  const content = `---\nprovider: anthropic\nmodel: claude-sonnet-4-6\n${skillsYaml}---\n\n${messages}`;
-  writeFileSync( join( dir, `${name}.prompt` ), content );
-};
+// ─── Setup ────────────────────────────────────────────────────────────────────
 
 const importSut = () => import( './agent.js' );
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 beforeEach( () => {
   state.promptDir = mkdtempSync( join( tmpdir(), 'agent-test-' ) );
   vi.clearAllMocks();
-  generateTextImpl.mockResolvedValue( { result: 'LLM response text' } );
+  generateImpl.mockResolvedValue( { text: 'LLM response text' } );
+  ToolLoopAgentImpl.mockReturnValue( { generate: generateImpl } );
 } );
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe( 'skill()', () => {
   it( 'creates a skill object with name, description, instructions', async () => {
@@ -84,91 +77,75 @@ describe( 'agent() — definition-time validation', () => {
   } );
 } );
 
-describe( 'agent() — runtime behaviour (no skills)', () => {
-  it( 'calls generateText with prompt, promptDir, and variables from input', async () => {
+describe( 'agent() — ToolLoopAgent construction', () => {
+  it( 'creates ToolLoopAgent with prompt, promptDir, and default maxSteps', async () => {
+    const { agent } = await importSut();
+    agent( { name: 'test_agent', prompt: 'test@v1' } );
+
+    expect( ToolLoopAgentImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      prompt: 'test@v1',
+      promptDir: state.promptDir,
+      maxSteps: 10
+    } ) );
+  } );
+
+  it( 'passes inline skills array to ToolLoopAgent', async () => {
+    const { agent, skill } = await importSut();
+    const inlineSkill = skill( { name: 'my_skill', description: 'My skill', instructions: '# My Skill' } );
+    agent( { name: 'test_agent', prompt: 'test@v1', skills: [ inlineSkill ] } );
+
+    expect( ToolLoopAgentImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      skills: [ inlineSkill ]
+    } ) );
+  } );
+
+  it( 'passes skills function reference to ToolLoopAgent', async () => {
+    const { agent, skill } = await importSut();
+    const dynamicSkill = skill( { name: 'dynamic_skill', instructions: '# Dynamic' } );
+    const skillsFn = vars => vars.deep ? [ dynamicSkill ] : [];
+    agent( { name: 'test_agent', prompt: 'test@v1', skills: skillsFn } );
+
+    expect( ToolLoopAgentImpl.mock.calls[0][0].skills ).toBe( skillsFn );
+  } );
+
+  it( 'wraps outputSchema in Output.object and passes to ToolLoopAgent', async () => {
+    const { z } = await import( '@outputai/core' );
+    const { agent } = await importSut();
+    const schema = z.object( { summary: z.string() } );
+    agent( { name: 'test_agent', prompt: 'test@v1', outputSchema: schema } );
+
+    expect( ToolLoopAgentImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      output: expect.objectContaining( { _outputSchema: schema } )
+    } ) );
+  } );
+
+  it( 'uses explicitly provided promptDir', async () => {
+    const explicitDir = mkdtempSync( join( tmpdir(), 'explicit-dir-' ) );
+    const { agent } = await importSut();
+    agent( { name: 'test_agent', prompt: 'test@v1', promptDir: explicitDir } );
+
+    expect( ToolLoopAgentImpl ).toHaveBeenCalledWith( expect.objectContaining( {
+      promptDir: explicitDir
+    } ) );
+  } );
+} );
+
+describe( 'agent() — runtime behaviour', () => {
+  it( 'calls inner.generate with variables from input', async () => {
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
 
     await testAgent( { topic: 'AI', count: 3 } );
 
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
-      prompt: 'test@v1',
-      promptDir: state.promptDir,
-      variables: { topic: 'AI', count: 3 }
-    } ) );
+    expect( generateImpl ).toHaveBeenCalledWith( { variables: { topic: 'AI', count: 3 } } );
   } );
 
-  it( 'passes empty skills array when no skills', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
+  it( 'calls inner.generate with empty object when input is undefined', async () => {
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
 
-    await testAgent( { topic: 'AI' } );
+    await testAgent( undefined );
 
-    const calledWith = generateTextImpl.mock.calls[0][0];
-    expect( calledWith.skills ).toEqual( [] );
-    expect( calledWith.tools ).toBeUndefined();
-  } );
-
-  it( 'passes Output.object to generateText when outputSchema provided', async () => {
-    const { z } = await import( '@outputai/core' );
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    generateTextImpl.mockResolvedValue( { output: { summary: 'ok' } } );
-    const schema = z.object( { summary: z.string() } );
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', outputSchema: schema } );
-
-    await testAgent( {} );
-
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
-      output: expect.objectContaining( { _outputSchema: schema } )
-    } ) );
-  } );
-
-} );
-
-describe( 'agent() — runtime behaviour (with skills)', () => {
-  it( 'passes inline skills array directly to generateText', async () => {
-    const { agent, skill } = await importSut();
-    const inlineSkill = skill( { name: 'my_skill', description: 'My skill', instructions: '# My Skill' } );
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', skills: [ inlineSkill ] } );
-
-    await testAgent( {} );
-
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
-      skills: [ inlineSkill ]
-    } ) );
-  } );
-
-  it( 'passes skills function reference directly to generateText', async () => {
-    const { agent, skill } = await importSut();
-    const dynamicSkill = skill( { name: 'dynamic_skill', instructions: '# Dynamic' } );
-    const skillsFn = vars => vars.deep ? [ dynamicSkill ] : [];
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', skills: skillsFn } );
-
-    await testAgent( { deep: true } );
-
-    expect( generateTextImpl.mock.calls[0][0].skills ).toBe( skillsFn );
-  } );
-
-  it( 'uses promptDir from options when explicitly provided', async () => {
-    const explicitDir = mkdtempSync( join( tmpdir(), 'explicit-dir-' ) );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1', promptDir: explicitDir } );
-
-    await testAgent( {} );
-
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( {
-      promptDir: explicitDir
-    } ) );
-  } );
-
-  it( 'passes maxSteps default of 10 to generateText', async () => {
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( {} );
-
-    expect( generateTextImpl ).toHaveBeenCalledWith( expect.objectContaining( { maxSteps: 10 } ) );
+    expect( generateImpl ).toHaveBeenCalledWith( { variables: undefined } );
   } );
 } );

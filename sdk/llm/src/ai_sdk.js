@@ -15,7 +15,7 @@ const startTrace = ( name, details ) => {
   return traceId;
 };
 
-const loadAiSdkOptionsFromPrompt = prompt => {
+export const loadAiSdkOptionsFromPrompt = prompt => {
   const options = {
     model: loadModel( prompt ),
     messages: prompt.messages,
@@ -56,7 +56,7 @@ const loadAiSdkOptionsFromPrompt = prompt => {
  * @throws {FatalError} If the prompt file is not found or template rendering fails
  * @returns {Promise<GenerateTextResult>} AI SDK response with text, toolCalls, and metadata
  */
-const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills ) => {
+export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills ) => {
   const meta = loadPrompt( prompt, variables, promptDir );
   const frontmatterSkills = meta.config.skills && meta.promptFileDir ?
     loadPromptSkills( meta.config.skills, meta.promptFileDir ) :
