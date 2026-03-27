@@ -44,5 +44,8 @@ export const reviewContent = step( {
     focus: z.string().describe( 'What aspects to focus the review on' )
   } ),
   outputSchema: reviewOutputSchema,
-  fn: async input => writingAssistant( input )
+  fn: async input => {
+    const result = await writingAssistant( input );
+    return result.output;
+  }
 } );

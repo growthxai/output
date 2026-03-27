@@ -1,6 +1,6 @@
 import type { ToolSet } from 'ai';
-import type { z } from 'zod';
 import type { SkillsArg } from './skill.js';
+import type { generateText } from './ai_sdk.js';
 
 export { skill } from './skill.js';
 export type { Skill, SkillsArg } from './skill.js';
@@ -10,8 +10,7 @@ export type { Skill, SkillsArg } from './skill.js';
  *
  * The returned function is a plain async function — wrap it in step() for Temporal durability.
  *
- * Skills declared in the prompt's YAML frontmatter (`skills: [...]`) are validated at
- * agent() definition time (module load = worker startup) and merged with any skills
+ * Skills declared in the prompt's YAML frontmatter (`skills: [...]`) are merged with any skills
  * passed via the `skills` argument at runtime.
  *
  * The `_system_skills` template variable is automatically injected when skills are present.
@@ -29,14 +28,14 @@ export type { Skill, SkillsArg } from './skill.js';
  *
  * export const runResearch = step( {
  *   name: 'run_research',
- *   fn: async input => researchAgent( input ),
+ *   fn: async input => {
+ *     const result = await researchAgent( input );
+ *     return result.output;
+ *   },
  * } );
  * ```
  */
-export declare function agent<
-  Input = unknown,
-  OutputSchema extends z.ZodTypeAny | undefined = undefined
->( params: {
+export declare function agent<Input = unknown>( params: {
   /** Agent identifier */
   name: string;
   /** Prompt file name (e.g. 'my_agent@v1') */
@@ -50,10 +49,8 @@ export declare function agent<
    * Merged with any skills declared in the prompt's YAML frontmatter.
    */
   skills?: SkillsArg<Input>;
-  /** Zod schema for structured output. When provided, returns typed object instead of string. */
-  outputSchema?: OutputSchema;
+  /** Zod schema for structured output — drives Output.object() passed to generateText */
+  outputSchema?: unknown;
   /** Maximum tool-loop iterations (default: 10) */
   maxSteps?: number;
-} ): (
-  input: Input
-) => Promise<OutputSchema extends z.ZodTypeAny ? z.infer<OutputSchema> : string>;
+} ): ( input: Input ) => ReturnType<typeof generateText>;

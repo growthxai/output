@@ -86,7 +86,6 @@ describe( 'agent() — definition-time validation', () => {
 
 describe( 'agent() — runtime behaviour (no skills)', () => {
   it( 'calls generateText with prompt, promptDir, and variables from input', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
     const { agent } = await importSut();
     const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
 
@@ -111,32 +110,6 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     expect( calledWith.tools ).toBeUndefined();
   } );
 
-  it( 'returns result.result (text) when no outputSchema', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    const result = await testAgent( {} );
-
-    expect( result ).toBe( 'LLM response text' );
-  } );
-
-  it( 'returns parsed outputSchema object when outputSchema provided', async () => {
-    const { z } = await import( '@outputai/core' );
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    generateTextImpl.mockResolvedValue( { output: { summary: 'Structured output' } } );
-    const testAgent = agent( {
-      name: 'test_agent',
-      prompt: 'test@v1',
-      outputSchema: z.object( { summary: z.string() } )
-    } );
-
-    const result = await testAgent( {} );
-
-    expect( result ).toEqual( { summary: 'Structured output' } );
-  } );
-
   it( 'passes Output.object to generateText when outputSchema provided', async () => {
     const { z } = await import( '@outputai/core' );
     makePromptFile( state.promptDir, 'test@v1' );
@@ -152,17 +125,6 @@ describe( 'agent() — runtime behaviour (no skills)', () => {
     } ) );
   } );
 
-  it( 'passes complex input values as JSON strings', async () => {
-    makePromptFile( state.promptDir, 'test@v1' );
-    const { agent } = await importSut();
-    const testAgent = agent( { name: 'test_agent', prompt: 'test@v1' } );
-
-    await testAgent( { tags: [ 'a', 'b' ], meta: { key: 'val' } } );
-
-    const { variables } = generateTextImpl.mock.calls[0][0];
-    expect( variables.tags ).toBe( '["a","b"]' );
-    expect( variables.meta ).toBe( '{"key":"val"}' );
-  } );
 } );
 
 describe( 'agent() — runtime behaviour (with skills)', () => {
