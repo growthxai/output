@@ -1,5 +1,13 @@
 # @outputai/http
 
+## 0.1.10
+
+### Patch Changes
+
+- 41ecc1b: Updating dependencies to latest and overriding version to fix vulnerabilities
+- Updated dependencies [41ecc1b]
+  - @outputai/core@0.1.10
+
 ## 0.1.9
 
 ### Patch Changes
