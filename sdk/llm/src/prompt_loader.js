@@ -23,7 +23,7 @@ const renderPrompt = ( name, content, values ) => {
  * @returns {Prompt} Loaded and rendered prompt object, including promptFileDir
  */
 export const loadPrompt = ( name, values = {}, dir ) => {
-  const found = dir ? loadContentWithDir( `${name}.prompt`, dir ) : loadContentWithDir( `${name}.prompt` );
+  const found = loadContentWithDir( `${name}.prompt`, dir );
   if ( !found ) {
     throw new FatalError( `Prompt ${name} not found.` );
   }

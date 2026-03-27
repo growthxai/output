@@ -56,31 +56,25 @@ const loadAiSdkOptionsFromPrompt = prompt => {
  * @throws {FatalError} If the prompt file is not found or template rendering fails
  * @returns {Promise<GenerateTextResult>} AI SDK response with text, toolCalls, and metadata
  */
-export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {
-  // Resolve caller-provided skills (static array or function receiving variables)
-  const callerSkills = typeof skills === 'function' ? await skills( variables ) : skills;
-
-  // Load the prompt first (without _system_skills) to discover frontmatter skill paths
-  const loadedPromptMeta = promptDir ? loadPrompt( prompt, variables, promptDir ) : loadPrompt( prompt, variables );
-
-  // Load skills declared in the prompt's YAML frontmatter (e.g. `skills: ['./skills/']`)
-  const frontmatterSkills = loadedPromptMeta.config.skills && loadedPromptMeta.promptFileDir ?
-    loadPromptSkills( loadedPromptMeta.config.skills, loadedPromptMeta.promptFileDir ) :
+const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills ) => {
+  const meta = loadPrompt( prompt, variables, promptDir );
+  const frontmatterSkills = meta.config.skills && meta.promptFileDir ?
+    loadPromptSkills( meta.config.skills, meta.promptFileDir ) :
     [];
-
   const resolvedSkills = [ ...frontmatterSkills, ...callerSkills ];
+  if ( resolvedSkills.length === 0 ) {
+    return { loadedPrompt: meta, resolvedSkills, allVariables: variables };
+  }
+  const allVariables = { ...variables, _system_skills: buildSystemSkillsVar( resolvedSkills ) };
+  return { loadedPrompt: loadPrompt( prompt, allVariables, promptDir ), resolvedSkills, allVariables };
+};
+
+export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {
+  const callerSkills = typeof skills === 'function' ? await skills( variables ) : skills;
+  const { loadedPrompt, resolvedSkills, allVariables } = hydratePromptTemplate( prompt, variables, promptDir, callerSkills );
   const hasSkills = resolvedSkills.length > 0;
 
-  // Re-render with _system_skills injected so the prompt template can use {{ _system_skills }}
-  const allVariables = hasSkills ?
-    { ...variables, _system_skills: buildSystemSkillsVar( resolvedSkills ) } :
-    variables;
-
   validateGenerateTextArgs( { prompt, variables: allVariables } );
-  const reloadPrompt = () => promptDir ?
-    loadPrompt( prompt, allVariables, promptDir ) :
-    loadPrompt( prompt, allVariables );
-  const loadedPrompt = hasSkills ? reloadPrompt() : loadedPromptMeta;
 
   const traceId = startTrace( 'generateText', { prompt, variables: allVariables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;

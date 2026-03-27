@@ -107,7 +107,7 @@ describe( 'ai_sdk', () => {
     const result = await generateText( { prompt: 'test_prompt@v1' } );
 
     expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( { prompt: 'test_prompt@v1' } );
-    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined );
+    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
     expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
@@ -646,7 +646,8 @@ describe( 'ai_sdk', () => {
 
     expect( loadPromptImpl ).toHaveBeenCalledWith(
       'test_prompt@v1',
-      expect.objectContaining( { _system_skills: expect.stringContaining( 'fm_skill' ) } )
+      expect.objectContaining( { _system_skills: expect.stringContaining( 'fm_skill' ) } ),
+      undefined
     );
     const callArgs = aiFns.generateText.mock.calls[0][0];
     const loadSkillResult = callArgs.tools.load_skill.execute( { name: 'caller_skill' } );
@@ -700,7 +701,8 @@ describe( 'ai_sdk', () => {
 
     expect( loadPromptImpl ).toHaveBeenCalledWith(
       'test_prompt@v1',
-      expect.objectContaining( { _system_skills: expect.stringContaining( 'research' ) } )
+      expect.objectContaining( { _system_skills: expect.stringContaining( 'research' ) } ),
+      undefined
     );
     const callArgs = aiFns.generateText.mock.calls[0][0];
     expect( callArgs.tools ).toHaveProperty( 'load_skill' );
@@ -710,7 +712,7 @@ describe( 'ai_sdk', () => {
     const { generateText } = await importSut();
     await generateText( { prompt: 'test_prompt@v1', skills: [] } );
 
-    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined );
+    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
     const callArgs = aiFns.generateText.mock.calls[0][0];
     expect( callArgs.tools ).toBeUndefined();
     expect( callArgs.stopWhen ).toBeUndefined();
@@ -782,7 +784,8 @@ describe( 'ai_sdk', () => {
     expect( skillsFn ).toHaveBeenCalledWith( vars );
     expect( loadPromptImpl ).toHaveBeenCalledWith(
       'test_prompt@v1',
-      expect.objectContaining( { _system_skills: expect.stringContaining( 'dynamic' ) } )
+      expect.objectContaining( { _system_skills: expect.stringContaining( 'dynamic' ) } ),
+      undefined
     );
     const callArgs = aiFns.generateText.mock.calls[0][0];
     expect( callArgs.tools ).toHaveProperty( 'load_skill' );
