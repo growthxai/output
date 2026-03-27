@@ -29,7 +29,7 @@
     "globals": "17.4.0",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "mintlify": "4.2.447",
+    "mintlify": "4.2.459",
     "native-copyfiles": "2.0.1",
     "semver": "catalog:",
     "supertest": "7.2.2",
@@ -37,7 +37,7 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.57.2",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.1"
+    "vitest": "4.1.2"
   },
   "license": "UNLICENSED",
   "repository": {
