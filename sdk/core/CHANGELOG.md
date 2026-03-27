@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.1.10
+
+### Patch Changes
+
+- 41ecc1b: Updating dependencies to latest and overriding version to fix vulnerabilities
+
 ## 0.1.9
 
 ## 0.1.8
