@@ -1,5 +1,12 @@
 # @outputai/evals
 
+## 0.1.9
+
+### Patch Changes
+
+- @outputai/core@0.1.9
+- @outputai/llm@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
