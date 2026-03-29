@@ -129,10 +129,9 @@ services:
     command: >
       sh -c "
         corepack enable &&
-        PM=$$(node -p 'try{(JSON.parse(require(\"fs\").readFileSync(\"package.json\",\"utf8\")).packageManager||\"npm\").split(\"@\")[0]}catch(e){\"npm\"}') &&
-        $$PM run output:worker:install &&
+        npm run output:worker:install &&
         echo 'Installed dependencies' &&
-        exec npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec \"$$PM run output:worker:install && $$PM run output:worker:build && $$PM run output:worker:start\"
+        exec npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
       "
     working_dir: /app/${OUTPUT_WORKFLOWS_DIR:-.}
     volumes:
