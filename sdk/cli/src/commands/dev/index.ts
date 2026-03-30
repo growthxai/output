@@ -60,7 +60,9 @@ const formatService = ( service: ServiceStatus ): string => {
 };
 
 const getFailedServicesWarning = ( services: ServiceStatus[] ): string[] => {
-  const failedServices = services.filter( s => s.state === SERVICE_STATE.EXITED );
+  const failedServices = services.filter( s =>
+    s.state === SERVICE_STATE.EXITED || s.health === SERVICE_HEALTH.UNHEALTHY
+  );
 
   if ( failedServices.length === 0 ) {
     return [];

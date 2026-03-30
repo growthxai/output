@@ -152,7 +152,8 @@ export async function waitForServicesHealthy(
   while ( Date.now() - startTime < timeoutMs ) {
     const services = await getServiceStatus( dockerComposePath );
     const allHealthy = services.every( s =>
-      s.health === SERVICE_HEALTH.HEALTHY || s.health === SERVICE_HEALTH.NONE
+      s.state !== SERVICE_STATE.EXITED &&
+      ( s.health === SERVICE_HEALTH.HEALTHY || s.health === SERVICE_HEALTH.NONE )
     );
 
     if ( services.length > 0 ) {
