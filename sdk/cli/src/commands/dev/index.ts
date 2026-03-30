@@ -9,6 +9,7 @@ import {
   startDockerComposeDetached,
   stopDockerCompose,
   getServiceStatus,
+  isServiceHealthy,
   DockerComposeConfigNotFoundError,
   getDefaultDockerComposePath,
   SERVICE_HEALTH,
@@ -60,9 +61,7 @@ const formatService = ( service: ServiceStatus ): string => {
 };
 
 const getFailedServicesWarning = ( services: ServiceStatus[] ): string[] => {
-  const failedServices = services.filter( s =>
-    s.state === SERVICE_STATE.EXITED || s.health === SERVICE_HEALTH.UNHEALTHY
-  );
+  const failedServices = services.filter( s => !isServiceHealthy( s ) );
 
   if ( failedServices.length === 0 ) {
     return [];

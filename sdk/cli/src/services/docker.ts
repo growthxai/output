@@ -142,6 +142,11 @@ const formatServiceStatus = ( services: ServiceStatus[] ): string => services.ma
   return `  ${color}${icon}${ANSI_RESET} ${s.name}: ${status}`;
 } ).join( '\n' );
 
+export function isServiceHealthy( service: ServiceStatus ): boolean {
+  return service.state !== SERVICE_STATE.EXITED &&
+    ( service.health === SERVICE_HEALTH.HEALTHY || service.health === SERVICE_HEALTH.NONE );
+}
+
 export async function waitForServicesHealthy(
   dockerComposePath: string,
   timeoutMs: number = 120000,
@@ -151,10 +156,7 @@ export async function waitForServicesHealthy(
 
   while ( Date.now() - startTime < timeoutMs ) {
     const services = await getServiceStatus( dockerComposePath );
-    const allHealthy = services.every( s =>
-      s.state !== SERVICE_STATE.EXITED &&
-      ( s.health === SERVICE_HEALTH.HEALTHY || s.health === SERVICE_HEALTH.NONE )
-    );
+    const allHealthy = services.every( isServiceHealthy );
 
     if ( services.length > 0 ) {
       const statusLines = formatServiceStatus( services );
