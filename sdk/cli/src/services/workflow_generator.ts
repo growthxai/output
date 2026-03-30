@@ -19,9 +19,9 @@ function validateConfig( config: WorkflowGenerationConfig ): void {
  */
 import * as fsSync from 'node:fs';
 
-async function checkTargetDirectory( targetDir: string, force: boolean ): Promise<void> {
+async function checkTargetDirectory( name: string, targetDir: string, force: boolean ): Promise<void> {
   if ( fsSync.existsSync( targetDir ) && !force ) {
-    throw new WorkflowExistsError( config.name, targetDir );
+    throw new WorkflowExistsError( name, targetDir );
   }
 }
 
@@ -34,7 +34,7 @@ export async function generateWorkflow( config: WorkflowGenerationConfig ): Prom
   const targetDir = createTargetDir( config.outputDir, config.name );
   const templatesDir = getTemplateDir( 'workflow' );
 
-  await checkTargetDirectory( targetDir, config.force );
+  await checkTargetDirectory( config.name, targetDir, config.force );
   await fs.mkdir( targetDir, { recursive: true } );
 
   const variables = prepareTemplateVariables( config.name, config.description || '' );
