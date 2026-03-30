@@ -251,9 +251,10 @@ async function singleQuery( prompt: string, options: Options = {} ) {
 
 export async function replyToClaude(
   message: string,
-  options: Options = {}
+  options: Options = {},
+  instructionsType: InstructionsType = 'plan'
 ) {
-  return singleQuery( applyInstructions( message ), { continue: true, ...options } );
+  return singleQuery( applyInstructions( message, instructionsType ), { continue: true, ...options } );
 }
 
 /**
