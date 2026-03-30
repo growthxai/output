@@ -12,9 +12,9 @@ const ADDITIONAL_INSTRUCTIONS = `
 ! IMPORTANT !
 1. Use TodoWrite to track your progress through plan creation.
 
-2. Please response with only the final version of the plan.
+2. Please respond with only the final version of the plan content.
 
-3. Response in a markdown format with these metadata headers:
+3. Respond in a markdown format with these metadata headers:
 
 ---
 title: <plan-title>
@@ -25,6 +25,10 @@ date: <plan-date>
 <plan-content>
 
 4. After you mark all todos as complete, you must respond with the final version of the plan.
+
+5. DO NOT write the plan to disk — the CLI will handle saving the file to the plans directory.
+
+6. DO NOT suggest any next steps, follow-up commands, or instructions for the user — the CLI will inform the user of next steps after saving.
 `;
 
 const ADDITIONAL_INSTRUCTIONS_BUILD = `

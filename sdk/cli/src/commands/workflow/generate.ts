@@ -4,7 +4,9 @@ import { buildWorkflow, buildWorkflowInteractiveLoop } from '#services/workflow_
 import { ensureOutputAISystem } from '#services/coding_agents.js';
 import { getWorkflowGenerateSuccessMessage } from '#services/messages.js';
 import { DEFAULT_OUTPUT_DIRS } from '#utils/paths.js';
+import type { WorkflowGenerationResult } from '#types/generator.js';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 
 export default class Generate extends Command {
   static override description = 'Generate a new Output workflow from a skeleton or plan file';
@@ -59,44 +61,50 @@ export default class Generate extends Command {
       this.error( 'Full workflow generation not implemented yet. Please use --skeleton flag or --plan-file' );
     }
 
-    try {
-      const result = await generateWorkflow( {
-        name: args.name,
-        description: flags.description,
-        outputDir: flags['output-dir'],
-        skeleton: flags.skeleton,
-        force: flags.force
-      } );
+    const projectRoot = process.cwd();
 
-      if ( planFile ) {
-        this.log( '\nStarting AI-assisted workflow implementation...\n' );
-
-        const projectRoot = process.cwd();
-        await ensureOutputAISystem( projectRoot );
-
-        const absolutePlanPath = path.resolve( projectRoot, planFile );
-
-        const buildOutput = await buildWorkflow(
-          absolutePlanPath,
-          result.targetDir,
-          args.name
-        );
-
-        await buildWorkflowInteractiveLoop( buildOutput );
-
-        this.log( ux.colorize( 'green', '\nWorkflow implementation complete!\n' ) );
+    if ( planFile ) {
+      const absolutePlanPath = path.resolve( projectRoot, planFile );
+      try {
+        await fs.access( absolutePlanPath );
+      } catch {
+        this.error( `Plan file not found: ${absolutePlanPath}` );
       }
-
-      this.displaySuccess( result );
-    } catch ( error ) {
-      if ( error instanceof Error ) {
-        this.error( error.message );
-      }
-      throw error;
     }
+
+    const result = await generateWorkflow( {
+      name: args.name,
+      description: flags.description,
+      outputDir: flags['output-dir'],
+      skeleton: flags.skeleton,
+      force: flags.force
+    } ).catch( ( error: unknown ): never => {
+      this.error( error instanceof Error ? error.message : String( error ) );
+    } );
+
+    if ( planFile ) {
+      this.log( '\nStarting AI-assisted workflow implementation...\n' );
+
+      await ensureOutputAISystem( projectRoot );
+
+      const absolutePlanPath = path.resolve( projectRoot, planFile );
+
+      try {
+        const buildOutput = await buildWorkflow( absolutePlanPath, result.targetDir, args.name );
+        await buildWorkflowInteractiveLoop( buildOutput );
+      } catch ( error ) {
+        await fs.rm( result.targetDir, { recursive: true, force: true } );
+        const message = error instanceof Error ? error.message : String( error );
+        this.error( `Workflow implementation failed, created files have been rolled back: ${message}` );
+      }
+
+      this.log( ux.colorize( 'green', '\nWorkflow implementation complete!\n' ) );
+    }
+
+    this.displaySuccess( result );
   }
 
-  private displaySuccess( result: { workflowName: string; targetDir: string; filesCreated: string[] } ): void {
+  private displaySuccess( result: WorkflowGenerationResult ): void {
     const message = getWorkflowGenerateSuccessMessage(
       result.workflowName,
       result.targetDir,

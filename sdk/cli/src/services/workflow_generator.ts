@@ -21,7 +21,7 @@ import * as fsSync from 'node:fs';
 
 async function checkTargetDirectory( targetDir: string, force: boolean ): Promise<void> {
   if ( fsSync.existsSync( targetDir ) && !force ) {
-    throw new WorkflowExistsError( '', targetDir );
+    throw new WorkflowExistsError( config.name, targetDir );
   }
 }
 
