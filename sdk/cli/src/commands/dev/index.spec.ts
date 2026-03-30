@@ -17,8 +17,8 @@ vi.mock( '#services/docker.js', () => ( {
     { name: 'redis', state: 'running', health: 'healthy', ports: [ '6379:6379' ] },
     { name: 'temporal', state: 'running', health: 'healthy', ports: [ '7233:7233' ] }
   ] ),
-  isServiceHealthy: vi.fn( ( s: { state: string; health: string } ) =>
-    s.state !== 'exited' && ( s.health === 'healthy' || s.health === 'none' )
+  isServiceFailed: vi.fn( ( s: { state: string; health: string } ) =>
+    s.state === 'exited' || s.health === 'unhealthy'
   ),
   DockerComposeConfigNotFoundError: Error,
   DockerValidationError: Error,

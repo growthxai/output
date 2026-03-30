@@ -147,6 +147,10 @@ export function isServiceHealthy( service: ServiceStatus ): boolean {
     ( service.health === SERVICE_HEALTH.HEALTHY || service.health === SERVICE_HEALTH.NONE );
 }
 
+export function isServiceFailed( service: ServiceStatus ): boolean {
+  return service.state === SERVICE_STATE.EXITED || service.health === SERVICE_HEALTH.UNHEALTHY;
+}
+
 export async function waitForServicesHealthy(
   dockerComposePath: string,
   timeoutMs: number = 120000,

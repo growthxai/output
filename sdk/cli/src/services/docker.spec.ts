@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { parseServiceStatus, getServiceStatus, waitForServicesHealthy, isServiceHealthy } from './docker.js';
+import { parseServiceStatus, getServiceStatus, waitForServicesHealthy, isServiceHealthy, isServiceFailed } from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
@@ -149,6 +149,32 @@ describe( 'docker service', () => {
 
     it( 'should return false for a service with health: starting', () => {
       expect( isServiceHealthy( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'isServiceFailed', () => {
+    it( 'should return true for an exited service with health: none', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'exited', health: 'none', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return true for a running service with health: unhealthy', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'running', health: 'unhealthy', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return true for an exited service with health: unhealthy', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'exited', health: 'unhealthy', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return false for a running service with health: healthy', () => {
+      expect( isServiceFailed( { name: 'redis', state: 'running', health: 'healthy', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a running service with health: none', () => {
+      expect( isServiceFailed( { name: 'api', state: 'running', health: 'none', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a service with health: starting — not a failure, just in progress', () => {
+      expect( isServiceFailed( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
     } );
   } );
 
