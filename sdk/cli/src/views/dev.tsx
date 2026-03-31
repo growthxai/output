@@ -32,11 +32,135 @@ const STATUS_COLORS: Record<string, string> = {
   [SERVICE_STATE.EXITED]: 'red'
 };
 
+const resolveServiceDisplay = ( service: ServiceStatus ) => {
+  const key = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
+  return { icon: STATUS_ICONS[key] ?? '?', color: STATUS_COLORS[key] ?? 'white', status: key };
+};
+
+const useHealthPolling = (
+  dockerComposePath: string,
+  enabled: boolean,
+  callbacks: {
+    onServices: ( svcs: ServiceStatus[] ) => void;
+    onAllHealthy: ( svcs: ServiceStatus[] ) => void;
+    onTimeout: () => void;
+  }
+): void => {
+  // Store callbacks in a ref so the effect doesn't restart when they change
+  const callbacksRef = useRef( callbacks );
+  callbacksRef.current = callbacks;
+
+  useEffect( () => {
+    const state = {
+      active: true,
+      timeout: undefined as ReturnType<typeof setTimeout> | undefined
+    };
+    const startTime = Date.now();
+
+    if ( !enabled ) {
+      return () => {
+        state.active = false;
+        clearTimeout( state.timeout );
+      };
+    }
+
+    const poll = async (): Promise<void> => {
+      if ( !state.active ) {
+        return;
+      }
+
+      if ( Date.now() - startTime > HEALTH_TIMEOUT_MS ) {
+        callbacksRef.current.onTimeout();
+        return;
+      }
+
+      try {
+        const svcs = await getServiceStatus( dockerComposePath );
+        if ( !state.active ) {
+          return;
+        }
+        callbacksRef.current.onServices( svcs );
+        if ( svcs.length > 0 && svcs.every( isServiceHealthy ) ) {
+          callbacksRef.current.onAllHealthy( svcs );
+          return;
+        }
+      } catch {
+        // retry on next tick
+      }
+
+      if ( state.active ) {
+        state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
+      }
+    };
+
+    void poll();
+
+    return () => {
+      state.active = false;
+      clearTimeout( state.timeout );
+    };
+  }, [ enabled, dockerComposePath ] );
+};
+
+const useStatusRefresh = (
+  dockerComposePath: string,
+  enabled: boolean,
+  onServices: ( svcs: ServiceStatus[] ) => void
+): void => {
+  // Store callback in a ref so the effect doesn't restart when it changes
+  const onServicesRef = useRef( onServices );
+  onServicesRef.current = onServices;
+
+  useEffect( () => {
+    const state = {
+      active: true,
+      timeout: undefined as ReturnType<typeof setTimeout> | undefined
+    };
+
+    if ( !enabled ) {
+      return () => {
+        state.active = false;
+        clearTimeout( state.timeout );
+      };
+    }
+
+    const poll = async (): Promise<void> => {
+      try {
+        const svcs = await getServiceStatus( dockerComposePath );
+        if ( state.active ) {
+          onServicesRef.current( svcs );
+        }
+      } catch {
+        // silent retry
+      }
+      if ( state.active ) {
+        state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
+      }
+    };
+
+    state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
+
+    return () => {
+      state.active = false;
+      clearTimeout( state.timeout );
+    };
+  }, [ enabled, dockerComposePath ] );
+};
+
+const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
+  const { exit } = useApp();
+  const isExitingRef = useRef( false );
+
+  useInput( ( input, key ) => {
+    if ( key.ctrl && input === 'c' && !isExitingRef.current ) {
+      isExitingRef.current = true;
+      void onCleanup().then( () => exit() ).catch( () => exit() );
+    }
+  } );
+};
+
 const ServiceRow: React.FC<{ service: ServiceStatus }> = ( { service } ) => {
-  const healthKey = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
-  const icon = STATUS_ICONS[healthKey] ?? '?';
-  const color = STATUS_COLORS[healthKey] ?? 'white';
-  const status = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
+  const { icon, color, status } = resolveServiceDisplay( service );
   const ports = service.ports.length ? service.ports.join( ', ' ) : '-';
 
   return (
@@ -169,100 +293,24 @@ export const DevApp: React.FC<{
   const [ phase, setPhase ] = useState<Phase>( 'waiting' );
   const [ services, setServices ] = useState<ServiceStatus[]>( [] );
   const [ successItems, setSuccessItems ] = useState<SuccessItem[]>( [] );
-  const isExitingRef = useRef( false );
 
-  // Phase 1: poll until all services healthy or 120s timeout
-  useEffect( () => {
-    const state = {
-      active: true,
-      timeout: undefined as ReturnType<typeof setTimeout> | undefined
-    };
-    const startTime = Date.now();
-
-    if ( phase === 'waiting' ) {
-      const poll = async (): Promise<void> => {
-        if ( !state.active ) {
-          return;
-        }
-
-        if ( Date.now() - startTime > HEALTH_TIMEOUT_MS ) {
-          exit( new Error( 'Timeout waiting for services to become healthy' ) );
-          return;
-        }
-
-        try {
-          const svcs = await getServiceStatus( dockerComposePath );
-          if ( !state.active ) {
-            return;
-          }
-          setServices( svcs );
-          if ( svcs.length > 0 && svcs.every( isServiceHealthy ) ) {
-            setSuccessItems( [ { id: 'success', services: svcs } ] );
-            setPhase( 'running' );
-            return;
-          }
-        } catch {
-          // retry on next tick
-        }
-
-        if ( state.active ) {
-          state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-        }
-      };
-
-      void poll();
-    }
-
-    return () => {
-      state.active = false;
-      clearTimeout( state.timeout );
-    };
-  }, [ phase, dockerComposePath, exit ] );
-
-  // Phase 2: continuous 2-second status refresh
-  useEffect( () => {
-    const state = {
-      active: true,
-      timeout: undefined as ReturnType<typeof setTimeout> | undefined
-    };
-
-    if ( phase === 'running' ) {
-      const poll = async (): Promise<void> => {
-        try {
-          const svcs = await getServiceStatus( dockerComposePath );
-          if ( state.active ) {
-            setServices( svcs );
-          }
-        } catch {
-          // silent retry
-        }
-        if ( state.active ) {
-          state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-        }
-      };
-
-      state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-    }
-
-    return () => {
-      state.active = false;
-      clearTimeout( state.timeout );
-    };
-  }, [ phase, dockerComposePath ] );
-
-  useInput( ( input, key ) => {
-    if ( key.ctrl && input === 'c' && !isExitingRef.current ) {
-      isExitingRef.current = true;
-      void onCleanup().then( () => exit() ).catch( () => exit() );
-    }
+  useHealthPolling( dockerComposePath, phase === 'waiting', {
+    onServices: setServices,
+    onAllHealthy: svcs => {
+      setSuccessItems( [ { id: 'success', services: svcs } ] );
+      setPhase( 'running' );
+    },
+    onTimeout: () => exit( new Error( 'Timeout waiting for services to become healthy' ) )
   } );
+
+  useStatusRefresh( dockerComposePath, phase === 'running', setServices );
+
+  useCtrlC( onCleanup );
 
   return (
     <>
       <Static items={successItems}>
-        {item => (
-          <DevSuccessMessage key={item.id} services={item.services} />
-        )}
+        {item => <DevSuccessMessage key={item.id} services={item.services} />}
       </Static>
       {phase === 'waiting' && <WaitingView services={services} />}
       {phase === 'running' && <RunningView services={services} />}
