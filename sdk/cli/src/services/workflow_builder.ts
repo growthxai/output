@@ -88,7 +88,7 @@ async function processModification( modification: string, currentOutput: string 
     displayImplementationOutput( updatedOutput, '✓ Implementation updated!' );
     return updatedOutput;
   } catch ( error ) {
-    ux.error( `Failed to apply modifications: ${getErrorMessage( error )}` );
+    ux.stdout( ux.colorize( 'red', `Failed to apply modifications: ${getErrorMessage( error )}` ) );
     ux.stdout( 'Continuing with previous version...\n' );
     return currentOutput;
   }
