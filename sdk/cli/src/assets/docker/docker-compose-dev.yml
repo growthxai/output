@@ -107,9 +107,9 @@ services:
     healthcheck:
       test: [ 'CMD-SHELL', 'npx output-healthcheck' ]
       interval: 3s
-      timeout: 10s
-      retries: 20
-      start_period: 30s
+      timeout: 3s
+      retries: 2
+      start_period: 60s
     init: true
     networks:
       - main
@@ -118,6 +118,7 @@ services:
         required: false
     environment:
       - NODE_ENV=development
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
       - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
       - OUTPUT_REDIS_URL=redis://redis:6379
       - OUTPUT_TRACE_LOCAL_ON=${OUTPUT_TRACE_LOCAL_ON:-true}
@@ -127,6 +128,7 @@ services:
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
     command: >
       sh -c "
+        corepack enable &&
         npm run output:worker:install &&
         echo 'Installed dependencies' &&
         npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
