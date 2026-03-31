@@ -251,7 +251,7 @@ describe( 'workflow-builder service', () => {
 
       // Should return original implementation after error
       expect( result ).toBe( 'Original implementation' );
-      expect( ux.error ).toHaveBeenCalledWith(
+      expect( ux.stdout ).toHaveBeenCalledWith(
         expect.stringContaining( 'Failed to apply modifications' )
       );
       expect( ux.stdout ).toHaveBeenCalledWith(
