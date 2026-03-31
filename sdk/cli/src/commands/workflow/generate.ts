@@ -6,7 +6,7 @@ import { getWorkflowGenerateSuccessMessage } from '#services/messages.js';
 import { DEFAULT_OUTPUT_DIRS } from '#utils/paths.js';
 import type { WorkflowGenerationResult } from '#types/generator.js';
 import path from 'node:path';
-import fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
 
 export default class Generate extends Command {
   static override description = 'Generate a new Output workflow from a skeleton or plan file';
@@ -62,14 +62,10 @@ export default class Generate extends Command {
     }
 
     const projectRoot = process.cwd();
+    const absolutePlanPath = planFile ? path.resolve( projectRoot, planFile ) : '';
 
-    if ( planFile ) {
-      const absolutePlanPath = path.resolve( projectRoot, planFile );
-      try {
-        await fs.access( absolutePlanPath );
-      } catch {
-        this.error( `Plan file not found: ${absolutePlanPath}` );
-      }
+    if ( planFile && !fsSync.existsSync( absolutePlanPath ) ) {
+      this.error( `Plan file not found: ${absolutePlanPath}` );
     }
 
     const result = await generateWorkflow( {
@@ -87,16 +83,14 @@ export default class Generate extends Command {
 
       await ensureOutputAISystem( projectRoot );
 
-      const absolutePlanPath = path.resolve( projectRoot, planFile );
+      const buildOutput = await buildWorkflow( absolutePlanPath, result.targetDir, args.name )
+        .catch( ( error: unknown ): never => {
+          fsSync.rmSync( result.targetDir, { recursive: true, force: true } );
+          const message = error instanceof Error ? error.message : String( error );
+          this.error( `Workflow implementation failed, created files have been rolled back: ${message}` );
+        } );
 
-      try {
-        const buildOutput = await buildWorkflow( absolutePlanPath, result.targetDir, args.name );
-        await buildWorkflowInteractiveLoop( buildOutput );
-      } catch ( error ) {
-        await fs.rm( result.targetDir, { recursive: true, force: true } );
-        const message = error instanceof Error ? error.message : String( error );
-        this.error( `Workflow implementation failed, created files have been rolled back: ${message}` );
-      }
+      await buildWorkflowInteractiveLoop( buildOutput );
 
       this.log( ux.colorize( 'green', '\nWorkflow implementation complete!\n' ) );
     }

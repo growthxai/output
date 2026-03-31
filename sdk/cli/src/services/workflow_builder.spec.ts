@@ -171,7 +171,7 @@ describe( 'workflow-builder service', () => {
 
       const result = await buildWorkflowInteractiveLoop( 'Initial implementation' );
 
-      expect( replyToClaude ).toHaveBeenCalledWith( 'Add error handling', BUILD_COMMAND_OPTIONS, 'build' );
+      expect( replyToClaude ).toHaveBeenCalledWith( 'Add error handling', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
       expect( result ).toBe( 'Updated implementation with error handling' );
       expect( input ).toHaveBeenCalledTimes( 2 );
     } );
@@ -189,8 +189,8 @@ describe( 'workflow-builder service', () => {
       const result = await buildWorkflowInteractiveLoop( 'Initial implementation' );
 
       expect( replyToClaude ).toHaveBeenCalledTimes( 2 );
-      expect( replyToClaude ).toHaveBeenNthCalledWith( 1, 'Add logging', BUILD_COMMAND_OPTIONS, 'build' );
-      expect( replyToClaude ).toHaveBeenNthCalledWith( 2, 'Add validation', BUILD_COMMAND_OPTIONS, 'build' );
+      expect( replyToClaude ).toHaveBeenNthCalledWith( 1, 'Add logging', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
+      expect( replyToClaude ).toHaveBeenNthCalledWith( 2, 'Add validation', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
       expect( result ).toBe( 'Implementation with logging and validation' );
     } );
 

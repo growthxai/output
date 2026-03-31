@@ -76,7 +76,7 @@ async function processModification( modification: string, currentOutput: string 
   }
 
   try {
-    const updatedOutput = await replyToClaude( modification, BUILD_COMMAND_OPTIONS, 'build' );
+    const updatedOutput = await replyToClaude( modification, { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
     displayImplementationOutput( updatedOutput, '✓ Implementation updated!' );
     return updatedOutput;
   } catch ( error ) {

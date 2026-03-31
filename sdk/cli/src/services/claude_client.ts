@@ -53,6 +53,10 @@ export const PLAN_COMMAND_OPTIONS: Options = {
   allowedTools: [ 'Read', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite' ]
 };
 
+interface ClaudeQueryOptions extends Options {
+  instructionsType?: InstructionsType;
+}
+
 export const BUILD_COMMAND_OPTIONS: Options = {
   permissionMode: 'bypassPermissions'
 };
@@ -251,10 +255,9 @@ async function singleQuery( prompt: string, options: Options = {} ) {
 
 export async function replyToClaude(
   message: string,
-  options: Options = {},
-  instructionsType: InstructionsType = 'plan'
+  { instructionsType = 'plan', ...claudeOptions }: ClaudeQueryOptions = {}
 ) {
-  return singleQuery( applyInstructions( message, instructionsType ), { continue: true, ...options } );
+  return singleQuery( applyInstructions( message, instructionsType ), { continue: true, ...claudeOptions } );
 }
 
 /**
