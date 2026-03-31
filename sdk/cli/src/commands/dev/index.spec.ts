@@ -41,14 +41,24 @@ vi.mock( 'node:fs/promises', () => ( {
   }
 } ) );
 
+vi.mock( 'ink', () => ( {
+  render: vi.fn().mockReturnValue( {
+    waitUntilExit: vi.fn().mockResolvedValue( undefined ),
+    unmount: vi.fn()
+  } )
+} ) );
+
+vi.mock( '#views/dev.js', () => ( {
+  DevApp: () => null
+} ) );
+
 const createMockDockerProcess = (): dockerService.DockerComposeProcess => ( {
   process: {
     on: vi.fn(),
     kill: vi.fn(),
     stdout: { on: vi.fn() },
     stderr: { on: vi.fn() }
-  } as any,
-  waitForHealthy: vi.fn().mockResolvedValue( undefined )
+  } as any
 } );
 
 describe( 'dev command', () => {

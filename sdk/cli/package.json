@@ -39,9 +39,11 @@
     "dotenv": "17.3.1",
     "handlebars": "4.7.9",
     "js-yaml": "catalog:",
+    "ink": "^6.8.0",
+    "ink-spinner": "^5.0.0",
     "json-schema-library": "11.0.5",
     "ky": "catalog:",
-    "log-update": "7.2.0",
+    "react": "^19.2.0",
     "semver": "catalog:",
     "yaml": "^2.8.3"
   },
@@ -49,6 +51,7 @@
     "@types/cli-progress": "3.11.6",
     "@types/debug": "4.1.13",
     "@types/js-yaml": "catalog:",
+    "@types/react": "^19.1.0",
     "@types/semver": "7.7.1",
     "orval": "8.6.2"
   },
