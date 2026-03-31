@@ -220,6 +220,7 @@ export default class Dev extends Command {
           `${ANSI.DIM}Press Ctrl+C to stop services${ANSI.RESET}`
         ];
 
+        logUpdate.clear();
         logUpdate( lines.join( '\n' ) );
       } catch {
         // silent retry on next poll
