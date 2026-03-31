@@ -12,10 +12,9 @@
     "test:e2e": "./ops/test_e2e.sh",
     "test:all": "npm test && npm run test:integration npm run test:e2e",
     "build:packages": "pnpm -r run build && cp ./api/openapi.json ./docs/guides/openapi.json",
-    "dev": "npm run build:packages && npm run dev:build:api && npm run dev:up",
-    "output": "./sdk/cli/bin/run.js",
-    "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
-    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npm run output -- dev --image-pull-policy missing",
+    "build:api:dev": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
+    "dev": "npm run build:packages && npm run build:api:dev && npm run dev:up",
+    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npx --prefix=sdk/cli output dev --image-pull-policy missing",
     "docs:generate": "typedoc",
     "docs:validate": "typedoc --emit none"
   },
