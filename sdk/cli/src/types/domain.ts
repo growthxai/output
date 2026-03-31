@@ -6,8 +6,6 @@ export type TodoStatus = 'pending' | 'in_progress' | 'completed';
 
 export type FileMappingType = 'template' | 'symlink' | 'copy';
 
-export type InstructionsType = 'plan' | 'build';
-
 export interface Todo {
   content: string;
   activeForm: string;

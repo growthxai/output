@@ -4,17 +4,18 @@
 import { Options, query, SDKMessage, SDKSystemMessage } from '@anthropic-ai/claude-agent-sdk';
 import { ux } from '@oclif/core';
 import * as cliProgress from 'cli-progress';
-import type { Todo, InstructionsType, SystemValidation } from '#types/domain.js';
+import type { Todo, SystemValidation } from '#types/domain.js';
 import { getErrorMessage, toError } from '#utils/error_utils.js';
 import { config } from '#config.js';
 
-const ADDITIONAL_INSTRUCTIONS = `
+export const ADDITIONAL_INSTRUCTIONS = {
+  PLAN: `
 ! IMPORTANT !
 1. Use TodoWrite to track your progress through plan creation.
 
-2. Please response with only the final version of the plan.
+2. Please respond with only the final version of the plan content.
 
-3. Response in a markdown format with these metadata headers:
+3. Respond in a markdown format with these metadata headers:
 
 ---
 title: <plan-title>
@@ -25,9 +26,12 @@ date: <plan-date>
 <plan-content>
 
 4. After you mark all todos as complete, you must respond with the final version of the plan.
-`;
 
-const ADDITIONAL_INSTRUCTIONS_BUILD = `
+5. DO NOT write the plan to disk — the CLI will handle saving the file to the plans directory.
+
+6. DO NOT suggest any next steps, follow-up commands, or instructions for the user — the CLI will inform the user of next steps after saving.
+`,
+  BUILD: `
 ! IMPORTANT !
 1. Use TodoWrite to track your progress through workflow implementation.
 
@@ -36,7 +40,8 @@ const ADDITIONAL_INSTRUCTIONS_BUILD = `
 3. Implement all workflow files following Output.ai patterns and best practices.
 
 4. After you mark all todos as complete, provide a summary of what was implemented.
-`;
+`
+} as const;
 
 const PLAN_COMMAND = 'outputai:plan_workflow';
 const BUILD_COMMAND = 'outputai:build_workflow';
@@ -48,6 +53,11 @@ const GLOBAL_CLAUDE_OPTIONS: Options = {
 export const PLAN_COMMAND_OPTIONS: Options = {
   allowedTools: [ 'Read', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite' ]
 };
+
+interface ReplyToClaudeOptions {
+  anthropicOpts?: Options;
+  applyAdditionalInstructions?: string;
+}
 
 export const BUILD_COMMAND_OPTIONS: Options = {
   permissionMode: 'bypassPermissions'
@@ -135,11 +145,8 @@ function getTodoWriteMessage( message: SDKMessage ): TodoWriteMessage | null {
   return todoWriteMessage ?? null;
 }
 
-function applyInstructions( initialMessage: string, instructionsType: InstructionsType = 'plan' ): string {
-  const instructions = instructionsType === 'build' ?
-    ADDITIONAL_INSTRUCTIONS_BUILD :
-    ADDITIONAL_INSTRUCTIONS;
-  return `${initialMessage}\n\n${instructions}`;
+function applyInstructions( message: string, instructions: string ): string {
+  return `${message}\n\n${instructions}`;
 }
 
 interface ProgressUpdate {
@@ -247,9 +254,9 @@ async function singleQuery( prompt: string, options: Options = {} ) {
 
 export async function replyToClaude(
   message: string,
-  options: Options = {}
+  { anthropicOpts, applyAdditionalInstructions = ADDITIONAL_INSTRUCTIONS.PLAN }: ReplyToClaudeOptions = {}
 ) {
-  return singleQuery( applyInstructions( message ), { continue: true, ...options } );
+  return singleQuery( applyInstructions( message, applyAdditionalInstructions ), { continue: true, ...anthropicOpts } );
 }
 
 /**
@@ -262,7 +269,7 @@ export async function replyToClaude(
 export async function invokePlanWorkflow(
   description: string
 ): Promise<string> {
-  return singleQuery( applyInstructions( `/${PLAN_COMMAND} ${description}` ), PLAN_COMMAND_OPTIONS );
+  return singleQuery( applyInstructions( `/${PLAN_COMMAND} ${description}`, ADDITIONAL_INSTRUCTIONS.PLAN ), PLAN_COMMAND_OPTIONS );
 }
 
 /**
@@ -286,5 +293,5 @@ export async function invokeBuildWorkflow(
     `/${BUILD_COMMAND} ${commandArgs} ${additionalInstructions}` :
     `/${BUILD_COMMAND} ${commandArgs}`;
 
-  return singleQuery( applyInstructions( fullCommand, 'build' ), BUILD_COMMAND_OPTIONS );
+  return singleQuery( applyInstructions( fullCommand, ADDITIONAL_INSTRUCTIONS.BUILD ), BUILD_COMMAND_OPTIONS );
 }

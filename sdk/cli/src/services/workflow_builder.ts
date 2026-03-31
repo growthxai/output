@@ -1,7 +1,12 @@
 /**
  * Workflow builder service for implementing workflows from plan files
  */
-import { BUILD_COMMAND_OPTIONS, invokeBuildWorkflow as invokeBuildWorkflowFromClient, replyToClaude } from './claude_client.js';
+import {
+  ADDITIONAL_INSTRUCTIONS,
+  BUILD_COMMAND_OPTIONS,
+  invokeBuildWorkflow as invokeBuildWorkflowFromClient,
+  replyToClaude
+} from './claude_client.js';
 import { input } from '@inquirer/prompts';
 import { ux } from '@oclif/core';
 import fs from 'node:fs/promises';
@@ -76,11 +81,14 @@ async function processModification( modification: string, currentOutput: string 
   }
 
   try {
-    const updatedOutput = await replyToClaude( modification, BUILD_COMMAND_OPTIONS );
+    const updatedOutput = await replyToClaude( modification, {
+      anthropicOpts: BUILD_COMMAND_OPTIONS,
+      applyAdditionalInstructions: ADDITIONAL_INSTRUCTIONS.BUILD
+    } );
     displayImplementationOutput( updatedOutput, '✓ Implementation updated!' );
     return updatedOutput;
   } catch ( error ) {
-    ux.error( `Failed to apply modifications: ${getErrorMessage( error )}` );
+    ux.stdout( ux.colorize( 'red', `Failed to apply modifications: ${getErrorMessage( error )}` ) );
     ux.stdout( 'Continuing with previous version...\n' );
     return currentOutput;
   }

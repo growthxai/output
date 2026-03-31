@@ -188,8 +188,7 @@ function formatInitError( error: unknown, projectPath: string | null ): string {
     case 'EPERM': return `Operation not permitted${pathSuffix}`;
     case 'ENOENT': return `Required file or directory not found${pathSuffix}`;
     default: {
-      const originalMessage = error instanceof Error ? error.message : String( error );
-      return `Failed to create project${pathSuffix}: ${originalMessage}`;
+      return `Failed to create project${pathSuffix}: ${getErrorMessage( error )}`;
     }
   }
 }
