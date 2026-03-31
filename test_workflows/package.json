@@ -5,9 +5,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "output:worker:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
-    "output:worker:build": "rm -rf dist/* && tsc && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' './src/**/*.key' dist -u 1",
-    "output:worker:start": "output-worker"
+    "outputai:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
+    "outputai:build": "rm -rf dist/* && tsc && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' './src/**/*.key' dist -u 1",
+    "outputai:start": "output-worker",
+    "outputai": "npm run outputai:install && npm run outputai:build && npm run outputai:start",
+    "outputai:watch": "npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.*' --exec 'npm run outputai'"
   },
   "dependencies": {
     "@outputai/core": "workspace:^",

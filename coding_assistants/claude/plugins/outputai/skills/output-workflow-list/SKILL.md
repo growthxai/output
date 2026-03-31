@@ -108,7 +108,7 @@ cat src/workflows/simple/workflow.ts
 ### Workflow not showing
 - Check the file exports a valid workflow definition
 - Ensure the workflow file compiles without errors
-- Run `npm run output:workflow:build` to check for TypeScript errors
+- Run `npm run outputai:build` to check for TypeScript errors
 
 ## Related Commands
 
