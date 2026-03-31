@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { buildWorkflow, buildWorkflowInteractiveLoop } from './workflow_builder.js';
-import { BUILD_COMMAND_OPTIONS, invokeBuildWorkflow, replyToClaude } from './claude_client.js';
+import { ADDITIONAL_INSTRUCTIONS, BUILD_COMMAND_OPTIONS, invokeBuildWorkflow, replyToClaude } from './claude_client.js';
 import { input } from '@inquirer/prompts';
 import { ux } from '@oclif/core';
 import fs from 'node:fs/promises';
@@ -171,7 +171,10 @@ describe( 'workflow-builder service', () => {
 
       const result = await buildWorkflowInteractiveLoop( 'Initial implementation' );
 
-      expect( replyToClaude ).toHaveBeenCalledWith( 'Add error handling', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
+      expect( replyToClaude ).toHaveBeenCalledWith( 'Add error handling', {
+        anthropicOpts: BUILD_COMMAND_OPTIONS,
+        applyAdditionalInstructions: ADDITIONAL_INSTRUCTIONS.BUILD
+      } );
       expect( result ).toBe( 'Updated implementation with error handling' );
       expect( input ).toHaveBeenCalledTimes( 2 );
     } );
@@ -189,8 +192,14 @@ describe( 'workflow-builder service', () => {
       const result = await buildWorkflowInteractiveLoop( 'Initial implementation' );
 
       expect( replyToClaude ).toHaveBeenCalledTimes( 2 );
-      expect( replyToClaude ).toHaveBeenNthCalledWith( 1, 'Add logging', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
-      expect( replyToClaude ).toHaveBeenNthCalledWith( 2, 'Add validation', { ...BUILD_COMMAND_OPTIONS, instructionsType: 'build' } );
+      expect( replyToClaude ).toHaveBeenNthCalledWith( 1, 'Add logging', {
+        anthropicOpts: BUILD_COMMAND_OPTIONS,
+        applyAdditionalInstructions: ADDITIONAL_INSTRUCTIONS.BUILD
+      } );
+      expect( replyToClaude ).toHaveBeenNthCalledWith( 2, 'Add validation', {
+        anthropicOpts: BUILD_COMMAND_OPTIONS,
+        applyAdditionalInstructions: ADDITIONAL_INSTRUCTIONS.BUILD
+      } );
       expect( result ).toBe( 'Implementation with logging and validation' );
     } );
 

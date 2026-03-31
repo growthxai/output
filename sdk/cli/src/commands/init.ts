@@ -1,6 +1,7 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { UserCancelledError } from '#types/errors.js';
 import { runInit } from '#services/project_scaffold.js';
+import { getErrorMessage } from '#utils/error_utils.js';
 
 export default class Init extends Command {
   static description = 'Initialize a new Output project by scaffolding the complete project structure';
@@ -36,8 +37,7 @@ export default class Init extends Command {
       }
 
       // runInit handles cleanup internally and throws Error with message
-      const errorMessage = error instanceof Error ? error.message : String( error );
-      this.error( errorMessage );
+      this.error( getErrorMessage( error ) );
     }
   }
 }

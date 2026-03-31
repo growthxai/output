@@ -73,7 +73,7 @@ export default class WorkflowPlan extends Command {
       return originalPlanContent;
     }
 
-    const modifiedPlanContent = await replyToClaude( modifications, PLAN_COMMAND_OPTIONS );
+    const modifiedPlanContent = await replyToClaude( modifications, { anthropicOpts: PLAN_COMMAND_OPTIONS } );
     return this.planModificationLoop( modifiedPlanContent );
   }
 

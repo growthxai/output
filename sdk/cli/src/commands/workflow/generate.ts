@@ -7,6 +7,7 @@ import { DEFAULT_OUTPUT_DIRS } from '#utils/paths.js';
 import type { WorkflowGenerationResult } from '#types/generator.js';
 import path from 'node:path';
 import * as fsSync from 'node:fs';
+import { getErrorMessage } from '#utils/error_utils.js';
 
 export default class Generate extends Command {
   static override description = 'Generate a new Output workflow from a skeleton or plan file';
@@ -75,7 +76,7 @@ export default class Generate extends Command {
       skeleton: flags.skeleton,
       force: flags.force
     } ).catch( ( error: unknown ): never => {
-      this.error( error instanceof Error ? error.message : String( error ) );
+      this.error( getErrorMessage( error ) );
     } );
 
     if ( planFile ) {
@@ -86,7 +87,7 @@ export default class Generate extends Command {
       const buildOutput = await buildWorkflow( absolutePlanPath, result.targetDir, args.name )
         .catch( ( error: unknown ): never => {
           fsSync.rmSync( result.targetDir, { recursive: true, force: true } );
-          const message = error instanceof Error ? error.message : String( error );
+          const message = getErrorMessage( error );
           this.error( `Workflow implementation failed, created files have been rolled back: ${message}` );
         } );
 
