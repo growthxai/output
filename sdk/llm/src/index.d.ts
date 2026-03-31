@@ -315,85 +315,99 @@ export function streamText<
   } & StreamTextAiSdkOptions<Tools, Output>
 ): AIStreamTextResult<Tools, Output>;
 
-export { agent } from './agent.js';
 export { skill } from './skill.js';
 export type { Skill, SkillsArg } from './skill.js';
 
+/** Pluggable conversation store for multi-turn Agent interactions. */
+export interface ConversationStore {
+  getMessages(): import( 'ai' ).ModelMessage[] | Promise<import( 'ai' ).ModelMessage[]>;
+  addMessages( messages: import( 'ai' ).ModelMessage[] ): void | Promise<void>;
+}
+
+/** Create an in-memory conversation store backed by a closure array. */
+export function createMemoryConversationStore(): ConversationStore;
+
 /**
- * Create a reusable agent backed by AI SDK's ToolLoopAgent, with Output.ai prompt file
- * and skill support. Returns an object with `.generate()` and `.stream()` methods.
+ * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering
+ * and the skill system.
  *
- * `prompt` replaces the AI SDK's `model` + `instructions` — the model and system message
- * are loaded from the prompt file. All other AI SDK ToolLoopAgent options pass through.
- *
- * @example
+ * @example Workflow step — variables per call, stateless
  * ```ts
- * const assistant = ToolLoopAgent({
- *   prompt: 'writing_assistant@v1',
- *   skills: [ mySkill ],
+ * const reviewer = new Agent({
+ *   prompt: 'reviewer@v1',
  *   output: Output.object({ schema: z.object({ summary: z.string() }) }),
+ *   maxSteps: 5
  * });
+ * const result = await reviewer.generate({ variables: { content: '...' } });
+ * ```
  *
- * const result = await assistant.generate({ variables: { content: '...' } });
- * console.log(result.output);
+ * @example Interactive — fixed setup, conversation history
+ * ```ts
+ * const chatbot = new Agent({
+ *   prompt: 'chatbot@v1',
+ *   variables: { persona: 'helpful assistant' },
+ *   conversationStore: createMemoryConversationStore()
+ * });
+ * const r1 = await chatbot.generate({ messages: [{ role: 'user', content: 'Hello' }] });
  * ```
  */
-export declare function ToolLoopAgent<Input = Record<string, unknown>>( params: {
-  /** Prompt file name (e.g. 'my_agent@v1') */
-  prompt: string;
-  /** Override the stack-resolved prompt directory (useful in tests) */
-  promptDir?: string;
-  /**
-   * Inline skill packages or a function that produces skills from the agent's input.
-   * Async functions are supported in `.generate()` only.
-   */
-  skills?: import( './skill.js' ).SkillsArg<Input>;
-  /** AI SDK tools available during the reasoning loop */
-  tools?: ToolSet;
-  /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
-  maxSteps?: number;
-  /** Custom stop condition(s) — overrides maxSteps */
-  stopWhen?: import( 'ai' ).StopCondition | import( 'ai' ).StopCondition[];
-  /** Structured output specification */
-  output?: import( 'ai' ).Output<unknown, unknown>;
-  /** Callback after each step */
-  onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
-  /** Callback when all steps complete */
-  onFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
-  /** Customize each step before execution */
-  prepareStep?: import( 'ai' ).PrepareStepFunction<ToolSet>;
-  /** Generation temperature */
-  temperature?: number;
-  /** Top-p sampling */
-  topP?: number;
-  /** Top-k sampling */
-  topK?: number;
-  /** Random seed for deterministic output */
-  seed?: number;
-  /** Maximum retry attempts (default: 2) */
-  maxRetries?: number;
-} ): {
+export declare class Agent extends import( 'ai' ).ToolLoopAgent {
+  constructor( params: {
+    /** Prompt file name (e.g. 'my_agent@v1') */
+    prompt: string;
+    /** Override the stack-resolved prompt directory */
+    promptDir?: string;
+    /** Variables to render the prompt template at construction time */
+    variables?: Record<string, unknown>;
+    /** Static skill packages made available to the LLM */
+    skills?: import( './skill.js' ).Skill[];
+    /** AI SDK tools available during the reasoning loop */
+    tools?: ToolSet;
+    /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
+    maxSteps?: number;
+    /** Custom stop condition(s) — overrides maxSteps */
+    stopWhen?: import( 'ai' ).StopCondition | import( 'ai' ).StopCondition[];
+    /** Structured output specification */
+    output?: import( 'ai' ).Output<unknown, unknown>;
+    /** Pluggable conversation store — opt-in, stateless by default */
+    conversationStore?: ConversationStore;
+    /** Callback after each step */
+    onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+    /** Customize each step before execution */
+    prepareStep?: import( 'ai' ).PrepareStepFunction<ToolSet>;
+    /** Generation temperature (overrides prompt file value) */
+    temperature?: number;
+    /** Top-p sampling */
+    topP?: number;
+    /** Top-k sampling */
+    topK?: number;
+    /** Random seed for deterministic output */
+    seed?: number;
+    /** Maximum retry attempts (default: 2) */
+    maxRetries?: number;
+  } );
+
   /**
    * Run the agent and return when complete.
-   * @param options.variables - Template variables to render into prompt messages
-   * @param options.messages - Additional messages appended after prompt messages
+   * If `variables` is provided, prompt messages are re-rendered for this call.
+   * If omitted, uses the messages rendered at construction time.
    */
   generate( options?: {
-    variables?: Input;
+    variables?: Record<string, unknown>;
     messages?: import( 'ai' ).ModelMessage[];
     abortSignal?: AbortSignal;
     onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
   } ): Promise<import( 'ai' ).GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+
   /**
-   * Stream the agent's response. Does not support async skill functions.
-   * @param options.variables - Template variables to render into prompt messages
-   * @param options.messages - Additional messages appended after prompt messages
+   * Stream the agent's response.
+   * If `variables` is provided, prompt messages are re-rendered for this call.
    */
   stream( options?: {
-    variables?: Input;
+    variables?: Record<string, unknown>;
     messages?: import( 'ai' ).ModelMessage[];
     abortSignal?: AbortSignal;
     onStepFinish?: import( 'ai' ).StreamTextOnStepFinishCallback<ToolSet>;
     experimental_transform?: import( 'ai' ).StreamTextTransform<ToolSet> | import( 'ai' ).StreamTextTransform<ToolSet>[];
-  } ): import( 'ai' ).StreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>;
+  } ): Promise<import( 'ai' ).StreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
 };

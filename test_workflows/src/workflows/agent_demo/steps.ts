@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { agent, skill } from '@outputai/llm';
+import { Agent, Output, skill } from '@outputai/llm';
 import { reviewOutputSchema } from './types.js';
 
 // Inline skill defined programmatically (shown alongside file-based skills from prompts/)
@@ -22,16 +22,13 @@ Basic explanations are unnecessary but architectural decisions should be justifi
 Always mention the audience level in your summary.`
 } );
 
-// The writing assistant agent - wraps generateText with skills and structured output.
-// Skills from ./skills/ directory are declared in the prompt frontmatter and validated
-// at module load time. The audience_adaptation skill is added dynamically at runtime.
-const writingAssistant = agent( {
-  name: 'writing_assistant',
+// The writing assistant agent — extends AI SDK's ToolLoopAgent with prompt file
+// and skill support. Skills from ./skills/ are declared in the prompt frontmatter;
+// audience_adaptation is added inline.
+const writingAssistant = new Agent( {
   prompt: 'writing_assistant@v1',
-  outputSchema: reviewOutputSchema,
-  // Dynamic skills: always include audience_adaptation
-  // (demonstrates the skills function argument)
-  skills: () => [ audienceAdaptationSkill ],
+  output: Output.object( { schema: reviewOutputSchema } ),
+  skills: [ audienceAdaptationSkill ],
   maxSteps: 5
 } );
 
@@ -45,7 +42,7 @@ export const reviewContent = step( {
   } ),
   outputSchema: reviewOutputSchema,
   fn: async input => {
-    const result = await writingAssistant( input );
+    const result = await writingAssistant.generate( { variables: input } );
     return result.output;
   }
 } );

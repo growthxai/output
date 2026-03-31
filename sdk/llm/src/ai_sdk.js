@@ -56,39 +56,41 @@ export const loadAiSdkOptionsFromPrompt = prompt => {
  * @throws {FatalError} If the prompt file is not found or template rendering fails
  * @returns {Promise<GenerateTextResult>} AI SDK response with text, toolCalls, and metadata
  */
-export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills ) => {
+export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills, callerTools = {} ) => {
   const meta = loadPrompt( prompt, variables, promptDir );
   const frontmatterSkills = meta.config.skills && meta.promptFileDir ?
     loadPromptSkills( meta.config.skills, meta.promptFileDir ) :
     [];
   const resolvedSkills = [ ...frontmatterSkills, ...callerSkills ];
+
+  const tools = resolvedSkills.length > 0 ?
+    { load_skill: buildLoadSkillTool( resolvedSkills ), ...callerTools } :
+    callerTools;
+
   if ( resolvedSkills.length === 0 ) {
-    return { loadedPrompt: meta, resolvedSkills, allVariables: variables };
+    return { loadedPrompt: meta, allVariables: variables, tools };
   }
   const allVariables = { ...variables, _system_skills: buildSystemSkillsVar( resolvedSkills ) };
-  return { loadedPrompt: loadPrompt( prompt, allVariables, promptDir ), resolvedSkills, allVariables };
+  return { loadedPrompt: loadPrompt( prompt, allVariables, promptDir ), allVariables, tools };
 };
 
 export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {
   const callerSkills = typeof skills === 'function' ? await skills( variables ) : skills;
-  const { loadedPrompt, resolvedSkills, allVariables } = hydratePromptTemplate( prompt, variables, promptDir, callerSkills );
-  const hasSkills = resolvedSkills.length > 0;
+  const { loadedPrompt, allVariables, tools } =
+    hydratePromptTemplate( prompt, variables, promptDir, callerSkills, extraAiSdkOptions.tools );
+  const hasTools = Object.keys( tools ).length > 0;
 
   validateGenerateTextArgs( { prompt, variables: allVariables } );
 
   const traceId = startTrace( 'generateText', { prompt, variables: allVariables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
-  const skillOptions = hasSkills ? {
-    tools: { load_skill: buildLoadSkillTool( resolvedSkills ), ...( extraAiSdkOptions.tools ?? {} ) },
-    ...( !extraAiSdkOptions.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
-  } : {};
-
   try {
     const response = await AI.generateText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
       ...extraAiSdkOptions,
-      ...skillOptions
+      ...( hasTools ? { tools } : {} ),
+      ...( hasTools && !extraAiSdkOptions.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
     const { text: result, totalUsage: usage, providerMetadata } = response;
     const sourcesFromTools = extractSourcesFromSteps( response.steps );
