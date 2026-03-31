@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { parseServiceStatus, getServiceStatus, waitForServicesHealthy } from './docker.js';
+import { parseServiceStatus, getServiceStatus, waitForServicesHealthy, isServiceHealthy, isServiceFailed } from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
@@ -126,6 +126,58 @@ describe( 'docker service', () => {
     } );
   } );
 
+  describe( 'isServiceHealthy', () => {
+    it( 'should return true for a running service with health: healthy', () => {
+      expect( isServiceHealthy( { name: 'redis', state: 'running', health: 'healthy', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return true for a running service with no health check (health: none)', () => {
+      expect( isServiceHealthy( { name: 'api', state: 'running', health: 'none', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return false for a running service with health: unhealthy', () => {
+      expect( isServiceHealthy( { name: 'worker', state: 'running', health: 'unhealthy', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for an exited service with health: none', () => {
+      expect( isServiceHealthy( { name: 'worker', state: 'exited', health: 'none', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for an exited service with health: unhealthy', () => {
+      expect( isServiceHealthy( { name: 'worker', state: 'exited', health: 'unhealthy', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a service with health: starting', () => {
+      expect( isServiceHealthy( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'isServiceFailed', () => {
+    it( 'should return true for an exited service with health: none', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'exited', health: 'none', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return true for a running service with health: unhealthy', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'running', health: 'unhealthy', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return true for an exited service with health: unhealthy', () => {
+      expect( isServiceFailed( { name: 'worker', state: 'exited', health: 'unhealthy', ports: [] } ) ).toBe( true );
+    } );
+
+    it( 'should return false for a running service with health: healthy', () => {
+      expect( isServiceFailed( { name: 'redis', state: 'running', health: 'healthy', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a running service with health: none', () => {
+      expect( isServiceFailed( { name: 'api', state: 'running', health: 'none', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a service with health: starting — not a failure, just in progress', () => {
+      expect( isServiceFailed( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
+    } );
+  } );
+
   describe( 'waitForServicesHealthy', () => {
     it( 'should resolve when all services are healthy', async () => {
       const mockOutput = `{"Service":"redis","State":"running","Health":"healthy","Publishers":[]}
@@ -148,6 +200,28 @@ describe( 'docker service', () => {
       vi.mocked( execFileSync ).mockReturnValue( mockOutput );
 
       const promise = waitForServicesHealthy( '/path/to/docker-compose.yml', 100 );
+      await expect( promise ).rejects.toThrow( 'Timeout waiting for services to become healthy' );
+    }, 10000 );
+
+    it( 'should not resolve when a service has exited with no health check — regression OUT-334', async () => {
+      // Exited containers have empty Health which parses to 'none'.
+      // Previously, state:exited + health:none was incorrectly treated as healthy.
+      const mockOutput = `{"Service":"redis","State":"running","Health":"healthy","Publishers":[]}
+{"Service":"worker","State":"exited","Health":"","Publishers":[]}`;
+      vi.mocked( execFileSync ).mockReturnValue( mockOutput );
+
+      const promise = waitForServicesHealthy( '/path/to/docker-compose.yml', 100, 50 );
+      await expect( promise ).rejects.toThrow( 'Timeout waiting for services to become healthy' );
+    }, 10000 );
+
+    it( 'should not resolve when a service is running but unhealthy — regression OUT-334', async () => {
+      // Nodemon keeps the container running even when the exec'd command fails,
+      // so the unhealthy case is state:running + health:unhealthy.
+      const mockOutput = `{"Service":"redis","State":"running","Health":"healthy","Publishers":[]}
+{"Service":"worker","State":"running","Health":"unhealthy","Publishers":[]}`;
+      vi.mocked( execFileSync ).mockReturnValue( mockOutput );
+
+      const promise = waitForServicesHealthy( '/path/to/docker-compose.yml', 100, 50 );
       await expect( promise ).rejects.toThrow( 'Timeout waiting for services to become healthy' );
     }, 10000 );
 
