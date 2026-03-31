@@ -131,7 +131,7 @@ services:
         corepack enable &&
         npm run output:worker:install &&
         echo 'Installed dependencies' &&
-        exec npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
+        npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
       "
     working_dir: /app/${OUTPUT_WORKFLOWS_DIR:-.}
     volumes:
