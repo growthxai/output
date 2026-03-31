@@ -37,6 +37,48 @@ const resolveServiceDisplay = ( service: ServiceStatus ) => {
   return { icon: STATUS_ICONS[key] ?? '?', color: STATUS_COLORS[key] ?? 'white', status: key };
 };
 
+const fetchServices = async ( dockerComposePath: string ): Promise<ServiceStatus[] | null> => {
+  try {
+    return await getServiceStatus( dockerComposePath );
+  } catch {
+    return null;
+  }
+};
+
+type TickResult = 'done' | 'continue';
+
+const usePoll = ( enabled: boolean, onTick: () => Promise<TickResult> ): void => {
+  const onTickRef = useRef( onTick );
+  onTickRef.current = onTick;
+
+  useEffect( () => {
+    const state = {
+      active: true,
+      timeout: undefined as ReturnType<typeof setTimeout> | undefined
+    };
+
+    const run = async (): Promise<void> => {
+      if ( !state.active ) {
+        return;
+      }
+      const result = await onTickRef.current();
+      if ( !state.active || result === 'done' ) {
+        return;
+      }
+      state.timeout = setTimeout( run, POLL_INTERVAL_MS );
+    };
+
+    if ( enabled ) {
+      void run();
+    }
+
+    return () => {
+      state.active = false;
+      clearTimeout( state.timeout );
+    };
+  }, [ enabled ] );
+};
+
 const useHealthPolling = (
   dockerComposePath: string,
   enabled: boolean,
@@ -46,60 +88,26 @@ const useHealthPolling = (
     onTimeout: () => void;
   }
 ): void => {
-  // Store callbacks in a ref so the effect doesn't restart when they change
   const callbacksRef = useRef( callbacks );
   callbacksRef.current = callbacks;
+  const startTimeRef = useRef( Date.now() );
 
-  useEffect( () => {
-    const state = {
-      active: true,
-      timeout: undefined as ReturnType<typeof setTimeout> | undefined
-    };
-    const startTime = Date.now();
-
-    if ( !enabled ) {
-      return () => {
-        state.active = false;
-        clearTimeout( state.timeout );
-      };
+  usePoll( enabled, async () => {
+    if ( Date.now() - startTimeRef.current > HEALTH_TIMEOUT_MS ) {
+      callbacksRef.current.onTimeout();
+      return 'done';
     }
-
-    const poll = async (): Promise<void> => {
-      if ( !state.active ) {
-        return;
-      }
-
-      if ( Date.now() - startTime > HEALTH_TIMEOUT_MS ) {
-        callbacksRef.current.onTimeout();
-        return;
-      }
-
-      try {
-        const svcs = await getServiceStatus( dockerComposePath );
-        if ( !state.active ) {
-          return;
-        }
-        callbacksRef.current.onServices( svcs );
-        if ( svcs.length > 0 && svcs.every( isServiceHealthy ) ) {
-          callbacksRef.current.onAllHealthy( svcs );
-          return;
-        }
-      } catch {
-        // retry on next tick
-      }
-
-      if ( state.active ) {
-        state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-      }
-    };
-
-    void poll();
-
-    return () => {
-      state.active = false;
-      clearTimeout( state.timeout );
-    };
-  }, [ enabled, dockerComposePath ] );
+    const svcs = await fetchServices( dockerComposePath );
+    if ( svcs === null ) {
+      return 'continue';
+    }
+    callbacksRef.current.onServices( svcs );
+    if ( svcs.length > 0 && svcs.every( isServiceHealthy ) ) {
+      callbacksRef.current.onAllHealthy( svcs );
+      return 'done';
+    }
+    return 'continue';
+  } );
 };
 
 const useStatusRefresh = (
@@ -107,44 +115,16 @@ const useStatusRefresh = (
   enabled: boolean,
   onServices: ( svcs: ServiceStatus[] ) => void
 ): void => {
-  // Store callback in a ref so the effect doesn't restart when it changes
   const onServicesRef = useRef( onServices );
   onServicesRef.current = onServices;
 
-  useEffect( () => {
-    const state = {
-      active: true,
-      timeout: undefined as ReturnType<typeof setTimeout> | undefined
-    };
-
-    if ( !enabled ) {
-      return () => {
-        state.active = false;
-        clearTimeout( state.timeout );
-      };
+  usePoll( enabled, async () => {
+    const svcs = await fetchServices( dockerComposePath );
+    if ( svcs !== null ) {
+      onServicesRef.current( svcs );
     }
-
-    const poll = async (): Promise<void> => {
-      try {
-        const svcs = await getServiceStatus( dockerComposePath );
-        if ( state.active ) {
-          onServicesRef.current( svcs );
-        }
-      } catch {
-        // silent retry
-      }
-      if ( state.active ) {
-        state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-      }
-    };
-
-    state.timeout = setTimeout( poll, POLL_INTERVAL_MS );
-
-    return () => {
-      state.active = false;
-      clearTimeout( state.timeout );
-    };
-  }, [ enabled, dockerComposePath ] );
+    return 'continue';
+  } );
 };
 
 const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
