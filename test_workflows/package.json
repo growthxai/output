@@ -15,7 +15,8 @@
     "@outputai/evals": "workspace:^",
     "@outputai/http": "workspace:^",
     "@outputai/llm": "workspace:^",
-    "@temporalio/workflow": "catalog:"
+    "@temporalio/workflow": "catalog:",
+    "nodemon": "3.1.14"
   },
   "output": {
     "hookFiles": [

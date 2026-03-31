@@ -48,7 +48,7 @@ docker run --rm \
 
 # Build the API docker image.
 print "Building API docker image..."
-npm run dev:build:api
+npm run build:api:dev
 
 # Start services via the CLI in detached mode.
 print "Starting dev environment..."
@@ -56,10 +56,10 @@ npm run dev:up -- --detached
 
 # Run the simple workflow using the CLI since everything is up
 print "Executing test workflow..."
-CLI_OUTPUT=$(npm run --silent output -- workflow run simple --input '{"values":[1,2,3,4,5]}' --format json) || {
+CLI_OUTPUT=$(npx --prefix=sdk/cli output workflow run simple --input '{"values":[1,2,3,4,5]}' --format json) || {
   printf "\e[36m\n[CLI output]\n\e[90m$CLI_OUTPUT\n"
   printf "\e[36m\n[Worker container tail]\n\e[90m...\n"
-  docker compose -p output-sdk logs --no-color --no-log-prefix --tail 50 worker
+  docker compose -p output-sdk logs --no-color --no-log-prefix --tail 50 worker | sed -r 's/\x1B\[[0-9;]*[mK]//g'
   printf "\e[36m\n[API container tail]\n\e[90m...\n"
   docker compose -p output-sdk logs --no-color --no-log-prefix --tail 25 api | sed -r 's/\x1B\[[0-9;]*[mK]//g'
   printf "\e[0m"
