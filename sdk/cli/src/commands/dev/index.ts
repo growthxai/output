@@ -98,14 +98,16 @@ export default class Dev extends Command {
 
       this.dockerProcess = dockerProc;
 
-      dockerProc.on( 'error', error => {
-        this.error( `Docker process error: ${getErrorMessage( error )}`, { exit: 1 } );
-      } );
-
       const instance = render(
         React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup } ),
         { exitOnCtrlC: false }
       );
+
+      dockerProc.on( 'error', async error => {
+        this.warn( `Docker process error: ${getErrorMessage( error )}` );
+        await cleanup();
+        instance.unmount();
+      } );
 
       const handleSignal = async () => {
         await cleanup();
