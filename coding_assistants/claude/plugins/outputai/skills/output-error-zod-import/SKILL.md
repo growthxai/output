@@ -139,7 +139,7 @@ grep -r 'from "zod"' src/
 ### 2. Build the project
 
 ```bash
-npm run outputai:build
+npm run worker:build
 ```
 
 ### 3. Run the workflow

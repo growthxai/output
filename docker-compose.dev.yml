@@ -46,7 +46,7 @@ services:
       - OUTPUT_TRACE_LOCAL_ON=true
       - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-    command: sh -c "corepack enable && npm run build:packages && cd ./test_workflows && npm run outputai:watch"
+    command: sh -c "corepack enable && npm run build:packages && cd ./test_workflows && npm run worker:watch"
     working_dir: /app
     volumes:
       - ./:/app

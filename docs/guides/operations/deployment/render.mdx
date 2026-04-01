@@ -48,12 +48,12 @@ RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/
 
 # Install dependencies (copy first to leverage Docker cache)
 COPY package.json package-lock.json ./
-RUN npm run outputai:install
+RUN npm run worker:install
 
 # Build the worker
 COPY src/ ./src/
 COPY tsconfig.json ./
-RUN npm run outputai:build
+RUN npm run worker:build
 
 # Clean up source files after build
 RUN rm -rf ./src tsconfig.json
@@ -70,7 +70,7 @@ ENV PATH="/app/node_modules/.bin:$PATH"
 # V8 heap = 80% of container memory (leaves room for Temporal Rust runtime + OS)
 ENV NODE_OPTIONS="--max-old-space-size-percentage=80 --heapsnapshot-signal=SIGUSR2"
 
-CMD ["npm run outputai:start"]
+CMD ["npm", "run", "worker:start"]
 ```
 
 <Tip>
