@@ -88,7 +88,6 @@ export default class Dev extends Command {
         this.dockerProcess.kill( 'SIGTERM' );
       }
       await stopDockerCompose( dockerComposePath );
-      process.exit( 0 );
     };
 
     try {

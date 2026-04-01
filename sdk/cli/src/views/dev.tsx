@@ -134,7 +134,7 @@ const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
   useInput( ( input, key ) => {
     if ( key.ctrl && input === 'c' && !isExitingRef.current ) {
       isExitingRef.current = true;
-      void onCleanup().then( () => exit() ).catch( () => exit() );
+      void onCleanup().then( () => exit() ).catch( err => exit( err instanceof Error ? err : new Error( String( err ) ) ) );
     }
   } );
 };
