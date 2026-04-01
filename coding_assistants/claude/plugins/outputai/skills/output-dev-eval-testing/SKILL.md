@@ -421,7 +421,7 @@ output workflow dataset list my_workflow
 
 ```bash
 # 1. Start the dev server
-npm run dev
+npm run output:dev
 
 # 2. Generate datasets from real workflow runs
 output workflow dataset generate blog_generator --input '{"topic": "AI"}' --name ai_post

@@ -3,7 +3,6 @@
     "allow": [
       "WebFetch",
       "Bash(npx output:*)",
-      "Bash(npm run dev)",
       "Bash(npm run output:*)",
       "Skills(output*)",
       "Skills(flow*)"

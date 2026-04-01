@@ -10,7 +10,7 @@
     "output:worker:start": "output-worker",
     "output:worker": "npm run output:worker:install && npm run output:worker:build && npm run output:worker:start",
     "output:worker:watch": "npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.*' --exec 'npm run output:worker'",
-    "dev": "output dev"
+    "output:dev": "output dev"
   },
   "dependencies": {
     "@outputai/output": "^{{frameworkVersion}}"
