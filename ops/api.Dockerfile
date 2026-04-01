@@ -24,4 +24,4 @@ WORKDIR /app/api
 ENV NODE_ENV=production
 
 # Use node directly so SIGINT and SIGTERM are forwarded
-CMD ["node", "./src/api.js"]
+CMD ["node", "./src/index.js"]

@@ -73,7 +73,7 @@ export default class WorkflowPlan extends Command {
       return originalPlanContent;
     }
 
-    const modifiedPlanContent = await replyToClaude( modifications, PLAN_COMMAND_OPTIONS );
+    const modifiedPlanContent = await replyToClaude( modifications, { anthropicOpts: PLAN_COMMAND_OPTIONS } );
     return this.planModificationLoop( modifiedPlanContent );
   }
 
@@ -89,5 +89,7 @@ export default class WorkflowPlan extends Command {
     const modifiedPlanContent = await this.planModificationLoop( planContent );
     const modifiedSavedPath = await writePlanFile( planName, modifiedPlanContent, projectRoot );
     this.log( `✅ Plan saved to: ${modifiedSavedPath}\n` );
+    const generateCmd = ux.colorize( 'cyan', `npx output workflow generate <WORKFLOW_NAME> --plan-file=${modifiedSavedPath}` );
+    this.log( `⏭️  To execute this plan run: ${generateCmd}\n` );
   }
 }

@@ -449,6 +449,89 @@ describe( 'credentials module', () => {
     } );
   } );
 
+  describe( 'resolveCredentialRefs', () => {
+    const refKey = generateKey();
+    const refCiphertext = encrypt( YAML_CONTENT, refKey );
+
+    const loadResolveCredentialRefs = async () => {
+      vi.resetModules();
+      const mod = await import( './index.js' );
+      return mod.resolveCredentialRefs;
+    };
+
+    afterEach( () => {
+      delete process.env.ANTHROPIC_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+    } );
+
+    it( 'should resolve credential: env vars to decrypted values', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = refKey;
+      process.env.ANTHROPIC_API_KEY = 'credential:anthropic.api_key';
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => refCiphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const resolve = await loadResolveCredentialRefs();
+      const resolved = resolve();
+
+      expect( resolved ).toEqual( [ 'ANTHROPIC_API_KEY' ] );
+      expect( process.env.ANTHROPIC_API_KEY ).toBe( 'sk-ant-test' );
+    } );
+
+    it( 'should leave non-credential env vars unchanged', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = refKey;
+      process.env.ANTHROPIC_API_KEY = 'sk-ant-already-set';
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => refCiphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const resolve = await loadResolveCredentialRefs();
+      const resolved = resolve();
+
+      expect( resolved ).toEqual( [] );
+      expect( process.env.ANTHROPIC_API_KEY ).toBe( 'sk-ant-already-set' );
+    } );
+
+    it( 'should skip credential refs that do not resolve to a value', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = refKey;
+      process.env.OPENAI_API_KEY = 'credential:nonexistent.path';
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => refCiphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const resolve = await loadResolveCredentialRefs();
+      const resolved = resolve();
+
+      expect( resolved ).toEqual( [] );
+      expect( process.env.OPENAI_API_KEY ).toBe( 'credential:nonexistent.path' );
+    } );
+
+    it( 'should resolve multiple credential refs in one call', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = refKey;
+      process.env.ANTHROPIC_API_KEY = 'credential:anthropic.api_key';
+      process.env.OPENAI_API_KEY = 'credential:aws.secret';
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => refCiphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const resolve = await loadResolveCredentialRefs();
+      const resolved = resolve();
+
+      expect( resolved ).toContain( 'ANTHROPIC_API_KEY' );
+      expect( resolved ).toContain( 'OPENAI_API_KEY' );
+      expect( process.env.ANTHROPIC_API_KEY ).toBe( 'sk-ant-test' );
+      expect( process.env.OPENAI_API_KEY ).toBe( 'aws-secret' );
+    } );
+  } );
+
   describe( 'custom provider', () => {
     it( 'should use a custom provider when set via registry', async () => {
       const customProvider = {

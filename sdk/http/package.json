@@ -1,6 +1,6 @@
 {
   "name": "@outputai/http",
-  "version": "0.1.8",
+  "version": "0.1.10",
   "description": "Framework abstraction to make HTTP calls with tracing",
   "type": "module",
   "main": "dist/index.js",

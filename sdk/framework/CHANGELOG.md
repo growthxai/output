@@ -1,5 +1,30 @@
 # @outputai/output
 
+## 0.1.10
+
+### Patch Changes
+
+- 41ecc1b: Updating dependencies to latest and overriding version to fix vulnerabilities
+- Updated dependencies [41ecc1b]
+  - @outputai/core@0.1.10
+  - @outputai/cli@0.1.10
+  - @outputai/llm@0.1.10
+  - @outputai/credentials@0.1.10
+  - @outputai/evals@0.1.10
+  - @outputai/http@0.1.10
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [133551f]
+  - @outputai/cli@0.1.9
+  - @outputai/core@0.1.9
+  - @outputai/credentials@0.1.9
+  - @outputai/evals@0.1.9
+  - @outputai/http@0.1.9
+  - @outputai/llm@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes

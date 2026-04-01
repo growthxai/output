@@ -1,6 +1,6 @@
 {
   "name": "@outputai/core",
-  "version": "0.1.8",
+  "version": "0.1.10",
   "description": "The core module of the output framework",
   "type": "module",
   "exports": {
@@ -47,7 +47,7 @@
     "@temporalio/workflow": "catalog:",
     "redis": "5.11.0",
     "stacktrace-parser": "0.1.11",
-    "undici": "7.24.5",
+    "undici": "7.24.6",
     "winston": "catalog:",
     "zod": "catalog:"
   },

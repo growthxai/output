@@ -11,11 +11,10 @@
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "./ops/test_e2e.sh",
     "test:all": "npm test && npm run test:integration npm run test:e2e",
-    "build:packages": "pnpm -r run build",
-    "dev": "npm run build:packages && npm run dev:build:api && npm run dev:up",
-    "output": "./sdk/cli/bin/run.js",
-    "dev:build:api": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
-    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npm run output -- dev --image-pull-policy missing",
+    "build:packages": "pnpm -r run build && cp ./api/openapi.json ./docs/guides/openapi.json",
+    "build:api:dev": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
+    "dev": "npm run build:packages && npm run build:api:dev && npm run dev:up",
+    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npx --prefix=sdk/cli output dev --image-pull-policy missing",
     "docs:generate": "typedoc",
     "docs:validate": "typedoc --emit none"
   },
@@ -29,7 +28,7 @@
     "globals": "17.4.0",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "mintlify": "4.2.447",
+    "mintlify": "4.2.457",
     "native-copyfiles": "2.0.1",
     "semver": "catalog:",
     "supertest": "7.2.2",
@@ -37,7 +36,7 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.57.2",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.1"
+    "vitest": "4.1.2"
   },
   "license": "UNLICENSED",
   "repository": {
@@ -53,7 +52,6 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-xml-parser@>=4.0.0-beta.3 <=5.5.6": ">=5.5.7",
       "tar@<6.2.1": ">=6.2.1",
       "zod@<=3.22.2": ">=3.22.3",
       "body-parser@<1.20.3": ">=1.20.3",
@@ -77,7 +75,8 @@
       "qs@<6.14.1": ">=6.14.1",
       "tar@<=7.5.9": ">=7.5.10",
       "tar@<=7.5.10": ">=7.5.11",
-      "tar@<=7.5.3": ">=7.5.4"
+      "tar@<=7.5.3": ">=7.5.4",
+      "path-to-regexp@<0.1.13": ">=0.1.13"
     }
   }
 }

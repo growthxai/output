@@ -5,10 +5,13 @@ import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const __filename = fileURLToPath( import.meta.url );
-const __dirname = dirname( __filename );
+const __dirname = dirname( fileURLToPath( import.meta.url ) );
+const specsFile = join( __dirname, '..', 'src', 'index.js' );
+const outputFile = join( __dirname, '..', 'openapi.json' );
 
-const options = {
+console.log( '\x1b[0;34m%s\x1b[0m', '[API]: Generating OpenAPI spec JSON' );
+
+const spec = swaggerJsdoc( {
   definition: {
     openapi: '3.0.0',
     info: {
@@ -32,21 +35,9 @@ const options = {
     },
     security: process.env.NODE_ENV === 'production' ? [ { BasicAuth: [] } ] : []
   },
-  apis: [ join( __dirname, '..', 'src', 'api.js' ) ]
-};
-
-const openapiSpecification = swaggerJsdoc( options );
-
-const json = JSON.stringify( openapiSpecification, null, 2 ) + '\n';
-
-const outputPaths = [
-  join( __dirname, '..', 'openapi.json' ),
-  join( __dirname, '..', '..', 'docs', 'guides', 'openapi.json' )
-];
-
-outputPaths.forEach( p => {
-  writeFileSync( p, json );
-  console.log( `✅ OpenAPI specification generated at: ${p}` );
+  apis: [ specsFile ]
 } );
 
-export default openapiSpecification;
+writeFileSync( outputFile, JSON.stringify( spec, null, 2 ) + '\n', 'utf-8' );
+
+console.log( '\x1b[0;32m%s\x1b[0m', 'OpenAPI json created' );

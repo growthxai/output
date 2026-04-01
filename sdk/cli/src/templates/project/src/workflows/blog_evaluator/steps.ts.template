@@ -1,12 +1,6 @@
 import { step, z } from '@outputai/core';
 import { fetchBlogContent } from '../../clients/jina.js';
-
-const blogContentSchema = z.object( {
-  title: z.string(),
-  url: z.string(),
-  content: z.string(),
-  tokenCount: z.number()
-} );
+import { blogContentSchema } from './types.js';
 
 export const fetchContent = step( {
   name: 'fetch_blog_content',

@@ -115,15 +115,13 @@ The AWS credentials are used by the `/workflow/:id/trace-log` endpoint to fetch 
 
 ## Editing the API
 
-**Source of truth**: `src/api.js` with `@swagger` JSDoc comments
+**Source of truth**: `src/index.js` with `@swagger` JSDoc comments
 
 **Workflow**:
 
-1. Edit Express routes and `@swagger` comments in `src/api.js`
-2. Regenerate OpenAPI spec:
-   - From project root: `npm run build:packages`
-   - From `api/` directory: `npm run build` or `npm run generate:openapi`
-3. `openapi.json` is regenerated automatically
+1. Edit Express routes in `src/index.js`;
+2. Edit _@swagger_ comments in the same file to match the new API state;
+3. When building, those comments will generate the `openapi.json` file.
 
 **Do not manually edit** `openapi.json` - changes will be overwritten.
 

@@ -1,5 +1,24 @@
 # @outputai/cli
 
+## 0.1.10
+
+### Patch Changes
+
+- 41ecc1b: Updating dependencies to latest and overriding version to fix vulnerabilities
+- Updated dependencies [41ecc1b]
+  - @outputai/llm@0.1.10
+  - @outputai/credentials@0.1.10
+  - @outputai/evals@0.1.10
+
+## 0.1.9
+
+### Patch Changes
+
+- 133551f: Fix best practices in the output init example: move blogContentSchema from steps.ts to types.ts, and update README template to use npx output credentials flow instead of .env
+  - @outputai/credentials@0.1.9
+  - @outputai/evals@0.1.9
+  - @outputai/llm@0.1.9
+
 ## 0.1.8
 
 ### Patch Changes
