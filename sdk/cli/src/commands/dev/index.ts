@@ -103,10 +103,8 @@ export default class Dev extends Command {
         { exitOnCtrlC: false }
       );
 
-      dockerProc.on( 'error', async error => {
-        this.warn( `Docker process error: ${getErrorMessage( error )}` );
-        await cleanup();
-        instance.unmount();
+      dockerProc.on( 'error', error => {
+        instance.unmount( new Error( `Docker process error: ${getErrorMessage( error )}` ) );
       } );
 
       const handleSignal = async () => {
