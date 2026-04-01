@@ -126,7 +126,7 @@ services:
       - OUTPUT_TRACE_HTTP_VERBOSE=${OUTPUT_TRACE_HTTP_VERBOSE:-true}
       - TEMPORAL_ADDRESS=temporal:7233
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-    command: sh -c "corepack enable && npm run worker:watch"
+    command: sh -c "corepack enable && npm run output:worker:watch"
     working_dir: /app/${OUTPUT_WORKFLOWS_DIR:-.}
     volumes:
       - ./:/app
