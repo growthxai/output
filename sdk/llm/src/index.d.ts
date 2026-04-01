@@ -99,7 +99,6 @@ export type Prompt = {
 };
 
 // Re-export AI SDK types directly (auto-synced with AI SDK updates)
-export type { Agent } from 'ai';
 export type {
   LanguageModelUsage,
   FinishReason,

@@ -43,6 +43,20 @@ vi.mock( './ai_sdk.js', () => ( {
   loadAiSdkOptionsFromPrompt: ( ...args ) => loadAiSdkOptionsImpl( ...args )
 } ) );
 
+const startTraceImpl = vi.fn( () => 'trace-id' );
+const endTraceWithErrorImpl = vi.fn();
+const traceStreamCallbacksImpl = vi.fn( () => ( {} ) );
+vi.mock( './trace_utils.js', () => ( {
+  startTrace: ( ...args ) => startTraceImpl( ...args ),
+  endTraceWithError: ( ...args ) => endTraceWithErrorImpl( ...args ),
+  traceStreamCallbacks: ( ...args ) => traceStreamCallbacksImpl( ...args )
+} ) );
+
+const wrapInOutputResponseImpl = vi.fn( response => response );
+vi.mock( './response_utils.js', () => ( {
+  wrapInOutputResponse: ( ...args ) => wrapInOutputResponseImpl( ...args )
+} ) );
+
 const loadPromptImpl = vi.fn();
 vi.mock( './prompt_loader.js', () => ( {
   loadPrompt: ( ...args ) => loadPromptImpl( ...args )
