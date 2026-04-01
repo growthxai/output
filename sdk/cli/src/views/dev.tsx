@@ -195,35 +195,35 @@ const DevSuccessMessage: React.FC<{ services: ServiceStatus[] }> = ( { services 
 
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text dimColor>{divider}</Text>
+      <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Box>
         <Text color="green" bold>{'✅ SUCCESS! '}</Text>
         <Text bold>Development services are running</Text>
       </Box>
-      <Text dimColor>{divider}</Text>
-      <Text bold>🐳 SERVICES</Text>
-      <Box flexDirection="column" marginLeft={2} marginBottom={1}>
+      <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
+      <Box marginBottom={1}><Text bold>🐳 SERVICES</Text></Box>
+      <Box flexDirection="column" marginLeft={2}>
         <Box><Text color="white">{'Temporal:    '}</Text><Text color="yellow">localhost:7233</Text></Box>
         <Box><Text color="white">{'Temporal UI: '}</Text><Text color="cyan">http://localhost:8080</Text></Box>
         <Box><Text color="white">{'API Server:  '}</Text><Text color="yellow">localhost:3001</Text></Box>
         <Box><Text color="white">{'Redis:       '}</Text><Text color="yellow">localhost:6379</Text></Box>
       </Box>
-      <Text dimColor>{divider}</Text>
-      <Text bold>🚀 RUN A WORKFLOW</Text>
-      <Box flexDirection="column" marginLeft={2} marginBottom={1}>
+      <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
+      <Box marginBottom={1}><Text bold>🚀 RUN A WORKFLOW</Text></Box>
+      <Box flexDirection="column" marginLeft={2}>
         <Text color="white">In a new terminal, execute:</Text>
         <Box marginLeft={2}>
           <Text color="cyan">npx output workflow run blog_evaluator paulgraham_hwh</Text>
         </Box>
       </Box>
-      <Text dimColor>{divider}</Text>
-      <Text bold>⚡ USEFUL COMMANDS</Text>
-      <Box flexDirection="column" marginLeft={2} marginBottom={1}>
+      <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
+      <Box marginBottom={1}><Text bold>⚡ USEFUL COMMANDS</Text></Box>
+      <Box flexDirection="column" marginLeft={2}>
         <Box><Text color="white">{'Open Temporal UI: '}</Text><Text color="cyan">open http://localhost:8080</Text></Box>
         <Box><Text color="white">{'View logs:        '}</Text><Text color="cyan">{logsCommand}</Text></Box>
         <Box><Text color="white">{'Stop services:    '}</Text><Text color="cyan">Press Ctrl+C</Text></Box>
       </Box>
-      <Text dimColor>{divider}</Text>
+      <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Text dimColor>💡 Tip: The Temporal UI lets you monitor workflow executions in real-time</Text>
     </Box>
   );
