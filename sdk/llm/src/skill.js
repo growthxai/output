@@ -66,7 +66,22 @@ export const loadPromptSkills = ( skillPaths, promptDir ) => {
 };
 
 /**
- * Build the `{{ _system_skills }}` template variable injected into the system prompt.
+ * Load skills from a colocated `skills/` directory next to the prompt file.
+ * Returns empty array if the directory doesn't exist or has no .md files.
+ *
+ * @param {string} promptDir - Directory containing the prompt file
+ * @returns {{ name: string, description: string, instructions: string }[]}
+ */
+export const loadColocatedSkills = promptDir => {
+  const skillsDir = resolve( promptDir, 'skills' );
+  if ( !existsSync( skillsDir ) || !statSync( skillsDir ).isDirectory() ) {
+    return [];
+  }
+  return loadPromptSkills( [ './skills/' ], promptDir );
+};
+
+/**
+ * Build the skills system message content listing available skills.
  *
  * @param {{ name: string, description: string }[]} skills
  * @returns {string}

@@ -3,7 +3,7 @@ import * as AI from 'ai';
 import { stepCountIs } from 'ai';
 import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.js';
 import { loadPrompt } from './prompt_loader.js';
-import { buildSystemSkillsVar, buildLoadSkillTool, loadPromptSkills } from './skill.js';
+import { buildSystemSkillsVar, buildLoadSkillTool, loadPromptSkills, loadColocatedSkills } from './skill.js';
 import { startTrace, endTraceWithError, traceStreamCallbacks } from './trace_utils.js';
 import { wrapInOutputResponse } from './response_utils.js';
 
@@ -32,20 +32,36 @@ export const loadAiSdkOptionsFromPrompt = prompt => {
 
 export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills, callerTools = {} ) => {
   const meta = loadPrompt( prompt, variables, promptDir );
-  const frontmatterSkills = meta.config.skills && meta.promptFileDir ?
+
+  // Resolve skills: explicit frontmatter paths > colocated auto-discovery
+  const hasExplicitSkills = meta.config.skills && meta.promptFileDir;
+  const frontmatterSkills = hasExplicitSkills ?
     loadPromptSkills( meta.config.skills, meta.promptFileDir ) :
     [];
-  const resolvedSkills = [ ...frontmatterSkills, ...callerSkills ];
+  const autoSkills = !hasExplicitSkills && meta.promptFileDir ?
+    loadColocatedSkills( meta.promptFileDir ) :
+    [];
+  const resolvedSkills = [ ...frontmatterSkills, ...autoSkills, ...callerSkills ];
 
   const tools = resolvedSkills.length > 0 ?
     { load_skill: buildLoadSkillTool( resolvedSkills ), ...callerTools } :
     callerTools;
 
-  if ( resolvedSkills.length === 0 ) {
-    return { loadedPrompt: meta, allVariables: variables, tools };
+  const skillsMessage = resolvedSkills.length > 0 ?
+    { role: 'system', content: buildSystemSkillsVar( resolvedSkills ) } :
+    null;
+
+  if ( skillsMessage ) {
+    // Merge into existing system message to avoid provider errors with multiple system messages
+    const systemMsg = meta.messages.find( m => m.role === 'system' );
+    if ( systemMsg ) {
+      systemMsg.content = `${systemMsg.content}\n\n${skillsMessage.content}`;
+    } else {
+      meta.messages.unshift( skillsMessage );
+    }
   }
-  const allVariables = { ...variables, _system_skills: buildSystemSkillsVar( resolvedSkills ) };
-  return { loadedPrompt: loadPrompt( prompt, allVariables, promptDir ), allVariables, tools };
+
+  return { loadedPrompt: meta, allVariables: variables, tools };
 };
 
 export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {

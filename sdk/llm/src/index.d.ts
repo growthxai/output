@@ -337,14 +337,13 @@ export function createMemoryConversationStore(): ConversationStore;
  *   output: Output.object({ schema: z.object({ summary: z.string() }) }),
  *   maxSteps: 5
  * });
- * const result = await reviewer.generate({ variables: { content: '...' } });
+ * const result = await reviewer.generate();
  * ```
  *
  * @example Interactive — fixed setup, conversation history
  * ```ts
  * const chatbot = new Agent({
  *   prompt: 'chatbot@v1',
- *   variables: { persona: 'helpful assistant' },
  *   conversationStore: createMemoryConversationStore()
  * });
  * const r1 = await chatbot.generate({ messages: [{ role: 'user', content: 'Hello' }] });
@@ -386,24 +385,15 @@ export declare class Agent extends import( 'ai' ).ToolLoopAgent {
     maxRetries?: number;
   } );
 
-  /**
-   * Run the agent and return when complete.
-   * If `variables` is provided, prompt messages are re-rendered for this call.
-   * If omitted, uses the messages rendered at construction time.
-   */
+  /** Run the agent and return when complete. */
   generate( options?: {
-    variables?: Record<string, unknown>;
     messages?: import( 'ai' ).ModelMessage[];
     abortSignal?: AbortSignal;
     onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
   } ): Promise<import( 'ai' ).GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
 
-  /**
-   * Stream the agent's response.
-   * If `variables` is provided, prompt messages are re-rendered for this call.
-   */
+  /** Stream the agent's response. */
   stream( options?: {
-    variables?: Record<string, unknown>;
     messages?: import( 'ai' ).ModelMessage[];
     abortSignal?: AbortSignal;
     onStepFinish?: import( 'ai' ).StreamTextOnStepFinishCallback<ToolSet>;

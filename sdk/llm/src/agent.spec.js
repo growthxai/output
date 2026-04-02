@@ -57,11 +57,6 @@ vi.mock( './response_utils.js', () => ( {
   wrapInOutputResponse: ( ...args ) => wrapInOutputResponseImpl( ...args )
 } ) );
 
-const loadPromptImpl = vi.fn();
-vi.mock( './prompt_loader.js', () => ( {
-  loadPrompt: ( ...args ) => loadPromptImpl( ...args )
-} ) );
-
 vi.mock( './skill.js', () => ( {
   skill: vi.fn( ( { name, description, instructions } ) => ( { name, description: description ?? name, instructions } ) ),
   buildLoadSkillTool: vi.fn( skills => ( { _loadSkillTool: true, skills } ) )
@@ -87,7 +82,6 @@ beforeEach( () => {
     allVariables: {},
     tools: {}
   } );
-  loadPromptImpl.mockReturnValue( defaultPromptMeta );
   loadAiSdkOptionsImpl.mockReturnValue( {
     model: { _modelId: 'claude-sonnet-4-6' },
     messages: defaultMessages
@@ -154,8 +148,8 @@ describe( 'Agent — construction', () => {
   } );
 } );
 
-describe( 'Agent.generate() — variables', () => {
-  it( 'uses pre-rendered initialMessages when no variables provided', async () => {
+describe( 'Agent.generate() — messages', () => {
+  it( 'passes initialMessages from construction', async () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
     await agent.generate();
@@ -164,19 +158,7 @@ describe( 'Agent.generate() — variables', () => {
     } ) );
   } );
 
-  it( 're-renders messages when variables are provided per-call', async () => {
-    const perCallMessages = [ { role: 'user', content: 'per-call content' } ];
-    loadPromptImpl.mockReturnValue( { ...defaultPromptMeta, messages: perCallMessages } );
-
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-    await agent.generate( { variables: { content: 'article' } } );
-
-    // _renderMessages calls loadPrompt directly for per-call rendering
-    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test@v1', { content: 'article' }, state.promptDir );
-  } );
-
-  it( 'appends extra messages after prompt messages', async () => {
+  it( 'appends extra messages after initial messages', async () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
     const extraMsg = { role: 'assistant', content: 'prior turn' };

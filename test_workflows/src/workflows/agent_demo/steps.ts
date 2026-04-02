@@ -1,8 +1,7 @@
 import { step, z } from '@outputai/core';
-import { Agent, Output, skill } from '@outputai/llm';
+import { Agent, Output, generateText, skill } from '@outputai/llm';
 import { reviewOutputSchema } from './types.js';
 
-// Inline skill defined programmatically (shown alongside file-based skills from prompts/)
 const audienceAdaptationSkill = skill( {
   name: 'audience_adaptation',
   description: 'Tailor feedback for the specified expertise level',
@@ -22,19 +21,11 @@ Basic explanations are unnecessary but architectural decisions should be justifi
 Always mention the audience level in your summary.`
 } );
 
-// The writing assistant agent — extends AI SDK's ToolLoopAgent with prompt file
-// and skill support. Skills from ./skills/ are declared in the prompt frontmatter;
-// audience_adaptation is added inline.
-const writingAssistant = new Agent( {
-  prompt: 'writing_assistant@v1',
-  output: Output.object( { schema: reviewOutputSchema } ),
-  skills: [ audienceAdaptationSkill ],
-  maxSteps: 5
-} );
+const SKILLS = [ audienceAdaptationSkill ];
 
 export const reviewContent = step( {
   name: 'reviewContent',
-  description: 'Review technical content using the writing assistant agent',
+  description: 'Review technical content using the Agent class with structured output',
   inputSchema: z.object( {
     content: z.string().describe( 'The content to review' ),
     content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),
@@ -42,7 +33,74 @@ export const reviewContent = step( {
   } ),
   outputSchema: reviewOutputSchema,
   fn: async input => {
-    const result = await writingAssistant.generate( { variables: input } );
+    const agent = new Agent( {
+      prompt: 'writing_assistant@v1',
+      variables: input,
+      output: Output.object( { schema: reviewOutputSchema } ),
+      skills: SKILLS,
+      maxSteps: 5
+    } );
+    const result = await agent.generate();
     return result.output;
+  }
+} );
+
+export const reviewContentFreeform = step( {
+  name: 'reviewContentFreeform',
+  description: 'Review technical content using the Agent class with free-form text output',
+  inputSchema: z.object( {
+    content: z.string().describe( 'The content to review' ),
+    content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),
+    focus: z.string().describe( 'What aspects to focus the review on' )
+  } ),
+  outputSchema: z.string(),
+  fn: async input => {
+    const agent = new Agent( {
+      prompt: 'writing_assistant@v1',
+      variables: input,
+      skills: SKILLS,
+      maxSteps: 5
+    } );
+    const result = await agent.generate();
+    return result.text;
+  }
+} );
+
+export const reviewContentGenerateText = step( {
+  name: 'reviewContentGenerateText',
+  description: 'Review technical content using generateText directly with skills',
+  inputSchema: z.object( {
+    content: z.string().describe( 'The content to review' ),
+    content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),
+    focus: z.string().describe( 'What aspects to focus the review on' )
+  } ),
+  outputSchema: z.string(),
+  fn: async input => {
+    const result = await generateText( {
+      prompt: 'writing_assistant@v1',
+      variables: input,
+      skills: SKILLS,
+      maxSteps: 5
+    } );
+    return result.text;
+  }
+} );
+
+export const reviewContentNoSkills = step( {
+  name: 'reviewContentNoSkills',
+  description: 'Review content using a prompt with skills: [] — confirms no skills are loaded',
+  inputSchema: z.object( {
+    content: z.string().describe( 'The content to review' ),
+    content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),
+    focus: z.string().describe( 'What aspects to focus the review on' )
+  } ),
+  outputSchema: z.string(),
+  fn: async input => {
+    const agent = new Agent( {
+      prompt: 'no_skills_assistant@v1',
+      variables: input
+    } );
+    const result = await agent.generate();
+    return result.text;
   }
 } );

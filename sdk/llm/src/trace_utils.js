@@ -11,12 +11,16 @@ export const endTraceWithError = ( traceId, error ) => {
   Tracing.addEventError( { id: traceId, details: error } );
 };
 
+export const endTraceWithSuccess = async ( traceId, modelId, response, extraDetails = {} ) => {
+  const { text: result, totalUsage: usage, providerMetadata } = response;
+  const cost = await calculateLLMCallCost( { usage, modelId } );
+  emitEvent( 'llm:call_cost', { modelId, cost, usage } );
+  Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, ...extraDetails } } );
+};
+
 export const traceStreamCallbacks = ( traceId, modelId, { onFinish: userOnFinish, onError: userOnError } = {} ) => ( {
   async onFinish( response ) {
-    const { text: result, totalUsage: usage, providerMetadata } = response;
-    const cost = await calculateLLMCallCost( { usage, modelId } );
-    emitEvent( 'llm:call_cost', { modelId, cost, usage } );
-    Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata } } );
+    await endTraceWithSuccess( traceId, modelId, response );
     userOnFinish?.( response );
   },
   onError( event ) {

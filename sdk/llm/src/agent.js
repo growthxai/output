@@ -2,9 +2,9 @@ import { ValidationError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { hydratePromptTemplate, loadAiSdkOptionsFromPrompt } from './ai_sdk.js';
-import { loadPrompt } from './prompt_loader.js';
 import { startTrace, endTraceWithError, traceStreamCallbacks } from './trace_utils.js';
 import { wrapInOutputResponse } from './response_utils.js';
+import { ROLE, isRole, getContent } from './message_utils.js';
 
 export { skill } from './skill.js';
 
@@ -18,9 +18,7 @@ export const createMemoryConversationStore = () => {
 
 export class Agent extends AIToolLoopAgent {
   _prompt;
-  _promptDir;
   _modelId;
-  _systemSkillsVar;
   _initialMessages;
   _store;
 
@@ -36,39 +34,33 @@ export class Agent extends AIToolLoopAgent {
     // breaks the call stack, so resolveInvocationDir() fails if called lazily.
     const resolvedPromptDir = promptDir ?? resolveInvocationDir();
 
-    const { loadedPrompt, allVariables, tools: mergedTools } =
+    const { loadedPrompt, tools: mergedTools } =
       hydratePromptTemplate( prompt, variables, resolvedPromptDir, skills, tools );
 
-    const { messages, ...constructorOptions } = loadAiSdkOptionsFromPrompt( loadedPrompt );
+    const { messages: allMessages, ...constructorOptions } = loadAiSdkOptionsFromPrompt( loadedPrompt );
+
+    // Extract system messages as `instructions` for the ToolLoopAgent constructor
+    // and keep user messages for generate() calls — avoids provider errors
+    // with multiple system messages during multi-step tool loops
+    const systemContent = allMessages.filter( isRole( ROLE.SYSTEM ) ).map( getContent ).join( '\n\n' );
 
     super( {
       ...constructorOptions,
+      ...( systemContent ? { instructions: systemContent } : {} ),
       ...( Object.keys( mergedTools ).length > 0 ? { tools: mergedTools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest
     } );
 
     this._prompt = prompt;
-    this._promptDir = resolvedPromptDir;
     this._modelId = loadedPrompt.config.model;
-    this._systemSkillsVar = allVariables._system_skills ?? null;
-    this._initialMessages = messages;
+    this._initialMessages = allMessages.filter( isRole( ROLE.USER ) );
     this._store = conversationStore ?? null;
   }
 
-  _renderMessages( variables ) {
-    const vars = this._systemSkillsVar ?
-      { ...variables, _system_skills: this._systemSkillsVar } :
-      variables;
-    return loadPrompt( this._prompt, vars, this._promptDir ).messages;
-  }
-
-  async _preSendHook( variables, userMessages ) {
-    const promptMessages = variables !== undefined ?
-      this._renderMessages( variables ) :
-      this._initialMessages;
+  async _preSendHook( userMessages ) {
     const priorMessages = this._store ? await this._store.getMessages() : [];
-    return [ ...promptMessages, ...priorMessages, ...userMessages ];
+    return [ ...this._initialMessages, ...priorMessages, ...userMessages ];
   }
 
   async _postSendHook( userMessages, result ) {
@@ -77,10 +69,10 @@ export class Agent extends AIToolLoopAgent {
     }
   }
 
-  async generate( { variables, messages: userMessages = [], ...callOptions } = {} ) {
-    const traceId = startTrace( 'Agent.generate', { prompt: this._prompt, variables } );
+  async generate( { messages: userMessages = [], ...callOptions } = {} ) {
+    const traceId = startTrace( 'Agent.generate', { prompt: this._prompt } );
     try {
-      const messages = await this._preSendHook( variables, userMessages );
+      const messages = await this._preSendHook( userMessages );
       const result = await super.generate( { messages, ...callOptions } );
       const wrapped = await wrapInOutputResponse( result, { traceId, modelId: this._modelId } );
       await this._postSendHook( userMessages, wrapped );
@@ -91,10 +83,10 @@ export class Agent extends AIToolLoopAgent {
     }
   }
 
-  async stream( { variables, messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( 'Agent.stream', { prompt: this._prompt, variables } );
+  async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
+    const traceId = startTrace( 'Agent.stream', { prompt: this._prompt } );
     try {
-      const messages = await this._preSendHook( variables, userMessages );
+      const messages = await this._preSendHook( userMessages );
       return super.stream( {
         messages,
         ...callOptions,
