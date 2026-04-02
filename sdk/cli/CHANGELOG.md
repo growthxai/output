@@ -1,5 +1,30 @@
 # @outputai/cli
 
+## 0.1.11
+
+### Patch Changes
+
+- 49171f5: Fix worker health checks and add yarn/pnpm support in dev container
+
+  - Support yarn and pnpm projects via corepack in the dev container worker (OUT-330)
+  - Fix health check incorrectly reporting success when containers exit or are unhealthy (OUT-334)
+  - Fix false failure warnings during startup when services are in `starting` state
+  - Reduce worker health check detection time from ~36s to ~9s (timeout 10s→3s, retries 20→2)
+  - Extend worker health check start_period from 30s to 60s to reduce false positives on cold start
+
+- 7b8340c: Fix plan and generate CLI commands
+
+  - Suppress Claude file writes and next-step suggestions during plan generation (the CLI owns those responsibilities)
+  - Validate plan file existence before creating workflow skeleton in generate command
+  - Roll back created skeleton files if workflow build step fails
+  - Fix empty workflow name in "already exists" error message
+
+- e0a5d0f: Replaced log-update/ANSI output in `output dev` with an Ink-based terminal UI, fixing a layout bug where text overlapped after a Docker service recovered from unhealthy. The dev panel now re-renders correctly on all state transitions.
+- c4f84d5: ensure credential references are resolved when running CLI commands
+  - @outputai/credentials@0.1.11
+  - @outputai/evals@0.1.11
+  - @outputai/llm@0.1.11
+
 ## 0.1.10
 
 ### Patch Changes
