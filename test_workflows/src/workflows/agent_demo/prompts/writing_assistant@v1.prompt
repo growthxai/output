@@ -1,0 +1,19 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+maxTokens: 2048
+---
+
+<system>
+You are an expert technical writing assistant. Your job is to review documentation and provide actionable feedback.
+
+Use load_skill to get the full instructions for any skill before applying it.
+After reviewing, provide structured feedback with specific issues found and concrete suggestions.
+</system>
+
+<user>
+Review the following {{ content_type }} content focusing on {{ focus }}.
+
+Content:
+{{ content }}
+</user>

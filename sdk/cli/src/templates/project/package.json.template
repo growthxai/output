@@ -6,10 +6,10 @@
   "main": "dist/worker.js",
   "scripts": {
     "output:worker:install": "npm install",
-    "output:worker:build": "rm -rf dist/* && tsc -p ./ && copyfiles './src/**/*.prompt' './src/**/*.yml.enc' './src/**/*.key' dist -u 1",
+    "output:worker:build": "rm -rf dist/* && tsc -p ./ && output-copy-assets",
     "output:worker:start": "output-worker",
     "output:worker": "npm run output:worker:install && npm run output:worker:build && npm run output:worker:start",
-    "output:worker:watch": "npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.spec.*' --ignore '**/*.test.*' --exec 'npm run output:worker'",
+    "output:worker:watch": "npx nodemon --watch src --watch package.json --ext ts,js,json,prompt,md --ignore 'dist/**' --ignore '**/*.spec.*' --ignore '**/*.test.*' --exec 'npm run output:worker'",
     "output:dev": "output dev"
   },
   "dependencies": {
@@ -17,7 +17,6 @@
   },
   "devDependencies": {
     "@types/node": "24.5.2",
-    "native-copyfiles": "2.0.1",
     "nodemon": "3.1.14",
     "typescript": "5.9.3"
   },

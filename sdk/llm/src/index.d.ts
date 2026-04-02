@@ -279,7 +279,13 @@ export function generateText<
   args: {
     prompt: string,
     variables?: Record<string, string | number | boolean>,
-    promptDir?: string
+    promptDir?: string,
+    /**
+     * Skill packages to provide to the LLM. Injects `{{ _system_skills }}` and adds the `load_skill` tool.
+     * Can be a static array or a function that receives the resolved variables and returns skills.
+     */
+    skills?: import( './skill.js' ).Skill[] |
+      ( ( variables?: Record<string, string | number | boolean> ) => import( './skill.js' ).Skill[] | Promise<import( './skill.js' ).Skill[]> )
   } & GenerateTextAiSdkOptions<Tools, Output>
 ): Promise<GenerateTextResult<Tools, Output>>;
 
@@ -307,3 +313,90 @@ export function streamText<
     variables?: Record<string, string | number | boolean>
   } & StreamTextAiSdkOptions<Tools, Output>
 ): AIStreamTextResult<Tools, Output>;
+
+export { skill } from './skill.js';
+export type { Skill, SkillsArg } from './skill.js';
+
+/** Pluggable conversation store for multi-turn Agent interactions. */
+export interface ConversationStore {
+  getMessages(): import( 'ai' ).ModelMessage[] | Promise<import( 'ai' ).ModelMessage[]>;
+  addMessages( messages: import( 'ai' ).ModelMessage[] ): void | Promise<void>;
+}
+
+/** Create an in-memory conversation store backed by a closure array. */
+export function createMemoryConversationStore(): ConversationStore;
+
+/**
+ * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering
+ * and the skill system.
+ *
+ * @example Workflow step — variables per call, stateless
+ * ```ts
+ * const reviewer = new Agent({
+ *   prompt: 'reviewer@v1',
+ *   output: Output.object({ schema: z.object({ summary: z.string() }) }),
+ *   maxSteps: 5
+ * });
+ * const result = await reviewer.generate();
+ * ```
+ *
+ * @example Interactive — fixed setup, conversation history
+ * ```ts
+ * const chatbot = new Agent({
+ *   prompt: 'chatbot@v1',
+ *   conversationStore: createMemoryConversationStore()
+ * });
+ * const r1 = await chatbot.generate({ messages: [{ role: 'user', content: 'Hello' }] });
+ * ```
+ */
+export declare class Agent extends import( 'ai' ).ToolLoopAgent {
+  constructor( params: {
+    /** Prompt file name (e.g. 'my_agent@v1') */
+    prompt: string;
+    /** Override the stack-resolved prompt directory */
+    promptDir?: string;
+    /** Variables to render the prompt template at construction time */
+    variables?: Record<string, unknown>;
+    /** Static skill packages made available to the LLM */
+    skills?: import( './skill.js' ).Skill[];
+    /** AI SDK tools available during the reasoning loop */
+    tools?: ToolSet;
+    /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
+    maxSteps?: number;
+    /** Custom stop condition(s) — overrides maxSteps */
+    stopWhen?: import( 'ai' ).StopCondition | import( 'ai' ).StopCondition[];
+    /** Structured output specification */
+    output?: import( 'ai' ).Output<unknown, unknown>;
+    /** Pluggable conversation store — opt-in, stateless by default */
+    conversationStore?: ConversationStore;
+    /** Callback after each step */
+    onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+    /** Customize each step before execution */
+    prepareStep?: import( 'ai' ).PrepareStepFunction<ToolSet>;
+    /** Generation temperature (overrides prompt file value) */
+    temperature?: number;
+    /** Top-p sampling */
+    topP?: number;
+    /** Top-k sampling */
+    topK?: number;
+    /** Random seed for deterministic output */
+    seed?: number;
+    /** Maximum retry attempts (default: 2) */
+    maxRetries?: number;
+  } );
+
+  /** Run the agent and return when complete. */
+  generate( options?: {
+    messages?: import( 'ai' ).ModelMessage[];
+    abortSignal?: AbortSignal;
+    onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
+  } ): Promise<import( 'ai' ).GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+
+  /** Stream the agent's response. */
+  stream( options?: {
+    messages?: import( 'ai' ).ModelMessage[];
+    abortSignal?: AbortSignal;
+    onStepFinish?: import( 'ai' ).StreamTextOnStepFinishCallback<ToolSet>;
+    experimental_transform?: import( 'ai' ).StreamTextTransform<ToolSet> | import( 'ai' ).StreamTextTransform<ToolSet>[];
+  } ): Promise<import( 'ai' ).StreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+};

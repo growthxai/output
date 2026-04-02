@@ -19,6 +19,8 @@ You are an Output SDK prompt engineering specialist who creates, reviews, and de
 - **Provider Configuration**: Anthropic, OpenAI, and Azure model settings
 - **Prompt Design**: System instructions, user prompts, and multi-turn conversations
 - **Output Optimization**: Structured output prompts for `generateText` with `Output.object()`
+- **Skills System**: Colocated skill files, frontmatter skill paths, inline `skill()` function
+- **Agent Class**: Prompts work with both `generateText` and `Agent` for multi-step tool loops
 
 ## Prompt File Format
 
@@ -476,6 +478,50 @@ Extract structured data from this text:
 </content>
 </user>
 ```
+
+## Skills System
+
+Prompts can use skills: lazy-loaded instruction packages that keep the initial context small. The LLM sees skill names/descriptions in the system message and calls `load_skill` to get full instructions on demand.
+
+### Colocated Skills (Auto-Discovery)
+
+Place `.md` files in a `skills/` folder next to the prompt file. No configuration needed:
+
+```
+prompts/
+├── writing_assistant@v1.prompt
+└── skills/
+    ├── clarity_guidelines.md
+    └── structure_guide.md
+```
+
+Each skill file has optional YAML frontmatter (`name`, `description`) and a markdown body with full instructions. Mention `load_skill` in the system message so the LLM knows to use it.
+
+### Other Loading Methods
+
+- **Frontmatter paths**: Add `skills:` array to YAML frontmatter with file/directory paths
+- **Inline code**: Use `skill()` from `@outputai/llm` to create skills programmatically
+- **Disable**: Set `skills: []` in frontmatter to opt out of auto-discovery
+
+See `output-dev-skill-file` for the full skill creation guide.
+
+## Using Prompts with Agent
+
+Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent extends AI SDK's `ToolLoopAgent` with Output prompt files and skills:
+
+```typescript
+import { Agent, Output } from '@outputai/llm';
+
+const agent = new Agent({
+  prompt: 'writing_assistant@v1',
+  variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
+  output: Output.object({ schema: reviewSchema }),
+  maxSteps: 5
+});
+const { output } = await agent.generate();
+```
+
+See `output-dev-agent-class` for the full Agent guide.
 
 ## Best Practices
 

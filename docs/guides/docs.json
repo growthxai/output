@@ -51,6 +51,7 @@
       "pages": [
         "prompts/index",
         "prompts/templating",
+        "prompts/skills",
         "prompts/best-practices"
       ]
     },

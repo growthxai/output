@@ -1,0 +1,5 @@
+{
+  "content": "## Installation\n\nRun the following:\n\n```\nnpm install\n```\n\nThen configure it. After configuration is done you can start using the tool. Make sure everything is set up correctly before proceeding. The tool does stuff with your data. It is recommended that users read this section carefully.",
+  "content_type": "README documentation",
+  "focus": "clarity and structure"
+}

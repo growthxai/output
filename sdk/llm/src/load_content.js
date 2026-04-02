@@ -19,6 +19,21 @@ const loadFile = path => {
   }
 };
 
+const findContent = ( name, dir ) => {
+  for ( const entry of scanDir( dir ) ) {
+    if ( entry.name === name ) {
+      return { dir, content: loadFile( join( dir, entry.name ) ) };
+    }
+    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
+      const result = findContent( name, join( dir, entry.name ) );
+      if ( result ) {
+        return result;
+      }
+    }
+  }
+  return null;
+};
+
 /**
  * Recursively search for a file by its name and load its content.
  *
@@ -26,18 +41,26 @@ const loadFile = path => {
  * @param {string} [dir] - The directory to search for the file, defaults to invocation directory
  * @returns {string | null} - File content or null if not found
  */
-export const loadContent = ( name, dir = resolveInvocationDir() ) => {
-  for ( const entry of scanDir( dir ) ) {
-    if ( entry.name === name ) {
-      return loadFile( join( dir, entry.name ) );
-    }
+export const loadContent = ( name, dir = resolveInvocationDir() ) =>
+  findContent( name, dir )?.content ?? null;
 
-    if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
-      const content = loadContent( name, join( dir, entry.name ) );
-      if ( content ) {
-        return content;
-      }
-    }
-  }
-  return null;
-};
+/**
+ * Recursively search for a file by name and return the directory containing it.
+ *
+ * @param {string} name - File name to find
+ * @param {string} [dir] - Directory to search, defaults to invocation directory
+ * @returns {string | null} - Directory path containing the file, or null if not found
+ */
+export const findContentDir = ( name, dir = resolveInvocationDir() ) =>
+  findContent( name, dir )?.dir ?? null;
+
+/**
+ * Recursively search for a file by name and return both its content and containing directory.
+ * More efficient than calling loadContent + findContentDir separately (single scan).
+ *
+ * @param {string} name - File name to find
+ * @param {string} [dir] - Directory to search, defaults to invocation directory
+ * @returns {{ content: string, dir: string } | null}
+ */
+export const loadContentWithDir = ( name, dir = resolveInvocationDir() ) =>
+  findContent( name, dir ) ?? null;

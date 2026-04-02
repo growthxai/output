@@ -20,7 +20,9 @@ vi.mock( './ai_model.js', () => ( {
 
 const aiFns = {
   generateText: vi.fn(),
-  streamText: vi.fn()
+  streamText: vi.fn(),
+  tool: vi.fn( def => def ),
+  stepCountIs: vi.fn( n => ( { type: 'stepCount', count: n } ) )
 };
 vi.mock( 'ai', () => ( aiFns ) );
 
@@ -34,6 +36,17 @@ const loadPromptImpl = vi.fn();
 vi.mock( './prompt_loader.js', () => ( {
   loadPrompt: ( ...values ) => loadPromptImpl( ...values )
 } ) );
+
+const loadPromptSkillsImpl = vi.fn();
+const loadColocatedSkillsImpl = vi.fn().mockReturnValue( [] );
+vi.mock( './skill.js', async importOriginal => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    loadPromptSkills: ( ...args ) => loadPromptSkillsImpl( ...args ),
+    loadColocatedSkills: ( ...args ) => loadColocatedSkillsImpl( ...args )
+  };
+} );
 
 const extractSourcesFromStepsImpl = vi.fn().mockReturnValue( [] );
 vi.mock( './source_extraction.js', () => ( {
@@ -62,9 +75,13 @@ const cost = 'calculate cost';
 beforeEach( () => {
   emitEventSpy.mockReset();
   loadModelImpl.mockReset().mockReturnValue( 'MODEL' );
-  loadPromptImpl.mockReset().mockReturnValue( basePrompt );
+  loadPromptImpl.mockReset().mockReturnValue( { ...basePrompt, messages: [ ...basePrompt.messages ] } );
   extractSourcesFromStepsImpl.mockReset().mockReturnValue( [] );
   calculateLLMCallCostImpl.mockReset().mockResolvedValue( cost );
+  aiFns.tool.mockReset().mockImplementation( def => def );
+  aiFns.stepCountIs.mockReset().mockImplementation( n => ( { type: 'stepCount', count: n } ) );
+  loadPromptSkillsImpl.mockReset().mockReturnValue( [] );
+  loadColocatedSkillsImpl.mockReset().mockReturnValue( [] );
 
   const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
   aiFns.generateText.mockReset().mockResolvedValue( {
@@ -96,7 +113,7 @@ describe( 'ai_sdk', () => {
     const result = await generateText( { prompt: 'test_prompt@v1' } );
 
     expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( { prompt: 'test_prompt@v1' } );
-    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined );
+    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
     expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
@@ -602,6 +619,190 @@ describe( 'ai_sdk', () => {
     } );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
       expect.objectContaining( { details: expect.objectContaining( { cost: customCost } ) } )
+    );
+  } );
+
+  it( 'generateText: loads frontmatter skills from prompt config using promptFileDir', async () => {
+    const frontmatterSkill = { name: 'fm_skill', description: 'FM', instructions: '# FM' };
+    loadPromptImpl.mockReturnValue( {
+      ...basePrompt,
+      promptFileDir: '/some/prompt/dir',
+      config: { ...basePrompt.config, skills: [ './skills/' ] }
+    } );
+    loadPromptSkillsImpl.mockReturnValue( [ frontmatterSkill ] );
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1' } );
+
+    expect( loadPromptSkillsImpl ).toHaveBeenCalledWith( [ './skills/' ], '/some/prompt/dir' );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toHaveProperty( 'load_skill' );
+  } );
+
+  it( 'generateText: merges frontmatter skills with caller-provided skills', async () => {
+    const frontmatterSkill = { name: 'fm_skill', description: 'FM', instructions: '# FM' };
+    const callerSkill = { name: 'caller_skill', description: 'Caller', instructions: '# Caller' };
+    loadPromptImpl.mockReturnValue( {
+      ...basePrompt,
+      messages: [ ...basePrompt.messages ],
+      promptFileDir: '/some/prompt/dir',
+      config: { ...basePrompt.config, skills: [ './skills/' ] }
+    } );
+    loadPromptSkillsImpl.mockReturnValue( [ frontmatterSkill ] );
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills: [ callerSkill ] } );
+
+    // Skills system message appended, loadPrompt called only once
+    expect( loadPromptImpl ).toHaveBeenCalledTimes( 1 );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    const loadSkillResult = callArgs.tools.load_skill.execute( { name: 'caller_skill' } );
+    expect( loadSkillResult ).toBe( '# Caller' );
+  } );
+
+  it( 'generateText: skips frontmatter skill loading when no config.skills', async () => {
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1' } );
+
+    expect( loadPromptSkillsImpl ).not.toHaveBeenCalled();
+  } );
+
+  it( 'generateText: skips frontmatter skill loading when no promptFileDir', async () => {
+    loadPromptImpl.mockReturnValue( {
+      ...basePrompt,
+      config: { ...basePrompt.config, skills: [ './skills/' ] }
+      // no promptFileDir
+    } );
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1' } );
+
+    expect( loadPromptSkillsImpl ).not.toHaveBeenCalled();
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toBeUndefined();
+  } );
+
+  it( 'generateText: appends skills system message when skills present', async () => {
+    const frontmatterSkill = { name: 'fm_skill', description: 'FM skill', instructions: '# FM' };
+    loadPromptImpl.mockReturnValue( {
+      ...basePrompt,
+      messages: [ ...basePrompt.messages ],
+      promptFileDir: '/dir',
+      config: { ...basePrompt.config, skills: [ './skills/' ] }
+    } );
+    loadPromptSkillsImpl.mockReturnValue( [ frontmatterSkill ] );
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', variables: { topic: 'AI' } } );
+
+    // Single loadPrompt call — no two-pass render
+    expect( loadPromptImpl ).toHaveBeenCalledTimes( 1 );
+    // Skills system message inserted into messages
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    const skillsMsg = callArgs.messages.find( m => m.role === 'system' && m.content.includes( 'fm_skill' ) );
+    expect( skillsMsg ).toBeDefined();
+  } );
+
+  it( 'generateText: appends skills message and load_skill tool when skills provided', async () => {
+    const skills = [
+      { name: 'research', description: 'Research approach', instructions: '# Research\nDo research' }
+    ];
+    loadPromptImpl.mockReturnValue( { ...basePrompt, messages: [ ...basePrompt.messages ] } );
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    expect( loadPromptImpl ).toHaveBeenCalledTimes( 1 );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toHaveProperty( 'load_skill' );
+    const skillsMsg = callArgs.messages.find( m => m.role === 'system' && m.content.includes( 'research' ) );
+    expect( skillsMsg ).toBeDefined();
+  } );
+
+  it( 'generateText: does not inject _system_skills or load_skill when skills is empty', async () => {
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills: [] } );
+
+    expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toBeUndefined();
+    expect( callArgs.stopWhen ).toBeUndefined();
+  } );
+
+  it( 'generateText: load_skill execute returns instructions for known skill', async () => {
+    const skills = [
+      { name: 'research', description: 'Research', instructions: '# Research\nDetailed steps' }
+    ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    const result = tools.load_skill.execute( { name: 'research' } );
+    expect( result ).toBe( '# Research\nDetailed steps' );
+  } );
+
+  it( 'generateText: load_skill execute returns error for unknown skill', async () => {
+    const skills = [
+      { name: 'research', description: 'Research', instructions: '# Research' }
+    ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    const result = tools.load_skill.execute( { name: 'unknown' } );
+    expect( result ).toMatch( /not found/ );
+    expect( result ).toContain( 'research' );
+  } );
+
+  it( 'generateText: sets stopWhen via maxSteps when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, maxSteps: 5 } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: { type: 'stepCount', count: 5 } } )
+    );
+  } );
+
+  it( 'generateText: defaults maxSteps to 10 when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: { type: 'stepCount', count: 10 } } )
+    );
+  } );
+
+  it( 'generateText: merges skill tools with user-provided tools', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const userTools = { calculator: { description: 'A calculator' } };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, tools: userTools } );
+
+    const { tools } = aiFns.generateText.mock.calls[0][0];
+    expect( tools ).toHaveProperty( 'load_skill' );
+    expect( tools ).toHaveProperty( 'calculator' );
+  } );
+
+  it( 'generateText: calls skill function with variables and uses resolved skills', async () => {
+    const resolvedSkill = { name: 'dynamic', description: 'Dynamic skill', instructions: '# Dynamic' };
+    const skillsFn = vi.fn().mockResolvedValue( [ resolvedSkill ] );
+    const vars = { topic: 'AI' };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', variables: vars, skills: skillsFn } );
+
+    expect( skillsFn ).toHaveBeenCalledWith( vars );
+    expect( loadPromptImpl ).toHaveBeenCalledTimes( 1 );
+    const callArgs = aiFns.generateText.mock.calls[0][0];
+    expect( callArgs.tools ).toHaveProperty( 'load_skill' );
+    const skillsMsg = callArgs.messages.find( m => m.role === 'system' && m.content.includes( 'dynamic' ) );
+    expect( skillsMsg ).toBeDefined();
+  } );
+
+  it( 'generateText: preserves caller stopWhen when skills present', async () => {
+    const skills = [ { name: 'skill', description: 'A skill', instructions: '# Skill' } ];
+    const customStop = { type: 'custom' };
+    const { generateText } = await importSut();
+    await generateText( { prompt: 'test_prompt@v1', skills, stopWhen: customStop } );
+
+    expect( aiFns.generateText ).toHaveBeenCalledWith(
+      expect.objectContaining( { stopWhen: customStop } )
     );
   } );
 
