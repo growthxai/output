@@ -96,6 +96,8 @@ Use these skills for detailed implementation patterns. Claude will auto-invoke t
 | `output-credentials-edit` | View and edit credential values |
 | `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 | `output-dev-prompt-file` | Designing .prompt files, Liquid.js templating, LLM configuration |
+| `output-dev-skill-file` | Creating .md skill files, configuring skill loading, auto-discovery |
+| `output-dev-agent-class` | Using Agent class, multi-step tool loops, conversation history |
 | `output-dev-scenario-file` | Creating test scenarios, documenting expected inputs |
 | `output-dev-eval-testing` | Writing offline eval tests, verify() evaluators, dataset YAML files, eval workflows |
 | `output-error-zod-import` | Schema import issues, "incompatible schema" errors |

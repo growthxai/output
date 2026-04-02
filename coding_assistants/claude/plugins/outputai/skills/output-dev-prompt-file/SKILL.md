@@ -322,6 +322,52 @@ const { result } = await generateText({
 // result contains the generated text string
 ```
 
+## Using Skills with Prompts
+
+Prompts can load skill files that provide lazy-loaded instructions to the LLM. Skills keep the initial context small while giving the LLM access to deep expertise on demand. See `output-dev-skill-file` for the full guide on creating skill files.
+
+The simplest approach is colocated auto-discovery. Place `.md` files in a `skills/` folder next to your prompt file:
+
+```
+src/workflows/{workflow-name}/
+└── prompts/
+    ├── writing_assistant@v1.prompt
+    └── skills/
+        ├── clarity_guidelines.md
+        └── structure_guide.md
+```
+
+The prompt file does not need any special configuration. Output auto-discovers the `skills/` directory and injects a `load_skill` tool the LLM can call. Mention `load_skill` in the system message so the LLM knows to use it:
+
+```
+<system>
+You are an expert technical writing assistant.
+Use load_skill to get the full instructions for any skill before applying it.
+</system>
+```
+
+You can also list skill paths explicitly in frontmatter, or create inline skills in code. See `output-dev-skill-file` for all three methods.
+
+## Using Prompts with Agent
+
+Prompts work with both `generateText` and the `Agent` class. Use `Agent` for multi-step tool loops and stateful conversations. See `output-dev-agent-class` for the full guide.
+
+```typescript
+import { Agent, Output } from '@outputai/llm';
+
+const agent = new Agent({
+  prompt: 'writing_assistant@v1',
+  variables: {
+    content_type: 'documentation',
+    focus: 'clarity',
+    content: input.content
+  },
+  output: Output.object({ schema: reviewSchema }),
+  maxSteps: 5
+});
+const { output } = await agent.generate();
+```
+
 ## Best Practices
 
 ### 1. Be Explicit About Requirements
@@ -472,6 +518,8 @@ Requirements:
 
 ## Related Skills
 
+- `output-dev-skill-file` - Creating skill files for prompts
+- `output-dev-agent-class` - Using the Agent class with prompts
 - `output-dev-step-function` - Using prompts in step functions
 - `output-dev-evaluator-function` - Using prompts in evaluators
 - `output-dev-folder-structure` - Understanding prompts folder location
