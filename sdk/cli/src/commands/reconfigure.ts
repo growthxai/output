@@ -56,16 +56,14 @@ export default class Reconfigure extends Command {
 
       const shouldApply = await confirm( { message: 'Apply these changes to package.json?', default: true } );
       if ( !shouldApply ) {
-        this.log( 'Cancelled.' );
         return;
       }
 
       applyReconfiguration( plan );
       this.log( 'Done, package.json is properly configured.' );
     } catch ( error: unknown ) {
-      if ( error instanceof Error && error.name === 'ExitPromptError' ) {
-        this.log( 'Cancelled.' );
-      } else {
+      // ExitPromptError means Ctrl+C
+      if ( !( error instanceof Error ) || error.constructor.name !== 'ExitPromptError' ) {
         this.error( getErrorMessage( error ) );
       }
     }

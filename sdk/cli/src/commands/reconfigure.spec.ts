@@ -83,7 +83,6 @@ describe( 'reconfigure command', () => {
     await cmd.run();
 
     expect( reconfigureService.applyReconfiguration ).not.toHaveBeenCalled();
-    expect( cmd.log ).toHaveBeenCalledWith( 'Cancelled.' );
   } );
 
   it( 'should surface service errors', async () => {

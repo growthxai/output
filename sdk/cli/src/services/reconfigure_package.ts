@@ -35,8 +35,8 @@ function readPackageJsonText( packagePath: string ): string {
 function parsePackageJsonObject( raw: string, packagePath: string ): Record<string, unknown> {
   try {
     return JSON.parse( raw ) as Record<string, unknown>;
-  } catch {
-    throw new Error( `${packagePath} is not valid JSON.` );
+  } catch ( error: unknown ) {
+    throw new Error( `File ${packagePath} is not a valid JSON.`, { cause: error } );
   }
 }
 

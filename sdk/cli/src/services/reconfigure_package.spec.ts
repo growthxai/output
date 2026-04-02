@@ -71,6 +71,6 @@ describe( 'reconfigure package', () => {
   it( 'should throw when package.json is not valid JSON', async () => {
     const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'reconfigure-test-' ) );
     await fs.writeFile( path.join( tmpDir, 'package.json' ), '{ not json', 'utf-8' );
-    expect( () => planReconfiguration( tmpDir ) ).toThrow( /not valid JSON/ );
+    expect( () => planReconfiguration( tmpDir ) ).toThrow( /not a valid JSON/ );
   } );
 } );
