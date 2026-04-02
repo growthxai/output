@@ -1,6 +1,6 @@
 import { Command } from '@oclif/core';
 import { confirm } from '@inquirer/prompts';
-import { applyReconfiguration, planReconfiguration, type ReconfigurationPlan } from '#services/reconfigure_package.js';
+import { applyFix, planFix, type FixPlan } from '#services/fix_package.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 
 const Ansi: Record<string, string> = {
@@ -10,11 +10,9 @@ const Ansi: Record<string, string> = {
   RESET: '\x1b[0m'
 };
 
-export default class Reconfigure extends Command {
-  static override aliases = [ 'fix' ];
-
+export default class Fix extends Command {
   static description =
-    'Reconfigure Output scripts in the package.json (reset overwrites, add missing and remove deprecated)';
+    'Fix Output scripts in the package.json (reset overwrites, add missing and remove deprecated)';
 
   static examples = [
     '<%= config.bin %> <%= command.id %>'
@@ -23,7 +21,7 @@ export default class Reconfigure extends Command {
   /**
    * Prints a human-readable diff-style summary
    */
-  private printPlan( plan: ReconfigurationPlan ): void {
+  private printPlan( plan: FixPlan ): void {
     this.log( '\nNecessary changes to package.json:' );
 
     if ( plan.scriptsToAdd.length > 0 ) {
@@ -43,10 +41,10 @@ export default class Reconfigure extends Command {
   }
 
   async run(): Promise<void> {
-    await this.parse( Reconfigure );
+    await this.parse( Fix );
 
     try {
-      const plan = planReconfiguration( process.cwd() );
+      const plan = planFix( process.cwd() );
       if ( !plan.hasChanges ) {
         this.log( 'Nothing to change, package.json is already properly configured.' );
         return;
@@ -59,7 +57,7 @@ export default class Reconfigure extends Command {
         return;
       }
 
-      applyReconfiguration( plan );
+      applyFix( plan );
       this.log( 'Done, package.json is properly configured.' );
     } catch ( error: unknown ) {
       // ExitPromptError means Ctrl+C

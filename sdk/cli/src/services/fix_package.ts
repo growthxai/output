@@ -7,9 +7,7 @@ const packageJson = 'package.json';
 const templateRelativePath = path.join( 'templates', 'project', 'package.json.template' );
 
 /** Legacy script names from older versions of the project */
-export const legacyScripts = [
-  'dev'
-] as const;
+export const legacyScripts = [ 'dev' ] as const;
 
 function getTemplatesPackageJsonPath(): string {
   const __filename = fileURLToPath( import.meta.url );
@@ -67,7 +65,7 @@ export interface ScriptToReplace {
 /**
  * Plan for aligning `scripts` with the scaffold template (reads only; no write until apply).
  */
-export interface ReconfigurationPlan {
+export interface FixPlan {
   packageJsonPath: string;
   packageJsonUpdatedContent: string;
   hasChanges: boolean;
@@ -77,9 +75,9 @@ export interface ReconfigurationPlan {
 }
 
 /**
- * Computes the package.json rewrite without writing. Use with {@link applyReconfiguration}.
+ * Computes the package.json rewrite without writing. Use with {@link applyFix}.
  */
-export function planReconfiguration( projectRoot: string ): ReconfigurationPlan {
+export function planFix( projectRoot: string ): FixPlan {
   const packageJsonPath = path.join( projectRoot, packageJson );
   const raw = readPackageJsonText( packageJsonPath );
   const pkg = parsePackageJsonObject( raw, packageJsonPath );
@@ -140,9 +138,9 @@ export function planReconfiguration( projectRoot: string ): ReconfigurationPlan 
 }
 
 /**
- * Writes the planned package.json. No-op when {@link ReconfigurationPlan.hasChanges} is false.
+ * Writes the planned package.json. No-op when {@link FixPlan.hasChanges} is false.
  */
-export function applyReconfiguration( plan: ReconfigurationPlan ): void {
+export function applyFix( plan: FixPlan ): void {
   if ( !plan.hasChanges ) {
     return;
   }

@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { applyReconfiguration, planReconfiguration, legacyScripts } from './reconfigure_package.js';
+import { applyFix, planFix, legacyScripts } from './fix_package.js';
 
-describe( 'reconfigure package', () => {
+describe( 'fix package', () => {
   it( 'should remove legacy keys and apply template scripts while preserving other scripts', async () => {
-    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'reconfigure-test-' ) );
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
     const pkg = {
       name: 'my-proj',
       version: '1.0.0',
@@ -17,14 +17,14 @@ describe( 'reconfigure package', () => {
     };
     await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
 
-    const plan = planReconfiguration( tmpDir );
+    const plan = planFix( tmpDir );
 
     expect( plan.scriptsToRemove.map( r => r.key ).sort() ).toEqual( [ ...legacyScripts ].sort() );
     expect( plan.hasChanges ).toBe( true );
     expect( plan.scriptsToReplace ).toEqual( [] );
     expect( plan.scriptsToAdd ).toHaveLength( 6 );
 
-    applyReconfiguration( plan );
+    applyFix( plan );
 
     const next = JSON.parse( await fs.readFile( path.join( tmpDir, 'package.json' ), 'utf-8' ) ) as {
       scripts: Record<string, string>;
@@ -37,7 +37,7 @@ describe( 'reconfigure package', () => {
   } );
 
   it( 'should classify an existing key with a different value as replace, and new keys as add', async () => {
-    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'reconfigure-test-' ) );
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
     const pkg = {
       name: 'my-proj',
       version: '1.0.0',
@@ -47,7 +47,7 @@ describe( 'reconfigure package', () => {
     };
     await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
 
-    const plan = planReconfiguration( tmpDir );
+    const plan = planFix( tmpDir );
 
     expect( plan.scriptsToRemove ).toEqual( [] );
     expect( plan.scriptsToReplace ).toEqual( [
@@ -64,13 +64,13 @@ describe( 'reconfigure package', () => {
   } );
 
   it( 'should throw when package.json is missing', async () => {
-    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'reconfigure-test-' ) );
-    expect( () => planReconfiguration( tmpDir ) ).toThrow( /No package\.json found/ );
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    expect( () => planFix( tmpDir ) ).toThrow( /No package\.json found/ );
   } );
 
   it( 'should throw when package.json is not valid JSON', async () => {
-    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'reconfigure-test-' ) );
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
     await fs.writeFile( path.join( tmpDir, 'package.json' ), '{ not json', 'utf-8' );
-    expect( () => planReconfiguration( tmpDir ) ).toThrow( /not a valid JSON/ );
+    expect( () => planFix( tmpDir ) ).toThrow( /not a valid JSON/ );
   } );
 } );

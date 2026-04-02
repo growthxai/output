@@ -1,20 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import Reconfigure from './reconfigure.js';
-import type { ReconfigurationPlan } from '#services/reconfigure_package.js';
-import * as reconfigureService from '#services/reconfigure_package.js';
+import Fix from './fix.js';
+import type { FixPlan } from '#services/fix_package.js';
+import * as fixService from '#services/fix_package.js';
 import { confirm } from '@inquirer/prompts';
 
-vi.mock( '#services/reconfigure_package.js', () => ( {
-  planReconfiguration: vi.fn(),
-  applyReconfiguration: vi.fn()
+vi.mock( '#services/fix_package.js', () => ( {
+  planFix: vi.fn(),
+  applyFix: vi.fn()
 } ) );
 
 vi.mock( '@inquirer/prompts', () => ( {
   confirm: vi.fn()
 } ) );
 
-const basePlan = (): ReconfigurationPlan => ( {
+const basePlan = (): FixPlan => ( {
   packageJsonPath: '/tmp/pkg/package.json',
   packageJsonUpdatedContent: '{}',
   hasChanges: true,
@@ -23,9 +23,9 @@ const basePlan = (): ReconfigurationPlan => ( {
   scriptsToReplace: [ { key: 'output:dev', before: 'old dev', after: 'output dev' } ]
 } );
 
-describe( 'reconfigure command', () => {
+describe( 'fix command', () => {
   const createTestCommand = () => {
-    const cmd = new Reconfigure( [], {} as any );
+    const cmd = new Fix( [], {} as any );
     cmd.log = vi.fn();
     cmd.warn = vi.fn();
     cmd.error = vi.fn() as any;
@@ -39,11 +39,11 @@ describe( 'reconfigure command', () => {
   } );
 
   it( 'should have no flags', () => {
-    expect( Reconfigure.flags ).toBeUndefined();
+    expect( Fix.flags ).toBeUndefined();
   } );
 
   it( 'should skip confirm when no changes are needed', async () => {
-    vi.mocked( reconfigureService.planReconfiguration ).mockReturnValue( {
+    vi.mocked( fixService.planFix ).mockReturnValue( {
       ...basePlan(),
       hasChanges: false
     } );
@@ -52,16 +52,16 @@ describe( 'reconfigure command', () => {
     await cmd.run();
 
     expect( confirm ).not.toHaveBeenCalled();
-    expect( reconfigureService.applyReconfiguration ).not.toHaveBeenCalled();
+    expect( fixService.applyFix ).not.toHaveBeenCalled();
     expect( cmd.log ).toHaveBeenCalledWith(
       'Nothing to change, package.json is already properly configured.'
     );
   } );
 
   it( 'should print summary, confirm, and apply when there are changes', async () => {
-    vi.mocked( reconfigureService.planReconfiguration ).mockReturnValue( basePlan() );
+    vi.mocked( fixService.planFix ).mockReturnValue( basePlan() );
     vi.mocked( confirm ).mockResolvedValue( true );
-    vi.mocked( reconfigureService.applyReconfiguration ).mockImplementation( () => {} );
+    vi.mocked( fixService.applyFix ).mockImplementation( () => {} );
 
     const cmd = createTestCommand();
     await cmd.run();
@@ -71,22 +71,22 @@ describe( 'reconfigure command', () => {
       default: true
     } ) );
     expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'Necessary changes to package.json' ) );
-    expect( reconfigureService.applyReconfiguration ).toHaveBeenCalledTimes( 1 );
+    expect( fixService.applyFix ).toHaveBeenCalledTimes( 1 );
     expect( cmd.log ).toHaveBeenCalledWith( 'Done, package.json is properly configured.' );
   } );
 
   it( 'should not apply when user declines', async () => {
-    vi.mocked( reconfigureService.planReconfiguration ).mockReturnValue( basePlan() );
+    vi.mocked( fixService.planFix ).mockReturnValue( basePlan() );
     vi.mocked( confirm ).mockResolvedValue( false );
 
     const cmd = createTestCommand();
     await cmd.run();
 
-    expect( reconfigureService.applyReconfiguration ).not.toHaveBeenCalled();
+    expect( fixService.applyFix ).not.toHaveBeenCalled();
   } );
 
   it( 'should surface service errors', async () => {
-    vi.mocked( reconfigureService.planReconfiguration ).mockImplementation( () => {
+    vi.mocked( fixService.planFix ).mockImplementation( () => {
       throw new Error( 'boom' );
     } );
 
