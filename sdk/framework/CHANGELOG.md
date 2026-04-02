@@ -1,5 +1,18 @@
 # @outputai/output
 
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [76bcede]
+- Updated dependencies [0990e42]
+  - @outputai/core@0.1.12
+  - @outputai/llm@0.1.12
+  - @outputai/cli@0.1.12
+  - @outputai/credentials@0.1.12
+  - @outputai/evals@0.1.12
+  - @outputai/http@0.1.12
+
 ## 0.1.11
 
 ### Patch Changes
