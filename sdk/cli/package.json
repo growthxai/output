@@ -8,8 +8,7 @@
   "files": [
     "./bin",
     "./dist",
-    "./oclif.manifest.json",
-    "./scripts/postinstall.js"
+    "./oclif.manifest.json"
   ],
   "bin": {
     "output": "./bin/run.js"
@@ -20,8 +19,7 @@
     "test": "vitest run",
     "generate:api": "orval --config ./orval.config.ts",
     "set-sdk-version": "./scripts/set_sdk_version.js",
-    "prebuild": "npm run generate:api",
-    "postinstall": "node ./scripts/postinstall.js"
+    "prebuild": "npm run generate:api"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.85",
