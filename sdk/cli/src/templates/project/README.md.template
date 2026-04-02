@@ -72,7 +72,7 @@ Add your keys in the editor:
 ### 3. Start Output Services
 
 ```bash
-npm run dev
+npm run output:dev
 ```
 
 This starts:
@@ -91,7 +91,7 @@ npx output workflow run blog_evaluator paulgraham_hwh
 
 ### 5. Stop Services
 
-Press `Ctrl+C` in the terminal running `npm run dev` to stop all services gracefully.
+Press `Ctrl+C` in the terminal running `npm run output:dev` to stop all services gracefully.
 
 ### 6. View Logs
 

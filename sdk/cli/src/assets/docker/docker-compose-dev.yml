@@ -126,13 +126,7 @@ services:
       - OUTPUT_TRACE_HTTP_VERBOSE=${OUTPUT_TRACE_HTTP_VERBOSE:-true}
       - TEMPORAL_ADDRESS=temporal:7233
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-    command: >
-      sh -c "
-        corepack enable &&
-        npm run output:worker:install &&
-        echo 'Installed dependencies' &&
-        npx nodemon --watch src --watch package.json --ext ts,js,json,prompt --ignore 'dist/**' --ignore '**/*.test.ts' --ignore '**/*.spec.ts' --exec 'npm run output:worker:install && npm run output:worker:build && npm run output:worker:start'
-      "
+    command: sh -c "corepack enable && npm run output:worker:watch"
     working_dir: /app/${OUTPUT_WORKFLOWS_DIR:-.}
     volumes:
       - ./:/app

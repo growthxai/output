@@ -85,6 +85,7 @@ const useHealthPolling = (
   callbacks: {
     onServices: ( svcs: ServiceStatus[] ) => void;
     onAllHealthy: ( svcs: ServiceStatus[] ) => void;
+    onFailure: ( svcs: ServiceStatus[] ) => void;
     onTimeout: () => void;
   }
 ): void => {
@@ -104,6 +105,10 @@ const useHealthPolling = (
     callbacksRef.current.onServices( svcs );
     if ( svcs.length > 0 && svcs.every( isServiceHealthy ) ) {
       callbacksRef.current.onAllHealthy( svcs );
+      return 'done';
+    }
+    if ( svcs.length > 0 && svcs.find( isServiceFailed ) ) {
+      callbacksRef.current.onFailure( svcs );
       return 'done';
     }
     return 'continue';
@@ -175,13 +180,16 @@ const FailureWarning: React.FC<{ services: ServiceStatus[] }> = ( { services } )
         <Box flexDirection="column" marginTop={1}>
           <Text color="yellow" bold>⚡ The worker is not running!</Text>
           <Text color="yellow">{'   Workflows will fail until the worker is restarted.'}</Text>
-          <Box marginTop={1}>
-            <Text dimColor>Check the logs with: docker compose logs worker</Text>
+          <Box flexDirection="column" marginTop={1}>
+            <Text>🔍 Check the logs with: <Text color="magenta">docker compose logs worker</Text></Text>
+          </Box>
+          <Box flexDirection="column" marginTop={1}>
+            <Text>🔧 If you just updated <Text italic>@outputai/cli</Text>, try: <Text color="magenta">output fix</Text></Text>
           </Box>
         </Box>
       ) : (
         <Box marginTop={1}>
-          <Text dimColor>{'Check the logs with: docker compose logs <service-name>'}</Text>
+          <Text>🔍 Check the logs with: <Text color="magenta">docker compose logs &lt;service-name&gt;</Text></Text>
         </Box>
       )}
     </Box>
@@ -258,7 +266,7 @@ const RunningView: React.FC<{ services: ServiceStatus[] }> = ( { services } ) =>
   </Box>
 );
 
-type Phase = 'waiting' | 'running';
+type Phase = 'waiting' | 'running' | 'failed';
 
 interface SuccessItem {
   id: string;
@@ -280,6 +288,9 @@ export const DevApp: React.FC<{
       setSuccessItems( [ { id: 'success', services: svcs } ] );
       setPhase( 'running' );
     },
+    onFailure: () => {
+      setPhase( 'failed' );
+    },
     onTimeout: () => exit( new Error( 'Timeout waiting for services to become healthy' ) )
   } );
 
@@ -294,6 +305,7 @@ export const DevApp: React.FC<{
       </Static>
       {phase === 'waiting' && <WaitingView services={services} />}
       {phase === 'running' && <RunningView services={services} />}
+      {phase === 'failed' && <RunningView services={services} />}
     </>
   );
 };
