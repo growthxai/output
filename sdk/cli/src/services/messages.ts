@@ -3,7 +3,6 @@
  */
 
 import { ux } from '@oclif/core';
-import { config } from '#config.js';
 
 /**
  * Creates a colored ASCII art banner for Output.ai
@@ -343,44 +342,3 @@ ${ux.colorize( 'green', ux.colorize( 'bold', 'Happy building! 🛠️' ) )}
 `;
 };
 
-export const getDevSuccessMessage = ( services: Array<{ name: string }> ): string => {
-  const divider = ux.colorize( 'dim', '─'.repeat( 80 ) );
-  const bulletPoint = ux.colorize( 'green', '▸' );
-  const serviceNames = services.map( s => s.name ).sort().join( '|' );
-  const logsCommand = `docker compose -p ${config.dockerServiceName} logs -f <${serviceNames}>`;
-
-  return `
-${divider}
-
-${ux.colorize( 'bold', ux.colorize( 'green', '✅ SUCCESS!' ) )} ${ux.colorize( 'bold', 'Development services are running' )}
-
-${divider}
-
-${createSectionHeader( 'SERVICES', '🐳' )}
-
-  ${bulletPoint} ${ux.colorize( 'white', 'Temporal:' )}     ${formatPath( 'localhost:7233' )}
-  ${bulletPoint} ${ux.colorize( 'white', 'Temporal UI:' )} ${formatCommand( 'http://localhost:8080' )}
-  ${bulletPoint} ${ux.colorize( 'white', 'API Server:' )}  ${formatPath( 'localhost:3001' )}
-  ${bulletPoint} ${ux.colorize( 'white', 'Redis:' )}       ${formatPath( 'localhost:6379' )}
-
-${divider}
-
-${createSectionHeader( 'RUN A WORKFLOW', '🚀' )}
-
-  ${ux.colorize( 'white', 'In a new terminal, execute:' )}
-
-    ${formatCommand( 'npx output workflow run blog_evaluator paulgraham_hwh' )}
-
-${divider}
-
-${createSectionHeader( 'USEFUL COMMANDS', '⚡' )}
-
-  ${bulletPoint} ${ux.colorize( 'white', 'Open Temporal UI:' )} ${formatCommand( 'open http://localhost:8080' )}
-  ${bulletPoint} ${ux.colorize( 'white', 'View logs:' )}        ${formatCommand( logsCommand )}
-  ${bulletPoint} ${ux.colorize( 'white', 'Stop services:' )}    ${formatCommand( 'Press Ctrl+C' )}
-
-${divider}
-
-${ux.colorize( 'dim', '💡 Tip: The Temporal UI lets you monitor workflow executions in real-time' )}
-`;
-};
