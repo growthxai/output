@@ -2,7 +2,6 @@ import { execFileSync, execSync, spawn, type ChildProcess } from 'node:child_pro
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
-import logUpdate from 'log-update';
 
 const DEFAULT_COMPOSE_PATH = '../assets/docker/docker-compose-dev.yml';
 
@@ -114,34 +113,6 @@ export async function getServiceStatus( dockerComposePath: string ): Promise<Ser
   return parseServiceStatus( result );
 }
 
-const STATUS_ICONS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '✓',
-  [SERVICE_HEALTH.UNHEALTHY]: '✗',
-  [SERVICE_HEALTH.STARTING]: '◐',
-  [SERVICE_HEALTH.NONE]: '✓',
-  [SERVICE_STATE.RUNNING]: '●',
-  [SERVICE_STATE.EXITED]: '✗'
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '\x1b[32m',
-  [SERVICE_HEALTH.UNHEALTHY]: '\x1b[31m',
-  [SERVICE_HEALTH.STARTING]: '\x1b[33m',
-  [SERVICE_HEALTH.NONE]: '\x1b[32m',
-  [SERVICE_STATE.RUNNING]: '\x1b[34m',
-  [SERVICE_STATE.EXITED]: '\x1b[31m'
-};
-
-const ANSI_RESET = '\x1b[0m';
-
-const formatServiceStatus = ( services: ServiceStatus[] ): string => services.map( s => {
-  const healthKey = s.health === SERVICE_HEALTH.NONE ? s.state : s.health;
-  const icon = STATUS_ICONS[healthKey] || '?';
-  const color = STATUS_COLORS[healthKey] || '';
-  const status = s.health === SERVICE_HEALTH.NONE ? s.state : s.health;
-  return `  ${color}${icon}${ANSI_RESET} ${s.name}: ${status}`;
-} ).join( '\n' );
-
 export function isServiceHealthy( service: ServiceStatus ): boolean {
   return service.state !== SERVICE_STATE.EXITED &&
     ( service.health === SERVICE_HEALTH.HEALTHY || service.health === SERVICE_HEALTH.NONE );
@@ -160,28 +131,19 @@ export async function waitForServicesHealthy(
 
   while ( Date.now() - startTime < timeoutMs ) {
     const services = await getServiceStatus( dockerComposePath );
-    const allHealthy = services.every( isServiceHealthy );
 
-    if ( services.length > 0 ) {
-      const statusLines = formatServiceStatus( services );
-      logUpdate( `⏳ Waiting for services to become healthy...\n${statusLines}` );
-    }
-
-    if ( allHealthy && services.length > 0 ) {
-      logUpdate.done();
+    if ( services.length > 0 && services.every( isServiceHealthy ) ) {
       return;
     }
 
     await new Promise( resolve => setTimeout( resolve, pollIntervalMs ) );
   }
 
-  logUpdate.done();
   throw new Error( 'Timeout waiting for services to become healthy' );
 }
 
 export interface DockerComposeProcess {
   process: ChildProcess;
-  waitForHealthy: () => Promise<void>;
 }
 
 export type PullPolicy = 'always' | 'missing' | 'never';
@@ -208,10 +170,7 @@ export async function startDockerCompose(
     stdio: [ 'ignore', 'pipe', 'pipe' ]
   } );
 
-  return {
-    process: dockerProcess,
-    waitForHealthy: () => waitForServicesHealthy( dockerComposePath )
-  };
+  return { process: dockerProcess };
 }
 
 export function startDockerComposeDetached(

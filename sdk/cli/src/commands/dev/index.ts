@@ -2,105 +2,20 @@ import { Command, Flags } from '@oclif/core';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcess } from 'node:child_process';
-import logUpdate from 'log-update';
+import { render } from 'ink';
+import React from 'react';
 import {
   validateDockerEnvironment,
   startDockerCompose,
   startDockerComposeDetached,
   stopDockerCompose,
-  getServiceStatus,
-  isServiceFailed,
   DockerComposeConfigNotFoundError,
-  getDefaultDockerComposePath,
-  SERVICE_HEALTH,
-  SERVICE_STATE
+  getDefaultDockerComposePath
 } from '#services/docker.js';
-import type { ServiceStatus, PullPolicy } from '#services/docker.js';
+import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
-import { getDevSuccessMessage } from '#services/messages.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
-
-const ANSI = {
-  RESET: '\x1b[0m',
-  DIM: '\x1b[2m',
-  BOLD: '\x1b[1m',
-  CYAN: '\x1b[36m',
-  RED: '\x1b[31m',
-  YELLOW: '\x1b[33m',
-  BG_RED: '\x1b[41m',
-  WHITE: '\x1b[37m'
-} as const;
-
-const STATUS_ICONS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '●',
-  [SERVICE_HEALTH.UNHEALTHY]: '○',
-  [SERVICE_HEALTH.STARTING]: '◐',
-  [SERVICE_HEALTH.NONE]: '●',
-  [SERVICE_STATE.RUNNING]: '●',
-  [SERVICE_STATE.EXITED]: '✗'
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '\x1b[32m',
-  [SERVICE_HEALTH.UNHEALTHY]: '\x1b[31m',
-  [SERVICE_HEALTH.STARTING]: '\x1b[33m',
-  [SERVICE_HEALTH.NONE]: '\x1b[34m',
-  [SERVICE_STATE.RUNNING]: '\x1b[34m',
-  [SERVICE_STATE.EXITED]: '\x1b[31m'
-};
-
-const formatService = ( service: ServiceStatus ): string => {
-  const healthKey = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
-  const icon = STATUS_ICONS[healthKey] || '?';
-  const color = STATUS_COLORS[healthKey] || '';
-  const ports = service.ports.length ? service.ports.join( ', ' ) : '-';
-  const status = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
-  const name = service.name.padEnd( 15 );
-  const statusPadded = status.padEnd( 10 );
-  return `  ${color}${icon}${ANSI.RESET} ${name} ${ANSI.DIM}${statusPadded}${ANSI.RESET} ${ANSI.DIM}${ports}${ANSI.RESET}`;
-};
-
-const getFailedServicesWarning = ( services: ServiceStatus[] ): string[] => {
-  const failedServices = services.filter( isServiceFailed );
-
-  if ( failedServices.length === 0 ) {
-    return [];
-  }
-
-  const failedNames = failedServices.map( s => s.name );
-  const hasWorkerFailed = failedNames.some( name => name.toLowerCase().includes( 'worker' ) );
-
-  const warningLines = [
-    '',
-    `${ANSI.BG_RED}${ANSI.WHITE}${ANSI.BOLD} ⚠️  SERVICE FAILURE DETECTED ${ANSI.RESET}`,
-    '',
-    `${ANSI.RED}${ANSI.BOLD}Failed services:${ANSI.RESET} ${failedNames.join( ', ' )}`
-  ];
-
-  if ( hasWorkerFailed ) {
-    warningLines.push(
-      '',
-      `${ANSI.YELLOW}${ANSI.BOLD}⚡ The worker is not running!${ANSI.RESET}`,
-      `${ANSI.YELLOW}   Workflows will fail until the worker is restarted.${ANSI.RESET}`,
-      '',
-      `${ANSI.DIM}Check the logs with: docker compose logs worker${ANSI.RESET}`
-    );
-  } else {
-    warningLines.push(
-      '',
-      `${ANSI.DIM}Check the logs with: docker compose logs <service-name>${ANSI.RESET}`
-    );
-  }
-
-  return warningLines;
-};
-
-const poll = async ( fn: () => Promise<void>, intervalMs: number ): Promise<never> => {
-  for ( ;; ) {
-    await fn();
-    await new Promise( resolve => setTimeout( resolve, intervalMs ) );
-  }
-};
+import { DevApp } from '#views/dev.js';
 
 export default class Dev extends Command {
   static description = 'Start Output development services (auto-restarts worker on file changes)';
@@ -173,59 +88,36 @@ export default class Dev extends Command {
         this.dockerProcess.kill( 'SIGTERM' );
       }
       await stopDockerCompose( dockerComposePath );
-      process.exit( 0 );
     };
 
-    process.on( 'SIGINT', cleanup );
-    process.on( 'SIGTERM', cleanup );
-
     try {
-      const { process: dockerProc, waitForHealthy } = await startDockerCompose(
+      const { process: dockerProc } = await startDockerCompose(
         dockerComposePath,
         pullPolicy
       );
 
       this.dockerProcess = dockerProc;
 
+      const instance = render(
+        React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup } ),
+        { exitOnCtrlC: false }
+      );
+
       dockerProc.on( 'error', error => {
-        this.error( `Docker process error: ${getErrorMessage( error )}`, { exit: 1 } );
+        instance.unmount( new Error( `Docker process error: ${getErrorMessage( error )}` ) );
       } );
 
-      this.log( '⏳ Waiting for services to become healthy...\n' );
-      await waitForHealthy();
+      const handleSignal = async () => {
+        await cleanup();
+        instance.unmount();
+      };
 
-      const services = await getServiceStatus( dockerComposePath );
-      this.log( getDevSuccessMessage( services ) );
+      process.on( 'SIGINT', handleSignal );
+      process.on( 'SIGTERM', handleSignal );
 
-      await this.pollServiceStatus( dockerComposePath );
+      await instance.waitUntilExit();
     } catch ( error ) {
       this.error( getErrorMessage( error ), { exit: 1 } );
     }
-  }
-
-  private async pollServiceStatus( dockerComposePath: string ): Promise<void> {
-    const outputServiceStatus = async (): Promise<void> => {
-      try {
-        const services = await getServiceStatus( dockerComposePath );
-        const failureWarning = getFailedServicesWarning( services );
-
-        const lines = [
-          `${ANSI.BOLD}📊 Service Status${ANSI.RESET}`,
-          '',
-          ...services.map( formatService ),
-          ...failureWarning,
-          '',
-          `${ANSI.CYAN}🌐 Temporal UI:${ANSI.RESET} ${ANSI.BOLD}http://localhost:8080${ANSI.RESET}`,
-          '',
-          `${ANSI.DIM}Press Ctrl+C to stop services${ANSI.RESET}`
-        ];
-
-        logUpdate( lines.join( '\n' ) );
-      } catch {
-        // silent retry on next poll
-      }
-    };
-
-    await poll( outputServiceStatus, 2000 );
   }
 }
