@@ -11,9 +11,6 @@ describe( 'reconfigure package', () => {
       name: 'my-proj',
       version: '1.0.0',
       scripts: {
-        'worker:install': 'npm install',
-        'worker:build': 'tsc',
-        'worker:start': 'node dist/worker.js',
         dev: 'old dev',
         'custom:test': 'vitest'
       }
@@ -33,7 +30,7 @@ describe( 'reconfigure package', () => {
       scripts: Record<string, string>;
     };
 
-    expect( next.scripts['worker:install'] ).toBeUndefined();
+    expect( next.scripts['dev'] ).toBeUndefined();
     expect( next.scripts['custom:test'] ).toBe( 'vitest' );
     expect( next.scripts['output:dev'] ).toBe( 'output dev' );
     expect( next.scripts['output:worker:start'] ).toBe( 'output-worker' );

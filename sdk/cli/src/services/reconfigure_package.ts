@@ -8,9 +8,6 @@ const templateRelativePath = path.join( 'templates', 'project', 'package.json.te
 
 /** Legacy script names from older versions of the project */
 export const legacyScripts = [
-  'worker:install',
-  'worker:build',
-  'worker:start',
   'dev'
 ] as const;
 
