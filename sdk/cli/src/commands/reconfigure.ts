@@ -11,8 +11,10 @@ const Ansi: Record<string, string> = {
 };
 
 export default class Reconfigure extends Command {
+  static override aliases = [ 'fix' ];
+
   static description =
-    'Reconfigure scripts in package.json (remove deprecated and add missing)';
+    'Reconfigure Output scripts in the package.json (reset overwrites, add missing and remove deprecated)';
 
   static examples = [
     '<%= config.bin %> <%= command.id %>'
