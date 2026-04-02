@@ -46,20 +46,7 @@ services:
       - OUTPUT_TRACE_LOCAL_ON=true
       - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-    command:
-      - sh
-      - -c
-      - >
-        corepack enable &&
-        npm run build:packages &&
-        cd ./test_workflows &&
-        npx nodemon --watch ./src \
-          --watch package.json \
-          --ext ts,js,json,prompt \
-          --ignore "dist/**" \
-          --ignore "**/*.test.ts" \
-          --ignore "**/*.spec.ts" \
-          --exec "npm run output:worker:install && npm run output:worker:build && npm run output:worker:start"
+    command: sh -c "corepack enable && npm run build:packages && cd ./test_workflows && npm run output:worker:watch"
     working_dir: /app
     volumes:
       - ./:/app

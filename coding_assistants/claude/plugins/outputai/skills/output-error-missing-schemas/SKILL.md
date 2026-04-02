@@ -255,7 +255,7 @@ export const logEvent = step({
 
 After adding schemas:
 
-1. **TypeScript check**: `npm run output:workflow:build` should pass without type errors
+1. **TypeScript check**: `npm run output:worker:build` should pass without type errors
 2. **Runtime test**: `npx output workflow run <name> '<input>'` should validate correctly
 3. **Invalid input test**: Pass invalid data and verify validation errors appear
 
