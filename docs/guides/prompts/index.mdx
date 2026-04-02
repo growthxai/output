@@ -290,7 +290,11 @@ This separation makes prompts easier to maintain. When you need to change the ta
 
 ## Using Prompts
 
-Call prompts from your steps using the generate functions from `@outputai/llm`:
+Call prompts from your steps using the generate functions from `@outputai/llm`.
+
+### With generateText
+
+For single-shot LLM calls, use `generateText`:
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
@@ -325,5 +329,48 @@ export const generateSummary = step({
 //
 // export const GenerateSummaryOutput = z.string();
 ```
+
+`generateText` also supports [skills](/prompts/skills) for on-demand instruction loading:
+
+```typescript
+const { result } = await generateText({
+  prompt: 'generate_summary@v1',
+  variables: { company_name: input.name, website_content: input.websiteContent },
+  skills: [audienceSkill],
+  maxSteps: 5
+});
+```
+
+### With Agent
+
+For multi-step tool loops and stateful conversations, use the `Agent` class:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { Agent } from '@outputai/llm';
+import { ReviewContentInput, ReviewContentOutput } from './types.js';
+
+export const reviewContent = step({
+  name: 'reviewContent',
+  description: 'Review technical content with structured feedback',
+  inputSchema: ReviewContentInput,
+  outputSchema: ReviewContentOutput,
+  fn: async (input) => {
+    const agent = new Agent({
+      prompt: 'writing_assistant@v1',
+      variables: {
+        content_type: 'documentation',
+        focus: 'clarity',
+        content: input.content
+      },
+      maxSteps: 5
+    });
+    const { text } = await agent.generate();
+    return text;
+  }
+});
+```
+
+Use `generateText` for single-shot LLM calls. Use `Agent` when you need multi-step tool execution, conversation history, or a reusable agent instance. See the [Agents section](/packages/llm#agents) for the full API.
 
 The `variables` object maps to the `{{ variable }}` placeholders in your prompt. For dynamic content like conditionals and loops, see [Templating](/prompts/templating).

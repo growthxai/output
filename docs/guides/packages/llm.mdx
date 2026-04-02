@@ -227,6 +227,177 @@ const { output } = await generateText({
 // output is one of 'hot', 'warm', 'cold', 'unknown'
 ```
 
+## Agents
+
+The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/prompts) and the [skills](/prompts/skills) system. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance with a fixed configuration. For single-shot LLM calls without tools, `generateText` is simpler.
+
+### Construction
+
+The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()` or `stream()` immediately.
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { Agent, Output, skill } from '@outputai/llm';
+import { z } from '@outputai/core';
+
+const audienceSkill = skill({
+  name: 'audience_adaptation',
+  description: 'Tailor feedback for the specified expertise level',
+  instructions: '# Audience Adaptation\n...'
+});
+
+export const reviewContent = step({
+  name: 'reviewContent',
+  description: 'Review content with structured feedback',
+  inputSchema: ReviewContentInput,
+  outputSchema: ReviewContentOutput,
+  fn: async (input) => {
+    const agent = new Agent({
+      prompt: 'writing_assistant@v1',
+      variables: {
+        content_type: input.contentType,
+        focus: input.focus,
+        content: input.content
+      },
+      skills: [audienceSkill],
+      output: Output.object({ schema: reviewSchema }),
+      maxSteps: 5
+    });
+    const { output } = await agent.generate();
+    return output;
+  }
+});
+```
+
+**Constructor options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
+| `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
+| `skills` | `Skill[]` | `[]` | [Skill](/prompts/skills) packages for the LLM |
+| `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
+| `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
+| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
+| `output` | `Output` | - | Structured output spec (e.g. `Output.object({ schema })`) |
+| `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
+| `temperature` | `number` | - | Override prompt file temperature |
+| `onStepFinish` | `Function` | - | Callback after each tool-loop step |
+| `prepareStep` | `Function` | - | Customize each step before execution |
+
+### generate()
+
+Run the agent and return when complete:
+
+```typescript
+const result = await agent.generate();
+console.log(result.text);   // Generated text
+console.log(result.output); // Structured output (when using Output.object)
+console.log(result.usage);  // Token counts
+```
+
+The result has the same shape as `generateText`: `text`, `result` (alias for `text`), `output`, `usage`, `finishReason`, `toolCalls`, etc.
+
+Pass additional messages to extend the conversation:
+
+```typescript
+const result = await agent.generate({
+  messages: [{ role: 'user', content: 'Now focus on the introduction section.' }]
+});
+```
+
+### stream()
+
+Stream the agent's response:
+
+```typescript
+const stream = await agent.stream();
+
+for await (const chunk of stream.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
+
+### Structured Output
+
+Use `Output.object()` with Agent to get typed responses:
+
+```typescript steps.ts
+import { Agent, Output } from '@outputai/llm';
+import { z } from '@outputai/core';
+
+const reviewSchema = z.object({
+  issues: z.array(z.string()).describe('List of issues found'),
+  suggestions: z.array(z.string()).describe('Actionable suggestions'),
+  score: z.number().describe('Quality score 0-100'),
+  summary: z.string().describe('Brief overall assessment')
+});
+
+const agent = new Agent({
+  prompt: 'writing_assistant@v1',
+  variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
+  output: Output.object({ schema: reviewSchema }),
+  maxSteps: 5
+});
+
+const { output } = await agent.generate();
+// output: { issues: string[], suggestions: string[], score: number, summary: string }
+```
+
+### Conversation Store
+
+By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `conversationStore` to maintain history across calls:
+
+```typescript
+import { Agent, createMemoryConversationStore } from '@outputai/llm';
+
+const store = createMemoryConversationStore();
+const chatbot = new Agent({
+  prompt: 'chatbot@v1',
+  conversationStore: store
+});
+
+const r1 = await chatbot.generate({
+  messages: [{ role: 'user', content: 'Hello, tell me about Output.' }]
+});
+// r1.text: "Output is an AI framework for..."
+
+const r2 = await chatbot.generate({
+  messages: [{ role: 'user', content: 'How does it handle retries?' }]
+});
+// r2 sees the full conversation history from r1
+```
+
+For custom storage backends, implement the `ConversationStore` interface:
+
+```typescript
+interface ConversationStore {
+  getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
+  addMessages(messages: ModelMessage[]): void | Promise<void>;
+}
+```
+
+`createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
+
+<Note>
+`stream()` does not automatically append messages to the conversation store. If you use streaming with a conversation store, persist messages manually in the `onFinish` callback.
+</Note>
+
+### When to Use Agent vs generateText
+
+| | `generateText` | `Agent` |
+|---|---|---|
+| **Best for** | Single-shot LLM calls | Multi-step tool loops |
+| **Tools** | Supported | Supported |
+| **Skills** | Supported | Supported |
+| **Conversation history** | Manual | Built-in with `conversationStore` |
+| **Reusable instance** | No (function call) | Yes (construct once, call many) |
+| **Structured output** | `Output.object()` | `Output.object()` |
+
+Start with `generateText`. Move to `Agent` when you need conversation state or a reusable instance with a fixed configuration.
+
 ## Response Object
 
 `generateText` returns the full [AI SDK response](https://sdk.vercel.ai/docs/reference/ai-sdk-core/generate-text#returns):
