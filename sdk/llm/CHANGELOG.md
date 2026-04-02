@@ -1,5 +1,13 @@
 # @outputai/llm
 
+## 0.1.12
+
+### Patch Changes
+
+- 76bcede: Add `agent()` and `skill()` abstractions to `@outputai/llm` for composing reusable LLM agents with structured output and a lazy-loaded skills system. Add `findContentDir()` to `@outputai/core` and fix skill path resolution to be relative to the prompt file rather than the calling module. Add `output-copy-assets` bin to `@outputai/core` to centralise worker asset copying.
+- Updated dependencies [76bcede]
+  - @outputai/core@0.1.12
+
 ## 0.1.11
 
 ### Patch Changes
