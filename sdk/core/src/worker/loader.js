@@ -141,25 +141,25 @@ export async function loadHooks( rootDir ) {
 function validateAliasUniqueness( workflows ) {
   const allNames = new Map();
 
-  // Register primary names
+  // Register primary names (case-insensitive to prevent confusing collisions)
   for ( const { name } of workflows ) {
-    allNames.set( name, `workflow "${name}"` );
+    allNames.set( name.toLowerCase(), `workflow "${name}"` );
   }
 
   // Check the reserved catalog name
-  allNames.set( WORKFLOW_CATALOG, 'system workflow "$catalog"' );
+  allNames.set( WORKFLOW_CATALOG.toLowerCase(), 'system workflow "$catalog"' );
 
   // Check aliases against all names
   for ( const { name, aliases = [] } of workflows ) {
     for ( const alias of aliases ) {
-      if ( alias === name ) {
+      if ( alias.toLowerCase() === name.toLowerCase() ) {
         throw new Error( `Workflow "${name}" has an alias identical to its own name` );
       }
-      const conflict = allNames.get( alias );
+      const conflict = allNames.get( alias.toLowerCase() );
       if ( conflict ) {
         throw new Error( `Alias "${alias}" on workflow "${name}" conflicts with ${conflict}` );
       }
-      allNames.set( alias, `alias "${alias}" on workflow "${name}"` );
+      allNames.set( alias.toLowerCase(), `alias "${alias}" on workflow "${name}"` );
     }
   }
 }

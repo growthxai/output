@@ -151,6 +151,26 @@ export default {
 
     logger.info( 'Temporal client connected', { address, namespace } );
 
+    /**
+     * Resolve a workflow name (or alias) to the canonical workflow name via the catalog.
+     *
+     * @param {object} catalog - The catalog object
+     * @param {string} workflowName - The workflow name or alias
+     * @param {string} taskQueue - The task queue (for error messages)
+     * @returns {string} The canonical workflow name
+     * @throws {WorkflowNotFoundError}
+     */
+    const resolveWorkflowName = ( catalog, workflowName, taskQueue ) => {
+      const resolved = catalog.workflows.find( w => w.name === workflowName || w.aliases?.includes( workflowName ) );
+      if ( !resolved ) {
+        throw new WorkflowNotFoundError( `Workflow "${workflowName}" is not available at worker "${taskQueue}"` );
+      }
+      if ( resolved.name !== workflowName ) {
+        logger.info( 'Workflow alias resolved', { alias: workflowName, resolvedName: resolved.name, taskQueue } );
+      }
+      return resolved.name;
+    };
+
     return {
       /**
        * Workflow execution result
@@ -176,12 +196,8 @@ export default {
 
         // the catalog worker has the same name of the task queue
         const catalog = await getCatalog( { client, taskQueue } );
-        const resolved = catalog.workflows.find( w => w.name === workflowName || w.aliases?.includes( workflowName ) );
-        if ( !resolved ) {
-          throw new WorkflowNotFoundError( `Workflow "${workflowName}" is not available at worker "${taskQueue}"` );
-        }
+        const resolvedName = resolveWorkflowName( catalog, workflowName, taskQueue );
 
-        const resolvedName = resolved.name;
         const workflowId = userWorkflowId ?? buildWorkflowId();
         const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
         const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
@@ -232,8 +248,10 @@ export default {
        */
       async startWorkflow( workflowName, input, options = {} ) {
         const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue } = options;
+        const catalog = await getCatalog( { client, taskQueue } );
+        const resolvedName = resolveWorkflowName( catalog, workflowName, taskQueue );
         const workflowId = userWorkflowId ?? buildWorkflowId();
-        await client.workflow.start( workflowName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
         return { workflowId };
       },
 

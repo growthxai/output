@@ -150,6 +150,26 @@ describe( 'worker/loader', () => {
     expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Workflow "alpha" has an alias identical to its own name/ );
   } );
 
+  it( 'createWorkflowsEntryPoint catches case-insensitive alias collision with primary name', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'Alpha', path: '/a.js', aliases: [] },
+      { name: 'beta', path: '/b.js', aliases: [ 'alpha' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "alpha" on workflow "beta" conflicts with workflow "Alpha"/ );
+  } );
+
+  it( 'createWorkflowsEntryPoint catches case-insensitive alias-to-alias collision', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'alpha', path: '/a.js', aliases: [ 'Legacy' ] },
+      { name: 'beta', path: '/b.js', aliases: [ 'legacy' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "legacy" on workflow "beta" conflicts with/ );
+  } );
+
   it( 'loadActivities uses folder-based matchers for steps/evaluators and shared', async () => {
     const { loadActivities } = await import( './loader.js' );
     // First call (workflow dir): no results

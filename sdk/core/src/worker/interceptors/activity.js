@@ -25,7 +25,13 @@ import { messageBus } from '#bus';
 export class ActivityExecutionInterceptor {
   constructor( { activities, workflows } ) {
     this.activities = activities;
-    this.workflowsMap = workflows.reduce( ( map, w ) => map.set( w.name, w ), new Map() );
+    this.workflowsMap = workflows.reduce( ( map, w ) => {
+      map.set( w.name, w );
+      for ( const alias of w.aliases ?? [] ) {
+        map.set( alias, w );
+      }
+      return map;
+    }, new Map() );
   };
 
   async execute( input, next ) {
