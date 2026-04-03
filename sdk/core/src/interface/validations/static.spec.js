@@ -189,6 +189,37 @@ describe( 'interface/validator', () => {
     it( 'rejects non-boolean options.disableTrace', () => {
       expect( () => validateWorkflow( { ...validArgs, options: { disableTrace: 'yes' } } ) ).toThrow( StaticValidationError );
     } );
+
+    it( 'passes with valid aliases array', () => {
+      expect( () => validateWorkflow( { ...validArgs, aliases: [ 'old_name', 'legacy_v1' ] } ) ).not.toThrow();
+    } );
+
+    it( 'passes with empty aliases array', () => {
+      expect( () => validateWorkflow( { ...validArgs, aliases: [] } ) ).not.toThrow();
+    } );
+
+    it( 'passes without aliases (optional)', () => {
+      expect( () => validateWorkflow( { ...validArgs } ) ).not.toThrow();
+    } );
+
+    it( 'rejects aliases with invalid name pattern', () => {
+      expect( () => validateWorkflow( { ...validArgs, aliases: [ '-bad' ] } ) ).toThrow( StaticValidationError );
+    } );
+
+    it( 'rejects non-array aliases', () => {
+      expect( () => validateWorkflow( { ...validArgs, aliases: 'not_array' } ) ).toThrow( StaticValidationError );
+    } );
+  } );
+
+  describe( 'aliases rejected on steps and evaluators', () => {
+    it( 'validateStep rejects aliases due to strictObject', () => {
+      expect( () => validateStep( { ...validArgs, aliases: [ 'alias' ] } ) ).toThrow( StaticValidationError );
+    } );
+
+    it( 'validateEvaluator rejects aliases due to strictObject', () => {
+      const { outputSchema, ...evalArgs } = validArgs;
+      expect( () => validateEvaluator( { ...evalArgs, aliases: [ 'alias' ] } ) ).toThrow( StaticValidationError );
+    } );
   } );
 
   describe( 'validateEvaluator', () => {

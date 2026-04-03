@@ -64,6 +64,7 @@ const baseSchema = z.strictObject( {
 const stepSchema = baseSchema;
 
 const workflowSchema = baseSchema.extend( {
+  aliases: z.array( z.string().regex( /^[a-z_][a-z0-9_]*$/i ) ).optional().default( [] ),
   options: baseSchema.shape.options.unwrap().extend( {
     disableTrace: z.boolean().optional().default( false )
   } ).optional()

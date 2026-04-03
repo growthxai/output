@@ -140,7 +140,7 @@ describe( 'workflow()', () => {
       const symbols = Object.getOwnPropertySymbols( wf );
       expect( symbols ).toHaveLength( 1 );
       const meta = wf[symbols[0]];
-      expect( meta ).toEqual( { name: 'meta_wf', description: 'Meta workflow', inputSchema, outputSchema } );
+      expect( meta ).toEqual( { name: 'meta_wf', description: 'Meta workflow', inputSchema, outputSchema, aliases: [] } );
     } );
   } );
 

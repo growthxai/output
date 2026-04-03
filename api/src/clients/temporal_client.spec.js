@@ -179,6 +179,31 @@ describe( 'temporal_client', () => {
       } );
     } );
 
+    it( 'should resolve alias to primary workflow name', async () => {
+      const successResult = { output: { data: 'aliased' }, trace: null };
+
+      mockQuery.mockResolvedValue( {
+        workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
+      } );
+      mockStart.mockResolvedValue( {
+        result: () => Promise.resolve( successResult )
+      } );
+      mockGetHandle
+        .mockReturnValueOnce( { query: mockQuery } )
+        .mockReturnValue( { result: () => Promise.resolve( successResult ) } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.runWorkflow( 'old_name', { input: 'data' } );
+
+      expect( result.status ).toBe( 'completed' );
+      expect( result.output ).toEqual( { data: 'aliased' } );
+      // Verify the resolved primary name was used for Temporal start
+      expect( mockStart ).toHaveBeenCalledWith( 'new_name', expect.objectContaining( {
+        args: [ { input: 'data' } ]
+      } ) );
+    } );
+
     it( 'should throw non-WorkflowFailedError errors', async () => {
       const timeoutError = new WorkflowExecutionTimedOutError();
 

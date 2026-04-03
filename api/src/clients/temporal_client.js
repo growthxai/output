@@ -176,14 +176,15 @@ export default {
 
         // the catalog worker has the same name of the task queue
         const catalog = await getCatalog( { client, taskQueue } );
-        const workflowExists = catalog.workflows.some( w => w.name === workflowName );
-        if ( !workflowExists ) {
+        const resolved = catalog.workflows.find( w => w.name === workflowName || w.aliases?.includes( workflowName ) );
+        if ( !resolved ) {
           throw new WorkflowNotFoundError( `Workflow "${workflowName}" is not available at worker "${taskQueue}"` );
         }
 
+        const resolvedName = resolved.name;
         const workflowId = userWorkflowId ?? buildWorkflowId();
         const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
-        const handle = await client.workflow.start( workflowName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
 
         try {
           const result = await Promise.race( [
