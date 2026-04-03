@@ -133,17 +133,54 @@ export async function loadHooks( rootDir ) {
 };
 
 /**
+ * Validates that all workflow names and aliases are unique across the project.
+ *
+ * @param {object[]} workflows
+ * @throws {Error} If any alias conflicts with a workflow name or another alias
+ */
+function validateAliasUniqueness( workflows ) {
+  const allNames = new Map();
+
+  // Register primary names (case-insensitive to prevent confusing collisions)
+  for ( const { name } of workflows ) {
+    allNames.set( name.toLowerCase(), `workflow "${name}"` );
+  }
+
+  // Check the reserved catalog name
+  allNames.set( WORKFLOW_CATALOG.toLowerCase(), 'system workflow "$catalog"' );
+
+  // Check aliases against all names
+  for ( const { name, aliases = [] } of workflows ) {
+    for ( const alias of aliases ) {
+      if ( alias.toLowerCase() === name.toLowerCase() ) {
+        throw new Error( `Workflow "${name}" has an alias identical to its own name` );
+      }
+      const conflict = allNames.get( alias.toLowerCase() );
+      if ( conflict ) {
+        throw new Error( `Alias "${alias}" on workflow "${name}" conflicts with ${conflict}` );
+      }
+      allNames.set( alias.toLowerCase(), `alias "${alias}" on workflow "${name}"` );
+    }
+  }
+}
+
+/**
  * Creates a temporary index file importing all workflows for Temporal.
  *
  * @param {object[]} workflows
  * @returns
  */
 export function createWorkflowsEntryPoint( workflows ) {
+  validateAliasUniqueness( workflows );
+
   const path = join( __dirname, 'temp', WORKFLOWS_INDEX_FILENAME );
 
   // default system catalog workflow
   const catalog = { name: WORKFLOW_CATALOG, path: join( __dirname, './catalog_workflow/workflow.js' ) };
-  const content = [ ... workflows, catalog ].map( ( { name, path } ) => `export { default as ${name} } from '${path}';` ).join( EOL );
+  const aliasExports = workflows.flatMap( ( { aliases = [], path } ) =>
+    aliases.map( alias => ( { name: alias, path } ) )
+  );
+  const content = [ ...workflows, ...aliasExports, catalog ].map( ( { name, path } ) => `export { default as ${name} } from '${path}';` ).join( EOL );
 
   mkdirSync( dirname( path ), { recursive: true } );
   writeFileSync( path, content, 'utf-8' );

@@ -193,4 +193,27 @@ describe( 'createCatalog', () => {
     expect( workflows[0].path ).toBe( '/flows/flow1/workflow.js' );
     expect( workflows[1].path ).toBe( '/flows/flow2/workflow.js' );
   } );
+
+  it( 'includes aliases in catalog workflow entries', async () => {
+    const { createCatalog } = await import( './index.js' );
+
+    const workflows = [
+      {
+        name: 'flow1',
+        path: '/flows/flow1/workflow.js',
+        description: 'desc-flow1',
+        aliases: [ 'flow1_old', 'flow1_legacy' ]
+      },
+      {
+        name: 'flow2',
+        path: '/flows/flow2/workflow.js',
+        description: 'desc-flow2'
+      }
+    ];
+
+    const catalog = createCatalog( { workflows, activities: {} } );
+
+    expect( catalog.workflows[0].aliases ).toEqual( [ 'flow1_old', 'flow1_legacy' ] );
+    expect( catalog.workflows[1].aliases ).toEqual( [] );
+  } );
 } );

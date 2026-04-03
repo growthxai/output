@@ -1,0 +1,14 @@
+name: basic_input
+input:
+  values:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+last_output:
+  output:
+    result: 15
+    workflowId: test-cached
+  executionTimeMs: 100
+  date: '2026-02-13T00:00:00.000Z'

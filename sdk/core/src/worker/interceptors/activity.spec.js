@@ -191,6 +191,29 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( heartbeatMock ).not.toHaveBeenCalled();
   } );
 
+  it( 'resolves workflow alias in workflowsMap', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const workflows = [ { name: 'myWorkflow', path: '/workflows/myWorkflow.js', aliases: [ 'myWorkflowOld' ] } ];
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows } );
+
+    // Override context to use alias as workflowType
+    contextInfoMock.workflowType = 'myWorkflowOld';
+    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+
+    const promise = interceptor.execute( makeInput(), next );
+    vi.advanceTimersByTime( 0 );
+    await promise;
+
+    // Should resolve to the correct path despite using the alias
+    expect( runWithContextMock ).toHaveBeenCalledWith(
+      expect.any( Function ),
+      expect.objectContaining( { workflowFilename: '/workflows/myWorkflow.js' } )
+    );
+
+    // Restore for other tests
+    contextInfoMock.workflowType = 'myWorkflow';
+  } );
+
   it( 'does not heartbeat when OUTPUT_ACTIVITY_HEARTBEAT_ENABLED is false', async () => {
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED', 'false' );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );

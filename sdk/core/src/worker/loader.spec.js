@@ -111,6 +111,65 @@ describe( 'worker/loader', () => {
     expect( fsMocks.mkdirSync ).toHaveBeenCalledTimes( 1 );
   } );
 
+  it( 'createWorkflowsEntryPoint generates alias exports', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [ { name: 'W', path: '/abs/wf.js', aliases: [ 'W_old', 'W_legacy' ] } ];
+    createWorkflowsEntryPoint( workflows );
+
+    const [ , contents ] = fsMocks.writeFileSync.mock.calls[0];
+    expect( contents ).toContain( 'export { default as W } from \'/abs/wf.js\';' );
+    expect( contents ).toContain( 'export { default as W_old } from \'/abs/wf.js\';' );
+    expect( contents ).toContain( 'export { default as W_legacy } from \'/abs/wf.js\';' );
+  } );
+
+  it( 'createWorkflowsEntryPoint throws on alias conflicting with primary name', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'alpha', path: '/a.js', aliases: [] },
+      { name: 'beta', path: '/b.js', aliases: [ 'alpha' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "alpha" on workflow "beta" conflicts with workflow "alpha"/ );
+  } );
+
+  it( 'createWorkflowsEntryPoint throws on alias conflicting with another alias', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'alpha', path: '/a.js', aliases: [ 'shared_alias' ] },
+      { name: 'beta', path: '/b.js', aliases: [ 'shared_alias' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "shared_alias" on workflow "beta" conflicts with/ );
+  } );
+
+  it( 'createWorkflowsEntryPoint throws on alias identical to own name', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [ { name: 'alpha', path: '/a.js', aliases: [ 'alpha' ] } ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Workflow "alpha" has an alias identical to its own name/ );
+  } );
+
+  it( 'createWorkflowsEntryPoint catches case-insensitive alias collision with primary name', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'Alpha', path: '/a.js', aliases: [] },
+      { name: 'beta', path: '/b.js', aliases: [ 'alpha' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "alpha" on workflow "beta" conflicts with workflow "Alpha"/ );
+  } );
+
+  it( 'createWorkflowsEntryPoint catches case-insensitive alias-to-alias collision', async () => {
+    const { createWorkflowsEntryPoint } = await import( './loader.js' );
+
+    const workflows = [
+      { name: 'alpha', path: '/a.js', aliases: [ 'Legacy' ] },
+      { name: 'beta', path: '/b.js', aliases: [ 'legacy' ] }
+    ];
+    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "legacy" on workflow "beta" conflicts with/ );
+  } );
+
   it( 'loadActivities uses folder-based matchers for steps/evaluators and shared', async () => {
     const { loadActivities } = await import( './loader.js' );
     // First call (workflow dir): no results
