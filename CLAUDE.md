@@ -308,15 +308,22 @@ The nesting is intentional architecture, not redundancy.
 
 ## Schema Constraints for LLM Structured Output
 
-When using `Output.object()` with `generateText`, the Zod schema is converted to JSON Schema and sent to the LLM provider as a tool definition. **Anthropic does not support `minimum`/`maximum` JSON Schema constraints** on number fields, which means `.min()` and `.max()` on `z.number()` will cause errors or be silently ignored.
+When using `Output.object()` with `generateText`, the Zod schema is converted to JSON Schema and sent to the LLM provider as a tool definition. **Anthropic does not support many JSON Schema constraints**, which means certain Zod methods will cause errors or be silently ignored when the schema is sent to the provider.
 
-### Rule: Use `.describe()` instead of `.min()/.max()` for LLM output schemas
+### Unsupported constraints in LLM output schemas
+
+**Numbers**: `.min()`, `.max()` on `z.number()` produce `minimum`/`maximum` — rejected by Anthropic.
+
+**Arrays**: `.min()`, `.max()`, `.length()` on `z.array()` produce `minItems`/`maxItems` — Anthropic only supports `minItems` of `0` or `1`. Any other value (e.g. `.length(3)`, `.min(2)`) will be rejected.
+
+### Rule: Use `.describe()` instead of numeric/array constraints for LLM output schemas
 
 ```typescript
 // LLM output schema - sent to provider via Output.object()
 output: Output.object( {
   schema: z.object( {
-    score: z.number().describe( 'Quality score 0-100' )  // Correct
+    score: z.number().describe( 'Quality score 0-100' ),
+    predictions: z.array( predictionSchema ).describe( 'Exactly 3 predictions' )
   } )
 } )
 ```
@@ -324,20 +331,21 @@ output: Output.object( {
 ```typescript
 // Workflow/evaluator validation schema - Zod-only, NOT sent to LLM
 export const workflowOutputSchema = z.object( {
-  score: z.number().min( 0 ).max( 100 ).describe( 'Quality score 0-100' )  // Correct
+  score: z.number().min( 0 ).max( 100 ).describe( 'Quality score 0-100' ),
+  predictions: z.array( predictionSchema ).length( 3 ).describe( 'Exactly 3 predictions' )
 } );
 ```
 
 ### When to use which
 
-| Context | `.min()/.max()` | `.describe()` |
+| Context | `.min()/.max()/.length()` | `.describe()` |
 |---------|:-:|:-:|
-| Schema passed to `Output.object()` | No | Yes |
+| Schema passed to `Output.object()` | No (numbers or arrays) | Yes |
 | `inputSchema` / `outputSchema` on workflows | OK | Optional |
 | `outputSchema` on evaluators | OK | Optional |
 | `workflowOutputSchema` in types.ts | OK | Optional |
 
-The `.describe()` annotation guides the LLM on expected ranges. The `.min()/.max()` constraints are for runtime Zod validation only and should be used on schemas that validate data within your application, not schemas sent to LLM providers.
+The `.describe()` annotation guides the LLM on expected ranges and counts. The `.min()/.max()/.length()` constraints are for runtime Zod validation only and should be used on schemas that validate data within your application, not schemas sent to LLM providers.
 
 ## How to confirm you've made changes successfully
 

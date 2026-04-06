@@ -338,7 +338,7 @@ Prompts use YAML frontmatter + Liquid.js templating. Location: `src/workflows/{n
 ```
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4096
 ---
@@ -386,7 +386,7 @@ const { result } = await generateText({
 **Provider options:**
 | Provider | Model Examples |
 |----------|----------------|
-| `anthropic` | `claude-sonnet-4`, `claude-opus-4` |
+| `anthropic` | `claude-sonnet-4-6`, `claude-opus-4-6` |
 | `openai` | `gpt-4o`, `gpt-4o-mini` |
 | `vertex` | `gemini-2.0-flash`, `gemini-2.5-pro` |
 

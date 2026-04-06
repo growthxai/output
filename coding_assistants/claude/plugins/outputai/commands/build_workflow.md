@@ -212,7 +212,7 @@ export const llmStep = step( {
 ```
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 temperature: 0.7
 ---
 

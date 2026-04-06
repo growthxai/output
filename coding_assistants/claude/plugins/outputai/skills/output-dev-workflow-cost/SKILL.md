@@ -93,7 +93,7 @@ Workflow: process_transcripts
 Duration: 12.3s
 
 LLM Costs:
-  claude-sonnet-4 — 1,234 in / 567 out tokens — $0.0123
+  claude-sonnet-4-6 — 1,234 in / 567 out tokens — $0.0123
 
 Services:
   jina — 2 requests — $0.004

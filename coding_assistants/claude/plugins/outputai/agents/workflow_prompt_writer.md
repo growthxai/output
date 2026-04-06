@@ -31,7 +31,7 @@ Prompt files (`.prompt`) consist of YAML frontmatter followed by message content
 ```yaml
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 2000
 ---
@@ -51,7 +51,7 @@ maxTokens: 2000
 ### Recommended Models
 
 **Anthropic:**
-- `claude-sonnet-4` - Balanced performance (default)
+- `claude-sonnet-4-6` - Balanced performance (default)
 - `claude-opus-4-5` - Complex reasoning tasks
 - `claude-haiku-4-5` - Fast, simple tasks
 
@@ -570,9 +570,9 @@ Add comments at the top of complex prompts:
 #   - analysisDepth (string, optional): "summary" | "standard" | "comprehensive"
 #
 # Output: Structured competitive analysis with recommendations
-# Compatible with: claude-sonnet-4, gpt-5
+# Compatible with: claude-sonnet-4-6, gpt-5
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4000
 ---
