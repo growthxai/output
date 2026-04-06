@@ -13,7 +13,7 @@
     "output:dev": "output dev"
   },
   "dependencies": {
-    "@outputai/output": "^{{frameworkVersion}}"
+    "@outputai/output": "{{frameworkVersion}}"
   },
   "devDependencies": {
     "@types/node": "24.5.2",
