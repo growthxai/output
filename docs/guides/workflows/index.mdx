@@ -51,6 +51,7 @@ The `fn` function is your workflow logic. It calls steps in sequence, and each s
 | `outputSchema` | `ZodSchema` | Zod schema for output validation |
 | `fn` | `function` | The workflow implementation |
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
+| `aliases` | `string[]` | Optional alternative names for backward-compatible renaming (see [Aliases](#aliases)) |
 
 ## Workflow Rules
 
@@ -213,6 +214,28 @@ export default workflow({
 ```
 
 This only has effect when tracing is enabled globally; if tracing is off, the flag does nothing.
+
+## Aliases
+
+When you rename a workflow, existing callers still reference the old name. Aliases let you declare alternative names that resolve to the canonical workflow, so you can rename without a coordinated multi-deploy process:
+
+```typescript workflow.ts
+export default workflow({
+  name: 'lead_enrichment_v2',
+  description: 'Enriches sales leads with company data',
+  aliases: [ 'lead_enrichment', 'enrich_lead' ],
+  inputSchema: LeadInput,
+  outputSchema: LeadOutput,
+  fn: async (input) => {
+    const company = await lookupCompany(input.domain);
+    return { summary: await generateSummary(company) };
+  },
+});
+```
+
+Callers using `lead_enrichment` or `enrich_lead` are resolved to `lead_enrichment_v2` before execution. The workflow runs under its canonical name, keeping execution history consistent.
+
+Alias names follow the same naming rules as workflow names (letters, numbers, underscores). Uniqueness is enforced case-insensitively at startup — an alias cannot conflict with any workflow name or another alias.
 
 ## Workflow Context
 

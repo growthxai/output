@@ -270,4 +270,10 @@ export declare function workflow<
   outputSchema?: OutputSchema;
   fn: WorkflowFunction<InputSchema, OutputSchema>;
   options?: WorkflowOptions;
+
+  /**
+   * Alternative names that resolve to this workflow. Useful when renaming a workflow
+   * while maintaining backward compatibility with existing callers.
+   */
+  aliases?: string[];
 } ): WorkflowFunctionWrapper<WorkflowFunction<InputSchema, OutputSchema>>;

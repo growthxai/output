@@ -22,8 +22,8 @@ const defaultOptions = {
   disableTrace: false
 };
 
-export function workflow( { name, description, inputSchema, outputSchema, fn, options = {} } ) {
-  validateWorkflow( { name, description, inputSchema, outputSchema, fn, options } );
+export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
+  validateWorkflow( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
   const { disableTrace, activityOptions } = deepMerge( defaultOptions, options );
   const steps = proxyActivities( activityOptions );
@@ -123,6 +123,6 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     }
   };
 
-  setMetadata( wrapper, { name, description, inputSchema, outputSchema } );
+  setMetadata( wrapper, { name, description, inputSchema, outputSchema, aliases } );
   return wrapper;
 };

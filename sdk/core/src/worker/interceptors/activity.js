@@ -25,7 +25,13 @@ import { messageBus } from '#bus';
 export class ActivityExecutionInterceptor {
   constructor( { activities, workflows } ) {
     this.activities = activities;
-    this.workflowsMap = workflows.reduce( ( map, w ) => map.set( w.name, w ), new Map() );
+    this.workflowsMap = workflows.reduce( ( map, w ) => {
+      map.set( w.name, w );
+      for ( const alias of w.aliases ?? [] ) {
+        map.set( alias, w );
+      }
+      return map;
+    }, new Map() );
   };
 
   async execute( input, next ) {
@@ -33,10 +39,16 @@ export class ActivityExecutionInterceptor {
     const { workflowExecution: { workflowId }, activityId: id, activityType: name, workflowType: workflowName } = Context.current().info;
     const { executionContext } = headersToObject( input.headers );
     const { type: kind } = this.activities?.[name]?.[METADATA_ACCESS_SYMBOL];
-    const workflowFilename = this.workflowsMap.get( workflowName ).path;
 
     messageBus.emit( BusEventType.ACTIVITY_START, { id, name, kind, workflowId, workflowName } );
     Tracing.addEventStart( { id, name, kind, parentId: workflowId, details: input.args[0], executionContext } );
+
+    const workflowEntry = this.workflowsMap.get( workflowName );
+    if ( !workflowEntry ) {
+      const availableWorkflows = [ ...this.workflowsMap.keys() ].join( ', ' );
+      throw new Error( `Activity interceptor: workflow "${workflowName}" not found in workflowsMap. Available: [${availableWorkflows}]` );
+    }
+    const workflowFilename = workflowEntry.path;
 
     const intervals = { heartbeat: null };
     try {

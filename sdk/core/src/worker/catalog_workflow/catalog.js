@@ -97,6 +97,11 @@ export class CatalogWorkflow extends CatalogEntry {
    * @type {Array<CatalogActivity>}
    */
   activities;
+  /**
+   * Alternative names that resolve to this workflow.
+   * @type {Array<string>}
+   */
+  aliases;
 
   /**
    * @param {Object} params - Entry parameters.
@@ -106,9 +111,11 @@ export class CatalogWorkflow extends CatalogEntry {
    * @param {object} [params.outputSchema] - JSON schema describing the produced output.
    * @param {string} params.path - Absolute path of the entity in the file system.
    * @param {Array<CatalogActivity>} params.activities - Each activity of this workflow
+   * @param {Array<string>} [params.aliases] - Alternative names for this workflow
    */
-  constructor( { activities, ...args } ) {
+  constructor( { activities, aliases = [], ...args } ) {
     super( args );
     this.activities = activities;
+    this.aliases = aliases;
   };
 };
