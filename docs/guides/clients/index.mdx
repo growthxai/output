@@ -25,7 +25,7 @@ const getApiKey = () => {
 
 const createClient = () =>
   httpClient({
-    prefixUrl: 'https://api.tavily.com',
+    prefix: 'https://api.tavily.com',
     timeout: 60000,
   });
 
@@ -47,7 +47,7 @@ export const tavilyClient = {
 
 That's a complete, working client. Let's break down what's happening:
 
-**`createClient()`** builds an HTTP client with a base URL and timeout. Every request through this client is automatically traced — you'll see the URL, status code, and timing in your workflow trace. The `prefixUrl` means you only write relative paths like `'search'` instead of the full URL.
+**`createClient()`** builds an HTTP client with a base URL and timeout. Every request through this client is automatically traced — you'll see the URL, status code, and timing in your workflow trace. The `prefix` means you only write relative paths like `'search'` instead of the full URL.
 
 **`getApiKey()`** reads the API key from an environment variable. It throws a `FatalError` if the key is missing — this tells Output "don't retry this step, it will never succeed without the key." More on this in [Error Handling](#error-handling).
 
@@ -84,7 +84,7 @@ The most common pattern — pass a token in the `Authorization` header. Many int
 ```typescript src/clients/hubspot.ts
 const createClient = () =>
   httpClient({
-    prefixUrl: 'https://api.hubapi.com',
+    prefix: 'https://api.hubapi.com',
     timeout: 30000,
     headers: {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
@@ -100,7 +100,7 @@ Some APIs use a custom header name like `x-api-key` instead of the standard `Aut
 ```typescript src/clients/exa.ts
 const createClient = () =>
   httpClient({
-    prefixUrl: 'https://api.exa.ai',
+    prefix: 'https://api.exa.ai',
     timeout: 60000,
   });
 
@@ -125,7 +125,7 @@ const createClient = () => {
   const userId = process.env.SERVICE_USER_ID;
   const apiKey = process.env.SERVICE_API_KEY;
   return httpClient({
-    prefixUrl: 'https://api.example.com/v1',
+    prefix: 'https://api.example.com/v1',
     timeout: 120000,
     headers: {
       Authorization: `Basic ${Buffer.from(`${userId}:${apiKey}`).toString('base64')}`,
@@ -146,7 +146,7 @@ import { z } from '@outputai/core';
 
 const createClient = () =>
   httpClient({
-    prefixUrl: 'https://company.clearbit.com/v2',
+    prefix: 'https://company.clearbit.com/v2',
     timeout: 30000,
     headers: {
       Authorization: `Bearer ${process.env.CLEARBIT_API_KEY}`,
@@ -364,7 +364,7 @@ const getApiKey = () => {
 
 const createClient = () =>
   httpClient({
-    prefixUrl: TAVILY_API_URL,
+    prefix: TAVILY_API_URL,
     timeout: 60000,
   });
 

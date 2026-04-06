@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { KyRequest, KyResponse, NormalizedOptions } from 'ky';
+import type { AfterResponseState, KyRequest, KyResponse } from 'ky';
 import { traceResponse } from './trace_response.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { config } from '../config.js';
@@ -34,10 +34,8 @@ describe( 'http/hooks/trace_response', () => {
 
     const request = new Request( 'https://api.example.com/users/1', { method: 'GET' } ) as KyRequest;
     const response = new Response( 'ok', { status: 200, statusText: 'OK' } ) as KyResponse;
-    const options = {} as NormalizedOptions;
-    const state = { retryCount: 0 };
 
-    const result = await traceResponse( request, options, response, state );
+    const result = await traceResponse( { request, response } as AfterResponseState );
     expect( result ).toBe( response );
 
     expect( mockedTracing.addEventEnd ).toHaveBeenCalledTimes( 1 );
@@ -54,10 +52,8 @@ describe( 'http/hooks/trace_response', () => {
       statusText: 'Created',
       headers: { 'content-type': 'application/json', authorization: 'secret', 'x-custom': 'v' }
     } ) as KyResponse;
-    const options = {} as NormalizedOptions;
-    const state = { retryCount: 0 };
 
-    await traceResponse( request, options, response, state );
+    await traceResponse( { request, response } as AfterResponseState );
 
     const arg = mockedTracing.addEventEnd.mock.calls[0][0] as { details: Record<string, unknown> };
     expect( arg.details.status ).toBe( 201 );
@@ -75,10 +71,8 @@ describe( 'http/hooks/trace_response', () => {
       statusText: 'OK',
       headers: { 'content-type': 'text/plain' }
     } ) as KyResponse;
-    const options = {} as NormalizedOptions;
-    const state = { retryCount: 0 };
 
-    await traceResponse( request, options, response, state );
+    await traceResponse( { request, response } as AfterResponseState );
 
     const arg = mockedTracing.addEventEnd.mock.calls[0][0] as { details: Record<string, unknown> };
     expect( arg.details.body ).toEqual( { mocked: true } );

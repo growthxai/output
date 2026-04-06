@@ -1,4 +1,4 @@
-import type { BeforeRequestHook, NormalizedOptions } from 'ky';
+import type { BeforeRequestHook } from 'ky';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { redactHeaders, createTraceId, parseRequestBody } from '#utils/index.js';
 import { config } from '#config.js';
@@ -7,7 +7,7 @@ import { config } from '#config.js';
  * Traces HTTP request for observability using Output.ai tracing
  * Respects OUTPUT_TRACE_HTTP_VERBOSE environment variable for detailed logging
  */
-export const traceRequest: BeforeRequestHook = async ( request: Request, _options: NormalizedOptions, _state ) => {
+export const traceRequest: BeforeRequestHook = async ( { request } ) => {
   const traceId = createTraceId( request );
 
   // Skip tracing if no X-Request-ID header is present

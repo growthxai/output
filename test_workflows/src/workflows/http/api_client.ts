@@ -2,19 +2,19 @@ import { httpClient, HttpClientOptions } from '@outputai/http';
 import type { HttpBinResponse, ClientInput, ContractInput } from './types.js';
 
 const httpBinClient = httpClient( {
-  prefixUrl: 'https://httpbin.io/anything',
+  prefix: 'https://httpbin.io/anything',
   timeout: 3000
 } );
 
 const clientsClient = httpBinClient.extend( options => ( {
-  prefixUrl: `${options.prefixUrl}/clients`,
+  prefix: `${options.prefix}/clients`,
   headers: {
     'X-API-Key': 'demo-api-key-12345'
   }
 } ) as HttpClientOptions );
 
 const contractsClient = httpBinClient.extend( options => ( {
-  prefixUrl: `${options.prefixUrl}/contracts`,
+  prefix: `${options.prefix}/contracts`,
   headers: {
     Authorization: `Basic ${Buffer.from( 'demo-user:demo-pass' ).toString( 'base64' )}`
   },

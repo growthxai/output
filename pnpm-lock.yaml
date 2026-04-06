@@ -31,11 +31,14 @@ catalogs:
       specifier: 4.1.1
       version: 4.1.1
     ky:
-      specifier: 1.14.3
-      version: 1.14.3
+      specifier: 2.0.0
+      version: 2.0.0
     semver:
       specifier: 7.7.4
       version: 7.7.4
+    undici:
+      specifier: 7.24.6
+      version: 7.24.6
     winston:
       specifier: 3.19.0
       version: 3.19.0
@@ -221,7 +224,7 @@ importers:
         version: 11.0.5
       ky:
         specifier: 'catalog:'
-        version: 1.14.3
+        version: 2.0.0
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -290,7 +293,7 @@ importers:
         specifier: 0.1.11
         version: 0.1.11
       undici:
-        specifier: 7.24.6
+        specifier: 'catalog:'
         version: 7.24.6
       winston:
         specifier: 'catalog:'
@@ -352,7 +355,11 @@ importers:
         version: link:../core
       ky:
         specifier: 'catalog:'
-        version: 1.14.3
+        version: 2.0.0
+    devDependencies:
+      undici:
+        specifier: 'catalog:'
+        version: 7.24.6
 
   sdk/llm:
     dependencies:
@@ -5029,9 +5036,9 @@ packages:
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
 
-  ky@1.14.3:
-    resolution: {integrity: sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw==}
-    engines: {node: '>=18'}
+  ky@2.0.0:
+    resolution: {integrity: sha512-KzI4Vz5AbZFAUFYGx28PCSfFWUo6/qj9Br/P6KRwDieE1xfdz0tIONepJcLw/1xLocN13GgvfJGasa+pfSkbHg==}
+    engines: {node: '>=22'}
 
   lcm@0.0.3:
     resolution: {integrity: sha512-TB+ZjoillV6B26Vspf9l2L/vKaRY/4ep3hahcyVkCGFgsTNRUQdc24bQeNFiZeoxH0vr5+7SfNRMQuPHv/1IrQ==}
@@ -13099,7 +13106,7 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  ky@1.14.3: {}
+  ky@2.0.0: {}
 
   lcm@0.0.3:
     dependencies:

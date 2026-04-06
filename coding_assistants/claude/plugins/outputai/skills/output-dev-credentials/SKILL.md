@@ -157,7 +157,7 @@ import { httpClient } from '@outputai/http';
 const API_KEY = process.env.SERVICE_API_KEY || '';
 
 const client = httpClient({
-  prefixUrl: 'https://api.service.com',
+  prefix: 'https://api.service.com',
   headers: { Authorization: `Bearer ${API_KEY}` }
 });
 ```
@@ -171,7 +171,7 @@ import { credentials } from '@outputai/credentials';
 const apiKey = credentials.require('service.api_key');
 
 const client = httpClient({
-  prefixUrl: 'https://api.service.com',
+  prefix: 'https://api.service.com',
   headers: { Authorization: `Bearer ${apiKey}` }
 });
 ```

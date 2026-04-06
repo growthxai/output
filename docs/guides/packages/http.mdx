@@ -15,7 +15,7 @@ The typical pattern is to create a client per external service in your [clients 
 import { httpClient } from '@outputai/http';
 
 export const jina = httpClient({
-  prefixUrl: 'https://r.jina.ai',
+  prefix: 'https://r.jina.ai',
   headers: {
     'Authorization': `Bearer ${process.env.JINA_API_KEY}`,
     'Accept': 'application/json'

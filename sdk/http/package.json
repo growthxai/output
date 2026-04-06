@@ -15,6 +15,9 @@
     "@outputai/core": "workspace:",
     "ky": "catalog:"
   },
+  "devDependencies": {
+    "undici": "catalog:"
+  },
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"

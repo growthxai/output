@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { KyRequest, NormalizedOptions } from 'ky';
+import type { BeforeRequestState, KyRequest } from 'ky';
 import { traceRequest } from './trace_request.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { config } from '../config.js';
@@ -33,10 +33,8 @@ describe( 'http/hooks/trace_request', () => {
     mockedConfig.logVerbose = false;
 
     const request = new Request( 'https://api.example.com/users/1', { method: 'GET' } ) as KyRequest;
-    const options = {} as NormalizedOptions;
-    const state = { retryCount: 0 };
 
-    await traceRequest( request, options, state );
+    await traceRequest( { request } as BeforeRequestState );
 
     expect( mockedTracing.addEventStart ).toHaveBeenCalledTimes( 1 );
     const arg = mockedTracing.addEventStart.mock.calls[0][0] as { details: Record<string, unknown> };
@@ -59,10 +57,8 @@ describe( 'http/hooks/trace_request', () => {
       },
       body: JSON.stringify( { name: 'test' } )
     } ) as KyRequest;
-    const options = {} as NormalizedOptions;
-    const state = { retryCount: 0 };
 
-    await traceRequest( request, options, state );
+    await traceRequest( { request } as BeforeRequestState );
 
     expect( mockedTracing.addEventStart ).toHaveBeenCalledTimes( 1 );
     const arg = mockedTracing.addEventStart.mock.calls[0][0] as { details: Record<string, unknown> };

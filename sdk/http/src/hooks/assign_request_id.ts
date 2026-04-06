@@ -8,7 +8,7 @@ import type { BeforeRequestHook } from 'ky';
  *
  * If X-Request-ID already exists (from upstream), it's preserved for propagation
  */
-export const assignRequestId: BeforeRequestHook = ( request: Request ) => {
+export const assignRequestId: BeforeRequestHook = ( { request } ) => {
   const existingId = request.headers.get( 'X-Request-ID' );
 
   if ( !existingId ) {

@@ -1,7 +1,9 @@
 import ky from 'ky';
-import type { Options } from 'ky';
+import type { Options as HttpClientOptions } from 'ky';
 import { assignRequestId, traceRequest, traceResponse, traceError } from './hooks/index.js';
-import { applyFetchErrorTracing } from '#hooks/trace_error.js';
+
+export type { Options as HttpClientOptions } from 'ky';
+export { HTTPError, TimeoutError } from 'ky';
 
 const baseHttpClient = ky.create( {
   hooks: {
@@ -18,15 +20,6 @@ const baseHttpClient = ky.create( {
   }
 } );
 
-const applyDefaultOptions = ( userOptions: Options ) => ( parentOptions: Options ) => {
-  const kyFetch = parentOptions.fetch || globalThis.fetch.bind( globalThis );
-  const patchedFetch = applyFetchErrorTracing( kyFetch );
-  return {
-    fetch: patchedFetch,
-    ...userOptions
-  };
-};
-
 /**
  * Creates a ky client.
  *
@@ -37,7 +30,7 @@ const applyDefaultOptions = ( userOptions: Options ) => ( parentOptions: Options
  * import { httpClient } from '@outputai/http';
  *
  * const client = httpClient({
- *   prefixUrl: 'https://api.example.com',
+ *   prefix: 'https://api.example.com',
  *   timeout: 30000,
  *   retry: { limit: 3 }
  * });
@@ -49,9 +42,4 @@ const applyDefaultOptions = ( userOptions: Options ) => ( parentOptions: Options
  * @param options - The ky options to extend the base client.
  * @returns A ky instance extended with Output.ai tracing hooks.
  */
-export function httpClient( options: Options = {} ) {
-  return baseHttpClient.extend( applyDefaultOptions( options ) );
-}
-
-export { HTTPError, TimeoutError } from 'ky';
-export type { Options as HttpClientOptions } from 'ky';
+export const httpClient = ( options: HttpClientOptions = {} ) => baseHttpClient.extend( options );

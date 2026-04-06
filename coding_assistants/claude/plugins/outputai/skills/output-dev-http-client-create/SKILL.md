@@ -101,7 +101,7 @@ const API_KEY = credentials.require('service.api_key');
 const BASE_URL = 'https://api.service.com';
 
 const serviceClient = httpClient({
-  prefixUrl: BASE_URL,
+  prefix: BASE_URL,
   headers: {
     Authorization: `Bearer ${API_KEY}`,
     Accept: 'application/json'
@@ -155,7 +155,7 @@ export class ServiceClient {
     const key = apiKey ?? credentials.require('service.api_key');
 
     this.client = httpClient({
-      prefixUrl: 'https://api.service.com',
+      prefix: 'https://api.service.com',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json'
@@ -209,7 +209,7 @@ const JINA_API_KEY = process.env.JINA_API_KEY || '';
 const JINA_BASE_URL = 'https://r.jina.ai';
 
 const jinaClient = httpClient({
-  prefixUrl: JINA_BASE_URL,
+  prefix: JINA_BASE_URL,
   headers: {
     Authorization: `Bearer ${JINA_API_KEY}`,
     Accept: 'application/json'

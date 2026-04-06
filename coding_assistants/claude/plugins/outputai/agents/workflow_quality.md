@@ -83,7 +83,7 @@ export default workflow({
 export const fetchData = step({
   name: 'fetchData',
   fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
+    const client = httpClient({ prefix: 'https://api.example.com' });
     return client.get('endpoint').json();
   }
 });
@@ -117,7 +117,7 @@ Never use axios directly. Use `@outputai/http`:
 import { httpClient } from '@outputai/http';
 
 const client = httpClient({
-  prefixUrl: 'https://api.example.com',
+  prefix: 'https://api.example.com',
   timeout: 30000,
   retry: { limit: 3 }
 });

@@ -32,7 +32,7 @@ export type ApiRequestOptions = RequestInit & {
 };
 
 const api = ky.create( {
-  prefixUrl: config.apiUrl,
+  prefix: config.apiUrl,
   timeout: config.requestTimeout,
   retry: {
     limit: 2,
@@ -42,7 +42,7 @@ const api = ky.create( {
   throwHttpErrors: false,
   hooks: {
     beforeRequest: [
-      request => {
+      ( { request } ) => {
         // Add auth token if available
         if ( config.apiToken ) {
           request.headers.set( 'Authorization', `Basic ${config.apiToken}` );

@@ -1,4 +1,4 @@
-import type { AfterResponseHook, KyResponse, NormalizedOptions } from 'ky';
+import type { AfterResponseHook } from 'ky';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { redactHeaders, createTraceId, parseResponseBody } from '#utils/index.js';
 import { config } from '#config.js';
@@ -7,7 +7,7 @@ import { config } from '#config.js';
  * Traces HTTP response for observability using Output.ai tracing
  * Respects OUTPUT_TRACE_HTTP_VERBOSE environment variable for detailed logging
  */
-export const traceResponse: AfterResponseHook = async ( request: Request, _options: NormalizedOptions, response: KyResponse, _state ) => {
+export const traceResponse: AfterResponseHook = async ( { request, response } ) => {
   const traceId = createTraceId( request );
 
   // Skip tracing if no X-Request-ID header is present

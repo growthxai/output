@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { KyRequest, KyResponse, NormalizedOptions } from 'ky';
+import type { BeforeErrorState, KyRequest, KyResponse, NormalizedOptions } from 'ky';
 import { HTTPError } from 'ky';
 import { traceError } from './trace_error.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
@@ -32,7 +32,7 @@ describe( 'http/hooks/trace_error', () => {
 
     const error = new HTTPError( response, request, {} as NormalizedOptions );
 
-    const returned = await traceError( error, { retryCount: 0 } );
+    const returned = await traceError( { error, request } as unknown as BeforeErrorState );
 
     expect( returned ).toBe( error );
     expect( mockedTracing.addEventError ).toHaveBeenCalledTimes( 1 );

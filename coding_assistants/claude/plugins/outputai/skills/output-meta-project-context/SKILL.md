@@ -258,7 +258,7 @@ import { httpClient } from '@outputai/http';
 export const fetchData = step(
   { name: 'fetchData', inputSchema: z.string(), outputSchema: z.any() },
   async (url) => {
-    const client = httpClient({ prefixUrl: url });
+    const client = httpClient({ prefix: url });
     const response = await client.get('');
     return response.json();
   }
@@ -280,7 +280,7 @@ import { credentials } from '@outputai/credentials';
 const API_KEY = credentials.require('example.api_key');
 
 const client = httpClient({
-  prefixUrl: 'https://api.example.com',
+  prefix: 'https://api.example.com',
   headers: { Authorization: `Bearer ${API_KEY}` },
   timeout: 30000,
   retry: { limit: 3, statusCodes: [408, 429, 500, 502, 503, 504] }

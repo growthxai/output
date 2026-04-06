@@ -101,7 +101,7 @@ export const fetchData = step({
     data: z.unknown(),
   }),
   fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
+    const client = httpClient({ prefix: 'https://api.example.com' });
     const data = await client.get(input.endpoint).json();
     return { data };
   },

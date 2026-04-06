@@ -77,7 +77,7 @@ export const fetchData = step({
   }),
   fn: async (input) => {
     const client = httpClient({
-      prefixUrl: 'https://api.example.com',
+      prefix: 'https://api.example.com',
     });
 
     const data = await client.get(input.endpoint).json();
@@ -92,7 +92,7 @@ export const fetchData = step({
 import { httpClient } from '@outputai/http';
 
 const client = httpClient({
-  prefixUrl: 'https://api.example.com',
+  prefix: 'https://api.example.com',
   timeout: 30000,  // 30 second timeout
   retry: {
     limit: 3,      // Retry up to 3 times
@@ -202,7 +202,7 @@ export const createUser = step({
   }),
   fn: async (input) => {
     const client = httpClient({
-      prefixUrl: 'https://api.example.com',
+      prefix: 'https://api.example.com',
       timeout: 30000,
       retry: { limit: 3 },
       headers: {
@@ -232,7 +232,7 @@ import { httpClient, HTTPError } from '@outputai/http';
 export const fetchData = step({
   name: 'fetchData',
   fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
+    const client = httpClient({ prefix: 'https://api.example.com' });
 
     try {
       return await client.get('data').json();
@@ -276,7 +276,7 @@ grep -rn "got\|node-fetch\|request\|superagent" src/
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `prefixUrl` | Base URL for all requests | (required) |
+| `prefix` | Base URL for all requests | (required) |
 | `timeout` | Request timeout in ms | 10000 |
 | `retry.limit` | Max retry attempts | 2 |
 | `retry.methods` | HTTP methods to retry | ['GET', 'PUT', 'HEAD', 'DELETE', 'OPTIONS', 'TRACE'] |

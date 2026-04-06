@@ -4,7 +4,6 @@ import { httpClient } from './index.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 import createTraceId from './utils/create_trace_id.js';
 import { traceRequest, traceResponse, traceError } from './hooks/index.js';
-import { applyFetchErrorTracing } from './hooks/trace_error.js';
 
 // Helper function for trace ID format validation
 const isUuidFormat = ( traceId: string ): boolean => {
@@ -38,7 +37,7 @@ const getHeader = ( headers: Record<string, string | string[]>, key: string ): s
 
 describe( 'HTTP Client Authentication Integration', () => {
   const httpBinClient = httpClient( {
-    prefixUrl: 'https://httpbingo.org',
+    prefix: 'https://httpbingo.org',
     timeout: 5000
   } );
 
@@ -96,7 +95,7 @@ describe( 'HTTP Client Authentication Integration', () => {
   } );
 
   describe( 'URL Path Construction', () => {
-    it( 'should correctly build URLs with chained prefixUrl', async () => {
+    it( 'should correctly build URLs with chained prefix', async () => {
       const response = await clientsClient.get( 'anything/clients/details' );
       const data = await response.json() as HttpBinResponse;
 
@@ -186,7 +185,7 @@ describe( 'HTTP Client Authentication Integration', () => {
 
     it( 'should trace timeout errors exactly once (no double-tracing)', async () => {
       const timeoutClient = httpClient( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         timeout: 1 // 1ms timeout will definitely fail on /delay/5
       } );
 
@@ -199,9 +198,9 @@ describe( 'HTTP Client Authentication Integration', () => {
       expect( errorCall ).toHaveProperty( 'id' );
       expect( errorCall ).toHaveProperty( 'details' );
 
-      // In real execution, ky's timeout throws a DOMException (AbortError)
-      expect( errorCall.details ).toHaveProperty( 'message' );
-      expect( ( errorCall.details as Error ).message ).toMatch( /Fetch aborted|Unknown error/ );
+      // trace_error passes the thrown value as details for non-HTTPError (e.g. TimeoutError / DOMException)
+      expect( errorCall.details ).toBeDefined();
+      expect( typeof ( errorCall.details as { message?: string } ).message ).toBe( 'string' );
     }, 10000 );
   } );
 
@@ -247,7 +246,7 @@ describe( 'HTTP Client Authentication Integration', () => {
 
     it( 'should use same UUID trace ID for addEventStart and addEventError on timeout errors', async () => {
       const timeoutClient = httpClient( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         timeout: 50
       } );
 
@@ -266,7 +265,7 @@ describe( 'HTTP Client Authentication Integration', () => {
 
     it( 'should maintain trace ID consistency between ky hooks and wrapped fetch', async () => {
       const errorClient = httpClient( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         timeout: 1,
         retry: { limit: 0 }
       } );
@@ -335,7 +334,7 @@ describe( 'HTTP Client Authentication Integration', () => {
 
     it( 'should skip tracing when assignRequestId hook is not present', async () => {
       const noUuidClient = ky.create( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         hooks: {
           beforeRequest: [
             traceRequest
@@ -349,34 +348,27 @@ describe( 'HTTP Client Authentication Integration', () => {
         }
       } );
 
-      const wrappedNoUuidClient = noUuidClient.extend( {
-        fetch: applyFetchErrorTracing( globalThis.fetch )
-      } );
-
-      const response = await wrappedNoUuidClient.get( 'anything/no-trace-test' );
+      const response = await noUuidClient.get( 'anything/no-trace-test' );
       expect( response.status ).toBe( 200 );
 
       // No tracing should occur without X-Request-ID
       expect( mockedTracing.addEventStart ).not.toHaveBeenCalled();
       expect( mockedTracing.addEventEnd ).not.toHaveBeenCalled();
 
-      // Warning should be logged
-      expect( console.warn ).toHaveBeenCalledWith(
-        'createTraceId: X-Request-ID header not found. Tracing will be skipped for this request.'
-      );
+      // createTraceId / trace hooks warn when the header is missing
+      expect( console.warn ).toHaveBeenCalled();
+      expect( vi.mocked( console.warn ).mock.calls.some( c => String( c[0] ).includes( 'X-Request-ID' ) ) ).toBe( true );
     }, 10000 );
 
     it( 'should skip tracing for errors when X-Request-ID is missing', async () => {
       const noUuidClient = ky.create( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         hooks: {
           beforeRequest: [ traceRequest ],
           afterResponse: [ traceResponse ],
           beforeError: [ traceError ]
         },
         retry: { limit: 0 }
-      } ).extend( {
-        fetch: applyFetchErrorTracing( globalThis.fetch )
       } );
 
       await expect( noUuidClient.get( 'status/500' ) ).rejects.toThrow();
@@ -459,7 +451,7 @@ describe( 'HTTP Client Authentication Integration', () => {
 
     it( 'should maintain trace ID consistency during timeout errors', async () => {
       const timeoutClient = httpClient( {
-        prefixUrl: 'https://httpbingo.org',
+        prefix: 'https://httpbingo.org',
         timeout: 300
       } );
 

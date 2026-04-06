@@ -13,7 +13,7 @@ export interface JinaReaderResponse {
 }
 
 const jinaClient = httpClient( {
-  prefixUrl: 'https://r.jina.ai',
+  prefix: 'https://r.jina.ai',
   timeout: 30000
 } );
 
