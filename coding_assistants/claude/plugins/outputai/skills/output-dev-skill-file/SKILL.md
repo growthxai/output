@@ -89,7 +89,7 @@ Place `.md` files in a `skills/` folder next to your prompt file. Output discove
 ```yaml
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 maxTokens: 2048
 ---
 
@@ -117,7 +117,7 @@ Reference specific skill files or directories in the prompt YAML frontmatter. Pa
 ```yaml
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 skills:
   - ./skills/
   - ../shared_skills/tone_guide.md
@@ -213,7 +213,7 @@ OUTPUT_COMPLETE
 ```yaml
 ---
 provider: anthropic
-model: claude-sonnet-4
+model: claude-sonnet-4-6
 maxTokens: 2048
 ---
 

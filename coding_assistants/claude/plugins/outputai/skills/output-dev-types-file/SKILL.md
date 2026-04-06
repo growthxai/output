@@ -75,7 +75,7 @@ const describedString = z.string().describe('Field description');
 // Numbers
 const numberField = z.number();
 const integerField = z.number().int();
-const rangedNumber = z.number().min(1).max(100);
+const rangedNumber = z.number().min(1).max(100); // runtime only — NOT safe for Output.object() schemas
 
 // Booleans
 const booleanField = z.boolean();
@@ -133,26 +133,34 @@ const positiveNumber = z.number().positive();
 const nonNegativeNumber = z.number().nonnegative();
 const percentageNumber = z.number().min(0).max(100);
 
-// Array Validations
+// Array Validations (runtime only — NOT safe for Output.object() schemas)
 const nonEmptyArray = z.array(z.string()).min(1);
 const limitedArray = z.array(z.string()).max(10);
+const fixedLengthArray = z.array(z.string()).length(3);
 ```
 
 ### Schema Constraints for LLM Output
 
-**Important**: Schemas passed to `Output.object()` (sent to LLM providers) must NOT use `.min()/.max()` on `z.number()`. Anthropic rejects `minimum`/`maximum` JSON Schema constraints. Use `.describe()` instead to guide the LLM on expected ranges.
+**Important**: Schemas passed to `Output.object()` (sent to LLM providers) have constraints that Anthropic rejects:
+
+- **Numbers**: `.min()`, `.max()` on `z.number()` produce `minimum`/`maximum` — rejected.
+- **Arrays**: `.min()`, `.max()`, `.length()` on `z.array()` produce `minItems`/`maxItems` — Anthropic only supports `minItems` of `0` or `1`. Values like `.length(3)` or `.min(2)` will fail.
+
+Use `.describe()` instead to guide the LLM on expected ranges and counts.
 
 ```typescript
 // Schema for Output.object() (sent to LLM) - use .describe() only
 const llmOutputSchema = z.object({
   score: z.number().describe('Quality score 0-100'),
-  confidence: z.number().describe('Confidence 0-1')
+  confidence: z.number().describe('Confidence 0-1'),
+  predictions: z.array(predictionSchema).describe('Exactly 3 predictions')
 });
 
-// Schema for workflow/step input/output (Zod validation only) - .min()/.max() OK
+// Schema for workflow/step input/output (Zod validation only) - .min()/.max()/.length() OK
 const workflowOutputSchema = z.object({
   score: z.number().min(0).max(100).describe('Quality score 0-100'),
-  confidence: z.number().min(0).max(1).describe('Confidence 0-1')
+  confidence: z.number().min(0).max(1).describe('Confidence 0-1'),
+  predictions: z.array(predictionSchema).length(3).describe('Exactly 3 predictions')
 });
 ```
 
@@ -274,7 +282,7 @@ export type User = z.infer<typeof UserSchema>;
 - [ ] Each step has corresponding input/output schemas
 - [ ] All schemas have `.describe()` for important fields
 - [ ] Optional fields use `.optional()` or `.default()`
-- [ ] Numeric fields have appropriate min/max constraints
+- [ ] Numeric fields have appropriate constraints (`.min()/.max()` for runtime schemas, `.describe()` for `Output.object()` schemas)
 
 ## Related Skills
 

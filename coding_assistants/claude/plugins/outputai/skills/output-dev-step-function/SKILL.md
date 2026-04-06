@@ -529,7 +529,7 @@ fn: async (input) => {
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
 - [ ] `httpClient` imported from `@outputai/http` (not axios)
 - [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
-- [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()`) on number schemas
+- [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each step
 - [ ] Each step has `name`, `description`, `inputSchema`, `outputSchema`, `fn`
