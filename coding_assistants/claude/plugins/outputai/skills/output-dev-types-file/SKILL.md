@@ -75,7 +75,7 @@ const describedString = z.string().describe('Field description');
 // Numbers
 const numberField = z.number();
 const integerField = z.number().int();
-const rangedNumber = z.number().min(1).max(100);
+const rangedNumber = z.number().min(1).max(100); // runtime only — NOT safe for Output.object() schemas
 
 // Booleans
 const booleanField = z.boolean();
@@ -282,7 +282,7 @@ export type User = z.infer<typeof UserSchema>;
 - [ ] Each step has corresponding input/output schemas
 - [ ] All schemas have `.describe()` for important fields
 - [ ] Optional fields use `.optional()` or `.default()`
-- [ ] Numeric fields have appropriate min/max constraints
+- [ ] Numeric fields have appropriate constraints (`.min()/.max()` for runtime schemas, `.describe()` for `Output.object()` schemas)
 
 ## Related Skills
 
