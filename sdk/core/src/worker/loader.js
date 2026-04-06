@@ -138,7 +138,7 @@ export async function loadHooks( rootDir ) {
  * @param {object[]} workflows
  * @throws {Error} If any alias conflicts with a workflow name or another alias
  */
-function validateAliasUniqueness( workflows ) {
+function validateWorkflowNames( workflows ) {
   const allNames = new Map();
 
   // Register primary names (case-insensitive to prevent confusing collisions)
@@ -151,15 +151,17 @@ function validateAliasUniqueness( workflows ) {
 
   // Check aliases against all names
   for ( const { name, aliases = [] } of workflows ) {
+    const lowerCaseName = name.toLowerCase();
     for ( const alias of aliases ) {
-      if ( alias.toLowerCase() === name.toLowerCase() ) {
+      const lowerAliasName = alias.toLowerCase();
+      if ( lowerAliasName === lowerCaseName ) {
         throw new Error( `Workflow "${name}" has an alias identical to its own name` );
       }
-      const conflict = allNames.get( alias.toLowerCase() );
+      const conflict = allNames.get( lowerAliasName );
       if ( conflict ) {
         throw new Error( `Alias "${alias}" on workflow "${name}" conflicts with ${conflict}` );
       }
-      allNames.set( alias.toLowerCase(), `alias "${alias}" on workflow "${name}"` );
+      allNames.set( lowerAliasName, `alias "${alias}" on workflow "${name}"` );
     }
   }
 }
@@ -171,7 +173,7 @@ function validateAliasUniqueness( workflows ) {
  * @returns
  */
 export function createWorkflowsEntryPoint( workflows ) {
-  validateAliasUniqueness( workflows );
+  validateWorkflowNames( workflows );
 
   const path = join( __dirname, 'temp', WORKFLOWS_INDEX_FILENAME );
 
