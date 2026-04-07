@@ -1,5 +1,11 @@
 # output-api
 
+## 0.1.12
+
+### Patch Changes
+
+- 3ed2168: Add support for Workflow alias names
+
 ## 0.1.11
 
 ## 0.1.10
