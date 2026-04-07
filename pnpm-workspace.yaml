@@ -4,7 +4,7 @@ packages:
   - test_workflows
 
 catalog:
-  '@aws-sdk/client-s3': 3.1018.0
+  '@aws-sdk/client-s3': 3.1024.0
   '@temporalio/activity': 1.15.0
   '@temporalio/client': 1.15.0
   '@temporalio/common': 1.15.0
@@ -16,3 +16,5 @@ catalog:
   semver: 7.7.4
   winston: 3.19.0
   zod: 4.3.6
+
+minimumReleaseAge: 4320
