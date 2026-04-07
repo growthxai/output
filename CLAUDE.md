@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Project Overview
 
-Output.ai is an AI framework for building reliable production-ready LLM workflows & agents. It contains multiple NPM packages and supporting infrastructure with best AI engienering practices baked-in. Under the hood, the Output framework uses Temporal.io as the execution layer.
+Output.ai is an AI framework for building reliable production-ready LLM workflows & agents. It contains multiple NPM packages and supporting infrastructure with best AI engineering practices baked-in. Under the hood, the Output framework uses Temporal.io as the execution layer.
 
 ## Documentation References
 
@@ -13,7 +13,11 @@ Output.ai is an AI framework for building reliable production-ready LLM workflow
 - **Framework packages**:
   - Core: [sdk/core/README.md](sdk/core/README.md)
   - LLM: [sdk/llm/README.md](sdk/llm/README.md)
-  - Prompt: [sdk/prompt/README.md](sdk/prompt/README.md)
+  - HTTP: [sdk/http/README.md](sdk/http/README.md)
+  - Credentials: [sdk/credentials/README.md](sdk/credentials/README.md)
+  - Evals: [sdk/evals/README.md](sdk/evals/README.md)
+  - Framework: [sdk/framework/README.md](sdk/framework/README.md)
+  - CLI: [sdk/cli/README.md](sdk/cli/README.md)
 - **Test examples**: See [test_workflows/](test_workflows/) directory
 
 ## Tech Stack Context
@@ -41,100 +45,16 @@ The API Dockerfile uses `pnpm install --frozen-lockfile --filter output-api` to 
 
 ## Available Sub Agent Experts
 
-This project requires coordination between multiple technical domains. Use these specialized agents:
+Use these specialized agents when working across technical domains:
 
-### 🟣 `temporal-expert`
-
-**When to use:**
-
-- Designing workflow/activity boundaries in Output.ai abstractions
-- Implementing retry policies and error handling patterns
-- Handling workflow determinism and versioning
-- Optimizing worker performance and task queues
-- Testing Temporal workflows with Output.ai patterns
-
-**Key questions for this project:**
-
-- How to structure activities within Output's abstraction layer?
-- Best practices for error handling in workflow wrappers?
-- Optimal patterns for LLM integration within Temporal workflows?
-
-### 🤖 `llm-expert`
-
-**When to use:**
-
-- Using the output-llm module within workflow steps
-- Designing LLM workflow patterns and error handling
-- Managing prompt templates with LiquidJS
-- Optimizing LLM API costs and performance
-- Handling LLM response streaming and retries
-
-**Key questions for this project:**
-
-- How to use the output-llm module within Output steps?
-- Best practices for LLM integration through the isolated output-llm module?
-- Optimal prompt template management strategies?
-
-### 🌐 `api-expert`
-
-**When to use:**
-
-- Express server design and middleware configuration
-- API endpoint design for workflow execution
-- Workflow discovery and listing functionality
-- Error handling and response formatting
-
-**Key questions for this project:**
-
-- Best practices for workflow execution APIs? (see api/README.md for current routes)
-- How to implement workflow discovery with static file interpretation?
-
-### 🟢 `nodejs-expert`
-
-**When to use:**
-
-- ES module configuration and imports (JavaScript & TypeScript)
-- TypeScript configuration, build tooling, and type system
-- NPM package structure for monorepos with JS/TS projects
-- Build configuration and dependency management
-- Performance optimization for Node.js workflows
-
-**Key questions for this project:**
-
-- How to configure TypeScript for new packages in the monorepo?
-- Optimal build tooling for JavaScript and TypeScript packages?
-
-### 🟡 `testing-expert`
-
-**When to use:**
-
-- Testing Temporal workflows with Vitest
-- Mocking output-llm module responses and external APIs
-- Integration testing for workflow execution
-- Testing prompt template rendering
-- Performance testing for workflow scenarios
-
-**Key questions for this project:**
-
-- Testing strategies for Output workflow abstractions?
-- How to mock the output-llm module effectively?
-- Best practices for Temporal workflow testing with Vitest?
-
-### 🟦 `docker-expert`
-
-**When to use:**
-
-- Containerizing Output workers and API server
-- Docker Compose setup for local development
-- Multi-stage builds for Node.js applications
-- Container networking for Temporal services
-- Volume management for workflow data
-
-**Key questions for this project:**
-
-- How to containerize Temporal workers with Output?
-- Best practices for Node.js container optimization?
-- Optimal Docker Compose setup for dev environment?
+| Agent | Domain | When to use |
+|-------|--------|-------------|
+| `temporal-expert` | Workflow orchestration | Workflow/activity boundaries, retry policies, determinism, worker performance |
+| `llm-expert` | LLM integration | output-llm module usage, prompt templates (LiquidJS), streaming, cost optimization |
+| `api-expert` | API server | Express middleware, workflow execution endpoints, discovery (see api/README.md) |
+| `nodejs-expert` | Node.js/TypeScript | ES modules, TypeScript config, monorepo package structure, build tooling |
+| `testing-expert` | Testing | Vitest workflows, mocking output-llm, integration tests, prompt template tests |
+| `docker-expert` | Containerization | Docker Compose dev setup, multi-stage builds, Temporal service networking |
 
 ## When Working on This Project
 
