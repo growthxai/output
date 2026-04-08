@@ -154,6 +154,8 @@ All deterministic helpers return results with confidence `1.0`.
 
 ## LLM Judge Evaluators
 
+Before writing a judge prompt, identify the specific failure mode via error analysis (`output-eval-error-analysis`). Design the judge following `output-eval-judge-prompt`. After writing it, validate against human labels using `output-eval-validate-judge`.
+
 For subjective quality assessments, use judge functions with `.prompt` files:
 
 ```typescript
@@ -305,6 +307,8 @@ export default evalWorkflow({
 The eval workflow name **must** end in `_eval` and match the pattern `{workflow_name}_eval`. The CLI resolves this automatically — `output workflow test blog_generator` looks for `blog_generator_eval`.
 
 ## Dataset Files
+
+For methodology on designing diverse datasets that cover failure-prone regions, see `output-eval-dataset-design`.
 
 Datasets are YAML files in `tests/datasets/`. Each file represents one test case.
 
@@ -459,3 +463,8 @@ output workflow dataset list blog_generator
 - `output-dev-scenario-file` — Creating scenario JSON files for workflow execution
 - `output-dev-folder-structure` — Understanding project directory layout
 - `output-dev-prompt-file` — Creating `.prompt` files for LLM operations
+- `output-eval-error-analysis` — Identify failure modes before building evaluators
+- `output-eval-judge-prompt` — Design effective LLM judge prompts
+- `output-eval-dataset-design` — Generate diverse test datasets
+- `output-eval-validate-judge` — Validate LLM judges against human labels
+- `output-eval-audit` — Audit an existing eval suite for trustworthiness

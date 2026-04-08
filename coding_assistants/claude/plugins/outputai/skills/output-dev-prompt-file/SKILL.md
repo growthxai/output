@@ -524,3 +524,4 @@ Requirements:
 - `output-dev-evaluator-function` - Using prompts in evaluators
 - `output-dev-folder-structure` - Understanding prompts folder location
 - `output-dev-workflow-function` - Orchestrating LLM-powered steps
+- `output-eval-judge-prompt` — Methodology for designing effective LLM judge prompts
