@@ -323,7 +323,13 @@ const RunningView: React.FC<{
       <Text color="cyan">{'🌐 Temporal UI: '}</Text>
       <Text bold>http://localhost:8080</Text>
     </Box>
-    <Text dimColor>o: open Temporal UI | w: workflow list | Ctrl+C: stop</Text>
+    <Box marginTop={1}>
+      <Text dimColor>{'('}</Text><Text dimColor bold>o</Text><Text dimColor>{')'}</Text><Text dimColor> open ui</Text>
+      <Text dimColor>{' | '}</Text>
+      <Text dimColor>{'('}</Text><Text dimColor bold>w</Text><Text dimColor>{')'}</Text><Text dimColor> view workflow runs</Text>
+      <Text dimColor>{' | '}</Text>
+      <Text dimColor>{'('}</Text><Text dimColor bold>ctrl+c</Text><Text dimColor>{')'}</Text><Text dimColor> stop</Text>
+    </Box>
   </Box>
 );
 
