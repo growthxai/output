@@ -13,7 +13,7 @@ import { config } from '#config.js';
 import { fetchWorkflowRuns } from '#services/workflow_runs.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
-import { WorkflowListView } from '#views/workflow/list.js';
+import { WorkflowListView, WORKFLOW_STATUS_COLORS } from '#views/workflow/list.js';
 
 const POLL_INTERVAL_MS = 2000;
 const HEALTH_TIMEOUT_MS = 120_000;
@@ -311,11 +311,11 @@ const RunningView: React.FC<{
       <Box marginTop={1}>
         <Text bold>{'📋 Workflows '}</Text>
         <Text>(</Text>
-        <Text color="yellow">{workflowSummary.running} running</Text>
+        <Text color={WORKFLOW_STATUS_COLORS.running}>{workflowSummary.running} running</Text>
         <Text>, </Text>
-        <Text color="red">{workflowSummary.failed} failed</Text>
+        <Text color={WORKFLOW_STATUS_COLORS.failed}>{workflowSummary.failed} failed</Text>
         <Text>, </Text>
-        <Text color="green">{workflowSummary.completed} complete</Text>
+        <Text color={WORKFLOW_STATUS_COLORS.completed}>{workflowSummary.completed} complete</Text>
         <Text>)</Text>
       </Box>
     )}

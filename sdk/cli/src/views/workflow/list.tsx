@@ -9,7 +9,7 @@ import { openUrl } from '#utils/open_url.js';
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
 const VISIBLE_ROWS = 15;
 
-const STATUS_COLORS: Record<string, string> = {
+export const WORKFLOW_STATUS_COLORS: Record<string, string> = {
   running: 'yellow',
   completed: 'green',
   failed: 'red',
@@ -76,7 +76,7 @@ const WorkflowRow: React.FC<{
   selected: boolean;
 }> = ( { run, selected } ) => {
   const status = run.status ?? 'running';
-  const color = STATUS_COLORS[status] ?? 'white';
+  const color = WORKFLOW_STATUS_COLORS[status] ?? 'white';
   const icon = STATUS_ICONS[status] ?? '?';
   const ms = elapsedMs( run.startedAt, run.completedAt );
   const duration = ms !== null ? formatDuration( ms ) : '-';
@@ -125,7 +125,7 @@ const WorkflowDetailPane: React.FC<{
     <Box flexDirection="column" marginTop={1} paddingLeft={2}>
       <Box>
         <Text bold>Status: </Text>
-        <Text color={STATUS_COLORS[detail.status ?? ''] ?? 'white'}>{detail.status}</Text>
+        <Text color={WORKFLOW_STATUS_COLORS[detail.status ?? ''] ?? 'white'}>{detail.status}</Text>
       </Box>
       {detail.error && (
         <Box marginTop={1} flexDirection="column">
