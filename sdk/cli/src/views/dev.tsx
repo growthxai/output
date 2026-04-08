@@ -169,8 +169,7 @@ const ServiceRow: React.FC<{ service: ServiceStatus }> = ( { service } ) => {
 
   return (
     <Box>
-      <StatusIcon status={status} />
-      <Text> </Text>
+      <Box width={3}><StatusIcon status={status} /></Box>
       <Box width={16}><Text>{service.name}</Text></Box>
       <Text dimColor>{status.padEnd( 10 )}</Text>
       <Text dimColor>{ports}</Text>
