@@ -1,0 +1,33 @@
+{
+  "name": "@outputai/http2",
+  "version": "0.1.11",
+  "description": "Undici's fetch wrapper to trace http calls",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "mkdir -p dist && cp src/index.js src/utils.js src/config.js dist/"
+  },
+  "dependencies": {
+    "@outputai/core": "workspace:"
+  },
+  "devDependencies": {
+    "undici": "catalog:"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "imports": {
+    "#*": "./src/*"
+  }
+}

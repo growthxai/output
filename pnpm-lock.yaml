@@ -360,6 +360,16 @@ importers:
         specifier: 'catalog:'
         version: 1.14.3
 
+  sdk/http2:
+    dependencies:
+      '@outputai/core':
+        specifier: 'workspace:'
+        version: link:../core
+    devDependencies:
+      undici:
+        specifier: 'catalog:'
+        version: 7.24.6
+
   sdk/llm:
     dependencies:
       '@ai-sdk/amazon-bedrock':
@@ -419,6 +429,9 @@ importers:
       '@outputai/http':
         specifier: workspace:^
         version: link:../sdk/http
+      '@outputai/http2':
+        specifier: workspace:^
+        version: link:../sdk/http2
       '@outputai/llm':
         specifier: workspace:^
         version: link:../sdk/llm
