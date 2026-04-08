@@ -4,6 +4,8 @@ The open-source TypeScript framework for building AI workflows and agents. Desig
 
 One framework. Prompts, evals, tracing, cost tracking, orchestration, credentials. No SaaS fragmentation. No vendor lock-in. Everything in your codebase, everything your AI coding agent can reach.
 
+<a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
+
 ## Why Output
 
 Every piece of the AI stack is becoming a separate subscription. Prompts in one tool. Traces in another. Evals in a third. Cost tracking across five dashboards. None of them talk to each other. Half of them will get acquired or shut down before your product ships.
