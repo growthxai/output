@@ -373,19 +373,21 @@ export const DevApp: React.FC<{
       <Static items={successItems}>
         {item => <DevSuccessMessage key={item.id} services={item.services} />}
       </Static>
-      {activeView === 'main' && phase === 'waiting' && <WaitingView services={services} />}
-      {activeView === 'main' && phase === 'running' && (
-        <RunningView services={services} workflowSummary={workflowSummary} />
-      )}
-      {activeView === 'main' && phase === 'failed' && (
-        <RunningView services={services} workflowSummary={workflowSummary} />
-      )}
-      {activeView === 'workflows' && (
-        <WorkflowListView
-          runs={workflowRuns}
-          onBack={() => setActiveView( 'main' )}
-        />
-      )}
+      <Box flexDirection="column">
+        {activeView === 'main' && phase === 'waiting' && <WaitingView services={services} />}
+        {activeView === 'main' && phase === 'running' && (
+          <RunningView services={services} workflowSummary={workflowSummary} />
+        )}
+        {activeView === 'main' && phase === 'failed' && (
+          <RunningView services={services} workflowSummary={workflowSummary} />
+        )}
+        {activeView === 'workflows' && (
+          <WorkflowListView
+            runs={workflowRuns}
+            onBack={() => setActiveView( 'main' )}
+          />
+        )}
+      </Box>
     </>
   );
 };
