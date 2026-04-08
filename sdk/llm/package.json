@@ -22,7 +22,7 @@
     "ai": "6.0.141",
     "decimal.js": "10.6.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.25.2"
+    "liquidjs": "10.25.5"
   },
   "license": "Apache-2.0",
   "publishConfig": {
