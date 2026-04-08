@@ -34,9 +34,9 @@ When you wrap step calls in try-catch blocks, you intercept errors before the Ou
 ```typescript
 // WRONG: Error is silently ignored
 try {
-  const result = await myStep(input);
-} catch (error) {
-  console.log('Step failed');  // Swallowed!
+  const result = await myStep( input );
+} catch ( error ) {
+  console.log( 'Step failed' );  // Swallowed!
   return { success: false };
 }
 ```
@@ -46,9 +46,9 @@ try {
 ```typescript
 // WRONG: Turns retryable errors into fatal errors
 try {
-  const result = await myStep(input);
-} catch (error) {
-  throw new FatalError(error.message);  // Prevents retries!
+  const result = await myStep( input );
+} catch ( error ) {
+  throw new FatalError( error.message );  // Prevents retries!
 }
 ```
 
@@ -57,9 +57,9 @@ try {
 ```typescript
 // WRONG: Loses error context and may affect retry behavior
 try {
-  const result = await myStep(input);
-} catch (error) {
-  throw new Error(`Step failed: ${error.message}`);
+  const result = await myStep( input );
+} catch ( error ) {
+  throw new Error( `Step failed: ${error.message}` );
 }
 ```
 
@@ -70,29 +70,29 @@ try {
 ### Before (Wrong)
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     try {
-      const data = await fetchDataStep(input);
-      const result = await processDataStep(data);
+      const data = await fetchDataStep( input );
+      const result = await processDataStep( data );
       return result;
-    } catch (error) {
-      throw new FatalError(error.message);
+    } catch ( error ) {
+      throw new FatalError( error.message );
     }
   }
-});
+} );
 ```
 
 ### After (Correct)
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
-    const data = await fetchDataStep(input);
-    const result = await processDataStep(data);
+export default workflow( {
+  fn: async input => {
+    const data = await fetchDataStep( input );
+    const result = await processDataStep( data );
     return result;
   }
-});
+} );
 ```
 
 ## When Try-Catch IS Appropriate
@@ -104,18 +104,18 @@ There are limited cases where catching errors in workflows is valid:
 When a step failure should trigger an alternative path:
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
-    let data;
-    try {
-      data = await fetchFromPrimarySource(input);
-    } catch {
-      // Fallback to secondary source
-      data = await fetchFromSecondarySource(input);
-    }
-    return await processData(data);
+export default workflow( {
+  fn: async input => {
+    const data = await ( async () => {
+      try {
+        return await fetchFromPrimarySource( input );
+      } catch {
+        return await fetchFromSecondarySource( input );
+      }
+    } )();
+    return await processData( data );
   }
-});
+} );
 ```
 
 ### 2. Aggregate Results with Partial Failures
@@ -123,20 +123,20 @@ export default workflow({
 When processing multiple items where some may fail:
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     const results = [];
-    for (const item of input.items) {
+    for ( const item of input.items ) {
       try {
-        const result = await processItem(item);
-        results.push({ item, result, success: true });
-      } catch (error) {
-        results.push({ item, error: error.message, success: false });
+        const result = await processItem( item );
+        results.push( { item, result, success: true } );
+      } catch ( error ) {
+        results.push( { item, error: error.message, success: false } );
       }
     }
     return results;  // Contains both successes and failures
   }
-});
+} );
 ```
 
 **Note**: Even in these cases, be careful not to swallow errors that should cause the whole workflow to fail.
@@ -178,7 +178,7 @@ When you DO catch errors:
 Instead of try-catch, configure retry policies on steps:
 
 ```typescript
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
   retry: {
     maxAttempts: 3,
@@ -186,11 +186,11 @@ export const fetchData = step({
     maxInterval: '30s',
     backoffCoefficient: 2
   },
-  fn: async (input) => {
+  fn: async input => {
     // If this fails, it will be retried according to policy
-    return await callApi(input);
+    return await callApi( input );
   }
-});
+} );
 ```
 
 ## Using FatalError Correctly
@@ -198,16 +198,16 @@ export const fetchData = step({
 FatalError is for errors that should NEVER be retried:
 
 ```typescript
-export const validateInput = step({
+export const validateInput = step( {
   name: 'validateInput',
-  fn: async (input) => {
-    if (!input.userId) {
+  fn: async input => {
+    if ( !input.userId ) {
       // This will never succeed on retry
-      throw new FatalError('userId is required');
+      throw new FatalError( 'userId is required' );
     }
     return input;
   }
-});
+} );
 ```
 
 Do NOT use FatalError to wrap other errors unless you're certain they shouldn't retry.

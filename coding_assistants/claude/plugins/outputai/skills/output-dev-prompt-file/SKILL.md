@@ -368,6 +368,40 @@ const agent = new Agent({
 const { output } = await agent.generate();
 ```
 
+## Common Mistakes
+
+### Do Not Duplicate Output Format When Using Output.object()
+
+When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return.
+
+**Do not** include "Output Format" sections, JSON examples, or structural instructions in the prompt -- they duplicate what the schema already provides and can drift out of sync.
+
+```
+<!-- WRONG - prompt duplicates what Output.object() already sends -->
+<system>
+## Output Format
+Return a JSON object with this shape:
+{
+  "title": "string",
+  "summary": "string",
+  "tags": ["string"]
+}
+</system>
+```
+
+Instead, use the prompt to describe **quality expectations and content guidance**, not structural format:
+
+```
+<!-- CORRECT - prompt focuses on content, not structure -->
+<system>
+Write a concise, specific title (under 80 characters).
+The summary should capture the main argument, not just the topic.
+Choose tags from the reader's domain -- avoid generic terms like "technology".
+</system>
+```
+
+The schema in `types.ts` handles structure; the prompt handles quality.
+
 ## Best Practices
 
 ### 1. Be Explicit About Requirements
@@ -515,6 +549,7 @@ Requirements:
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
 - [ ] All required variables are documented or have defaults
 - [ ] Step code references correct prompt name
+- [ ] No JSON output format instructions when step uses `Output.object()` (schema handles structure)
 
 ## Related Skills
 

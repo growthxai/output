@@ -247,6 +247,15 @@ Always define inputSchema and outputSchema for type safety and validation.
 ### 6. Credentials Usage
 Never use `process.env` for secrets. Use `credentials.require()` from `@outputai/credentials` for mandatory secrets and `credentials.get()` with a default for optional values. See `output-dev-credentials` skill for setup and migration guidance.
 
+### 7. Inline LLM Schemas
+Define schemas for `Output.object()` in `types.ts` and import them. Never define schemas inline in step functions -- this causes duplication and drift.
+
+### 8. Redundant JSON in Prompts
+When a step uses `Output.object()`, the schema is sent to the LLM automatically. Do not describe JSON output format in the prompt -- it duplicates the schema and can conflict or drift over time. Use prompts for quality/content guidance, not structural format.
+
+### 9. Code Style
+All generated code must follow project style conventions. Key rules: no trailing commas, no `let` (use `const` only), arrow parens only when needed, operator linebreak after. See `output-dev-code-style` skill for the full list.
+
 ## Evaluator Quality Checks
 
 When reviewing evaluator implementations:

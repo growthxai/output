@@ -134,16 +134,16 @@ import { generateText, Output } from '@outputai/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
 
-export const myStep = step({
+export const myStep = step( {
   name: 'myStep',
   description: 'Description of what this step does',
   inputSchema: StepInputSchema,
   outputSchema: StepOutputSchema,
-  fn: async (input) => {
+  fn: async input => {
     // Implementation with I/O operations
     return { /* output matching outputSchema */ };
   }
-});
+} );
 ```
 
 ## Required Properties
@@ -163,29 +163,28 @@ description: 'Generate creative infographic prompt ideas using Claude'
 ```
 
 ### inputSchema (Zod schema)
-Schema for validating step input.
+Schema for validating step input. Define in `types.ts` and import.
 
 ```typescript
-inputSchema: z.object({
+inputSchema: z.object( {
   content: z.string(),
   numberOfIdeas: z.number()
-})
+} )
 ```
 
 ### outputSchema (Zod schema)
-Schema for validating step output.
+Schema for validating step output. Define in `types.ts` and import.
 
 ```typescript
-outputSchema: z.array(z.string())
+outputSchema: z.array( z.string() )
 ```
 
 ### fn (async function)
 The step execution function. This is where I/O operations happen.
 
 ```typescript
-fn: async (input) => {
-  // I/O operations allowed here
-  const result = await someExternalService(input);
+fn: async input => {
+  const result = await someExternalService( input );
   return result;
 }
 ```
@@ -198,10 +197,10 @@ fn: async (input) => {
 import { httpClient } from '@outputai/http';
 import { FatalError, ValidationError } from '@outputai/core';
 
-const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504];
-const FATAL_STATUS_CODES = [401, 403, 404];
+const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
+const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const httpClientInstance = httpClient({
+const httpClientInstance = httpClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -213,89 +212,113 @@ const httpClientInstance = httpClient({
         const status = error.response?.status;
         const message = error.message;
 
-        if (status && FATAL_STATUS_CODES.includes(status)) {
+        if ( status && FATAL_STATUS_CODES.includes( status ) ) {
           throw new FatalError(
-            `HTTP ${status} error: ${message}. This is a permanent error.`
+            `HTTP ${ status } error: ${ message }. This is a permanent error.`
           );
         }
 
         throw new ValidationError(
-          `HTTP request failed: ${message}`
+          `HTTP request failed: ${ message }`
         );
       }
     ]
   }
-});
+} );
 ```
 
 ### Making HTTP Requests
 
 ```typescript
 // GET request
-const response = await httpClientInstance.get('https://api.example.com/data');
+const response = await httpClientInstance.get( 'https://api.example.com/data' );
 const data = await response.json();
 
 // POST request with JSON body
-const response = await httpClientInstance.post('https://api.example.com/submit', {
+const response = await httpClientInstance.post( 'https://api.example.com/submit', {
   json: { field: 'value' }
-});
+} );
 
 // HEAD request (check URL accessibility)
-const response = await httpClientInstance.head(url);
-const contentType = response.headers.get('content-type');
+const response = await httpClientInstance.head( url );
+const contentType = response.headers.get( 'content-type' );
 ```
 
 **Related Skill**: `output-dev-http-client-create` for creating shared clients
 
 ## LLM Operations
 
+### Important: Define LLM Schemas in types.ts
+
+Schemas used in `Output.object()` **must** be defined in `types.ts` and imported -- never defined inline in step functions. Inline schemas lead to duplication, drift between the step's `outputSchema` and the LLM schema, and make it harder to maintain types.
+
+```typescript
+// WRONG - inline schema in Output.object()
+output: Output.object( {
+  schema: z.object( {
+    analysis: z.string()
+  } )
+} )
+
+// CORRECT - import from types.ts
+import { AnalysisLlmSchema } from './types.js';
+// ...
+output: Output.object( {
+  schema: AnalysisLlmSchema
+} )
+```
+
 ### Using generateText with Output.object()
 
 ```typescript
 import { generateText, Output } from '@outputai/llm';
+import {
+  AnalyzeContentInputSchema,
+  AnalyzeContentOutputSchema,
+  AnalysisLlmSchema
+} from './types.js';
 
-export const analyzeContent = step({
+export const analyzeContent = step( {
   name: 'analyzeContent',
   description: 'Analyze content using Claude',
-  inputSchema: z.object({ content: z.string() }),
-  outputSchema: z.object({ analysis: z.string() }),
-  fn: async ({ content }) => {
-    const { output } = await generateText({
-      prompt: 'analyzeContent@v1',  // References prompts/analyzeContent@v1.prompt
+  inputSchema: AnalyzeContentInputSchema,
+  outputSchema: AnalyzeContentOutputSchema,
+  fn: async ( { content } ) => {
+    const { output } = await generateText( {
+      prompt: 'analyzeContent@v1',
       variables: {
         content
       },
-      output: Output.object({
-        schema: z.object({
-          analysis: z.string()
-        })
-      })
-    });
+      output: Output.object( {
+        schema: AnalysisLlmSchema
+      } )
+    } );
 
     return { analysis: output.analysis };
   }
-});
+} );
 ```
 
 ### Using generateText
 
 ```typescript
 import { generateText } from '@outputai/llm';
+import { SummarizeInputSchema, SummarizeOutputSchema } from './types.js';
 
-export const generateSummary = step({
+export const generateSummary = step( {
   name: 'generateSummary',
   description: 'Generate a text summary',
-  inputSchema: z.object({ content: z.string() }),
-  outputSchema: z.object({ summary: z.string() }),
-  fn: async ({ content }) => {
-    const { result } = await generateText({
+  inputSchema: SummarizeInputSchema,
+  outputSchema: SummarizeOutputSchema,
+  fn: async ( { content } ) => {
+    const { result } = await generateText( {
       prompt: 'summarize@v1',
       variables: { content }
-    });
+    } );
 
     return { summary: result };
   }
-});
+} );
 ```
 
 **Related Skill**: `output-dev-prompt-file` for creating prompt files
@@ -310,23 +333,23 @@ Use FatalError for permanent failures that should not be retried:
 import { FatalError } from '@outputai/core';
 
 // Authentication failures
-if (response.status === 401) {
-  throw new FatalError('Invalid API key');
+if ( response.status === 401 ) {
+  throw new FatalError( 'Invalid API key' );
 }
 
 // Invalid input that cannot be fixed by retry
-if (!input.requiredField) {
-  throw new FatalError('Missing required field: requiredField');
+if ( !input.requiredField ) {
+  throw new FatalError( 'Missing required field: requiredField' );
 }
 
 // Resource not found
-if (response.status === 404) {
-  throw new FatalError(`Resource not found: ${resourceId}`);
+if ( response.status === 404 ) {
+  throw new FatalError( `Resource not found: ${ resourceId }` );
 }
 
 // Configuration errors
-if (!process.env.API_KEY) {
-  throw new FatalError('API_KEY environment variable not set');
+if ( !process.env.API_KEY ) {
+  throw new FatalError( 'API_KEY environment variable not set' );
 }
 ```
 
@@ -338,25 +361,25 @@ Use ValidationError for temporary failures that may succeed on retry:
 import { ValidationError } from '@outputai/core';
 
 // Rate limiting
-if (response.status === 429) {
-  throw new ValidationError('Rate limit exceeded, will retry');
+if ( response.status === 429 ) {
+  throw new ValidationError( 'Rate limit exceeded, will retry' );
 }
 
 // Temporary service unavailability
-if (response.status === 503) {
-  throw new ValidationError('Service temporarily unavailable');
+if ( response.status === 503 ) {
+  throw new ValidationError( 'Service temporarily unavailable' );
 }
 
 // Network errors
 try {
-  const response = await httpClientInstance.get(url);
-} catch (error) {
-  throw new ValidationError(`Network error: ${error.message}`);
+  const response = await httpClientInstance.get( url );
+} catch ( error ) {
+  throw new ValidationError( `Network error: ${ error.message }` );
 }
 
 // Empty response that might be temporary
-if (results.length === 0) {
-  throw new ValidationError('No results returned, will retry');
+if ( results.length === 0 ) {
+  throw new ValidationError( 'No results returned, will retry' );
 }
 ```
 
@@ -378,10 +401,10 @@ import {
   ImageIdeasSchema
 } from './types.js';
 
-const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504];
-const FATAL_STATUS_CODES = [401, 403, 404];
+const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
+const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const httpClientInstance = httpClient({
+const httpClientInstance = httpClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -393,24 +416,24 @@ const httpClientInstance = httpClient({
         const status = error.response?.status;
         const message = error.message;
 
-        if (status && FATAL_STATUS_CODES.includes(status)) {
-          throw new FatalError(`HTTP ${status} error: ${message}`);
+        if ( status && FATAL_STATUS_CODES.includes( status ) ) {
+          throw new FatalError( `HTTP ${ status } error: ${ message }` );
         }
 
-        throw new ValidationError(`HTTP request failed: ${message}`);
+        throw new ValidationError( `HTTP request failed: ${ message }` );
       }
     ]
   }
-});
+} );
 
 // Step 1: Generate Ideas using LLM
-export const generateImageIdeas = step({
+export const generateImageIdeas = step( {
   name: 'generateImageIdeas',
   description: 'Generate creative infographic prompt ideas using Claude',
   inputSchema: GenerateImageIdeasInputSchema,
-  outputSchema: z.array(z.string()),
-  fn: async ({ content, numberOfIdeas, colorPalette, artDirection }) => {
-    const { output } = await generateText({
+  outputSchema: z.array( z.string() ),
+  fn: async ( { content, numberOfIdeas, colorPalette, artDirection } ) => {
+    const { output } = await generateText( {
       prompt: 'generateImageIdeas@v1',
       variables: {
         content,
@@ -418,66 +441,66 @@ export const generateImageIdeas = step({
         colorPalette: colorPalette || '',
         artDirection: artDirection || ''
       },
-      output: Output.object({
+      output: Output.object( {
         schema: ImageIdeasSchema
-      })
-    });
+      } )
+    } );
 
     return output.ideas;
   }
-});
+} );
 
 // Step 2: Generate Images using external API
-export const generateImages = step({
+export const generateImages = step( {
   name: 'generateImages',
   description: 'Generate images using Gemini API',
   inputSchema: GenerateImagesInputSchema,
-  outputSchema: z.array(z.string()),
-  fn: async ({ input, prompt }) => {
+  outputSchema: z.array( z.string() ),
+  fn: async ( { input, prompt } ) => {
     const geminiImageService = new GeminiImageService();
 
-    const generatedImages = await geminiImageService.generateImage({
+    const generatedImages = await geminiImageService.generateImage( {
       prompt,
       aspectRatio: input.aspectRatio,
       resolution: input.resolution,
       numberOfImages: input.numberOfGenerations
-    });
+    } );
 
-    if (generatedImages.length === 0) {
-      throw new ValidationError('No images were generated by Gemini');
+    if ( generatedImages.length === 0 ) {
+      throw new ValidationError( 'No images were generated by Gemini' );
     }
 
     return generatedImages;
   }
-});
+} );
 
 // Step 3: Validate URLs using HTTP client
-export const validateReferenceImages = step({
+export const validateReferenceImages = step( {
   name: 'validateReferenceImages',
   description: 'Validates that all provided reference image URLs are accessible',
-  inputSchema: z.object({
-    referenceImageUrls: z.array(z.string()).optional()
-  }),
+  inputSchema: z.object( {
+    referenceImageUrls: z.array( z.string() ).optional()
+  } ),
   outputSchema: z.boolean(),
-  fn: async ({ referenceImageUrls }) => {
-    if (!referenceImageUrls || referenceImageUrls.length === 0) {
+  fn: async ( { referenceImageUrls } ) => {
+    if ( !referenceImageUrls || referenceImageUrls.length === 0 ) {
       return true;
     }
 
-    for (const [index, url] of referenceImageUrls.entries()) {
-      const response = await httpClientInstance.head(url);
-      const contentType = response.headers.get('content-type');
+    for ( const [ index, url ] of referenceImageUrls.entries() ) {
+      const response = await httpClientInstance.head( url );
+      const contentType = response.headers.get( 'content-type' );
 
-      if (contentType && !contentType.startsWith('image/')) {
+      if ( contentType && !contentType.startsWith( 'image/' ) ) {
         throw new FatalError(
-          `Reference URL ${index + 1} (${url}) is not an image file`
+          `Reference URL ${ index + 1 } (${ url }) is not an image file`
         );
       }
     }
 
     return true;
   }
-});
+} );
 ```
 
 ## Best Practices
@@ -512,14 +535,12 @@ throw new FatalError('Error occurred');
 ### 3. Validate Input Early
 
 ```typescript
-fn: async (input) => {
-  // Validate early
-  if (!input.url.startsWith('https://')) {
-    throw new FatalError('URL must use HTTPS protocol');
+fn: async input => {
+  if ( !input.url.startsWith( 'https://' ) ) {
+    throw new FatalError( 'URL must use HTTPS protocol' );
   }
 
-  // Then proceed with operation
-  const response = await httpClientInstance.get(input.url);
+  const response = await httpClientInstance.get( input.url );
   // ...
 }
 ```
@@ -530,6 +551,7 @@ fn: async (input) => {
 - [ ] `httpClient` imported from `@outputai/http` (not axios)
 - [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
 - [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
+- [ ] Schemas for `Output.object()` are defined in `types.ts` and imported, not inline
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each step
 - [ ] Each step has `name`, `description`, `inputSchema`, `outputSchema`, `fn`
@@ -538,12 +560,14 @@ fn: async (input) => {
 - [ ] No bare try-catch blocks that swallow errors
 - [ ] Steps only import allowed dependencies (local files, shared code)
 - [ ] No imports of other steps, evaluators, or workflows
+- [ ] Code follows style conventions (see `output-dev-code-style`)
 
 ## Related Skills
 
 - `output-dev-workflow-function` - Orchestrating steps in workflow.ts
 - `output-dev-evaluator-function` - Using steps in evaluator functions
 - `output-dev-types-file` - Defining step input/output schemas
+- `output-dev-code-style` - Code formatting and style conventions
 - `output-dev-http-client-create` - Creating shared HTTP clients
 - `output-dev-prompt-file` - Creating prompt files for LLM operations
 - `output-error-try-catch` - Proper error handling patterns

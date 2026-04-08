@@ -33,41 +33,41 @@ Steps without explicit schemas:
 
 ```typescript
 // WRONG: No input validation
-export const processData = step({
+export const processData = step( {
   name: 'processData',
   // inputSchema: missing!
-  outputSchema: z.object({ result: z.string() }),
-  fn: async (input) => {
+  outputSchema: z.object( { result: z.string() } ),
+  fn: async input => {
     return { result: input.value };  // input.value might be undefined!
   }
-});
+} );
 ```
 
 ### Missing Output Schema
 
 ```typescript
 // WRONG: No output validation
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  inputSchema: z.object({ id: z.string() }),
+  inputSchema: z.object( { id: z.string() } ),
   // outputSchema: missing!
-  fn: async (input) => {
-    return { data: await getFromApi(input.id) };  // Output shape not validated
+  fn: async input => {
+    return { data: await getFromApi( input.id ) };  // Output shape not validated
   }
-});
+} );
 ```
 
 ### Both Schemas Missing
 
 ```typescript
 // WRONG: No validation at all
-export const transformData = step({
+export const transformData = step( {
   name: 'transformData',
   // No schemas!
-  fn: async (input) => {
-    return transform(input);
+  fn: async input => {
+    return transform( input );
   }
-});
+} );
 ```
 
 ## Solution
@@ -79,26 +79,26 @@ Always define both `inputSchema` and `outputSchema` for every step:
 ```typescript
 import { z, step } from '@outputai/core';
 
-export const processData = step({
+export const processData = step( {
   name: 'processData',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     id: z.string(),
     value: z.number(),
-    optional: z.string().optional(),
-  }),
-  outputSchema: z.object({
+    optional: z.string().optional()
+  } ),
+  outputSchema: z.object( {
     result: z.string(),
-    processedAt: z.number(),
-  }),
-  fn: async (input) => {
+    processedAt: z.number()
+  } ),
+  fn: async input => {
     // input is fully typed: { id: string, value: number, optional?: string }
     return {
       result: `Processed ${input.id}`,
-      processedAt: Date.now(),
+      processedAt: Date.now()
     };
     // output is validated against outputSchema
-  },
-});
+  }
+} );
 ```
 
 ## Schema Definition Best Practices
@@ -107,54 +107,54 @@ export const processData = step({
 
 ```typescript
 // Good: Clear, descriptive schema
-inputSchema: z.object({
+inputSchema: z.object( {
   userId: z.string().uuid(),
   email: z.string().email(),
-  age: z.number().int().positive(),
-})
+  age: z.number().int().positive()
+} )
 ```
 
 ### Handle Optional Fields
 
 ```typescript
-inputSchema: z.object({
+inputSchema: z.object( {
   required: z.string(),
   optional: z.string().optional(),
-  withDefault: z.string().default('fallback'),
-})
+  withDefault: z.string().default( 'fallback' )
+} )
 ```
 
 ### Use Schema Composition
 
 ```typescript
 // Define reusable schemas
-const userSchema = z.object({
+const userSchema = z.object( {
   id: z.string(),
-  name: z.string(),
-});
+  name: z.string()
+} );
 
-const addressSchema = z.object({
+const addressSchema = z.object( {
   street: z.string(),
-  city: z.string(),
-});
+  city: z.string()
+} );
 
 // Compose in step
-inputSchema: z.object({
+inputSchema: z.object( {
   user: userSchema,
-  address: addressSchema,
-})
+  address: addressSchema
+} )
 ```
 
 ### Handle Arrays and Nested Objects
 
 ```typescript
-inputSchema: z.object({
-  items: z.array(z.object({
+inputSchema: z.object( {
+  items: z.array( z.object( {
     id: z.string(),
-    quantity: z.number(),
-  })),
-  metadata: z.record(z.string()),
-})
+    quantity: z.number()
+  } ) ),
+  metadata: z.record( z.string() )
+} )
 ```
 
 ## Finding Steps Without Schemas
@@ -188,46 +188,46 @@ Review each step definition to ensure both schemas are present.
 ### API Response Steps
 
 ```typescript
-export const fetchUser = step({
+export const fetchUser = step( {
   name: 'fetchUser',
-  inputSchema: z.object({
-    userId: z.string(),
-  }),
-  outputSchema: z.object({
-    user: z.object({
+  inputSchema: z.object( {
+    userId: z.string()
+  } ),
+  outputSchema: z.object( {
+    user: z.object( {
       id: z.string(),
       name: z.string(),
-      email: z.string(),
-    }).nullable(),  // Handle not found
-    found: z.boolean(),
-  }),
-  fn: async (input) => {
-    const user = await api.getUser(input.userId);
+      email: z.string()
+    } ).nullable(),  // Handle not found
+    found: z.boolean()
+  } ),
+  fn: async input => {
+    const user = await api.getUser( input.userId );
     return { user, found: user !== null };
-  },
-});
+  }
+} );
 ```
 
 ### Transformation Steps
 
 ```typescript
-export const transformData = step({
+export const transformData = step( {
   name: 'transformData',
-  inputSchema: z.object({
-    raw: z.array(z.unknown()),
-  }),
-  outputSchema: z.object({
-    processed: z.array(z.object({
+  inputSchema: z.object( {
+    raw: z.array( z.unknown() )
+  } ),
+  outputSchema: z.object( {
+    processed: z.array( z.object( {
       id: z.string(),
-      value: z.number(),
-    })),
-    count: z.number(),
-  }),
-  fn: async (input) => {
-    const processed = input.raw.map(transformItem);
+      value: z.number()
+    } ) ),
+    count: z.number()
+  } ),
+  fn: async input => {
+    const processed = input.raw.map( transformItem );
     return { processed, count: processed.length };
-  },
-});
+  }
+} );
 ```
 
 ### Void Output Steps
@@ -235,20 +235,20 @@ export const transformData = step({
 For steps that don't return meaningful data:
 
 ```typescript
-export const logEvent = step({
+export const logEvent = step( {
   name: 'logEvent',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     event: z.string(),
-    data: z.record(z.unknown()),
-  }),
-  outputSchema: z.object({
-    logged: z.literal(true),
-  }),
-  fn: async (input) => {
-    await logger.log(input.event, input.data);
+    data: z.record( z.unknown() )
+  } ),
+  outputSchema: z.object( {
+    logged: z.literal( true )
+  } ),
+  fn: async input => {
+    await logger.log( input.event, input.data );
     return { logged: true };
-  },
-});
+  }
+} );
 ```
 
 ## Verification

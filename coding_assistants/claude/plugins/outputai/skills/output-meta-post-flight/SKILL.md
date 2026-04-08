@@ -23,13 +23,25 @@ Verify the following conventions were followed:
 #### Import Conventions
 - [ ] All TypeScript/JavaScript imports use `.js` extension for ES modules
 - [ ] No direct axios usage - HttpClient wrapper used throughout
-- [ ] Proper import paths for Output SDK packages (@flowsdk/core, @flowsdk/llm, etc.)
+- [ ] Proper import paths for Output SDK packages (@outputai/core, @outputai/llm, etc.)
 
 #### Workflow Structure
 - [ ] Workflow exported in entrypoint.ts: `export * from './path/to/workflow.js';`
 - [ ] All external operations wrapped in Temporal activities (steps)
 - [ ] Proper error handling with ApplicationFailure patterns
 - [ ] Retry policies configured appropriately
+
+#### Schema Placement
+- [ ] All schemas for `Output.object()` defined in `types.ts`, not inline in step functions
+- [ ] LLM output schemas use `.describe()` only -- no `.min()/.max()/.length()` on numbers or arrays
+- [ ] Prompt files do not contain JSON output format instructions when `Output.object()` is used
+
+#### Code Style (see `output-dev-code-style`)
+- [ ] No trailing commas in any generated code
+- [ ] No `let` declarations -- all variables use `const`
+- [ ] Arrow functions use parens only when needed (multi-param or destructured)
+- [ ] Operator linebreaks placed after the operator, not before
+- [ ] Space in parens: `fn( x )` not `fn(x)`
 
 #### Documentation & Testing
 - [ ] Comprehensive plan document created with all required sections
