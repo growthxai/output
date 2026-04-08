@@ -732,3 +732,4 @@ dimensions: [
 - `output-dev-types-file` - Defining evaluator input schemas
 - `output-dev-prompt-file` - Creating prompt files for LLM-powered evaluators
 - `output-dev-folder-structure` - Understanding project layout
+- `output-eval-error-analysis` — Identify what to evaluate before writing evaluators
