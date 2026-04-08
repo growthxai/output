@@ -5,41 +5,21 @@ import {
   getServiceStatus,
   isServiceHealthy,
   isServiceFailed,
-  SERVICE_HEALTH,
-  SERVICE_STATE
+  SERVICE_HEALTH
 } from '#services/docker.js';
 import type { ServiceStatus } from '#services/docker.js';
 import { config } from '#config.js';
 import { fetchWorkflowRuns } from '#services/workflow_runs.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
-import { WorkflowListView, WORKFLOW_STATUS_COLORS } from '#views/workflow/list.js';
+import { StatusIcon, statusColor } from '#components/status_icon.js';
+import { WorkflowListView } from '#views/workflow/list.js';
 
 const POLL_INTERVAL_MS = 2000;
 const HEALTH_TIMEOUT_MS = 120_000;
 
-const STATUS_ICONS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '●',
-  [SERVICE_HEALTH.UNHEALTHY]: '○',
-  [SERVICE_HEALTH.STARTING]: '◐',
-  [SERVICE_HEALTH.NONE]: '●',
-  [SERVICE_STATE.RUNNING]: '●',
-  [SERVICE_STATE.EXITED]: '✗'
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: 'green',
-  [SERVICE_HEALTH.UNHEALTHY]: 'red',
-  [SERVICE_HEALTH.STARTING]: 'yellow',
-  [SERVICE_HEALTH.NONE]: 'blue',
-  [SERVICE_STATE.RUNNING]: 'blue',
-  [SERVICE_STATE.EXITED]: 'red'
-};
-
-const resolveServiceDisplay = ( service: ServiceStatus ) => {
-  const key = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
-  return { icon: STATUS_ICONS[key] ?? '?', color: STATUS_COLORS[key] ?? 'white', status: key };
-};
+const resolveServiceStatus = ( service: ServiceStatus ): string =>
+  service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
 
 const fetchServices = async ( dockerComposePath: string ): Promise<ServiceStatus[] | null> => {
   try {
@@ -184,12 +164,13 @@ const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
 };
 
 const ServiceRow: React.FC<{ service: ServiceStatus }> = ( { service } ) => {
-  const { icon, color, status } = resolveServiceDisplay( service );
+  const status = resolveServiceStatus( service );
   const ports = service.ports.length ? service.ports.join( ', ' ) : '-';
 
   return (
     <Box>
-      <Text color={color}>{icon} </Text>
+      <StatusIcon status={status} />
+      <Text> </Text>
       <Box width={16}><Text>{service.name}</Text></Box>
       <Text dimColor>{status.padEnd( 10 )}</Text>
       <Text dimColor>{ports}</Text>
@@ -311,11 +292,11 @@ const RunningView: React.FC<{
       <Box marginTop={1}>
         <Text bold>{'📋 Workflows '}</Text>
         <Text>(</Text>
-        <Text color={WORKFLOW_STATUS_COLORS.running}>{workflowSummary.running} running</Text>
+        <Text color={statusColor( 'running' )}>{workflowSummary.running} running</Text>
         <Text>, </Text>
-        <Text color={WORKFLOW_STATUS_COLORS.failed}>{workflowSummary.failed} failed</Text>
+        <Text color={statusColor( 'failed' )}>{workflowSummary.failed} failed</Text>
         <Text>, </Text>
-        <Text color={WORKFLOW_STATUS_COLORS.completed}>{workflowSummary.completed} complete</Text>
+        <Text color={statusColor( 'completed' )}>{workflowSummary.completed} complete</Text>
         <Text>)</Text>
       </Box>
     )}

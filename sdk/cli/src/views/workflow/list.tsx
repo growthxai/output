@@ -3,31 +3,12 @@ import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import { getWorkflowIdResult, type GetWorkflowIdResult200 } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
+import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { formatDuration } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
 const VISIBLE_ROWS = 15;
-
-export const WORKFLOW_STATUS_COLORS: Record<string, string> = {
-  running: 'yellow',
-  completed: 'green',
-  failed: 'red',
-  canceled: 'gray',
-  terminated: 'red',
-  timed_out: 'red',
-  continued: 'blue'
-};
-
-const STATUS_ICONS: Record<string, string> = {
-  running: '◐',
-  completed: '●',
-  failed: '✗',
-  canceled: '○',
-  terminated: '✗',
-  timed_out: '✗',
-  continued: '↻'
-};
 
 const STATUS_ORDER: Record<string, number> = {
   running: 0,
@@ -76,8 +57,7 @@ const WorkflowRow: React.FC<{
   selected: boolean;
 }> = ( { run, selected } ) => {
   const status = run.status ?? 'running';
-  const color = WORKFLOW_STATUS_COLORS[status] ?? 'white';
-  const icon = STATUS_ICONS[status] ?? '?';
+  const color = statusColor( status );
   const ms = elapsedMs( run.startedAt, run.completedAt );
   const duration = ms !== null ? formatDuration( ms ) : '-';
 
@@ -88,7 +68,7 @@ const WorkflowRow: React.FC<{
           {selected ? '▸' : ' '}
         </Text>
       </Box>
-      <Box width={COL.icon}><Text color={color}>{icon}</Text></Box>
+      <Box width={COL.icon}><StatusIcon status={status} /></Box>
       <Box width={COL.status}><Text color={color}>{status}</Text></Box>
       <Box width={COL.type}><Text bold={selected}>{truncate( run.workflowType ?? '-', COL.type - 2 )}</Text></Box>
       <Box width={COL.id}><Text dimColor={!selected}>{truncate( run.workflowId ?? '-', COL.id - 2 )}</Text></Box>
@@ -125,7 +105,7 @@ const WorkflowDetailPane: React.FC<{
     <Box flexDirection="column" marginTop={1} paddingLeft={2}>
       <Box>
         <Text bold>Status: </Text>
-        <Text color={WORKFLOW_STATUS_COLORS[detail.status ?? ''] ?? 'white'}>{detail.status}</Text>
+        <Text color={statusColor( detail.status ?? '' )}>{detail.status}</Text>
       </Box>
       {detail.error && (
         <Box marginTop={1} flexDirection="column">
