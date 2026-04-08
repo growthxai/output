@@ -49,6 +49,16 @@ export function formatDate( isoString: string | null | undefined ): string {
  * Format a duration in milliseconds to a compact string that fits in narrow columns.
  * Always returns a short single-token string (e.g., "150ms", "7.56s", "24.2m", "1.3h").
  */
+/**
+ * Calculate elapsed milliseconds between two ISO timestamps.
+ * If completedAt is null/undefined, uses current time (for in-progress durations).
+ */
+export function elapsedMs( startedAt: string, completedAt?: string | null ): number {
+  const start = parseISO( startedAt ).getTime();
+  const end = completedAt ? parseISO( completedAt ).getTime() : Date.now();
+  return end - start;
+}
+
 export function formatDurationCompact( ms: number ): string {
   if ( ms < 1000 ) {
     return `${ms}ms`;

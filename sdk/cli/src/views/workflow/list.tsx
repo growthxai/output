@@ -4,7 +4,7 @@ import Spinner from 'ink-spinner';
 import { getWorkflowIdResult, type GetWorkflowIdResult200 } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
-import { formatDurationCompact } from '#utils/date_formatter.js';
+import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
@@ -31,13 +31,6 @@ const sortRuns = ( runs: WorkflowRun[] ): WorkflowRun[] =>
     return bTime - aTime;
   } );
 
-const elapsedMs = ( startedAt?: string, completedAt?: string | null ): number | null => {
-  if ( !startedAt ) {
-    return null;
-  }
-  return ( completedAt ? new Date( completedAt ).getTime() : Date.now() ) - new Date( startedAt ).getTime();
-};
-
 const truncate = ( str: string, max: number ): string =>
   str.length > max ? str.slice( 0, max - 1 ) + '…' : str;
 
@@ -56,8 +49,7 @@ const WorkflowRow: React.FC<{
 }> = ( { run, selected } ) => {
   const status = run.status ?? 'running';
   const color = statusColor( status );
-  const ms = elapsedMs( run.startedAt, run.completedAt );
-  const duration = ms !== null ? formatDurationCompact( ms ) : '-';
+  const duration = run.startedAt ? formatDurationCompact( elapsedMs( run.startedAt, run.completedAt ) ) : '-';
 
   return (
     <Box>
