@@ -140,7 +140,9 @@ function getTodoWriteMessage( message: SDKMessage ): TodoWriteMessage | null {
     return null;
   }
 
-  const todoWriteMessage = message.message.content.find( ( c: ToolUseMessage ) => c?.type === 'tool_use' && c.name === 'TodoWrite' );
+  const todoWriteMessage = message.message.content.find(
+    ( c ): c is TodoWriteMessage => c.type === 'tool_use' && c.name === 'TodoWrite'
+  );
 
   return todoWriteMessage ?? null;
 }
