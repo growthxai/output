@@ -8,7 +8,7 @@ import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
-const VISIBLE_ROWS = 5;
+const VISIBLE_ROWS = 15;
 
 const STATUS_ORDER: Record<string, number> = {
   running: 0,
