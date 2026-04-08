@@ -13,7 +13,7 @@ import { config } from '#config.js';
 import { fetchWorkflowRuns } from '#services/workflow_runs.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
-import { WorkflowListView } from '#views/workflow_list.js';
+import { WorkflowListView } from '#views/workflow/list.js';
 
 const POLL_INTERVAL_MS = 2000;
 const HEALTH_TIMEOUT_MS = 120_000;

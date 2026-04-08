@@ -3,6 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import { getWorkflowIdResult, type GetWorkflowIdResult200 } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
+import { formatDuration } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
@@ -49,39 +50,18 @@ const sortRuns = ( runs: WorkflowRun[] ): WorkflowRun[] =>
     return bTime - aTime;
   } );
 
-const formatDuration = ( startedAt?: string, completedAt?: string | null ): string => {
+const elapsedMs = ( startedAt?: string, completedAt?: string | null ): number | null => {
   if ( !startedAt ) {
-    return '-';
+    return null;
   }
   const start = new Date( startedAt ).getTime();
   const end = completedAt ? new Date( completedAt ).getTime() : Date.now();
-  const ms = end - start;
-
-  if ( ms < 1000 ) {
-    return `${ms}ms`;
-  }
-  if ( ms < 60_000 ) {
-    return `${( ms / 1000 ).toFixed( 1 )}s`;
-  }
-  return `${( ms / 60_000 ).toFixed( 1 )}m`;
+  return end - start;
 };
 
 const truncate = ( str: string, max: number ): string =>
   str.length > max ? str.slice( 0, max - 1 ) + '…' : str;
 
-const formatJson = ( value: unknown, maxLength = 200 ): string => {
-  if ( value === undefined || value === null ) {
-    return '-';
-  }
-  try {
-    const str = JSON.stringify( value, null, 2 );
-    return str.length > maxLength ? str.slice( 0, maxLength ) + '…' : str;
-  } catch {
-    return String( value );
-  }
-};
-
-// Column config: label, width, alignment
 const COL = {
   indicator: 2,
   icon: 3,
@@ -98,6 +78,8 @@ const WorkflowRow: React.FC<{
   const status = run.status ?? 'running';
   const color = STATUS_COLORS[status] ?? 'white';
   const icon = STATUS_ICONS[status] ?? '?';
+  const ms = elapsedMs( run.startedAt, run.completedAt );
+  const duration = ms !== null ? formatDuration( ms ) : '-';
 
   return (
     <Box>
@@ -110,7 +92,7 @@ const WorkflowRow: React.FC<{
       <Box width={COL.status}><Text color={color}>{status}</Text></Box>
       <Box width={COL.type}><Text bold={selected}>{truncate( run.workflowType ?? '-', COL.type - 2 )}</Text></Box>
       <Box width={COL.id}><Text dimColor={!selected}>{truncate( run.workflowId ?? '-', COL.id - 2 )}</Text></Box>
-      <Box width={COL.duration} justifyContent="flex-end"><Text dimColor>{formatDuration( run.startedAt, run.completedAt )}</Text></Box>
+      <Box width={COL.duration} justifyContent="flex-end"><Text dimColor>{duration}</Text></Box>
     </Box>
   );
 };
@@ -154,7 +136,7 @@ const WorkflowDetailPane: React.FC<{
       {detail.output !== undefined && detail.output !== null && (
         <Box marginTop={1} flexDirection="column">
           <Text bold>Output:</Text>
-          <Text>{formatJson( detail.output, 400 )}</Text>
+          <Text>{truncate( JSON.stringify( detail.output, null, 2 ), 400 )}</Text>
         </Box>
       )}
     </Box>
@@ -191,14 +173,12 @@ export const WorkflowListView: React.FC<{
   const selectedRun = sortedRuns[clampedIndex];
   const selectedWorkflowId = selectedRun?.workflowId;
 
-  // Reset selection when runs change drastically
   useEffect( () => {
     if ( clampedIndex !== selectedIndex ) {
       setSelectedIndex( clampedIndex );
     }
   }, [ clampedIndex, selectedIndex ] );
 
-  // Fetch detail for selected workflow
   useEffect( () => {
     if ( !selectedWorkflowId ) {
       setDetail( null );
@@ -246,7 +226,6 @@ export const WorkflowListView: React.FC<{
     }
   } );
 
-  // Compute visible window
   const windowStart = useMemo( () => {
     const half = Math.floor( VISIBLE_ROWS / 2 );
     const start = Math.max( 0, clampedIndex - half );
