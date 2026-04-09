@@ -299,6 +299,17 @@ const RunningView: React.FC<{
 type Phase = 'waiting' | 'running' | 'failed';
 type ActiveView = 'main' | 'workflows';
 
+const MainDevView: React.FC<{
+  phase: Phase;
+  services: ServiceStatus[];
+  workflowSummary: WorkflowSummary | null;
+}> = ( { phase, services, workflowSummary } ) => {
+  if ( phase === 'waiting' ) {
+    return <WaitingView services={services} />;
+  }
+  return <RunningView services={services} workflowSummary={workflowSummary} />;
+};
+
 interface SuccessItem {
   id: string;
   services: ServiceStatus[];
@@ -357,18 +368,11 @@ export const DevApp: React.FC<{
         {item => <DevSuccessMessage key={item.id} services={item.services} />}
       </Static>
       <Box flexDirection="column">
-        {activeView === 'main' && phase === 'waiting' && <WaitingView services={services} />}
-        {activeView === 'main' && phase === 'running' && (
-          <RunningView services={services} workflowSummary={workflowSummary} />
-        )}
-        {activeView === 'main' && phase === 'failed' && (
-          <RunningView services={services} workflowSummary={workflowSummary} />
+        {activeView === 'main' && (
+          <MainDevView phase={phase} services={services} workflowSummary={workflowSummary} />
         )}
         {activeView === 'workflows' && (
-          <WorkflowListView
-            runs={workflowRuns}
-            onBack={() => setActiveView( 'main' )}
-          />
+          <WorkflowListView runs={workflowRuns} onBack={() => setActiveView( 'main' )} />
         )}
       </Box>
     </>
