@@ -19,6 +19,13 @@ export const SERVICE_STATE = {
 
 class DockerValidationError extends Error {}
 
+interface Prerequisite {
+  name: string;
+  semverRange: string;
+  getVersion: () => string | null;
+  errorMessage: ( current: string | null, required: string ) => string;
+}
+
 export interface ServiceStatus {
   name: string;
   state: string;
@@ -50,29 +57,90 @@ const checkDockerCommand = ( command: string ): boolean => {
   }
 };
 
-const isDockerInstalled = (): boolean => checkDockerCommand( 'docker --version' );
-const isDockerComposeAvailable = (): boolean => checkDockerCommand( 'docker compose version' );
-const isDockerDaemonRunning = (): boolean => checkDockerCommand( 'docker ps' );
+const getCommandVersion = ( command: string, pattern: RegExp = /(\d+\.\d+\.\d+)/ ): string | null => {
+  try {
+    const output = execSync( command, { stdio: 'pipe', encoding: 'utf-8' } ).trim();
+    const match = output.match( pattern );
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+};
 
-const DOCKER_VALIDATIONS = [
+const parseSemver = ( version: string ): [number, number, number] | null => {
+  const match = version.match( /^(\d+)\.(\d+)\.(\d+)/ );
+  return match ? [ Number( match[1] ), Number( match[2] ), Number( match[3] ) ] : null;
+};
+
+const satisfiesSemver = ( version: string, range: string ): boolean => {
+  if ( range === '*' ) {
+    return true;
+  }
+
+  const gteMatch = range.match( /^>=(.+)$/ );
+  if ( !gteMatch ) {
+    return false;
+  }
+
+  const current = parseSemver( version );
+  const required = parseSemver( gteMatch[1] );
+  if ( !current || !required ) {
+    return false;
+  }
+
+  const [ currentMajor, currentMinor, currentPatch ] = current;
+  const [ requiredMajor, requiredMinor, requiredPatch ] = required;
+
+  if ( currentMajor !== requiredMajor ) {
+    return currentMajor > requiredMajor;
+  }
+  if ( currentMinor !== requiredMinor ) {
+    return currentMinor > requiredMinor;
+  }
+  return currentPatch >= requiredPatch;
+};
+
+const isDockerInstalled = (): boolean => checkDockerCommand( 'docker --version' );
+
+const PREREQUISITES: Prerequisite[] = [
   {
-    check: isDockerInstalled,
-    error: 'Docker is not installed. Please install Docker to use the dev command.\nVisit: https://docs.docker.com/get-docker/'
+    name: 'Docker',
+    semverRange: '>=20.0.0',
+    getVersion: () => getCommandVersion( 'docker --version' ),
+    errorMessage: ( current, required ) =>
+      current === null ?
+        'Docker is not installed. Please install Docker to use the dev command.\nVisit: https://docs.docker.com/get-docker/' :
+        `Docker version ${required} is required (found v${current}).\nVisit: https://docs.docker.com/get-docker/`
   },
   {
-    check: isDockerComposeAvailable,
-    error: 'Docker Compose is not installed. Please install Docker Compose to use the dev command.\nVisit: https://docs.docker.com/compose/install/'
+    name: 'Docker Compose',
+    semverRange: '>=2.24.0',
+    getVersion: () => getCommandVersion( 'docker compose version --short' ),
+    errorMessage: ( current, required ) =>
+      current === null ?
+        'Docker Compose is not installed. Please install Docker Compose to use the dev command.\nVisit: https://docs.docker.com/compose/install/' :
+        `Docker Compose ${required} is required (found v${current}).\nPlease update Docker Compose: https://docs.docker.com/compose/install/`
   },
   {
-    check: isDockerDaemonRunning,
-    error: 'Docker daemon is not running. Please start Docker and try again.'
+    name: 'Docker Daemon',
+    semverRange: '*',
+    getVersion: () => checkDockerCommand( 'docker ps' ) ? '0.0.0' : null,
+    errorMessage: () =>
+      'Docker daemon is not running. Please start Docker and try again.'
   }
 ];
 
 export function validateDockerEnvironment(): void {
-  const failedValidation = DOCKER_VALIDATIONS.find( v => !v.check() );
-  if ( failedValidation ) {
-    throw new DockerValidationError( failedValidation.error );
+  for ( const prereq of PREREQUISITES ) {
+    const version = prereq.getVersion();
+
+    if ( version === null ) {
+      throw new DockerValidationError( prereq.errorMessage( null, prereq.semverRange ) );
+    }
+
+    if ( !satisfiesSemver( version, prereq.semverRange ) ) {
+      throw new DockerValidationError( prereq.errorMessage( version, prereq.semverRange ) );
+    }
   }
 }
 
@@ -200,4 +268,4 @@ export async function stopDockerCompose( dockerComposePath: string ): Promise<vo
   );
 }
 
-export { isDockerInstalled, isDockerComposeAvailable, isDockerDaemonRunning, DockerValidationError };
+export { isDockerInstalled, DockerValidationError };
