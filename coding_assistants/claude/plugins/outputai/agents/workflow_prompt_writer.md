@@ -48,9 +48,15 @@ maxTokens: 2000
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |
 
+### Provider Consistency
+
+All prompt files in a workflow **must use the same provider** unless the user explicitly requests otherwise. Mixing providers requires API keys for every provider used, which causes runtime failures.
+
+Default to `anthropic` with `claude-sonnet-4-6` when no preference is specified. If the user or the workflow plan specifies a provider, use that for all prompts in the workflow.
+
 ### Recommended Models
 
-**Anthropic:**
+**Anthropic (default):**
 - `claude-sonnet-4-6` - Balanced performance (default)
 - `claude-opus-4-5` - Complex reasoning tasks
 - `claude-haiku-4-5` - Fast, simple tasks

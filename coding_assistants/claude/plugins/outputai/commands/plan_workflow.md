@@ -76,6 +76,12 @@ Clarify scope boundaries and technical considerations by asking numbered questio
     - UI/UX requirements
     - integration points
   </technical>
+  <llm_provider>
+    - Ask which LLM provider the user wants to use (anthropic, openai, or vertex)
+    - Default to anthropic if the user has no preference
+    - All prompt files in the workflow must use the same provider unless the user explicitly requests otherwise
+    - Record the chosen provider so it flows through to prompt engineering (step 6) and implementation
+  </llm_provider>
 </clarification_areas>
 
 <decision_tree>

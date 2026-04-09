@@ -77,6 +77,12 @@ model: claude-sonnet-4-6  # Model identifier
 ---
 ```
 
+### Provider Consistency
+
+All prompt files in a workflow should use the **same provider** unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires the user to have API keys for all providers, which causes runtime failures if they don't.
+
+Default to `anthropic` with `claude-sonnet-4-6` when no provider preference is specified. If the user has stated a preferred provider during planning, use that for all prompts.
+
 ### Optional Fields
 
 ```yaml

@@ -259,6 +259,9 @@ All generated code must follow project style conventions. Key rules: no trailing
 ### 10. Arrays/Objects as Prompt Variables
 The `variables` field in `generateText` and `Agent` only accepts `string | number | boolean`. Passing arrays or objects causes TypeScript compilation errors (TS2322). Pre-format complex data into strings in the step before passing as variables.
 
+### 11. Mixed LLM Providers
+All prompt files in a workflow should use the same provider unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires API keys for every provider used, causing runtime failures when keys are missing. Default to anthropic.
+
 ## Evaluator Quality Checks
 
 When reviewing evaluator implementations:

@@ -36,6 +36,10 @@ Verify the following conventions were followed:
 - [ ] LLM output schemas use `.describe()` only -- no `.min()/.max()/.length()` on numbers or arrays
 - [ ] Prompt files do not contain JSON output format instructions when `Output.object()` is used
 
+#### LLM Provider & Variables
+- [ ] All prompt files use the same provider (no mixing unless explicitly requested)
+- [ ] `generateText`/`Agent` variables are `string | number | boolean` only -- no arrays or objects
+
 #### Code Style (see `output-dev-code-style`)
 - [ ] No trailing commas in any generated code
 - [ ] No `let` declarations -- all variables use `const`
