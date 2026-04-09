@@ -232,20 +232,20 @@ npx output credentials get <path>            # Get single credential value
 import { workflow, z } from '@outputai/core';
 import { fetchData, processData } from './steps.js';
 
-export const inputSchema = z.object({ url: z.string().url() });
-export const outputSchema = z.object({ result: z.string() });
+export const inputSchema = z.object( { url: z.string().url() } );
+export const outputSchema = z.object( { result: z.string() } );
 
-export default workflow({
+export default workflow( {
   name: 'my_workflow',
   description: 'Processes data from URL',
   inputSchema,
   outputSchema,
-  fn: async (input) => {
-    const data = await fetchData(input.url);
-    const result = await processData(data);
+  fn: async input => {
+    const data = await fetchData( input.url );
+    const result = await processData( data );
     return { result };
   }
-});
+} );
 ```
 
 See `output-dev-workflow-function` for comprehensive patterns.
@@ -257,9 +257,9 @@ import { httpClient } from '@outputai/http';
 
 export const fetchData = step(
   { name: 'fetchData', inputSchema: z.string(), outputSchema: z.any() },
-  async (url) => {
-    const client = httpClient({ prefixUrl: url });
-    const response = await client.get('');
+  async url => {
+    const client = httpClient( { prefixUrl: url } );
+    const response = await client.get( '' );
     return response.json();
   }
 );
@@ -277,26 +277,26 @@ import { FatalError, ValidationError } from '@outputai/core';
 import { httpClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
-const API_KEY = credentials.require('example.api_key');
+const API_KEY = credentials.require( 'example.api_key' );
 
-const client = httpClient({
+const client = httpClient( {
   prefixUrl: 'https://api.example.com',
   headers: { Authorization: `Bearer ${API_KEY}` },
   timeout: 30000,
-  retry: { limit: 3, statusCodes: [408, 429, 500, 502, 503, 504] }
-});
+  retry: { limit: 3, statusCodes: [ 408, 429, 500, 502, 503, 504 ] }
+} );
 
-export async function fetchFromExample(query: string): Promise<ExampleResponse> {
+export async function fetchFromExample( query: string ): Promise<ExampleResponse> {
 
   try {
-    const response = await client.get('endpoint', { searchParams: { q: query } });
+    const response = await client.get( 'endpoint', { searchParams: { q: query } } );
     return response.json();
-  } catch (error: unknown) {
+  } catch ( error: unknown ) {
     const err = error as { status?: number; message?: string };
-    if (err.status === 401 || err.status === 403) {
-      throw new FatalError(`Auth failed: ${err.message}`);
+    if ( err.status === 401 || err.status === 403 ) {
+      throw new FatalError( `Auth failed: ${err.message}` );
     }
-    throw new ValidationError(`Request failed: ${err.message}`);
+    throw new ValidationError( `Request failed: ${err.message}` );
   }
 }
 ```
@@ -315,18 +315,18 @@ Evaluators return confidence-scored results. Three result types available:
 import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult, EvaluationStringResult } from '@outputai/core';
 
 // Boolean evaluator - pass/fail checks
-export const evaluateCompleteness = evaluator({
+export const evaluateCompleteness = evaluator( {
   name: 'evaluate_completeness',
   description: 'Check if content meets minimum length',
-  inputSchema: z.object({ content: z.string(), minLength: z.number() }),
-  fn: async ({ content, minLength }) => {
-    return new EvaluationBooleanResult({
+  inputSchema: z.object( { content: z.string(), minLength: z.number() } ),
+  fn: async ( { content, minLength } ) => {
+    return new EvaluationBooleanResult( {
       value: content.length >= minLength,
       confidence: 1.0,
       reasoning: `Content has ${content.length} chars (min: ${minLength})`
-    });
+    } );
   }
-});
+} );
 ```
 
 See `output-dev-evaluator-function` for comprehensive patterns.
@@ -368,19 +368,19 @@ import { generateText, Output } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 // Structured output
-const { output } = await generateText({
+const { output } = await generateText( {
   prompt: 'analyze@v1',
   variables: { content: 'Article text...', numberOfPoints: 5 },
-  output: Output.object({
-    schema: z.object({ insights: z.array(z.string()) })
-  })
-});
+  output: Output.object( {
+    schema: z.object( { insights: z.array( z.string() ) } )
+  } )
+} );
 
 // Text output
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'summarize@v1',
   variables: { content: 'Article text...' }
-});
+} );
 ```
 
 **Provider options:**

@@ -151,21 +151,21 @@ If the plan includes evaluator functions, implement them in `$3/evaluators.ts`.
 ```typescript
 import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
 
-export const evaluateName = evaluator({
+export const evaluateName = evaluator( {
   name: 'evaluate_name',
   description: 'Description from plan',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     // Define based on plan
-  }),
-  fn: async (input) => {
+  } ),
+  fn: async input => {
     // Implement evaluation logic from plan
-    return new EvaluationBooleanResult({
+    return new EvaluationBooleanResult( {
       value: true,
       confidence: 0.95,
       reasoning: 'Explanation of evaluation'
-    });
+    } );
   }
-});
+} );
 ```
 </evaluator_template>
 
@@ -271,10 +271,10 @@ Create at least one scenario file in `$3/scenarios/` for testing the workflow.
 <example>
 For a workflow with inputSchema:
 ```typescript
-z.object({
+z.object( {
   topic: z.string(),
   maxLength: z.number().optional()
-})
+} )
 ```
 
 Create `scenarios/test_input.json`:
