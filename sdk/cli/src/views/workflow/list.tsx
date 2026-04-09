@@ -104,7 +104,7 @@ const WorkflowDetailPane: React.FC<{
           <Text color="red">{truncate( detail.error, 300 )}</Text>
         </Box>
       )}
-      {detail.output !== undefined && detail.output !== null && (
+      {'output' in detail && detail.output !== null && (
         <Box marginTop={1} flexDirection="column">
           <Text bold>Output:</Text>
           <Text>{truncate( JSON.stringify( detail.output, null, 2 ), 400 )}</Text>
