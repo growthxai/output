@@ -289,7 +289,7 @@ const RunningView: React.FC<{
     <FailureWarning services={services} />
     {workflowSummary && (
       <Box flexDirection="column" marginTop={1}>
-        <Text dimColor>{'── '}<Text bold>Workflows</Text>{' ─'.padEnd( 40, '─' )}</Text>
+        <Text bold>📋 Workflows</Text>
         <Box marginTop={1}>
           <Text color={statusColor( 'running' )}>{workflowSummary.running} running</Text>
           <Text>, </Text>
