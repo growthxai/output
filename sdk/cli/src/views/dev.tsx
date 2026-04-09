@@ -12,7 +12,10 @@ import { config } from '#config.js';
 import { fetchWorkflowRuns } from '#services/workflow_runs.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
-import { StatusIcon, statusColor } from '#components/status_icon.js';
+import { StatusIcon } from '#components/status_icon.js';
+import { WorkflowSummarySection } from '#components/workflow_summary.js';
+import type { WorkflowSummary } from '#components/workflow_summary.js';
+import { CommandFooter } from '#components/command_footer.js';
 import { WorkflowListView } from '#views/workflow/list.js';
 
 const POLL_INTERVAL_MS = 2000;
@@ -270,13 +273,6 @@ const WaitingView: React.FC<{ services: ServiceStatus[] }> = ( { services } ) =>
   </Box>
 );
 
-interface WorkflowSummary {
-  running: number;
-  completed: number;
-  failed: number;
-  total: number;
-}
-
 const RunningView: React.FC<{
   services: ServiceStatus[];
   workflowSummary: WorkflowSummary | null;
@@ -287,29 +283,16 @@ const RunningView: React.FC<{
       {services.map( s => <ServiceRow key={s.name} service={s} /> )}
     </Box>
     <FailureWarning services={services} />
-    {workflowSummary && (
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>📋 Workflows</Text>
-        <Box marginTop={1}>
-          <Text color={statusColor( 'running' )}>{workflowSummary.running} running</Text>
-          <Text>, </Text>
-          <Text color={statusColor( 'failed' )}>{workflowSummary.failed} failed</Text>
-          <Text>, </Text>
-          <Text color={statusColor( 'completed' )}>{workflowSummary.completed} complete</Text>
-        </Box>
-      </Box>
-    )}
+    {workflowSummary && <WorkflowSummarySection summary={workflowSummary} />}
     <Box marginTop={1}>
       <Text color="cyan">{'🌐 Temporal UI: '}</Text>
       <Text bold>http://localhost:8080</Text>
     </Box>
-    <Box marginTop={1}>
-      <Text dimColor>{'('}</Text><Text dimColor bold>o</Text><Text dimColor>{')'}</Text><Text dimColor> open ui</Text>
-      <Text dimColor>{' | '}</Text>
-      <Text dimColor>{'('}</Text><Text dimColor bold>w</Text><Text dimColor>{')'}</Text><Text dimColor> view workflow runs</Text>
-      <Text dimColor>{' | '}</Text>
-      <Text dimColor>{'('}</Text><Text dimColor bold>ctrl+c</Text><Text dimColor>{')'}</Text><Text dimColor> stop</Text>
-    </Box>
+    <CommandFooter hints={[
+      { key: 'o', label: 'open ui' },
+      { key: 'w', label: 'view workflow runs' },
+      { key: 'ctrl+c', label: 'stop' }
+    ]} />
   </Box>
 );
 

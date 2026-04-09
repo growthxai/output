@@ -5,6 +5,7 @@ import { getWorkflowIdResult, type GetWorkflowIdResult200 } from '#api/generated
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
+import { CommandFooter } from '#components/command_footer.js';
 import { openUrl } from '#utils/open_url.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
@@ -113,20 +114,6 @@ const WorkflowDetailPane: React.FC<{
   );
 };
 
-const Toolbar: React.FC<{ hints: Array<{ key: string; label: string }> }> = ( { hints } ) => (
-  <Box marginTop={1}>
-    {hints.map( ( hint, i ) => (
-      <React.Fragment key={hint.key}>
-        {i > 0 && <Text dimColor>{' | '}</Text>}
-        <Text dimColor>{'('}</Text>
-        <Text dimColor bold>{hint.key}</Text>
-        <Text dimColor>{')'}</Text>
-        <Text dimColor>{` ${hint.label}`}</Text>
-      </React.Fragment>
-    ) )}
-  </Box>
-);
-
 export const WorkflowListView: React.FC<{
   runs: WorkflowRun[];
   onBack: () => void;
@@ -210,7 +197,7 @@ export const WorkflowListView: React.FC<{
       <Box flexDirection="column">
         <Text bold>Workflow Runs</Text>
         <Box marginTop={1}><Text dimColor>No workflow runs found.</Text></Box>
-        <Toolbar hints={[ { key: 'q', label: 'back' } ]} />
+        <CommandFooter hints={[ { key: 'q', label: 'back' } ]} />
       </Box>
     );
   }
@@ -242,7 +229,7 @@ export const WorkflowListView: React.FC<{
         </Box>
       )}
 
-      <Toolbar hints={[
+      <CommandFooter hints={[
         { key: '↑/↓', label: 'navigate' },
         { key: 'o', label: 'open in temporal' },
         { key: 'q', label: 'back' }
