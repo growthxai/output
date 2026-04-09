@@ -22,7 +22,7 @@ const STATUS_ORDER: Record<string, number> = {
 
 const sortRuns = ( runs: WorkflowRun[] ): WorkflowRun[] =>
   [ ...runs ].sort( ( a, b ) => {
-    const statusDiff = ( STATUS_ORDER[a.status ?? ''] ?? 99 ) - ( STATUS_ORDER[b.status ?? ''] ?? 99 );
+    const statusDiff = ( STATUS_ORDER[a.status ?? ''] ?? Infinity ) - ( STATUS_ORDER[b.status ?? ''] ?? Infinity );
     if ( statusDiff !== 0 ) {
       return statusDiff;
     }

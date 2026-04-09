@@ -288,15 +288,15 @@ const RunningView: React.FC<{
     </Box>
     <FailureWarning services={services} />
     {workflowSummary && (
-      <Box marginTop={1}>
-        <Text bold>{'📋 Workflows '}</Text>
-        <Text>(</Text>
-        <Text color={statusColor( 'running' )}>{workflowSummary.running} running</Text>
-        <Text>, </Text>
-        <Text color={statusColor( 'failed' )}>{workflowSummary.failed} failed</Text>
-        <Text>, </Text>
-        <Text color={statusColor( 'completed' )}>{workflowSummary.completed} complete</Text>
-        <Text>)</Text>
+      <Box flexDirection="column" marginTop={1}>
+        <Text dimColor>{'── '}<Text bold>Workflows</Text>{' ─'.padEnd( 40, '─' )}</Text>
+        <Box marginTop={1}>
+          <Text color={statusColor( 'running' )}>{workflowSummary.running} running</Text>
+          <Text>, </Text>
+          <Text color={statusColor( 'failed' )}>{workflowSummary.failed} failed</Text>
+          <Text>, </Text>
+          <Text color={statusColor( 'completed' )}>{workflowSummary.completed} complete</Text>
+        </Box>
       </Box>
     )}
     <Box marginTop={1}>

@@ -15,7 +15,7 @@ const STATUS_MAP: Record<string, StatusDisplay> = {
   exited: { icon: '✗', color: 'red' },
 
   // Workflow run status
-  running: { icon: '◐', color: 'yellow' },
+  running: { icon: '●', color: 'blue' },
   completed: { icon: '●', color: 'green' },
   failed: { icon: '✗', color: 'red' },
   canceled: { icon: '○', color: 'gray' },
