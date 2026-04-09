@@ -243,15 +243,39 @@ Variables use double curly braces with spaces:
 {{ x }}              # Wrong - unclear name
 ```
 
-### Nested Object Access
+### CRITICAL: Variable Type Constraint
 
-Access nested properties with dot notation:
+The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects directly -- this causes TypeScript compilation errors.
 
-```liquid
-{{ company.name }}
-{{ company.location.city }}
-{{ user.profile.preferences.theme }}
+When a step has complex data (arrays, objects), it must pre-format them into strings before passing as variables. The prompt then uses the pre-formatted string directly instead of Liquid loops:
+
+```typescript
+// In the step: pre-format before passing
+const itemsText = items.map( i => `- ${i.name}: ${i.value}` ).join( '\n' );
+const tagsText = tags.join( ', ' );
+
+const { result } = await generateText( {
+  prompt: 'process@v1',
+  variables: {
+    items: itemsText,   // string - OK
+    tags: tagsText,     // string - OK
+    count: items.length // number - OK
+  }
+} );
 ```
+
+```yaml
+# In the prompt: use the pre-formatted string directly
+<user>
+Process these items:
+{{ items }}
+
+Tags: {{ tags }}
+Total: {{ count }}
+</user>
+```
+
+Do NOT use Liquid loops (`{% for %}`) or nested object access (`{{ item.name }}`) in prompts -- the data should already be formatted as a string by the step.
 
 ### Conditionals with Fallbacks
 
@@ -278,10 +302,6 @@ Provide a standard analysis.
 Combine conditions with `and`, `or`:
 
 ```liquid
-{% if company and company.name %}
-Company: {{ company.name }}
-{% endif %}
-
 {% if includeFinancials or includeMetrics %}
 Include quantitative analysis.
 {% endif %}
@@ -289,36 +309,6 @@ Include quantitative analysis.
 {% if status == "active" and priority == "high" %}
 Urgent: Requires immediate attention.
 {% endif %}
-```
-
-### Loops with Defensive Checks
-
-Always check array existence AND size before looping:
-
-```liquid
-{% if competitors and competitors.size > 0 %}
-Known competitors:
-{% for competitor in competitors %}
-- {{ competitor.name }}{% if competitor.website %} ({{ competitor.website }}){% endif %}
-{% endfor %}
-{% else %}
-No known competitors provided.
-{% endif %}
-```
-
-### Loop Helpers
-
-Access loop metadata:
-
-```liquid
-{% for item in items %}
-{{ forloop.index }}. {{ item.name }}{% if forloop.last == false %},{% endif %}
-{% endfor %}
-
-{% for item in items %}
-{% if forloop.first %}First item: {% endif %}
-{{ item }}
-{% endfor %}
 ```
 
 ### Filters
@@ -330,7 +320,6 @@ Transform variables with filters:
 {{ text | downcase }}                  # lowercase
 {{ text | capitalize }}                # Capitalize
 {{ text | truncate: 100 }}             # Truncate to 100 chars
-{{ items | size }}                     # Array length
 {{ text | strip }}                     # Trim whitespace
 {{ value | default: "fallback" }}      # Default if nil/empty
 ```
@@ -340,11 +329,9 @@ Transform variables with filters:
 ```liquid
 # Wrong - Handlebars syntax
 {{#if condition}}...{{/if}}
-{{#each items}}...{{/each}}
 
 # Correct - Liquid.js syntax
 {% if condition %}...{% endif %}
-{% for item in items %}...{% endfor %}
 
 # Wrong - missing spaces in variables
 {{variable}}
@@ -352,13 +339,11 @@ Transform variables with filters:
 # Correct - spaces required
 {{ variable }}
 
-# Wrong - no array check before loop
-{% for item in items %}...{{ item }}...{% endfor %}
+# Wrong - passing arrays/objects as variables (causes TS2322)
+variables: { items: itemArray, user: userObject }
 
-# Correct - defensive array check
-{% if items and items.size > 0 %}
-{% for item in items %}...{{ item }}...{% endfor %}
-{% endif %}
+# Correct - pre-format complex data in the step
+variables: { items: itemsText, userName: user.name }
 ```
 
 ## Prompt Engineering Techniques
@@ -584,7 +569,7 @@ Add comments at the top of complex prompts:
 #
 # Variables:
 #   - companyData (string, required): Company information to analyze
-#   - competitors (array, optional): Known competitor names
+#   - competitors (string, optional): Comma-separated competitor names (pre-formatted in step)
 #   - focusAreas (string, optional): Specific areas to focus on
 #   - analysisDepth (string, optional): "summary" | "standard" | "comprehensive"
 #
@@ -613,9 +598,12 @@ src/workflows/{name}/
 Reference prompts by name and version in code:
 
 ```typescript
+// Pre-format array into string before passing as variable
+const competitorsText = competitors ? competitors.join( ', ' ) : '';
+
 const { result } = await generateText( {
   prompt: 'analyze@v1',
-  variables: { companyData, competitors }
+  variables: { companyData, competitors: competitorsText }
 } );
 ```
 

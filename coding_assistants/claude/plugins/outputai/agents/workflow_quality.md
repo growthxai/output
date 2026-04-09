@@ -256,6 +256,9 @@ When a step uses `Output.object()`, the schema is sent to the LLM automatically.
 ### 9. Code Style
 All generated code must follow project style conventions. Key rules: no trailing commas, no `let` (use `const` only), arrow parens only when needed, operator linebreak after. See `output-dev-code-style` skill for the full list.
 
+### 10. Arrays/Objects as Prompt Variables
+The `variables` field in `generateText` and `Agent` only accepts `string | number | boolean`. Passing arrays or objects causes TypeScript compilation errors (TS2322). Pre-format complex data into strings in the step before passing as variables.
+
 ## Evaluator Quality Checks
 
 When reviewing evaluator implementations:

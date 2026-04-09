@@ -270,6 +270,8 @@ output: Output.object( {
 
 ### Using generateText with Output.object()
 
+**Important**: The `variables` field only accepts `string | number | boolean` values. Arrays and objects must be pre-formatted into strings in the step before passing. See `output-dev-prompt-file` for the full constraint and examples.
+
 ```typescript
 import { generateText, Output } from '@outputai/llm';
 import {
