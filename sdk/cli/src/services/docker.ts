@@ -2,6 +2,7 @@ import { execFileSync, execSync, spawn, type ChildProcess } from 'node:child_pro
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
+import semver from 'semver';
 
 const DEFAULT_COMPOSE_PATH = '../assets/docker/docker-compose-dev.yml';
 
@@ -67,39 +68,6 @@ const getCommandVersion = ( command: string, pattern: RegExp = /(\d+\.\d+\.\d+)/
   }
 };
 
-const parseSemver = ( version: string ): [number, number, number] | null => {
-  const match = version.match( /^(\d+)\.(\d+)\.(\d+)/ );
-  return match ? [ Number( match[1] ), Number( match[2] ), Number( match[3] ) ] : null;
-};
-
-const satisfiesSemver = ( version: string, range: string ): boolean => {
-  if ( range === '*' ) {
-    return true;
-  }
-
-  const gteMatch = range.match( /^>=(.+)$/ );
-  if ( !gteMatch ) {
-    return false;
-  }
-
-  const current = parseSemver( version );
-  const required = parseSemver( gteMatch[1] );
-  if ( !current || !required ) {
-    return false;
-  }
-
-  const [ currentMajor, currentMinor, currentPatch ] = current;
-  const [ requiredMajor, requiredMinor, requiredPatch ] = required;
-
-  if ( currentMajor !== requiredMajor ) {
-    return currentMajor > requiredMajor;
-  }
-  if ( currentMinor !== requiredMinor ) {
-    return currentMinor > requiredMinor;
-  }
-  return currentPatch >= requiredPatch;
-};
-
 const isDockerInstalled = (): boolean => checkDockerCommand( 'docker --version' );
 
 const PREREQUISITES: Prerequisite[] = [
@@ -132,13 +100,14 @@ const PREREQUISITES: Prerequisite[] = [
 
 export function validateDockerEnvironment(): void {
   for ( const prereq of PREREQUISITES ) {
-    const version = prereq.getVersion();
+    const raw = prereq.getVersion();
+    const version = raw ? semver.valid( semver.coerce( raw ) ) : null;
 
-    if ( version === null ) {
+    if ( !version ) {
       throw new DockerValidationError( prereq.errorMessage( null, prereq.semverRange ) );
     }
 
-    if ( !satisfiesSemver( version, prereq.semverRange ) ) {
+    if ( !semver.satisfies( version, prereq.semverRange ) ) {
       throw new DockerValidationError( prereq.errorMessage( version, prereq.semverRange ) );
     }
   }
