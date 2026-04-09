@@ -406,7 +406,9 @@ Please work through each step of the methodology, showing your reasoning at each
 
 ### Few-Shot Prompting
 
-Provide examples in the system message for consistent output:
+Provide examples in the system message for consistent output.
+
+**Note**: This technique is for plain-text output steps (no `Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
 
 ```yaml
 <system>
@@ -491,6 +493,7 @@ const ContentExtractionSchema = z.object( {
   keyPoints: z.array( z.string() ).describe( '3-5 key points' ),
   confidence: z.number().describe( 'Confidence score from 0.0 to 1.0' )
 } );
+
 ```
 
 **When Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
@@ -528,12 +531,12 @@ Prompts work with both `generateText` (single-shot) and the `Agent` class (multi
 ```typescript
 import { Agent, Output } from '@outputai/llm';
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  output: Output.object({ schema: reviewSchema }),
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 const { output } = await agent.generate();
 ```
 
@@ -610,10 +613,10 @@ src/workflows/{name}/
 Reference prompts by name and version in code:
 
 ```typescript
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'analyze@v1',
   variables: { companyData, competitors }
-});
+} );
 ```
 
 ## Common Pitfalls

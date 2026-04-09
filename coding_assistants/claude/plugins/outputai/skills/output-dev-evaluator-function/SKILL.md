@@ -253,9 +253,9 @@ export const evaluateCompleteness = evaluator( {
     return new EvaluationBooleanResult( {
       value: isComplete,
       confidence: 1.0,
-      reasoning: isComplete
-        ? `Content has ${content.length} characters, meets minimum of ${minLength}`
-        : `Content has ${content.length} characters, below minimum of ${minLength}`
+      reasoning: isComplete ?
+        `Content has ${content.length} characters, meets minimum of ${minLength}` :
+        `Content has ${content.length} characters, below minimum of ${minLength}`
     } );
   }
 } );
@@ -329,11 +329,11 @@ export const evaluateSentiment = evaluator( {
     const positiveCount = positiveWords.filter( w => lowerContent.includes( w ) ).length;
     const negativeCount = negativeWords.filter( w => lowerContent.includes( w ) ).length;
 
-    const { sentiment, confidence } = positiveCount > negativeCount
-      ? { sentiment: 'positive', confidence: Math.min( 0.95, 0.6 + positiveCount * 0.1 ) }
-      : negativeCount > positiveCount
-        ? { sentiment: 'negative', confidence: Math.min( 0.95, 0.6 + negativeCount * 0.1 ) }
-        : { sentiment: 'neutral', confidence: 0.7 };
+    const { sentiment, confidence } = positiveCount > negativeCount ?
+      { sentiment: 'positive', confidence: Math.min( 0.95, 0.6 + positiveCount * 0.1 ) } :
+      negativeCount > positiveCount ?
+        { sentiment: 'negative', confidence: Math.min( 0.95, 0.6 + negativeCount * 0.1 ) } :
+        { sentiment: 'neutral', confidence: 0.7 };
 
     return new EvaluationStringResult( {
       value: sentiment,
@@ -345,6 +345,8 @@ export const evaluateSentiment = evaluator( {
 ```
 
 ## LLM-Powered Evaluator Examples
+
+**Note**: Evaluators are self-contained components that don't share schemas across steps, so defining `Output.object()` schemas inline is acceptable here. For workflow steps that share schemas, define them in `types.ts` instead.
 
 ### Using generateText with Output.object() for Evaluation
 
@@ -410,9 +412,9 @@ export const evaluateFactualAccuracy = evaluator( {
     return new EvaluationBooleanResult( {
       value: output.isFactual,
       confidence: output.confidence,
-      reasoning: output.issues?.length
-        ? `Issues found: ${output.issues.join( ', ' )}`
-        : 'No factual issues detected'
+      reasoning: output.issues?.length ?
+        `Issues found: ${output.issues.join( ', ' )}` :
+        'No factual issues detected'
     } );
   }
 } );

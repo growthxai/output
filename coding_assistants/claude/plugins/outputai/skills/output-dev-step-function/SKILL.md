@@ -214,12 +214,12 @@ const httpClientInstance = httpClient( {
 
         if ( status && FATAL_STATUS_CODES.includes( status ) ) {
           throw new FatalError(
-            `HTTP ${ status } error: ${ message }. This is a permanent error.`
+            `HTTP ${status} error: ${message}. This is a permanent error.`
           );
         }
 
         throw new ValidationError(
-          `HTTP request failed: ${ message }`
+          `HTTP request failed: ${message}`
         );
       }
     ]
@@ -344,7 +344,7 @@ if ( !input.requiredField ) {
 
 // Resource not found
 if ( response.status === 404 ) {
-  throw new FatalError( `Resource not found: ${ resourceId }` );
+  throw new FatalError( `Resource not found: ${resourceId}` );
 }
 
 // Configuration errors
@@ -374,7 +374,7 @@ if ( response.status === 503 ) {
 try {
   const response = await httpClientInstance.get( url );
 } catch ( error ) {
-  throw new ValidationError( `Network error: ${ error.message }` );
+  throw new ValidationError( `Network error: ${error.message}` );
 }
 
 // Empty response that might be temporary
@@ -417,10 +417,10 @@ const httpClientInstance = httpClient( {
         const message = error.message;
 
         if ( status && FATAL_STATUS_CODES.includes( status ) ) {
-          throw new FatalError( `HTTP ${ status } error: ${ message }` );
+          throw new FatalError( `HTTP ${status} error: ${message}` );
         }
 
-        throw new ValidationError( `HTTP request failed: ${ message }` );
+        throw new ValidationError( `HTTP request failed: ${message}` );
       }
     ]
   }
@@ -493,7 +493,7 @@ export const validateReferenceImages = step( {
 
       if ( contentType && !contentType.startsWith( 'image/' ) ) {
         throw new FatalError(
-          `Reference URL ${ index + 1 } (${ url }) is not an image file`
+          `Reference URL ${index + 1} (${url}) is not an image file`
         );
       }
     }
@@ -509,27 +509,27 @@ export const validateReferenceImages = step( {
 
 ```typescript
 // Good - focused step
-export const fetchUserData = step({
+export const fetchUserData = step( {
   name: 'fetchUserData',
-  description: 'Fetch user data from the API',
+  description: 'Fetch user data from the API'
   // ...
-});
+} );
 
 // Avoid - step doing too much
-export const fetchAndProcessAndSaveUserData = step({
-  name: 'fetchAndProcessAndSaveUserData',
+export const fetchAndProcessAndSaveUserData = step( {
+  name: 'fetchAndProcessAndSaveUserData'
   // ...
-});
+} );
 ```
 
 ### 2. Clear Error Messages
 
 ```typescript
 // Good - specific error message
-throw new FatalError(`Invalid API key for service: ${serviceName}`);
+throw new FatalError( `Invalid API key for service: ${serviceName}` );
 
 // Avoid - generic error message
-throw new FatalError('Error occurred');
+throw new FatalError( 'Error occurred' );
 ```
 
 ### 3. Validate Input Early

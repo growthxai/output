@@ -290,7 +290,7 @@ Focus on the most important concepts that would benefit from visual explanation.
 import { generateText, Output } from '@outputai/llm';
 import { z } from '@outputai/core';
 
-const { output } = await generateText({
+const { output } = await generateText( {
   prompt: 'generateImageIdeas@v1',  // References prompts/generateImageIdeas@v1.prompt
   variables: {
     content: 'Solar panel technology explained...',
@@ -298,12 +298,12 @@ const { output } = await generateText({
     colorPalette: 'blue and green tones',
     artDirection: 'minimalist style'
   },
-  output: Output.object({
-    schema: z.object({
-      ideas: z.array(z.string())
-    })
-  })
-});
+  output: Output.object( {
+    schema: z.object( {
+      ideas: z.array( z.string() )
+    } )
+  } )
+} );
 // output contains { ideas: [...] }
 ```
 
@@ -312,13 +312,13 @@ const { output } = await generateText({
 ```typescript
 import { generateText } from '@outputai/llm';
 
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'summarize@v1',
   variables: {
     content: 'Long article text...',
     maxLength: 200
   }
-});
+} );
 // result contains the generated text string
 ```
 
@@ -355,16 +355,16 @@ Prompts work with both `generateText` and the `Agent` class. Use `Agent` for mul
 ```typescript
 import { Agent, Output } from '@outputai/llm';
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: {
     content_type: 'documentation',
     focus: 'clarity',
     content: input.content
   },
-  output: Output.object({ schema: reviewSchema }),
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 const { output } = await agent.generate();
 ```
 

@@ -118,6 +118,25 @@ export default workflow( {
 } );
 ```
 
+For readability, you can extract the fallback logic into a named helper function instead of using an IIFE:
+
+```typescript
+const fetchWithFallback = async input => {
+  try {
+    return await fetchFromPrimarySource( input );
+  } catch {
+    return await fetchFromSecondarySource( input );
+  }
+};
+
+export default workflow( {
+  fn: async input => {
+    const data = await fetchWithFallback( input );
+    return await processData( data );
+  }
+} );
+```
+
 ### 2. Aggregate Results with Partial Failures
 
 When processing multiple items where some may fail:

@@ -51,7 +51,7 @@ const apiKey = process.env.SERVICE_API_KEY;
 
 // Correct
 import { credentials } from '@outputai/credentials';
-const apiKey = credentials.require('service.api_key');
+const apiKey = credentials.require( 'service.api_key' );
 ```
 
 ### Workflow Determinism
@@ -72,21 +72,21 @@ Workflows must NOT contain:
 All I/O operations must be wrapped in steps:
 ```typescript
 // Wrong - I/O in workflow
-export default workflow({
-  fn: async (input) => {
-    const data = await fetch('https://api.example.com'); // ❌
+export default workflow( {
+  fn: async input => {
+    const data = await fetch( 'https://api.example.com' ); // ❌
     return { data };
   }
-});
+} );
 
 // Correct - I/O in step
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
-    return client.get('endpoint').json();
+  fn: async input => {
+    const client = httpClient( { prefixUrl: 'https://api.example.com' } );
+    return client.get( 'endpoint' ).json();
   }
-});
+} );
 ```
 
 ### No Try-Catch Wrapping
@@ -94,18 +94,18 @@ export const fetchData = step({
 Don't wrap step calls in try-catch blocks. Allow failures to propagate:
 ```typescript
 // Wrong
-fn: async (input) => {
+fn: async input => {
   try {
-    const result = await myStep(input);
+    const result = await myStep( input );
     return result;
-  } catch (error) {
-    throw new FatalError(error.message);
+  } catch ( error ) {
+    throw new FatalError( error.message );
   }
 }
 
 // Correct
-fn: async (input) => {
-  const result = await myStep(input);
+fn: async input => {
+  const result = await myStep( input );
   return result;
 }
 ```
@@ -116,17 +116,17 @@ Never use axios directly. Use `@outputai/http`:
 ```typescript
 import { httpClient } from '@outputai/http';
 
-const client = httpClient({
+const client = httpClient( {
   prefixUrl: 'https://api.example.com',
   timeout: 30000,
   retry: { limit: 3 }
-});
+} );
 
 // GET request
-const data = await client.get('endpoint').json();
+const data = await client.get( 'endpoint' ).json();
 
 // POST request
-const result = await client.post('endpoint', { json: payload }).json();
+const result = await client.post( 'endpoint', { json: payload } ).json();
 ```
 
 ### LLM Integration
@@ -136,19 +136,19 @@ Never call LLM APIs directly. Use `@outputai/llm`:
 import { generateText, Output } from '@outputai/llm';
 
 // Text generation
-const { result: text } = await generateText({
+const { result: text } = await generateText( {
   prompt: 'prompts/my_prompt@v1',
   variables: { topic: 'AI' }
-});
+} );
 
 // Structured output
-const { output: data } = await generateText({
+const { output: data } = await generateText( {
   prompt: 'prompts/extract@v1',
   variables: { text },
-  output: Output.object({
-    schema: z.object({ title: z.string(), summary: z.string() })
-  })
-});
+  output: Output.object( {
+    schema: z.object( { title: z.string(), summary: z.string() } )
+  } )
+} );
 ```
 
 ### Schema Definitions
@@ -157,30 +157,30 @@ Define input/output schemas with Zod:
 ```typescript
 import { step, z } from '@outputai/core';
 
-export const processData = step({
+export const processData = step( {
   name: 'processData',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     id: z.string(),
     count: z.number().optional()
-  }),
-  outputSchema: z.object({
+  } ),
+  outputSchema: z.object( {
     result: z.string(),
     processed: z.boolean()
-  }),
-  fn: async (input) => {
+  } ),
+  fn: async input => {
     // input is typed as { id: string, count?: number }
     return { result: input.id, processed: true };
   }
-});
+} );
 ```
 
 ### Retry Policies
 
 Configure retry policies in step options:
 ```typescript
-export const riskyStep = step({
+export const riskyStep = step( {
   name: 'riskyStep',
-  fn: async (input) => { /* ... */ },
+  fn: async input => { /* ... */ },
   options: {
     retry: {
       maximumAttempts: 3,
@@ -190,7 +190,7 @@ export const riskyStep = step({
     },
     startToCloseTimeout: '30s'
   }
-});
+} );
 ```
 
 ### Error Types
@@ -200,10 +200,10 @@ Use appropriate error types:
 import { FatalError, ValidationError } from '@outputai/core';
 
 // Non-retryable error (workflow fails immediately)
-throw new FatalError('Critical failure - do not retry');
+throw new FatalError( 'Critical failure - do not retry' );
 
 // Validation error (schema/input validation)
-throw new ValidationError('Invalid input format');
+throw new ValidationError( 'Invalid input format' );
 ```
 
 ## File Structure

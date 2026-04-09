@@ -27,16 +27,16 @@ Never use trailing commas in objects, arrays, function parameters, or type defin
 const config = {
   name: 'workflow',
   timeout: 30000
-}
+};
 
-const items = [ 'a', 'b', 'c' ]
+const items = [ 'a', 'b', 'c' ];
 
 export const myStep = step( {
   name: 'myStep',
   inputSchema: MyInputSchema,
   outputSchema: MyOutputSchema,
   fn: async input => {
-    return { result: input.value }
+    return { result: input.value };
   }
 } );
 ```
@@ -107,7 +107,7 @@ fn: async input => { ... }
 
 // Parens required for these cases:
 items.reduce( ( acc, item ) => acc + item, 0 )
-const run = ( { name, id } ) => `${ name }-${ id }`;
+const run = ( { name, id } ) => `${name}-${id}`;
 const noop = () => {};
 ```
 

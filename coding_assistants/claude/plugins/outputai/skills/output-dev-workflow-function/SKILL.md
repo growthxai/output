@@ -246,9 +246,9 @@ fn: async input => {
     await processImages( input );
   }
 
-  const result = input.mode === 'fast'
-    ? await quickProcess( input )
-    : await detailedProcess( input );
+  const result = input.mode === 'fast' ?
+    await quickProcess( input ) :
+    await detailedProcess( input );
 
   return result;
 }
