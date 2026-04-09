@@ -25,14 +25,6 @@ async function checkTargetDirectory( name: string, targetDir: string, force: boo
   }
 }
 
-const SCENARIOS_PREFIX = 'scenarios/';
-
-function extractScenarioNames( filesCreated: string[] ): string[] {
-  return filesCreated
-    .filter( f => f.startsWith( SCENARIOS_PREFIX ) && f.endsWith( '.json' ) )
-    .map( f => f.slice( SCENARIOS_PREFIX.length, -'.json'.length ) );
-}
-
 /**
  * Generate a new workflow
  */
@@ -56,9 +48,7 @@ export async function generateWorkflow( config: WorkflowGenerationConfig ): Prom
 
   return {
     workflowName: config.name,
-    workflowId: variables.workflowName,
     targetDir,
-    filesCreated,
-    scenarioNames: extractScenarioNames( filesCreated )
+    filesCreated
   };
 }

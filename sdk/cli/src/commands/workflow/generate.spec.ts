@@ -2,12 +2,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Generate from './generate.js';
 import { generateWorkflow } from '#services/workflow_generator.js';
+import { parseWorkflowDir } from '#utils/workflow_dir_parser.js';
 import { InvalidNameError, WorkflowExistsError } from '#types/errors.js';
 
 vi.mock( '../../services/workflow_generator.js' );
+vi.mock( '../../utils/workflow_dir_parser.js' );
 
 describe( 'Generate Command', () => {
   let mockGenerateWorkflow: any;
+  let mockParseWorkflowDir: any;
   let logSpy: any;
 
   const createCommand = () => {
@@ -29,6 +32,7 @@ describe( 'Generate Command', () => {
     vi.clearAllMocks();
 
     mockGenerateWorkflow = vi.mocked( generateWorkflow );
+    mockParseWorkflowDir = vi.mocked( parseWorkflowDir );
   } );
 
   describe( 'successful workflow generation', () => {
@@ -47,9 +51,12 @@ describe( 'Generate Command', () => {
 
       mockGenerateWorkflow.mockResolvedValue( {
         workflowName: 'test-workflow',
-        workflowId: 'testWorkflow',
         targetDir: '/tmp/test-workflow',
-        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts', 'scenarios/test_input.json' ],
+        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts' ]
+      } );
+
+      mockParseWorkflowDir.mockReturnValue( {
+        workflowId: 'testWorkflow',
         scenarioNames: [ 'test_input' ]
       } );
 
@@ -148,9 +155,12 @@ describe( 'Generate Command', () => {
 
       mockGenerateWorkflow.mockResolvedValue( {
         workflowName: 'my-workflow',
-        workflowId: 'myWorkflow',
         targetDir: '/custom/path/my-workflow',
-        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts', 'scenarios/test_input.json' ],
+        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts' ]
+      } );
+
+      mockParseWorkflowDir.mockReturnValue( {
+        workflowId: 'myWorkflow',
         scenarioNames: [ 'test_input' ]
       } );
 
