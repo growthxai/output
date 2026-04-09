@@ -34,25 +34,25 @@ Workflow functions must be **deterministic** - they should only orchestrate step
 
 ```typescript
 // WRONG: I/O directly in workflow
-export default workflow({
-  fn: async (input) => {
-    const response = await fetch('https://api.example.com/data');  // BAD!
+export default workflow( {
+  fn: async input => {
+    const response = await fetch( 'https://api.example.com/data' );  // BAD!
     const data = await response.json();
     return { data };
   }
-});
+} );
 ```
 
 ### Direct Database Calls
 
 ```typescript
 // WRONG: Database I/O in workflow
-export default workflow({
-  fn: async (input) => {
-    const user = await db.users.findById(input.userId);  // BAD!
+export default workflow( {
+  fn: async input => {
+    const user = await db.users.findById( input.userId );  // BAD!
     return { user };
   }
-});
+} );
 ```
 
 ### File System Operations
@@ -61,12 +61,12 @@ export default workflow({
 // WRONG: File I/O in workflow
 import fs from 'fs/promises';
 
-export default workflow({
-  fn: async (input) => {
-    const data = await fs.readFile(input.path, 'utf-8');  // BAD!
+export default workflow( {
+  fn: async input => {
+    const data = await fs.readFile( input.path, 'utf-8' );  // BAD!
     return { data };
   }
-});
+} );
 ```
 
 ## Solution
@@ -76,13 +76,13 @@ Move ALL I/O operations to step functions. Steps are designed to handle non-dete
 ### Before (Wrong)
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
-    const response = await fetch('https://api.example.com/data');
+export default workflow( {
+  fn: async input => {
+    const response = await fetch( 'https://api.example.com/data' );
     const data = await response.json();
     return { data };
   }
-});
+} );
 ```
 
 ### After (Correct)
@@ -92,30 +92,30 @@ import { z, step, workflow } from '@outputai/core';
 import { httpClient } from '@outputai/http';
 
 // Create a step for the I/O operation
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  inputSchema: z.object({
-    endpoint: z.string(),
-  }),
-  outputSchema: z.object({
-    data: z.unknown(),
-  }),
-  fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
-    const data = await client.get(input.endpoint).json();
+  inputSchema: z.object( {
+    endpoint: z.string()
+  } ),
+  outputSchema: z.object( {
+    data: z.unknown()
+  } ),
+  fn: async input => {
+    const client = httpClient( { prefixUrl: 'https://api.example.com' } );
+    const data = await client.get( input.endpoint ).json();
     return { data };
-  },
-});
+  }
+} );
 
 // Workflow only orchestrates steps
-export default workflow({
-  inputSchema: z.object({}),
-  outputSchema: z.object({ data: z.unknown() }),
-  fn: async (input) => {
-    const result = await fetchData({ endpoint: 'data' });
+export default workflow( {
+  inputSchema: z.object( {} ),
+  outputSchema: z.object( { data: z.unknown() } ),
+  fn: async input => {
+    const result = await fetchData( { endpoint: 'data' } );
     return result;
-  },
-});
+  }
+} );
 ```
 
 ## Complete Example: Database Operation
@@ -123,17 +123,17 @@ export default workflow({
 ### Before (Wrong)
 
 ```typescript
-export default workflow({
-  fn: async (input) => {
-    const user = await prisma.user.findUnique({
+export default workflow( {
+  fn: async input => {
+    const user = await prisma.user.findUnique( {
       where: { id: input.userId }
-    });
-    const orders = await prisma.order.findMany({
+    } );
+    const orders = await prisma.order.findMany( {
       where: { userId: input.userId }
-    });
+    } );
     return { user, orders };
   }
-});
+} );
 ```
 
 ### After (Correct)
@@ -142,53 +142,53 @@ export default workflow({
 import { z, step, workflow } from '@outputai/core';
 import { prisma } from '../lib/db';
 
-export const fetchUser = step({
+export const fetchUser = step( {
   name: 'fetchUser',
-  inputSchema: z.object({ userId: z.string() }),
-  outputSchema: z.object({
-    user: z.object({
+  inputSchema: z.object( { userId: z.string() } ),
+  outputSchema: z.object( {
+    user: z.object( {
       id: z.string(),
       name: z.string(),
-      email: z.string(),
-    }).nullable(),
-  }),
-  fn: async (input) => {
-    const user = await prisma.user.findUnique({
+      email: z.string()
+    } ).nullable()
+  } ),
+  fn: async input => {
+    const user = await prisma.user.findUnique( {
       where: { id: input.userId }
-    });
+    } );
     return { user };
-  },
-});
+  }
+} );
 
-export const fetchOrders = step({
+export const fetchOrders = step( {
   name: 'fetchOrders',
-  inputSchema: z.object({ userId: z.string() }),
-  outputSchema: z.object({
-    orders: z.array(z.object({
+  inputSchema: z.object( { userId: z.string() } ),
+  outputSchema: z.object( {
+    orders: z.array( z.object( {
       id: z.string(),
-      total: z.number(),
-    })),
-  }),
-  fn: async (input) => {
-    const orders = await prisma.order.findMany({
+      total: z.number()
+    } ) )
+  } ),
+  fn: async input => {
+    const orders = await prisma.order.findMany( {
       where: { userId: input.userId }
-    });
+    } );
     return { orders };
-  },
-});
+  }
+} );
 
-export default workflow({
-  inputSchema: z.object({ userId: z.string() }),
-  outputSchema: z.object({
+export default workflow( {
+  inputSchema: z.object( { userId: z.string() } ),
+  outputSchema: z.object( {
     user: z.unknown(),
-    orders: z.array(z.unknown()),
-  }),
-  fn: async (input) => {
-    const { user } = await fetchUser({ userId: input.userId });
-    const { orders } = await fetchOrders({ userId: input.userId });
+    orders: z.array( z.unknown() )
+  } ),
+  fn: async input => {
+    const { user } = await fetchUser( { userId: input.userId } );
+    const { orders } = await fetchOrders( { userId: input.userId } );
     return { user, orders };
-  },
-});
+  }
+} );
 ```
 
 ## Finding Direct I/O in Workflows
@@ -214,7 +214,7 @@ Then review each match to see if it's in a workflow function vs a step function.
 ## What CAN Be in Workflow Functions
 
 Workflow functions should contain:
-- **Step calls**: `await myStep(input)`
+- **Step calls**: `await myStep( input )`
 - **Orchestration logic**: conditionals, loops (over step calls)
 - **Data transformation**: Pure functions on step results
 - **Constants**: Static values and configuration

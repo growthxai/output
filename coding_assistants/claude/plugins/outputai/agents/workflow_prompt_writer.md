@@ -48,9 +48,15 @@ maxTokens: 2000
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |
 
+### Provider Consistency
+
+All prompt files in a workflow **must use the same provider** unless the user explicitly requests otherwise. Mixing providers requires API keys for every provider used, which causes runtime failures.
+
+Default to `anthropic` with `claude-sonnet-4-6` when no preference is specified. If the user or the workflow plan specifies a provider, use that for all prompts in the workflow.
+
 ### Recommended Models
 
-**Anthropic:**
+**Anthropic (default):**
 - `claude-sonnet-4-6` - Balanced performance (default)
 - `claude-opus-4-5` - Complex reasoning tasks
 - `claude-haiku-4-5` - Fast, simple tasks
@@ -96,7 +102,9 @@ Each message role serves a specific purpose. Understanding when to use each is c
 
 ## System Message Structure
 
-Structure system messages with clear markdown headers for readability and maintainability:
+Structure system messages with clear markdown headers for readability and maintainability.
+
+This example is for a plain text output step (no `Output.object()`), so `## Output Format` is appropriate here. When using `Output.object()`, omit the Output Format section -- the schema handles structure.
 
 ```yaml
 <system>
@@ -139,7 +147,7 @@ Return a structured analysis with:
 | `## Expertise` | List specific knowledge areas |
 | `## Task` | Describe what the AI should accomplish |
 | `## Methodology` | Step-by-step approach to follow |
-| `## Output Format` | Specify expected response structure |
+| `## Output Format` | Specify expected response structure (**only when NOT using `Output.object()`** -- when using structured output, the schema handles format) |
 | `## Constraints` | Rules and limitations to follow |
 | `## Examples` | Few-shot examples (optional) |
 
@@ -241,15 +249,39 @@ Variables use double curly braces with spaces:
 {{ x }}              # Wrong - unclear name
 ```
 
-### Nested Object Access
+### CRITICAL: Variable Type Constraint
 
-Access nested properties with dot notation:
+The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects directly -- this causes TypeScript compilation errors.
 
-```liquid
-{{ company.name }}
-{{ company.location.city }}
-{{ user.profile.preferences.theme }}
+When a step has complex data (arrays, objects), it must pre-format them into strings before passing as variables. The prompt then uses the pre-formatted string directly instead of Liquid loops:
+
+```typescript
+// In the step: pre-format before passing
+const itemsText = items.map( i => `- ${i.name}: ${i.value}` ).join( '\n' );
+const tagsText = tags.join( ', ' );
+
+const { result } = await generateText( {
+  prompt: 'process@v1',
+  variables: {
+    items: itemsText,   // string - OK
+    tags: tagsText,     // string - OK
+    count: items.length // number - OK
+  }
+} );
 ```
+
+```yaml
+# In the prompt: use the pre-formatted string directly
+<user>
+Process these items:
+{{ items }}
+
+Tags: {{ tags }}
+Total: {{ count }}
+</user>
+```
+
+Do NOT use Liquid loops (`{% for %}`) or nested object access (`{{ item.name }}`) in prompts -- the data should already be formatted as a string by the step.
 
 ### Conditionals with Fallbacks
 
@@ -276,10 +308,6 @@ Provide a standard analysis.
 Combine conditions with `and`, `or`:
 
 ```liquid
-{% if company and company.name %}
-Company: {{ company.name }}
-{% endif %}
-
 {% if includeFinancials or includeMetrics %}
 Include quantitative analysis.
 {% endif %}
@@ -287,36 +315,6 @@ Include quantitative analysis.
 {% if status == "active" and priority == "high" %}
 Urgent: Requires immediate attention.
 {% endif %}
-```
-
-### Loops with Defensive Checks
-
-Always check array existence AND size before looping:
-
-```liquid
-{% if competitors and competitors.size > 0 %}
-Known competitors:
-{% for competitor in competitors %}
-- {{ competitor.name }}{% if competitor.website %} ({{ competitor.website }}){% endif %}
-{% endfor %}
-{% else %}
-No known competitors provided.
-{% endif %}
-```
-
-### Loop Helpers
-
-Access loop metadata:
-
-```liquid
-{% for item in items %}
-{{ forloop.index }}. {{ item.name }}{% if forloop.last == false %},{% endif %}
-{% endfor %}
-
-{% for item in items %}
-{% if forloop.first %}First item: {% endif %}
-{{ item }}
-{% endfor %}
 ```
 
 ### Filters
@@ -328,7 +326,6 @@ Transform variables with filters:
 {{ text | downcase }}                  # lowercase
 {{ text | capitalize }}                # Capitalize
 {{ text | truncate: 100 }}             # Truncate to 100 chars
-{{ items | size }}                     # Array length
 {{ text | strip }}                     # Trim whitespace
 {{ value | default: "fallback" }}      # Default if nil/empty
 ```
@@ -338,11 +335,9 @@ Transform variables with filters:
 ```liquid
 # Wrong - Handlebars syntax
 {{#if condition}}...{{/if}}
-{{#each items}}...{{/each}}
 
 # Correct - Liquid.js syntax
 {% if condition %}...{% endif %}
-{% for item in items %}...{% endfor %}
 
 # Wrong - missing spaces in variables
 {{variable}}
@@ -350,13 +345,11 @@ Transform variables with filters:
 # Correct - spaces required
 {{ variable }}
 
-# Wrong - no array check before loop
-{% for item in items %}...{{ item }}...{% endfor %}
+# Wrong - passing arrays/objects as variables (causes TS2322)
+variables: { items: itemArray, user: userObject }
 
-# Correct - defensive array check
-{% if items and items.size > 0 %}
-{% for item in items %}...{{ item }}...{% endfor %}
-{% endif %}
+# Correct - pre-format complex data in the step
+variables: { items: itemsText, userName: user.name }
 ```
 
 ## Prompt Engineering Techniques
@@ -404,7 +397,9 @@ Please work through each step of the methodology, showing your reasoning at each
 
 ### Few-Shot Prompting
 
-Provide examples in the system message for consistent output:
+Provide examples in the system message for consistent output.
+
+**Note**: This technique is for plain-text output steps (no `Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
 
 ```yaml
 <system>
@@ -449,26 +444,27 @@ Extract key metrics from this description:
 </user>
 ```
 
-### Structured Output Prompts
+### Structured Output Prompts (with Output.object())
 
-For `generateText` with `Output.object()`, specify format clearly:
+When `generateText` is called with `Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
+
+Instead, use `.describe()` on schema fields (in `types.ts`) for field-level guidance, and use the prompt for **task framing, methodology, and quality standards**:
 
 ```yaml
 <system>
 ## Role
-You are a content extractor that outputs structured JSON.
+You are a content extractor that identifies the most important information.
 
-## Output Format
-Return a JSON object with exactly these fields:
-- title (string): The main title or headline
-- summary (string): A 1-2 sentence summary
-- keyPoints (array of strings): 3-5 key points
-- confidence (number): Your confidence score from 0.0 to 1.0
+## Methodology
+1. Read the content carefully to identify the central argument or topic
+2. Extract the main title -- prefer the author's own headline if present
+3. Write a summary that captures the "why it matters", not just the topic
+4. Select key points that are specific and actionable, not generic observations
+5. Rate your confidence based on content quality -- lower if the text is ambiguous or incomplete
 
 ## Constraints
-- All fields are required
-- keyPoints must have between 3 and 5 items
-- confidence must be between 0.0 and 1.0
+- Base conclusions only on provided content, do not add outside knowledge
+- If the text is too short or unclear for a confident extraction, reflect that in your confidence score
 </system>
 <user>
 Extract structured data from this text:
@@ -478,6 +474,20 @@ Extract structured data from this text:
 </content>
 </user>
 ```
+
+The corresponding schema in `types.ts` handles structure and field descriptions:
+
+```typescript
+const ContentExtractionSchema = z.object( {
+  title: z.string().describe( 'The main title or headline' ),
+  summary: z.string().describe( 'A 1-2 sentence summary' ),
+  keyPoints: z.array( z.string() ).describe( '3-5 key points' ),
+  confidence: z.number().describe( 'Confidence score from 0.0 to 1.0' )
+} );
+
+```
+
+**When Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
 
 ## Skills System
 
@@ -512,12 +522,12 @@ Prompts work with both `generateText` (single-shot) and the `Agent` class (multi
 ```typescript
 import { Agent, Output } from '@outputai/llm';
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  output: Output.object({ schema: reviewSchema }),
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 const { output } = await agent.generate();
 ```
 
@@ -565,7 +575,7 @@ Add comments at the top of complex prompts:
 #
 # Variables:
 #   - companyData (string, required): Company information to analyze
-#   - competitors (array, optional): Known competitor names
+#   - competitors (string, optional): Comma-separated competitor names (pre-formatted in step)
 #   - focusAreas (string, optional): Specific areas to focus on
 #   - analysisDepth (string, optional): "summary" | "standard" | "comprehensive"
 #
@@ -594,10 +604,13 @@ src/workflows/{name}/
 Reference prompts by name and version in code:
 
 ```typescript
-const { result } = await generateText({
+// Pre-format array into string before passing as variable
+const competitorsText = competitors ? competitors.join( ', ' ) : '';
+
+const { result } = await generateText( {
   prompt: 'analyze@v1',
-  variables: { companyData, competitors }
-});
+  variables: { companyData, competitors: competitorsText }
+} );
 ```
 
 ## Common Pitfalls
@@ -622,6 +635,9 @@ Writing system prompts as walls of text instead of using `## Headers`.
 
 ### 7. Missing Semantic Tags
 Dumping data without wrapping in `<data>`, `<context>`, etc.
+
+### 8. Duplicating Schema in Prompt
+Including `## Output Format` with JSON examples when the step uses `Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
 
 ## Example Interactions
 

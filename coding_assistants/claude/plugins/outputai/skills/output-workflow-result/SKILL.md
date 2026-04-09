@@ -53,11 +53,11 @@ A successful workflow returns the value from its `fn` function:
 
 ```typescript
 // Workflow code
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     return { processed: true, count: 42 };
   }
-});
+} );
 ```
 
 ```bash

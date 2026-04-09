@@ -33,39 +33,39 @@ Non-deterministic operations break this replay mechanism because they produce di
 
 ```typescript
 // WRONG: Non-deterministic
-export default workflow({
-  fn: async (input) => {
-    const id = Math.random().toString(36);  // Different each time!
-    return await processWithId({ id });
+export default workflow( {
+  fn: async input => {
+    const id = Math.random().toString( 36 );  // Different each time!
+    return await processWithId( { id } );
   }
-});
+} );
 ```
 
 **Solution**: Pass random values as workflow input or generate in a step.
 
 ```typescript
 // Option 1: Pass as input
-export default workflow({
-  inputSchema: z.object({
+export default workflow( {
+  inputSchema: z.object( {
     id: z.string()  // Generate ID before calling workflow
-  }),
-  fn: async (input) => {
-    return await processWithId({ id: input.id });
+  } ),
+  fn: async input => {
+    return await processWithId( { id: input.id } );
   }
-});
+} );
 
 // Option 2: Generate in a step (steps can be non-deterministic)
-export const generateId = step({
+export const generateId = step( {
   name: 'generateId',
-  fn: async () => ({ id: Math.random().toString(36) })
-});
+  fn: async () => ( { id: Math.random().toString( 36 ) } )
+} );
 
-export default workflow({
-  fn: async (input) => {
-    const { id } = await generateId({});
-    return await processWithId({ id });
+export default workflow( {
+  fn: async input => {
+    const { id } = await generateId( {} );
+    return await processWithId( { id } );
   }
-});
+} );
 ```
 
 ### 2. Date.now() / new Date()
@@ -74,32 +74,32 @@ export default workflow({
 
 ```typescript
 // WRONG: Non-deterministic
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     const timestamp = Date.now();  // Different each replay!
-    return await logEvent({ timestamp });
+    return await logEvent( { timestamp } );
   }
-});
+} );
 ```
 
 **Solution**: Pass timestamps as input or use Temporal's time API.
 
 ```typescript
 // Option 1: Pass as input
-export default workflow({
-  inputSchema: z.object({
+export default workflow( {
+  inputSchema: z.object( {
     timestamp: z.number()
-  }),
-  fn: async (input) => {
-    return await logEvent({ timestamp: input.timestamp });
+  } ),
+  fn: async input => {
+    return await logEvent( { timestamp: input.timestamp } );
   }
-});
+} );
 
 // Option 2: Generate in a step
-export const getTimestamp = step({
+export const getTimestamp = step( {
   name: 'getTimestamp',
-  fn: async () => ({ timestamp: Date.now() })
-});
+  fn: async () => ( { timestamp: Date.now() } )
+} );
 ```
 
 ### 3. crypto.randomUUID()
@@ -110,25 +110,25 @@ export const getTimestamp = step({
 // WRONG: Non-deterministic
 import { randomUUID } from 'crypto';
 
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     const requestId = randomUUID();  // Different each time!
-    return await makeRequest({ requestId });
+    return await makeRequest( { requestId } );
   }
-});
+} );
 ```
 
 **Solution**: Generate UUIDs as input or in steps.
 
 ```typescript
 // Correct: Generate in step
-export const generateRequestId = step({
+export const generateRequestId = step( {
   name: 'generateRequestId',
   fn: async () => {
-    const { randomUUID } = await import('crypto');
+    const { randomUUID } = await import( 'crypto' );
     return { requestId: randomUUID() };
   }
-});
+} );
 ```
 
 ### 4. Dynamic Imports
@@ -137,12 +137,12 @@ export const generateRequestId = step({
 
 ```typescript
 // WRONG: Non-deterministic import timing
-export default workflow({
-  fn: async (input) => {
-    const module = await import(`./handlers/${input.type}`);
-    return module.handle(input);
+export default workflow( {
+  fn: async input => {
+    const module = await import( `./handlers/${input.type}` );
+    return module.handle( input );
   }
-});
+} );
 ```
 
 **Solution**: Use static imports and conditional logic.
@@ -152,15 +152,15 @@ export default workflow({
 import { handleTypeA } from './handlers/typeA';
 import { handleTypeB } from './handlers/typeB';
 
-export default workflow({
-  fn: async (input) => {
-    if (input.type === 'A') {
-      return await handleTypeA(input);
+export default workflow( {
+  fn: async input => {
+    if ( input.type === 'A' ) {
+      return await handleTypeA( input );
     } else {
-      return await handleTypeB(input);
+      return await handleTypeB( input );
     }
   }
-});
+} );
 ```
 
 ### 5. Environment Variables
@@ -169,26 +169,26 @@ export default workflow({
 
 ```typescript
 // WRONG: Environment can change
-export default workflow({
-  fn: async (input) => {
+export default workflow( {
+  fn: async input => {
     const apiUrl = process.env.API_URL;  // May differ on different workers
-    return await callApi({ url: apiUrl });
+    return await callApi( { url: apiUrl } );
   }
-});
+} );
 ```
 
 **Solution**: Pass configuration as input or use constants.
 
 ```typescript
 // Correct: Pass as input
-export default workflow({
-  inputSchema: z.object({
+export default workflow( {
+  inputSchema: z.object( {
     apiUrl: z.string()
-  }),
-  fn: async (input) => {
-    return await callApi({ url: input.apiUrl });
+  } ),
+  fn: async input => {
+    return await callApi( { url: input.apiUrl } );
   }
-});
+} );
 ```
 
 ## How to Find Non-Deterministic Code

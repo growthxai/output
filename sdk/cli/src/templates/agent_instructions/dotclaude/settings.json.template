@@ -4,8 +4,8 @@
       "WebFetch",
       "Bash(npx output:*)",
       "Bash(npm run output:*)",
-      "Skills(output*)",
-      "Skills(flow*)"
+      "Skill(output*)",
+      "Skill(outputai:*)"
     ]
   },
   "enabledPlugins": {

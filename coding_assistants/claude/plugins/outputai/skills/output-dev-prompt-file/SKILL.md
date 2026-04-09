@@ -77,6 +77,12 @@ model: claude-sonnet-4-6  # Model identifier
 ---
 ```
 
+### Provider Consistency
+
+All prompt files in a workflow should use the **same provider** unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires the user to have API keys for all providers, which causes runtime failures if they don't.
+
+Default to `anthropic` with `claude-sonnet-4-6` when no provider preference is specified. If the user has stated a preferred provider during planning, use that for all prompts.
+
 ### Optional Fields
 
 ```yaml
@@ -282,6 +288,39 @@ Focus on the most important concepts that would benefit from visual explanation.
 </user>
 ```
 
+## CRITICAL: Variable Type Constraint
+
+The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects as variables -- TypeScript will reject them.
+
+When your step has complex data (arrays, objects), pre-format it into a string before passing it as a variable:
+
+```typescript
+// WRONG - arrays/objects as variables cause TS2322
+const { output } = await generateText( {
+  prompt: 'rank@v1',
+  variables: {
+    stories: storyArray,       // Type error: not assignable to string | number | boolean
+    interests: interestArray   // Type error: not assignable to string | number | boolean
+  }
+} );
+
+// CORRECT - pre-format complex data into strings
+const storiesText = stories.map( s =>
+  `- ${s.title} (score: ${s.score}, by: ${s.author})`
+).join( '\n' );
+const interestsText = interests.join( ', ' );
+
+const { output } = await generateText( {
+  prompt: 'rank@v1',
+  variables: {
+    stories: storiesText,     // string - OK
+    interests: interestsText  // string - OK
+  }
+} );
+```
+
+The prompt template then uses the pre-formatted string directly with `{{ stories }}` instead of Liquid loops. This is simpler and avoids the type constraint entirely.
+
 ## Using Prompts in Steps
 
 ### With generateText and Output.object()
@@ -290,7 +329,7 @@ Focus on the most important concepts that would benefit from visual explanation.
 import { generateText, Output } from '@outputai/llm';
 import { z } from '@outputai/core';
 
-const { output } = await generateText({
+const { output } = await generateText( {
   prompt: 'generateImageIdeas@v1',  // References prompts/generateImageIdeas@v1.prompt
   variables: {
     content: 'Solar panel technology explained...',
@@ -298,12 +337,12 @@ const { output } = await generateText({
     colorPalette: 'blue and green tones',
     artDirection: 'minimalist style'
   },
-  output: Output.object({
-    schema: z.object({
-      ideas: z.array(z.string())
-    })
-  })
-});
+  output: Output.object( {
+    schema: z.object( {
+      ideas: z.array( z.string() )
+    } )
+  } )
+} );
 // output contains { ideas: [...] }
 ```
 
@@ -312,13 +351,13 @@ const { output } = await generateText({
 ```typescript
 import { generateText } from '@outputai/llm';
 
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'summarize@v1',
   variables: {
     content: 'Long article text...',
     maxLength: 200
   }
-});
+} );
 // result contains the generated text string
 ```
 
@@ -355,18 +394,89 @@ Prompts work with both `generateText` and the `Agent` class. Use `Agent` for mul
 ```typescript
 import { Agent, Output } from '@outputai/llm';
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: {
     content_type: 'documentation',
     focus: 'clarity',
     content: input.content
   },
-  output: Output.object({ schema: reviewSchema }),
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 const { output } = await agent.generate();
 ```
+
+## CRITICAL: Prompts and Structured Output Schemas
+
+### Do Not Duplicate the Schema in the Prompt
+
+When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
+
+This is a best practice documented by multiple LLM providers:
+
+- **Anthropic**: The schema is sent as a tool definition; `.describe()` on fields is how you guide the model's output. The SDK automatically transforms unsupported constraints into field descriptions.
+- **Google Vertex AI**: "Only specify the schema in the schema object. Don't also specify the schema in the prompt. Doing both can reduce performance." If you must discuss the schema in the prompt, match the exact field order from the schema.
+
+**Why this matters:**
+1. **Performance**: Redundant schema instructions can confuse the model and reduce output quality
+2. **Maintenance**: When the schema changes, you must update both the schema AND the prompt, or they drift apart
+3. **Correctness**: The prompt's JSON examples can contradict the actual schema (wrong field names, missing fields, wrong types)
+
+### What NOT to Include in Prompts
+
+When `Output.object()` is used, do not include any of these in the prompt:
+
+- `## Output Format` sections describing the JSON shape
+- JSON examples showing the expected response structure
+- Field-by-field descriptions that mirror the schema
+- Instructions like "Return a JSON object with exactly these fields"
+- Instructions like "Return only the JSON object with no surrounding explanation"
+
+```
+<!-- WRONG - prompt duplicates what Output.object() already sends -->
+<system>
+## Output Format
+Return a JSON object with this shape:
+{
+  "title": "string",
+  "summary": "string",
+  "tags": ["string"]
+}
+</system>
+```
+
+### What TO Include in Prompts
+
+Use the prompt for **quality expectations, domain knowledge, and content guidance** -- things the schema cannot express:
+
+```
+<!-- CORRECT - prompt focuses on content quality, not structure -->
+<system>
+Write a concise, specific title (under 80 characters).
+The summary should capture the main argument, not just the topic.
+Choose tags from the reader's domain -- avoid generic terms like "technology".
+</system>
+```
+
+### Use `.describe()` on Schema Fields Instead
+
+The right place to communicate field-level expectations is on the schema itself, using `.describe()`. LLM providers use these descriptions when generating output:
+
+```typescript
+// In types.ts -- .describe() guides the LLM on each field
+const ArticleSummarySchema = z.object( {
+  title: z.string().describe( 'Concise title under 80 characters' ),
+  summary: z.string().describe( 'One-sentence summary capturing the main argument' ),
+  tags: z.array( z.string() ).describe( '3-5 domain-specific tags, avoid generic terms' )
+} );
+```
+
+The schema handles structure AND field-level guidance; the prompt handles task framing, methodology, and quality standards.
+
+### When the Step Does NOT Use Output.object()
+
+If `generateText` is called **without** `Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
 
 ## Best Practices
 
@@ -515,6 +625,7 @@ Requirements:
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
 - [ ] All required variables are documented or have defaults
 - [ ] Step code references correct prompt name
+- [ ] No JSON output format instructions when step uses `Output.object()` (schema handles structure)
 
 ## Related Skills
 

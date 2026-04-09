@@ -71,16 +71,16 @@ import { workflow, z } from '@outputai/core';
 import { exampleStep } from './steps.js';
 import { WorkflowInputSchema } from './types.js';
 
-export default workflow({
+export default workflow( {
   name: 'workflowName',
   description: 'Workflow description',
   inputSchema: WorkflowInputSchema,
-  outputSchema: z.object({ result: z.string() }),
-  fn: async (input) => {
-    const result = await exampleStep(input);
+  outputSchema: z.object( { result: z.string() } ),
+  fn: async input => {
+    const result = await exampleStep( input );
     return { result };
   }
-});
+} );
 ```
 
 **steps.ts** - Contains example step template:
@@ -88,25 +88,25 @@ export default workflow({
 import { step, z } from '@outputai/core';
 import { ExampleStepInputSchema } from './types.js';
 
-export const exampleStep = step({
+export const exampleStep = step( {
   name: 'exampleStep',
   description: 'Example step description',
   inputSchema: ExampleStepInputSchema,
-  outputSchema: z.object({ result: z.string() }),
-  fn: async (input) => {
+  outputSchema: z.object( { result: z.string() } ),
+  fn: async input => {
     // Implement step logic here
     return { result: 'example' };
   }
-});
+} );
 ```
 
 **types.ts** - Contains schema definitions:
 ```typescript
 import { z } from '@outputai/core';
 
-export const WorkflowInputSchema = z.object({
+export const WorkflowInputSchema = z.object( {
   // Define input fields
-});
+} );
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 ```
@@ -126,12 +126,12 @@ In `types.ts`, define your actual input/output schemas:
 ```typescript
 import { z } from '@outputai/core';
 
-export const WorkflowInputSchema = z.object({
-  content: z.string().describe('Content to process'),
-  options: z.object({
-    format: z.enum(['json', 'text']).default('json')
-  }).optional()
-});
+export const WorkflowInputSchema = z.object( {
+  content: z.string().describe( 'Content to process' ),
+  options: z.object( {
+    format: z.enum( [ 'json', 'text' ] ).default( 'json' )
+  } ).optional()
+} );
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 export type WorkflowOutput = { processed: string };
@@ -148,16 +148,16 @@ import { step, z, FatalError, ValidationError } from '@outputai/core';
 import { httpClient } from '@outputai/http';
 import { ProcessContentInputSchema } from './types.js';
 
-export const processContent = step({
+export const processContent = step( {
   name: 'processContent',
   description: 'Process the input content',
   inputSchema: ProcessContentInputSchema,
-  outputSchema: z.object({ processed: z.string() }),
-  fn: async ({ content }) => {
+  outputSchema: z.object( { processed: z.string() } ),
+  fn: async ( { content } ) => {
     // Implement your logic
     return { processed: content.toUpperCase() };
   }
-});
+} );
 ```
 
 **Related Skill**: `output-dev-step-function`
@@ -171,16 +171,16 @@ import { workflow, z } from '@outputai/core';
 import { processContent } from './steps.js';
 import { WorkflowInputSchema } from './types.js';
 
-export default workflow({
+export default workflow( {
   name: 'contentProcessor',
   description: 'Process content with custom logic',
   inputSchema: WorkflowInputSchema,
-  outputSchema: z.object({ processed: z.string() }),
-  fn: async (input) => {
-    const result = await processContent({ content: input.content });
+  outputSchema: z.object( { processed: z.string() } ),
+  fn: async input => {
+    const result = await processContent( { content: input.content } );
     return result;
   }
-});
+} );
 ```
 
 **Related Skill**: `output-dev-workflow-function`
@@ -258,32 +258,32 @@ Common issues after skeleton generation:
 
 ```typescript
 // steps.ts
-export const stepOne = step({ ... });
-export const stepTwo = step({ ... });
-export const stepThree = step({ ... });
+export const stepOne = step( { ... } );
+export const stepTwo = step( { ... } );
+export const stepThree = step( { ... } );
 
 // workflow.ts
-const resultOne = await stepOne(input);
-const resultTwo = await stepTwo(resultOne);
-const resultThree = await stepThree(resultTwo);
+const resultOne = await stepOne( input );
+const resultTwo = await stepTwo( resultOne );
+const resultThree = await stepThree( resultTwo );
 ```
 
 ### Parallel Step Execution
 
 ```typescript
 // workflow.ts
-const [resultA, resultB] = await Promise.all([
-  stepA(input),
-  stepB(input)
-]);
+const [ resultA, resultB ] = await Promise.all( [
+  stepA( input ),
+  stepB( input )
+] );
 ```
 
 ### Conditional Steps
 
 ```typescript
 // workflow.ts
-if (input.processImages) {
-  await processImages(input);
+if ( input.processImages ) {
+  await processImages( input );
 }
 ```
 
@@ -325,4 +325,5 @@ After generating and customizing the skeleton:
 - `output-dev-prompt-file` - Adding LLM prompts
 - `output-dev-scenario-file` - Creating test scenarios
 - `output-workflow-run` - Running workflows
+- `output-dev-code-style` - Code style conventions
 - `output-workflow-list` - Listing available workflows

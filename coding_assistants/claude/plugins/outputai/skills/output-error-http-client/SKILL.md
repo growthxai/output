@@ -35,26 +35,26 @@ Using axios, fetch, or other HTTP clients directly bypasses Output SDK's:
 // WRONG: Using axios
 import axios from 'axios';
 
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  fn: async (input) => {
-    const response = await axios.get('https://api.example.com/data');
+  fn: async input => {
+    const response = await axios.get( 'https://api.example.com/data' );
     return response.data;
-  },
-});
+  }
+} );
 ```
 
 ### Using fetch Directly
 
 ```typescript
 // WRONG: Using fetch
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  fn: async (input) => {
-    const response = await fetch('https://api.example.com/data');
+  fn: async input => {
+    const response = await fetch( 'https://api.example.com/data' );
     return response.json();
-  },
-});
+  }
+} );
 ```
 
 ## Solution
@@ -67,23 +67,23 @@ Use `httpClient` from `@outputai/http`:
 import { z, step } from '@outputai/core';
 import { httpClient } from '@outputai/http';
 
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  inputSchema: z.object({
-    endpoint: z.string(),
-  }),
-  outputSchema: z.object({
-    data: z.unknown(),
-  }),
-  fn: async (input) => {
-    const client = httpClient({
-      prefixUrl: 'https://api.example.com',
-    });
+  inputSchema: z.object( {
+    endpoint: z.string()
+  } ),
+  outputSchema: z.object( {
+    data: z.unknown()
+  } ),
+  fn: async input => {
+    const client = httpClient( {
+      prefixUrl: 'https://api.example.com'
+    } );
 
-    const data = await client.get(input.endpoint).json();
+    const data = await client.get( input.endpoint ).json();
     return { data };
-  },
-});
+  }
+} );
 ```
 
 ### With Full Configuration
@@ -91,19 +91,19 @@ export const fetchData = step({
 ```typescript
 import { httpClient } from '@outputai/http';
 
-const client = httpClient({
+const client = httpClient( {
   prefixUrl: 'https://api.example.com',
   timeout: 30000,  // 30 second timeout
   retry: {
     limit: 3,      // Retry up to 3 times
-    methods: ['GET', 'POST'],  // Which methods to retry
-    statusCodes: [408, 500, 502, 503, 504],  // Which status codes trigger retry
+    methods: [ 'GET', 'POST' ],  // Which methods to retry
+    statusCodes: [ 408, 500, 502, 503, 504 ]  // Which status codes trigger retry
   },
   headers: {
     'Authorization': `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-  },
-});
+    'Content-Type': 'application/json'
+  }
+} );
 ```
 
 ## HTTP Methods
@@ -111,45 +111,45 @@ const client = httpClient({
 ### GET Request
 
 ```typescript
-const data = await client.get('users/123').json();
+const data = await client.get( 'users/123' ).json();
 ```
 
 ### POST Request
 
 ```typescript
-const result = await client.post('users', {
+const result = await client.post( 'users', {
   json: {
     name: 'John',
-    email: 'john@example.com',
-  },
-}).json();
+    email: 'john@example.com'
+  }
+} ).json();
 ```
 
 ### PUT Request
 
 ```typescript
-const updated = await client.put('users/123', {
+const updated = await client.put( 'users/123', {
   json: {
-    name: 'John Updated',
-  },
-}).json();
+    name: 'John Updated'
+  }
+} ).json();
 ```
 
 ### DELETE Request
 
 ```typescript
-await client.delete('users/123');
+await client.delete( 'users/123' );
 ```
 
 ### With Query Parameters
 
 ```typescript
-const data = await client.get('search', {
+const data = await client.get( 'search', {
   searchParams: {
     q: 'query',
-    limit: 10,
-  },
-}).json();
+    limit: 10
+  }
+} ).json();
 ```
 
 ## Complete Migration Example
@@ -160,27 +160,27 @@ const data = await client.get('search', {
 import axios from 'axios';
 import { step } from '@outputai/core';
 
-export const createUser = step({
+export const createUser = step( {
   name: 'createUser',
-  fn: async (input) => {
+  fn: async input => {
     try {
       const response = await axios.post(
         'https://api.example.com/users',
         { name: input.name, email: input.email },
         {
           headers: { 'Authorization': `Bearer ${process.env.API_KEY}` },
-          timeout: 30000,
+          timeout: 30000
         }
       );
       return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(`API Error: ${error.response?.data?.message}`);
+    } catch ( error ) {
+      if ( axios.isAxiosError( error ) ) {
+        throw new Error( `API Error: ${error.response?.data?.message}` );
       }
       throw error;
     }
-  },
-});
+  }
+} );
 ```
 
 ### After (Correct - using httpClient)
@@ -189,37 +189,37 @@ export const createUser = step({
 import { z, step } from '@outputai/core';
 import { httpClient } from '@outputai/http';
 
-export const createUser = step({
+export const createUser = step( {
   name: 'createUser',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     name: z.string(),
-    email: z.string().email(),
-  }),
-  outputSchema: z.object({
+    email: z.string().email()
+  } ),
+  outputSchema: z.object( {
     id: z.string(),
     name: z.string(),
-    email: z.string(),
-  }),
-  fn: async (input) => {
-    const client = httpClient({
+    email: z.string()
+  } ),
+  fn: async input => {
+    const client = httpClient( {
       prefixUrl: 'https://api.example.com',
       timeout: 30000,
       retry: { limit: 3 },
       headers: {
-        'Authorization': `Bearer ${process.env.API_KEY}`,
-      },
-    });
+        'Authorization': `Bearer ${process.env.API_KEY}`
+      }
+    } );
 
-    const user = await client.post('users', {
+    const user = await client.post( 'users', {
       json: {
         name: input.name,
-        email: input.email,
-      },
-    }).json();
+        email: input.email
+      }
+    } ).json();
 
     return user;
-  },
-});
+  }
+} );
 ```
 
 ## Error Handling
@@ -229,24 +229,24 @@ The httpClient provides structured error handling:
 ```typescript
 import { httpClient, HTTPError } from '@outputai/http';
 
-export const fetchData = step({
+export const fetchData = step( {
   name: 'fetchData',
-  fn: async (input) => {
-    const client = httpClient({ prefixUrl: 'https://api.example.com' });
+  fn: async input => {
+    const client = httpClient( { prefixUrl: 'https://api.example.com' } );
 
     try {
-      return await client.get('data').json();
-    } catch (error) {
-      if (error instanceof HTTPError) {
+      return await client.get( 'data' ).json();
+    } catch ( error ) {
+      if ( error instanceof HTTPError ) {
         // Access response details
         const status = error.response.status;
         const body = await error.response.json();
-        throw new Error(`API returned ${status}: ${body.message}`);
+        throw new Error( `API returned ${status}: ${body.message}` );
       }
       throw error;
     }
-  },
-});
+  }
+} );
 ```
 
 ## Finding axios/fetch Usage

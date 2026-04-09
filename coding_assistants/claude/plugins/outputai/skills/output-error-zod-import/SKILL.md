@@ -41,9 +41,9 @@ TypeError: Cannot read property 'parse' of undefined
 // WRONG: Importing from 'zod' directly
 import { z } from 'zod';
 
-const inputSchema = z.object({
-  name: z.string(),
-});
+const inputSchema = z.object( {
+  name: z.string()
+} );
 ```
 
 ## Solution
@@ -92,18 +92,18 @@ All matches should show `@outputai/core`, not `zod`.
 import { z } from 'zod';  // Wrong!
 import { step } from '@outputai/core';
 
-export const processStep = step({
+export const processStep = step( {
   name: 'processData',
-  inputSchema: z.object({
-    id: z.string(),
-  }),
-  outputSchema: z.object({
-    result: z.string(),
-  }),
-  fn: async (input) => {
+  inputSchema: z.object( {
+    id: z.string()
+  } ),
+  outputSchema: z.object( {
+    result: z.string()
+  } ),
+  fn: async input => {
     return { result: `Processed ${input.id}` };
-  },
-});
+  }
+} );
 ```
 
 ### After (Correct)
@@ -112,18 +112,18 @@ export const processStep = step({
 // src/workflows/my-workflow/steps/process.ts
 import { z, step } from '@outputai/core';  // Correct!
 
-export const processStep = step({
+export const processStep = step( {
   name: 'processData',
-  inputSchema: z.object({
-    id: z.string(),
-  }),
-  outputSchema: z.object({
-    result: z.string(),
-  }),
-  fn: async (input) => {
+  inputSchema: z.object( {
+    id: z.string()
+  } ),
+  outputSchema: z.object( {
+    result: z.string()
+  } ),
+  fn: async input => {
     return { result: `Processed ${input.id}` };
-  },
-});
+  }
+} );
 ```
 
 ## Verification Steps
@@ -158,12 +158,12 @@ Add a rule to prevent direct zod imports:
 // .eslintrc.js
 module.exports = {
   rules: {
-    'no-restricted-imports': ['error', {
-      paths: [{
+    'no-restricted-imports': [ 'error', {
+      paths: [ {
         name: 'zod',
         message: "Import { z } from '@outputai/core' instead of 'zod'"
-      }]
-    }]
+      } ]
+    } ]
   }
 };
 ```

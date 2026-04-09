@@ -32,17 +32,17 @@ import { z } from '@outputai/core';
 The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()` or `stream()` immediately.
 
 ```typescript
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: {
     content_type: input.contentType,
     focus: input.focus,
     content: input.content
   },
-  skills: [audienceSkill],
-  output: Output.object({ schema: reviewSchema }),
+  skills: [ audienceSkill ],
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 ```
 
 ### Constructor Options
@@ -67,9 +67,9 @@ Run the agent and return when complete:
 
 ```typescript
 const result = await agent.generate();
-console.log(result.text);   // Generated text
-console.log(result.output); // Structured output (when using Output.object)
-console.log(result.usage);  // Token counts
+console.log( result.text );   // Generated text
+console.log( result.output ); // Structured output (when using Output.object)
+console.log( result.usage );  // Token counts
 ```
 
 The result has the same shape as `generateText`: `text`, `result` (alias for `text`), `output`, `usage`, `finishReason`, `toolCalls`, etc.
@@ -79,9 +79,9 @@ The result has the same shape as `generateText`: `text`, `result` (alias for `te
 Extend the conversation with extra messages:
 
 ```typescript
-const result = await agent.generate({
-  messages: [{ role: 'user', content: 'Focus on the introduction section.' }]
-});
+const result = await agent.generate( {
+  messages: [ { role: 'user', content: 'Focus on the introduction section.' } ]
+} );
 ```
 
 Messages are appended after the initial prompt messages (and any conversation store history).
@@ -93,8 +93,8 @@ Stream the agent's response:
 ```typescript
 const stream = await agent.stream();
 
-for await (const chunk of stream.textStream) {
-  process.stdout.write(chunk);
+for await ( const chunk of stream.textStream ) {
+  process.stdout.write( chunk );
 }
 ```
 
@@ -107,19 +107,19 @@ Like `streamText`, the stream result provides `textStream` and `fullStream` iter
 Use `Output.object()` to get typed responses:
 
 ```typescript
-const reviewSchema = z.object({
-  issues: z.array(z.string()).describe('List of issues found'),
-  suggestions: z.array(z.string()).describe('Actionable suggestions'),
-  score: z.number().describe('Quality score 0-100'),
-  summary: z.string().describe('Brief overall assessment')
-});
+const reviewSchema = z.object( {
+  issues: z.array( z.string() ).describe( 'List of issues found' ),
+  suggestions: z.array( z.string() ).describe( 'Actionable suggestions' ),
+  score: z.number().describe( 'Quality score 0-100' ),
+  summary: z.string().describe( 'Brief overall assessment' )
+} );
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: Output.object({ schema: reviewSchema }),
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 
 const { output } = await agent.generate();
 // output: { issues: string[], suggestions: string[], score: number, summary: string }
@@ -135,19 +135,19 @@ By default, Agent is stateless. Each `generate()` call starts fresh with only th
 import { Agent, createMemoryConversationStore } from '@outputai/llm';
 
 const store = createMemoryConversationStore();
-const chatbot = new Agent({
+const chatbot = new Agent( {
   prompt: 'chatbot@v1',
   conversationStore: store
-});
+} );
 
-const r1 = await chatbot.generate({
-  messages: [{ role: 'user', content: 'Hello, tell me about Output.' }]
-});
+const r1 = await chatbot.generate( {
+  messages: [ { role: 'user', content: 'Hello, tell me about Output.' } ]
+} );
 // r1.text: "Output is an AI framework for..."
 
-const r2 = await chatbot.generate({
-  messages: [{ role: 'user', content: 'How does it handle retries?' }]
-});
+const r2 = await chatbot.generate( {
+  messages: [ { role: 'user', content: 'How does it handle retries?' } ]
+} );
 // r2 sees the full conversation history from r1
 ```
 
@@ -172,33 +172,33 @@ In workflow steps, construct a new Agent per invocation. Variables come from the
 import { step, z } from '@outputai/core';
 import { Agent, Output } from '@outputai/llm';
 
-const reviewSchema = z.object({
-  summary: z.string().describe('Brief assessment'),
-  issues: z.array(z.string()).describe('Problems found'),
-  suggestions: z.array(z.string()).describe('Improvements'),
-  score: z.number().describe('Quality score 0-100')
-});
+const reviewSchema = z.object( {
+  summary: z.string().describe( 'Brief assessment' ),
+  issues: z.array( z.string() ).describe( 'Problems found' ),
+  suggestions: z.array( z.string() ).describe( 'Improvements' ),
+  score: z.number().describe( 'Quality score 0-100' )
+} );
 
-export const reviewContent = step({
+export const reviewContent = step( {
   name: 'reviewContent',
   description: 'Review technical content using Agent with structured output',
-  inputSchema: z.object({
-    content: z.string().describe('The content to review'),
-    content_type: z.string().describe('Type of content'),
-    focus: z.string().describe('Review focus areas')
-  }),
+  inputSchema: z.object( {
+    content: z.string().describe( 'The content to review' ),
+    content_type: z.string().describe( 'Type of content' ),
+    focus: z.string().describe( 'Review focus areas' )
+  } ),
   outputSchema: reviewSchema,
-  fn: async (input) => {
-    const agent = new Agent({
+  fn: async input => {
+    const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object({ schema: reviewSchema }),
+      output: Output.object( { schema: reviewSchema } ),
       maxSteps: 5
-    });
+    } );
     const { output } = await agent.generate();
     return output;
   }
-});
+} );
 ```
 
 This is the standard pattern. Each step invocation is independent, and Agent construction is cheap.
@@ -210,7 +210,7 @@ Combine inline skills with Agent for dynamic expertise:
 ```typescript
 import { Agent, skill, Output } from '@outputai/llm';
 
-const audienceSkill = skill({
+const audienceSkill = skill( {
   name: 'audience_adaptation',
   description: 'Tailor feedback for the specified expertise level',
   instructions: `# Audience Adaptation
@@ -219,15 +219,15 @@ When the target audience is specified, adjust your feedback:
 **Beginner**: Flag jargon as high-priority issues.
 **Expert**: Focus on accuracy and completeness.
 Always mention the audience level in your summary.`
-});
+} );
 
-const agent = new Agent({
+const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: input,
-  skills: [audienceSkill],
-  output: Output.object({ schema: reviewSchema }),
+  skills: [ audienceSkill ],
+  output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
-});
+} );
 const { output } = await agent.generate();
 ```
 
@@ -251,13 +251,13 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 ```typescript
 import { generateText } from '@outputai/llm';
 
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'generate_summary@v1',
   variables: {
     company_name: input.name,
     website_content: input.websiteContent
   }
-});
+} );
 ```
 
 ## Verification Checklist

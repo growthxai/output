@@ -1,6 +1,6 @@
 ---
 argument-hint: [workflow-description-and-additional-instructions]
-description: Workflow Planning Command for Output SDK
+description: Use when the user asks to create, build, generate, scaffold, or plan a new workflow. Orchestrates the full planning process including architecture, steps, prompts, evaluators, and testing strategy using specialized subagents.
 version: 0.1.3
 model: opus
 ---
@@ -76,6 +76,12 @@ Clarify scope boundaries and technical considerations by asking numbered questio
     - UI/UX requirements
     - integration points
   </technical>
+  <llm_provider>
+    - Ask which LLM provider the user wants to use (anthropic, openai, or vertex)
+    - Default to anthropic if the user has no preference
+    - All prompt files in the workflow must use the same provider unless the user explicitly requests otherwise
+    - Record the chosen provider so it flows through to prompt engineering (step 6) and implementation
+  </llm_provider>
 </clarification_areas>
 
 <decision_tree>

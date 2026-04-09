@@ -37,27 +37,71 @@ import { z } from 'zod';
 import { z } from '@outputai/core';
 
 // 1. Workflow Input Schema
-export const WorkflowInputSchema = z.object({
+export const WorkflowInputSchema = z.object( {
   // Define input fields
-});
+} );
 
 // 2. Workflow Output Type
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 export type WorkflowOutput = /* output type */;
 
 // 3. Step Schemas (for each step)
-export const StepNameInputSchema = z.object({
+export const StepNameInputSchema = z.object( {
   // Step input fields
-});
+} );
 
-export const StepNameOutputSchema = z.object({
+export const StepNameOutputSchema = z.object( {
   // Step output fields
-});
+} );
 
 // 4. Type Exports
 export type StepNameInput = z.infer<typeof StepNameInputSchema>;
 export type StepNameOutput = z.infer<typeof StepNameOutputSchema>;
 ```
+
+## CRITICAL: Schema Constraints for LLM Output
+
+Schemas passed to `Output.object()` are sent to LLM providers as tool definitions. **Anthropic rejects several JSON Schema constraints** that Zod methods produce. Getting this wrong causes runtime errors.
+
+### What Is NOT Allowed in LLM Output Schemas
+
+- **Numbers**: `.min()`, `.max()` on `z.number()` produce `minimum`/`maximum` -- rejected by Anthropic.
+- **Arrays**: `.min()`, `.max()`, `.length()` on `z.array()` produce `minItems`/`maxItems` -- Anthropic only supports `minItems` of `0` or `1`. Values like `.length( 3 )` or `.min( 2 )` will be rejected.
+
+### Use `.describe()` Instead
+
+`.describe()` is the primary mechanism for guiding LLM output quality. LLM providers use field names and descriptions from the schema to understand what each field should contain. Write clear, specific descriptions that communicate your intent.
+
+**Important**: `.describe()` replaces both unsupported constraints AND prompt-based format instructions. Do not also describe the schema in the prompt -- the schema is sent to the provider automatically, and duplicating it reduces performance and creates drift risk. See `output-dev-prompt-file` for details.
+
+```typescript
+// LLM output schema (sent to provider via Output.object()) -- .describe() ONLY
+const llmOutputSchema = z.object( {
+  score: z.number().describe( 'Quality score 0-100' ),
+  confidence: z.number().describe( 'Confidence 0-1' ),
+  predictions: z.array( predictionSchema ).describe( 'Exactly 3 predictions' )
+} );
+
+// Workflow/step validation schema (Zod-only, NOT sent to LLM) -- .min()/.max()/.length() OK
+const workflowOutputSchema = z.object( {
+  score: z.number().min( 0 ).max( 100 ).describe( 'Quality score 0-100' ),
+  confidence: z.number().min( 0 ).max( 1 ).describe( 'Confidence 0-1' ),
+  predictions: z.array( predictionSchema ).length( 3 ).describe( 'Exactly 3 predictions' )
+} );
+```
+
+### When to Use Which
+
+| Context | `.min()/.max()/.length()` | `.describe()` |
+|---------|:-:|:-:|
+| Schema passed to `Output.object()` | **No** (numbers or arrays) | Yes |
+| `inputSchema` / `outputSchema` on steps | OK | Optional |
+| `inputSchema` / `outputSchema` on workflows | OK | Optional |
+| `outputSchema` on evaluators | OK | Optional |
+
+### LLM Schemas Must Live in types.ts
+
+Define all schemas used in `Output.object()` in `types.ts` and import them in step functions. Never define them inline -- this causes duplication and makes it harder to verify they follow the constraints above.
 
 ## Common Schema Patterns
 
@@ -69,21 +113,21 @@ import { z } from '@outputai/core';
 // Strings
 const stringField = z.string();
 const optionalString = z.string().optional();
-const stringWithDefault = z.string().default('default value');
-const describedString = z.string().describe('Field description');
+const stringWithDefault = z.string().default( 'default value' );
+const describedString = z.string().describe( 'Field description' );
 
 // Numbers
 const numberField = z.number();
 const integerField = z.number().int();
-const rangedNumber = z.number().min(1).max(100); // runtime only — NOT safe for Output.object() schemas
+const rangedNumber = z.number().min( 1 ).max( 100 ); // runtime only — NOT safe for Output.object() schemas
 
 // Booleans
 const booleanField = z.boolean();
-const defaultBoolean = z.boolean().default(false);
+const defaultBoolean = z.boolean().default( false );
 
 // Enums
-const enumField = z.enum(['option1', 'option2', 'option3']);
-const enumWithDefault = z.enum(['small', 'medium', 'large']).default('medium');
+const enumField = z.enum( [ 'option1', 'option2', 'option3' ] );
+const enumWithDefault = z.enum( [ 'small', 'medium', 'large' ] ).default( 'medium' );
 ```
 
 ### Complex Types
@@ -92,28 +136,28 @@ const enumWithDefault = z.enum(['small', 'medium', 'large']).default('medium');
 import { z } from '@outputai/core';
 
 // Arrays
-const stringArray = z.array(z.string());
-const objectArray = z.array(z.object({ id: z.string(), name: z.string() }));
+const stringArray = z.array( z.string() );
+const objectArray = z.array( z.object( { id: z.string(), name: z.string() } ) );
 
 // Objects
-const nestedObject = z.object({
-  user: z.object({
+const nestedObject = z.object( {
+  user: z.object( {
     id: z.string(),
     email: z.string().email()
-  }),
-  settings: z.object({
+  } ),
+  settings: z.object( {
     notifications: z.boolean()
-  })
-});
+  } )
+} );
 
 // Union Types
-const flexibleInput = z.union([
+const flexibleInput = z.union( [
   z.string(),
-  z.array(z.string())
-]);
+  z.array( z.string() )
+] );
 
 // Records
-const keyValueMap = z.record(z.string(), z.number());
+const keyValueMap = z.record( z.string(), z.number() );
 ```
 
 ### Validation Patterns
@@ -125,43 +169,18 @@ import { z } from '@outputai/core';
 const emailField = z.string().email();
 const urlField = z.string().url();
 const uuidField = z.string().uuid();
-const minLengthString = z.string().min(1);
-const maxLengthString = z.string().max(1000);
+const minLengthString = z.string().min( 1 );
+const maxLengthString = z.string().max( 1000 );
 
 // Number Validations
 const positiveNumber = z.number().positive();
 const nonNegativeNumber = z.number().nonnegative();
-const percentageNumber = z.number().min(0).max(100);
+const percentageNumber = z.number().min( 0 ).max( 100 );
 
 // Array Validations (runtime only — NOT safe for Output.object() schemas)
-const nonEmptyArray = z.array(z.string()).min(1);
-const limitedArray = z.array(z.string()).max(10);
-const fixedLengthArray = z.array(z.string()).length(3);
-```
-
-### Schema Constraints for LLM Output
-
-**Important**: Schemas passed to `Output.object()` (sent to LLM providers) have constraints that Anthropic rejects:
-
-- **Numbers**: `.min()`, `.max()` on `z.number()` produce `minimum`/`maximum` — rejected.
-- **Arrays**: `.min()`, `.max()`, `.length()` on `z.array()` produce `minItems`/`maxItems` — Anthropic only supports `minItems` of `0` or `1`. Values like `.length(3)` or `.min(2)` will fail.
-
-Use `.describe()` instead to guide the LLM on expected ranges and counts.
-
-```typescript
-// Schema for Output.object() (sent to LLM) - use .describe() only
-const llmOutputSchema = z.object({
-  score: z.number().describe('Quality score 0-100'),
-  confidence: z.number().describe('Confidence 0-1'),
-  predictions: z.array(predictionSchema).describe('Exactly 3 predictions')
-});
-
-// Schema for workflow/step input/output (Zod validation only) - .min()/.max()/.length() OK
-const workflowOutputSchema = z.object({
-  score: z.number().min(0).max(100).describe('Quality score 0-100'),
-  confidence: z.number().min(0).max(1).describe('Confidence 0-1'),
-  predictions: z.array(predictionSchema).length(3).describe('Exactly 3 predictions')
-});
+const nonEmptyArray = z.array( z.string() ).min( 1 );
+const limitedArray = z.array( z.string() ).max( 10 );
+const fixedLengthArray = z.array( z.string() ).length( 3 );
 ```
 
 ## Complete Example
@@ -175,21 +194,21 @@ import { z } from '@outputai/core';
 // Workflow Schemas
 // ============================================
 
-export const WorkflowInputSchema = z.object({
-  content: z.string().describe('Text content to generate image ideas from'),
-  mode: z.enum(['infographic']).default('infographic').describe('Type of image to generate'),
-  colorPalette: z.string().optional().describe('Color palette preference for the images'),
-  artDirection: z.string().optional().describe('Art direction or style preference'),
-  numberOfIdeas: z.number().min(1).max(10).default(1).describe('Number of image concepts to generate'),
-  referenceImageUrls: z.union([
+export const WorkflowInputSchema = z.object( {
+  content: z.string().describe( 'Text content to generate image ideas from' ),
+  mode: z.enum( [ 'infographic' ] ).default( 'infographic' ).describe( 'Type of image to generate' ),
+  colorPalette: z.string().optional().describe( 'Color palette preference for the images' ),
+  artDirection: z.string().optional().describe( 'Art direction or style preference' ),
+  numberOfIdeas: z.number().min( 1 ).max( 10 ).default( 1 ).describe( 'Number of image concepts to generate' ),
+  referenceImageUrls: z.union( [
     z.string(),
-    z.array(z.string())
-  ]).optional().describe('Reference image URLs for style guidance (max 14)'),
-  aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4']).default('1:1').describe('Aspect ratio for generated images'),
-  resolution: z.enum(['1K', '2K', '4K']).default('1K').describe('Resolution for generated images'),
-  numberOfGenerations: z.number().min(1).max(10).default(1).describe('Number of images to generate per concept'),
-  storageNamespace: z.string().optional().describe('S3 folder path for storing images')
-});
+    z.array( z.string() )
+  ] ).optional().describe( 'Reference image URLs for style guidance (max 14)' ),
+  aspectRatio: z.enum( [ '1:1', '16:9', '9:16', '4:3', '3:4' ] ).default( '1:1' ).describe( 'Aspect ratio for generated images' ),
+  resolution: z.enum( [ '1K', '2K', '4K' ] ).default( '1K' ).describe( 'Resolution for generated images' ),
+  numberOfGenerations: z.number().min( 1 ).max( 10 ).default( 1 ).describe( 'Number of images to generate per concept' ),
+  storageNamespace: z.string().optional().describe( 'S3 folder path for storing images' )
+} );
 
 export type WorkflowInput = z.infer<typeof WorkflowInputSchema>;
 export type WorkflowOutput = string[];
@@ -198,32 +217,32 @@ export type WorkflowOutput = string[];
 // Step Schemas
 // ============================================
 
-export const ValidateReferenceImagesInputSchema = z.object({
-  referenceImageUrls: z.array(z.string()).optional()
-});
+export const ValidateReferenceImagesInputSchema = z.object( {
+  referenceImageUrls: z.array( z.string() ).optional()
+} );
 
-export const GenerateImageIdeasInputSchema = z.object({
+export const GenerateImageIdeasInputSchema = z.object( {
   content: z.string(),
   numberOfIdeas: z.number(),
   colorPalette: z.string().optional(),
   artDirection: z.string().optional()
-});
+} );
 
-export const GenerateImagesInputSchema = z.object({
-  input: z.object({
-    referenceImageUrls: z.union([z.string(), z.array(z.string())]).optional(),
-    aspectRatio: z.enum(['1:1', '16:9', '9:16', '4:3', '3:4']),
-    resolution: z.enum(['1K', '2K', '4K']),
+export const GenerateImagesInputSchema = z.object( {
+  input: z.object( {
+    referenceImageUrls: z.union( [ z.string(), z.array( z.string() ) ] ).optional(),
+    aspectRatio: z.enum( [ '1:1', '16:9', '9:16', '4:3', '3:4' ] ),
+    resolution: z.enum( [ '1K', '2K', '4K' ] ),
     numberOfGenerations: z.number(),
     storageNamespace: z.string().optional()
-  }),
+  } ),
   prompt: z.string()
-});
+} );
 
 // Schema for LLM response validation
-export const ImageIdeasSchema = z.object({
-  ideas: z.array(z.string()).describe('Array of detailed image prompts for Gemini')
-});
+export const ImageIdeasSchema = z.object( {
+  ideas: z.array( z.string() ).describe( 'Array of detailed image prompts for Gemini' )
+} );
 
 // ============================================
 // Type Exports
@@ -240,7 +259,7 @@ export type ImageIdeas = z.infer<typeof ImageIdeasSchema>;
 ### 1. Use Descriptive Field Descriptions
 ```typescript
 // Good - helps with documentation and error messages
-z.string().describe('User email address for notifications')
+z.string().describe( 'User email address for notifications' )
 
 // Avoid - no context for errors
 z.string()
@@ -249,25 +268,25 @@ z.string()
 ### 2. Provide Sensible Defaults
 ```typescript
 // Good - workflow works without optional fields
-numberOfIdeas: z.number().min(1).max(10).default(1)
+numberOfIdeas: z.number().min( 1 ).max( 10 ).default( 1 )
 
 // Avoid - forces users to provide every field
-numberOfIdeas: z.number().min(1).max(10)
+numberOfIdeas: z.number().min( 1 ).max( 10 )
 ```
 
 ### 3. Separate Workflow and Step Schemas
 ```typescript
 // Workflow input schema (what the user provides)
-export const WorkflowInputSchema = z.object({ ... });
+export const WorkflowInputSchema = z.object( { ... } );
 
 // Step schemas (internal data shapes)
-export const StepNameInputSchema = z.object({ ... });
+export const StepNameInputSchema = z.object( { ... } );
 ```
 
 ### 4. Export Both Schemas and Types
 ```typescript
 // Export schema for runtime validation
-export const UserSchema = z.object({ ... });
+export const UserSchema = z.object( { ... } );
 
 // Export type for TypeScript type checking
 export type User = z.infer<typeof UserSchema>;
@@ -283,6 +302,7 @@ export type User = z.infer<typeof UserSchema>;
 - [ ] All schemas have `.describe()` for important fields
 - [ ] Optional fields use `.optional()` or `.default()`
 - [ ] Numeric fields have appropriate constraints (`.min()/.max()` for runtime schemas, `.describe()` for `Output.object()` schemas)
+- [ ] Code follows style conventions (see output-dev-code-style)
 
 ## Related Skills
 
@@ -291,3 +311,4 @@ export type User = z.infer<typeof UserSchema>;
 - `output-dev-evaluator-function` - Using schemas in evaluator definitions
 - `output-dev-folder-structure` - Where types.ts belongs in the project
 - `output-error-zod-import` - Troubleshooting schema import issues
+- `output-dev-code-style` - Code style conventions

@@ -133,7 +133,7 @@ Create skills programmatically with the `skill()` function from `@outputai/llm`:
 ```typescript
 import { skill } from '@outputai/llm';
 
-const audienceSkill = skill({
+const audienceSkill = skill( {
   name: 'audience_adaptation',
   description: 'Tailor feedback for the specified expertise level',
   instructions: `# Audience Adaptation
@@ -144,18 +144,18 @@ When the target audience is specified, adjust your feedback:
 **Expert**: Focus on accuracy and completeness.
 
 Always mention the audience level in your summary.`
-});
+} );
 ```
 
 Pass inline skills to `generateText` or `Agent`:
 
 ```typescript
-const { result } = await generateText({
+const { result } = await generateText( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  skills: [audienceSkill],
+  skills: [ audienceSkill ],
   maxSteps: 5
-});
+} );
 ```
 
 Inline skills are merged with any file-based skills.
@@ -237,38 +237,38 @@ Content:
 import { step, z } from '@outputai/core';
 import { Agent, Output } from '@outputai/llm';
 
-export const reviewContent = step({
+export const reviewContent = step( {
   name: 'reviewContent',
   description: 'Review content using skills for specialized expertise',
-  inputSchema: z.object({
+  inputSchema: z.object( {
     content: z.string(),
     content_type: z.string(),
     focus: z.string()
-  }),
-  outputSchema: z.object({
+  } ),
+  outputSchema: z.object( {
     summary: z.string(),
-    issues: z.array(z.string()),
-    suggestions: z.array(z.string()),
+    issues: z.array( z.string() ),
+    suggestions: z.array( z.string() ),
     score: z.number()
-  }),
-  fn: async (input) => {
-    const agent = new Agent({
+  } ),
+  fn: async input => {
+    const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object({
-        schema: z.object({
-          summary: z.string().describe('2-3 sentence overview'),
-          issues: z.array(z.string()).describe('Specific problems found'),
-          suggestions: z.array(z.string()).describe('Actionable improvements'),
-          score: z.number().describe('Quality score 0-100')
-        })
-      }),
+      output: Output.object( {
+        schema: z.object( {
+          summary: z.string().describe( '2-3 sentence overview' ),
+          issues: z.array( z.string() ).describe( 'Specific problems found' ),
+          suggestions: z.array( z.string() ).describe( 'Actionable improvements' ),
+          score: z.number().describe( 'Quality score 0-100' )
+        } )
+      } ),
       maxSteps: 5
-    });
+    } );
     const { output } = await agent.generate();
     return output;
   }
-});
+} );
 ```
 
 ## Best Practices
