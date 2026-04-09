@@ -70,6 +70,10 @@ Schemas passed to `Output.object()` are sent to LLM providers as tool definition
 
 ### Use `.describe()` Instead
 
+`.describe()` is the primary mechanism for guiding LLM output quality. LLM providers use field names and descriptions from the schema to understand what each field should contain. Write clear, specific descriptions that communicate your intent.
+
+**Important**: `.describe()` replaces both unsupported constraints AND prompt-based format instructions. Do not also describe the schema in the prompt -- the schema is sent to the provider automatically, and duplicating it reduces performance and creates drift risk. See `output-dev-prompt-file` for details.
+
 ```typescript
 // LLM output schema (sent to provider via Output.object()) -- .describe() ONLY
 const llmOutputSchema = z.object( {

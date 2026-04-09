@@ -96,7 +96,9 @@ Each message role serves a specific purpose. Understanding when to use each is c
 
 ## System Message Structure
 
-Structure system messages with clear markdown headers for readability and maintainability:
+Structure system messages with clear markdown headers for readability and maintainability.
+
+This example is for a plain text output step (no `Output.object()`), so `## Output Format` is appropriate here. When using `Output.object()`, omit the Output Format section -- the schema handles structure.
 
 ```yaml
 <system>
@@ -139,7 +141,7 @@ Return a structured analysis with:
 | `## Expertise` | List specific knowledge areas |
 | `## Task` | Describe what the AI should accomplish |
 | `## Methodology` | Step-by-step approach to follow |
-| `## Output Format` | Specify expected response structure |
+| `## Output Format` | Specify expected response structure (**only when NOT using `Output.object()`** -- when using structured output, the schema handles format) |
 | `## Constraints` | Rules and limitations to follow |
 | `## Examples` | Few-shot examples (optional) |
 
@@ -449,26 +451,27 @@ Extract key metrics from this description:
 </user>
 ```
 
-### Structured Output Prompts
+### Structured Output Prompts (with Output.object())
 
-For `generateText` with `Output.object()`, specify format clearly:
+When `generateText` is called with `Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
+
+Instead, use `.describe()` on schema fields (in `types.ts`) for field-level guidance, and use the prompt for **task framing, methodology, and quality standards**:
 
 ```yaml
 <system>
 ## Role
-You are a content extractor that outputs structured JSON.
+You are a content extractor that identifies the most important information.
 
-## Output Format
-Return a JSON object with exactly these fields:
-- title (string): The main title or headline
-- summary (string): A 1-2 sentence summary
-- keyPoints (array of strings): 3-5 key points
-- confidence (number): Your confidence score from 0.0 to 1.0
+## Methodology
+1. Read the content carefully to identify the central argument or topic
+2. Extract the main title -- prefer the author's own headline if present
+3. Write a summary that captures the "why it matters", not just the topic
+4. Select key points that are specific and actionable, not generic observations
+5. Rate your confidence based on content quality -- lower if the text is ambiguous or incomplete
 
 ## Constraints
-- All fields are required
-- keyPoints must have between 3 and 5 items
-- confidence must be between 0.0 and 1.0
+- Base conclusions only on provided content, do not add outside knowledge
+- If the text is too short or unclear for a confident extraction, reflect that in your confidence score
 </system>
 <user>
 Extract structured data from this text:
@@ -478,6 +481,19 @@ Extract structured data from this text:
 </content>
 </user>
 ```
+
+The corresponding schema in `types.ts` handles structure and field descriptions:
+
+```typescript
+const ContentExtractionSchema = z.object( {
+  title: z.string().describe( 'The main title or headline' ),
+  summary: z.string().describe( 'A 1-2 sentence summary' ),
+  keyPoints: z.array( z.string() ).describe( '3-5 key points' ),
+  confidence: z.number().describe( 'Confidence score from 0.0 to 1.0' )
+} );
+```
+
+**When Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
 
 ## Skills System
 
@@ -622,6 +638,9 @@ Writing system prompts as walls of text instead of using `## Headers`.
 
 ### 7. Missing Semantic Tags
 Dumping data without wrapping in `<data>`, `<context>`, etc.
+
+### 8. Duplicating Schema in Prompt
+Including `## Output Format` with JSON examples when the step uses `Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
 
 ## Example Interactions
 

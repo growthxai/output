@@ -368,13 +368,31 @@ const agent = new Agent({
 const { output } = await agent.generate();
 ```
 
-## Common Mistakes
+## CRITICAL: Prompts and Structured Output Schemas
 
-### Do Not Duplicate Output Format When Using Output.object()
+### Do Not Duplicate the Schema in the Prompt
 
-When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return.
+When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
 
-**Do not** include "Output Format" sections, JSON examples, or structural instructions in the prompt -- they duplicate what the schema already provides and can drift out of sync.
+This is a best practice documented by multiple LLM providers:
+
+- **Anthropic**: The schema is sent as a tool definition; `.describe()` on fields is how you guide the model's output. The SDK automatically transforms unsupported constraints into field descriptions.
+- **Google Vertex AI**: "Only specify the schema in the schema object. Don't also specify the schema in the prompt. Doing both can reduce performance." If you must discuss the schema in the prompt, match the exact field order from the schema.
+
+**Why this matters:**
+1. **Performance**: Redundant schema instructions can confuse the model and reduce output quality
+2. **Maintenance**: When the schema changes, you must update both the schema AND the prompt, or they drift apart
+3. **Correctness**: The prompt's JSON examples can contradict the actual schema (wrong field names, missing fields, wrong types)
+
+### What NOT to Include in Prompts
+
+When `Output.object()` is used, do not include any of these in the prompt:
+
+- `## Output Format` sections describing the JSON shape
+- JSON examples showing the expected response structure
+- Field-by-field descriptions that mirror the schema
+- Instructions like "Return a JSON object with exactly these fields"
+- Instructions like "Return only the JSON object with no surrounding explanation"
 
 ```
 <!-- WRONG - prompt duplicates what Output.object() already sends -->
@@ -389,10 +407,12 @@ Return a JSON object with this shape:
 </system>
 ```
 
-Instead, use the prompt to describe **quality expectations and content guidance**, not structural format:
+### What TO Include in Prompts
+
+Use the prompt for **quality expectations, domain knowledge, and content guidance** -- things the schema cannot express:
 
 ```
-<!-- CORRECT - prompt focuses on content, not structure -->
+<!-- CORRECT - prompt focuses on content quality, not structure -->
 <system>
 Write a concise, specific title (under 80 characters).
 The summary should capture the main argument, not just the topic.
@@ -400,7 +420,24 @@ Choose tags from the reader's domain -- avoid generic terms like "technology".
 </system>
 ```
 
-The schema in `types.ts` handles structure; the prompt handles quality.
+### Use `.describe()` on Schema Fields Instead
+
+The right place to communicate field-level expectations is on the schema itself, using `.describe()`. LLM providers use these descriptions when generating output:
+
+```typescript
+// In types.ts -- .describe() guides the LLM on each field
+const ArticleSummarySchema = z.object( {
+  title: z.string().describe( 'Concise title under 80 characters' ),
+  summary: z.string().describe( 'One-sentence summary capturing the main argument' ),
+  tags: z.array( z.string() ).describe( '3-5 domain-specific tags, avoid generic terms' )
+} );
+```
+
+The schema handles structure AND field-level guidance; the prompt handles task framing, methodology, and quality standards.
+
+### When the Step Does NOT Use Output.object()
+
+If `generateText` is called **without** `Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
 
 ## Best Practices
 
