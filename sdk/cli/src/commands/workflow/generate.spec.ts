@@ -47,8 +47,10 @@ describe( 'Generate Command', () => {
 
       mockGenerateWorkflow.mockResolvedValue( {
         workflowName: 'test-workflow',
+        workflowId: 'testWorkflow',
         targetDir: '/tmp/test-workflow',
-        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts' ]
+        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts', 'scenarios/test_input.json' ],
+        scenarioNames: [ 'test_input' ]
       } );
 
       await cmd.run();
@@ -146,8 +148,10 @@ describe( 'Generate Command', () => {
 
       mockGenerateWorkflow.mockResolvedValue( {
         workflowName: 'my-workflow',
+        workflowId: 'myWorkflow',
         targetDir: '/custom/path/my-workflow',
-        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts' ]
+        filesCreated: [ 'index.ts', 'steps.ts', 'types.ts', 'scenarios/test_input.json' ],
+        scenarioNames: [ 'test_input' ]
       } );
 
       await cmd.run();

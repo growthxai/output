@@ -14,8 +14,10 @@ export interface WorkflowGenerationConfig {
  */
 export interface WorkflowGenerationResult {
   workflowName: string;
+  workflowId: string;
   targetDir: string;
   filesCreated: string[];
+  scenarioNames: string[];
 }
 
 /**

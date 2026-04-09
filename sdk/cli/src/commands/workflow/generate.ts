@@ -102,6 +102,8 @@ export default class Generate extends Command {
   private displaySuccess( result: WorkflowGenerationResult ): void {
     const message = getWorkflowGenerateSuccessMessage(
       result.workflowName,
+      result.workflowId,
+      result.scenarioNames[0],
       result.targetDir,
       result.filesCreated
     );
