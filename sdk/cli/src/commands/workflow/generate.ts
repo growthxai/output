@@ -4,6 +4,7 @@ import { buildWorkflow, buildWorkflowInteractiveLoop } from '#services/workflow_
 import { ensureOutputAISystem } from '#services/coding_agents.js';
 import { getWorkflowGenerateSuccessMessage } from '#services/messages.js';
 import { DEFAULT_OUTPUT_DIRS } from '#utils/paths.js';
+import { parseWorkflowDir } from '#utils/workflow_dir_parser.js';
 import type { WorkflowGenerationResult } from '#types/generator.js';
 import path from 'node:path';
 import * as fsSync from 'node:fs';
@@ -100,8 +101,11 @@ export default class Generate extends Command {
   }
 
   private displaySuccess( result: WorkflowGenerationResult ): void {
+    const dirInfo = parseWorkflowDir( result.targetDir );
     const message = getWorkflowGenerateSuccessMessage(
       result.workflowName,
+      dirInfo.workflowId ?? result.workflowName,
+      dirInfo.scenarioNames[0],
       result.targetDir,
       result.filesCreated
     );
