@@ -10,10 +10,20 @@ export interface WorkflowDirInfo {
   scenarioNames: string[];
 }
 
-function readWorkflowName( filePath: string ): string | undefined {
-  const content = readFileSync( filePath, 'utf-8' );
-  const match = WORKFLOW_NAME_PATTERN.exec( content );
-  return match?.[1];
+function safeReadFile( filePath: string ): string {
+  try {
+    return readFileSync( filePath, 'utf-8' );
+  } catch {
+    return '';
+  }
+}
+
+function safeReadDir( dirPath: string ): string[] {
+  try {
+    return readdirSync( dirPath );
+  } catch {
+    return [];
+  }
 }
 
 function parseWorkflowId( targetDir: string ): string | undefined {
@@ -21,16 +31,12 @@ function parseWorkflowId( targetDir: string ): string | undefined {
     .map( name => join( targetDir, name ) )
     .find( existsSync );
 
-  return workflowFile ? readWorkflowName( workflowFile ) : undefined;
+  const content = workflowFile ? safeReadFile( workflowFile ) : '';
+  return WORKFLOW_NAME_PATTERN.exec( content )?.[1];
 }
 
 function listScenarioNames( targetDir: string ): string[] {
-  const scenariosDir = join( targetDir, SCENARIOS_DIR );
-  if ( !existsSync( scenariosDir ) ) {
-    return [];
-  }
-
-  return readdirSync( scenariosDir )
+  return safeReadDir( join( targetDir, SCENARIOS_DIR ) )
     .filter( f => f.endsWith( '.json' ) )
     .map( f => f.replace( /\.json$/, '' ) );
 }

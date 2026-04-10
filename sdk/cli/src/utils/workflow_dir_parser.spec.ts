@@ -55,6 +55,16 @@ describe( 'parseWorkflowDir', () => {
     expect( result.workflowId ).toBeUndefined();
   } );
 
+  it( 'should return undefined workflowId when workflow file has no name property', () => {
+    writeFileSync(
+      join( tempDir, 'workflow.ts' ),
+      'export default workflow( { description: \'no name here\' } );'
+    );
+
+    const result = parseWorkflowDir( tempDir );
+    expect( result.workflowId ).toBeUndefined();
+  } );
+
   it( 'should list scenario names from scenarios directory', () => {
     const scenariosDir = join( tempDir, 'scenarios' );
     mkdirSync( scenariosDir );
