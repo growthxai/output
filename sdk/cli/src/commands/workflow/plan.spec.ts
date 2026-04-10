@@ -4,12 +4,13 @@ import WorkflowPlan from './plan.js';
 import { generatePlanName, writePlanFile, updateAgentTemplates } from '#services/workflow_planner.js';
 import { ensureOutputAISystem } from '#services/coding_agents.js';
 import { invokePlanWorkflow, replyToClaude, ClaudeInvocationError } from '#services/claude_client.js';
-import { input } from '@inquirer/prompts';
+import { input } from '#utils/prompt.js';
 
 vi.mock( '#services/workflow_planner.js' );
 vi.mock( '#services/coding_agents.js' );
 vi.mock( '#services/claude_client.js' );
-vi.mock( '@inquirer/prompts' );
+vi.mock( '#utils/prompt.js' );
+vi.mock( '#utils/interactive.js', () => ( { isInteractive: () => true } ) );
 
 type MockedCommand = WorkflowPlan & {
   parse: ReturnType<typeof vi.fn>;

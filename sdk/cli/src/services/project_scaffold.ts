@@ -1,4 +1,4 @@
-import { input, confirm } from '@inquirer/prompts';
+import { input, confirm } from '#utils/prompt.js';
 import { ux } from '@oclif/core';
 import { kebabCase, pascalCase } from 'change-case';
 import fs from 'node:fs/promises';
@@ -63,7 +63,7 @@ export async function checkDependencies(): Promise<void> {
   try {
     const shouldProceed = await confirm( {
       message: 'Would you like to proceed anyway?',
-      default: false
+      default: true
     } );
 
     if ( !shouldProceed ) {

@@ -1,4 +1,4 @@
-import { input, confirm, password } from '@inquirer/prompts';
+import { input, confirm, password } from '#utils/prompt.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ux } from '@oclif/core';

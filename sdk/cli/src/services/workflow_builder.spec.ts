@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { buildWorkflow, buildWorkflowInteractiveLoop } from './workflow_builder.js';
 import { ADDITIONAL_INSTRUCTIONS, BUILD_COMMAND_OPTIONS, invokeBuildWorkflow, replyToClaude } from './claude_client.js';
-import { input } from '@inquirer/prompts';
+import { input } from '#utils/prompt.js';
 import { ux } from '@oclif/core';
 import fs from 'node:fs/promises';
 
 vi.mock( './claude_client.js' );
-vi.mock( '@inquirer/prompts' );
+vi.mock( '#utils/prompt.js' );
+vi.mock( '#utils/interactive.js', () => ( { isInteractive: () => true } ) );
 vi.mock( '@oclif/core', () => ( {
   ux: {
     stdout: vi.fn(),

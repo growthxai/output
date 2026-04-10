@@ -1,5 +1,6 @@
 import { Command, Flags, ux } from '@oclif/core';
-import { input } from '@inquirer/prompts';
+import { input } from '#utils/prompt.js';
+import { isInteractive } from '#utils/interactive.js';
 import {
   generatePlanName,
   updateAgentTemplates,
@@ -63,6 +64,10 @@ export default class WorkflowPlan extends Command {
     this.log( '=========' );
     this.log( originalPlanContent );
     this.log( '=========' );
+
+    if ( !isInteractive() ) {
+      return originalPlanContent;
+    }
 
     const modifications = await input( {
       message: ux.colorize( 'gray', `Reply or type ${acceptKey} to accept the plan as is: ` ),

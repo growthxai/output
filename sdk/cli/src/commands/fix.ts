@@ -1,5 +1,5 @@
 import { Command } from '@oclif/core';
-import { confirm } from '@inquirer/prompts';
+import { confirm } from '#utils/prompt.js';
 import { applyFix, planFix, type FixPlan } from '#services/fix_package.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 
