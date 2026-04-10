@@ -68,6 +68,8 @@ export interface Workflow {
   path?: string;
   inputSchema?: JSONSchema;
   outputSchema?: JSONSchema;
+  /** Alternative names that resolve to this workflow */
+  aliases?: string[];
 }
 
 /**

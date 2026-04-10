@@ -19,6 +19,7 @@ interface WorkflowDisplay {
   inputs: string;
   outputs: string;
   scenarios: string;
+  aliases: string;
 }
 
 export function parseWorkflowForDisplay( workflow: Workflow ): WorkflowDisplay {
@@ -29,7 +30,8 @@ export function parseWorkflowForDisplay( workflow: Workflow ): WorkflowDisplay {
     description: parsed.description || 'No description',
     inputs: formatParameters( parsed.inputs ),
     outputs: formatParameters( parsed.outputs ),
-    scenarios: scenarioNames.length > 0 ? scenarioNames.join( ', ' ) : 'none'
+    scenarios: scenarioNames.length > 0 ? scenarioNames.join( ', ' ) : 'none',
+    aliases: workflow.aliases?.length ? workflow.aliases.join( ', ' ) : 'none'
   };
 }
 
@@ -40,7 +42,10 @@ function caseInsensitiveIncludes( str: string, filter: string ): boolean {
 function matchName( filterString: string ): ( workflow: Workflow ) => boolean {
   return workflow => {
     const name = workflow.name || '';
-    return caseInsensitiveIncludes( name, filterString );
+    if ( caseInsensitiveIncludes( name, filterString ) ) {
+      return true;
+    }
+    return ( workflow.aliases ?? [] ).some( alias => caseInsensitiveIncludes( alias, filterString ) );
   };
 }
 
@@ -54,8 +59,8 @@ function sortWorkflowsByName( workflows: Workflow[] ): Workflow[] {
 
 function createWorkflowTable( workflows: Workflow[], detailed: boolean ): string {
   const table = new Table( {
-    head: [ 'Name', 'Description', 'Inputs', 'Outputs', 'Scenarios' ],
-    colWidths: detailed ? [ 30, 42, 42, 42, 60 ] : [ 24, 30, 24, 24, 48 ],
+    head: [ 'Name', 'Description', 'Aliases', 'Inputs', 'Outputs', 'Scenarios' ],
+    colWidths: detailed ? [ 28, 36, 36, 36, 36, 48 ] : [ 22, 26, 26, 22, 22, 36 ],
     wordWrap: true,
     style: {
       head: [ 'cyan' ]
@@ -68,12 +73,13 @@ function createWorkflowTable( workflows: Workflow[], detailed: boolean ): string
     const display = parseWorkflowForDisplay( workflow );
 
     if ( detailed ) {
+      const aliases = display.aliases.split( ', ' ).join( '\n' );
       const inputs = display.inputs.split( ', ' ).join( '\n' );
       const outputs = display.outputs.split( ', ' ).join( '\n' );
       const scenarios = display.scenarios.split( ', ' ).join( '\n' );
-      table.push( [ display.name, display.description, inputs, outputs, scenarios ] );
+      table.push( [ display.name, display.description, aliases, inputs, outputs, scenarios ] );
     } else {
-      table.push( [ display.name, display.description, display.inputs, display.outputs, display.scenarios ] );
+      table.push( [ display.name, display.description, display.aliases, display.inputs, display.outputs, display.scenarios ] );
     }
   } );
 
@@ -94,6 +100,7 @@ function formatWorkflowsAsJson( workflows: Workflow[] ): string {
       return {
         name: display.name,
         description: display.description,
+        aliases: display.aliases === 'none' ? [] : display.aliases.split( ', ' ),
         inputs: display.inputs.split( ', ' ),
         outputs: display.outputs.split( ', ' ),
         scenarios: display.scenarios === 'none' ? [] : display.scenarios.split( ', ' ),
