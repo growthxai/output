@@ -333,15 +333,6 @@ importers:
         specifier: 'workspace:'
         version: link:../llm
 
-  sdk/fetch:
-    dependencies:
-      '@outputai/core':
-        specifier: 'workspace:'
-        version: link:../core
-      undici:
-        specifier: 'catalog:'
-        version: 8.0.2
-
   sdk/framework:
     dependencies:
       '@outputai/cli':
@@ -356,9 +347,6 @@ importers:
       '@outputai/evals':
         specifier: 'workspace:'
         version: link:../evals
-      '@outputai/fetch':
-        specifier: 'workspace:'
-        version: link:../fetch
       '@outputai/http':
         specifier: 'workspace:'
         version: link:../http
@@ -374,6 +362,9 @@ importers:
       ky:
         specifier: 'catalog:'
         version: 1.14.3
+      undici:
+        specifier: 'catalog:'
+        version: 8.0.2
 
   sdk/llm:
     dependencies:
@@ -431,9 +422,6 @@ importers:
       '@outputai/evals':
         specifier: workspace:^
         version: link:../sdk/evals
-      '@outputai/fetch':
-        specifier: workspace:^
-        version: link:../sdk/fetch
       '@outputai/http':
         specifier: workspace:^
         version: link:../sdk/http

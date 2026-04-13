@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Response, Request, Headers } from 'undici';
 
 vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
   Tracing: {
@@ -12,13 +13,8 @@ import { Tracing } from '@outputai/core/sdk_activity_integration';
 
 const tracing = vi.mocked( Tracing, true );
 
-/**
- * Loads utils with optional verbose tracing env so `config.js` is evaluated fresh.
- *
- * @param {boolean} verbose
- * @returns {Promise<typeof import('./utils.js')>}
- */
-async function loadUtils( verbose ) {
+/** Loads utils with optional verbose tracing env so `config.js` is evaluated fresh. */
+async function loadUtils( verbose: boolean ): Promise<typeof import( './utils.js' )> {
   vi.resetModules();
   if ( verbose ) {
     process.env.OUTPUT_TRACE_HTTP_VERBOSE = 'true';
@@ -200,7 +196,7 @@ describe( 'fetch/utils', () => {
 
       await logRequest( { requestId: 'r2', request } );
 
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'GET' );
+      expect( ( tracing.addEventStart.mock.calls[0][0].details as { method: string } ).method ).toBe( 'GET' );
     } );
 
     it( 'includes redacted headers and parsed body when verbose is on', async () => {

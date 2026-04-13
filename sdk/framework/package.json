@@ -8,7 +8,6 @@
     "@outputai/core": "workspace:",
     "@outputai/credentials": "workspace:",
     "@outputai/evals": "workspace:",
-    "@outputai/fetch": "workspace:",
     "@outputai/http": "workspace:",
     "@outputai/llm": "workspace:"
   },

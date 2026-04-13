@@ -1,7 +1,6 @@
-import { fetch } from '@outputai/fetch';
+import { fetch } from '@outputai/http';
+import type { RequestInit } from '@outputai/http';
 import type { HttpBinResponse, ClientInput, ContractInput } from './types.js';
-
-type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;
 
 /** httpbin `/anything` mirror — echoes request method, headers, and body. */
 const ANYTHING = 'https://httpbin.io/anything';
@@ -24,7 +23,7 @@ const authHeaders = {
 /**
  * `fetch` then JSON; throws when the response is not OK (the Fetch API returns a body instead of rejecting).
  */
-async function fetchJson( href: string, init?: FetchInit ): Promise<HttpBinResponse> {
+async function fetchJson( href: string, init?: RequestInit ): Promise<HttpBinResponse> {
   const response = await fetch( href, init );
   if ( !response.ok ) {
     const body = await response.text();
@@ -33,7 +32,7 @@ async function fetchJson( href: string, init?: FetchInit ): Promise<HttpBinRespo
   return response.json() as Promise<HttpBinResponse>;
 }
 
-async function fetchJsonWithTimeout( href: string, init: FetchInit | undefined, timeoutMs: number ): Promise<HttpBinResponse> {
+async function fetchJsonWithTimeout( href: string, init: RequestInit | undefined, timeoutMs: number ): Promise<HttpBinResponse> {
   const ac = new AbortController();
   const timer = setTimeout( () => {
     ac.abort();

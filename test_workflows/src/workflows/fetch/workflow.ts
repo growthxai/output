@@ -4,9 +4,7 @@ import { listClientsStep, createClientStep, exportClientsStep, listContractsStep
 
 export default workflow( {
   name: 'fetch',
-  description:
-    'Demonstrates @outputai/fetch (Undici fetch + tracing) with the same httpbin.io scenarios as the `http` workflow: ' +
-    'API key, no auth, and Basic auth',
+  description: 'Demonstrates @outputai/http\'s fetch',
   outputSchema: z.object( {
     clientsListResponse: httpBinResponseSchema,
     createClientResponse: httpBinResponseSchema,

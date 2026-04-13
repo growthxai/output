@@ -16,7 +16,6 @@
     "@outputai/credentials": "workspace:^",
     "@outputai/evals": "workspace:^",
     "@outputai/http": "workspace:^",
-    "@outputai/fetch": "workspace:^",
     "@outputai/llm": "workspace:^",
     "@temporalio/workflow": "catalog:",
     "nodemon": "3.1.14"

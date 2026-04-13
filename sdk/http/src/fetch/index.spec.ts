@@ -1,31 +1,38 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getGlobalDispatcher, MockAgent, Request, setGlobalDispatcher } from 'undici';
+import { getGlobalDispatcher, Headers, MockAgent, Request, setGlobalDispatcher } from 'undici';
+import type { Dispatcher, Request as UndiciRequest, Response as UndiciResponse } from 'undici';
 
 const FIXED_REQUEST_ID = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee';
 
 const randomUUIDMock = vi.hoisted( () => vi.fn( () => FIXED_REQUEST_ID ) );
 
+const utilsMocks = vi.hoisted( () => ( {
+  logRequest: vi.fn( async ( _args: { requestId: string; request: UndiciRequest } ): Promise<void> => {} ),
+  logResponse: vi.fn( async ( _args: { requestId: string; response: UndiciResponse } ): Promise<void> => {} ),
+  logError: vi.fn( ( _args: { requestId: string; response: UndiciResponse } ): void => {} ),
+  logFailure: vi.fn( ( _args: { requestId: string; error: Error } ): void => {} )
+} ) );
+
 vi.mock( 'node:crypto', () => ( {
-  randomUUID: ( ...args ) => randomUUIDMock( ...args )
+  randomUUID: () => randomUUIDMock()
 } ) );
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
-  Tracing: {
-    addEventStart: vi.fn(),
-    addEventEnd: vi.fn(),
-    addEventError: vi.fn()
-  }
+vi.mock( './utils.js', () => ( {
+  logRequest: utilsMocks.logRequest,
+  logResponse: utilsMocks.logResponse,
+  logError: utilsMocks.logError,
+  logFailure: utilsMocks.logFailure
 } ) );
 
-import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { fetch } from './index.js';
-
-const tracing = vi.mocked( Tracing, true );
 
 const MOCK_ORIGIN = 'https://fetch-index.undici.test';
 
 describe( 'fetch/index', () => {
-  const undiciCtx = {
+  const undiciCtx: {
+    mockAgent: MockAgent | undefined;
+    previousDispatcher: Dispatcher | undefined;
+  } = {
     mockAgent: undefined,
     previousDispatcher: undefined
   };
@@ -35,9 +42,10 @@ describe( 'fetch/index', () => {
     undiciCtx.mockAgent.disableNetConnect();
     undiciCtx.previousDispatcher = getGlobalDispatcher();
     setGlobalDispatcher( undiciCtx.mockAgent );
-    tracing.addEventStart.mockClear();
-    tracing.addEventEnd.mockClear();
-    tracing.addEventError.mockClear();
+    utilsMocks.logRequest.mockClear();
+    utilsMocks.logResponse.mockClear();
+    utilsMocks.logError.mockClear();
+    utilsMocks.logFailure.mockClear();
     randomUUIDMock.mockClear();
     randomUUIDMock.mockImplementation( () => FIXED_REQUEST_ID );
   } );
@@ -53,7 +61,7 @@ describe( 'fetch/index', () => {
 
   describe( 'fetch with MockAgent', () => {
     it( 'returns 200, traces request start and response end', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/ok', method: 'GET' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/ok', method: 'GET' } ).reply(
         200,
         'hello',
         { headers: { 'content-type': 'text/plain' } }
@@ -64,23 +72,21 @@ describe( 'fetch/index', () => {
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'hello' );
 
-      expect( tracing.addEventStart ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
-        id: FIXED_REQUEST_ID,
-        kind: 'http',
-        name: 'request',
-        details: {
-          method: 'GET',
-          url: `${MOCK_ORIGIN}/ok`
-        }
-      } );
-      expect( tracing.addEventEnd ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventEnd.mock.calls[0][0].id ).toBe( FIXED_REQUEST_ID );
-      expect( tracing.addEventError ).not.toHaveBeenCalled();
+      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logRequest.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.url ).toBe( `${MOCK_ORIGIN}/ok` );
+
+      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logResponse.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( utilsMocks.logResponse.mock.calls[0][0].response ).toBe( response );
+
+      expect( utilsMocks.logError ).not.toHaveBeenCalled();
+      expect( utilsMocks.logFailure ).not.toHaveBeenCalled();
     } );
 
     it( 'uses logError for status > 399 without logging response end', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/missing', method: 'GET' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/missing', method: 'GET' } ).reply(
         404,
         'nope',
         { headers: { 'content-type': 'text/plain' } }
@@ -90,35 +96,29 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 404 );
 
-      expect( tracing.addEventStart ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
-      expect( tracing.addEventError ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventError.mock.calls[0][0].id ).toBe( FIXED_REQUEST_ID );
-      expect( tracing.addEventError.mock.calls[0][0].details ).toMatchObject( {
-        status: 404,
-        statusText: 'Not Found'
-      } );
-      expect( tracing.addEventError.mock.calls[0][0].details.headers ).toEqual( {
-        'content-type': 'text/plain'
-      } );
+      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
+      expect( utilsMocks.logError ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logError.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( utilsMocks.logError.mock.calls[0][0].response ).toBe( response );
     } );
 
     it( 'treats status 399 as success (logs response end, not HTTP error)', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/edge', method: 'GET' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/edge', method: 'GET' } ).reply(
         399,
         '',
-        { statusText: 'Client Closed Request', headers: { 'content-type': 'text/plain' } }
+        { headers: { 'content-type': 'text/plain' } }
       );
 
       const response = await fetch( `${MOCK_ORIGIN}/edge` );
 
       expect( response.status ).toBe( 399 );
-      expect( tracing.addEventEnd ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventError ).not.toHaveBeenCalled();
+      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logError ).not.toHaveBeenCalled();
     } );
 
     it( 'sends x-request-id and custom headers when init.headers is a plain object', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/with-plain-headers',
         method: 'GET',
         headers: {
@@ -132,10 +132,13 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
+      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      expect( request.headers.get( 'x-request-id' ) ).toBe( FIXED_REQUEST_ID );
+      expect( request.headers.get( 'x-custom' ) ).toBe( 'plain-value' );
     } );
 
     it( 'sends x-request-id and custom headers when init.headers is a Headers instance', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/with-headers-instance',
         method: 'GET',
         headers: {
@@ -152,36 +155,39 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
+      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      expect( request.headers.get( 'x-request-id' ) ).toBe( FIXED_REQUEST_ID );
+      expect( request.headers.get( 'x-from-headers' ) ).toBe( 'yes' );
     } );
 
     it( 'calls logFailure when the mock responds with replyWithError', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/boom', method: 'GET' } ).replyWithError(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/boom', method: 'GET' } ).replyWithError(
         new Error( 'simulated network failure' )
       );
 
       await expect( fetch( `${MOCK_ORIGIN}/boom` ) ).rejects.toThrow( 'fetch failed' );
 
-      expect( tracing.addEventStart ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
-      expect( tracing.addEventError ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventError.mock.calls[0][0].id ).toBe( FIXED_REQUEST_ID );
-      const failure = tracing.addEventError.mock.calls[0][0].details;
+      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
+      expect( utilsMocks.logFailure ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logFailure.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      const failure = utilsMocks.logFailure.mock.calls[0][0].error;
       expect( failure ).toBeInstanceOf( TypeError );
-      expect( failure.message ).toBe( 'fetch failed' );
-      expect( failure.cause ).toBeInstanceOf( Error );
-      expect( failure.cause.message ).toBe( 'simulated network failure' );
+      expect( ( failure as TypeError ).message ).toBe( 'fetch failed' );
+      expect( ( failure as TypeError ).cause ).toBeInstanceOf( Error );
+      expect( ( ( failure as TypeError ).cause as Error ).message ).toBe( 'simulated network failure' );
     } );
 
     it( 'fails when no mock matches (disabled net)', async () => {
       await expect( fetch( `${MOCK_ORIGIN}/unmocked` ) ).rejects.toThrow();
 
-      expect( tracing.addEventStart ).toHaveBeenCalledTimes( 1 );
-      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
-      expect( tracing.addEventError ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
+      expect( utilsMocks.logFailure ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'passes method and body through to undici for POST JSON', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/create', method: 'POST' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/create', method: 'POST' } ).reply(
         201,
         JSON.stringify( { id: 1 } ),
         { headers: { 'content-type': 'application/json' } }
@@ -194,23 +200,23 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 201 );
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'POST' );
-      expect( tracing.addEventEnd ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'works when the second argument is omitted', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/bare', method: 'GET' } ).reply( 204 );
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/bare', method: 'GET' } ).reply( 204 );
 
       const response = await fetch( `${MOCK_ORIGIN}/bare` );
 
       expect( response.status ).toBe( 204 );
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'GET' );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
     } );
   } );
 
   describe( 'fetch RequestInfo / RequestInit shapes', () => {
     it( 'accepts a URL object as the first argument', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/from-url', method: 'GET' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/from-url', method: 'GET' } ).reply(
         200,
         'url-ok',
         { headers: { 'content-type': 'text/plain' } }
@@ -221,25 +227,24 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'url-ok' );
-      expect( tracing.addEventStart.mock.calls[0][0].details.url ).toBe( href.href );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.url ).toBe( href.href );
     } );
 
     it( 'accepts a Request as the first argument (no init)', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/req-only', method: 'GET' } ).reply( 200, 'r1' );
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/req-only', method: 'GET' } ).reply( 200, 'r1' );
 
       const input = new Request( `${MOCK_ORIGIN}/req-only`, { method: 'GET' } );
       const response = await fetch( input );
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'r1' );
-      expect( tracing.addEventStart.mock.calls[0][0].details ).toMatchObject( {
-        method: 'GET',
-        url: `${MOCK_ORIGIN}/req-only`
-      } );
+      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      expect( request.method ).toBe( 'GET' );
+      expect( request.url ).toBe( `${MOCK_ORIGIN}/req-only` );
     } );
 
     it( 'accepts Request plus init that overrides method and body', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/req-plus-init', method: 'POST' } ).reply(
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/req-plus-init', method: 'POST' } ).reply(
         201,
         JSON.stringify( { saved: true } ),
         { headers: { 'content-type': 'application/json' } }
@@ -253,21 +258,21 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 201 );
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'POST' );
-      expect( tracing.addEventEnd ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'accepts string URL with explicit undefined init', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( { path: '/explicit-undefined', method: 'GET' } ).reply( 200, 'ok' );
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/explicit-undefined', method: 'GET' } ).reply( 200, 'ok' );
 
       const response = await fetch( `${MOCK_ORIGIN}/explicit-undefined`, undefined );
 
       expect( response.status ).toBe( 200 );
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'GET' );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
     } );
 
     it( 'accepts URL plus init with method and headers', async () => {
-      undiciCtx.mockAgent.get( MOCK_ORIGIN ).intercept( {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/url-post',
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-request-id': FIXED_REQUEST_ID }
@@ -281,7 +286,7 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
-      expect( tracing.addEventStart.mock.calls[0][0].details.method ).toBe( 'POST' );
+      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
     } );
   } );
 } );
