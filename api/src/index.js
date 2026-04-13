@@ -632,6 +632,8 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *                 workflowId:
  *                   type: string
  *                   description: The workflow execution id
+ *                 input:
+ *                   description: The original input passed to the workflow, null if unavailable
  *                 output:
  *                   description: The result of workflow, null if workflow failed
  *                 trace:
