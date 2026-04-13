@@ -22,9 +22,9 @@ import { fetch } from './index.js';
 
 const tracing = vi.mocked( Tracing, true );
 
-const MOCK_ORIGIN = 'https://http2-index.undici.test';
+const MOCK_ORIGIN = 'https://fetch-index.undici.test';
 
-describe( 'http2/index', () => {
+describe( 'fetch/index', () => {
   const undiciCtx = {
     mockAgent: undefined,
     previousDispatcher: undefined

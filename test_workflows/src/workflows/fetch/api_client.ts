@@ -1,4 +1,4 @@
-import { fetch } from '@outputai/http2';
+import { fetch } from '@outputai/fetch';
 import type { HttpBinResponse, ClientInput, ContractInput } from './types.js';
 
 type FetchInit = NonNullable<Parameters<typeof fetch>[1]>;

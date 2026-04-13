@@ -3,9 +3,9 @@ import { httpBinResponseSchema } from './types.js';
 import { listClientsStep, createClientStep, exportClientsStep, listContractsStep, createContractStep } from './steps.js';
 
 export default workflow( {
-  name: 'http2',
+  name: 'fetch',
   description:
-    'Demonstrates @outputai/http2 (Undici fetch + tracing) with the same httpbin.io scenarios as the `http` workflow: ' +
+    'Demonstrates @outputai/fetch (Undici fetch + tracing) with the same httpbin.io scenarios as the `http` workflow: ' +
     'API key, no auth, and Basic auth',
   outputSchema: z.object( {
     clientsListResponse: httpBinResponseSchema,

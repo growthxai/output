@@ -4,12 +4,13 @@
   "description": "The Output.ai Framework",
   "type": "module",
   "dependencies": {
+    "@outputai/cli": "workspace:",
     "@outputai/core": "workspace:",
     "@outputai/credentials": "workspace:",
     "@outputai/evals": "workspace:",
-    "@outputai/llm": "workspace:",
+    "@outputai/fetch": "workspace:",
     "@outputai/http": "workspace:",
-    "@outputai/cli": "workspace:"
+    "@outputai/llm": "workspace:"
   },
   "license": "Apache-2.0",
   "publishConfig": {

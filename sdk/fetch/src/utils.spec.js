@@ -34,7 +34,7 @@ beforeEach( () => {
   tracing.addEventError.mockClear();
 } );
 
-describe( 'http2/utils', () => {
+describe( 'fetch/utils', () => {
   describe( 'redactHeaders', () => {
     it( 'redacts sensitive headers case-insensitively', async () => {
       const { redactHeaders } = await loadUtils( false );

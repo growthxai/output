@@ -36,6 +36,9 @@ catalogs:
     semver:
       specifier: 7.7.4
       version: 7.7.4
+    undici:
+      specifier: 8.0.2
+      version: 8.0.2
     winston:
       specifier: 3.19.0
       version: 3.19.0
@@ -296,7 +299,7 @@ importers:
         specifier: 0.1.11
         version: 0.1.11
       undici:
-        specifier: 8.0.2
+        specifier: 'catalog:'
         version: 8.0.2
       winston:
         specifier: 'catalog:'
@@ -330,6 +333,15 @@ importers:
         specifier: 'workspace:'
         version: link:../llm
 
+  sdk/fetch:
+    dependencies:
+      '@outputai/core':
+        specifier: 'workspace:'
+        version: link:../core
+      undici:
+        specifier: 'catalog:'
+        version: 8.0.2
+
   sdk/framework:
     dependencies:
       '@outputai/cli':
@@ -344,6 +356,9 @@ importers:
       '@outputai/evals':
         specifier: 'workspace:'
         version: link:../evals
+      '@outputai/fetch':
+        specifier: 'workspace:'
+        version: link:../fetch
       '@outputai/http':
         specifier: 'workspace:'
         version: link:../http
@@ -359,16 +374,6 @@ importers:
       ky:
         specifier: 'catalog:'
         version: 1.14.3
-
-  sdk/http2:
-    dependencies:
-      '@outputai/core':
-        specifier: 'workspace:'
-        version: link:../core
-    devDependencies:
-      undici:
-        specifier: 'catalog:'
-        version: 7.24.6
 
   sdk/llm:
     dependencies:
@@ -426,12 +431,12 @@ importers:
       '@outputai/evals':
         specifier: workspace:^
         version: link:../sdk/evals
+      '@outputai/fetch':
+        specifier: workspace:^
+        version: link:../sdk/fetch
       '@outputai/http':
         specifier: workspace:^
         version: link:../sdk/http
-      '@outputai/http2':
-        specifier: workspace:^
-        version: link:../sdk/http2
       '@outputai/llm':
         specifier: workspace:^
         version: link:../sdk/llm

@@ -5,7 +5,7 @@ import { ClientInput, ContractInput, httpBinResponseSchema } from './types.js';
 // Test GET request to clients endpoint using API key authentication
 export const listClientsStep = step( {
   name: 'listClientsStep',
-  description: 'Test GET request with API key auth (@outputai/http2 fetch)',
+  description: 'Test GET request with API key auth (@outputai/fetch fetch)',
   outputSchema: httpBinResponseSchema,
   fn: async () => {
     const response = await getClients();
@@ -16,7 +16,7 @@ export const listClientsStep = step( {
 // Test POST request to clients endpoint using API key authentication
 export const createClientStep = step( {
   name: 'createClientStep',
-  description: 'Test POST request with API key auth (@outputai/http2 fetch)',
+  description: 'Test POST request with API key auth (@outputai/fetch fetch)',
   inputSchema: z.object( {
     name: z.string(),
     email: z.string()
@@ -31,7 +31,7 @@ export const createClientStep = step( {
 // Test GET request to export endpoint without authentication
 export const exportClientsStep = step( {
   name: 'exportClientsStep',
-  description: 'Test GET request without authentication (@outputai/http2 fetch)',
+  description: 'Test GET request without authentication (@outputai/fetch fetch)',
   outputSchema: httpBinResponseSchema,
   fn: async () => {
     const response = await exportClients();
@@ -42,7 +42,7 @@ export const exportClientsStep = step( {
 // Test GET request to contracts endpoint using Basic authentication
 export const listContractsStep = step( {
   name: 'listContractsStep',
-  description: 'Test GET request with Basic auth (@outputai/http2 fetch)',
+  description: 'Test GET request with Basic auth (@outputai/fetch fetch)',
   outputSchema: httpBinResponseSchema,
   fn: async () => {
     const response = await getContracts();
@@ -53,7 +53,7 @@ export const listContractsStep = step( {
 // Test POST request to contracts endpoint using Basic authentication
 export const createContractStep = step( {
   name: 'createContractStep',
-  description: 'Test POST request with Basic auth (@outputai/http2 fetch)',
+  description: 'Test POST request with Basic auth (@outputai/fetch fetch)',
   inputSchema: z.object( {
     clientId: z.string(),
     title: z.string(),
