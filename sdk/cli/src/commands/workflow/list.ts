@@ -73,7 +73,7 @@ function createWorkflowTable( workflows: Workflow[], detailed: boolean ): string
     const display = parseWorkflowForDisplay( workflow );
 
     if ( detailed ) {
-      const aliases = display.aliases.split( ', ' ).join( '\n' );
+      const aliases = workflow.aliases?.length ? workflow.aliases.join( '\n' ) : 'none';
       const inputs = display.inputs.split( ', ' ).join( '\n' );
       const outputs = display.outputs.split( ', ' ).join( '\n' );
       const scenarios = display.scenarios.split( ', ' ).join( '\n' );
@@ -100,7 +100,7 @@ function formatWorkflowsAsJson( workflows: Workflow[] ): string {
       return {
         name: display.name,
         description: display.description,
-        aliases: display.aliases === 'none' ? [] : display.aliases.split( ', ' ),
+        aliases: w.aliases ?? [],
         inputs: display.inputs.split( ', ' ),
         outputs: display.outputs.split( ', ' ),
         scenarios: display.scenarios === 'none' ? [] : display.scenarios.split( ', ' ),
