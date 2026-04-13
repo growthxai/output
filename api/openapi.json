@@ -131,6 +131,13 @@
           },
           "outputSchema": {
             "$ref": "#/components/schemas/JSONSchema"
+          },
+          "aliases": {
+            "type": "array",
+            "description": "Alternative names that resolve to this workflow",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
