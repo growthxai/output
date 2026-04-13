@@ -228,6 +228,27 @@ describe( 'temporal_client', () => {
       } );
     } );
 
+    it( 'should resolve by name when workflow has no aliases key', async () => {
+      const successResult = { output: { data: 'no-alias' }, trace: null };
+
+      mockQuery.mockResolvedValue( {
+        workflows: [ { name: 'test-workflow' } ]
+      } );
+      mockStart.mockResolvedValue( {
+        result: () => Promise.resolve( successResult )
+      } );
+      mockGetHandle
+        .mockReturnValueOnce( { query: mockQuery } )
+        .mockReturnValue( { result: () => Promise.resolve( successResult ) } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.runWorkflow( 'test-workflow', { input: 'data' } );
+
+      expect( result.status ).toBe( 'completed' );
+      expect( result.output ).toEqual( { data: 'no-alias' } );
+    } );
+
     it( 'should throw non-WorkflowFailedError errors', async () => {
       const timeoutError = new WorkflowExecutionTimedOutError();
 
