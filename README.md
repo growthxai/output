@@ -229,9 +229,11 @@ OUTPUT_TRACE_REMOTE_S3_BUCKET=my-traces
 
 ## Contributing
 
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first — all contributions require an approved issue and maintainer assignment before work begins.
+
 ```bash
-git clone https://github.com/growthxai/output-sdk.git
-cd output-sdk
+git clone https://github.com/growthxai/output.git
+cd output
 pnpm install && npm run build:packages
 ```
 
