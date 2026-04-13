@@ -214,6 +214,23 @@ describe( 'ActivityExecutionInterceptor', () => {
     contextInfoMock.workflowType = 'myWorkflow';
   } );
 
+  it( 'handles workflows with no aliases key in workflowsMap', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const workflows = [ { name: 'myWorkflow', path: '/workflows/myWorkflow.js' } ];
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows } );
+
+    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+
+    const promise = interceptor.execute( makeInput(), next );
+    vi.advanceTimersByTime( 0 );
+    await promise;
+
+    expect( runWithContextMock ).toHaveBeenCalledWith(
+      expect.any( Function ),
+      expect.objectContaining( { workflowFilename: '/workflows/myWorkflow.js' } )
+    );
+  } );
+
   it( 'does not heartbeat when OUTPUT_ACTIVITY_HEARTBEAT_ENABLED is false', async () => {
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED', 'false' );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
