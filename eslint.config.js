@@ -105,7 +105,8 @@ export default [
       '.github/**/*',
       '.claude/**/*',
       '.agent-os/**/*',
-      '**/viz_examples/**'
+      '**/viz_examples/**',
+      '.pnpm-store/**'
     ]
   },
 

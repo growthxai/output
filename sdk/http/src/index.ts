@@ -2,6 +2,7 @@ import ky from 'ky';
 import type { Options } from 'ky';
 import { assignRequestId, traceRequest, traceResponse, traceError } from './hooks/index.js';
 import { applyFetchErrorTracing } from '#hooks/trace_error.js';
+export * from './fetch/index.js';
 
 const baseHttpClient = ky.create( {
   hooks: {

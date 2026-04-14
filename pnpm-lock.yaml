@@ -36,6 +36,9 @@ catalogs:
     semver:
       specifier: 7.7.4
       version: 7.7.4
+    undici:
+      specifier: 8.0.2
+      version: 8.0.2
     winston:
       specifier: 3.19.0
       version: 3.19.0
@@ -296,7 +299,7 @@ importers:
         specifier: 0.1.11
         version: 0.1.11
       undici:
-        specifier: 8.0.2
+        specifier: 'catalog:'
         version: 8.0.2
       winston:
         specifier: 'catalog:'
@@ -359,6 +362,9 @@ importers:
       ky:
         specifier: 'catalog:'
         version: 1.14.3
+      undici:
+        specifier: 'catalog:'
+        version: 8.0.2
 
   sdk/llm:
     dependencies:
