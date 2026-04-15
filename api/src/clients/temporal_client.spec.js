@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowNotCompletedError, WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError } from './errors.js';
-import { resolveResetEventId, extractWorkflowInput } from './temporal_client.js';
+import { resolveResetEventId, extractWorkflowInput, decodeEventPayloads, serializeEvent } from './temporal_client.js';
 
 const {
   mockDescribe,
@@ -10,6 +10,7 @@ const {
   mockGetHandle,
   mockConnect,
   mockFetchHistory,
+  mockGetWorkflowExecutionHistory,
   mockLoggerInfo,
   mockLoggerError,
   mockLoggerWarn,
@@ -22,6 +23,7 @@ const {
   const mockGetHandle = vi.fn();
   const mockConnect = vi.fn();
   const mockFetchHistory = vi.fn();
+  const mockGetWorkflowExecutionHistory = vi.fn();
   const mockLoggerInfo = vi.fn();
   const mockLoggerError = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -43,6 +45,7 @@ const {
     mockGetHandle,
     mockConnect,
     mockFetchHistory,
+    mockGetWorkflowExecutionHistory,
     mockLoggerInfo,
     mockLoggerError,
     mockLoggerWarn,
@@ -104,7 +107,9 @@ vi.mock( '#utils', () => ( {
 describe( 'temporal_client', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    mockConnect.mockResolvedValue( {} );
+    mockConnect.mockResolvedValue( {
+      workflowService: { getWorkflowExecutionHistory: mockGetWorkflowExecutionHistory }
+    } );
     mockFetchHistory.mockResolvedValue( { events: [] } );
     mockGetHandle.mockReturnValue( {
       describe: mockDescribe,
@@ -617,6 +622,330 @@ describe( 'temporal_client', () => {
 
       const result = resolveResetEventId( events, 'commonStep' );
       expect( result.toString() ).toBe( '10' );
+    } );
+  } );
+
+  describe( 'decodeEventPayloads', () => {
+    it( 'decodes activity scheduled input payloads', () => {
+      const event = {
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'wf#myStep' },
+          input: { payloads: [ { data: 'test-input' } ] }
+        }
+      };
+      const result = decodeEventPayloads( event );
+      expect( result.activityTaskScheduledEventAttributes.input ).toEqual( [ { data: 'test-input' } ] );
+    } );
+
+    it( 'decodes activity completed result payloads', () => {
+      const event = {
+        activityTaskCompletedEventAttributes: {
+          scheduledEventId: { toString: () => '5' },
+          result: { payloads: [ { output: 'done' } ] }
+        }
+      };
+      const result = decodeEventPayloads( event );
+      expect( result.activityTaskCompletedEventAttributes.result ).toEqual( [ { output: 'done' } ] );
+    } );
+
+    it( 'extracts failure message and stackTrace', () => {
+      const event = {
+        activityTaskFailedEventAttributes: {
+          scheduledEventId: { toString: () => '5' },
+          failure: {
+            message: 'step failed',
+            stackTrace: 'Error at line 1',
+            failureInfo: { applicationFailureInfo: { type: 'AppError' } }
+          }
+        }
+      };
+      const result = decodeEventPayloads( event );
+      expect( result.activityTaskFailedEventAttributes.failure ).toEqual( {
+        message: 'step failed',
+        stackTrace: 'Error at line 1',
+        type: 'AppError'
+      } );
+    } );
+
+    it( 'passes through events without payload fields unchanged', () => {
+      const event = {
+        activityTaskStartedEventAttributes: {
+          scheduledEventId: { toString: () => '5' }
+        }
+      };
+      const result = decodeEventPayloads( event );
+      expect( result ).toBe( event );
+    } );
+
+    it( 'handles decode failures with fallback representation', async () => {
+      const { defaultPayloadConverter } = await import( '@temporalio/client' );
+      defaultPayloadConverter.fromPayload.mockImplementationOnce( () => {
+        throw new Error( 'decode failed' );
+      } );
+      const event = {
+        activityTaskScheduledEventAttributes: {
+          input: {
+            payloads: [ { metadata: { encoding: Buffer.from( 'binary/plain' ) } } ]
+          }
+        }
+      };
+      const result = decodeEventPayloads( event );
+      expect( result.activityTaskScheduledEventAttributes.input ).toEqual( [
+        { _raw: true, encoding: 'binary/plain' }
+      ] );
+    } );
+  } );
+
+  describe( 'serializeEvent', () => {
+    it( 'converts Long eventId to string', () => {
+      const event = {
+        eventId: { toString: () => '42' },
+        eventType: 1,
+        eventTime: null
+      };
+      const result = serializeEvent( event );
+      expect( result.eventId ).toBe( '42' );
+    } );
+
+    it( 'maps eventType to eventTypeName', () => {
+      const event = {
+        eventId: { toString: () => '1' },
+        eventType: 10,
+        eventTime: null,
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'wf#myStep' }
+        }
+      };
+      const result = serializeEvent( event );
+      expect( result.eventTypeName ).toBe( 'ACTIVITY_TASK_SCHEDULED' );
+    } );
+
+    it( 'converts Timestamp to ISO 8601 string', () => {
+      const event = {
+        eventId: { toString: () => '1' },
+        eventType: 1,
+        eventTime: { seconds: { toString: () => '1713182400' }, nanos: 500000000 }
+      };
+      const result = serializeEvent( event );
+      expect( result.eventTime ).toBe( '2024-04-15T12:00:00.500Z' );
+    } );
+
+    it( 'extracts stepName from activityType.name', () => {
+      const event = {
+        eventId: { toString: () => '5' },
+        eventType: 10,
+        eventTime: null,
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'fact-checker#extractPassages' }
+        }
+      };
+      const result = serializeEvent( event );
+      expect( result.activityTaskScheduledEventAttributes.stepName ).toBe( 'extractPassages' );
+    } );
+
+    it( 'converts scheduledEventId Long to string', () => {
+      const event = {
+        eventId: { toString: () => '7' },
+        eventType: 12,
+        eventTime: null,
+        activityTaskCompletedEventAttributes: {
+          scheduledEventId: { toString: () => '5' },
+          result: [ 'data' ]
+        }
+      };
+      const result = serializeEvent( event );
+      expect( result.activityTaskCompletedEventAttributes.scheduledEventId ).toBe( '5' );
+    } );
+
+    it( 'strips payloads when includePayloads is false', () => {
+      const event = {
+        eventId: { toString: () => '5' },
+        eventType: 10,
+        eventTime: null,
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'wf#myStep' },
+          input: [ 'decoded-input' ]
+        }
+      };
+      const result = serializeEvent( event, { includePayloads: false } );
+      expect( result.activityTaskScheduledEventAttributes.input ).toBeUndefined();
+      expect( result.activityTaskScheduledEventAttributes.activityType ).toBeDefined();
+    } );
+
+    it( 'preserves payloads when includePayloads is true', () => {
+      const event = {
+        eventId: { toString: () => '5' },
+        eventType: 10,
+        eventTime: null,
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'wf#myStep' },
+          input: [ 'decoded-input' ]
+        }
+      };
+      const result = serializeEvent( event, { includePayloads: true } );
+      expect( result.activityTaskScheduledEventAttributes.input ).toEqual( [ 'decoded-input' ] );
+    } );
+
+    it( 'returns UNKNOWN for unmapped eventType values', () => {
+      const event = {
+        eventId: { toString: () => '1' },
+        eventType: 999,
+        eventTime: null
+      };
+      const result = serializeEvent( event );
+      expect( result.eventTypeName ).toBe( 'UNKNOWN_999' );
+    } );
+  } );
+
+  describe( 'getWorkflowHistory', () => {
+    it( 'returns workflow metadata and events on first page', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'RUNNING' },
+        startTime: new Date( '2024-04-15T12:00:00Z' ),
+        closeTime: null,
+        historyLength: 42,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: {
+          events: [ {
+            eventId: { toString: () => '1' },
+            eventType: 1,
+            eventTime: { seconds: { toString: () => '1713182400' }, nanos: 0 },
+            workflowExecutionStartedEventAttributes: {
+              workflowType: { name: 'factChecker' }
+            }
+          } ]
+        },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.workflow ).toEqual( {
+        workflowId: 'wf-123',
+        runId: 'run-abc',
+        status: 'running',
+        startTime: '2024-04-15T12:00:00.000Z',
+        closeTime: null,
+        historyLength: 42,
+        taskQueue: 'default'
+      } );
+      expect( result.events ).toHaveLength( 1 );
+      expect( result.events[0].eventTypeName ).toBe( 'WORKFLOW_EXECUTION_STARTED' );
+      expect( result.nextPageToken ).toBeNull();
+    } );
+
+    it( 'returns workflow: null when pageToken is present', async () => {
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123', {
+        runId: 'run-abc',
+        pageToken: Buffer.from( 'token' ).toString( 'base64' )
+      } );
+
+      expect( result.workflow ).toBeNull();
+      expect( mockDescribe ).not.toHaveBeenCalled();
+    } );
+
+    it( 'passes correct params to gRPC call', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 10,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { pageSize: 30 } );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledWith( {
+        namespace: 'default',
+        execution: { workflowId: 'wf-123', runId: 'run-abc' },
+        maximumPageSize: 30,
+        nextPageToken: undefined
+      } );
+    } );
+
+    it( 'caps pageSize at 50', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 10,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { pageSize: 100 } );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledWith(
+        expect.objectContaining( { maximumPageSize: 50 } )
+      );
+    } );
+
+    it( 'returns base64 nextPageToken when present', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'RUNNING' },
+        startTime: new Date(),
+        closeTime: null,
+        historyLength: 100,
+        taskQueue: 'default'
+      } );
+      const tokenBytes = Buffer.from( 'next-page-data' );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: tokenBytes
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.nextPageToken ).toBe( tokenBytes.toString( 'base64' ) );
+    } );
+
+    it( 'uses provided runId for describe when no pageToken', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'specific-run',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 5,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { runId: 'specific-run' } );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'wf-123', 'specific-run' );
     } );
   } );
 } );

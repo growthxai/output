@@ -72,10 +72,43 @@ const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
  * Values correspond to temporal.api.enums.v1.EventType protobuf enum.
  */
 const EventType = {
+  WORKFLOW_EXECUTION_STARTED: 1,
+  WORKFLOW_EXECUTION_COMPLETED: 2,
+  WORKFLOW_EXECUTION_FAILED: 3,
+  WORKFLOW_EXECUTION_TIMED_OUT: 4,
+  WORKFLOW_TASK_SCHEDULED: 5,
+  WORKFLOW_TASK_STARTED: 6,
   WORKFLOW_TASK_COMPLETED: 7,
+  WORKFLOW_TASK_TIMED_OUT: 8,
+  WORKFLOW_TASK_FAILED: 9,
   ACTIVITY_TASK_SCHEDULED: 10,
-  ACTIVITY_TASK_COMPLETED: 12
+  ACTIVITY_TASK_STARTED: 11,
+  ACTIVITY_TASK_COMPLETED: 12,
+  ACTIVITY_TASK_FAILED: 13,
+  ACTIVITY_TASK_TIMED_OUT: 14,
+  ACTIVITY_TASK_CANCEL_REQUESTED: 15,
+  ACTIVITY_TASK_CANCELED: 16,
+  TIMER_STARTED: 17,
+  TIMER_FIRED: 18,
+  TIMER_CANCELED: 19,
+  WORKFLOW_EXECUTION_CANCEL_REQUESTED: 20,
+  WORKFLOW_EXECUTION_CANCELED: 21,
+  WORKFLOW_EXECUTION_SIGNALED: 26,
+  WORKFLOW_EXECUTION_TERMINATED: 27,
+  WORKFLOW_EXECUTION_CONTINUED_AS_NEW: 28,
+  START_CHILD_WORKFLOW_EXECUTION_INITIATED: 29,
+  CHILD_WORKFLOW_EXECUTION_STARTED: 31,
+  CHILD_WORKFLOW_EXECUTION_COMPLETED: 32,
+  CHILD_WORKFLOW_EXECUTION_FAILED: 33,
+  CHILD_WORKFLOW_EXECUTION_CANCELED: 34,
+  CHILD_WORKFLOW_EXECUTION_TIMED_OUT: 35,
+  CHILD_WORKFLOW_EXECUTION_TERMINATED: 36,
+  MARKER_RECORDED: 25
 };
+
+const EventTypeName = Object.fromEntries(
+  Object.entries( EventType ).map( ( [ name, value ] ) => [ value, name ] )
+);
 
 /**
  * Resolve a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
@@ -141,6 +174,129 @@ export const extractWorkflowInput = history => {
     return null;
   }
   return defaultPayloadConverter.fromPayload( payloads[0] );
+};
+
+/**
+ * Payload fields to decode per event attribute type.
+ * Each entry maps an attribute key to its nested payload array paths.
+ */
+const PAYLOAD_FIELDS = {
+  workflowExecutionStartedEventAttributes: [ 'input' ],
+  workflowExecutionCompletedEventAttributes: [ 'result' ],
+  activityTaskScheduledEventAttributes: [ 'input' ],
+  activityTaskCompletedEventAttributes: [ 'result' ],
+  activityTaskFailedEventAttributes: [ 'failure' ]
+};
+
+/**
+ * Decode known payload fields on a Temporal history event.
+ * Each decode is wrapped in try/catch -- non-JSON payloads produce a fallback
+ * representation instead of throwing.
+ *
+ * @param {object} event - Raw Temporal history event
+ * @returns {object} Event with decoded payloads (mutates a shallow copy of attributes)
+ */
+export const decodeEventPayloads = event => {
+  for ( const [ attrKey, fields ] of Object.entries( PAYLOAD_FIELDS ) ) {
+    const attrs = event[attrKey];
+    if ( !attrs ) {
+      continue;
+    }
+
+    const decoded = { ...attrs };
+    for ( const field of fields ) {
+      if ( field === 'failure' ) {
+        // failure is a Failure proto, not a Payloads wrapper -- extract message/stackTrace
+        if ( attrs.failure ) {
+          try {
+            decoded.failure = {
+              message: attrs.failure.message ?? null,
+              stackTrace: attrs.failure.stackTrace ?? null,
+              type: attrs.failure.failureInfo?.applicationFailureInfo?.type ?? null
+            };
+          } catch {
+            decoded.failure = { _raw: true };
+          }
+        }
+        continue;
+      }
+      const payloads = attrs[field]?.payloads;
+      if ( !payloads?.length ) {
+        continue;
+      }
+      decoded[field] = payloads.map( p => {
+        try {
+          return defaultPayloadConverter.fromPayload( p );
+        } catch {
+          const encoding = p?.metadata?.encoding ?
+            Buffer.from( p.metadata.encoding ).toString() :
+            'unknown';
+          return { _raw: true, encoding };
+        }
+      } );
+    }
+    return { ...event, [attrKey]: decoded };
+  }
+  return event;
+};
+
+/**
+ * Convert a Temporal history event to a JSON-safe object.
+ * - Long fields (eventId, scheduledEventId) to strings via .toString()
+ * - Timestamp fields (eventTime) to ISO 8601 strings
+ * - Adds eventTypeName string from EventType enum
+ * - For activity events, extracts stepName from activityType.name
+ * - When includePayloads is false, strips input/result/failure from attributes
+ *
+ * @param {object} event - Temporal history event (optionally with decoded payloads)
+ * @param {{ includePayloads: boolean }} options
+ * @returns {object} JSON-safe event
+ */
+export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
+  const eventType = typeof event.eventType === 'object' ?
+    Number( event.eventType.toString() ) :
+    event.eventType;
+
+  const serialized = {
+    eventId: event.eventId?.toString() ?? null,
+    eventType,
+    eventTypeName: EventTypeName[eventType] ?? `UNKNOWN_${eventType}`,
+    eventTime: event.eventTime?.seconds !== null && event.eventTime?.seconds !== undefined ?
+      new Date( ( Number( event.eventTime.seconds.toString() ) * 1000 ) +
+          Math.floor( ( event.eventTime.nanos ?? 0 ) / 1e6 ) ).toISOString() :
+      null
+  };
+
+  // Find the attribute key for this event
+  const attrKey = Object.keys( event ).find( k => k.endsWith( 'EventAttributes' ) );
+  if ( !attrKey || !event[attrKey] ) {
+    return serialized;
+  }
+
+  const attrs = { ...event[attrKey] };
+
+  // Convert Long fields in attributes
+  if ( attrs.scheduledEventId ) {
+    attrs.scheduledEventId = attrs.scheduledEventId.toString();
+  }
+  if ( attrs.startedEventId ) {
+    attrs.startedEventId = attrs.startedEventId.toString();
+  }
+
+  // Extract stepName from activityType.name (e.g., "workflow-name#stepName")
+  if ( attrs.activityType?.name?.includes( '#' ) ) {
+    attrs.stepName = attrs.activityType.name.split( '#' ).pop();
+  }
+
+  // Strip payloads when not requested
+  if ( !includePayloads ) {
+    delete attrs.input;
+    delete attrs.result;
+    delete attrs.failure;
+  }
+
+  serialized[attrKey] = attrs;
+  return serialized;
 };
 
 /**
@@ -476,6 +632,57 @@ export default {
         } );
 
         return { workflowId, runId: response.runId };
+      },
+
+      /**
+       * Fetch paginated workflow execution history with decoded events.
+       *
+       * @param {string} workflowId - The workflow execution id
+       * @param {Object} [options]
+       * @param {string} [options.runId] - Specific run ID (defaults to latest)
+       * @param {number} [options.pageSize=20] - Events per page (max 50)
+       * @param {string} [options.pageToken] - Base64 pagination token from previous response
+       * @param {boolean} [options.includePayloads=false] - Include decoded input/output payloads
+       * @returns {{ workflow: object|null, events: object[], nextPageToken: string|null }}
+       */
+      async getWorkflowHistory( workflowId, { runId, pageSize = 20, pageToken, includePayloads = false } = {} ) {
+        const firstPage = !pageToken;
+        const metadata = firstPage ? await ( async () => {
+          const handle = client.workflow.getHandle( workflowId, runId );
+          const description = await handle.describe();
+          return {
+            workflow: {
+              workflowId,
+              runId: description.runId,
+              status: mapWorkflowStatus( description.status.name ),
+              startTime: description.startTime?.toISOString() ?? null,
+              closeTime: description.closeTime?.toISOString() ?? null,
+              historyLength: description.historyLength,
+              taskQueue: description.taskQueue
+            },
+            resolvedRunId: description.runId
+          };
+        } )() : { workflow: null, resolvedRunId: runId };
+
+        const response = await connection.workflowService.getWorkflowExecutionHistory( {
+          namespace,
+          execution: { workflowId, runId: metadata.resolvedRunId },
+          maximumPageSize: Math.min( pageSize, 50 ),
+          nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
+        } );
+
+        const events = ( response.history?.events || [] ).map( event => {
+          const decoded = includePayloads ? decodeEventPayloads( event ) : event;
+          return serializeEvent( decoded, { includePayloads } );
+        } );
+
+        return {
+          workflow: metadata.workflow,
+          events,
+          nextPageToken: response.nextPageToken?.length ?
+            Buffer.from( response.nextPageToken ).toString( 'base64' ) :
+            null
+        };
       },
 
       /**
