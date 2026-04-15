@@ -1,6 +1,8 @@
 ---
+name: plan-workflow
 argument-hint: [workflow-description-and-additional-instructions]
 description: Use when the user asks to create, build, generate, scaffold, or plan a new workflow. Orchestrates the full planning process including architecture, steps, prompts, evaluators, and testing strategy using specialized subagents.
+when_to_use: When user says "create a workflow", "build a workflow", "make a workflow", "generate a workflow", "scaffold a workflow", "plan a workflow", or describes workflow functionality they want built for the Output SDK
 version: 0.1.3
 model: opus
 ---
