@@ -9,6 +9,7 @@ import errorHandler from './middleware/error_handler.js';
 import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
 import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
+import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
 
 const runIdPathSchema = z.uuid();
 
@@ -978,6 +979,69 @@ app.get( '/workflow/:id/runs/:rid/result', resultHandler );
  */
 app.get( '/workflow/:id/trace-log', traceLogHandler );
 app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
+
+/**
+ * @swagger
+ * /workflow/{id}/history:
+ *   get:
+ *     summary: Get paginated workflow execution history
+ *     description: Returns decoded Temporal history events with optional payload inclusion. First page includes workflow metadata; subsequent pages return events only.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The workflow execution ID
+ *       - in: query
+ *         name: runId
+ *         schema:
+ *           type: string
+ *         description: Specific run ID. Required when using pageToken.
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Number of events per page
+ *       - in: query
+ *         name: pageToken
+ *         schema:
+ *           type: string
+ *         description: Base64 pagination token from previous response
+ *       - in: query
+ *         name: includePayloads
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include decoded input/output payloads in events
+ *     responses:
+ *       200:
+ *         description: Paginated history events
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 workflow:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Workflow metadata (null on subsequent pages)
+ *                 events:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 nextPageToken:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+app.get( '/workflow/:id/history', createWorkflowHistoryHandler( client ) );
 
 /**
  * @swagger
