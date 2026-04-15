@@ -325,6 +325,10 @@ Verify the implementation is ready for use.
 
 </process_flow>
 
+<post_flight_check>
+  EXECUTE: Claude Skill: `output-meta-post-flight`
+</post_flight_check>
+
 ---- START ----
 
 Workflow Name: $2
