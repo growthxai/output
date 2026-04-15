@@ -5,37 +5,24 @@ import {
   getServiceStatus,
   isServiceHealthy,
   isServiceFailed,
-  SERVICE_HEALTH,
-  SERVICE_STATE
+  SERVICE_HEALTH
 } from '#services/docker.js';
 import type { ServiceStatus } from '#services/docker.js';
 import { config } from '#config.js';
+import { fetchWorkflowRuns } from '#services/workflow_runs.js';
+import type { WorkflowRun } from '#services/workflow_runs.js';
+import { openUrl } from '#utils/open_url.js';
+import { StatusIcon } from '#components/status_icon.js';
+import { WorkflowSummarySection } from '#components/workflow_summary.js';
+import type { WorkflowSummary } from '#components/workflow_summary.js';
+import { CommandFooter } from '#components/command_footer.js';
+import { WorkflowListView } from '#views/workflow/list.js';
 
 const POLL_INTERVAL_MS = 2000;
 const HEALTH_TIMEOUT_MS = 120_000;
 
-const STATUS_ICONS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: '●',
-  [SERVICE_HEALTH.UNHEALTHY]: '○',
-  [SERVICE_HEALTH.STARTING]: '◐',
-  [SERVICE_HEALTH.NONE]: '●',
-  [SERVICE_STATE.RUNNING]: '●',
-  [SERVICE_STATE.EXITED]: '✗'
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  [SERVICE_HEALTH.HEALTHY]: 'green',
-  [SERVICE_HEALTH.UNHEALTHY]: 'red',
-  [SERVICE_HEALTH.STARTING]: 'yellow',
-  [SERVICE_HEALTH.NONE]: 'blue',
-  [SERVICE_STATE.RUNNING]: 'blue',
-  [SERVICE_STATE.EXITED]: 'red'
-};
-
-const resolveServiceDisplay = ( service: ServiceStatus ) => {
-  const key = service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
-  return { icon: STATUS_ICONS[key] ?? '?', color: STATUS_COLORS[key] ?? 'white', status: key };
-};
+const resolveServiceStatus = ( service: ServiceStatus ): string =>
+  service.health === SERVICE_HEALTH.NONE ? service.state : service.health;
 
 const fetchServices = async ( dockerComposePath: string ): Promise<ServiceStatus[] | null> => {
   try {
@@ -132,6 +119,41 @@ const useStatusRefresh = (
   } );
 };
 
+const useWorkflowPolling = (
+  enabled: boolean,
+  onRuns: ( runs: WorkflowRun[] ) => void
+): void => {
+  const onRunsRef = useRef( onRuns );
+  onRunsRef.current = onRuns;
+
+  usePoll( enabled, async () => {
+    try {
+      const { runs } = await fetchWorkflowRuns( { limit: 100 } );
+      onRunsRef.current( runs );
+    } catch {
+      // API may not be ready yet
+    }
+    return 'continue';
+  } );
+};
+
+const useMainViewInput = (
+  isActive: boolean,
+  callbacks: { onOpenTemporal: () => void; onOpenWorkflows: () => void }
+): void => {
+  const callbacksRef = useRef( callbacks );
+  callbacksRef.current = callbacks;
+
+  useInput( input => {
+    if ( input === 'o' ) {
+      callbacksRef.current.onOpenTemporal();
+    }
+    if ( input === 'w' ) {
+      callbacksRef.current.onOpenWorkflows();
+    }
+  }, { isActive } );
+};
+
 const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
   const { exit } = useApp();
   const isExitingRef = useRef( false );
@@ -145,12 +167,12 @@ const useCtrlC = ( onCleanup: () => Promise<void> ): void => {
 };
 
 const ServiceRow: React.FC<{ service: ServiceStatus }> = ( { service } ) => {
-  const { icon, color, status } = resolveServiceDisplay( service );
+  const status = resolveServiceStatus( service );
   const ports = service.ports.length ? service.ports.join( ', ' ) : '-';
 
   return (
     <Box>
-      <Text color={color}>{icon} </Text>
+      <Box width={3}><StatusIcon status={status} /></Box>
       <Box width={16}><Text>{service.name}</Text></Box>
       <Text dimColor>{status.padEnd( 10 )}</Text>
       <Text dimColor>{ports}</Text>
@@ -251,22 +273,42 @@ const WaitingView: React.FC<{ services: ServiceStatus[] }> = ( { services } ) =>
   </Box>
 );
 
-const RunningView: React.FC<{ services: ServiceStatus[] }> = ( { services } ) => (
+const RunningView: React.FC<{
+  services: ServiceStatus[];
+  workflowSummary: WorkflowSummary | null;
+}> = ( { services, workflowSummary } ) => (
   <Box flexDirection="column">
     <Text bold>📊 Service Status</Text>
     <Box flexDirection="column" marginTop={1}>
       {services.map( s => <ServiceRow key={s.name} service={s} /> )}
     </Box>
     <FailureWarning services={services} />
+    {workflowSummary && <WorkflowSummarySection summary={workflowSummary} />}
     <Box marginTop={1}>
       <Text color="cyan">{'🌐 Temporal UI: '}</Text>
       <Text bold>http://localhost:8080</Text>
     </Box>
-    <Text dimColor>Press Ctrl+C to stop services</Text>
+    <CommandFooter hints={[
+      { key: 'o', label: 'open ui' },
+      { key: 'w', label: 'view workflow runs' },
+      { key: 'ctrl+c', label: 'stop' }
+    ]} />
   </Box>
 );
 
 type Phase = 'waiting' | 'running' | 'failed';
+type ActiveView = 'main' | 'workflows';
+
+const MainDevView: React.FC<{
+  phase: Phase;
+  services: ServiceStatus[];
+  workflowSummary: WorkflowSummary | null;
+}> = ( { phase, services, workflowSummary } ) => {
+  if ( phase === 'waiting' ) {
+    return <WaitingView services={services} />;
+  }
+  return <RunningView services={services} workflowSummary={workflowSummary} />;
+};
 
 interface SuccessItem {
   id: string;
@@ -281,6 +323,8 @@ export const DevApp: React.FC<{
   const [ phase, setPhase ] = useState<Phase>( 'waiting' );
   const [ services, setServices ] = useState<ServiceStatus[]>( [] );
   const [ successItems, setSuccessItems ] = useState<SuccessItem[]>( [] );
+  const [ activeView, setActiveView ] = useState<ActiveView>( 'main' );
+  const [ workflowRuns, setWorkflowRuns ] = useState<WorkflowRun[]>( [] );
 
   useHealthPolling( dockerComposePath, phase === 'waiting', {
     onServices: setServices,
@@ -296,16 +340,41 @@ export const DevApp: React.FC<{
 
   useStatusRefresh( dockerComposePath, phase === 'running', setServices );
 
+  useWorkflowPolling(
+    phase === 'running' || phase === 'failed',
+    setWorkflowRuns
+  );
+
+  useMainViewInput(
+    activeView === 'main' && phase !== 'waiting',
+    {
+      onOpenTemporal: () => openUrl( 'http://localhost:8080' ),
+      onOpenWorkflows: () => setActiveView( 'workflows' )
+    }
+  );
+
   useCtrlC( onCleanup );
+
+  const workflowSummary: WorkflowSummary | null = workflowRuns.length > 0 ? {
+    running: workflowRuns.filter( r => r.status === 'running' ).length,
+    completed: workflowRuns.filter( r => r.status === 'completed' ).length,
+    failed: workflowRuns.filter( r => r.status === 'failed' ).length,
+    total: workflowRuns.length
+  } : null;
 
   return (
     <>
       <Static items={successItems}>
         {item => <DevSuccessMessage key={item.id} services={item.services} />}
       </Static>
-      {phase === 'waiting' && <WaitingView services={services} />}
-      {phase === 'running' && <RunningView services={services} />}
-      {phase === 'failed' && <RunningView services={services} />}
+      <Box flexDirection="column">
+        {activeView === 'main' && (
+          <MainDevView phase={phase} services={services} workflowSummary={workflowSummary} />
+        )}
+        {activeView === 'workflows' && (
+          <WorkflowListView runs={workflowRuns} onBack={() => setActiveView( 'main' )} />
+        )}
+      </Box>
     </>
   );
 };

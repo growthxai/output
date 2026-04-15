@@ -131,6 +131,13 @@
           },
           "outputSchema": {
             "$ref": "#/components/schemas/JSONSchema"
+          },
+          "aliases": {
+            "type": "array",
+            "description": "Alternative names that resolve to this workflow",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -765,6 +772,9 @@
                     "workflowId": {
                       "type": "string",
                       "description": "The workflow execution id"
+                    },
+                    "input": {
+                      "description": "The original input passed to the workflow, null if unavailable"
                     },
                     "output": {
                       "description": "The result of workflow, null if workflow failed"

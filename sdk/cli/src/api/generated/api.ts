@@ -68,6 +68,8 @@ export interface Workflow {
   path?: string;
   inputSchema?: JSONSchema;
   outputSchema?: JSONSchema;
+  /** Alternative names that resolve to this workflow */
+  aliases?: string[];
 }
 
 /**
@@ -347,6 +349,8 @@ export const GetWorkflowIdResult200Status = {
 export type GetWorkflowIdResult200 = {
   /** The workflow execution id */
   workflowId?: string;
+  /** The original input passed to the workflow, null if unavailable */
+  input?: unknown;
   /** The result of workflow, null if workflow failed */
   output?: unknown;
   trace?: TraceInfo;

@@ -39,7 +39,34 @@ export function formatDate( isoString: string | null | undefined ): string {
 }
 
 /**
- * Format a duration between two ISO timestamps
+ * Calculate elapsed milliseconds between two ISO timestamps.
+ * If completedAt is null/undefined, uses current time (for in-progress durations).
+ */
+export function elapsedMs( startedAt: string, completedAt?: string | null ): number {
+  const start = parseISO( startedAt ).getTime();
+  const end = completedAt ? parseISO( completedAt ).getTime() : Date.now();
+  return end - start;
+}
+
+/**
+ * Format a duration in milliseconds to a compact string that fits in narrow columns.
+ * Always returns a short single-token string (e.g., "150ms", "7.56s", "24.2m", "1.3h").
+ */
+export function formatDurationCompact( ms: number ): string {
+  if ( ms < 1000 ) {
+    return `${ms}ms`;
+  }
+  if ( ms < 60_000 ) {
+    return `${( ms / 1000 ).toFixed( 2 )}s`;
+  }
+  if ( ms < 3_600_000 ) {
+    return `${( ms / 60_000 ).toFixed( 1 )}m`;
+  }
+  return `${( ms / 3_600_000 ).toFixed( 1 )}h`;
+}
+
+/**
+ * Format a duration between two ISO timestamps.
  *
  * @param startedAt - ISO 8601 start timestamp
  * @param completedAt - ISO 8601 end timestamp (or null if still running)

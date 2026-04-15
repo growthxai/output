@@ -270,6 +270,8 @@ ${ux.colorize( 'green', ux.colorize( 'bold', 'Happy building with Output! 🚀' 
 
 export const getWorkflowGenerateSuccessMessage = (
   workflowName: string,
+  workflowId: string,
+  scenarioName: string | undefined,
   targetDir: string,
   filesCreated: string[]
 ): string => {
@@ -296,7 +298,7 @@ export const getWorkflowGenerateSuccessMessage = (
     },
     {
       step: 'Test your workflow',
-      command: `npx output workflow run ${workflowName} test_input`,
+      command: `npx output workflow run ${workflowId}${scenarioName ? ` ${scenarioName}` : ''}`,
       note: 'Run after starting services with "npx output dev"'
     }
   ];

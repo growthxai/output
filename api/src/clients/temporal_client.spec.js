@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WorkflowNotCompletedError, WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError } from './errors.js';
-import { resolveResetEventId } from './temporal_client.js';
+import { resolveResetEventId, extractWorkflowInput } from './temporal_client.js';
 
 const {
   mockDescribe,
@@ -9,6 +9,7 @@ const {
   mockStart,
   mockGetHandle,
   mockConnect,
+  mockFetchHistory,
   mockLoggerInfo,
   mockLoggerError,
   mockLoggerWarn,
@@ -20,6 +21,7 @@ const {
   const mockStart = vi.fn();
   const mockGetHandle = vi.fn();
   const mockConnect = vi.fn();
+  const mockFetchHistory = vi.fn();
   const mockLoggerInfo = vi.fn();
   const mockLoggerError = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -40,6 +42,7 @@ const {
     mockStart,
     mockGetHandle,
     mockConnect,
+    mockFetchHistory,
     mockLoggerInfo,
     mockLoggerError,
     mockLoggerWarn,
@@ -58,6 +61,9 @@ vi.mock( '@temporalio/client', () => ( {
   } ),
   Connection: {
     connect: mockConnect
+  },
+  defaultPayloadConverter: {
+    fromPayload: vi.fn( p => p )
   },
   WorkflowNotFoundError: class WorkflowNotFoundError extends Error {
     constructor( message ) {
@@ -99,10 +105,12 @@ describe( 'temporal_client', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mockConnect.mockResolvedValue( {} );
+    mockFetchHistory.mockResolvedValue( { events: [] } );
     mockGetHandle.mockReturnValue( {
       describe: mockDescribe,
       result: mockResult,
-      query: mockQuery
+      query: mockQuery,
+      fetchHistory: mockFetchHistory
     } );
   } );
 
@@ -145,6 +153,7 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
         status: 'failed',
+        input: null,
         output: null,
         trace: tracePayload,
         error: 'step error message'
@@ -173,6 +182,7 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
         status: 'completed',
+        input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         error: null
@@ -301,6 +311,7 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
         status: 'completed',
+        input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         error: null
@@ -326,6 +337,7 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
         status: 'failed',
+        input: null,
         output: null,
         trace: tracePayload,
         error: 'step error message'
@@ -369,6 +381,7 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
         status: 'continued',
+        input: null,
         output: null,
         trace: null,
         error: null
@@ -421,6 +434,61 @@ describe( 'temporal_client', () => {
 
       expect( result.status ).toBe( 'timed_out' );
       expect( result.error ).toBe( 'Workflow timed out' );
+    } );
+
+    it( 'should include workflow input from history when available', async () => {
+      const workflowInput = { url: 'https://example.com', options: { depth: 2 } };
+
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' }
+      } );
+      mockResult.mockResolvedValue( { output: { data: 'result' }, trace: null } );
+      mockFetchHistory.mockResolvedValue( {
+        events: [ {
+          workflowExecutionStartedEventAttributes: {
+            input: { payloads: [ workflowInput ] }
+          }
+        } ]
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowResult( 'workflow-123' );
+
+      expect( result.input ).toEqual( workflowInput );
+    } );
+  } );
+
+  describe( 'extractWorkflowInput', () => {
+    it( 'returns null when history has no events', () => {
+      expect( extractWorkflowInput( { events: [] } ) ).toBeNull();
+    } );
+
+    it( 'returns null when history is null', () => {
+      expect( extractWorkflowInput( null ) ).toBeNull();
+    } );
+
+    it( 'returns null when payloads are empty', () => {
+      expect( extractWorkflowInput( {
+        events: [ { workflowExecutionStartedEventAttributes: { input: { payloads: [] } } } ]
+      } ) ).toBeNull();
+    } );
+
+    it( 'returns null when input attributes are missing', () => {
+      expect( extractWorkflowInput( {
+        events: [ { workflowExecutionStartedEventAttributes: {} } ]
+      } ) ).toBeNull();
+    } );
+
+    it( 'returns decoded payload when present', () => {
+      const payload = { values: [ 1, 2, 3 ] };
+      expect( extractWorkflowInput( {
+        events: [ {
+          workflowExecutionStartedEventAttributes: {
+            input: { payloads: [ payload ] }
+          }
+        } ]
+      } ) ).toEqual( payload );
     } );
   } );
 

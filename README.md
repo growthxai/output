@@ -1,8 +1,16 @@
 # Output
 
+[![GitHub stars](https://img.shields.io/github/stars/growthxai/output?style=social)](https://github.com/growthxai/output/stargazers)
+[![npm downloads](https://img.shields.io/npm/dm/@outputai/core)](https://www.npmjs.com/package/@outputai/core)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Build Status](https://github.com/growthxai/output/actions/workflows/validation.yml/badge.svg)](https://github.com/growthxai/output/actions/workflows/validation.yml)
+
 The open-source TypeScript framework for building AI workflows and agents. Designed for Claude Code — describe what you want, Claude builds it, with all the best practices already in place.
 
 One framework. Prompts, evals, tracing, cost tracking, orchestration, credentials. No SaaS fragmentation. No vendor lock-in. Everything in your codebase, everything your AI coding agent can reach.
+
+[![Star on GitHub](https://img.shields.io/github/stars/growthxai/output?style=social&label=%E2%AD%90%20If%20this%20helps%20you%2C%20star%20us%20on%20GitHub)](https://github.com/growthxai/output)
 
 <a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
 
@@ -221,9 +229,11 @@ OUTPUT_TRACE_REMOTE_S3_BUCKET=my-traces
 
 ## Contributing
 
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first — all contributions require an approved issue and maintainer assignment before work begins.
+
 ```bash
-git clone https://github.com/growthxai/output-sdk.git
-cd output-sdk
+git clone https://github.com/growthxai/output.git
+cd output
 pnpm install && npm run build:packages
 ```
 

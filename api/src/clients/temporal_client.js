@@ -1,4 +1,4 @@
-import { Client, Connection } from '@temporalio/client';
+import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowId, extractTraceInfo, extractErrorMessage, takeFromAsyncIterable } from '#utils';
 import { logger } from '#logger';
@@ -129,17 +129,33 @@ export const resolveResetEventId = ( events, stepName ) => {
 };
 
 /**
+ * Extract the workflow input from a Temporal history object.
+ * The first event is always WorkflowExecutionStarted, which contains the input payloads.
+ *
+ * @param {object} history - Temporal History object from handle.fetchHistory()
+ * @returns {any} The decoded first input argument, or null if unavailable
+ */
+export const extractWorkflowInput = history => {
+  const payloads = history?.events?.[0]?.workflowExecutionStartedEventAttributes?.input?.payloads;
+  if ( !payloads?.length ) {
+    return null;
+  }
+  return defaultPayloadConverter.fromPayload( payloads[0] );
+};
+
+/**
  * Build a standardized workflow response object
  * @param {string} workflowId - The workflow execution id
  * @param {string} status - The workflow status
  * @param {Object} [options] - Optional fields
+ * @param {any} [options.input] - The original workflow input
  * @param {any} [options.output] - The workflow output
  * @param {object} [options.trace] - Trace information
  * @param {string} [options.error] - Error message if failed
  * @returns {Object} Standardized workflow response
  */
-const buildWorkflowResponse = ( workflowId, status, { output = null, trace = null, error = null } = {} ) =>
-  ( { workflowId, output, trace, status, error } );
+const buildWorkflowResponse = ( workflowId, status, { input = null, output = null, trace = null, error = null } = {} ) =>
+  ( { workflowId, status, input, output, trace, error } );
 
 export default {
   async init() {
@@ -323,7 +339,10 @@ export default {
        */
       async getWorkflowResult( workflowId ) {
         const handle = client.workflow.getHandle( workflowId );
-        const description = await handle.describe();
+        const [ description, history ] = await Promise.all( [
+          handle.describe(),
+          handle.fetchHistory()
+        ] );
 
         // Only throw if workflow is still running (not in a terminal state)
         if ( !TERMINAL_STATUS_CODES.has( description.status.code ) ) {
@@ -331,11 +350,13 @@ export default {
         }
 
         const status = mapWorkflowStatus( description.status.name );
+        const input = extractWorkflowInput( history );
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
           const result = await handle.result();
           return buildWorkflowResponse( workflowId, status, {
+            input,
             output: result.output ?? null,
             trace: result.trace ?? null
           } );
@@ -343,7 +364,7 @@ export default {
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
         if ( description.status.code === TemporalStatus.CONTINUED_AS_NEW ) {
-          return buildWorkflowResponse( workflowId, status );
+          return buildWorkflowResponse( workflowId, status, { input } );
         }
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
@@ -365,6 +386,7 @@ export default {
           } );
 
         return buildWorkflowResponse( workflowId, status, {
+          input,
           trace: workflowError ? extractTraceInfo( workflowError ) ?? null : null,
           error: workflowError ? extractErrorMessage( workflowError ) : null
         } );

@@ -89,9 +89,10 @@ describe( 'API endpoints', () => {
     mockClient.resetWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'new-run-123' } );
     mockClient.getWorkflowResult.mockResolvedValue( {
       workflowId: 'w1',
+      status: 'completed',
+      input: { some: 'input' },
       output: { done: true },
       trace: { destinations: { local: '/tmp/trace.json', remote: null } },
-      status: 'completed',
       error: null
     } );
     mockClient.queryWorkflow.mockResolvedValue( { workflows: [] } );
