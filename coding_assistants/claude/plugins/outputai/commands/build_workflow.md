@@ -1,6 +1,6 @@
 ---
 argument-hint: "[workflow-plan-file-path] [workflow-name] [workflow-directory]"
-description: Workflow Implementation Command for Output SDK
+description: Implement an Output SDK workflow from a plan document. Use after plan_workflow has produced a plan and the user is ready to build.
 version: 0.1.3
 model: opus
 ---
@@ -324,10 +324,6 @@ Verify the implementation is ready for use.
 </step>
 
 </process_flow>
-
-<post_flight_check>
-  EXECUTE: Claude Skill: `output-meta-post-flight`
-</post_flight_check>
 
 ---- START ----
 
