@@ -9,7 +9,8 @@ import {
   WorkflowNotCompletedError,
   CatalogNotAvailableError,
   StepNotFoundError,
-  StepNotCompletedError
+  StepNotCompletedError,
+  InvalidPageTokenError
 } from './errors.js';
 
 const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
@@ -67,14 +68,69 @@ const TemporalStatus = {
 
 const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
 
-/**
- * Temporal history event types used for workflow reset resolution.
- * Values correspond to temporal.api.enums.v1.EventType protobuf enum.
- */
+// Values correspond to temporal.api.enums.v1.EventType protobuf enum.
 const EventType = {
+  WORKFLOW_EXECUTION_STARTED: 1,
+  WORKFLOW_EXECUTION_COMPLETED: 2,
+  WORKFLOW_EXECUTION_FAILED: 3,
+  WORKFLOW_EXECUTION_TIMED_OUT: 4,
+  WORKFLOW_TASK_SCHEDULED: 5,
+  WORKFLOW_TASK_STARTED: 6,
   WORKFLOW_TASK_COMPLETED: 7,
+  WORKFLOW_TASK_TIMED_OUT: 8,
+  WORKFLOW_TASK_FAILED: 9,
   ACTIVITY_TASK_SCHEDULED: 10,
-  ACTIVITY_TASK_COMPLETED: 12
+  ACTIVITY_TASK_STARTED: 11,
+  ACTIVITY_TASK_COMPLETED: 12,
+  ACTIVITY_TASK_FAILED: 13,
+  ACTIVITY_TASK_TIMED_OUT: 14,
+  ACTIVITY_TASK_CANCEL_REQUESTED: 15,
+  ACTIVITY_TASK_CANCELED: 16,
+  TIMER_STARTED: 17,
+  TIMER_FIRED: 18,
+  TIMER_CANCELED: 19,
+  WORKFLOW_EXECUTION_CANCEL_REQUESTED: 20,
+  WORKFLOW_EXECUTION_CANCELED: 21,
+  WORKFLOW_EXECUTION_SIGNALED: 26,
+  WORKFLOW_EXECUTION_TERMINATED: 27,
+  WORKFLOW_EXECUTION_CONTINUED_AS_NEW: 28,
+  START_CHILD_WORKFLOW_EXECUTION_INITIATED: 29,
+  CHILD_WORKFLOW_EXECUTION_STARTED: 31,
+  CHILD_WORKFLOW_EXECUTION_COMPLETED: 32,
+  CHILD_WORKFLOW_EXECUTION_FAILED: 33,
+  CHILD_WORKFLOW_EXECUTION_CANCELED: 34,
+  CHILD_WORKFLOW_EXECUTION_TIMED_OUT: 35,
+  CHILD_WORKFLOW_EXECUTION_TERMINATED: 36,
+  MARKER_RECORDED: 25
+};
+
+const EventTypeName = Object.fromEntries(
+  Object.entries( EventType ).map( ( [ name, value ] ) => [ value, name ] )
+);
+
+const warnedUnknownEventTypes = new Set();
+
+// Subset of gRPC status codes from @grpc/grpc-js (transitive through @temporalio/client).
+// See https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+const GRPC_STATUS = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
+
+const toNumberSafe = v => {
+  if ( v === null || v === undefined ) {
+    return 0;
+  }
+  return typeof v === 'object' && typeof v.toString === 'function' ? Number( v.toString() ) : Number( v );
+};
+
+const serializeEventTime = eventTime => {
+  if ( eventTime?.seconds === null || eventTime?.seconds === undefined ) {
+    return null;
+  }
+  const seconds = toNumberSafe( eventTime.seconds );
+  const nanos = toNumberSafe( eventTime.nanos );
+  if ( !Number.isFinite( seconds ) || !Number.isFinite( nanos ) ) {
+    return null;
+  }
+  return new Date( ( seconds * 1000 ) + Math.floor( nanos / 1e6 ) ).toISOString();
 };
 
 /**
@@ -141,6 +197,116 @@ export const extractWorkflowInput = history => {
     return null;
   }
   return defaultPayloadConverter.fromPayload( payloads[0] );
+};
+
+const PAYLOAD_FIELDS = {
+  workflowExecutionStartedEventAttributes: [ 'input' ],
+  workflowExecutionCompletedEventAttributes: [ 'result' ],
+  activityTaskScheduledEventAttributes: [ 'input' ],
+  activityTaskCompletedEventAttributes: [ 'result' ],
+  activityTaskFailedEventAttributes: [ 'failure' ]
+};
+
+// Non-JSON payloads produce a { _raw: true, encoding } fallback instead of throwing.
+export const decodeEventPayloads = event => {
+  for ( const [ attrKey, fields ] of Object.entries( PAYLOAD_FIELDS ) ) {
+    const attrs = event[attrKey];
+    if ( !attrs ) {
+      continue;
+    }
+
+    const decoded = { ...attrs };
+    for ( const field of fields ) {
+      if ( field === 'failure' ) {
+        // failure is a Failure proto, not a Payloads wrapper -- extract message/stackTrace
+        if ( attrs.failure ) {
+          decoded.failure = {
+            message: attrs.failure.message ?? null,
+            stackTrace: attrs.failure.stackTrace ?? null,
+            type: attrs.failure.failureInfo?.applicationFailureInfo?.type ?? null
+          };
+        }
+        continue;
+      }
+      const payloads = attrs[field]?.payloads;
+      if ( !payloads?.length ) {
+        continue;
+      }
+      decoded[field] = payloads.map( p => {
+        try {
+          return defaultPayloadConverter.fromPayload( p );
+        } catch ( error ) {
+          const encoding = p?.metadata?.encoding ?
+            Buffer.from( p.metadata.encoding ).toString() :
+            'unknown';
+          logger.warn( 'Failed to decode event payload', {
+            eventId: event.eventId?.toString(),
+            encoding,
+            error: error.message
+          } );
+          return { _raw: true, encoding };
+        }
+      } );
+    }
+    return { ...event, [attrKey]: decoded };
+  }
+  return event;
+};
+
+export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
+  const eventType = typeof event.eventType === 'object' ?
+    Number( event.eventType.toString() ) :
+    event.eventType;
+
+  if ( EventTypeName[eventType] === undefined && !warnedUnknownEventTypes.has( eventType ) ) {
+    logger.warn( 'Unknown Temporal event type encountered', { eventType } );
+    warnedUnknownEventTypes.add( eventType );
+  }
+
+  const serialized = {
+    eventId: event.eventId?.toString() ?? null,
+    eventType,
+    eventTypeName: EventTypeName[eventType] ?? `UNKNOWN_${eventType}`,
+    eventTime: serializeEventTime( event.eventTime )
+  };
+
+  const attrKey = Object.keys( event ).find( k => k.endsWith( 'EventAttributes' ) );
+  if ( !attrKey || !event[attrKey] ) {
+    return serialized;
+  }
+
+  // Forward-compat: for unknown event types, drop attrs when payloads aren't requested
+  // to avoid leaking undefined payload-bearing fields on new Temporal enum values.
+  if ( !includePayloads && EventTypeName[eventType] === undefined ) {
+    return serialized;
+  }
+
+  const attrs = { ...event[attrKey] };
+
+  if ( attrs.scheduledEventId ) {
+    attrs.scheduledEventId = attrs.scheduledEventId.toString();
+  }
+  if ( attrs.startedEventId ) {
+    attrs.startedEventId = attrs.startedEventId.toString();
+  }
+
+  // activityType.name uses the "workflow-name#stepName" convention; fall back to full name otherwise
+  if ( attrs.activityType?.name ) {
+    const name = attrs.activityType.name;
+    attrs.stepName = name.includes( '#' ) ? name.split( '#' ).pop() : name;
+  }
+
+  if ( !includePayloads ) {
+    delete attrs.input;
+    delete attrs.result;
+    delete attrs.failure;
+    delete attrs.details;
+    delete attrs.lastCompletionResult;
+    delete attrs.lastFailure;
+  }
+
+  serialized[attrKey] = attrs;
+  return serialized;
 };
 
 /**
@@ -476,6 +642,64 @@ export default {
         } );
 
         return { workflowId, runId: response.runId };
+      },
+
+      async getWorkflowHistory( workflowId, { runId, pageSize = 20, pageToken, includePayloads = false } = {} ) {
+        const firstPage = !pageToken;
+        const metadata = firstPage ? await ( async () => {
+          const handle = client.workflow.getHandle( workflowId, runId );
+          const description = await handle.describe();
+          return {
+            workflow: {
+              workflowId,
+              runId: description.runId,
+              status: mapWorkflowStatus( description.status.name ),
+              startTime: description.startTime?.toISOString() ?? null,
+              closeTime: description.closeTime?.toISOString() ?? null,
+              historyLength: description.historyLength,
+              taskQueue: description.taskQueue
+            },
+            resolvedRunId: description.runId
+          };
+        } )() : { workflow: null, resolvedRunId: runId };
+
+        const response = await connection.workflowService.getWorkflowExecutionHistory( {
+          namespace,
+          execution: { workflowId, runId: metadata.resolvedRunId },
+          maximumPageSize: Math.min( pageSize, 50 ),
+          nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
+        } ).catch( error => {
+          if ( !error ) {
+            throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
+          }
+          if ( error.code === GRPC_STATUS.NOT_FOUND ) {
+            throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+          }
+          if ( error.code === GRPC_STATUS.INVALID_ARGUMENT ) {
+            throw new InvalidPageTokenError();
+          }
+          throw error;
+        } );
+
+        if ( !response.history ) {
+          logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: metadata.resolvedRunId } );
+        }
+
+        const events = ( response.history?.events || [] ).map( event => {
+          const decoded = includePayloads ? decodeEventPayloads( event ) : event;
+          return serializeEvent( decoded, { includePayloads } );
+        } );
+
+        const nextPageToken = response.history && response.nextPageToken?.length ?
+          Buffer.from( response.nextPageToken ).toString( 'base64' ) :
+          null;
+
+        return {
+          workflow: metadata.workflow,
+          events,
+          runId: metadata.resolvedRunId,
+          nextPageToken
+        };
       },
 
       /**

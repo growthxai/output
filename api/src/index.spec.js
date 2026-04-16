@@ -14,6 +14,7 @@ const { mockClient } = vi.hoisted( () => {
   const sendSignal = vi.fn();
   const sendQuery = vi.fn();
   const executeUpdate = vi.fn();
+  const getWorkflowHistory = vi.fn();
   const close = () => Promise.resolve();
   return {
     mockClient: {
@@ -23,6 +24,7 @@ const { mockClient } = vi.hoisted( () => {
       stopWorkflow,
       terminateWorkflow,
       getWorkflowResult,
+      getWorkflowHistory,
       resetWorkflow,
       queryWorkflow,
       listWorkflowRuns,
@@ -94,6 +96,15 @@ describe( 'API endpoints', () => {
       output: { done: true },
       trace: { destinations: { local: '/tmp/trace.json', remote: null } },
       error: null
+    } );
+    mockClient.getWorkflowHistory.mockResolvedValue( {
+      workflow: {
+        workflowId: 'w1', runId: 'run-1', status: 'running',
+        startTime: '2024-04-15T12:00:00.000Z', closeTime: null,
+        historyLength: 10, taskQueue: 'default'
+      },
+      events: [ { eventId: '1', eventTypeName: 'WORKFLOW_EXECUTION_STARTED' } ],
+      nextPageToken: null
     } );
     mockClient.queryWorkflow.mockResolvedValue( { workflows: [] } );
     mockClient.listWorkflowRuns.mockResolvedValue( { runs: [] } );
@@ -231,6 +242,30 @@ describe( 'API endpoints', () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log' ).expect( 200 );
       expect( res.body ).toEqual( { source: 'local', localPath: '/tmp/trace.json' } );
       expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1' );
+    } );
+  } );
+
+  describe( 'GET /workflow/:id/history', () => {
+    it( 'returns 200 with expected shape', async () => {
+      const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/history' ).expect( 200 );
+      expect( res.body ).toMatchObject( {
+        workflow: { workflowId: 'w1', status: 'running' },
+        events: expect.any( Array ),
+        nextPageToken: null
+      } );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', {
+        runId: undefined,
+        pageSize: 20,
+        pageToken: undefined,
+        includePayloads: false
+      } );
+    } );
+
+    it( 'returns 400 when pageToken is provided without runId', async () => {
+      const token = Buffer.from( 'test' ).toString( 'base64' );
+      await request( `http://localhost:${PORT}` )
+        .get( `/workflow/w1/history?pageToken=${token}` )
+        .expect( 400 );
     } );
   } );
 

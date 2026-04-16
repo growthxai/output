@@ -7,6 +7,7 @@ import requestIdMiddleware from './middleware/request_id.js';
 import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
+import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
 
 const app = express();
 
@@ -264,11 +265,13 @@ app.use( ( req, res, next ) => {
  *           description: Total number of runs returned
  *   responses:
  *     BadRequest:
- *       description: Invalid request body or query (validation failed)
+ *       description: Invalid request body, query, or pagination token
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ValidationErrorResponse'
+ *             oneOf:
+ *               - $ref: '#/components/schemas/ValidationErrorResponse'
+ *               - $ref: '#/components/schemas/ErrorResponse'
  *     NotFound:
  *       description: Workflow execution, workflow type, or catalog not found
  *       content:
@@ -687,6 +690,74 @@ app.get( '/workflow/:id/result', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/:id/trace-log', createTraceLogHandler( client ) );
+
+/**
+ * @swagger
+ * /workflow/{id}/history:
+ *   get:
+ *     summary: Get paginated workflow execution history
+ *     description: Returns decoded Temporal history events with optional payload inclusion. First page includes workflow metadata; subsequent pages return events only.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The workflow execution ID
+ *       - in: query
+ *         name: runId
+ *         schema:
+ *           type: string
+ *         description: Specific run ID. Required when using pageToken.
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Number of events per page
+ *       - in: query
+ *         name: pageToken
+ *         schema:
+ *           type: string
+ *         description: Base64 pagination token from previous response
+ *       - in: query
+ *         name: includePayloads
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include decoded input/output payloads in events
+ *     responses:
+ *       200:
+ *         description: Paginated history events
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 workflow:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Workflow metadata (null on subsequent pages)
+ *                 events:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 runId:
+ *                   type: string
+ *                   description: Resolved run ID. Echo this value as the runId query parameter when fetching subsequent pages.
+ *                 nextPageToken:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+app.get( '/workflow/:id/history', createWorkflowHistoryHandler( client ) );
 
 /**
  * @swagger

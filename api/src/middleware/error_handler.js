@@ -1,6 +1,7 @@
 import {
   CatalogNotAvailableError, WorkflowNotCompletedError, WorkflowNotFoundError,
-  WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError
+  WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError,
+  InvalidPageTokenError
 } from '../clients/errors.js';
 import { logger } from '#logger';
 import { isProduction } from '#configs';
@@ -8,6 +9,7 @@ import { ZodError } from 'zod';
 
 const NAMED_ERROR_STATUSES = {
   [ZodError.name]: 400,
+  [InvalidPageTokenError.name]: 400,
   [WorkflowNotFoundError.name]: 404,
   [StepNotFoundError.name]: 404,
   [WorkflowExecutionTimedOutError.name]: 408,
