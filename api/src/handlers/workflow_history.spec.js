@@ -82,6 +82,24 @@ describe( 'workflow_history handler', () => {
     } ) );
   } );
 
+  it( 'treats includePayloads=false as false (not Boolean coercion)', async () => {
+    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?includePayloads=false' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( {
+      includePayloads: false
+    } ) );
+  } );
+
+  it( 'rejects non-boolean includePayloads values', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?includePayloads=yes' )
+      .expect( 400 );
+  } );
+
   it( 'rejects pageSize below 1', async () => {
     await request( createApp() )
       .get( '/workflow/wf-123/history?pageSize=0' )
@@ -91,6 +109,30 @@ describe( 'workflow_history handler', () => {
   it( 'rejects pageSize above 50', async () => {
     await request( createApp() )
       .get( '/workflow/wf-123/history?pageSize=51' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects non-numeric pageSize', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?pageSize=abc' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects negative pageSize', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?pageSize=-5' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects non-integer pageSize', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?pageSize=20.5' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects malformed pageToken', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?runId=run-abc&pageToken=not!base64' )
       .expect( 400 );
   } );
 

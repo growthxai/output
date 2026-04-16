@@ -1,7 +1,7 @@
 import {
   CatalogNotAvailableError, WorkflowNotCompletedError, WorkflowNotFoundError,
   WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError,
-  TraceNotAvailableError
+  TraceNotAvailableError, InvalidPageTokenError
 } from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
@@ -22,6 +22,7 @@ const GRPC_STATUS_HTTP = {
 
 const NAMED_ERROR_STATUSES = {
   [ZodError.name]: 400,
+  [InvalidPageTokenError.name]: 400,
   [WorkflowNotFoundError.name]: 404,
   [StepNotFoundError.name]: 404,
   [TraceNotAvailableError.name]: 404,
