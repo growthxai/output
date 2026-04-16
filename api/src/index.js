@@ -265,11 +265,13 @@ app.use( ( req, res, next ) => {
  *           description: Total number of runs returned
  *   responses:
  *     BadRequest:
- *       description: Invalid request body or query (validation failed)
+ *       description: Invalid request body, query, or pagination token
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ValidationErrorResponse'
+ *             oneOf:
+ *               - $ref: '#/components/schemas/ValidationErrorResponse'
+ *               - $ref: '#/components/schemas/ErrorResponse'
  *     NotFound:
  *       description: Workflow execution, workflow type, or catalog not found
  *       content:

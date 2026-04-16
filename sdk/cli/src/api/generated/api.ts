@@ -195,9 +195,9 @@ export interface WorkflowRunsResponse {
 }
 
 /**
- * Invalid request body or query (validation failed)
+ * Invalid request body, query, or pagination token
  */
-export type BadRequestResponse = ValidationErrorResponse;
+export type BadRequestResponse = ValidationErrorResponse | ErrorResponse;
 
 /**
  * Workflow execution, workflow type, or catalog not found

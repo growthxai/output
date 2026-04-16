@@ -130,6 +130,18 @@ describe( 'workflow_history handler', () => {
       .expect( 400 );
   } );
 
+  it( 'treats empty pageToken as first page', async () => {
+    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?pageToken=' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( {
+      pageToken: undefined
+    } ) );
+  } );
+
   it( 'rejects malformed pageToken', async () => {
     await request( createApp() )
       .get( '/workflow/wf-123/history?runId=run-abc&pageToken=not!base64' )

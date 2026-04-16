@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorkflowNotCompletedError, WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError } from './errors.js';
+import {
+  WorkflowNotCompletedError,
+  WorkflowExecutionTimedOutError,
+  StepNotFoundError,
+  StepNotCompletedError,
+  WorkflowNotFoundError,
+  InvalidPageTokenError
+}
+  from './errors.js';
 import { resolveResetEventId, extractWorkflowInput, decodeEventPayloads, serializeEvent } from './temporal_client.js';
 
 const {
@@ -677,12 +685,13 @@ describe( 'temporal_client', () => {
       expect( result ).toBe( event );
     } );
 
-    it( 'handles decode failures with fallback representation', async () => {
+    it( 'handles decode failures with fallback representation and warns', async () => {
       const { defaultPayloadConverter } = await import( '@temporalio/client' );
       defaultPayloadConverter.fromPayload.mockImplementationOnce( () => {
         throw new Error( 'decode failed' );
       } );
       const event = {
+        eventId: { toString: () => '42' },
         activityTaskScheduledEventAttributes: {
           input: {
             payloads: [ { metadata: { encoding: Buffer.from( 'binary/plain' ) } } ]
@@ -693,6 +702,8 @@ describe( 'temporal_client', () => {
       expect( result.activityTaskScheduledEventAttributes.input ).toEqual( [
         { _raw: true, encoding: 'binary/plain' }
       ] );
+      expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Failed to decode event payload',
+        expect.objectContaining( { eventId: '42', encoding: 'binary/plain', error: 'decode failed' } ) );
     } );
   } );
 
@@ -860,6 +871,24 @@ describe( 'temporal_client', () => {
       const result = serializeEvent( event, { includePayloads: false } );
       expect( result.eventTypeName ).toBe( 'UNKNOWN_9999' );
       expect( result.unknownFutureEventAttributes ).toBeUndefined();
+    } );
+
+    it( 'warns only once per unknown eventType within a process', () => {
+      const eventA = { eventId: { toString: () => '1' }, eventType: 8881, eventTime: null };
+      const eventB = { eventId: { toString: () => '2' }, eventType: 8881, eventTime: null };
+      const eventC = { eventId: { toString: () => '3' }, eventType: 8882, eventTime: null };
+      mockLoggerWarn.mockClear();
+
+      serializeEvent( eventA );
+      serializeEvent( eventB );
+      serializeEvent( eventC );
+
+      const unknownWarnCalls = mockLoggerWarn.mock.calls.filter(
+        ( [ msg ] ) => msg === 'Unknown Temporal event type encountered'
+      );
+      expect( unknownWarnCalls ).toHaveLength( 2 );
+      expect( unknownWarnCalls[0][1] ).toEqual( { eventType: 8881 } );
+      expect( unknownWarnCalls[1][1] ).toEqual( { eventType: 8882 } );
     } );
 
     it( 'keeps attrs for unknown eventType when includePayloads is true', () => {
@@ -1054,7 +1083,7 @@ describe( 'temporal_client', () => {
       const client = await temporalClient.init();
 
       await expect( client.getWorkflowHistory( 'missing-wf' ) )
-        .rejects.toMatchObject( { name: 'WorkflowNotFoundError' } );
+        .rejects.toBeInstanceOf( WorkflowNotFoundError );
     } );
 
     it( 'maps gRPC INVALID_ARGUMENT to InvalidPageTokenError', async () => {
@@ -1067,7 +1096,36 @@ describe( 'temporal_client', () => {
       await expect( client.getWorkflowHistory( 'wf-123', {
         runId: 'run-abc',
         pageToken: Buffer.from( 'bogus' ).toString( 'base64' )
-      } ) ).rejects.toMatchObject( { name: 'InvalidPageTokenError' } );
+      } ) ).rejects.toBeInstanceOf( InvalidPageTokenError );
+    } );
+
+    it( 'warns when Temporal response is missing the history field', async () => {
+      mockGetHandle.mockReturnValue( {
+        describe: vi.fn().mockResolvedValue( {
+          runId: 'run-abc',
+          status: { name: 'RUNNING' },
+          startTime: new Date( '2024-04-15T12:00:00Z' ),
+          closeTime: null,
+          historyLength: 0,
+          taskQueue: 'default'
+        } )
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        nextPageToken: Buffer.from( 'would-loop' )
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      mockLoggerWarn.mockClear();
+
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.events ).toEqual( [] );
+      expect( result.nextPageToken ).toBeNull();
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
+        'Temporal getWorkflowExecutionHistory returned no history field',
+        expect.objectContaining( { workflowId: 'wf-123', runId: 'run-abc' } )
+      );
     } );
   } );
 } );

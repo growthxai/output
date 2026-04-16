@@ -110,6 +110,29 @@ const EventTypeName = Object.fromEntries(
 
 const warnedUnknownEventTypes = new Set();
 
+// Subset of gRPC status codes from @grpc/grpc-js (transitive through @temporalio/client).
+// See https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+const GRPC_STATUS = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
+
+const toNumberSafe = v => {
+  if ( v === null || v === undefined ) {
+    return 0;
+  }
+  return typeof v === 'object' && typeof v.toString === 'function' ? Number( v.toString() ) : Number( v );
+};
+
+const serializeEventTime = eventTime => {
+  if ( eventTime?.seconds === null || eventTime?.seconds === undefined ) {
+    return null;
+  }
+  const seconds = toNumberSafe( eventTime.seconds );
+  const nanos = toNumberSafe( eventTime.nanos );
+  if ( !Number.isFinite( seconds ) || !Number.isFinite( nanos ) ) {
+    return null;
+  }
+  return new Date( ( seconds * 1000 ) + Math.floor( nanos / 1e6 ) ).toISOString();
+};
+
 /**
  * Resolve a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
  * Scans the workflow history to find the activity matching the step, then locates
@@ -236,18 +259,15 @@ export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
     event.eventType;
 
   if ( EventTypeName[eventType] === undefined && !warnedUnknownEventTypes.has( eventType ) ) {
-    warnedUnknownEventTypes.add( eventType );
     logger.warn( 'Unknown Temporal event type encountered', { eventType } );
+    warnedUnknownEventTypes.add( eventType );
   }
 
   const serialized = {
     eventId: event.eventId?.toString() ?? null,
     eventType,
     eventTypeName: EventTypeName[eventType] ?? `UNKNOWN_${eventType}`,
-    eventTime: event.eventTime?.seconds !== null && event.eventTime?.seconds !== undefined ?
-      new Date( ( Number( event.eventTime.seconds.toString() ) * 1000 ) +
-          Math.floor( ( event.eventTime.nanos ?? 0 ) / 1e6 ) ).toISOString() :
-      null
+    eventTime: serializeEventTime( event.eventTime )
   };
 
   const attrKey = Object.keys( event ).find( k => k.endsWith( 'EventAttributes' ) );
@@ -649,10 +669,13 @@ export default {
           maximumPageSize: Math.min( pageSize, 50 ),
           nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
         } ).catch( error => {
-          if ( error?.code === 5 ) {
+          if ( !error ) {
+            throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
+          }
+          if ( error.code === GRPC_STATUS.NOT_FOUND ) {
             throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
           }
-          if ( error?.code === 3 ) {
+          if ( error.code === GRPC_STATUS.INVALID_ARGUMENT ) {
             throw new InvalidPageTokenError();
           }
           throw error;
@@ -667,13 +690,15 @@ export default {
           return serializeEvent( decoded, { includePayloads } );
         } );
 
+        const nextPageToken = response.history && response.nextPageToken?.length ?
+          Buffer.from( response.nextPageToken ).toString( 'base64' ) :
+          null;
+
         return {
           workflow: metadata.workflow,
           events,
           runId: metadata.resolvedRunId,
-          nextPageToken: response.nextPageToken?.length ?
-            Buffer.from( response.nextPageToken ).toString( 'base64' ) :
-            null
+          nextPageToken
         };
       },
 
