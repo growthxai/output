@@ -3,7 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { ZodError } from 'zod';
 
-import { CatalogNotAvailableError, WorkflowNotFoundError } from '../clients/errors.js';
+import { CatalogNotAvailableError, WorkflowNotFoundError, InvalidPageTokenError } from '../clients/errors.js';
 
 vi.mock( '#logger', () => ( {
   logger: {
@@ -146,6 +146,19 @@ describe( 'error_handler', () => {
 
     expect( httpRes.status ).toBe( 503 );
     expect( httpRes.headers['retry-after'] ).toBeUndefined();
+  } );
+
+  it( 'should handle InvalidPageTokenError with 400 status', async () => {
+    const error = new InvalidPageTokenError();
+
+    const { httpRes } = await sendError( error );
+
+    expect( httpRes.status ).toBe( 400 );
+    expect( httpRes.body ).toMatchObject( {
+      error: 'InvalidPageTokenError',
+      message: 'Invalid pageToken. Use the nextPageToken value returned by the previous page.'
+    } );
+    expect( logger.error ).not.toHaveBeenCalled();
   } );
 
   it( 'should handle ZodError with 400 status and ValidationError response', async () => {
