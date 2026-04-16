@@ -215,6 +215,10 @@ app.use( ( req, res, next ) => {
  *           type: string
  *           enum: [remote]
  *           description: Indicates trace was fetched from remote storage
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *           description: The specific run id for this trace
  *         data:
  *           $ref: '#/components/schemas/TraceData'
  *     TraceLogLocalResponse:
@@ -227,6 +231,10 @@ app.use( ( req, res, next ) => {
  *           type: string
  *           enum: [local]
  *           description: Indicates trace is available locally
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *           description: The specific run id for this trace
  *         localPath:
  *           type: string
  *           description: Absolute path to local trace file
@@ -443,6 +451,12 @@ app.post( '/workflow/start', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve the status
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The workflow status
@@ -454,6 +468,10 @@ app.post( '/workflow/start', async ( req, res ) => {
  *                 workflowId:
  *                   type: string
  *                   description: The id of workflow
+ *                 runId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: The specific run id for this execution
  *                 status:
  *                   type: string
  *                   enum: [canceled, completed, continued_as_new, failed, running, terminated, timed_out, unspecified]
@@ -464,13 +482,16 @@ app.post( '/workflow/start', async ( req, res ) => {
  *                 completedAt:
  *                   type: number
  *                   description: An epoch timestamp representing when the workflow ended
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/:id/status', async ( req, res ) => {
-  res.json( await client.getWorkflowStatus( req.params.id ) );
+  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  res.json( await client.getWorkflowStatus( req.params.id, runId ) );
 } );
 
 /**
@@ -485,16 +506,35 @@ app.get( '/workflow/:id/status', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to stop
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The workflow stopped
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 workflowId:
+ *                   type: string
+ *                 runId:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.patch( '/workflow/:id/stop', async ( req, res ) => {
-  res.json( await client.stopWorkflow( req.params.id ) );
+  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  res.json( await client.stopWorkflow( req.params.id, runId ) );
 } );
 
 /**
@@ -510,6 +550,12 @@ app.patch( '/workflow/:id/stop', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to terminate
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     requestBody:
  *       content:
  *         application/json:
@@ -531,6 +577,9 @@ app.patch( '/workflow/:id/stop', async ( req, res ) => {
  *                   type: boolean
  *                 workflowId:
  *                   type: string
+ *                 runId:
+ *                   type: string
+ *                   nullable: true
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
@@ -540,9 +589,10 @@ app.patch( '/workflow/:id/stop', async ( req, res ) => {
  */
 app.post( '/workflow/:id/terminate', async ( req, res ) => {
   const { reason } = z.object( { reason: z.string().optional() } ).optional().default( {} ).parse( req.body );
+  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
 
-  await client.terminateWorkflow( req.params.id, reason );
-  res.json( { terminated: true, workflowId: req.params.id } );
+  const info = await client.terminateWorkflow( req.params.id, reason, runId );
+  res.json( { terminated: true, ...info } );
 } );
 
 /**
@@ -558,6 +608,12 @@ app.post( '/workflow/:id/terminate', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The workflow ID to reset
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id to reset. When omitted, resolves to the latest run.
  *     requestBody:
  *       required: true
  *       content:
@@ -605,8 +661,9 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
     stepName: z.string(),
     reason: z.string().optional()
   } ).parse( req.body );
+  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
 
-  res.json( await client.resetWorkflow( req.params.id, stepName, reason ) );
+  res.json( await client.resetWorkflow( req.params.id, stepName, reason, runId ) );
 } );
 
 /**
@@ -621,6 +678,12 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve the result
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The workflow result
@@ -632,6 +695,10 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *                 workflowId:
  *                   type: string
  *                   description: The workflow execution id
+ *                 runId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: The specific run id for this execution
  *                 input:
  *                   description: The original input passed to the workflow, null if unavailable
  *                 output:
@@ -646,6 +713,8 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *                   type: string
  *                   nullable: true
  *                   description: Error message if workflow failed, null otherwise
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       424:
@@ -654,7 +723,8 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/:id/result', async ( req, res ) => {
-  res.json( await client.getWorkflowResult( req.params.id ) );
+  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  res.json( await client.getWorkflowResult( req.params.id, runId ) );
 } );
 
 /**
@@ -670,6 +740,12 @@ app.get( '/workflow/:id/result', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve trace log
+ *      - in: query
+ *        name: runId
+ *        required: false
+ *        schema:
+ *          type: string
+ *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The trace log response
@@ -794,6 +870,7 @@ app.get( '/workflow/runs', async ( req, res ) => {
  * /workflow/{id}/feedback:
  *   post:
  *     summary: Send feedback to a workflow
+ *     description: Always targets the latest run of the workflow; runId cannot be pinned for signal-based operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -834,6 +911,7 @@ app.post( '/workflow/:id/feedback', async ( req, res ) => {
  * /workflow/{id}/signal/{signal}:
  *   post:
  *     summary: Send a signal to an workflow
+ *     description: Always targets the latest run of the workflow; runId cannot be pinned for signal operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -880,6 +958,7 @@ app.post( '/workflow/:id/signal/:signal', async ( req, res ) => {
  * /workflow/{id}/query/{query}:
  *   post:
  *     summary: Send a query to an workflow
+ *     description: Always targets the latest run of the workflow; runId cannot be pinned for query operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -926,6 +1005,7 @@ app.post( '/workflow/:id/query/:query', async ( req, res ) => {
  * /workflow/{id}/update/{update}:
  *   post:
  *     summary: Execute an update on an workflow
+ *     description: Always targets the latest run of the workflow; runId cannot be pinned for update operations.
  *     parameters:
  *      - in: path
  *        name: id

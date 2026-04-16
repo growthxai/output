@@ -207,6 +207,11 @@
             ],
             "description": "Indicates trace was fetched from remote storage"
           },
+          "runId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The specific run id for this trace"
+          },
           "data": {
             "$ref": "#/components/schemas/TraceData"
           }
@@ -225,6 +230,11 @@
               "local"
             ],
             "description": "Indicates trace is available locally"
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The specific run id for this trace"
           },
           "localPath": {
             "type": "string",
@@ -528,6 +538,15 @@
               "type": "string"
             },
             "description": "The id of workflow to retrieve the status"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id. When omitted, resolves to the latest run."
           }
         ],
         "responses": {
@@ -541,6 +560,11 @@
                     "workflowId": {
                       "type": "string",
                       "description": "The id of workflow"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The specific run id for this execution"
                     },
                     "status": {
                       "type": "string",
@@ -569,6 +593,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -590,11 +617,39 @@
               "type": "string"
             },
             "description": "The id of workflow to stop"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id. When omitted, resolves to the latest run."
           }
         ],
         "responses": {
           "200": {
-            "description": "The workflow stopped"
+            "description": "The workflow stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflowId": {
+                      "type": "string"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -618,6 +673,15 @@
               "type": "string"
             },
             "description": "The id of workflow to terminate"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id. When omitted, resolves to the latest run."
           }
         ],
         "requestBody": {
@@ -648,6 +712,10 @@
                     },
                     "workflowId": {
                       "type": "string"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "nullable": true
                     }
                   }
                 }
@@ -679,6 +747,15 @@
               "type": "string"
             },
             "description": "The workflow ID to reset"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id to reset. When omitted, resolves to the latest run."
           }
         ],
         "requestBody": {
@@ -759,6 +836,15 @@
               "type": "string"
             },
             "description": "The id of workflow to retrieve the result"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id. When omitted, resolves to the latest run."
           }
         ],
         "responses": {
@@ -772,6 +858,11 @@
                     "workflowId": {
                       "type": "string",
                       "description": "The workflow execution id"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The specific run id for this execution"
                     },
                     "input": {
                       "description": "The original input passed to the workflow, null if unavailable"
@@ -804,6 +895,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -829,6 +923,15 @@
               "type": "string"
             },
             "description": "The id of workflow to retrieve trace log"
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional specific run id. When omitted, resolves to the latest run."
           }
         ],
         "responses": {
@@ -984,6 +1087,7 @@
     "/workflow/{id}/feedback": {
       "post": {
         "summary": "Send feedback to a workflow",
+        "description": "Always targets the latest run of the workflow; runId cannot be pinned for signal-based operations.",
         "parameters": [
           {
             "in": "path",
@@ -1031,6 +1135,7 @@
     "/workflow/{id}/signal/{signal}": {
       "post": {
         "summary": "Send a signal to an workflow",
+        "description": "Always targets the latest run of the workflow; runId cannot be pinned for signal operations.",
         "parameters": [
           {
             "in": "path",
@@ -1087,6 +1192,7 @@
     "/workflow/{id}/query/{query}": {
       "post": {
         "summary": "Send a query to an workflow",
+        "description": "Always targets the latest run of the workflow; runId cannot be pinned for query operations.",
         "parameters": [
           {
             "in": "path",
@@ -1143,6 +1249,7 @@
     "/workflow/{id}/update/{update}": {
       "post": {
         "summary": "Execute an update on an workflow",
+        "description": "Always targets the latest run of the workflow; runId cannot be pinned for update operations.",
         "parameters": [
           {
             "in": "path",

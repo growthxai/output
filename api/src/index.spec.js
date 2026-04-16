@@ -81,14 +81,15 @@ describe( 'API endpoints', () => {
 
   beforeEach( () => {
     vi.clearAllMocks();
-    mockClient.runWorkflow.mockResolvedValue( { workflowId: 'run-1', output: null, trace: null, status: 'completed', error: null } );
-    mockClient.startWorkflow.mockResolvedValue( { workflowId: 'start-1' } );
-    mockClient.getWorkflowStatus.mockResolvedValue( { workflowId: 'w1', status: 'running', startedAt: 0, completedAt: null } );
-    mockClient.stopWorkflow.mockResolvedValue( { workflowId: 'w1' } );
-    mockClient.terminateWorkflow.mockResolvedValue( undefined );
+    mockClient.runWorkflow.mockResolvedValue( { workflowId: 'run-1', runId: 'r1', output: null, trace: null, status: 'completed', error: null } );
+    mockClient.startWorkflow.mockResolvedValue( { workflowId: 'start-1', runId: 'r-start' } );
+    mockClient.getWorkflowStatus.mockResolvedValue( { workflowId: 'w1', runId: 'r1', status: 'running', startedAt: 0, completedAt: null } );
+    mockClient.stopWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
+    mockClient.terminateWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
     mockClient.resetWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'new-run-123' } );
     mockClient.getWorkflowResult.mockResolvedValue( {
       workflowId: 'w1',
+      runId: 'r1',
       status: 'completed',
       input: { some: 'input' },
       output: { done: true },
@@ -134,7 +135,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/start' )
         .send( { workflowName: 'MyWorkflow', input: {} } )
         .expect( 200 );
-      expect( res.body ).toEqual( { workflowId: 'start-1' } );
+      expect( res.body ).toEqual( { workflowId: 'start-1', runId: 'r-start' } );
       expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.any( Object ) );
     } );
 
@@ -147,33 +148,51 @@ describe( 'API endpoints', () => {
   describe( 'GET /workflow/:id/status', () => {
     it( 'returns workflow status for given id', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/status' ).expect( 200 );
-      expect( res.body ).toMatchObject( { workflowId: 'w1', status: 'running' } );
-      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1' );
+      expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'running' } );
+      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/status?runId=explicit-run' ).expect( 200 );
+      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
     } );
   } );
 
   describe( 'PATCH /workflow/:id/stop', () => {
     it( 'returns workflowId after stopping workflow', async () => {
       const res = await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/stop' ).expect( 200 );
-      expect( res.body ).toEqual( { workflowId: 'w1' } );
-      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1' );
+      expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
+      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/stop?runId=explicit-run' ).expect( 200 );
+      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
     } );
   } );
 
   describe( 'POST /workflow/:id/terminate', () => {
-    it( 'returns terminated true and workflowId when reason provided', async () => {
+    it( 'returns terminated true with workflowId and runId when reason provided', async () => {
       const res = await request( `http://localhost:${PORT}` )
         .post( '/workflow/w1/terminate' )
         .send( { reason: 'test reason' } )
         .expect( 200 );
-      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1' } );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason' );
+      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
+      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', undefined );
     } );
 
     it( 'works without body', async () => {
       const res = await request( `http://localhost:${PORT}` ).post( '/workflow/w1/terminate' ).expect( 200 );
-      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1' } );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', undefined );
+      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
+      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', undefined, undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/w1/terminate?runId=explicit-run' )
+        .send( { reason: 'pin run' } )
+        .expect( 200 );
+      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'pin run', 'explicit-run' );
     } );
 
     it( 'validation error when reason is not string returns 400', async () => {
@@ -189,7 +208,7 @@ describe( 'API endpoints', () => {
         .send( { stepName: 'generateBlogPost', reason: 'retry with new prompt' } )
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'new-run-123' } );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt' );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt', undefined );
     } );
 
     it( 'works without reason', async () => {
@@ -198,7 +217,15 @@ describe( 'API endpoints', () => {
         .send( { stepName: 'generateBlogPost' } )
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'new-run-123' } );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/w1/reset?runId=explicit-run' )
+        .send( { stepName: 'generateBlogPost' } )
+        .expect( 200 );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, 'explicit-run' );
     } );
 
     it( 'validation error when stepName is missing returns 400', async () => {
@@ -221,16 +248,26 @@ describe( 'API endpoints', () => {
   describe( 'GET /workflow/:id/result', () => {
     it( 'returns workflow output and status when completed', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/result' ).expect( 200 );
-      expect( res.body ).toMatchObject( { workflowId: 'w1', status: 'completed', output: { done: true } } );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1' );
+      expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'completed', output: { done: true } } );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/result?runId=explicit-run' ).expect( 200 );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
     } );
   } );
 
   describe( 'GET /workflow/:id/trace-log', () => {
     it( 'returns local trace path when trace is stored locally', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log' ).expect( 200 );
-      expect( res.body ).toEqual( { source: 'local', localPath: '/tmp/trace.json' } );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1' );
+      expect( res.body ).toEqual( { source: 'local', runId: 'r1', localPath: '/tmp/trace.json' } );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
+    } );
+
+    it( 'forwards runId query param to client', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log?runId=explicit-run' ).expect( 200 );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
     } );
   } );
 

@@ -37,18 +37,19 @@ export function createTraceLogHandler( client ) {
   return async ( req, res, next ) => {
     try {
       const workflowId = req.params.id;
-      const result = await client.getWorkflowResult( workflowId );
+      const runId = typeof req.query?.runId === 'string' ? req.query.runId : undefined;
+      const result = await client.getWorkflowResult( workflowId, runId );
 
       const localPath = result?.trace?.destinations?.local;
       const remotePath = result?.trace?.destinations?.remote;
 
       if ( remotePath ) {
         const data = await fetchTraceFromS3( remotePath );
-        return res.json( { source: 'remote', data } );
+        return res.json( { source: 'remote', runId: result?.runId ?? null, data } );
       }
 
       if ( localPath ) {
-        return res.json( { source: 'local', localPath } );
+        return res.json( { source: 'local', runId: result?.runId ?? null, localPath } );
       }
 
       return res.status( 404 ).json( { error: 'No trace available for this workflow' } );

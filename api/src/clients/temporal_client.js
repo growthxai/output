@@ -148,14 +148,15 @@ export const extractWorkflowInput = history => {
  * @param {string} workflowId - The workflow execution id
  * @param {string} status - The workflow status
  * @param {Object} [options] - Optional fields
+ * @param {string|null} [options.runId] - The specific run id for this execution
  * @param {any} [options.input] - The original workflow input
  * @param {any} [options.output] - The workflow output
  * @param {object} [options.trace] - Trace information
  * @param {string} [options.error] - Error message if failed
  * @returns {Object} Standardized workflow response
  */
-const buildWorkflowResponse = ( workflowId, status, { input = null, output = null, trace = null, error = null } = {} ) =>
-  ( { workflowId, status, input, output, trace, error } );
+const buildWorkflowResponse = ( workflowId, status, { runId = null, input = null, output = null, trace = null, error = null } = {} ) =>
+  ( { workflowId, runId, status, input, output, trace, error } );
 
 export default {
   async init() {
@@ -217,6 +218,7 @@ export default {
         const workflowId = userWorkflowId ?? buildWorkflowId();
         const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
         const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        const runId = handle.firstExecutionRunId ?? null;
 
         try {
           const result = await Promise.race( [
@@ -224,6 +226,7 @@ export default {
             new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
           ] );
           return buildWorkflowResponse( workflowId, 'completed', {
+            runId,
             output: result.output ?? null,
             trace: result.trace ?? null
           } );
@@ -236,6 +239,7 @@ export default {
               hasTrace: Boolean( extractTraceInfo( error ) )
             } );
             return buildWorkflowResponse( workflowId, 'failed', {
+              runId,
               trace: extractTraceInfo( error ) ?? null,
               error: extractErrorMessage( error )
             } );
@@ -267,13 +271,14 @@ export default {
         const catalog = await getCatalog( { client, taskQueue } );
         const resolvedName = resolveWorkflowName( catalog, workflowName, taskQueue );
         const workflowId = userWorkflowId ?? buildWorkflowId();
-        await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
-        return { workflowId };
+        const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        return { workflowId, runId: handle.firstExecutionRunId ?? null };
       },
 
       /**
        * @typedef {Object} WorkflowExecutionStatus
        * @property {string} workflowId - The workflow execution id
+       * @property {string|null} runId - The specific run id for this execution
        * @property {('canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'|'unspecified')} status - The workflow execution status
        * @property {number} startedAt - The start date of the workflow execution
        * @property {number} completedAt - The end date of the workflow execution
@@ -282,15 +287,17 @@ export default {
        * Get the status of a workflow execution
        *
        * @param {string} workflowId
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
        * @returns {WorkflowExecutionStatus}
        * @throws WorkflowNotFoundError
        */
-      async getWorkflowStatus( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async getWorkflowStatus( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         const description = await handle.describe();
 
         return {
           workflowId,
+          runId: description.runId ?? null,
           status: description.status.name.toLocaleLowerCase(),
           startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
           completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
@@ -301,11 +308,15 @@ export default {
        * Cancel a workflow execution
        *
        * @param {string} workflowId  - The workflow execution id
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
+       * @returns {{ workflowId: string, runId: string|null }}
        * @throws {WorkflowNotFoundError}
        */
-      async stopWorkflow( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async stopWorkflow( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
+        const description = await handle.describe();
         await handle.cancel();
+        return { workflowId, runId: description.runId ?? null };
       },
 
       /**
@@ -313,17 +324,22 @@ export default {
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [reason]    - Optional reason for termination
+       * @param {string} [runId]     - Optional specific run id; defaults to the latest run
+       * @returns {{ workflowId: string, runId: string|null }}
        * @throws {WorkflowNotFoundError}
        */
-      async terminateWorkflow( workflowId, reason ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async terminateWorkflow( workflowId, reason, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
+        const description = await handle.describe();
         await handle.terminate( reason );
+        return { workflowId, runId: description.runId ?? null };
       },
 
       /**
        * Workflow result with trace information
        * @typedef {Object} WorkflowResultWithTrace
        * @property {string} workflowId - The workflow execution id
+       * @property {string|null} runId - The specific run id for this execution
        * @property {object|null} output - The workflow output, null if workflow failed
        * @property {object|null} trace - Trace information including destinations
        * @property {string} status - The workflow status (completed, failed, canceled, etc.)
@@ -333,12 +349,13 @@ export default {
        * Get the result of a workflow execution
        *
        * @param {string} workflowId - The workflow execution id
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
        * @returns {WorkflowResultWithTrace}
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowNotCompletedError} - Only thrown if workflow is still running
        */
-      async getWorkflowResult( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async getWorkflowResult( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         const [ description, history ] = await Promise.all( [
           handle.describe(),
           handle.fetchHistory()
@@ -351,11 +368,13 @@ export default {
 
         const status = mapWorkflowStatus( description.status.name );
         const input = extractWorkflowInput( history );
+        const resolvedRunId = description.runId ?? null;
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
           const result = await handle.result();
           return buildWorkflowResponse( workflowId, status, {
+            runId: resolvedRunId,
             input,
             output: result.output ?? null,
             trace: result.trace ?? null
@@ -364,7 +383,7 @@ export default {
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
         if ( description.status.code === TemporalStatus.CONTINUED_AS_NEW ) {
-          return buildWorkflowResponse( workflowId, status, { input } );
+          return buildWorkflowResponse( workflowId, status, { runId: resolvedRunId, input } );
         }
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
@@ -386,6 +405,7 @@ export default {
           } );
 
         return buildWorkflowResponse( workflowId, status, {
+          runId: resolvedRunId,
           input,
           trace: workflowError ? extractTraceInfo( workflowError ) ?? null : null,
           error: workflowError ? extractErrorMessage( workflowError ) : null
@@ -457,19 +477,20 @@ export default {
        * @param {string} workflowId - The workflow execution id
        * @param {string} stepName - The step name to reset after (e.g., "consolidateCompetitors")
        * @param {string} [reason] - Optional reason for the reset
+       * @param {string} [runId] - Optional specific run id to reset; defaults to the latest run
        * @returns {{ workflowId: string, runId: string }}
        * @throws {WorkflowNotFoundError}
        * @throws {StepNotFoundError}
        * @throws {StepNotCompletedError}
        */
-      async resetWorkflow( workflowId, stepName, reason ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async resetWorkflow( workflowId, stepName, reason, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         const history = await handle.fetchHistory();
         const resetEventId = resolveResetEventId( history.events, stepName );
 
         const response = await connection.workflowService.resetWorkflowExecution( {
           namespace,
-          workflowExecution: { workflowId },
+          workflowExecution: { workflowId, ...( runId ? { runId } : {} ) },
           reason: reason || `Reset to re-run from after step "${stepName}"`,
           workflowTaskFinishEventId: resetEventId,
           requestId: buildWorkflowId()

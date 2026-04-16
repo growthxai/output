@@ -40,6 +40,7 @@ describe( 'trace_log handler', () => {
     const mockTraceData = { workflow: 'test', steps: [ { name: 'step1' } ] };
     mockGetWorkflowResult.mockResolvedValue( {
       workflowId: 'test-workflow-id',
+      runId: 'r-remote',
       trace: {
         destinations: {
           local: null,
@@ -53,13 +54,15 @@ describe( 'trace_log handler', () => {
       .get( '/workflow/test-workflow-id/trace-log' )
       .expect( 200 );
 
-    expect( res.body ).toEqual( { source: 'remote', data: mockTraceData } );
+    expect( res.body ).toEqual( { source: 'remote', runId: 'r-remote', data: mockTraceData } );
     expect( mockFetchTraceFromS3 ).toHaveBeenCalledWith( 'https://my-bucket.s3.amazonaws.com/traces/file.json' );
+    expect( mockGetWorkflowResult ).toHaveBeenCalledWith( 'test-workflow-id', undefined );
   } );
 
   it( 'returns local response for local-only traces', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
       workflowId: 'test-workflow-id',
+      runId: 'r-local',
       trace: {
         destinations: {
           local: '/path/to/local/trace.json',
@@ -70,7 +73,21 @@ describe( 'trace_log handler', () => {
 
     await request( createApp() )
       .get( '/workflow/test-workflow-id/trace-log' )
-      .expect( 200, { source: 'local', localPath: '/path/to/local/trace.json' } );
+      .expect( 200, { source: 'local', runId: 'r-local', localPath: '/path/to/local/trace.json' } );
+  } );
+
+  it( 'forwards runId query param to getWorkflowResult', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      workflowId: 'test-workflow-id',
+      runId: 'explicit-run',
+      trace: { destinations: { local: '/tmp/t.json', remote: null } }
+    } );
+
+    await request( createApp() )
+      .get( '/workflow/test-workflow-id/trace-log?runId=explicit-run' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowResult ).toHaveBeenCalledWith( 'test-workflow-id', 'explicit-run' );
   } );
 
   it( 'calls error handler when S3 fetch fails', async () => {

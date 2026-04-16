@@ -140,6 +140,7 @@ describe( 'temporal_client', () => {
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.reject( workflowError )
       } );
       mockGetHandle
@@ -152,6 +153,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
+        runId: 'run-aaa',
         status: 'failed',
         input: null,
         output: null,
@@ -169,6 +171,7 @@ describe( 'temporal_client', () => {
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -181,6 +184,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
+        runId: 'run-aaa',
         status: 'completed',
         input: null,
         output: { data: 'result' },
@@ -196,6 +200,7 @@ describe( 'temporal_client', () => {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -221,6 +226,7 @@ describe( 'temporal_client', () => {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -263,7 +269,7 @@ describe( 'temporal_client', () => {
       mockQuery.mockResolvedValue( {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
-      mockStart.mockResolvedValue( {} );
+      mockStart.mockResolvedValue( { firstExecutionRunId: 'run-bbb' } );
       mockGetHandle.mockReturnValue( { query: mockQuery } );
 
       const temporalClient = ( await import( './temporal_client.js' ) ).default;
@@ -271,6 +277,7 @@ describe( 'temporal_client', () => {
       const result = await client.startWorkflow( 'old_name', { input: 'data' } );
 
       expect( result.workflowId ).toBe( 'test-uuid' );
+      expect( result.runId ).toBe( 'run-bbb' );
       expect( mockStart ).toHaveBeenCalledWith( 'new_name', expect.objectContaining( {
         args: [ { input: 'data' } ]
       } ) );
@@ -300,7 +307,8 @@ describe( 'temporal_client', () => {
       const workflowOutput = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 2, name: 'COMPLETED' }
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-completed'
       } );
       mockResult.mockResolvedValue( workflowOutput );
 
@@ -310,12 +318,41 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-completed',
         status: 'completed',
         input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         error: null
       } );
+    } );
+
+    it( 'should forward runId to getHandle when provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-explicit'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', 'run-explicit' );
+    } );
+
+    it( 'should pass undefined runId to getHandle when not provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-latest'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', undefined );
     } );
 
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
@@ -326,7 +363,8 @@ describe( 'temporal_client', () => {
       } );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 3, name: 'FAILED' }
+        status: { code: 3, name: 'FAILED' },
+        runId: 'run-failed'
       } );
       mockResult.mockRejectedValue( workflowError );
 
@@ -336,6 +374,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-failed',
         status: 'failed',
         input: null,
         output: null,
@@ -371,7 +410,8 @@ describe( 'temporal_client', () => {
 
     it( 'should return continued status for CONTINUED_AS_NEW workflows', async () => {
       mockDescribe.mockResolvedValue( {
-        status: { code: 6, name: 'CONTINUED_AS_NEW' }
+        status: { code: 6, name: 'CONTINUED_AS_NEW' },
+        runId: 'run-continued'
       } );
 
       const temporalClient = ( await import( './temporal_client.js' ) ).default;
@@ -380,6 +420,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-continued',
         status: 'continued',
         input: null,
         output: null,
@@ -440,7 +481,8 @@ describe( 'temporal_client', () => {
       const workflowInput = { url: 'https://example.com', options: { depth: 2 } };
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 2, name: 'COMPLETED' }
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-input'
       } );
       mockResult.mockResolvedValue( { output: { data: 'result' }, trace: null } );
       mockFetchHistory.mockResolvedValue( {
