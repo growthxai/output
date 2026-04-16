@@ -355,6 +355,35 @@ describe( 'temporal_client', () => {
       expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', undefined );
     } );
 
+    it( 'should pin handle to resolved runId after describe when runId was not provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-latest'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 1, 'workflow-123', undefined );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 2, 'workflow-123', 'run-latest' );
+    } );
+
+    it( 'should not re-pin handle when runId was provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-explicit'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledTimes( 1 );
+    } );
+
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {

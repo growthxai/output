@@ -297,7 +297,7 @@ export default {
 
         return {
           workflowId,
-          runId: description.runId ?? null,
+          runId: description.runId,
           status: description.status.name.toLocaleLowerCase(),
           startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
           completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
@@ -314,9 +314,12 @@ export default {
        */
       async stopWorkflow( workflowId, runId ) {
         const handle = client.workflow.getHandle( workflowId, runId );
-        const description = await handle.describe();
         await handle.cancel();
-        return { workflowId, runId: description.runId ?? null };
+        if ( runId ) {
+          return { workflowId, runId };
+        }
+        const description = await handle.describe();
+        return { workflowId, runId: description.runId };
       },
 
       /**
@@ -330,9 +333,12 @@ export default {
        */
       async terminateWorkflow( workflowId, reason, runId ) {
         const handle = client.workflow.getHandle( workflowId, runId );
-        const description = await handle.describe();
         await handle.terminate( reason );
-        return { workflowId, runId: description.runId ?? null };
+        if ( runId ) {
+          return { workflowId, runId };
+        }
+        const description = await handle.describe();
+        return { workflowId, runId: description.runId };
       },
 
       /**
@@ -356,23 +362,24 @@ export default {
        */
       async getWorkflowResult( workflowId, runId ) {
         const handle = client.workflow.getHandle( workflowId, runId );
-        const [ description, history ] = await Promise.all( [
-          handle.describe(),
-          handle.fetchHistory()
-        ] );
+        const description = await handle.describe();
 
         // Only throw if workflow is still running (not in a terminal state)
         if ( !TERMINAL_STATUS_CODES.has( description.status.code ) ) {
           throw new WorkflowNotCompletedError();
         }
 
+        const resolvedRunId = description.runId;
+        // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
+        const pinnedHandle = runId || !resolvedRunId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
+        const history = await pinnedHandle.fetchHistory();
+
         const status = mapWorkflowStatus( description.status.name );
         const input = extractWorkflowInput( history );
-        const resolvedRunId = description.runId ?? null;
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
-          const result = await handle.result();
+          const result = await pinnedHandle.result();
           return buildWorkflowResponse( workflowId, status, {
             runId: resolvedRunId,
             input,
@@ -388,7 +395,7 @@ export default {
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
         // The workflow interceptor puts trace metadata in ApplicationFailure.details when workflows fail
-        const workflowError = await handle.result()
+        const workflowError = await pinnedHandle.result()
           .then( () => null )
           .catch( e => {
             if ( e instanceof WorkflowFailedError ) {

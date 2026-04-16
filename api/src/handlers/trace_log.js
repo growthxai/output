@@ -3,6 +3,7 @@
  * Fetches trace data from workflow result and returns appropriate response
  */
 
+import { z } from 'zod';
 import { fetchTraceFromS3 } from '../clients/s3_client.js';
 
 /**
@@ -37,7 +38,7 @@ export function createTraceLogHandler( client ) {
   return async ( req, res, next ) => {
     try {
       const workflowId = req.params.id;
-      const runId = typeof req.query?.runId === 'string' ? req.query.runId : undefined;
+      const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
       const result = await client.getWorkflowResult( workflowId, runId );
 
       const localPath = result?.trace?.destinations?.local;

@@ -8,6 +8,8 @@ import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
 
+const runIdQuerySchema = z.object( { runId: z.string().optional() } );
+
 const app = express();
 
 const client = await temporalClient.init().catch( e => {
@@ -490,7 +492,7 @@ app.post( '/workflow/start', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/:id/status', async ( req, res ) => {
-  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  const { runId } = runIdQuerySchema.parse( req.query );
   res.json( await client.getWorkflowStatus( req.params.id, runId ) );
 } );
 
@@ -533,7 +535,7 @@ app.get( '/workflow/:id/status', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.patch( '/workflow/:id/stop', async ( req, res ) => {
-  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  const { runId } = runIdQuerySchema.parse( req.query );
   res.json( await client.stopWorkflow( req.params.id, runId ) );
 } );
 
@@ -589,7 +591,7 @@ app.patch( '/workflow/:id/stop', async ( req, res ) => {
  */
 app.post( '/workflow/:id/terminate', async ( req, res ) => {
   const { reason } = z.object( { reason: z.string().optional() } ).optional().default( {} ).parse( req.body );
-  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  const { runId } = runIdQuerySchema.parse( req.query );
 
   const info = await client.terminateWorkflow( req.params.id, reason, runId );
   res.json( { terminated: true, ...info } );
@@ -661,7 +663,7 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
     stepName: z.string(),
     reason: z.string().optional()
   } ).parse( req.body );
-  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  const { runId } = runIdQuerySchema.parse( req.query );
 
   res.json( await client.resetWorkflow( req.params.id, stepName, reason, runId ) );
 } );
@@ -723,7 +725,7 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/:id/result', async ( req, res ) => {
-  const { runId } = z.object( { runId: z.string().optional() } ).parse( req.query );
+  const { runId } = runIdQuerySchema.parse( req.query );
   res.json( await client.getWorkflowResult( req.params.id, runId ) );
 } );
 

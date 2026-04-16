@@ -8,6 +8,7 @@ vi.mock( '../clients/s3_client.js', () => ( {
 } ) );
 
 import { createTraceLogHandler } from './trace_log.js';
+import errorHandler from '../middleware/error_handler.js';
 
 describe( 'trace_log handler', () => {
   const mockGetWorkflowResult = vi.fn();
@@ -88,6 +89,17 @@ describe( 'trace_log handler', () => {
       .expect( 200 );
 
     expect( mockGetWorkflowResult ).toHaveBeenCalledWith( 'test-workflow-id', 'explicit-run' );
+  } );
+
+  it( 'returns 400 when runId query param is not a string', async () => {
+    const app = createApp();
+    app.use( errorHandler );
+
+    await request( app )
+      .get( '/workflow/test-workflow-id/trace-log?runId=a&runId=b' )
+      .expect( 400 );
+
+    expect( mockGetWorkflowResult ).not.toHaveBeenCalled();
   } );
 
   it( 'calls error handler when S3 fetch fails', async () => {

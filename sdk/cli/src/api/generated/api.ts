@@ -136,6 +136,11 @@ export const TraceLogRemoteResponseSource = {
 export interface TraceLogRemoteResponse {
   /** Indicates trace was fetched from remote storage */
   source: TraceLogRemoteResponseSource;
+  /**
+     * The specific run id for this trace
+     * @nullable
+     */
+  runId?: string | null;
   data: TraceData;
 }
 
@@ -152,6 +157,11 @@ export const TraceLogLocalResponseSource = {
 export interface TraceLogLocalResponse {
   /** Indicates trace is available locally */
   source: TraceLogLocalResponseSource;
+  /**
+     * The specific run id for this trace
+     * @nullable
+     */
+  runId?: string | null;
   /** Absolute path to local trace file */
   localPath: string;
 }
@@ -279,6 +289,13 @@ export type PostWorkflowStart200 = {
   workflowId?: string;
 };
 
+export type GetWorkflowIdStatusParams = {
+/**
+ * Optional specific run id. When omitted, resolves to the latest run.
+ */
+runId?: string;
+};
+
 /**
  * The workflow execution status
  */
@@ -299,12 +316,37 @@ export const GetWorkflowIdStatus200Status = {
 export type GetWorkflowIdStatus200 = {
   /** The id of workflow */
   workflowId?: string;
+  /**
+     * The specific run id for this execution
+     * @nullable
+     */
+  runId?: string | null;
   /** The workflow execution status */
   status?: GetWorkflowIdStatus200Status;
   /** An epoch timestamp representing when the workflow started */
   startedAt?: number;
   /** An epoch timestamp representing when the workflow ended */
   completedAt?: number;
+};
+
+export type PatchWorkflowIdStopParams = {
+/**
+ * Optional specific run id. When omitted, resolves to the latest run.
+ */
+runId?: string;
+};
+
+export type PatchWorkflowIdStop200 = {
+  workflowId?: string;
+  /** @nullable */
+  runId?: string | null;
+};
+
+export type PostWorkflowIdTerminateParams = {
+/**
+ * Optional specific run id. When omitted, resolves to the latest run.
+ */
+runId?: string;
 };
 
 export type PostWorkflowIdTerminateBody = {
@@ -315,6 +357,15 @@ export type PostWorkflowIdTerminateBody = {
 export type PostWorkflowIdTerminate200 = {
   terminated?: boolean;
   workflowId?: string;
+  /** @nullable */
+  runId?: string | null;
+};
+
+export type PostWorkflowIdResetParams = {
+/**
+ * Optional specific run id to reset. When omitted, resolves to the latest run.
+ */
+runId?: string;
 };
 
 export type PostWorkflowIdResetBody = {
@@ -329,6 +380,13 @@ export type PostWorkflowIdReset200 = {
   workflowId?: string;
   /** The run ID of the new execution created by the reset */
   runId?: string;
+};
+
+export type GetWorkflowIdResultParams = {
+/**
+ * Optional specific run id. When omitted, resolves to the latest run.
+ */
+runId?: string;
 };
 
 /**
@@ -349,6 +407,11 @@ export const GetWorkflowIdResult200Status = {
 export type GetWorkflowIdResult200 = {
   /** The workflow execution id */
   workflowId?: string;
+  /**
+     * The specific run id for this execution
+     * @nullable
+     */
+  runId?: string | null;
   /** The original input passed to the workflow, null if unavailable */
   input?: unknown;
   /** The result of workflow, null if workflow failed */
@@ -361,6 +424,13 @@ export type GetWorkflowIdResult200 = {
      * @nullable
      */
   error?: string | null;
+};
+
+export type GetWorkflowIdTraceLogParams = {
+/**
+ * Optional specific run id. When omitted, resolves to the latest run.
+ */
+runId?: string;
 };
 
 export type GetWorkflowCatalogId200 = {
@@ -589,6 +659,11 @@ export type getWorkflowIdStatusResponse200 = {
   status: 200
 }
 
+export type getWorkflowIdStatusResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
 export type getWorkflowIdStatusResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -602,23 +677,32 @@ export type getWorkflowIdStatusResponse500 = {
 export type getWorkflowIdStatusResponseSuccess = (getWorkflowIdStatusResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdStatusResponseError = (getWorkflowIdStatusResponse404 | getWorkflowIdStatusResponse500) & {
+export type getWorkflowIdStatusResponseError = (getWorkflowIdStatusResponse400 | getWorkflowIdStatusResponse404 | getWorkflowIdStatusResponse500) & {
   headers: Headers;
 };
 
 export type getWorkflowIdStatusResponse = (getWorkflowIdStatusResponseSuccess | getWorkflowIdStatusResponseError)
 
-export const getGetWorkflowIdStatusUrl = (id: string,) => {
+export const getGetWorkflowIdStatusUrl = (id: string,
+    params?: GetWorkflowIdStatusParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/status`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/status?${stringifiedParams}` : `/workflow/${id}/status`
 }
 
-export const getWorkflowIdStatus = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdStatusResponse> => {
+export const getWorkflowIdStatus = async (id: string,
+    params?: GetWorkflowIdStatusParams, options?: ApiRequestOptions): Promise<getWorkflowIdStatusResponse> => {
 
-  return customFetchInstance<getWorkflowIdStatusResponse>(getGetWorkflowIdStatusUrl(id),
+  return customFetchInstance<getWorkflowIdStatusResponse>(getGetWorkflowIdStatusUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -633,8 +717,13 @@ export const getWorkflowIdStatus = async (id: string, options?: ApiRequestOption
  * @summary Stop a workflow execution
  */
 export type patchWorkflowIdStopResponse200 = {
-  data: void
+  data: PatchWorkflowIdStop200
   status: 200
+}
+
+export type patchWorkflowIdStopResponse400 = {
+  data: BadRequestResponse
+  status: 400
 }
 
 export type patchWorkflowIdStopResponse404 = {
@@ -650,23 +739,32 @@ export type patchWorkflowIdStopResponse500 = {
 export type patchWorkflowIdStopResponseSuccess = (patchWorkflowIdStopResponse200) & {
   headers: Headers;
 };
-export type patchWorkflowIdStopResponseError = (patchWorkflowIdStopResponse404 | patchWorkflowIdStopResponse500) & {
+export type patchWorkflowIdStopResponseError = (patchWorkflowIdStopResponse400 | patchWorkflowIdStopResponse404 | patchWorkflowIdStopResponse500) & {
   headers: Headers;
 };
 
 export type patchWorkflowIdStopResponse = (patchWorkflowIdStopResponseSuccess | patchWorkflowIdStopResponseError)
 
-export const getPatchWorkflowIdStopUrl = (id: string,) => {
+export const getPatchWorkflowIdStopUrl = (id: string,
+    params?: PatchWorkflowIdStopParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/stop`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/stop?${stringifiedParams}` : `/workflow/${id}/stop`
 }
 
-export const patchWorkflowIdStop = async (id: string, options?: ApiRequestOptions): Promise<patchWorkflowIdStopResponse> => {
+export const patchWorkflowIdStop = async (id: string,
+    params?: PatchWorkflowIdStopParams, options?: ApiRequestOptions): Promise<patchWorkflowIdStopResponse> => {
 
-  return customFetchInstance<patchWorkflowIdStopResponse>(getPatchWorkflowIdStopUrl(id),
+  return customFetchInstance<patchWorkflowIdStopResponse>(getPatchWorkflowIdStopUrl(id,params),
   {
     ...options,
     method: 'PATCH'
@@ -710,18 +808,27 @@ export type postWorkflowIdTerminateResponseError = (postWorkflowIdTerminateRespo
 
 export type postWorkflowIdTerminateResponse = (postWorkflowIdTerminateResponseSuccess | postWorkflowIdTerminateResponseError)
 
-export const getPostWorkflowIdTerminateUrl = (id: string,) => {
+export const getPostWorkflowIdTerminateUrl = (id: string,
+    params?: PostWorkflowIdTerminateParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/terminate`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/terminate?${stringifiedParams}` : `/workflow/${id}/terminate`
 }
 
 export const postWorkflowIdTerminate = async (id: string,
-    postWorkflowIdTerminateBody: PostWorkflowIdTerminateBody, options?: ApiRequestOptions): Promise<postWorkflowIdTerminateResponse> => {
+    postWorkflowIdTerminateBody: PostWorkflowIdTerminateBody,
+    params?: PostWorkflowIdTerminateParams, options?: ApiRequestOptions): Promise<postWorkflowIdTerminateResponse> => {
 
-  return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id),
+  return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id,params),
   {
     ...options,
     method: 'POST',
@@ -771,18 +878,27 @@ export type postWorkflowIdResetResponseError = (postWorkflowIdResetResponse400 |
 
 export type postWorkflowIdResetResponse = (postWorkflowIdResetResponseSuccess | postWorkflowIdResetResponseError)
 
-export const getPostWorkflowIdResetUrl = (id: string,) => {
+export const getPostWorkflowIdResetUrl = (id: string,
+    params?: PostWorkflowIdResetParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/reset`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/reset?${stringifiedParams}` : `/workflow/${id}/reset`
 }
 
 export const postWorkflowIdReset = async (id: string,
-    postWorkflowIdResetBody: PostWorkflowIdResetBody, options?: ApiRequestOptions): Promise<postWorkflowIdResetResponse> => {
+    postWorkflowIdResetBody: PostWorkflowIdResetBody,
+    params?: PostWorkflowIdResetParams, options?: ApiRequestOptions): Promise<postWorkflowIdResetResponse> => {
 
-  return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id),
+  return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id,params),
   {
     ...options,
     method: 'POST',
@@ -800,6 +916,11 @@ export const postWorkflowIdReset = async (id: string,
 export type getWorkflowIdResultResponse200 = {
   data: GetWorkflowIdResult200
   status: 200
+}
+
+export type getWorkflowIdResultResponse400 = {
+  data: BadRequestResponse
+  status: 400
 }
 
 export type getWorkflowIdResultResponse404 = {
@@ -820,23 +941,32 @@ export type getWorkflowIdResultResponse500 = {
 export type getWorkflowIdResultResponseSuccess = (getWorkflowIdResultResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdResultResponseError = (getWorkflowIdResultResponse404 | getWorkflowIdResultResponse424 | getWorkflowIdResultResponse500) & {
+export type getWorkflowIdResultResponseError = (getWorkflowIdResultResponse400 | getWorkflowIdResultResponse404 | getWorkflowIdResultResponse424 | getWorkflowIdResultResponse500) & {
   headers: Headers;
 };
 
 export type getWorkflowIdResultResponse = (getWorkflowIdResultResponseSuccess | getWorkflowIdResultResponseError)
 
-export const getGetWorkflowIdResultUrl = (id: string,) => {
+export const getGetWorkflowIdResultUrl = (id: string,
+    params?: GetWorkflowIdResultParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/result`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/result?${stringifiedParams}` : `/workflow/${id}/result`
 }
 
-export const getWorkflowIdResult = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdResultResponse> => {
+export const getWorkflowIdResult = async (id: string,
+    params?: GetWorkflowIdResultParams, options?: ApiRequestOptions): Promise<getWorkflowIdResultResponse> => {
 
-  return customFetchInstance<getWorkflowIdResultResponse>(getGetWorkflowIdResultUrl(id),
+  return customFetchInstance<getWorkflowIdResultResponse>(getGetWorkflowIdResultUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -880,17 +1010,26 @@ export type getWorkflowIdTraceLogResponseError = (getWorkflowIdTraceLogResponse4
 
 export type getWorkflowIdTraceLogResponse = (getWorkflowIdTraceLogResponseSuccess | getWorkflowIdTraceLogResponseError)
 
-export const getGetWorkflowIdTraceLogUrl = (id: string,) => {
+export const getGetWorkflowIdTraceLogUrl = (id: string,
+    params?: GetWorkflowIdTraceLogParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/workflow/${id}/trace-log`
+  return stringifiedParams.length > 0 ? `/workflow/${id}/trace-log?${stringifiedParams}` : `/workflow/${id}/trace-log`
 }
 
-export const getWorkflowIdTraceLog = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdTraceLogResponse> => {
+export const getWorkflowIdTraceLog = async (id: string,
+    params?: GetWorkflowIdTraceLogParams, options?: ApiRequestOptions): Promise<getWorkflowIdTraceLogResponse> => {
 
-  return customFetchInstance<getWorkflowIdTraceLogResponse>(getGetWorkflowIdTraceLogUrl(id),
+  return customFetchInstance<getWorkflowIdTraceLogResponse>(getGetWorkflowIdTraceLogUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -1054,6 +1193,7 @@ export const getWorkflowRuns = async (params?: GetWorkflowRunsParams, options?: 
 
 
 /**
+ * Always targets the latest run of the workflow; runId cannot be pinned for signal-based operations.
  * @summary Send feedback to a workflow
  */
 export type postWorkflowIdFeedbackResponse200 = {
@@ -1109,6 +1249,7 @@ export const postWorkflowIdFeedback = async (id: string,
 
 
 /**
+ * Always targets the latest run of the workflow; runId cannot be pinned for signal operations.
  * @summary Send a signal to an workflow
  */
 export type postWorkflowIdSignalSignalResponse200 = {
@@ -1166,6 +1307,7 @@ export const postWorkflowIdSignalSignal = async (id: string,
 
 
 /**
+ * Always targets the latest run of the workflow; runId cannot be pinned for query operations.
  * @summary Send a query to an workflow
  */
 export type postWorkflowIdQueryQueryResponse200 = {
@@ -1223,6 +1365,7 @@ export const postWorkflowIdQueryQuery = async (id: string,
 
 
 /**
+ * Always targets the latest run of the workflow; runId cannot be pinned for update operations.
  * @summary Execute an update on an workflow
  */
 export type postWorkflowIdUpdateUpdateResponse200 = {
