@@ -9,7 +9,8 @@ import {
   WorkflowNotCompletedError,
   CatalogNotAvailableError,
   StepNotFoundError,
-  StepNotCompletedError
+  StepNotCompletedError,
+  InvalidPageTokenError
 } from './errors.js';
 
 const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
@@ -67,10 +68,7 @@ const TemporalStatus = {
 
 const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
 
-/**
- * Temporal history event types used for workflow reset resolution.
- * Values correspond to temporal.api.enums.v1.EventType protobuf enum.
- */
+// Values correspond to temporal.api.enums.v1.EventType protobuf enum.
 const EventType = {
   WORKFLOW_EXECUTION_STARTED: 1,
   WORKFLOW_EXECUTION_COMPLETED: 2,
@@ -109,6 +107,8 @@ const EventType = {
 const EventTypeName = Object.fromEntries(
   Object.entries( EventType ).map( ( [ name, value ] ) => [ value, name ] )
 );
+
+const warnedUnknownEventTypes = new Set();
 
 /**
  * Resolve a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
@@ -176,10 +176,6 @@ export const extractWorkflowInput = history => {
   return defaultPayloadConverter.fromPayload( payloads[0] );
 };
 
-/**
- * Payload fields to decode per event attribute type.
- * Each entry maps an attribute key to its nested payload array paths.
- */
 const PAYLOAD_FIELDS = {
   workflowExecutionStartedEventAttributes: [ 'input' ],
   workflowExecutionCompletedEventAttributes: [ 'result' ],
@@ -188,14 +184,7 @@ const PAYLOAD_FIELDS = {
   activityTaskFailedEventAttributes: [ 'failure' ]
 };
 
-/**
- * Decode known payload fields on a Temporal history event.
- * Each decode is wrapped in try/catch -- non-JSON payloads produce a fallback
- * representation instead of throwing.
- *
- * @param {object} event - Raw Temporal history event
- * @returns {object} Event with decoded payloads (mutates a shallow copy of attributes)
- */
+// Non-JSON payloads produce a { _raw: true, encoding } fallback instead of throwing.
 export const decodeEventPayloads = event => {
   for ( const [ attrKey, fields ] of Object.entries( PAYLOAD_FIELDS ) ) {
     const attrs = event[attrKey];
@@ -208,15 +197,11 @@ export const decodeEventPayloads = event => {
       if ( field === 'failure' ) {
         // failure is a Failure proto, not a Payloads wrapper -- extract message/stackTrace
         if ( attrs.failure ) {
-          try {
-            decoded.failure = {
-              message: attrs.failure.message ?? null,
-              stackTrace: attrs.failure.stackTrace ?? null,
-              type: attrs.failure.failureInfo?.applicationFailureInfo?.type ?? null
-            };
-          } catch {
-            decoded.failure = { _raw: true };
-          }
+          decoded.failure = {
+            message: attrs.failure.message ?? null,
+            stackTrace: attrs.failure.stackTrace ?? null,
+            type: attrs.failure.failureInfo?.applicationFailureInfo?.type ?? null
+          };
         }
         continue;
       }
@@ -227,10 +212,15 @@ export const decodeEventPayloads = event => {
       decoded[field] = payloads.map( p => {
         try {
           return defaultPayloadConverter.fromPayload( p );
-        } catch {
+        } catch ( error ) {
           const encoding = p?.metadata?.encoding ?
             Buffer.from( p.metadata.encoding ).toString() :
             'unknown';
+          logger.warn( 'Failed to decode event payload', {
+            eventId: event.eventId?.toString(),
+            encoding,
+            error: error.message
+          } );
           return { _raw: true, encoding };
         }
       } );
@@ -240,22 +230,15 @@ export const decodeEventPayloads = event => {
   return event;
 };
 
-/**
- * Convert a Temporal history event to a JSON-safe object.
- * - Long fields (eventId, scheduledEventId) to strings via .toString()
- * - Timestamp fields (eventTime) to ISO 8601 strings
- * - Adds eventTypeName string from EventType enum
- * - For activity events, extracts stepName from activityType.name
- * - When includePayloads is false, strips input/result/failure from attributes
- *
- * @param {object} event - Temporal history event (optionally with decoded payloads)
- * @param {{ includePayloads: boolean }} options
- * @returns {object} JSON-safe event
- */
 export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
   const eventType = typeof event.eventType === 'object' ?
     Number( event.eventType.toString() ) :
     event.eventType;
+
+  if ( EventTypeName[eventType] === undefined && !warnedUnknownEventTypes.has( eventType ) ) {
+    warnedUnknownEventTypes.add( eventType );
+    logger.warn( 'Unknown Temporal event type encountered', { eventType } );
+  }
 
   const serialized = {
     eventId: event.eventId?.toString() ?? null,
@@ -267,15 +250,19 @@ export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
       null
   };
 
-  // Find the attribute key for this event
   const attrKey = Object.keys( event ).find( k => k.endsWith( 'EventAttributes' ) );
   if ( !attrKey || !event[attrKey] ) {
     return serialized;
   }
 
+  // Forward-compat: for unknown event types, drop attrs when payloads aren't requested
+  // to avoid leaking undefined payload-bearing fields on new Temporal enum values.
+  if ( !includePayloads && EventTypeName[eventType] === undefined ) {
+    return serialized;
+  }
+
   const attrs = { ...event[attrKey] };
 
-  // Convert Long fields in attributes
   if ( attrs.scheduledEventId ) {
     attrs.scheduledEventId = attrs.scheduledEventId.toString();
   }
@@ -283,16 +270,19 @@ export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
     attrs.startedEventId = attrs.startedEventId.toString();
   }
 
-  // Extract stepName from activityType.name (e.g., "workflow-name#stepName")
-  if ( attrs.activityType?.name?.includes( '#' ) ) {
-    attrs.stepName = attrs.activityType.name.split( '#' ).pop();
+  // activityType.name uses the "workflow-name#stepName" convention; fall back to full name otherwise
+  if ( attrs.activityType?.name ) {
+    const name = attrs.activityType.name;
+    attrs.stepName = name.includes( '#' ) ? name.split( '#' ).pop() : name;
   }
 
-  // Strip payloads when not requested
   if ( !includePayloads ) {
     delete attrs.input;
     delete attrs.result;
     delete attrs.failure;
+    delete attrs.details;
+    delete attrs.lastCompletionResult;
+    delete attrs.lastFailure;
   }
 
   serialized[attrKey] = attrs;
@@ -634,17 +624,6 @@ export default {
         return { workflowId, runId: response.runId };
       },
 
-      /**
-       * Fetch paginated workflow execution history with decoded events.
-       *
-       * @param {string} workflowId - The workflow execution id
-       * @param {Object} [options]
-       * @param {string} [options.runId] - Specific run ID (defaults to latest)
-       * @param {number} [options.pageSize=20] - Events per page (max 50)
-       * @param {string} [options.pageToken] - Base64 pagination token from previous response
-       * @param {boolean} [options.includePayloads=false] - Include decoded input/output payloads
-       * @returns {{ workflow: object|null, events: object[], nextPageToken: string|null }}
-       */
       async getWorkflowHistory( workflowId, { runId, pageSize = 20, pageToken, includePayloads = false } = {} ) {
         const firstPage = !pageToken;
         const metadata = firstPage ? await ( async () => {
@@ -669,7 +648,19 @@ export default {
           execution: { workflowId, runId: metadata.resolvedRunId },
           maximumPageSize: Math.min( pageSize, 50 ),
           nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
+        } ).catch( error => {
+          if ( error?.code === 5 ) {
+            throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+          }
+          if ( error?.code === 3 ) {
+            throw new InvalidPageTokenError();
+          }
+          throw error;
         } );
+
+        if ( !response.history ) {
+          logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: metadata.resolvedRunId } );
+        }
 
         const events = ( response.history?.events || [] ).map( event => {
           const decoded = includePayloads ? decodeEventPayloads( event ) : event;
@@ -679,6 +670,7 @@ export default {
         return {
           workflow: metadata.workflow,
           events,
+          runId: metadata.resolvedRunId,
           nextPageToken: response.nextPageToken?.length ?
             Buffer.from( response.nextPageToken ).toString( 'base64' ) :
             null

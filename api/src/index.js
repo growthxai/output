@@ -742,11 +742,16 @@ app.get( '/workflow/:id/trace-log', createTraceLogHandler( client ) );
  *                   type: array
  *                   items:
  *                     type: object
+ *                 runId:
+ *                   type: string
+ *                   description: Resolved run ID. Echo this value as the runId query parameter when fetching subsequent pages.
  *                 nextPageToken:
  *                   type: string
  *                   nullable: true
  *       400:
  *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */

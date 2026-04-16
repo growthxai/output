@@ -1,16 +1,11 @@
 import { z } from 'zod';
 
-/**
- * Create workflow history handler with injected temporal client
- * @param {Object} client - Temporal client instance
- * @returns {Function} Express request handler
- */
 export function createWorkflowHistoryHandler( client ) {
   const querySchema = z.object( {
     runId: z.string().optional(),
     pageSize: z.coerce.number().int().min( 1 ).max( 50 ).default( 20 ),
-    pageToken: z.string().optional(),
-    includePayloads: z.coerce.boolean().default( false )
+    pageToken: z.string().regex( /^[A-Za-z0-9+/]+={0,2}$/, 'Invalid pageToken format' ).optional(),
+    includePayloads: z.enum( [ 'true', 'false' ] ).optional().transform( v => v === 'true' ).default( 'false' )
   } ).refine(
     data => !data.pageToken || data.runId,
     { message: 'runId is required when using pageToken', path: [ 'runId' ] }

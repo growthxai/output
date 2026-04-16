@@ -399,6 +399,8 @@ export type GetWorkflowIdHistory200 = {
      */
   workflow?: GetWorkflowIdHistory200Workflow;
   events?: GetWorkflowIdHistory200EventsItem[];
+  /** Resolved run ID. Echo this value as the runId query parameter when fetching subsequent pages. */
+  runId?: string;
   /** @nullable */
   nextPageToken?: string | null;
 };
@@ -955,6 +957,11 @@ export type getWorkflowIdHistoryResponse400 = {
   status: 400
 }
 
+export type getWorkflowIdHistoryResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
 export type getWorkflowIdHistoryResponse500 = {
   data: InternalServerErrorResponse
   status: 500
@@ -963,7 +970,7 @@ export type getWorkflowIdHistoryResponse500 = {
 export type getWorkflowIdHistoryResponseSuccess = (getWorkflowIdHistoryResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdHistoryResponseError = (getWorkflowIdHistoryResponse400 | getWorkflowIdHistoryResponse500) & {
+export type getWorkflowIdHistoryResponseError = (getWorkflowIdHistoryResponse400 | getWorkflowIdHistoryResponse404 | getWorkflowIdHistoryResponse500) & {
   headers: Headers;
 };
 

@@ -743,6 +743,19 @@ describe( 'temporal_client', () => {
       expect( result.activityTaskScheduledEventAttributes.stepName ).toBe( 'extractPassages' );
     } );
 
+    it( 'falls back to full activity name when # is absent', () => {
+      const event = {
+        eventId: { toString: () => '5' },
+        eventType: 10,
+        eventTime: null,
+        activityTaskScheduledEventAttributes: {
+          activityType: { name: 'plainActivity' }
+        }
+      };
+      const result = serializeEvent( event );
+      expect( result.activityTaskScheduledEventAttributes.stepName ).toBe( 'plainActivity' );
+    } );
+
     it( 'converts scheduledEventId Long to string', () => {
       const event = {
         eventId: { toString: () => '7' },
@@ -784,6 +797,80 @@ describe( 'temporal_client', () => {
       };
       const result = serializeEvent( event, { includePayloads: true } );
       expect( result.activityTaskScheduledEventAttributes.input ).toEqual( [ 'decoded-input' ] );
+    } );
+
+    it( 'strips result and failure when includePayloads is false', () => {
+      const completed = {
+        eventId: { toString: () => '7' },
+        eventType: 12,
+        eventTime: null,
+        activityTaskCompletedEventAttributes: { result: [ 'decoded-result' ] }
+      };
+      const failed = {
+        eventId: { toString: () => '8' },
+        eventType: 13,
+        eventTime: null,
+        activityTaskFailedEventAttributes: { failure: { message: 'boom' } }
+      };
+
+      expect( serializeEvent( completed, { includePayloads: false } )
+        .activityTaskCompletedEventAttributes.result ).toBeUndefined();
+      expect( serializeEvent( failed, { includePayloads: false } )
+        .activityTaskFailedEventAttributes.failure ).toBeUndefined();
+    } );
+
+    it( 'strips details and lastCompletionResult when includePayloads is false', () => {
+      const marker = {
+        eventId: { toString: () => '9' },
+        eventType: 9,
+        eventTime: null,
+        markerRecordedEventAttributes: {
+          markerName: 'LocalActivity',
+          details: { data: [ 'local-activity-result' ] }
+        }
+      };
+      const continued = {
+        eventId: { toString: () => '10' },
+        eventType: 6,
+        eventTime: null,
+        workflowExecutionContinuedAsNewEventAttributes: {
+          newExecutionRunId: 'new-run',
+          lastCompletionResult: [ 'prev-result' ],
+          lastFailure: { message: 'prev-failure' }
+        }
+      };
+
+      const markerResult = serializeEvent( marker, { includePayloads: false } );
+      expect( markerResult.markerRecordedEventAttributes.details ).toBeUndefined();
+      expect( markerResult.markerRecordedEventAttributes.markerName ).toBe( 'LocalActivity' );
+
+      const continuedResult = serializeEvent( continued, { includePayloads: false } );
+      expect( continuedResult.workflowExecutionContinuedAsNewEventAttributes.lastCompletionResult ).toBeUndefined();
+      expect( continuedResult.workflowExecutionContinuedAsNewEventAttributes.lastFailure ).toBeUndefined();
+      expect( continuedResult.workflowExecutionContinuedAsNewEventAttributes.newExecutionRunId ).toBe( 'new-run' );
+    } );
+
+    it( 'drops attrs for unknown eventType when includePayloads is false', () => {
+      const event = {
+        eventId: { toString: () => '1' },
+        eventType: 9999,
+        eventTime: null,
+        unknownFutureEventAttributes: { input: 'leaked-input', details: 'leaked-details' }
+      };
+      const result = serializeEvent( event, { includePayloads: false } );
+      expect( result.eventTypeName ).toBe( 'UNKNOWN_9999' );
+      expect( result.unknownFutureEventAttributes ).toBeUndefined();
+    } );
+
+    it( 'keeps attrs for unknown eventType when includePayloads is true', () => {
+      const event = {
+        eventId: { toString: () => '1' },
+        eventType: 9999,
+        eventTime: null,
+        unknownFutureEventAttributes: { input: 'included-input' }
+      };
+      const result = serializeEvent( event, { includePayloads: true } );
+      expect( result.unknownFutureEventAttributes.input ).toBe( 'included-input' );
     } );
 
     it( 'returns UNKNOWN for unmapped eventType values', () => {
@@ -837,6 +924,7 @@ describe( 'temporal_client', () => {
       expect( result.events ).toHaveLength( 1 );
       expect( result.events[0].eventTypeName ).toBe( 'WORKFLOW_EXECUTION_STARTED' );
       expect( result.nextPageToken ).toBeNull();
+      expect( result.runId ).toBe( 'run-abc' );
     } );
 
     it( 'returns workflow: null when pageToken is present', async () => {
@@ -946,6 +1034,40 @@ describe( 'temporal_client', () => {
       await client.getWorkflowHistory( 'wf-123', { runId: 'specific-run' } );
 
       expect( mockGetHandle ).toHaveBeenCalledWith( 'wf-123', 'specific-run' );
+    } );
+
+    it( 'maps gRPC NOT_FOUND to WorkflowNotFoundError', async () => {
+      mockGetHandle.mockReturnValue( {
+        describe: vi.fn().mockResolvedValue( {
+          runId: 'run-abc',
+          status: { name: 'RUNNING' },
+          startTime: new Date( '2024-04-15T12:00:00Z' ),
+          closeTime: null,
+          historyLength: 5,
+          taskQueue: 'default'
+        } )
+      } );
+      const grpcError = Object.assign( new Error( 'not found' ), { code: 5 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowHistory( 'missing-wf' ) )
+        .rejects.toMatchObject( { name: 'WorkflowNotFoundError' } );
+    } );
+
+    it( 'maps gRPC INVALID_ARGUMENT to InvalidPageTokenError', async () => {
+      const grpcError = Object.assign( new Error( 'invalid token' ), { code: 3 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowHistory( 'wf-123', {
+        runId: 'run-abc',
+        pageToken: Buffer.from( 'bogus' ).toString( 'base64' )
+      } ) ).rejects.toMatchObject( { name: 'InvalidPageTokenError' } );
     } );
   } );
 } );
