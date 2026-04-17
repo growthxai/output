@@ -26,7 +26,9 @@ const envVarSchema = z.object( {
   // Whether to send activity heartbeats (enabled by default)
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
   // Time to allow for hooks to flush before shutdown
-  OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 3000 ) )
+  OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 3000 ) ),
+  // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080")
+  TEMPORAL_GRPC_PROXY: z.string().optional()
 } );
 
 const { data: envVars, error } = envVarSchema.safeParse( process.env );
@@ -47,3 +49,4 @@ export const catalogId = envVars.OUTPUT_CATALOG_ID;
 export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS;
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
 export const processFailureShutdownDelay = envVars.OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY;
+export const grpcProxy = envVars.TEMPORAL_GRPC_PROXY;
