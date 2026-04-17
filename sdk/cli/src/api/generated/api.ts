@@ -218,11 +218,8 @@ export const WorkflowStatusResponseStatus = {
 export interface WorkflowStatusResponse {
   /** The id of workflow */
   workflowId?: string;
-  /**
-     * The specific run id for this execution
-     * @nullable
-     */
-  runId?: string | null;
+  /** The specific run id for this execution */
+  runId?: string;
   /** The workflow execution status */
   status?: WorkflowStatusResponseStatus;
   /** An epoch timestamp representing when the workflow started */
@@ -249,11 +246,8 @@ export const WorkflowResultResponseStatus = {
 export interface WorkflowResultResponse {
   /** The workflow execution id */
   workflowId?: string;
-  /**
-     * The specific run id for this execution
-     * @nullable
-     */
-  runId?: string | null;
+  /** The specific run id for this execution */
+  runId?: string;
   /** The original input passed to the workflow, null if unavailable */
   input?: unknown;
   /** The result of workflow, null if workflow failed */
@@ -270,15 +264,13 @@ export interface WorkflowResultResponse {
 
 export interface StopWorkflowResponse {
   workflowId?: string;
-  /** @nullable */
-  runId?: string | null;
+  runId?: string;
 }
 
 export interface TerminateWorkflowResponse {
   terminated?: boolean;
   workflowId?: string;
-  /** @nullable */
-  runId?: string | null;
+  runId?: string;
 }
 
 export interface ResetWorkflowRequest {
