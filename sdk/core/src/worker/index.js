@@ -9,6 +9,7 @@ import { initInterceptors } from './interceptors.js';
 import { createChildLogger } from '#logger';
 import { registerShutdown } from './shutdown.js';
 import { startCatalog } from './start_catalog.js';
+import { bootstrapFetchProxy } from './proxy.js';
 import { messageBus } from '#bus';
 import './log_hooks.js';
 import { BusEventType } from '#consts';
@@ -24,6 +25,7 @@ const callerDir = process.argv[2];
     apiKey,
     namespace,
     taskQueue,
+    grpcProxy,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
     maxCachedWorkflows,
@@ -41,6 +43,7 @@ const callerDir = process.argv[2];
   const activities = await loadActivities( callerDir, workflows );
 
   messageBus.emit( BusEventType.WORKER_BEFORE_START );
+  bootstrapFetchProxy();
 
   log.info( 'Creating worker entry point...' );
   const workflowsPath = createWorkflowsEntryPoint( workflows );
@@ -52,8 +55,8 @@ const callerDir = process.argv[2];
   const catalog = createCatalog( { workflows, activities } );
 
   log.info( 'Connecting Temporal...' );
-  // Enable TLS when connecting to remote Temporal (API key present)
-  const connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey } );
+  const proxy = grpcProxy ? { type: 'http-connect', targetHost: grpcProxy } : undefined;
+  const connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
   log.info( 'Creating worker...' );
   const worker = await Worker.create( {
