@@ -303,7 +303,6 @@
           },
           "runId": {
             "type": "string",
-            "nullable": true,
             "description": "The specific run id for this execution"
           },
           "status": {
@@ -339,7 +338,6 @@
           },
           "runId": {
             "type": "string",
-            "nullable": true,
             "description": "The specific run id for this execution"
           },
           "input": {
@@ -377,8 +375,7 @@
             "type": "string"
           },
           "runId": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },
@@ -392,8 +389,7 @@
             "type": "string"
           },
           "runId": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           }
         }
       },

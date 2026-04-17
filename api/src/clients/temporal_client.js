@@ -495,16 +495,19 @@ export default {
        */
       async resetWorkflow( workflowId, stepName, reason, runId ) {
         const handle = client.workflow.getHandle( workflowId, runId );
-        const history = await handle.fetchHistory();
-        const resetEventId = resolveResetEventId( history.events, stepName );
 
-        // Resolve the runId from describe() if the caller didn't pin one, so we target
-        // exactly the run whose history we just scanned — avoids racing continueAsNew
-        // between fetchHistory and the reset RPC.
+        // Pin the runId before reading history so fetchHistory and the reset RPC
+        // target the same execution. Describing first (not after fetchHistory)
+        // closes the continueAsNew race where the "latest" run can change between
+        // the history read and the reset.
         const resolvedRunId = runId ?? ( await handle.describe() ).runId;
         if ( !resolvedRunId ) {
           throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
         }
+        const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
+
+        const history = await pinnedHandle.fetchHistory();
+        const resetEventId = resolveResetEventId( history.events, stepName );
 
         const response = await connection.workflowService.resetWorkflowExecution( {
           namespace,

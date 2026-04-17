@@ -293,7 +293,6 @@ app.use( ( req, res, next ) => {
  *           description: The id of workflow
  *         runId:
  *           type: string
- *           nullable: true
  *           description: The specific run id for this execution
  *         status:
  *           type: string
@@ -313,7 +312,6 @@ app.use( ( req, res, next ) => {
  *           description: The workflow execution id
  *         runId:
  *           type: string
- *           nullable: true
  *           description: The specific run id for this execution
  *         input:
  *           description: The original input passed to the workflow, null if unavailable
@@ -336,7 +334,6 @@ app.use( ( req, res, next ) => {
  *           type: string
  *         runId:
  *           type: string
- *           nullable: true
  *     TerminateWorkflowResponse:
  *       type: object
  *       properties:
@@ -346,7 +343,6 @@ app.use( ( req, res, next ) => {
  *           type: string
  *         runId:
  *           type: string
- *           nullable: true
  *     ResetWorkflowRequest:
  *       type: object
  *       required: [stepName]

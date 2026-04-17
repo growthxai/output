@@ -707,6 +707,21 @@ describe( 'temporal_client', () => {
       expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-new' } );
     } );
 
+    it( 'describes before fetching history and pins the handle against the resolved runId', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' }, runId: 'run-resolved' } );
+      mockResetWorkflowExecution.mockResolvedValue( { runId: 'run-new' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.resetWorkflow( 'workflow-123', 'stepA' );
+
+      expect( mockDescribe.mock.invocationCallOrder[0] )
+        .toBeLessThan( mockFetchHistory.mock.invocationCallOrder[0] );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 1, 'workflow-123', undefined );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 2, 'workflow-123', 'run-resolved' );
+    } );
+
     it( 'uses the caller-provided runId without re-resolving from describe', async () => {
       mockFetchHistory.mockResolvedValue( buildValidHistory() );
       mockResetWorkflowExecution.mockResolvedValue( { runId: 'run-new' } );
