@@ -10,6 +10,9 @@ const {
   mockGetHandle,
   mockConnect,
   mockFetchHistory,
+  mockCancel,
+  mockTerminate,
+  mockResetWorkflowExecution,
   mockLoggerInfo,
   mockLoggerError,
   mockLoggerWarn,
@@ -22,6 +25,9 @@ const {
   const mockGetHandle = vi.fn();
   const mockConnect = vi.fn();
   const mockFetchHistory = vi.fn();
+  const mockCancel = vi.fn();
+  const mockTerminate = vi.fn();
+  const mockResetWorkflowExecution = vi.fn();
   const mockLoggerInfo = vi.fn();
   const mockLoggerError = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -43,6 +49,9 @@ const {
     mockGetHandle,
     mockConnect,
     mockFetchHistory,
+    mockCancel,
+    mockTerminate,
+    mockResetWorkflowExecution,
     mockLoggerInfo,
     mockLoggerError,
     mockLoggerWarn,
@@ -104,13 +113,18 @@ vi.mock( '#utils', () => ( {
 describe( 'temporal_client', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    mockConnect.mockResolvedValue( {} );
+    mockConnect.mockResolvedValue( {
+      workflowService: { resetWorkflowExecution: mockResetWorkflowExecution },
+      close: vi.fn()
+    } );
     mockFetchHistory.mockResolvedValue( { events: [] } );
     mockGetHandle.mockReturnValue( {
       describe: mockDescribe,
       result: mockResult,
       query: mockQuery,
-      fetchHistory: mockFetchHistory
+      fetchHistory: mockFetchHistory,
+      cancel: mockCancel,
+      terminate: mockTerminate
     } );
   } );
 
@@ -140,6 +154,7 @@ describe( 'temporal_client', () => {
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.reject( workflowError )
       } );
       mockGetHandle
@@ -152,6 +167,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
+        runId: 'run-aaa',
         status: 'failed',
         input: null,
         output: null,
@@ -169,6 +185,7 @@ describe( 'temporal_client', () => {
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -181,6 +198,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'test-uuid',
+        runId: 'run-aaa',
         status: 'completed',
         input: null,
         output: { data: 'result' },
@@ -196,6 +214,7 @@ describe( 'temporal_client', () => {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -221,6 +240,7 @@ describe( 'temporal_client', () => {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-aaa',
         result: () => Promise.resolve( successResult )
       } );
       mockGetHandle
@@ -263,7 +283,7 @@ describe( 'temporal_client', () => {
       mockQuery.mockResolvedValue( {
         workflows: [ { name: 'new_name', aliases: [ 'old_name' ] } ]
       } );
-      mockStart.mockResolvedValue( {} );
+      mockStart.mockResolvedValue( { firstExecutionRunId: 'run-bbb' } );
       mockGetHandle.mockReturnValue( { query: mockQuery } );
 
       const temporalClient = ( await import( './temporal_client.js' ) ).default;
@@ -271,6 +291,7 @@ describe( 'temporal_client', () => {
       const result = await client.startWorkflow( 'old_name', { input: 'data' } );
 
       expect( result.workflowId ).toBe( 'test-uuid' );
+      expect( result.runId ).toBe( 'run-bbb' );
       expect( mockStart ).toHaveBeenCalledWith( 'new_name', expect.objectContaining( {
         args: [ { input: 'data' } ]
       } ) );
@@ -300,7 +321,8 @@ describe( 'temporal_client', () => {
       const workflowOutput = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 2, name: 'COMPLETED' }
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-completed'
       } );
       mockResult.mockResolvedValue( workflowOutput );
 
@@ -310,12 +332,70 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-completed',
         status: 'completed',
         input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         error: null
       } );
+    } );
+
+    it( 'should forward runId to getHandle when provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-explicit'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', 'run-explicit' );
+    } );
+
+    it( 'should pass undefined runId to getHandle when not provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-latest'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', undefined );
+    } );
+
+    it( 'should pin handle to resolved runId after describe when runId was not provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-latest'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 1, 'workflow-123', undefined );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 2, 'workflow-123', 'run-latest' );
+    } );
+
+    it( 'should not re-pin handle when runId was provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-explicit'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
@@ -326,7 +406,8 @@ describe( 'temporal_client', () => {
       } );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 3, name: 'FAILED' }
+        status: { code: 3, name: 'FAILED' },
+        runId: 'run-failed'
       } );
       mockResult.mockRejectedValue( workflowError );
 
@@ -336,6 +417,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-failed',
         status: 'failed',
         input: null,
         output: null,
@@ -348,7 +430,8 @@ describe( 'temporal_client', () => {
       const connectionError = new Error( 'Connection refused' );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 3, name: 'FAILED' }
+        status: { code: 3, name: 'FAILED' },
+        runId: 'run-unexpected'
       } );
       mockResult.mockRejectedValue( connectionError );
 
@@ -359,7 +442,7 @@ describe( 'temporal_client', () => {
         .rejects
         .toThrow( 'Connection refused' );
 
-      expect( mockLoggerError ).toHaveBeenCalledWith(
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
         'Unexpected error fetching workflow result',
         expect.objectContaining( {
           workflowId: 'workflow-123',
@@ -371,7 +454,8 @@ describe( 'temporal_client', () => {
 
     it( 'should return continued status for CONTINUED_AS_NEW workflows', async () => {
       mockDescribe.mockResolvedValue( {
-        status: { code: 6, name: 'CONTINUED_AS_NEW' }
+        status: { code: 6, name: 'CONTINUED_AS_NEW' },
+        runId: 'run-continued'
       } );
 
       const temporalClient = ( await import( './temporal_client.js' ) ).default;
@@ -380,6 +464,7 @@ describe( 'temporal_client', () => {
 
       expect( result ).toEqual( {
         workflowId: 'workflow-123',
+        runId: 'run-continued',
         status: 'continued',
         input: null,
         output: null,
@@ -392,7 +477,8 @@ describe( 'temporal_client', () => {
       const cancelError = new MockWorkflowFailedError( 'Workflow canceled' );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 4, name: 'CANCELED' }
+        status: { code: 4, name: 'CANCELED' },
+        runId: 'run-canceled'
       } );
       mockResult.mockRejectedValue( cancelError );
 
@@ -408,7 +494,8 @@ describe( 'temporal_client', () => {
       const terminateError = new MockWorkflowFailedError( 'Workflow terminated' );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 5, name: 'TERMINATED' }
+        status: { code: 5, name: 'TERMINATED' },
+        runId: 'run-terminated'
       } );
       mockResult.mockRejectedValue( terminateError );
 
@@ -424,7 +511,8 @@ describe( 'temporal_client', () => {
       const timeoutError = new MockWorkflowFailedError( 'Workflow timed out' );
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 7, name: 'TIMED_OUT' }
+        status: { code: 7, name: 'TIMED_OUT' },
+        runId: 'run-timedout'
       } );
       mockResult.mockRejectedValue( timeoutError );
 
@@ -440,7 +528,8 @@ describe( 'temporal_client', () => {
       const workflowInput = { url: 'https://example.com', options: { depth: 2 } };
 
       mockDescribe.mockResolvedValue( {
-        status: { code: 2, name: 'COMPLETED' }
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-input'
       } );
       mockResult.mockResolvedValue( { output: { data: 'result' }, trace: null } );
       mockFetchHistory.mockResolvedValue( {
@@ -456,6 +545,220 @@ describe( 'temporal_client', () => {
       const result = await client.getWorkflowResult( 'workflow-123' );
 
       expect( result.input ).toEqual( workflowInput );
+    } );
+
+    it( 'should throw when describe reports no runId for a terminal execution', async () => {
+      mockDescribe.mockResolvedValue( { status: { code: 2, name: 'COMPLETED' } } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowResult( 'workflow-no-runid' ) )
+        .rejects
+        .toThrow( /did not report a runId/ );
+    } );
+  } );
+
+  describe( 'getWorkflowStatus', () => {
+    it( 'forwards runId to getHandle when provided', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 1, name: 'RUNNING' },
+        runId: 'run-explicit',
+        startTime: new Date( 1_700_000_000_000 ),
+        closeTime: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const status = await client.getWorkflowStatus( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', 'run-explicit' );
+      expect( status ).toMatchObject( { workflowId: 'workflow-123', runId: 'run-explicit', status: 'running' } );
+    } );
+
+    it( 'passes undefined to getHandle when runId is omitted', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-latest',
+        startTime: new Date( 1_700_000_000_000 ),
+        closeTime: new Date( 1_700_000_001_000 )
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const status = await client.getWorkflowStatus( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', undefined );
+      expect( status.runId ).toBe( 'run-latest' );
+    } );
+
+    it( 'returns empty string timestamps when start/close times are absent', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 1, name: 'RUNNING' },
+        runId: 'run-x',
+        startTime: null,
+        closeTime: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const status = await client.getWorkflowStatus( 'workflow-x' );
+
+      expect( status.startedAt ).toBe( '' );
+      expect( status.completedAt ).toBe( '' );
+    } );
+  } );
+
+  describe( 'stopWorkflow', () => {
+    it( 'cancels the handle and returns the provided runId without calling describe', async () => {
+      mockCancel.mockResolvedValue( undefined );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.stopWorkflow( 'workflow-123', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', 'run-explicit' );
+      expect( mockCancel ).toHaveBeenCalled();
+      expect( mockDescribe ).not.toHaveBeenCalled();
+      expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-explicit' } );
+    } );
+
+    it( 'resolves the latest runId via describe when no runId is provided', async () => {
+      mockCancel.mockResolvedValue( undefined );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' }, runId: 'run-latest' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.stopWorkflow( 'workflow-123' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', undefined );
+      expect( mockCancel ).toHaveBeenCalled();
+      expect( mockDescribe ).toHaveBeenCalled();
+      expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-latest' } );
+    } );
+  } );
+
+  describe( 'terminateWorkflow', () => {
+    it( 'terminates with the given reason and returns the provided runId', async () => {
+      mockTerminate.mockResolvedValue( undefined );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.terminateWorkflow( 'workflow-123', 'bad data', 'run-explicit' );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'workflow-123', 'run-explicit' );
+      expect( mockTerminate ).toHaveBeenCalledWith( 'bad data' );
+      expect( mockDescribe ).not.toHaveBeenCalled();
+      expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-explicit' } );
+    } );
+
+    it( 'resolves the latest runId when none is pinned', async () => {
+      mockTerminate.mockResolvedValue( undefined );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' }, runId: 'run-latest' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.terminateWorkflow( 'workflow-123', undefined, undefined );
+
+      expect( mockTerminate ).toHaveBeenCalledWith( undefined );
+      expect( mockDescribe ).toHaveBeenCalled();
+      expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-latest' } );
+    } );
+  } );
+
+  describe( 'resetWorkflow', () => {
+    const buildValidHistory = () => ( {
+      events: [
+        { eventId: { toString: () => '1' }, eventType: 1 },
+        { eventId: { toString: () => '2' }, eventType: 5 },
+        { eventId: { toString: () => '3' }, eventType: 6 },
+        { eventId: { toString: () => '4' }, eventType: 7 },
+        {
+          eventId: { toString: () => '5' },
+          eventType: 10,
+          activityTaskScheduledEventAttributes: { activityType: { name: 'wf#stepA' } }
+        },
+        { eventId: { toString: () => '6' }, eventType: 11 },
+        {
+          eventId: { toString: () => '7' },
+          eventType: 12,
+          activityTaskCompletedEventAttributes: { scheduledEventId: { toString: () => '5' } }
+        },
+        { eventId: { toString: () => '8' }, eventType: 5 },
+        { eventId: { toString: () => '9' }, eventType: 6 },
+        { eventId: { toString: () => '10' }, eventType: 7 }
+      ]
+    } );
+
+    it( 'pins the resolved runId and returns the new runId from the reset response', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' }, runId: 'run-resolved' } );
+      mockResetWorkflowExecution.mockResolvedValue( { runId: 'run-new' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.resetWorkflow( 'workflow-123', 'stepA', 'retry' );
+
+      expect( mockDescribe ).toHaveBeenCalled();
+      expect( mockResetWorkflowExecution ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowExecution: { workflowId: 'workflow-123', runId: 'run-resolved' },
+        reason: 'retry'
+      } ) );
+      expect( result ).toEqual( { workflowId: 'workflow-123', runId: 'run-new' } );
+    } );
+
+    it( 'describes before fetching history and pins the handle against the resolved runId', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' }, runId: 'run-resolved' } );
+      mockResetWorkflowExecution.mockResolvedValue( { runId: 'run-new' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.resetWorkflow( 'workflow-123', 'stepA' );
+
+      expect( mockDescribe.mock.invocationCallOrder[0] )
+        .toBeLessThan( mockFetchHistory.mock.invocationCallOrder[0] );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 1, 'workflow-123', undefined );
+      expect( mockGetHandle ).toHaveBeenNthCalledWith( 2, 'workflow-123', 'run-resolved' );
+    } );
+
+    it( 'uses the caller-provided runId without re-resolving from describe', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+      mockResetWorkflowExecution.mockResolvedValue( { runId: 'run-new' } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.resetWorkflow( 'workflow-123', 'stepA', undefined, 'run-pinned' );
+
+      expect( mockDescribe ).not.toHaveBeenCalled();
+      expect( mockResetWorkflowExecution ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowExecution: { workflowId: 'workflow-123', runId: 'run-pinned' }
+      } ) );
+    } );
+
+    it( 'throws when describe returns no runId and caller did not pin one', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+      mockDescribe.mockResolvedValue( { status: { code: 1, name: 'RUNNING' } } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.resetWorkflow( 'workflow-123', 'stepA' ) )
+        .rejects
+        .toThrow( /did not report a runId/ );
+      expect( mockResetWorkflowExecution ).not.toHaveBeenCalled();
+    } );
+
+    it( 'propagates StepNotFoundError when the step name does not exist in history', async () => {
+      mockFetchHistory.mockResolvedValue( buildValidHistory() );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.resetWorkflow( 'workflow-123', 'unknownStep', undefined, 'run-pinned' ) )
+        .rejects
+        .toThrow( StepNotFoundError );
+      expect( mockResetWorkflowExecution ).not.toHaveBeenCalled();
     } );
   } );
 

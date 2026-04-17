@@ -1,8 +1,8 @@
-import type { GetWorkflowIdResult200, GetWorkflowIdResult200Status } from '../api/generated/api.js';
+import type { WorkflowResultResponse, WorkflowResultResponseStatus } from '../api/generated/api.js';
 
-type WorkflowResult = Pick<GetWorkflowIdResult200, 'workflowId' | 'output' | 'status' | 'error'>;
+type WorkflowResult = Pick<WorkflowResultResponse, 'workflowId' | 'output' | 'status' | 'error'>;
 
-export const ERROR_STATUSES: ReadonlySet<GetWorkflowIdResult200Status | undefined> = new Set(
+export const ERROR_STATUSES: ReadonlySet<WorkflowResultResponseStatus | undefined> = new Set(
   [ 'failed', 'canceled', 'terminated', 'timed_out' ] as const
 );
 

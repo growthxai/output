@@ -58,3 +58,11 @@ export class StepNotCompletedError extends Error {
     super( `Step "${stepName}" has not completed. Cannot reset to an incomplete step.` );
   }
 }
+
+/** Thrown when no trace is available for a workflow execution. */
+export class TraceNotAvailableError extends Error {
+  constructor( workflowId ) {
+    super( `No trace available for workflow "${workflowId}".` );
+    this.workflowId = workflowId;
+  }
+}
