@@ -14,7 +14,8 @@ The following routes are deprecated (sunset 2026-07-16) and should be migrated t
 Deprecated routes emit `Deprecation`, `Sunset`, and `Link` response headers on every call.
 
 **Additive response-shape changes (backwards-compatible):**
+- `POST /workflow/run` now includes `runId` in the response
 - `POST /workflow/start` now includes `runId` in the response
-- `PATCH /workflow/:id/stop` now returns `{ workflowId, runId }` (previously empty body)
-- `POST /workflow/:id/terminate` now returns `{ terminated, workflowId, runId }` (previously no `runId`)
+- `PATCH /workflow/:id/stop` now returns `{ workflowId, runId }` (previously no response body)
+- `POST /workflow/:id/terminate` response now includes `runId`
 - All status, result, and trace-log responses now include `runId`
