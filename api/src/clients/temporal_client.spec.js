@@ -442,7 +442,7 @@ describe( 'temporal_client', () => {
         .rejects
         .toThrow( 'Connection refused' );
 
-      expect( mockLoggerError ).toHaveBeenCalledWith(
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
         'Unexpected error fetching workflow result',
         expect.objectContaining( {
           workflowId: 'workflow-123',

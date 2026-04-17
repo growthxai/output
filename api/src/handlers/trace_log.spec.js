@@ -49,7 +49,11 @@ describe( 'trace_log handler', () => {
 
     await request( createApp() )
       .get( '/workflow/test-workflow-id/trace-log' )
-      .expect( 404, { error: 'No trace available for this workflow' } );
+      .expect( 404, {
+        error: 'TraceNotAvailableError',
+        message: 'No trace available for workflow "test-workflow-id".',
+        workflowId: 'test-workflow-id'
+      } );
   } );
 
   it( 'returns remote response with data for S3 traces', async () => {

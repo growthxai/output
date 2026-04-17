@@ -19,7 +19,7 @@ export default function deprecated( { successor, sunset } ) {
       Sunset: sunset,
       Link: `<${successor}>; rel="successor-version"`
     } );
-    logger.info( 'Deprecated route hit', { path: req.path, method: req.method, successor } );
+    logger.warn( 'Deprecated route hit', { path: req.path, method: req.method, successor } );
     next();
   };
 }
