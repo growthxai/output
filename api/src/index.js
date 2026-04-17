@@ -1091,7 +1091,7 @@ app.get( '/workflow/runs', async ( req, res ) => {
  * /workflow/{id}/feedback:
  *   post:
  *     summary: Send feedback to a workflow
- *     description: Always targets the latest run; runId cannot be pinned for Temporal signal-based operations.
+ *     description: Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1132,7 +1132,7 @@ app.post( '/workflow/:id/feedback', async ( req, res ) => {
  * /workflow/{id}/signal/{signal}:
  *   post:
  *     summary: Send a signal to an workflow
- *     description: Always targets the latest run; runId cannot be pinned for Temporal signal operations.
+ *     description: Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1179,7 +1179,7 @@ app.post( '/workflow/:id/signal/:signal', async ( req, res ) => {
  * /workflow/{id}/query/{query}:
  *   post:
  *     summary: Send a query to an workflow
- *     description: Always targets the latest run; runId cannot be pinned for Temporal query operations.
+ *     description: Always targets the latest run; `runId` cannot be pinned for Temporal query operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1226,7 +1226,7 @@ app.post( '/workflow/:id/query/:query', async ( req, res ) => {
  * /workflow/{id}/update/{update}:
  *   post:
  *     summary: Execute an update on an workflow
- *     description: Always targets the latest run; runId cannot be pinned for Temporal update operations.
+ *     description: Always targets the latest run; `runId` cannot be pinned for Temporal update operations.
  *     parameters:
  *      - in: path
  *        name: id

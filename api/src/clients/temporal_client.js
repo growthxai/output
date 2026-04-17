@@ -411,8 +411,8 @@ export default {
             if ( e instanceof WorkflowFailedError ) {
               return e;
             }
-            // Unexpected error (connection, auth, etc.) - don't mask as workflow failure
-            logger.error( 'Unexpected error fetching workflow result', {
+            // Unexpected error (connection, auth, etc.) - log at warn; error_handler logs at error on re-throw
+            logger.warn( 'Unexpected error fetching workflow result', {
               workflowId,
               status,
               errorType: e.constructor.name,

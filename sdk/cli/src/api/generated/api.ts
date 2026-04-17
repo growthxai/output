@@ -774,7 +774,7 @@ export const patchWorkflowIdRunsRidStop = async (id: string,
 
 
 /**
- * Stops the latest run of the given workflow. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to target a specific run. Scheduled for removal after 2026-07-16.
+ * Stops the latest run of the given workflow. The returned `runId` reflects the run at describe-time and may differ from the cancelled run if a new execution started concurrently. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to pin a specific run. Scheduled for removal after 2026-07-16.
  * @deprecated
  * @summary [Deprecated] Stop the latest workflow run
  */
@@ -1460,7 +1460,7 @@ export const getWorkflowRuns = async (params?: GetWorkflowRunsParams, options?: 
 
 
 /**
- * Always targets the latest run; runId cannot be pinned for Temporal signal-based operations.
+ * Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.
  * @summary Send feedback to a workflow
  */
 export type postWorkflowIdFeedbackResponse200 = {
@@ -1516,7 +1516,7 @@ export const postWorkflowIdFeedback = async (id: string,
 
 
 /**
- * Always targets the latest run; runId cannot be pinned for Temporal signal operations.
+ * Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.
  * @summary Send a signal to an workflow
  */
 export type postWorkflowIdSignalSignalResponse200 = {
@@ -1574,7 +1574,7 @@ export const postWorkflowIdSignalSignal = async (id: string,
 
 
 /**
- * Always targets the latest run; runId cannot be pinned for Temporal query operations.
+ * Always targets the latest run; `runId` cannot be pinned for Temporal query operations.
  * @summary Send a query to an workflow
  */
 export type postWorkflowIdQueryQueryResponse200 = {
@@ -1632,7 +1632,7 @@ export const postWorkflowIdQueryQuery = async (id: string,
 
 
 /**
- * Always targets the latest run; runId cannot be pinned for Temporal update operations.
+ * Always targets the latest run; `runId` cannot be pinned for Temporal update operations.
  * @summary Execute an update on an workflow
  */
 export type postWorkflowIdUpdateUpdateResponse200 = {
