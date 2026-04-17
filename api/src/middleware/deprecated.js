@@ -9,17 +9,17 @@ import { logger } from '#logger';
  *
  * @param {Object} options
  * @param {string} options.successor - URL template for the successor route (e.g. '/workflow/{id}/runs/{rid}/stop').
- * @param {string} options.sunset - RFC 8594 sunset date (HTTP-date or ISO 8601).
+ * @param {string} options.sunset - RFC 8594 sunset date in HTTP-date format (e.g. "Thu, 16 Jul 2026 00:00:00 GMT").
  * @returns {import('express').RequestHandler}
  */
 export default function deprecated( { successor, sunset } ) {
-  return ( req, _res, next ) => {
-    req.res.set( {
+  return ( req, res, next ) => {
+    res.set( {
       Deprecation: 'true',
       Sunset: sunset,
       Link: `<${successor}>; rel="successor-version"`
     } );
-    logger.warn( 'Deprecated route hit', { path: req.path, method: req.method, successor } );
+    logger.info( 'Deprecated route hit', { path: req.path, method: req.method, successor } );
     next();
   };
 }

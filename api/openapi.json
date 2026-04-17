@@ -804,7 +804,7 @@
       "patch": {
         "deprecated": true,
         "summary": "[Deprecated] Stop the latest workflow run",
-        "description": "Stops the latest run of the given workflow. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to target a specific run. Scheduled for removal after 2026-07-16.",
+        "description": "Stops the latest run of the given workflow. The returned `runId` reflects the run at describe-time and may differ from the cancelled run if a new execution started concurrently. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to pin a specific run. Scheduled for removal after 2026-07-16.",
         "parameters": [
           {
             "in": "path",

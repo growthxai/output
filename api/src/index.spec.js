@@ -171,7 +171,7 @@ describe( 'API endpoints', () => {
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
       expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
-      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/stop' );
       expect( res.headers.link ).toContain( 'rel="successor-version"' );
       expect( mockLogger.warn ).toHaveBeenCalledWith(
@@ -219,7 +219,7 @@ describe( 'API endpoints', () => {
       expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
       expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
-      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/terminate' );
       expect( mockLogger.warn ).toHaveBeenCalledWith(
         'Deprecated route hit',
@@ -279,7 +279,7 @@ describe( 'API endpoints', () => {
         .expect( 200 );
       expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
-      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/reset' );
       expect( mockLogger.warn ).toHaveBeenCalledWith(
         'Deprecated route hit',

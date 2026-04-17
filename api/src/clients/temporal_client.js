@@ -190,8 +190,7 @@ export default {
 
     return {
       /**
-       * Workflow execution result returned by getWorkflowResult and runWorkflow.
-       * Matches the shape produced by buildWorkflowResponse.
+       * Shape produced by buildWorkflowResponse — shared base for run and result responses.
        *
        * @typedef {Object} WorkflowResult
        * @property {string} workflowId - The workflow execution id
@@ -213,7 +212,7 @@ export default {
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowExecutionTimedOutError}
        * @throws {CatalogNotAvailableError}
-       * @returns {WorkflowResult}
+       * @returns {WorkflowResult} status is always 'completed' or 'failed'
        */
       async runWorkflow( workflowName, input, options = {} ) {
         const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout } = options;
@@ -327,7 +326,11 @@ export default {
           return { workflowId, runId };
         }
         const description = await handle.describe();
-        return { workflowId, runId: description.runId };
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        return { workflowId, runId: resolvedRunId };
       },
 
       /**
@@ -346,7 +349,11 @@ export default {
           return { workflowId, runId };
         }
         const description = await handle.describe();
-        return { workflowId, runId: description.runId };
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        return { workflowId, runId: resolvedRunId };
       },
 
       /**

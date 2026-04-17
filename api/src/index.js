@@ -13,7 +13,7 @@ const runIdPathSchema = z.string().uuid();
 
 // Sunset date for the three deprecated `/workflow/:id/{stop,terminate,reset}` shortcuts.
 // 90 days after the PR that introduces the pinned-run scheme.
-const PINNED_MUTATION_SUNSET = '2026-07-16';
+const PINNED_MUTATION_SUNSET = new Date( '2026-07-16T00:00:00Z' ).toUTCString();
 
 /**
  * Read the pinned runId from the path, if present, validating it is a UUID.
@@ -641,7 +641,7 @@ app.get( '/workflow/:id/runs/:rid/status', statusHandler );
  *   patch:
  *     deprecated: true
  *     summary: "[Deprecated] Stop the latest workflow run"
- *     description: Stops the latest run of the given workflow. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to target a specific run. Scheduled for removal after 2026-07-16.
+ *     description: Stops the latest run of the given workflow. The returned `runId` reflects the run at describe-time and may differ from the cancelled run if a new execution started concurrently. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to pin a specific run. Scheduled for removal after 2026-07-16.
  *     parameters:
  *      - in: path
  *        name: id

@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { fetchTraceFromS3 } from '../clients/s3_client.js';
+import { TraceNotAvailableError } from '../clients/errors.js';
 
 const runIdPathSchema = z.string().uuid();
 
@@ -53,7 +54,7 @@ export function createTraceLogHandler( client ) {
         return res.json( { source: 'local', runId: result.runId, localPath } );
       }
 
-      return res.status( 404 ).json( { error: 'No trace available for this workflow' } );
+      return next( new TraceNotAvailableError( workflowId ) );
     } catch ( error ) {
       return next( error );
     }

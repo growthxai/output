@@ -1,6 +1,7 @@
 import {
   CatalogNotAvailableError, WorkflowNotCompletedError, WorkflowNotFoundError,
-  WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError
+  WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError,
+  TraceNotAvailableError
 } from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
@@ -23,6 +24,7 @@ const NAMED_ERROR_STATUSES = {
   [ZodError.name]: 400,
   [WorkflowNotFoundError.name]: 404,
   [StepNotFoundError.name]: 404,
+  [TraceNotAvailableError.name]: 404,
   [WorkflowExecutionTimedOutError.name]: 408,
   [StepNotCompletedError.name]: 409,
   [WorkflowNotCompletedError.name]: 424,
