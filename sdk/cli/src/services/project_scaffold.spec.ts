@@ -10,7 +10,7 @@ vi.mock( '#utils/framework_version.js', () => ( {
 } ) );
 
 // Mock other dependencies
-vi.mock( '@inquirer/prompts', () => ( {
+vi.mock( '#utils/prompt.js', () => ( {
   input: vi.fn(),
   confirm: vi.fn()
 } ) );
@@ -53,7 +53,7 @@ describe( 'project_scaffold', () => {
 
   describe( 'getProjectConfig', () => {
     it( 'should skip all prompts when folderName is provided', async () => {
-      const { input } = await import( '@inquirer/prompts' );
+      const { input } = await import( '#utils/prompt.js' );
 
       const config = await getProjectConfig( 'my-project' );
 
@@ -69,7 +69,7 @@ describe( 'project_scaffold', () => {
     } );
 
     it( 'should prompt for project name and folder name when not provided', async () => {
-      const { input } = await import( '@inquirer/prompts' );
+      const { input } = await import( '#utils/prompt.js' );
       vi.mocked( input )
         .mockResolvedValueOnce( 'Test Project' )
         .mockResolvedValueOnce( 'test-project' );
@@ -87,7 +87,7 @@ describe( 'project_scaffold', () => {
     it( 'should not prompt when all dependencies are available', async () => {
       const { isDockerInstalled } = await import( '#services/docker.js' );
       const { isClaudeCliAvailable } = await import( '#utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( isDockerInstalled ).mockReturnValue( true );
       vi.mocked( isClaudeCliAvailable ).mockReturnValue( true );
@@ -100,7 +100,7 @@ describe( 'project_scaffold', () => {
     it( 'should prompt user when docker is missing', async () => {
       const { isDockerInstalled } = await import( '#services/docker.js' );
       const { isClaudeCliAvailable } = await import( '#utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( isDockerInstalled ).mockReturnValue( false );
       vi.mocked( isClaudeCliAvailable ).mockReturnValue( true );
@@ -118,7 +118,7 @@ describe( 'project_scaffold', () => {
     it( 'should throw UserCancelledError when user declines to proceed', async () => {
       const { isDockerInstalled } = await import( '#services/docker.js' );
       const { isClaudeCliAvailable } = await import( '#utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( isDockerInstalled ).mockReturnValue( false );
       vi.mocked( isClaudeCliAvailable ).mockReturnValue( true );

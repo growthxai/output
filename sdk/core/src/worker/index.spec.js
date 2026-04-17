@@ -16,6 +16,7 @@ const configValues = {
   namespace: 'default',
   taskQueue: 'test-queue',
   catalogId: 'test-catalog',
+  grpcProxy: undefined,
   maxConcurrentWorkflowTaskExecutions: 200,
   maxConcurrentActivityTaskExecutions: 40,
   maxCachedWorkflows: 1000,
@@ -51,6 +52,9 @@ vi.mock( './interceptors.js', () => ( { initInterceptors: initInterceptorsMock }
 
 const startCatalogMock = vi.fn().mockResolvedValue( undefined );
 vi.mock( './start_catalog.js', () => ( { startCatalog: startCatalogMock } ) );
+
+const bootstrapFetchProxyMock = vi.fn();
+vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: bootstrapFetchProxyMock } ) );
 
 const registerShutdownMock = vi.fn();
 vi.mock( './shutdown.js', () => ( { registerShutdown: registerShutdownMock } ) );
@@ -104,7 +108,8 @@ describe( 'worker/index', () => {
     expect( NativeConnection.connect ).toHaveBeenCalledWith( {
       address: configValues.address,
       tls: false,
-      apiKey: undefined
+      apiKey: undefined,
+      proxy: undefined
     } );
     expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
       namespace: configValues.namespace,

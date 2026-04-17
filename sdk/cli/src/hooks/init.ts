@@ -1,7 +1,12 @@
 import { Hook, ux } from '@oclif/core';
 import { checkForUpdate } from '#services/version_check.js';
+import { setNonInteractive } from '#utils/interactive.js';
 
 const hook: Hook<'init'> = async function () {
+  if ( process.argv.includes( '--yes' ) || process.argv.includes( '--non-interactive' ) || !process.stdin.isTTY ) {
+    setNonInteractive( true );
+  }
+
   try {
     const result = await checkForUpdate( this.config.version, this.config.cacheDir );
 

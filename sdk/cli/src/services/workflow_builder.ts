@@ -7,7 +7,8 @@ import {
   invokeBuildWorkflow as invokeBuildWorkflowFromClient,
   replyToClaude
 } from './claude_client.js';
-import { input } from '@inquirer/prompts';
+import { input } from '#utils/prompt.js';
+import { isInteractive } from '#utils/interactive.js';
 import { ux } from '@oclif/core';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -95,6 +96,10 @@ async function processModification( modification: string, currentOutput: string 
 }
 
 async function interactiveRefinementLoop( currentOutput: string ): Promise<string> {
+  if ( !isInteractive() ) {
+    return currentOutput;
+  }
+
   const modification = await promptForModification();
 
   if ( isAcceptCommand( modification ) ) {

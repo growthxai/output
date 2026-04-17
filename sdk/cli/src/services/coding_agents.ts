@@ -7,7 +7,7 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { join } from 'node:path';
 import { ux } from '@oclif/core';
-import { confirm } from '@inquirer/prompts';
+import { confirm } from '#utils/prompt.js';
 import debugFactory from 'debug';
 import { getTemplateDir } from '#utils/paths.js';
 import { executeClaudeCommand } from '#utils/claude.js';

@@ -70,7 +70,8 @@ export default class WorkflowRun extends Command {
     } ),
     'task-queue': Flags.string( {
       char: 'q',
-      description: 'Task queue name for workflow execution'
+      description: 'Task queue name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
+      env: 'OUTPUT_CATALOG_ID'
     } ),
     format: Flags.string( {
       char: 'f',
