@@ -8,9 +8,7 @@ import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
-import { createStopHandler } from './handlers/stop.js';
-import { createTerminateHandler } from './handlers/terminate.js';
-import { createResultHandler } from './handlers/result.js';
+import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
 
 const runIdPathSchema = z.uuid();
 
