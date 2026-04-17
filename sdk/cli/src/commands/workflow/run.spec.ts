@@ -17,6 +17,7 @@ vi.mock( '#utils/sleep.js', () => ( {
 describe( 'workflow run command', () => {
   beforeEach( async () => {
     vi.clearAllMocks();
+    delete process.env.OUTPUT_CATALOG_ID;
     const { resolveInput } = await import( '#utils/resolve_input.js' );
     const { sleep } = await import( '#utils/sleep.js' );
     vi.mocked( resolveInput ).mockResolvedValue( {} );
