@@ -3,11 +3,9 @@
  * Fetches trace data from workflow result and returns appropriate response
  */
 
-import { z } from 'zod';
 import { fetchTraceFromS3 } from '../clients/s3_client.js';
 import { TraceNotAvailableError } from '../clients/errors.js';
-
-const runIdPathSchema = z.string().uuid();
+import { readPinnedRunId } from './utils.js';
 
 /**
  * @typedef {Object} TraceLogRemoteResponse
@@ -39,7 +37,7 @@ export function createTraceLogHandler( client ) {
   return async ( req, res, next ) => {
     try {
       const workflowId = req.params.id;
-      const runId = req.params.rid ? runIdPathSchema.parse( req.params.rid ) : undefined;
+      const runId = readPinnedRunId( req );
       const result = await client.getWorkflowResult( workflowId, runId );
 
       const localPath = result?.trace?.destinations?.local;

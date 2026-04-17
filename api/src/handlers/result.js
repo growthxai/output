@@ -1,10 +1,7 @@
-import { z } from 'zod';
-
-const runIdSchema = z.string().uuid();
+import { readPinnedRunId } from './utils.js';
 
 export function createResultHandler( client ) {
   return async ( req, res ) => {
-    const runId = req.params.rid ? runIdSchema.parse( req.params.rid ) : undefined;
-    res.json( await client.getWorkflowResult( req.params.id, runId ) );
+    res.json( await client.getWorkflowResult( req.params.id, readPinnedRunId( req ) ) );
   };
 }

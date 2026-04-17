@@ -12,7 +12,7 @@ import { createStopHandler } from './handlers/stop.js';
 import { createTerminateHandler } from './handlers/terminate.js';
 import { createResultHandler } from './handlers/result.js';
 
-const runIdPathSchema = z.string().uuid();
+const runIdPathSchema = z.uuid();
 
 // Sunset date for the three deprecated `/workflow/:id/{stop,terminate,reset}` shortcuts.
 // 90 days after the PR that introduces the pinned-run scheme.
