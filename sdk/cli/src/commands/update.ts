@@ -1,5 +1,5 @@
 import { Command, Flags } from '@oclif/core';
-import { confirm } from '@inquirer/prompts';
+import { confirm } from '#utils/prompt.js';
 import {
   fetchLatestVersion,
   getGlobalInstalledVersion,

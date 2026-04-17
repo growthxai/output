@@ -26,7 +26,7 @@ vi.mock( '@oclif/core', () => ( {
     colorize: vi.fn().mockImplementation( ( _color: string, text: string ) => text )
   }
 } ) );
-vi.mock( '@inquirer/prompts', () => ( {
+vi.mock( '#utils/prompt.js', () => ( {
   confirm: vi.fn()
 } ) );
 
@@ -217,7 +217,7 @@ describe( 'coding_agents service', () => {
 
     it( 'should show error and prompt user when plugin commands fail', async () => {
       const { executeClaudeCommand } = await import( '../utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
         .mockResolvedValueOnce( undefined ) // marketplace add
@@ -238,7 +238,7 @@ describe( 'coding_agents service', () => {
 
     it( 'should allow user to proceed without plugin setup if they confirm', async () => {
       const { executeClaudeCommand } = await import( '../utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
         .mockRejectedValue( new Error( 'All plugin commands fail' ) );
@@ -302,7 +302,7 @@ describe( 'coding_agents service', () => {
 
     it( 'should show error and prompt user when registerPluginMarketplace fails', async () => {
       const { executeClaudeCommand } = await import( '../utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
         .mockResolvedValueOnce( undefined ) // marketplace add
@@ -323,7 +323,7 @@ describe( 'coding_agents service', () => {
 
     it( 'should show error and prompt user when installOutputAIPlugin fails', async () => {
       const { executeClaudeCommand } = await import( '../utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
         .mockResolvedValueOnce( undefined ) // marketplace add
@@ -345,7 +345,7 @@ describe( 'coding_agents service', () => {
 
     it( 'should allow user to proceed without plugin setup if they confirm', async () => {
       const { executeClaudeCommand } = await import( '../utils/claude.js' );
-      const { confirm } = await import( '@inquirer/prompts' );
+      const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
         .mockRejectedValue( new Error( 'All plugin commands fail' ) );
