@@ -6,9 +6,22 @@ import { logger } from '#logger';
 import requestIdMiddleware from './middleware/request_id.js';
 import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
+import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
 
-const runIdQuerySchema = z.object( { runId: z.string().optional() } );
+const runIdPathSchema = z.string().uuid();
+
+// Sunset date for the three deprecated `/workflow/:id/{stop,terminate,reset}` shortcuts.
+// 90 days after the PR that introduces the pinned-run scheme.
+const PINNED_MUTATION_SUNSET = '2026-07-16';
+
+/**
+ * Read the pinned runId from the path, if present, validating it is a UUID.
+ * Returns undefined for shortcut routes where `:rid` is not part of the URL.
+ * @param {import('express').Request} req
+ * @returns {string|undefined}
+ */
+const readPinnedRunId = req => ( req.params.rid ? runIdPathSchema.parse( req.params.rid ) : undefined );
 
 const app = express();
 
@@ -211,6 +224,7 @@ app.use( ( req, res, next ) => {
  *       type: object
  *       required:
  *         - source
+ *         - runId
  *         - data
  *       properties:
  *         source:
@@ -219,14 +233,14 @@ app.use( ( req, res, next ) => {
  *           description: Indicates trace was fetched from remote storage
  *         runId:
  *           type: string
- *           nullable: true
- *           description: The specific run id for this trace
+ *           description: The specific run id this trace belongs to
  *         data:
  *           $ref: '#/components/schemas/TraceData'
  *     TraceLogLocalResponse:
  *       type: object
  *       required:
  *         - source
+ *         - runId
  *         - localPath
  *       properties:
  *         source:
@@ -235,8 +249,7 @@ app.use( ( req, res, next ) => {
  *           description: Indicates trace is available locally
  *         runId:
  *           type: string
- *           nullable: true
- *           description: The specific run id for this trace
+ *           description: The specific run id this trace belongs to
  *         localPath:
  *           type: string
  *           description: Absolute path to local trace file
@@ -272,6 +285,87 @@ app.use( ( req, res, next ) => {
  *         count:
  *           type: integer
  *           description: Total number of runs returned
+ *     WorkflowStatusResponse:
+ *       type: object
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *           description: The id of workflow
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *           description: The specific run id for this execution
+ *         status:
+ *           type: string
+ *           enum: [canceled, completed, continued_as_new, failed, running, terminated, timed_out, unspecified]
+ *           description: The workflow execution status
+ *         startedAt:
+ *           type: number
+ *           description: An epoch timestamp representing when the workflow started
+ *         completedAt:
+ *           type: number
+ *           description: An epoch timestamp representing when the workflow ended
+ *     WorkflowResultResponse:
+ *       type: object
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *           description: The workflow execution id
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *           description: The specific run id for this execution
+ *         input:
+ *           description: The original input passed to the workflow, null if unavailable
+ *         output:
+ *           description: The result of workflow, null if workflow failed
+ *         trace:
+ *           $ref: '#/components/schemas/TraceInfo'
+ *         status:
+ *           type: string
+ *           enum: [completed, failed, canceled, terminated, timed_out, continued]
+ *           description: The workflow execution status
+ *         error:
+ *           type: string
+ *           nullable: true
+ *           description: Error message if workflow failed, null otherwise
+ *     StopWorkflowResponse:
+ *       type: object
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *     TerminateWorkflowResponse:
+ *       type: object
+ *       properties:
+ *         terminated:
+ *           type: boolean
+ *         workflowId:
+ *           type: string
+ *         runId:
+ *           type: string
+ *           nullable: true
+ *     ResetWorkflowRequest:
+ *       type: object
+ *       required: [stepName]
+ *       properties:
+ *         stepName:
+ *           type: string
+ *           description: The name of the step to reset after
+ *         reason:
+ *           type: string
+ *           description: Optional reason for the reset
+ *     ResetWorkflowResponse:
+ *       type: object
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *           description: The original workflow ID
+ *         runId:
+ *           type: string
+ *           description: The run ID of the new execution created by the reset
  *   responses:
  *     BadRequest:
  *       description: Invalid request body or query (validation failed)
@@ -293,6 +387,12 @@ app.use( ( req, res, next ) => {
  *             $ref: '#/components/schemas/ErrorResponse'
  *     FailedDependency:
  *       description: Workflow not in a terminal state (still running)
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *     Conflict:
+ *       description: Workflow run is in a state that conflicts with the requested operation (e.g. operating on an already-terminal run, or resetting to an incomplete step).
  *       content:
  *         application/json:
  *           schema:
@@ -423,6 +523,10 @@ app.post( '/workflow/run', async ( req, res ) => {
  *                 workflowId:
  *                   type: string
  *                   description: The id of the started workflow
+ *                 runId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: The first execution's run id for this workflow
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
@@ -445,7 +549,8 @@ app.post( '/workflow/start', async ( req, res ) => {
  * @swagger
  * /workflow/{id}/status:
  *   get:
- *     summary: Get workflow execution status
+ *     summary: Get workflow execution status (latest run)
+ *     description: Returns the status of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/status`.
  *     parameters:
  *      - in: path
  *        name: id
@@ -453,80 +558,42 @@ app.post( '/workflow/start', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve the status
- *      - in: query
- *        name: runId
- *        required: false
- *        schema:
- *          type: string
- *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The workflow status
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 workflowId:
- *                   type: string
- *                   description: The id of workflow
- *                 runId:
- *                   type: string
- *                   nullable: true
- *                   description: The specific run id for this execution
- *                 status:
- *                   type: string
- *                   enum: [canceled, completed, continued_as_new, failed, running, terminated, timed_out, unspecified]
- *                   description: The workflow execution status
- *                 startedAt:
- *                   type: number
- *                   description: An epoch timestamp representing when the workflow started
- *                 completedAt:
- *                   type: number
- *                   description: An epoch timestamp representing when the workflow ended
- *       400:
- *         $ref: '#/components/responses/BadRequest'
+ *               $ref: '#/components/schemas/WorkflowStatusResponse'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
- */
-app.get( '/workflow/:id/status', async ( req, res ) => {
-  const { runId } = runIdQuerySchema.parse( req.query );
-  res.json( await client.getWorkflowStatus( req.params.id, runId ) );
-} );
-
-/**
- * @swagger
- * /workflow/{id}/stop:
- *   patch:
- *     summary: Stop a workflow execution
+ *
+ * /workflow/{id}/runs/{rid}/status:
+ *   get:
+ *     summary: Get workflow execution status for a specific run
  *     parameters:
  *      - in: path
  *        name: id
  *        required: true
  *        schema:
  *          type: string
- *        description: The id of workflow to stop
- *      - in: query
- *        name: runId
- *        required: false
+ *        description: The id of workflow
+ *      - in: path
+ *        name: rid
+ *        required: true
  *        schema:
  *          type: string
- *        description: Optional specific run id. When omitted, resolves to the latest run.
+ *          format: uuid
+ *        description: The specific run id to target
  *     responses:
  *       200:
- *         description: The workflow stopped
+ *         description: The workflow status
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 workflowId:
- *                   type: string
- *                 runId:
- *                   type: string
- *                   nullable: true
+ *               $ref: '#/components/schemas/WorkflowStatusResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
@@ -534,30 +601,100 @@ app.get( '/workflow/:id/status', async ( req, res ) => {
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-app.patch( '/workflow/:id/stop', async ( req, res ) => {
-  const { runId } = runIdQuerySchema.parse( req.query );
-  res.json( await client.stopWorkflow( req.params.id, runId ) );
-} );
+const statusHandler = async ( req, res ) => {
+  res.json( await client.getWorkflowStatus( req.params.id, readPinnedRunId( req ) ) );
+};
+app.get( '/workflow/:id/status', statusHandler );
+app.get( '/workflow/:id/runs/:rid/status', statusHandler );
 
 /**
  * @swagger
- * /workflow/{id}/terminate:
- *   post:
- *     summary: Terminate a workflow execution (force stop)
- *     description: Force terminates a workflow. Unlike stop/cancel, terminate immediately stops the workflow without allowing cleanup.
+ * /workflow/{id}/runs/{rid}/stop:
+ *   patch:
+ *     summary: Stop a specific workflow run
  *     parameters:
  *      - in: path
  *        name: id
  *        required: true
  *        schema:
  *          type: string
- *        description: The id of workflow to terminate
- *      - in: query
- *        name: runId
- *        required: false
+ *      - in: path
+ *        name: rid
+ *        required: true
  *        schema:
  *          type: string
- *        description: Optional specific run id. When omitted, resolves to the latest run.
+ *          format: uuid
+ *        description: The specific run id to stop
+ *     responses:
+ *       200:
+ *         description: The workflow run was stopped
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StopWorkflowResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/stop:
+ *   patch:
+ *     deprecated: true
+ *     summary: "[Deprecated] Stop the latest workflow run"
+ *     description: Stops the latest run of the given workflow. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to target a specific run. Scheduled for removal after 2026-07-16.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *     responses:
+ *       200:
+ *         description: The workflow run was stopped
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StopWorkflowResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+const stopHandler = async ( req, res ) => {
+  res.json( await client.stopWorkflow( req.params.id, readPinnedRunId( req ) ) );
+};
+app.patch( '/workflow/:id/runs/:rid/stop', stopHandler );
+app.patch(
+  '/workflow/:id/stop',
+  deprecated( { successor: '/workflow/{id}/runs/{rid}/stop', sunset: PINNED_MUTATION_SUNSET } ),
+  stopHandler
+);
+
+/**
+ * @swagger
+ * /workflow/{id}/runs/{rid}/terminate:
+ *   post:
+ *     summary: Terminate a specific workflow run (force stop)
+ *     description: Force terminates a workflow run. Unlike stop/cancel, terminate immediately stops the run without allowing cleanup.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *      - in: path
+ *        name: rid
+ *        required: true
+ *        schema:
+ *          type: string
+ *          format: uuid
+ *        description: The specific run id to terminate
  *     requestBody:
  *       content:
  *         application/json:
@@ -569,40 +706,73 @@ app.patch( '/workflow/:id/stop', async ( req, res ) => {
  *                 description: Optional reason for termination
  *     responses:
  *       200:
- *         description: The workflow was terminated
+ *         description: The workflow run was terminated
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 terminated:
- *                   type: boolean
- *                 workflowId:
- *                   type: string
- *                 runId:
- *                   type: string
- *                   nullable: true
+ *               $ref: '#/components/schemas/TerminateWorkflowResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/terminate:
+ *   post:
+ *     deprecated: true
+ *     summary: "[Deprecated] Terminate the latest workflow run"
+ *     description: Force terminates the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/terminate` to target a specific run. Scheduled for removal after 2026-07-16.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: The workflow run was terminated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TerminateWorkflowResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-app.post( '/workflow/:id/terminate', async ( req, res ) => {
+const terminateHandler = async ( req, res ) => {
   const { reason } = z.object( { reason: z.string().optional() } ).optional().default( {} ).parse( req.body );
-  const { runId } = runIdQuerySchema.parse( req.query );
-
-  const info = await client.terminateWorkflow( req.params.id, reason, runId );
+  const info = await client.terminateWorkflow( req.params.id, reason, readPinnedRunId( req ) );
   res.json( { terminated: true, ...info } );
-} );
+};
+app.post( '/workflow/:id/runs/:rid/terminate', terminateHandler );
+app.post(
+  '/workflow/:id/terminate',
+  deprecated( { successor: '/workflow/{id}/runs/{rid}/terminate', sunset: PINNED_MUTATION_SUNSET } ),
+  terminateHandler
+);
 
 /**
  * @swagger
- * /workflow/{id}/reset:
+ * /workflow/{id}/runs/{rid}/reset:
  *   post:
- *     summary: Reset a workflow to re-run from after a specific step
- *     description: Resets a workflow execution to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.
+ *     summary: Reset a specific workflow run to re-run from after a completed step
+ *     description: Resets a pinned workflow run to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.
  *     parameters:
  *      - in: path
  *        name: id
@@ -610,69 +780,88 @@ app.post( '/workflow/:id/terminate', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The workflow ID to reset
- *      - in: query
- *        name: runId
- *        required: false
+ *      - in: path
+ *        name: rid
+ *        required: true
  *        schema:
  *          type: string
- *        description: Optional specific run id to reset. When omitted, resolves to the latest run.
+ *          format: uuid
+ *        description: The specific run id to reset
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - stepName
- *             properties:
- *               stepName:
- *                 type: string
- *                 description: The name of the step to reset after
- *               reason:
- *                 type: string
- *                 description: Optional reason for the reset
+ *             $ref: '#/components/schemas/ResetWorkflowRequest'
  *     responses:
  *       200:
  *         description: The workflow was reset successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 workflowId:
- *                   type: string
- *                   description: The original workflow ID
- *                 runId:
- *                   type: string
- *                   description: The run ID of the new execution created by the reset
+ *               $ref: '#/components/schemas/ResetWorkflowResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
  *       409:
- *         description: Step has not completed yet (conflict with current workflow state)
+ *         $ref: '#/components/responses/Conflict'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/reset:
+ *   post:
+ *     deprecated: true
+ *     summary: "[Deprecated] Reset the latest workflow run"
+ *     description: Resets the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/reset` to target a specific run. Scheduled for removal after 2026-07-16.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ResetWorkflowRequest'
+ *     responses:
+ *       200:
+ *         description: The workflow was reset successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *               $ref: '#/components/schemas/ResetWorkflowResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       409:
+ *         $ref: '#/components/responses/Conflict'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-app.post( '/workflow/:id/reset', async ( req, res ) => {
+const resetHandler = async ( req, res ) => {
   const { stepName, reason } = z.object( {
     stepName: z.string(),
     reason: z.string().optional()
   } ).parse( req.body );
-  const { runId } = runIdQuerySchema.parse( req.query );
-
-  res.json( await client.resetWorkflow( req.params.id, stepName, reason, runId ) );
-} );
+  res.json( await client.resetWorkflow( req.params.id, stepName, reason, readPinnedRunId( req ) ) );
+};
+app.post( '/workflow/:id/runs/:rid/reset', resetHandler );
+app.post(
+  '/workflow/:id/reset',
+  deprecated( { successor: '/workflow/{id}/runs/{rid}/reset', sunset: PINNED_MUTATION_SUNSET } ),
+  resetHandler
+);
 
 /**
  * @swagger
  * /workflow/{id}/result:
  *   get:
- *     summary: Return the result of a workflow
+ *     summary: Return the result of a workflow (latest run)
+ *     description: Returns the result of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/result`.
  *     parameters:
  *      - in: path
  *        name: id
@@ -680,41 +869,43 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve the result
- *      - in: query
- *        name: runId
- *        required: false
- *        schema:
- *          type: string
- *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The workflow result
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 workflowId:
- *                   type: string
- *                   description: The workflow execution id
- *                 runId:
- *                   type: string
- *                   nullable: true
- *                   description: The specific run id for this execution
- *                 input:
- *                   description: The original input passed to the workflow, null if unavailable
- *                 output:
- *                   description: The result of workflow, null if workflow failed
- *                 trace:
- *                   $ref: '#/components/schemas/TraceInfo'
- *                 status:
- *                   type: string
- *                   enum: [completed, failed, canceled, terminated, timed_out, continued]
- *                   description: The workflow execution status
- *                 error:
- *                   type: string
- *                   nullable: true
- *                   description: Error message if workflow failed, null otherwise
+ *               $ref: '#/components/schemas/WorkflowResultResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/runs/{rid}/result:
+ *   get:
+ *     summary: Return the result of a specific workflow run
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *      - in: path
+ *        name: rid
+ *        required: true
+ *        schema:
+ *          type: string
+ *          format: uuid
+ *        description: The specific run id to target
+ *     responses:
+ *       200:
+ *         description: The workflow result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WorkflowResultResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:
@@ -724,17 +915,18 @@ app.post( '/workflow/:id/reset', async ( req, res ) => {
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-app.get( '/workflow/:id/result', async ( req, res ) => {
-  const { runId } = runIdQuerySchema.parse( req.query );
-  res.json( await client.getWorkflowResult( req.params.id, runId ) );
-} );
+const resultHandler = async ( req, res ) => {
+  res.json( await client.getWorkflowResult( req.params.id, readPinnedRunId( req ) ) );
+};
+app.get( '/workflow/:id/result', resultHandler );
+app.get( '/workflow/:id/runs/:rid/result', resultHandler );
 
 /**
  * @swagger
  * /workflow/{id}/trace-log:
  *   get:
- *     summary: Get workflow trace log data
- *     description: Returns trace data for a completed workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
+ *     summary: Get workflow trace log data (latest run)
+ *     description: Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
  *     parameters:
  *      - in: path
  *        name: id
@@ -742,12 +934,6 @@ app.get( '/workflow/:id/result', async ( req, res ) => {
  *        schema:
  *          type: string
  *        description: The id of workflow to retrieve trace log
- *      - in: query
- *        name: runId
- *        required: false
- *        schema:
- *          type: string
- *        description: Optional specific run id. When omitted, resolves to the latest run.
  *     responses:
  *       200:
  *         description: The trace log response
@@ -763,8 +949,45 @@ app.get( '/workflow/:id/result', async ( req, res ) => {
  *         $ref: '#/components/responses/FailedDependency'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/runs/{rid}/trace-log:
+ *   get:
+ *     summary: Get workflow trace log data for a specific run
+ *     description: Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *      - in: path
+ *        name: rid
+ *        required: true
+ *        schema:
+ *          type: string
+ *          format: uuid
+ *        description: The specific run id to target
+ *     responses:
+ *       200:
+ *         description: The trace log response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/TraceLogRemoteResponse'
+ *                 - $ref: '#/components/schemas/TraceLogLocalResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
  */
-app.get( '/workflow/:id/trace-log', createTraceLogHandler( client ) );
+const traceLogHandler = createTraceLogHandler( client );
+app.get( '/workflow/:id/trace-log', traceLogHandler );
+app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
 
 /**
  * @swagger
@@ -872,7 +1095,7 @@ app.get( '/workflow/runs', async ( req, res ) => {
  * /workflow/{id}/feedback:
  *   post:
  *     summary: Send feedback to a workflow
- *     description: Always targets the latest run of the workflow; runId cannot be pinned for signal-based operations.
+ *     description: Always targets the latest run; runId cannot be pinned for Temporal signal-based operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -913,7 +1136,7 @@ app.post( '/workflow/:id/feedback', async ( req, res ) => {
  * /workflow/{id}/signal/{signal}:
  *   post:
  *     summary: Send a signal to an workflow
- *     description: Always targets the latest run of the workflow; runId cannot be pinned for signal operations.
+ *     description: Always targets the latest run; runId cannot be pinned for Temporal signal operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -960,7 +1183,7 @@ app.post( '/workflow/:id/signal/:signal', async ( req, res ) => {
  * /workflow/{id}/query/{query}:
  *   post:
  *     summary: Send a query to an workflow
- *     description: Always targets the latest run of the workflow; runId cannot be pinned for query operations.
+ *     description: Always targets the latest run; runId cannot be pinned for Temporal query operations.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1007,7 +1230,7 @@ app.post( '/workflow/:id/query/:query', async ( req, res ) => {
  * /workflow/{id}/update/{update}:
  *   post:
  *     summary: Execute an update on an workflow
- *     description: Always targets the latest run of the workflow; runId cannot be pinned for update operations.
+ *     description: Always targets the latest run; runId cannot be pinned for Temporal update operations.
  *     parameters:
  *      - in: path
  *        name: id

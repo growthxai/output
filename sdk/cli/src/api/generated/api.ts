@@ -136,11 +136,8 @@ export const TraceLogRemoteResponseSource = {
 export interface TraceLogRemoteResponse {
   /** Indicates trace was fetched from remote storage */
   source: TraceLogRemoteResponseSource;
-  /**
-     * The specific run id for this trace
-     * @nullable
-     */
-  runId?: string | null;
+  /** The specific run id this trace belongs to */
+  runId: string;
   data: TraceData;
 }
 
@@ -157,11 +154,8 @@ export const TraceLogLocalResponseSource = {
 export interface TraceLogLocalResponse {
   /** Indicates trace is available locally */
   source: TraceLogLocalResponseSource;
-  /**
-     * The specific run id for this trace
-     * @nullable
-     */
-  runId?: string | null;
+  /** The specific run id this trace belongs to */
+  runId: string;
   /** Absolute path to local trace file */
   localPath: string;
 }
@@ -205,6 +199,103 @@ export interface WorkflowRunsResponse {
 }
 
 /**
+ * The workflow execution status
+ */
+export type WorkflowStatusResponseStatus = typeof WorkflowStatusResponseStatus[keyof typeof WorkflowStatusResponseStatus];
+
+
+export const WorkflowStatusResponseStatus = {
+  canceled: 'canceled',
+  completed: 'completed',
+  continued_as_new: 'continued_as_new',
+  failed: 'failed',
+  running: 'running',
+  terminated: 'terminated',
+  timed_out: 'timed_out',
+  unspecified: 'unspecified',
+} as const;
+
+export interface WorkflowStatusResponse {
+  /** The id of workflow */
+  workflowId?: string;
+  /**
+     * The specific run id for this execution
+     * @nullable
+     */
+  runId?: string | null;
+  /** The workflow execution status */
+  status?: WorkflowStatusResponseStatus;
+  /** An epoch timestamp representing when the workflow started */
+  startedAt?: number;
+  /** An epoch timestamp representing when the workflow ended */
+  completedAt?: number;
+}
+
+/**
+ * The workflow execution status
+ */
+export type WorkflowResultResponseStatus = typeof WorkflowResultResponseStatus[keyof typeof WorkflowResultResponseStatus];
+
+
+export const WorkflowResultResponseStatus = {
+  completed: 'completed',
+  failed: 'failed',
+  canceled: 'canceled',
+  terminated: 'terminated',
+  timed_out: 'timed_out',
+  continued: 'continued',
+} as const;
+
+export interface WorkflowResultResponse {
+  /** The workflow execution id */
+  workflowId?: string;
+  /**
+     * The specific run id for this execution
+     * @nullable
+     */
+  runId?: string | null;
+  /** The original input passed to the workflow, null if unavailable */
+  input?: unknown;
+  /** The result of workflow, null if workflow failed */
+  output?: unknown;
+  trace?: TraceInfo;
+  /** The workflow execution status */
+  status?: WorkflowResultResponseStatus;
+  /**
+     * Error message if workflow failed, null otherwise
+     * @nullable
+     */
+  error?: string | null;
+}
+
+export interface StopWorkflowResponse {
+  workflowId?: string;
+  /** @nullable */
+  runId?: string | null;
+}
+
+export interface TerminateWorkflowResponse {
+  terminated?: boolean;
+  workflowId?: string;
+  /** @nullable */
+  runId?: string | null;
+}
+
+export interface ResetWorkflowRequest {
+  /** The name of the step to reset after */
+  stepName: string;
+  /** Optional reason for the reset */
+  reason?: string;
+}
+
+export interface ResetWorkflowResponse {
+  /** The original workflow ID */
+  workflowId?: string;
+  /** The run ID of the new execution created by the reset */
+  runId?: string;
+}
+
+/**
  * Invalid request body or query (validation failed)
  */
 export type BadRequestResponse = ValidationErrorResponse;
@@ -223,6 +314,11 @@ export type RequestTimeoutResponse = ErrorResponse;
  * Workflow not in a terminal state (still running)
  */
 export type FailedDependencyResponse = ErrorResponse;
+
+/**
+ * Workflow run is in a state that conflicts with the requested operation (e.g. operating on an already-terminal run, or resetting to an incomplete step).
+ */
+export type ConflictResponse = ErrorResponse;
 
 /**
  * Catalog workflow unavailable (worker not running or still starting). Retry-After header may be set.
@@ -287,150 +383,20 @@ export type PostWorkflowStartBody = {
 export type PostWorkflowStart200 = {
   /** The id of the started workflow */
   workflowId?: string;
-};
-
-export type GetWorkflowIdStatusParams = {
-/**
- * Optional specific run id. When omitted, resolves to the latest run.
- */
-runId?: string;
-};
-
-/**
- * The workflow execution status
- */
-export type GetWorkflowIdStatus200Status = typeof GetWorkflowIdStatus200Status[keyof typeof GetWorkflowIdStatus200Status];
-
-
-export const GetWorkflowIdStatus200Status = {
-  canceled: 'canceled',
-  completed: 'completed',
-  continued_as_new: 'continued_as_new',
-  failed: 'failed',
-  running: 'running',
-  terminated: 'terminated',
-  timed_out: 'timed_out',
-  unspecified: 'unspecified',
-} as const;
-
-export type GetWorkflowIdStatus200 = {
-  /** The id of workflow */
-  workflowId?: string;
   /**
-     * The specific run id for this execution
+     * The first execution's run id for this workflow
      * @nullable
      */
   runId?: string | null;
-  /** The workflow execution status */
-  status?: GetWorkflowIdStatus200Status;
-  /** An epoch timestamp representing when the workflow started */
-  startedAt?: number;
-  /** An epoch timestamp representing when the workflow ended */
-  completedAt?: number;
 };
 
-export type PatchWorkflowIdStopParams = {
-/**
- * Optional specific run id. When omitted, resolves to the latest run.
- */
-runId?: string;
-};
-
-export type PatchWorkflowIdStop200 = {
-  workflowId?: string;
-  /** @nullable */
-  runId?: string | null;
-};
-
-export type PostWorkflowIdTerminateParams = {
-/**
- * Optional specific run id. When omitted, resolves to the latest run.
- */
-runId?: string;
-};
-
-export type PostWorkflowIdTerminateBody = {
+export type PostWorkflowIdRunsRidTerminateBody = {
   /** Optional reason for termination */
   reason?: string;
 };
 
-export type PostWorkflowIdTerminate200 = {
-  terminated?: boolean;
-  workflowId?: string;
-  /** @nullable */
-  runId?: string | null;
-};
-
-export type PostWorkflowIdResetParams = {
-/**
- * Optional specific run id to reset. When omitted, resolves to the latest run.
- */
-runId?: string;
-};
-
-export type PostWorkflowIdResetBody = {
-  /** The name of the step to reset after */
-  stepName: string;
-  /** Optional reason for the reset */
+export type PostWorkflowIdTerminateBody = {
   reason?: string;
-};
-
-export type PostWorkflowIdReset200 = {
-  /** The original workflow ID */
-  workflowId?: string;
-  /** The run ID of the new execution created by the reset */
-  runId?: string;
-};
-
-export type GetWorkflowIdResultParams = {
-/**
- * Optional specific run id. When omitted, resolves to the latest run.
- */
-runId?: string;
-};
-
-/**
- * The workflow execution status
- */
-export type GetWorkflowIdResult200Status = typeof GetWorkflowIdResult200Status[keyof typeof GetWorkflowIdResult200Status];
-
-
-export const GetWorkflowIdResult200Status = {
-  completed: 'completed',
-  failed: 'failed',
-  canceled: 'canceled',
-  terminated: 'terminated',
-  timed_out: 'timed_out',
-  continued: 'continued',
-} as const;
-
-export type GetWorkflowIdResult200 = {
-  /** The workflow execution id */
-  workflowId?: string;
-  /**
-     * The specific run id for this execution
-     * @nullable
-     */
-  runId?: string | null;
-  /** The original input passed to the workflow, null if unavailable */
-  input?: unknown;
-  /** The result of workflow, null if workflow failed */
-  output?: unknown;
-  trace?: TraceInfo;
-  /** The workflow execution status */
-  status?: GetWorkflowIdResult200Status;
-  /**
-     * Error message if workflow failed, null otherwise
-     * @nullable
-     */
-  error?: string | null;
-};
-
-export type GetWorkflowIdTraceLogParams = {
-/**
- * Optional specific run id. When omitted, resolves to the latest run.
- */
-runId?: string;
 };
 
 export type GetWorkflowCatalogId200 = {
@@ -652,16 +618,12 @@ export const postWorkflowStart = async (postWorkflowStartBody: PostWorkflowStart
 
 
 /**
- * @summary Get workflow execution status
+ * Returns the status of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/status`.
+ * @summary Get workflow execution status (latest run)
  */
 export type getWorkflowIdStatusResponse200 = {
-  data: GetWorkflowIdStatus200
+  data: WorkflowStatusResponse
   status: 200
-}
-
-export type getWorkflowIdStatusResponse400 = {
-  data: BadRequestResponse
-  status: 400
 }
 
 export type getWorkflowIdStatusResponse404 = {
@@ -677,32 +639,23 @@ export type getWorkflowIdStatusResponse500 = {
 export type getWorkflowIdStatusResponseSuccess = (getWorkflowIdStatusResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdStatusResponseError = (getWorkflowIdStatusResponse400 | getWorkflowIdStatusResponse404 | getWorkflowIdStatusResponse500) & {
+export type getWorkflowIdStatusResponseError = (getWorkflowIdStatusResponse404 | getWorkflowIdStatusResponse500) & {
   headers: Headers;
 };
 
 export type getWorkflowIdStatusResponse = (getWorkflowIdStatusResponseSuccess | getWorkflowIdStatusResponseError)
 
-export const getGetWorkflowIdStatusUrl = (id: string,
-    params?: GetWorkflowIdStatusParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetWorkflowIdStatusUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/status?${stringifiedParams}` : `/workflow/${id}/status`
+  return `/workflow/${id}/status`
 }
 
-export const getWorkflowIdStatus = async (id: string,
-    params?: GetWorkflowIdStatusParams, options?: ApiRequestOptions): Promise<getWorkflowIdStatusResponse> => {
+export const getWorkflowIdStatus = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdStatusResponse> => {
 
-  return customFetchInstance<getWorkflowIdStatusResponse>(getGetWorkflowIdStatusUrl(id,params),
+  return customFetchInstance<getWorkflowIdStatusResponse>(getGetWorkflowIdStatusUrl(id),
   {
     ...options,
     method: 'GET'
@@ -714,57 +667,110 @@ export const getWorkflowIdStatus = async (id: string,
 
 
 /**
- * @summary Stop a workflow execution
+ * @summary Get workflow execution status for a specific run
  */
-export type patchWorkflowIdStopResponse200 = {
-  data: PatchWorkflowIdStop200
+export type getWorkflowIdRunsRidStatusResponse200 = {
+  data: WorkflowStatusResponse
   status: 200
 }
 
-export type patchWorkflowIdStopResponse400 = {
+export type getWorkflowIdRunsRidStatusResponse400 = {
   data: BadRequestResponse
   status: 400
 }
 
-export type patchWorkflowIdStopResponse404 = {
+export type getWorkflowIdRunsRidStatusResponse404 = {
   data: NotFoundResponse
   status: 404
 }
 
-export type patchWorkflowIdStopResponse500 = {
+export type getWorkflowIdRunsRidStatusResponse500 = {
   data: InternalServerErrorResponse
   status: 500
 }
 
-export type patchWorkflowIdStopResponseSuccess = (patchWorkflowIdStopResponse200) & {
+export type getWorkflowIdRunsRidStatusResponseSuccess = (getWorkflowIdRunsRidStatusResponse200) & {
   headers: Headers;
 };
-export type patchWorkflowIdStopResponseError = (patchWorkflowIdStopResponse400 | patchWorkflowIdStopResponse404 | patchWorkflowIdStopResponse500) & {
+export type getWorkflowIdRunsRidStatusResponseError = (getWorkflowIdRunsRidStatusResponse400 | getWorkflowIdRunsRidStatusResponse404 | getWorkflowIdRunsRidStatusResponse500) & {
   headers: Headers;
 };
 
-export type patchWorkflowIdStopResponse = (patchWorkflowIdStopResponseSuccess | patchWorkflowIdStopResponseError)
+export type getWorkflowIdRunsRidStatusResponse = (getWorkflowIdRunsRidStatusResponseSuccess | getWorkflowIdRunsRidStatusResponseError)
 
-export const getPatchWorkflowIdStopUrl = (id: string,
-    params?: PatchWorkflowIdStopParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetWorkflowIdRunsRidStatusUrl = (id: string,
+    rid: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/stop?${stringifiedParams}` : `/workflow/${id}/stop`
+  return `/workflow/${id}/runs/${rid}/status`
 }
 
-export const patchWorkflowIdStop = async (id: string,
-    params?: PatchWorkflowIdStopParams, options?: ApiRequestOptions): Promise<patchWorkflowIdStopResponse> => {
+export const getWorkflowIdRunsRidStatus = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidStatusResponse> => {
 
-  return customFetchInstance<patchWorkflowIdStopResponse>(getPatchWorkflowIdStopUrl(id,params),
+  return customFetchInstance<getWorkflowIdRunsRidStatusResponse>(getGetWorkflowIdRunsRidStatusUrl(id,rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary Stop a specific workflow run
+ */
+export type patchWorkflowIdRunsRidStopResponse200 = {
+  data: StopWorkflowResponse
+  status: 200
+}
+
+export type patchWorkflowIdRunsRidStopResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type patchWorkflowIdRunsRidStopResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type patchWorkflowIdRunsRidStopResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
+export type patchWorkflowIdRunsRidStopResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type patchWorkflowIdRunsRidStopResponseSuccess = (patchWorkflowIdRunsRidStopResponse200) & {
+  headers: Headers;
+};
+export type patchWorkflowIdRunsRidStopResponseError = (patchWorkflowIdRunsRidStopResponse400 | patchWorkflowIdRunsRidStopResponse404 | patchWorkflowIdRunsRidStopResponse409 | patchWorkflowIdRunsRidStopResponse500) & {
+  headers: Headers;
+};
+
+export type patchWorkflowIdRunsRidStopResponse = (patchWorkflowIdRunsRidStopResponseSuccess | patchWorkflowIdRunsRidStopResponseError)
+
+export const getPatchWorkflowIdRunsRidStopUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/stop`
+}
+
+export const patchWorkflowIdRunsRidStop = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<patchWorkflowIdRunsRidStopResponse> => {
+
+  return customFetchInstance<patchWorkflowIdRunsRidStopResponse>(getPatchWorkflowIdRunsRidStopUrl(id,rid),
   {
     ...options,
     method: 'PATCH'
@@ -776,11 +782,130 @@ export const patchWorkflowIdStop = async (id: string,
 
 
 /**
- * Force terminates a workflow. Unlike stop/cancel, terminate immediately stops the workflow without allowing cleanup.
- * @summary Terminate a workflow execution (force stop)
+ * Stops the latest run of the given workflow. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to target a specific run. Scheduled for removal after 2026-07-16.
+ * @deprecated
+ * @summary [Deprecated] Stop the latest workflow run
+ */
+export type patchWorkflowIdStopResponse200 = {
+  data: StopWorkflowResponse
+  status: 200
+}
+
+export type patchWorkflowIdStopResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type patchWorkflowIdStopResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
+export type patchWorkflowIdStopResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type patchWorkflowIdStopResponseSuccess = (patchWorkflowIdStopResponse200) & {
+  headers: Headers;
+};
+export type patchWorkflowIdStopResponseError = (patchWorkflowIdStopResponse404 | patchWorkflowIdStopResponse409 | patchWorkflowIdStopResponse500) & {
+  headers: Headers;
+};
+
+export type patchWorkflowIdStopResponse = (patchWorkflowIdStopResponseSuccess | patchWorkflowIdStopResponseError)
+
+export const getPatchWorkflowIdStopUrl = (id: string,) => {
+
+
+
+
+  return `/workflow/${id}/stop`
+}
+
+export const patchWorkflowIdStop = async (id: string, options?: ApiRequestOptions): Promise<patchWorkflowIdStopResponse> => {
+
+  return customFetchInstance<patchWorkflowIdStopResponse>(getPatchWorkflowIdStopUrl(id),
+  {
+    ...options,
+    method: 'PATCH'
+
+
+  }
+);}
+
+
+
+/**
+ * Force terminates a workflow run. Unlike stop/cancel, terminate immediately stops the run without allowing cleanup.
+ * @summary Terminate a specific workflow run (force stop)
+ */
+export type postWorkflowIdRunsRidTerminateResponse200 = {
+  data: TerminateWorkflowResponse
+  status: 200
+}
+
+export type postWorkflowIdRunsRidTerminateResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type postWorkflowIdRunsRidTerminateResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type postWorkflowIdRunsRidTerminateResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
+export type postWorkflowIdRunsRidTerminateResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type postWorkflowIdRunsRidTerminateResponseSuccess = (postWorkflowIdRunsRidTerminateResponse200) & {
+  headers: Headers;
+};
+export type postWorkflowIdRunsRidTerminateResponseError = (postWorkflowIdRunsRidTerminateResponse400 | postWorkflowIdRunsRidTerminateResponse404 | postWorkflowIdRunsRidTerminateResponse409 | postWorkflowIdRunsRidTerminateResponse500) & {
+  headers: Headers;
+};
+
+export type postWorkflowIdRunsRidTerminateResponse = (postWorkflowIdRunsRidTerminateResponseSuccess | postWorkflowIdRunsRidTerminateResponseError)
+
+export const getPostWorkflowIdRunsRidTerminateUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/terminate`
+}
+
+export const postWorkflowIdRunsRidTerminate = async (id: string,
+    rid: string,
+    postWorkflowIdRunsRidTerminateBody: PostWorkflowIdRunsRidTerminateBody, options?: ApiRequestOptions): Promise<postWorkflowIdRunsRidTerminateResponse> => {
+
+  return customFetchInstance<postWorkflowIdRunsRidTerminateResponse>(getPostWorkflowIdRunsRidTerminateUrl(id,rid),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      postWorkflowIdRunsRidTerminateBody,)
+  }
+);}
+
+
+
+/**
+ * Force terminates the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/terminate` to target a specific run. Scheduled for removal after 2026-07-16.
+ * @deprecated
+ * @summary [Deprecated] Terminate the latest workflow run
  */
 export type postWorkflowIdTerminateResponse200 = {
-  data: PostWorkflowIdTerminate200
+  data: TerminateWorkflowResponse
   status: 200
 }
 
@@ -794,6 +919,11 @@ export type postWorkflowIdTerminateResponse404 = {
   status: 404
 }
 
+export type postWorkflowIdTerminateResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
 export type postWorkflowIdTerminateResponse500 = {
   data: InternalServerErrorResponse
   status: 500
@@ -802,33 +932,24 @@ export type postWorkflowIdTerminateResponse500 = {
 export type postWorkflowIdTerminateResponseSuccess = (postWorkflowIdTerminateResponse200) & {
   headers: Headers;
 };
-export type postWorkflowIdTerminateResponseError = (postWorkflowIdTerminateResponse400 | postWorkflowIdTerminateResponse404 | postWorkflowIdTerminateResponse500) & {
+export type postWorkflowIdTerminateResponseError = (postWorkflowIdTerminateResponse400 | postWorkflowIdTerminateResponse404 | postWorkflowIdTerminateResponse409 | postWorkflowIdTerminateResponse500) & {
   headers: Headers;
 };
 
 export type postWorkflowIdTerminateResponse = (postWorkflowIdTerminateResponseSuccess | postWorkflowIdTerminateResponseError)
 
-export const getPostWorkflowIdTerminateUrl = (id: string,
-    params?: PostWorkflowIdTerminateParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getPostWorkflowIdTerminateUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/terminate?${stringifiedParams}` : `/workflow/${id}/terminate`
+  return `/workflow/${id}/terminate`
 }
 
 export const postWorkflowIdTerminate = async (id: string,
-    postWorkflowIdTerminateBody: PostWorkflowIdTerminateBody,
-    params?: PostWorkflowIdTerminateParams, options?: ApiRequestOptions): Promise<postWorkflowIdTerminateResponse> => {
+    postWorkflowIdTerminateBody: PostWorkflowIdTerminateBody, options?: ApiRequestOptions): Promise<postWorkflowIdTerminateResponse> => {
 
-  return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id,params),
+  return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id),
   {
     ...options,
     method: 'POST',
@@ -841,11 +962,75 @@ export const postWorkflowIdTerminate = async (id: string,
 
 
 /**
- * Resets a workflow execution to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.
- * @summary Reset a workflow to re-run from after a specific step
+ * Resets a pinned workflow run to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.
+ * @summary Reset a specific workflow run to re-run from after a completed step
+ */
+export type postWorkflowIdRunsRidResetResponse200 = {
+  data: ResetWorkflowResponse
+  status: 200
+}
+
+export type postWorkflowIdRunsRidResetResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type postWorkflowIdRunsRidResetResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type postWorkflowIdRunsRidResetResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
+export type postWorkflowIdRunsRidResetResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type postWorkflowIdRunsRidResetResponseSuccess = (postWorkflowIdRunsRidResetResponse200) & {
+  headers: Headers;
+};
+export type postWorkflowIdRunsRidResetResponseError = (postWorkflowIdRunsRidResetResponse400 | postWorkflowIdRunsRidResetResponse404 | postWorkflowIdRunsRidResetResponse409 | postWorkflowIdRunsRidResetResponse500) & {
+  headers: Headers;
+};
+
+export type postWorkflowIdRunsRidResetResponse = (postWorkflowIdRunsRidResetResponseSuccess | postWorkflowIdRunsRidResetResponseError)
+
+export const getPostWorkflowIdRunsRidResetUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/reset`
+}
+
+export const postWorkflowIdRunsRidReset = async (id: string,
+    rid: string,
+    resetWorkflowRequest: ResetWorkflowRequest, options?: ApiRequestOptions): Promise<postWorkflowIdRunsRidResetResponse> => {
+
+  return customFetchInstance<postWorkflowIdRunsRidResetResponse>(getPostWorkflowIdRunsRidResetUrl(id,rid),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      resetWorkflowRequest,)
+  }
+);}
+
+
+
+/**
+ * Resets the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/reset` to target a specific run. Scheduled for removal after 2026-07-16.
+ * @deprecated
+ * @summary [Deprecated] Reset the latest workflow run
  */
 export type postWorkflowIdResetResponse200 = {
-  data: PostWorkflowIdReset200
+  data: ResetWorkflowResponse
   status: 200
 }
 
@@ -860,7 +1045,7 @@ export type postWorkflowIdResetResponse404 = {
 }
 
 export type postWorkflowIdResetResponse409 = {
-  data: ErrorResponse
+  data: ConflictResponse
   status: 409
 }
 
@@ -878,49 +1063,36 @@ export type postWorkflowIdResetResponseError = (postWorkflowIdResetResponse400 |
 
 export type postWorkflowIdResetResponse = (postWorkflowIdResetResponseSuccess | postWorkflowIdResetResponseError)
 
-export const getPostWorkflowIdResetUrl = (id: string,
-    params?: PostWorkflowIdResetParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getPostWorkflowIdResetUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/reset?${stringifiedParams}` : `/workflow/${id}/reset`
+  return `/workflow/${id}/reset`
 }
 
 export const postWorkflowIdReset = async (id: string,
-    postWorkflowIdResetBody: PostWorkflowIdResetBody,
-    params?: PostWorkflowIdResetParams, options?: ApiRequestOptions): Promise<postWorkflowIdResetResponse> => {
+    resetWorkflowRequest: ResetWorkflowRequest, options?: ApiRequestOptions): Promise<postWorkflowIdResetResponse> => {
 
-  return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id,params),
+  return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      postWorkflowIdResetBody,)
+      resetWorkflowRequest,)
   }
 );}
 
 
 
 /**
- * @summary Return the result of a workflow
+ * Returns the result of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/result`.
+ * @summary Return the result of a workflow (latest run)
  */
 export type getWorkflowIdResultResponse200 = {
-  data: GetWorkflowIdResult200
+  data: WorkflowResultResponse
   status: 200
-}
-
-export type getWorkflowIdResultResponse400 = {
-  data: BadRequestResponse
-  status: 400
 }
 
 export type getWorkflowIdResultResponse404 = {
@@ -941,32 +1113,23 @@ export type getWorkflowIdResultResponse500 = {
 export type getWorkflowIdResultResponseSuccess = (getWorkflowIdResultResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdResultResponseError = (getWorkflowIdResultResponse400 | getWorkflowIdResultResponse404 | getWorkflowIdResultResponse424 | getWorkflowIdResultResponse500) & {
+export type getWorkflowIdResultResponseError = (getWorkflowIdResultResponse404 | getWorkflowIdResultResponse424 | getWorkflowIdResultResponse500) & {
   headers: Headers;
 };
 
 export type getWorkflowIdResultResponse = (getWorkflowIdResultResponseSuccess | getWorkflowIdResultResponseError)
 
-export const getGetWorkflowIdResultUrl = (id: string,
-    params?: GetWorkflowIdResultParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetWorkflowIdResultUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/result?${stringifiedParams}` : `/workflow/${id}/result`
+  return `/workflow/${id}/result`
 }
 
-export const getWorkflowIdResult = async (id: string,
-    params?: GetWorkflowIdResultParams, options?: ApiRequestOptions): Promise<getWorkflowIdResultResponse> => {
+export const getWorkflowIdResult = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdResultResponse> => {
 
-  return customFetchInstance<getWorkflowIdResultResponse>(getGetWorkflowIdResultUrl(id,params),
+  return customFetchInstance<getWorkflowIdResultResponse>(getGetWorkflowIdResultUrl(id),
   {
     ...options,
     method: 'GET'
@@ -978,8 +1141,68 @@ export const getWorkflowIdResult = async (id: string,
 
 
 /**
- * Returns trace data for a completed workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
- * @summary Get workflow trace log data
+ * @summary Return the result of a specific workflow run
+ */
+export type getWorkflowIdRunsRidResultResponse200 = {
+  data: WorkflowResultResponse
+  status: 200
+}
+
+export type getWorkflowIdRunsRidResultResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidResultResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidResultResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
+export type getWorkflowIdRunsRidResultResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidResultResponseSuccess = (getWorkflowIdRunsRidResultResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidResultResponseError = (getWorkflowIdRunsRidResultResponse400 | getWorkflowIdRunsRidResultResponse404 | getWorkflowIdRunsRidResultResponse424 | getWorkflowIdRunsRidResultResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidResultResponse = (getWorkflowIdRunsRidResultResponseSuccess | getWorkflowIdRunsRidResultResponseError)
+
+export const getGetWorkflowIdRunsRidResultUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/result`
+}
+
+export const getWorkflowIdRunsRidResult = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidResultResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidResultResponse>(getGetWorkflowIdRunsRidResultUrl(id,rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
+ * @summary Get workflow trace log data (latest run)
  */
 export type getWorkflowIdTraceLogResponse200 = {
   data: TraceLogRemoteResponse | TraceLogLocalResponse
@@ -1010,26 +1233,78 @@ export type getWorkflowIdTraceLogResponseError = (getWorkflowIdTraceLogResponse4
 
 export type getWorkflowIdTraceLogResponse = (getWorkflowIdTraceLogResponseSuccess | getWorkflowIdTraceLogResponseError)
 
-export const getGetWorkflowIdTraceLogUrl = (id: string,
-    params?: GetWorkflowIdTraceLogParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetWorkflowIdTraceLogUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/workflow/${id}/trace-log?${stringifiedParams}` : `/workflow/${id}/trace-log`
+  return `/workflow/${id}/trace-log`
 }
 
-export const getWorkflowIdTraceLog = async (id: string,
-    params?: GetWorkflowIdTraceLogParams, options?: ApiRequestOptions): Promise<getWorkflowIdTraceLogResponse> => {
+export const getWorkflowIdTraceLog = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdTraceLogResponse> => {
 
-  return customFetchInstance<getWorkflowIdTraceLogResponse>(getGetWorkflowIdTraceLogUrl(id,params),
+  return customFetchInstance<getWorkflowIdTraceLogResponse>(getGetWorkflowIdTraceLogUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
+ * @summary Get workflow trace log data for a specific run
+ */
+export type getWorkflowIdRunsRidTraceLogResponse200 = {
+  data: TraceLogRemoteResponse | TraceLogLocalResponse
+  status: 200
+}
+
+export type getWorkflowIdRunsRidTraceLogResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidTraceLogResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidTraceLogResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
+export type getWorkflowIdRunsRidTraceLogResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidTraceLogResponseSuccess = (getWorkflowIdRunsRidTraceLogResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidTraceLogResponseError = (getWorkflowIdRunsRidTraceLogResponse400 | getWorkflowIdRunsRidTraceLogResponse404 | getWorkflowIdRunsRidTraceLogResponse424 | getWorkflowIdRunsRidTraceLogResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidTraceLogResponse = (getWorkflowIdRunsRidTraceLogResponseSuccess | getWorkflowIdRunsRidTraceLogResponseError)
+
+export const getGetWorkflowIdRunsRidTraceLogUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/trace-log`
+}
+
+export const getWorkflowIdRunsRidTraceLog = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidTraceLogResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidTraceLogResponse>(getGetWorkflowIdRunsRidTraceLogUrl(id,rid),
   {
     ...options,
     method: 'GET'
@@ -1193,7 +1468,7 @@ export const getWorkflowRuns = async (params?: GetWorkflowRunsParams, options?: 
 
 
 /**
- * Always targets the latest run of the workflow; runId cannot be pinned for signal-based operations.
+ * Always targets the latest run; runId cannot be pinned for Temporal signal-based operations.
  * @summary Send feedback to a workflow
  */
 export type postWorkflowIdFeedbackResponse200 = {
@@ -1249,7 +1524,7 @@ export const postWorkflowIdFeedback = async (id: string,
 
 
 /**
- * Always targets the latest run of the workflow; runId cannot be pinned for signal operations.
+ * Always targets the latest run; runId cannot be pinned for Temporal signal operations.
  * @summary Send a signal to an workflow
  */
 export type postWorkflowIdSignalSignalResponse200 = {
@@ -1307,7 +1582,7 @@ export const postWorkflowIdSignalSignal = async (id: string,
 
 
 /**
- * Always targets the latest run of the workflow; runId cannot be pinned for query operations.
+ * Always targets the latest run; runId cannot be pinned for Temporal query operations.
  * @summary Send a query to an workflow
  */
 export type postWorkflowIdQueryQueryResponse200 = {
@@ -1365,7 +1640,7 @@ export const postWorkflowIdQueryQuery = async (id: string,
 
 
 /**
- * Always targets the latest run of the workflow; runId cannot be pinned for update operations.
+ * Always targets the latest run; runId cannot be pinned for Temporal update operations.
  * @summary Execute an update on an workflow
  */
 export type postWorkflowIdUpdateUpdateResponse200 = {

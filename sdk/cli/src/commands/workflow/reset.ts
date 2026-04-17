@@ -1,5 +1,5 @@
 import { Args, Command, Flags } from '@oclif/core';
-import { postWorkflowIdReset, type PostWorkflowIdReset200 } from '#api/generated/api.js';
+import { postWorkflowIdReset, type ResetWorkflowResponse } from '#api/generated/api.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowReset extends Command {
@@ -40,7 +40,7 @@ export default class WorkflowReset extends Command {
       this.error( 'API returned invalid response', { exit: 1 } );
     }
 
-    const data = response.data as PostWorkflowIdReset200;
+    const data = response.data as ResetWorkflowResponse;
 
     const output = [
       'Workflow reset successfully',

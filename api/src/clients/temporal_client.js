@@ -190,10 +190,17 @@ export default {
 
     return {
       /**
-       * Workflow execution result
+       * Workflow execution result returned by getWorkflowResult and runWorkflow.
+       * Matches the shape produced by buildWorkflowResponse.
+       *
        * @typedef {Object} WorkflowResult
-       * @property {object} workflowId - The workflow execution id
-       * @property {object} trace - Information about the traces of the execution
+       * @property {string} workflowId - The workflow execution id
+       * @property {string|null} runId - The specific run id for this execution, null if unavailable
+       * @property {('completed'|'failed'|'canceled'|'terminated'|'timed_out'|'continued'|'unspecified')} status - Execution status
+       * @property {any} input - The original workflow input, null if unavailable
+       * @property {any} output - The workflow output, null if failed or unavailable
+       * @property {object|null} trace - Trace information including destinations, null if none
+       * @property {string|null} error - Error message if workflow failed, null otherwise
        */
       /**
        * Start the execution of a single workflow
@@ -255,6 +262,7 @@ export default {
        *
        * @typedef {Object} WorkflowStartResult
        * @property {string} workflowId - The id of the started workflow
+       * @property {string|null} runId - The first execution's run id, null if unavailable
        */
       /**
        * Start an workflow execution asynchronously
@@ -305,11 +313,11 @@ export default {
       },
 
       /**
-       * Cancel a workflow execution
+       * Stop a workflow execution (graceful cancellation; workflow may run cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [runId] - Optional specific run id; defaults to the latest run
-       * @returns {{ workflowId: string, runId: string|null }}
+       * @returns {{ workflowId: string, runId: string }} The stopped workflow id and the run id that was actually targeted.
        * @throws {WorkflowNotFoundError}
        */
       async stopWorkflow( workflowId, runId ) {
@@ -323,12 +331,12 @@ export default {
       },
 
       /**
-       * Terminate a workflow execution (force stop)
+       * Terminate a workflow execution (force stop; no cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [reason]    - Optional reason for termination
        * @param {string} [runId]     - Optional specific run id; defaults to the latest run
-       * @returns {{ workflowId: string, runId: string|null }}
+       * @returns {{ workflowId: string, runId: string }} The terminated workflow id and the run id that was actually targeted.
        * @throws {WorkflowNotFoundError}
        */
       async terminateWorkflow( workflowId, reason, runId ) {
@@ -342,21 +350,11 @@ export default {
       },
 
       /**
-       * Workflow result with trace information
-       * @typedef {Object} WorkflowResultWithTrace
-       * @property {string} workflowId - The workflow execution id
-       * @property {string|null} runId - The specific run id for this execution
-       * @property {object|null} output - The workflow output, null if workflow failed
-       * @property {object|null} trace - Trace information including destinations
-       * @property {string} status - The workflow status (completed, failed, canceled, etc.)
-       * @property {string|null} error - Error message if workflow failed, null otherwise
-       */
-      /**
-       * Get the result of a workflow execution
+       * Get the result of a workflow execution.
        *
        * @param {string} workflowId - The workflow execution id
        * @param {string} [runId] - Optional specific run id; defaults to the latest run
-       * @returns {WorkflowResultWithTrace}
+       * @returns {WorkflowResult}
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowNotCompletedError} - Only thrown if workflow is still running
        */
@@ -370,8 +368,13 @@ export default {
         }
 
         const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          // Temporal should always report a runId for a terminal execution; if not, fail loudly
+          // rather than silently reuse the unpinned handle (which risks racing continueAsNew).
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
         // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
-        const pinnedHandle = runId || !resolvedRunId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
+        const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
         const history = await pinnedHandle.fetchHistory();
 
         const status = mapWorkflowStatus( description.status.name );
@@ -485,7 +488,7 @@ export default {
        * @param {string} stepName - The step name to reset after (e.g., "consolidateCompetitors")
        * @param {string} [reason] - Optional reason for the reset
        * @param {string} [runId] - Optional specific run id to reset; defaults to the latest run
-       * @returns {{ workflowId: string, runId: string }}
+       * @returns {{ workflowId: string, runId: string }} The original workflowId and the runId of the **new** execution created by the reset (not the input pin).
        * @throws {WorkflowNotFoundError}
        * @throws {StepNotFoundError}
        * @throws {StepNotCompletedError}
@@ -495,9 +498,17 @@ export default {
         const history = await handle.fetchHistory();
         const resetEventId = resolveResetEventId( history.events, stepName );
 
+        // Resolve the runId from describe() if the caller didn't pin one, so we target
+        // exactly the run whose history we just scanned — avoids racing continueAsNew
+        // between fetchHistory and the reset RPC.
+        const resolvedRunId = runId ?? ( await handle.describe() ).runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+
         const response = await connection.workflowService.resetWorkflowExecution( {
           namespace,
-          workflowExecution: { workflowId, ...( runId ? { runId } : {} ) },
+          workflowExecution: { workflowId, runId: resolvedRunId },
           reason: reason || `Reset to re-run from after step "${stepName}"`,
           workflowTaskFinishEventId: resetEventId,
           requestId: buildWorkflowId()

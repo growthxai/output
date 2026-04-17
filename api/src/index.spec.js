@@ -1,38 +1,31 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import request from 'supertest';
 
-const { mockClient } = vi.hoisted( () => {
-  const runWorkflow = vi.fn();
-  const startWorkflow = vi.fn();
-  const getWorkflowStatus = vi.fn();
-  const stopWorkflow = vi.fn();
-  const terminateWorkflow = vi.fn();
-  const getWorkflowResult = vi.fn();
-  const resetWorkflow = vi.fn();
-  const queryWorkflow = vi.fn();
-  const listWorkflowRuns = vi.fn();
-  const sendSignal = vi.fn();
-  const sendQuery = vi.fn();
-  const executeUpdate = vi.fn();
-  const close = () => Promise.resolve();
-  return {
-    mockClient: {
-      runWorkflow,
-      startWorkflow,
-      getWorkflowStatus,
-      stopWorkflow,
-      terminateWorkflow,
-      getWorkflowResult,
-      resetWorkflow,
-      queryWorkflow,
-      listWorkflowRuns,
-      sendSignal,
-      sendQuery,
-      executeUpdate,
-      close
-    }
-  };
-} );
+const RID = '11111111-2222-4333-8444-555555555555';
+
+const { mockClient, mockLogger } = vi.hoisted( () => ( {
+  mockClient: {
+    runWorkflow: vi.fn(),
+    startWorkflow: vi.fn(),
+    getWorkflowStatus: vi.fn(),
+    stopWorkflow: vi.fn(),
+    terminateWorkflow: vi.fn(),
+    getWorkflowResult: vi.fn(),
+    resetWorkflow: vi.fn(),
+    queryWorkflow: vi.fn(),
+    listWorkflowRuns: vi.fn(),
+    sendSignal: vi.fn(),
+    sendQuery: vi.fn(),
+    executeUpdate: vi.fn(),
+    close: () => Promise.resolve()
+  },
+  mockLogger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    http: vi.fn()
+  }
+} ) );
 
 vi.mock( './clients/temporal_client.js', async () => {
   const { WorkflowNotFoundError, WorkflowNotCompletedError, WorkflowExecutionTimedOutError } =
@@ -63,14 +56,7 @@ vi.mock( '#configs', () => ( {
   isProduction: false
 } ) );
 
-vi.mock( '#logger', () => ( {
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    http: vi.fn()
-  }
-} ) );
+vi.mock( '#logger', () => ( { logger: mockLogger } ) );
 
 const PORT = 3000;
 
@@ -145,92 +131,132 @@ describe( 'API endpoints', () => {
     } );
   } );
 
-  describe( 'GET /workflow/:id/status', () => {
+  describe( 'GET /workflow/:id/status (latest shortcut)', () => {
     it( 'returns workflow status for given id', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/status' ).expect( 200 );
       expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'running' } );
       expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', undefined );
     } );
+  } );
 
-    it( 'forwards runId query param to client', async () => {
-      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/status?runId=explicit-run' ).expect( 200 );
-      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
+  describe( 'GET /workflow/:id/runs/:rid/status (pinned)', () => {
+    it( 'forwards the pinned runId to the client', async () => {
+      await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/status` ).expect( 200 );
+      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', RID );
+    } );
+
+    it( 'returns 400 when rid is not a valid UUID', async () => {
+      const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/status' ).expect( 400 );
+      expect( res.body ).toMatchObject( { error: 'ValidationError' } );
+      expect( mockClient.getWorkflowStatus ).not.toHaveBeenCalled();
     } );
   } );
 
-  describe( 'PATCH /workflow/:id/stop', () => {
-    it( 'returns workflowId after stopping workflow', async () => {
+  describe( 'PATCH /workflow/:id/runs/:rid/stop (pinned)', () => {
+    it( 'returns workflowId after stopping pinned run', async () => {
+      const res = await request( `http://localhost:${PORT}` ).patch( `/workflow/w1/runs/${RID}/stop` ).expect( 200 );
+      expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
+      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', RID );
+    } );
+
+    it( 'returns 400 when rid is not a valid UUID', async () => {
+      await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/runs/not-a-uuid/stop' ).expect( 400 );
+      expect( mockClient.stopWorkflow ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'PATCH /workflow/:id/stop (deprecated shortcut)', () => {
+    it( 'targets the latest run and sets deprecation headers', async () => {
       const res = await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/stop' ).expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
       expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', undefined );
-    } );
-
-    it( 'forwards runId query param to client', async () => {
-      await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/stop?runId=explicit-run' ).expect( 200 );
-      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
+      expect( res.headers.deprecation ).toBe( 'true' );
+      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/stop' );
+      expect( res.headers.link ).toContain( 'rel="successor-version"' );
+      expect( mockLogger.warn ).toHaveBeenCalledWith(
+        'Deprecated route hit',
+        expect.objectContaining( { path: '/workflow/w1/stop', successor: '/workflow/{id}/runs/{rid}/stop' } )
+      );
     } );
   } );
 
-  describe( 'POST /workflow/:id/terminate', () => {
-    it( 'returns terminated true with workflowId and runId when reason provided', async () => {
+  describe( 'POST /workflow/:id/runs/:rid/terminate (pinned)', () => {
+    it( 'returns terminated true with workflowId and runId', async () => {
+      const res = await request( `http://localhost:${PORT}` )
+        .post( `/workflow/w1/runs/${RID}/terminate` )
+        .send( { reason: 'test reason' } )
+        .expect( 200 );
+      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
+      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', RID );
+    } );
+
+    it( 'works without body', async () => {
+      await request( `http://localhost:${PORT}` ).post( `/workflow/w1/runs/${RID}/terminate` ).expect( 200 );
+      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', undefined, RID );
+    } );
+
+    it( 'returns 400 when rid is not a valid UUID', async () => {
+      await request( `http://localhost:${PORT}` ).post( '/workflow/w1/runs/not-a-uuid/terminate' ).expect( 400 );
+      expect( mockClient.terminateWorkflow ).not.toHaveBeenCalled();
+    } );
+
+    it( 'validation error when reason is not string returns 400', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( `/workflow/w1/runs/${RID}/terminate` )
+        .send( { reason: 123 } )
+        .expect( 400 );
+      expect( mockClient.terminateWorkflow ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'POST /workflow/:id/terminate (deprecated shortcut)', () => {
+    it( 'targets the latest run and sets deprecation headers', async () => {
       const res = await request( `http://localhost:${PORT}` )
         .post( '/workflow/w1/terminate' )
         .send( { reason: 'test reason' } )
         .expect( 200 );
       expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
       expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', undefined );
-    } );
-
-    it( 'works without body', async () => {
-      const res = await request( `http://localhost:${PORT}` ).post( '/workflow/w1/terminate' ).expect( 200 );
-      expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', undefined, undefined );
-    } );
-
-    it( 'forwards runId query param to client', async () => {
-      await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/terminate?runId=explicit-run' )
-        .send( { reason: 'pin run' } )
-        .expect( 200 );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'pin run', 'explicit-run' );
-    } );
-
-    it( 'validation error when reason is not string returns 400', async () => {
-      await request( `http://localhost:${PORT}` ).post( '/workflow/w1/terminate' ).send( { reason: 123 } ).expect( 400 );
-      expect( mockClient.terminateWorkflow ).not.toHaveBeenCalled();
+      expect( res.headers.deprecation ).toBe( 'true' );
+      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/terminate' );
+      expect( mockLogger.warn ).toHaveBeenCalledWith(
+        'Deprecated route hit',
+        expect.objectContaining( { path: '/workflow/w1/terminate' } )
+      );
     } );
   } );
 
-  describe( 'POST /workflow/:id/reset', () => {
+  describe( 'POST /workflow/:id/runs/:rid/reset (pinned)', () => {
     it( 'returns workflowId and runId when reset is successful', async () => {
       const res = await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/reset' )
+        .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { stepName: 'generateBlogPost', reason: 'retry with new prompt' } )
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'new-run-123' } );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt', undefined );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt', RID );
     } );
 
     it( 'works without reason', async () => {
-      const res = await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/reset' )
+      await request( `http://localhost:${PORT}` )
+        .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { stepName: 'generateBlogPost' } )
         .expect( 200 );
-      expect( res.body ).toEqual( { workflowId: 'w1', runId: 'new-run-123' } );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, RID );
     } );
 
-    it( 'forwards runId query param to client', async () => {
+    it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/reset?runId=explicit-run' )
+        .post( '/workflow/w1/runs/not-a-uuid/reset' )
         .send( { stepName: 'generateBlogPost' } )
-        .expect( 200 );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, 'explicit-run' );
+        .expect( 400 );
+      expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
     } );
 
     it( 'validation error when stepName is missing returns 400', async () => {
       await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/reset' )
+        .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { reason: 'no step' } )
         .expect( 400 );
       expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
@@ -238,36 +264,67 @@ describe( 'API endpoints', () => {
 
     it( 'validation error when stepName is not a string returns 400', async () => {
       await request( `http://localhost:${PORT}` )
-        .post( '/workflow/w1/reset' )
+        .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { stepName: 123 } )
         .expect( 400 );
       expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
     } );
   } );
 
-  describe( 'GET /workflow/:id/result', () => {
+  describe( 'POST /workflow/:id/reset (deprecated shortcut)', () => {
+    it( 'targets the latest run and sets deprecation headers', async () => {
+      const res = await request( `http://localhost:${PORT}` )
+        .post( '/workflow/w1/reset' )
+        .send( { stepName: 'generateBlogPost' } )
+        .expect( 200 );
+      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
+      expect( res.headers.deprecation ).toBe( 'true' );
+      expect( res.headers.sunset ).toBe( '2026-07-16' );
+      expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/reset' );
+      expect( mockLogger.warn ).toHaveBeenCalledWith(
+        'Deprecated route hit',
+        expect.objectContaining( { path: '/workflow/w1/reset' } )
+      );
+    } );
+  } );
+
+  describe( 'GET /workflow/:id/result (latest shortcut)', () => {
     it( 'returns workflow output and status when completed', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/result' ).expect( 200 );
       expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'completed', output: { done: true } } );
       expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
     } );
+  } );
 
-    it( 'forwards runId query param to client', async () => {
-      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/result?runId=explicit-run' ).expect( 200 );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
+  describe( 'GET /workflow/:id/runs/:rid/result (pinned)', () => {
+    it( 'forwards the pinned runId to the client', async () => {
+      await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/result` ).expect( 200 );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', RID );
+    } );
+
+    it( 'returns 400 when rid is not a valid UUID', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/result' ).expect( 400 );
+      expect( mockClient.getWorkflowResult ).not.toHaveBeenCalled();
     } );
   } );
 
-  describe( 'GET /workflow/:id/trace-log', () => {
+  describe( 'GET /workflow/:id/trace-log (latest shortcut)', () => {
     it( 'returns local trace path when trace is stored locally', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log' ).expect( 200 );
       expect( res.body ).toEqual( { source: 'local', runId: 'r1', localPath: '/tmp/trace.json' } );
       expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
     } );
+  } );
 
-    it( 'forwards runId query param to client', async () => {
-      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log?runId=explicit-run' ).expect( 200 );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', 'explicit-run' );
+  describe( 'GET /workflow/:id/runs/:rid/trace-log (pinned)', () => {
+    it( 'forwards the pinned runId to the client', async () => {
+      await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/trace-log` ).expect( 200 );
+      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', RID );
+    } );
+
+    it( 'returns 400 when rid is not a valid UUID', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/trace-log' ).expect( 400 );
+      expect( mockClient.getWorkflowResult ).not.toHaveBeenCalled();
     } );
   } );
 
