@@ -8,6 +8,9 @@ import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
+import { createStopHandler } from './handlers/stop.js';
+import { createTerminateHandler } from './handlers/terminate.js';
+import { createResultHandler } from './handlers/result.js';
 
 const runIdPathSchema = z.string().uuid();
 
@@ -29,6 +32,11 @@ const client = await temporalClient.init().catch( e => {
   logger.error( 'Failed to initialize Temporal client', { error: e.message, errorType: e.constructor.name, stack: e.stack } );
   process.exit( 1 );
 } );
+
+const stopHandler = createStopHandler( client );
+const terminateHandler = createTerminateHandler( client );
+const resultHandler = createResultHandler( client );
+const traceLogHandler = createTraceLogHandler( client );
 
 // Sets payload limit for POST in application/json format. Some workflow have very large payloads
 app.use( express.json( { limit: '2mb' } ) );
@@ -662,9 +670,6 @@ app.get( '/workflow/:id/runs/:rid/status', statusHandler );
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-const stopHandler = async ( req, res ) => {
-  res.json( await client.stopWorkflow( req.params.id, readPinnedRunId( req ) ) );
-};
 app.patch( '/workflow/:id/runs/:rid/stop', stopHandler );
 app.patch(
   '/workflow/:id/stop',
@@ -751,11 +756,6 @@ app.patch(
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-const terminateHandler = async ( req, res ) => {
-  const { reason } = z.object( { reason: z.string().optional() } ).optional().default( {} ).parse( req.body );
-  const info = await client.terminateWorkflow( req.params.id, reason, readPinnedRunId( req ) );
-  res.json( { terminated: true, ...info } );
-};
 app.post( '/workflow/:id/runs/:rid/terminate', terminateHandler );
 app.post(
   '/workflow/:id/terminate',
@@ -911,9 +911,6 @@ app.post(
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-const resultHandler = async ( req, res ) => {
-  res.json( await client.getWorkflowResult( req.params.id, readPinnedRunId( req ) ) );
-};
 app.get( '/workflow/:id/result', resultHandler );
 app.get( '/workflow/:id/runs/:rid/result', resultHandler );
 
@@ -981,7 +978,6 @@ app.get( '/workflow/:id/runs/:rid/result', resultHandler );
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-const traceLogHandler = createTraceLogHandler( client );
 app.get( '/workflow/:id/trace-log', traceLogHandler );
 app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
 
