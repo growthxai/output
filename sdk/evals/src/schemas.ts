@@ -119,6 +119,7 @@ export interface Dataset {
   ground_truth?: GroundTruth;
   last_output?: LastOutput;
   last_eval?: LastEval;
+  _source?: string;
   [key: string]: unknown;
 }
 

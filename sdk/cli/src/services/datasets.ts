@@ -44,10 +44,21 @@ export function resolveDefaultDatasetsDir(
   return resolve( basePath, WORKFLOWS_PATHS[0], workflowName, DATASETS_DIR );
 }
 
-export async function readDataset( filePath: string ): Promise<Dataset> {
-  const content = await readFile( filePath, 'utf-8' );
-  const raw = yaml.load( content );
-  return DatasetSchema.parse( raw ) as Dataset;
+export async function readDatasetFile( filePath: string ): Promise<Dataset[]> {
+  const raw = yaml.load( await readFile( filePath, 'utf-8' ) );
+
+  if ( !raw || typeof raw !== 'object' || Array.isArray( raw ) ) {
+    throw new Error( `Invalid dataset file: ${filePath}` );
+  }
+
+  return Object.entries( raw as Record<string, unknown> ).map( ( [ name, body ] ) => {
+    if ( !body || typeof body !== 'object' || !( 'input' in body ) ) {
+      throw new Error( `Dataset case "${name}" in ${filePath} is missing required "input" field` );
+    }
+    const dataset = DatasetSchema.parse( { name, ...( body as object ) } ) as Dataset;
+    dataset._source = filePath;
+    return dataset;
+  } );
 }
 
 export async function readAllDatasets(
@@ -63,47 +74,41 @@ export async function readAllDatasets(
   const files = await readdir( dir );
   const ymlFiles = files.filter( f => f.endsWith( '.yml' ) || f.endsWith( '.yaml' ) );
 
+  const seen = new Set<string>();
   const datasets: Dataset[] = [];
   for ( const file of ymlFiles ) {
-    const dataset = await readDataset( join( dir, file ) );
-    if ( filterNames && !filterNames.includes( dataset.name ) ) {
-      continue;
+    const cases = await readDatasetFile( join( dir, file ) );
+    for ( const dataset of cases ) {
+      if ( seen.has( dataset.name ) ) {
+        throw new Error( `Duplicate dataset case name "${dataset.name}" found in ${file}` );
+      }
+      seen.add( dataset.name );
+      if ( filterNames && !filterNames.includes( dataset.name ) ) {
+        continue;
+      }
+      datasets.push( dataset );
     }
-    datasets.push( dataset );
   }
 
   return { datasets, dir };
 }
 
-async function mergeWithExisting( dataset: Dataset, filePath: string ): Promise<Dataset> {
-  if ( !existsSync( filePath ) ) {
-    return dataset;
-  }
-
-  try {
-    const existing = await readDataset( filePath );
-    return {
-      ...existing,
-      ...dataset,
-      ground_truth: dataset.ground_truth ?? existing.ground_truth,
-      last_output: dataset.last_output ?? existing.last_output,
-      last_eval: dataset.last_eval ?? existing.last_eval
-    };
-  } catch {
-    return dataset;
-  }
-}
-
 export async function writeDataset( dataset: Dataset, filePath: string ): Promise<void> {
-  const merged = await mergeWithExisting( dataset, filePath );
-
   const dir = resolve( filePath, '..' );
   if ( !existsSync( dir ) ) {
     await mkdir( dir, { recursive: true } );
   }
 
-  const content = yaml.dump( merged, { lineWidth: 120, noRefs: true, sortKeys: false } );
-  await writeFile( filePath, content, 'utf-8' );
+  const loaded = existsSync( filePath ) ? yaml.load( await readFile( filePath, 'utf-8' ) ) : null;
+  const fileObj: Record<string, unknown> =
+    ( loaded && typeof loaded === 'object' && !Array.isArray( loaded ) ) ?
+      loaded as Record<string, unknown> :
+      {};
+
+  const { name, _source, ...caseBody } = dataset;
+  fileObj[name] = { ...( fileObj[name] as object ), ...caseBody };
+
+  await writeFile( filePath, yaml.dump( fileObj, { lineWidth: 120, noRefs: true, sortKeys: false } ), 'utf-8' );
 }
 
 export async function listDatasets(
@@ -122,14 +127,16 @@ export async function listDatasets(
   for ( const file of ymlFiles ) {
     const filePath = join( dir, file );
     try {
-      const dataset = await readDataset( filePath );
-      results.push( {
-        name: dataset.name,
-        path: filePath,
-        hasLastOutput: dataset.last_output?.output !== undefined,
-        lastOutputDate: dataset.last_output?.date,
-        lastEvalDate: dataset.last_eval?.date
-      } );
+      const cases = await readDatasetFile( filePath );
+      for ( const dataset of cases ) {
+        results.push( {
+          name: dataset.name,
+          path: filePath,
+          hasLastOutput: dataset.last_output?.output !== undefined,
+          lastOutputDate: dataset.last_output?.date,
+          lastEvalDate: dataset.last_eval?.date
+        } );
+      }
     } catch {
       results.push( {
         name: file.replace( /\.(yml|yaml)$/, '' ),
