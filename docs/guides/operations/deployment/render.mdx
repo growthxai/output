@@ -19,7 +19,8 @@ After running `output init`, your repository looks like this:
 ```
 your-workflows/
 ├── config/
-│   └── costs.yml
+│   ├── costs.yml
+│   └── credentials.yml.enc    # encrypted credentials (committed)
 ├── src/
 │   └── workflows/
 │       └── your_workflow/
@@ -52,10 +53,11 @@ RUN npm run output:worker:install
 
 # Build the worker
 COPY src/ ./src/
+COPY config/ ./config/
 COPY tsconfig.json ./
 RUN npm run output:worker:build
 
-# Clean up source files after build
+# Clean up source files after build (config stays — credentials are needed at runtime)
 RUN rm -rf ./src tsconfig.json
 
 # Create non-root user for security
@@ -134,11 +136,15 @@ services:
         value: <your-namespace>
       - key: TEMPORAL_API_KEY
         sync: false
-      # LLM API keys
+      # Master key for decrypting config/credentials/production.yml.enc
+      # The only real secret needed — all other API keys live in encrypted credentials
+      - key: OUTPUT_CREDENTIALS_KEY_PRODUCTION
+        sync: false
+      # LLM API keys — resolved from encrypted credentials at worker boot
       - key: ANTHROPIC_API_KEY
-        sync: false
+        value: credential:anthropic.api_key
       - key: OPENAI_API_KEY
-        sync: false
+        value: credential:openai.api_key
     scaling:
       minInstances: 1
       maxInstances: 10
@@ -212,10 +218,88 @@ Use `generateValue: true` for tokens that just need to be a random secure string
   generateValue: true       # Render creates a random secure value
 ```
 
+### API keys and credentials in production
+
+Your workflows need API keys (Anthropic, OpenAI, etc.) to run. Instead of pasting each key into Render as a separate secret, Output lets you store **all** your keys in one encrypted file that lives in your repo. Render only needs **one** secret — the master key that unlocks the file.
+
+Here's how it works:
+
+#### 1. Put all your API keys into encrypted credentials
+
+If you haven't already, initialize credentials and add your keys:
+
+```bash
+npx output credentials init --environment production
+npx output credentials edit --environment production
+```
+
+This opens an editor. Add all the API keys your workflows need:
+
+```yaml
+anthropic:
+  api_key: sk-ant-...
+openai:
+  api_key: sk-proj-...
+# Add any other keys your workflows use
+geekbot:
+  api_key: api_...
+beehiiv:
+  api_key: hNga...
+```
+
+Save and close. This creates two files:
+
+- `config/credentials/production.yml.enc` — the encrypted file. **Commit this to your repo.** It's encrypted and safe to push.
+- `config/credentials/production.key` — the master key. **Never commit this.** It's already in `.gitignore`.
+
+#### 2. Add the master key to Render
+
+Copy the contents of `config/credentials/production.key` and add it to your worker service in Render as a secret env var:
+
+```
+OUTPUT_CREDENTIALS_KEY_PRODUCTION = <paste key here>
+```
+
+This is the **only secret** you need to manage in Render. Everything else comes from the encrypted file.
+
+#### 3. Reference keys in your Blueprint with `credential:`
+
+In `render.yaml`, instead of setting each API key as a separate secret, pass a `credential:` reference as a plain string. The SDK resolves these automatically when the worker starts:
+
+```yaml
+envVars:
+  # These are NOT the real keys — they're references that the SDK
+  # resolves at boot from the encrypted credentials file.
+  - key: ANTHROPIC_API_KEY
+    value: credential:anthropic.api_key
+  - key: OPENAI_API_KEY
+    value: credential:openai.api_key
+```
+
+When the worker starts, the SDK reads these env vars, sees they start with `credential:`, decrypts the credentials file using the master key, and replaces the values with the real API keys — before any workflow code runs.
+
+<Note>
+The `credential:` pattern works for any env var the AI SDK or your code reads from `process.env`. Just add the key to your encrypted credentials and reference it in `render.yaml`.
+</Note>
+
+#### Rotating a key
+
+To change an API key in production:
+
+```bash
+npx output credentials edit --environment production
+# Change the key value, save, close
+git add config/credentials/production.yml.enc
+git commit -m "rotate anthropic key"
+git push
+```
+
+Render redeploys automatically. No env var changes needed — the master key stays the same.
+
 Commit the new files and push to GitHub before continuing:
 
 ```bash
-git add ops/ render.yaml
+git add ops/ render.yaml config/
 git commit -m "Add worker Dockerfile and Render Blueprint"
 git push
 ```
@@ -333,6 +417,13 @@ Workers scale independently from the API. If workflows are queuing up in Tempora
 1. Increase `NODE_OPTIONS` memory allocation in the Dockerfile
 2. Upgrade Render plan for more resources
 3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+
+### Credentials not found (`MissingCredentialError`)
+
+1. Verify `config/credentials/production.yml.enc` exists in your repo (not just `config/credentials.yml.enc` — the Dockerfile sets `NODE_ENV=production`, which makes the SDK look for the scoped path)
+2. Verify `OUTPUT_CREDENTIALS_KEY_PRODUCTION` is set in Render with the correct master key
+3. Verify the Dockerfile includes `COPY config/ ./config/` — without it, the encrypted file never reaches the container
+4. If using `credential:` references for API keys (e.g. `ANTHROPIC_API_KEY=credential:anthropic.api_key`), make sure the encrypted credentials file actually contains that key path
 
 ### Build failures
 
