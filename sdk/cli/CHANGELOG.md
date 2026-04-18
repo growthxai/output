@@ -1,5 +1,23 @@
 # @outputai/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 04243eb: Update the Claude plugin for Output to improve workflow code generation"
+
+### Patch Changes
+
+- 91c5d78: Fix `workflow generate` success message to show actual workflow ID and scenario name
+- b651368: Add interactive workflow run panel to `output dev` with live status polling, keyboard navigation, and Temporal UI integration
+- b3dea5c: Add Docker Compose version check to prevent silent hangs on versions older than v2.24.0
+- ac8c0f7: Bumping dependency versions
+- Updated dependencies [4407119]
+- Updated dependencies [ac8c0f7]
+  - @outputai/evals@0.2.0
+  - @outputai/llm@0.2.0
+  - @outputai/credentials@0.2.0
+
 ## 0.1.12
 
 ### Patch Changes

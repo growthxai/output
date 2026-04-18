@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.2.0
+
+### Patch Changes
+
+- ac8c0f7: Bumping dependency versions
+
 ## 0.1.12
 
 ### Patch Changes
