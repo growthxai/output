@@ -12,6 +12,7 @@ import {
   StepNotCompletedError,
   InvalidPageTokenError
 } from './errors.js';
+import { EventType, EventTypeName } from './event_types.js';
 
 const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
 
@@ -40,15 +41,20 @@ const getCatalog = async ( { client, taskQueue } ) => {
  * @param {string} status - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
  * @returns {string} User-friendly status string
  */
-const mapWorkflowStatus = status => ( {
-  RUNNING: 'running',
-  COMPLETED: 'completed',
-  FAILED: 'failed',
-  CANCELED: 'canceled',
-  TERMINATED: 'terminated',
-  TIMED_OUT: 'timed_out',
-  CONTINUED_AS_NEW: 'continued'
-}[status] || status.toLowerCase() );
+const mapWorkflowStatus = status => {
+  if ( !status ) {
+    return 'unspecified';
+  }
+  return ( {
+    RUNNING: 'running',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELED: 'canceled',
+    TERMINATED: 'terminated',
+    TIMED_OUT: 'timed_out',
+    CONTINUED_AS_NEW: 'continued'
+  }[status] || status.toLowerCase() );
+};
 
 /**
  * Terminal Temporal workflow execution status codes.
@@ -64,46 +70,6 @@ const TemporalStatus = {
 };
 
 const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
-
-// Values correspond to temporal.api.enums.v1.EventType protobuf enum.
-const EventType = {
-  WORKFLOW_EXECUTION_STARTED: 1,
-  WORKFLOW_EXECUTION_COMPLETED: 2,
-  WORKFLOW_EXECUTION_FAILED: 3,
-  WORKFLOW_EXECUTION_TIMED_OUT: 4,
-  WORKFLOW_TASK_SCHEDULED: 5,
-  WORKFLOW_TASK_STARTED: 6,
-  WORKFLOW_TASK_COMPLETED: 7,
-  WORKFLOW_TASK_TIMED_OUT: 8,
-  WORKFLOW_TASK_FAILED: 9,
-  ACTIVITY_TASK_SCHEDULED: 10,
-  ACTIVITY_TASK_STARTED: 11,
-  ACTIVITY_TASK_COMPLETED: 12,
-  ACTIVITY_TASK_FAILED: 13,
-  ACTIVITY_TASK_TIMED_OUT: 14,
-  ACTIVITY_TASK_CANCEL_REQUESTED: 15,
-  ACTIVITY_TASK_CANCELED: 16,
-  TIMER_STARTED: 17,
-  TIMER_FIRED: 18,
-  TIMER_CANCELED: 19,
-  WORKFLOW_EXECUTION_CANCEL_REQUESTED: 20,
-  WORKFLOW_EXECUTION_CANCELED: 21,
-  WORKFLOW_EXECUTION_SIGNALED: 26,
-  WORKFLOW_EXECUTION_TERMINATED: 27,
-  WORKFLOW_EXECUTION_CONTINUED_AS_NEW: 28,
-  START_CHILD_WORKFLOW_EXECUTION_INITIATED: 29,
-  CHILD_WORKFLOW_EXECUTION_STARTED: 31,
-  CHILD_WORKFLOW_EXECUTION_COMPLETED: 32,
-  CHILD_WORKFLOW_EXECUTION_FAILED: 33,
-  CHILD_WORKFLOW_EXECUTION_CANCELED: 34,
-  CHILD_WORKFLOW_EXECUTION_TIMED_OUT: 35,
-  CHILD_WORKFLOW_EXECUTION_TERMINATED: 36,
-  MARKER_RECORDED: 25
-};
-
-const EventTypeName = Object.fromEntries(
-  Object.entries( EventType ).map( ( [ name, value ] ) => [ value, name ] )
-);
 
 const warnedUnknownEventTypes = new Set();
 
@@ -694,7 +660,12 @@ export default {
         const firstPage = !pageToken;
         const metadata = firstPage ? await ( async () => {
           const handle = client.workflow.getHandle( workflowId, runId );
-          const description = await handle.describe();
+          const description = await handle.describe().catch( error => {
+            if ( error?.code === GRPC_STATUS.NOT_FOUND ) {
+              throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+            }
+            throw error;
+          } );
           return {
             workflow: {
               workflowId,
@@ -719,7 +690,10 @@ export default {
             throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
           }
           if ( error.code === GRPC_STATUS.NOT_FOUND ) {
-            throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+            throw new WorkflowNotFoundError( runId ?
+              `Run "${runId}" not found for workflow "${workflowId}"` :
+              `Workflow "${workflowId}" not found`
+            );
           }
           if ( error.code === GRPC_STATUS.INVALID_ARGUMENT ) {
             throw new InvalidPageTokenError();
