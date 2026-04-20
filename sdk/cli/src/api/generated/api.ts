@@ -433,6 +433,44 @@ export type GetWorkflowIdHistory200 = {
   nextPageToken?: string | null;
 };
 
+export type GetWorkflowIdRunsRidHistoryParams = {
+/**
+ * Number of events per page
+ * @minimum 1
+ * @maximum 50
+ */
+pageSize?: number;
+/**
+ * Base64 pagination token from previous response
+ */
+pageToken?: string;
+/**
+ * Include decoded input/output payloads in events
+ */
+includePayloads?: boolean;
+};
+
+/**
+ * Workflow metadata (null on subsequent pages)
+ * @nullable
+ */
+export type GetWorkflowIdRunsRidHistory200Workflow = { [key: string]: unknown } | null;
+
+export type GetWorkflowIdRunsRidHistory200EventsItem = { [key: string]: unknown };
+
+export type GetWorkflowIdRunsRidHistory200 = {
+  /**
+     * Workflow metadata (null on subsequent pages)
+     * @nullable
+     */
+  workflow?: GetWorkflowIdRunsRidHistory200Workflow;
+  events?: GetWorkflowIdRunsRidHistory200EventsItem[];
+  /** The pinned run ID */
+  runId?: string;
+  /** @nullable */
+  nextPageToken?: string | null;
+};
+
 export type GetWorkflowCatalogId200 = {
   /** Each workflow available in this catalog */
   workflows?: Workflow[];
@@ -1402,6 +1440,70 @@ export const getWorkflowIdHistory = async (id: string,
     params?: GetWorkflowIdHistoryParams, options?: ApiRequestOptions): Promise<getWorkflowIdHistoryResponse> => {
 
   return customFetchInstance<getWorkflowIdHistoryResponse>(getGetWorkflowIdHistoryUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary Get paginated workflow execution history for a specific run
+ */
+export type getWorkflowIdRunsRidHistoryResponse200 = {
+  data: GetWorkflowIdRunsRidHistory200
+  status: 200
+}
+
+export type getWorkflowIdRunsRidHistoryResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidHistoryResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidHistoryResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidHistoryResponseSuccess = (getWorkflowIdRunsRidHistoryResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidHistoryResponseError = (getWorkflowIdRunsRidHistoryResponse400 | getWorkflowIdRunsRidHistoryResponse404 | getWorkflowIdRunsRidHistoryResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidHistoryResponse = (getWorkflowIdRunsRidHistoryResponseSuccess | getWorkflowIdRunsRidHistoryResponseError)
+
+export const getGetWorkflowIdRunsRidHistoryUrl = (id: string,
+    rid: string,
+    params?: GetWorkflowIdRunsRidHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/workflow/${id}/runs/${rid}/history?${stringifiedParams}` : `/workflow/${id}/runs/${rid}/history`
+}
+
+export const getWorkflowIdRunsRidHistory = async (id: string,
+    rid: string,
+    params?: GetWorkflowIdRunsRidHistoryParams, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidHistoryResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidHistoryResponse>(getGetWorkflowIdRunsRidHistoryUrl(id,rid,params),
   {
     ...options,
     method: 'GET'

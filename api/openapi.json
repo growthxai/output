@@ -1361,6 +1361,102 @@
         }
       }
     },
+    "/workflow/{id}/runs/{rid}/history": {
+      "get": {
+        "summary": "Get paginated workflow execution history for a specific run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The workflow execution ID"
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to target"
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "description": "Number of events per page"
+          },
+          {
+            "in": "query",
+            "name": "pageToken",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base64 pagination token from previous response"
+          },
+          {
+            "in": "query",
+            "name": "includePayloads",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include decoded input/output payloads in events"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated history events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflow": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Workflow metadata (null on subsequent pages)"
+                    },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "runId": {
+                      "type": "string",
+                      "description": "The pinned run ID"
+                    },
+                    "nextPageToken": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/workflow/catalog/{id}": {
       "get": {
         "summary": "Get a specific workflow catalog by ID",
