@@ -133,17 +133,21 @@
       ]
     },
     {
-      "group": "Changelog",
+      "group": "Releases",
       "icon": "clock-rotate-left",
       "pages": [
-        "changelog/index"
-      ]
-    },
-    {
-      "group": "Migrations",
-      "icon": "arrow-up-right-from-square",
-      "pages": [
-        "migrations/index"
+        {
+          "group": "Changelog",
+          "pages": [
+            "changelog/index"
+          ]
+        },
+        {
+          "group": "Migration Guides",
+          "pages": [
+            "migrations/index"
+          ]
+        }
       ]
     }
   ]},

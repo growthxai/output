@@ -24,7 +24,7 @@ const docsConfigPath = path.join( repoRoot, 'docs/guides/docs.json' );
 const RELEASES_MARKER = '{/* RELEASES_BELOW — do not delete. The release generator inserts new <Update> blocks immediately after this marker. */}';
 const GUIDES_MARKER = '{/* GUIDES_BELOW — do not delete. The release generator appends new migration guide links immediately after this marker. */}';
 
-const MIGRATIONS_GROUP = 'Migrations';
+const MIGRATIONS_GROUP = 'Migration Guides';
 
 const SKIP_FILES = new Set( [ 'README.md' ] );
 
@@ -182,9 +182,27 @@ async function appendMigrationLink( { slug, fromVersion, toVersion } ) {
   await fs.writeFile( migrationsIndexPath, cleaned.replace( GUIDES_MARKER, `${GUIDES_MARKER}\n\n${link}` ) );
 }
 
+function findGroup( nodes, name ) {
+  for ( const node of nodes ) {
+    if ( typeof node !== 'object' || node === null ) {
+      continue;
+    }
+    if ( node.group === name ) {
+      return node;
+    }
+    if ( Array.isArray( node.pages ) ) {
+      const nested = findGroup( node.pages, name );
+      if ( nested ) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
 async function registerMigrationPageInNav( slug ) {
   const config = await readJson( docsConfigPath );
-  const group = config.navigation.groups.find( g => g.group === MIGRATIONS_GROUP );
+  const group = findGroup( config.navigation.groups, MIGRATIONS_GROUP );
   if ( !group ) {
     throw new Error( `Navigation group "${MIGRATIONS_GROUP}" not found in docs.json` );
   }
