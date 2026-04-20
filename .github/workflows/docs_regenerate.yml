@@ -9,6 +9,7 @@ on:
     paths:
       - 'docs/guides/data/releases.json'
       - 'docs/guides/scripts/**'
+      - 'ops/regenerate_docs.sh'
 
 permissions:
   contents: write
@@ -31,7 +32,7 @@ jobs:
           node-version: '24.13'
 
       - name: Regenerate MDX
-        run: node docs/guides/scripts/render.mjs --regenerate
+        run: ./ops/regenerate_docs.sh
 
       - name: Commit regenerated MDX
         run: |
@@ -58,13 +59,13 @@ jobs:
           node-version: '24.13'
 
       - name: Regenerate MDX
-        run: node docs/guides/scripts/render.mjs --regenerate
+        run: ./ops/regenerate_docs.sh
 
       - name: Fail if MDX drifted
         run: |
           if ! git diff --quiet; then
             echo "::error::releases.json changed but the generated MDX is out of date."
-            echo "Run \`node docs/guides/scripts/render.mjs --regenerate\` locally and commit the result."
+            echo "Run \`./ops/regenerate_docs.sh\` locally and commit the result."
             git diff
             exit 1
           fi

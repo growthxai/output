@@ -4,7 +4,7 @@
  * the JSON shape and asserting on the returned string.
  */
 
-const AUTO_GENERATED_HEADER = '{/* AUTO-GENERATED from docs/guides/data/releases.json. Edit the JSON and run `node docs/guides/scripts/render.mjs --regenerate`. */}';
+const AUTO_GENERATED_HEADER = '{/* AUTO-GENERATED from docs/guides/data/releases.json. Edit the JSON and run `./ops/regenerate_docs.sh`. */}';
 
 const CHANGELOG_FRONTMATTER = `---
 title: "Changelog"
