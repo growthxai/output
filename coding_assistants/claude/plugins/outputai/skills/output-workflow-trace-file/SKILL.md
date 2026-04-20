@@ -1,6 +1,7 @@
 ---
+name: output-workflow-trace-file
 argument-hint: [workflow-name-or-run-id]
-description: Show the final result of a local trace file — clean readable markdown
+description: Read and render the output of a local Output SDK workflow trace file as clean readable markdown. Use when the user wants to view what a recent workflow produced, see the result from a local trace file, or render trace output as a document.
 version: 0.1.0
 ---
 
