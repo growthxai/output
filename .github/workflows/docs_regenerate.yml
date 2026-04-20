@@ -1,0 +1,70 @@
+# Keeps docs/guides/changelog/** and docs/guides/migrations/** in sync with
+# docs/guides/data/releases.json on pull requests that edit the JSON directly.
+# The release pipeline already regenerates MDX as part of ops/bump_release.sh,
+# so this workflow is only triggered by humans editing the JSON out-of-band.
+name: Regenerate docs from releases.json
+
+on:
+  pull_request:
+    paths:
+      - 'docs/guides/data/releases.json'
+      - 'docs/guides/scripts/**'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    name: Regenerate MDX
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.RELEASE_GH_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13'
+
+      - name: Regenerate MDX
+        run: node docs/guides/scripts/render.mjs --regenerate
+
+      - name: Commit regenerated MDX
+        run: |
+          if git diff --quiet; then
+            echo "No docs drift — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/guides/changelog docs/guides/migrations docs/guides/docs.json
+          git commit -m "chore(docs): regenerate MDX from releases.json"
+          git push
+
+  check-drift:
+    name: Fail on drift from forked PRs
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13'
+
+      - name: Regenerate MDX
+        run: node docs/guides/scripts/render.mjs --regenerate
+
+      - name: Fail if MDX drifted
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::releases.json changed but the generated MDX is out of date."
+            echo "Run \`node docs/guides/scripts/render.mjs --regenerate\` locally and commit the result."
+            git diff
+            exit 1
+          fi

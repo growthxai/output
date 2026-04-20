@@ -3,6 +3,8 @@ title: "Migrations"
 description: "Upgrade guides for moving between versions of the Output framework."
 ---
 
+{/* AUTO-GENERATED from docs/guides/data/releases.json. Edit the JSON and run `node docs/guides/scripts/render.mjs --regenerate`. */}
+
 Every release that introduces a breaking change has a migration guide. Each guide covers one version boundary (e.g. `v0.1` → `v0.2`), so if you're jumping several versions you apply them in order.
 
 ## How to upgrade
@@ -16,8 +18,6 @@ npx output migrate
 It reads the `@outputai/*` version in your `package.json`, looks up the matching guide on this page, applies the changes, and runs your type checker.
 
 ## Guides
-
-{/* GUIDES_BELOW — do not delete. The release generator appends new migration guide links immediately after this marker. */}
 
 <Note>
 No migration guides yet — the framework hasn't had a breaking change since this index was created. New guides land here automatically when a release ships with a `## Migration` section in its changeset.
