@@ -1,6 +1,7 @@
 ---
+name: build-workflow
 argument-hint: "[workflow-plan-file-path] [workflow-name] [workflow-directory]"
-description: Workflow Implementation Command for Output SDK
+description: Implement an Output SDK workflow from a plan document. Use when the user asks to build, implement, or code a workflow from an existing plan, or after plan-workflow has produced a plan and the user is ready to build.
 version: 0.1.3
 model: opus
 ---

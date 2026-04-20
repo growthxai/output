@@ -1,6 +1,7 @@
 ---
+name: debug-workflow
 argument-hint: [problem-description-and-optional-workflow-id]
-description: Debug Output SDK workflow issues
+description: Debug Output SDK workflow issues. Use when user reports a workflow failing, erroring, hanging, producing wrong results, or asks to debug, troubleshoot, or investigate a workflow execution.
 version: 0.1.3
 model: opus
 ---
