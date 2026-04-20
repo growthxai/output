@@ -131,6 +131,20 @@
         "packages/http",
         "packages/llm"
       ]
+    },
+    {
+      "group": "Changelog",
+      "icon": "clock-rotate-left",
+      "pages": [
+        "changelog/index"
+      ]
+    },
+    {
+      "group": "Migrations",
+      "icon": "arrow-up-right-from-square",
+      "pages": [
+        "migrations/index"
+      ]
     }
   ]},
   "logo": {

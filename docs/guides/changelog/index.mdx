@@ -1,0 +1,102 @@
+---
+title: "Changelog"
+description: "Release notes for the Output framework. Every change to @outputai/* packages and output-api shows up here."
+---
+
+The Output framework uses a fixed version group — `@outputai/core`, `@outputai/cli`, `@outputai/llm`, `@outputai/http`, `@outputai/credentials`, `@outputai/evals`, `@outputai/framework`, and `output-api` all share one version number and release together.
+
+Releases with breaking changes link to a migration guide. If you're upgrading across several versions, start at [Migrations](/migrations) and chain the guides in order.
+
+{/* RELEASES_BELOW — do not delete. The release generator inserts new <Update> blocks immediately after this marker. */}
+
+<Update label="v0.1.12" description="2026-04-07 · patch release">
+
+**`@outputai/llm`, `@outputai/core`** — Add `agent()` and `skill()` abstractions to `@outputai/llm` for composing reusable LLM agents with structured output and a lazy-loaded skills system. Add `findContentDir()` to `@outputai/core` and fix skill path resolution to be relative to the prompt file rather than the calling module. Add `output-copy-assets` bin to `@outputai/core` to centralise worker asset copying.
+
+**`@outputai/core`, `output-api`** — Add support for workflow alias names.
+
+**`@outputai/cli`** — Add `output fix` command that realigns npm scripts in a host project's `package.json` with the canonical scripts from the CLI. Added `output:worker` and `output:worker:watch` commands to the scaffold. Pinned the dependency versions installed via the CLI-generated `package.json`.
+
+**`@outputai/cli`** — Pin `output` to a specific version in the scaffold `package.json` instead of a version range.
+
+**`@outputai/cli`** — Update CLI cost configuration for calculating cost of Claude Sonnet 4.6. Improve coding-assistant guidance for schema generation.
+
+</Update>
+
+<Update label="v0.1.11" description="2026-04-02 · patch release">
+
+**`@outputai/cli`** — Fix worker health checks and add yarn/pnpm support in the dev container. Dev container worker now supports yarn and pnpm projects via corepack. Health check no longer reports success when containers exit or are unhealthy. Worker health-check detection time dropped from ~36s to ~9s. `start_period` extended from 30s to 60s to reduce false positives on cold start.
+
+**`@outputai/cli`** — Fix the `plan` and `generate` CLI commands. Suppressed Claude file writes and next-step suggestions during plan generation (the CLI owns those responsibilities). Validates plan-file existence before creating a workflow skeleton in `generate`. Rolls back created skeleton files if the workflow build step fails.
+
+**`@outputai/cli`** — Replace log-update / ANSI output in `output dev` with an Ink-based terminal UI, fixing a layout bug where text overlapped after a Docker service recovered from unhealthy.
+
+**`@outputai/cli`** — Ensure credential references are resolved when running CLI commands.
+
+</Update>
+
+<Update label="v0.1.10" description="2026-03-27 · patch release">
+
+**All packages** — Update dependencies to latest and override versions to fix known vulnerabilities.
+
+</Update>
+
+<Update label="v0.1.9" description="2026-03-27 · patch release">
+
+**`@outputai/cli`** — Fix best practices in the `output init` example. Move `blogContentSchema` from `steps.ts` to `types.ts`. Update the README template to use `npx output credentials` flow instead of `.env`.
+
+</Update>
+
+<Update label="v0.1.8" description="2026-03-24 · patch release">
+
+**`@outputai/cli`** — Use encrypted credentials in the `output init` scaffold by default. API keys are now stored in `config/credentials.yml.enc` instead of `.env`, and `<SECRET>` markers are renamed to `<FILL_ME_OUT>`.
+
+**`@outputai/llm`** — Update `@exalabs/ai-sdk` from 1.0.5 to 2.0.1.
+
+</Update>
+
+<Update label="v0.1.7" description="2026-03-24 · patch release">
+
+**All packages** — Dependency bumps (minor and patch).
+
+</Update>
+
+<Update label="v0.1.6" description="2026-03-23 · patch release">
+
+**`@outputai/cli`** — Fix null crash in `workflow cost` when the pricing config is empty or missing.
+
+</Update>
+
+<Update label="v0.1.5" description="2026-03-22 · patch release">
+
+**`@outputai/cli`** — Fix prod publish to include the build step before publishing to npm. Previously, packages were published without compiling TypeScript, resulting in a missing `dist/` directory. Add `@next` dist-tag that auto-publishes from every merge to `main`, enabling `npx @outputai/cli@next` for tracking the latest changes.
+
+</Update>
+
+<Update label="v0.1.4" description="2026-03-20 · patch release">
+
+**All packages** — Patch vulnerable dependencies.
+
+</Update>
+
+<Update label="v0.1.3" description="2026-03-19 · patch release">
+
+**`@outputai/core`, `@outputai/credentials`, `@outputai/cli`** — Add `credential:` env var convention for automatic secret resolution at worker startup.
+
+- `@outputai/core`: add `WORKER_BEFORE_START` lifecycle event and `onBeforeStart` hook.
+- `@outputai/credentials`: add `resolveCredentialRefs()` that resolves `credential:<dot.path>` env vars from encrypted credentials, auto-registered via `onBeforeStart` on import.
+- `@outputai/cli`: scaffold build script now copies `*.key` files to `dist/` alongside `*.yml.enc`.
+
+</Update>
+
+<Update label="v0.1.2" description="2026-03-19 · patch release">
+
+**`@outputai/cli`** — Update `@anthropic-ai/claude-agent-sdk` from 0.1.71 to 0.2.77.
+
+</Update>
+
+<Update label="v0.1.1" description="2026-03-19 · patch release">
+
+**All packages** — Dependency updates (minor and patch).
+
+</Update>

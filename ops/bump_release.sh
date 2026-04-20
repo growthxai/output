@@ -12,8 +12,8 @@ print() {
 
 print "Bumping Release" "Run"
 
-print "Evaluating changesets"
-pnpm changeset version
+print "Evaluating changesets and generating docs"
+node ops/generate_docs_from_changesets.mjs
 
 print "Set CLI SDK Version"
 version=$(node -p "require('./sdk/core/package.json').version");
