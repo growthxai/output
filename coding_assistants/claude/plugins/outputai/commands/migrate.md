@@ -42,32 +42,36 @@ Expected positional arguments (all optional):
 
 </step>
 
-<step number="1" name="detect_from_version">
+<step number="1" name="detect_to_version">
 
-### Step 1: Detect the current (FROM) version
+### Step 1: Determine the target (TO) version
 
-Read `package.json` at the project root.
+If the user provided a `to-version` argument, use it.
 
-Resolve the current framework version from the first entry that exists, in this order:
+Otherwise, run `npm view @outputai/core version` via Bash and use that as the target.
+
+</step>
+
+<step number="2" name="detect_from_version">
+
+### Step 2: Detect the current (FROM) version
+
+If the user provided a `from-version` argument, use it and skip the rest of this step.
+
+Otherwise, read `package.json` at the project root and resolve the current framework version from the first entry that exists, in this order:
   1. `dependencies["@outputai/core"]`
   2. `devDependencies["@outputai/core"]`
   3. `dependencies["@outputai/cli"]`
 
 Strip any leading `^` or `~`. If no `@outputai/*` package is present, stop and tell the user: "This project doesn't depend on any @outputai/* packages — nothing to migrate."
 
-If the user provided a `from-version` argument, prefer that over the detected value.
+**If the version read from `package.json` equals the TO version**, the user may have already edited `package.json` to the new version without running the migration yet. Don't give up — find the pre-bump version by looking in this order:
 
-</step>
+  1. Run `git diff package.json pnpm-lock.yaml package-lock.json yarn.lock 2>/dev/null` and scan the diff for an `@outputai/*` version that was removed (lines starting with `-`). If you find one, that's the FROM version.
+  2. Run `git log -p -n 20 -- package.json` and find the most recent commit that changed an `@outputai/*` version. The old value on that commit's parent side is the FROM version.
+  3. If neither locates a prior version, tell the user: "Cannot detect the FROM version — both `package.json` and git history show `vX.Y.Z`. Re-run with `--from <version>` to specify it explicitly."
 
-<step number="2" name="detect_to_version">
-
-### Step 2: Determine the target (TO) version
-
-If the user provided a `to-version` argument, use it.
-
-Otherwise, run `npm view @outputai/core version` via Bash and use that as the target.
-
-If FROM and TO resolve to the same version, stop and tell the user: "Already on the latest version (`vX.Y.Z`) — nothing to migrate."
+If FROM and TO still resolve to the same version after this recovery, stop and tell the user: "Already on `vX.Y.Z` — nothing to migrate."
 
 </step>
 
