@@ -70,5 +70,3 @@ stripe_blog_low_quality:
 ```
 
 Case names must be unique across every file in `tests/datasets/` — duplicates now throw instead of silently overwriting.
-
-See [PR #143](https://github.com/growthxai/output/pull/143) for a complete example of this refactor applied across a test suite.
