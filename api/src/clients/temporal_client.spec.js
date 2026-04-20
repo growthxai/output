@@ -169,7 +169,7 @@ describe( 'temporal_client', () => {
         workflowId: 'test-uuid',
         runId: 'run-aaa',
         status: 'failed',
-        input: null,
+        input: { input: 'data' },
         output: null,
         trace: tracePayload,
         error: 'step error message'
@@ -200,7 +200,7 @@ describe( 'temporal_client', () => {
         workflowId: 'test-uuid',
         runId: 'run-aaa',
         status: 'completed',
-        input: null,
+        input: { input: 'data' },
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         error: null

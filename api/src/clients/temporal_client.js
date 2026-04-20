@@ -144,19 +144,33 @@ export const extractWorkflowInput = history => {
 };
 
 /**
- * Build a standardized workflow response object
- * @param {string} workflowId - The workflow execution id
- * @param {string} status - The workflow status
- * @param {Object} [options] - Optional fields
- * @param {string|null} [options.runId] - The specific run id for this execution
- * @param {any} [options.input] - The original workflow input
- * @param {any} [options.output] - The workflow output
+ * A representation of a workflow execution result, including input, output, error and meta information
+ *
+ * @typedef {object} WorkflowResult
+ * @property {string} workflowId - The workflow execution id
+ * @property {'completed'|'failed'} status - The workflow status
+ * @property {unknown} input - The original workflow input
+ * @property {string} runId - The specific run id for this execution
+ * @property {unknown|null} output - The workflow output
+ * @property {object|null} trace - Trace information
+ * @property {string|null} error - Error message if failed
+ */
+
+/**
+ * Build a WorkflowResult object
+ *
+ * @param {Object} args - Fields
+ * @param {string} options.workflowId - The workflow execution id
+ * @param {string} options.status - The workflow status
+ * @param {unknown} options.input - The original workflow input
+ * @param {string} options.runId - The specific run id for this execution
+ * @param {unknown} [options.output] - The workflow output
  * @param {object} [options.trace] - Trace information
  * @param {string} [options.error] - Error message if failed
- * @returns {Object} Standardized workflow response
+ * @returns {WorkflowResult}
  */
-const buildWorkflowResponse = ( workflowId, status, { runId = null, input = null, output = null, trace = null, error = null } = {} ) =>
-  ( { workflowId, runId, status, input, output, trace, error } );
+const buildWorkflowResult = ( { workflowId, status, input, runId, output = null, trace = null, error = null } ) =>
+  ( { workflowId, runId, status, input, output: output ?? null, trace: trace ?? null, error: error ?? null } );
 
 export default {
   async init() {
@@ -190,18 +204,6 @@ export default {
 
     return {
       /**
-       * Shape produced by buildWorkflowResponse — shared base for run and result responses.
-       *
-       * @typedef {Object} WorkflowResult
-       * @property {string} workflowId - The workflow execution id
-       * @property {string|null} runId - The specific run id for this execution, null if unavailable
-       * @property {('completed'|'failed'|'canceled'|'terminated'|'timed_out'|'continued'|'unspecified')} status - Execution status
-       * @property {any} input - The original workflow input, null if unavailable
-       * @property {any} output - The workflow output, null if failed or unavailable
-       * @property {object|null} trace - Trace information including destinations, null if none
-       * @property {string|null} error - Error message if workflow failed, null otherwise
-       */
-      /**
        * Start the execution of a single workflow
        *
        * @param {string} workflowName - The type of the workflow
@@ -231,11 +233,7 @@ export default {
             handle.result(),
             new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
           ] );
-          return buildWorkflowResponse( workflowId, 'completed', {
-            runId,
-            output: result.output ?? null,
-            trace: result.trace ?? null
-          } );
+          return buildWorkflowResult( { workflowId, status: 'completed', runId, input, output: result.output, trace: result.trace } );
         } catch ( error ) {
           // Workflow failures are returned as data, not thrown
           if ( error instanceof WorkflowFailedError ) {
@@ -244,9 +242,9 @@ export default {
               errorMessage: error.message,
               hasTrace: Boolean( extractTraceInfo( error ) )
             } );
-            return buildWorkflowResponse( workflowId, 'failed', {
-              runId,
-              trace: extractTraceInfo( error ) ?? null,
+            return buildWorkflowResult( {
+              workflowId, status: 'failed', runId, input,
+              trace: extractTraceInfo( error ),
               error: extractErrorMessage( error )
             } );
           }
@@ -390,17 +388,12 @@ export default {
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
           const result = await pinnedHandle.result();
-          return buildWorkflowResponse( workflowId, status, {
-            runId: resolvedRunId,
-            input,
-            output: result.output ?? null,
-            trace: result.trace ?? null
-          } );
+          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, output: result.output, trace: result.trace } );
         }
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
         if ( description.status.code === TemporalStatus.CONTINUED_AS_NEW ) {
-          return buildWorkflowResponse( workflowId, status, { runId: resolvedRunId, input } );
+          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input } );
         }
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
@@ -421,11 +414,12 @@ export default {
             throw e;
           } );
 
-        return buildWorkflowResponse( workflowId, status, {
-          runId: resolvedRunId,
-          input,
-          trace: workflowError ? extractTraceInfo( workflowError ) ?? null : null,
-          error: workflowError ? extractErrorMessage( workflowError ) : null
+        return buildWorkflowResult( {
+          workflowId, status, runId: resolvedRunId, input,
+          ...( workflowError && {
+            trace: extractTraceInfo( workflowError ),
+            error: extractErrorMessage( workflowError )
+          } )
         } );
       },
 
