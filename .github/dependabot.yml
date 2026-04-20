@@ -20,4 +20,3 @@ updates:
         applies-to: 'version-updates'
     cooldown:
       default-days: 3
-

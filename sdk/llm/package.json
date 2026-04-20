@@ -9,20 +9,20 @@
     "./src"
   ],
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "4.0.89",
-    "@ai-sdk/anthropic": "3.0.66",
-    "@ai-sdk/azure": "3.0.51",
-    "@ai-sdk/google-vertex": "4.0.102",
-    "@ai-sdk/openai": "3.0.50",
-    "@ai-sdk/perplexity": "3.0.27",
+    "@ai-sdk/amazon-bedrock": "4.0.95",
+    "@ai-sdk/anthropic": "3.0.71",
+    "@ai-sdk/azure": "3.0.54",
+    "@ai-sdk/google-vertex": "4.0.112",
+    "@ai-sdk/openai": "3.0.53",
+    "@ai-sdk/perplexity": "3.0.29",
     "@exalabs/ai-sdk": "2.0.1",
     "@outputai/core": "workspace:",
     "@perplexity-ai/ai-sdk": "0.1.2",
     "@tavily/ai-sdk": "0.4.1",
-    "ai": "6.0.146",
+    "ai": "6.0.168",
     "decimal.js": "10.6.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.25.2"
+    "liquidjs": "10.25.5"
   },
   "license": "Apache-2.0",
   "publishConfig": {
