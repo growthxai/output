@@ -15,15 +15,9 @@ Use the todo tool to track your progress.
 
 ## URL contract
 
-Migration guides live at a stable URL keyed on minor versions:
+All migration guidance lives on a single page: `https://docs.output.ai/migrations`.
 
-```
-https://docs.output.ai/migrations/v{FROM_MAJOR}.{FROM_MINOR}-to-v{TO_MAJOR}.{TO_MINOR}
-```
-
-Example: a project on `0.1.12` upgrading to `0.2.0` reads `https://docs.output.ai/migrations/v0.1-to-v0.2`.
-
-If the guide does not exist for a given version pair, fall back to the index at `https://docs.output.ai/migrations` and find the chain of guides that covers the range (e.g. `v0.1 → v0.2` then `v0.2 → v0.3`).
+The page has one section per version boundary (e.g. `### v0.1 → v0.2`). Each section covers the changes needed to upgrade across that boundary. If the user is jumping multiple minor versions, apply the sections in order.
 
 <process_flow>
 
@@ -79,17 +73,17 @@ If FROM and TO still resolve to the same version after this recovery, stop and t
 
 ### Step 3: Fetch the migration guide
 
-Compute the guide URL using the minor-version slug format described at the top of this file.
+WebFetch `https://docs.output.ai/migrations`. The page has one `### v{A}.{B} → v{C}.{D}` section per version boundary.
 
-WebFetch the URL. If the page exists, read the full contents and extract every `## <package-name>` section.
+Identify the chain of sections covering the FROM → TO range. Examples:
+  - FROM `0.1.12`, TO `0.2.0` → read the `### v0.1 → v0.2` section.
+  - FROM `0.1.12`, TO `0.3.0` → read `### v0.1 → v0.2` and `### v0.2 → v0.3` in order.
 
-If the URL returns 404:
-  1. WebFetch `https://docs.output.ai/migrations` (the index).
-  2. From the index, identify the chain of guides covering FROM → TO (e.g. `v0.1 → v0.2` then `v0.2 → v0.3`).
-  3. Fetch each guide in the chain in order.
-  4. If the index lists no guides for this range, stop and tell the user: "No migration guide found for `vFROM` → `vTO`. This usually means the release was additive and no code changes are required. Just bump your dependencies."
+Under each section, every `#### <package-name>` sub-heading describes a change for that package. The body below it contains the migration steps.
 
-Also WebFetch the changelog at `https://docs.output.ai/changelog` to cross-reference what changed in the range — use this to fill gaps the migration guide may not cover.
+If no section on the page matches the FROM → TO range, stop and tell the user: "No migration sections found for `vFROM` → `vTO` on the migrations page. The releases in this range were additive; just bump your dependencies."
+
+Also WebFetch `https://docs.output.ai/changelog` to cross-reference what changed in the range — use it to fill in gaps the migrations page may not cover.
 
 </step>
 

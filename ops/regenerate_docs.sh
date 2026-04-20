@@ -9,4 +9,4 @@ set -e
 
 cd "${0%/*}/.."
 
-node docs/guides/scripts/render.mjs
+node docs/guides/scripts/regenerate.mjs
