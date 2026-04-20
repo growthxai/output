@@ -9,7 +9,9 @@ describe( 'workflow_history handler', () => {
 
   const createApp = () => {
     const app = express();
-    app.get( '/workflow/:id/history', createWorkflowHistoryHandler( mockClient ) );
+    const handler = createWorkflowHistoryHandler( mockClient );
+    app.get( '/workflow/:id/history', handler );
+    app.get( '/workflow/:id/runs/:rid/history', handler );
     app.use( ( err, _req, res, _next ) => {
       if ( err.name === 'ZodError' ) {
         res.status( 400 ).json( { error: 'ValidationError', issues: err.issues } );
@@ -165,5 +167,41 @@ describe( 'workflow_history handler', () => {
     await request( createApp() )
       .get( '/workflow/wf-123/history' )
       .expect( 500, { error: 'Workflow not found' } );
+  } );
+
+  describe( 'pinned run route /workflow/:id/runs/:rid/history', () => {
+    const RID = '11111111-2222-4333-8444-555555555555';
+
+    it( 'reads runId from path and passes it to client', async () => {
+      mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+      await request( createApp() )
+        .get( `/workflow/wf-123/runs/${RID}/history` )
+        .expect( 200 );
+
+      expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( {
+        runId: RID
+      } ) );
+    } );
+
+    it( 'allows pageToken without query runId when runId is in path', async () => {
+      mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+      const token = Buffer.from( 'page-data' ).toString( 'base64' );
+
+      await request( createApp() )
+        .get( `/workflow/wf-123/runs/${RID}/history?pageToken=${token}` )
+        .expect( 200 );
+
+      expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( {
+        runId: RID,
+        pageToken: token
+      } ) );
+    } );
+
+    it( 'rejects non-UUID rid with 400', async () => {
+      await request( createApp() )
+        .get( '/workflow/wf-123/runs/not-a-uuid/history' )
+        .expect( 400 );
+    } );
   } );
 } );

@@ -362,6 +362,26 @@ describe( 'API endpoints', () => {
     } );
   } );
 
+  describe( 'GET /workflow/:id/runs/:rid/history', () => {
+    it( 'passes pinned runId from path to client', async () => {
+      await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/history` ).expect( 200 );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+        runId: RID
+      } ) );
+    } );
+
+    it( 'allows pageToken without query runId when runId is in path', async () => {
+      const token = Buffer.from( 'test' ).toString( 'base64' );
+      await request( `http://localhost:${PORT}` )
+        .get( `/workflow/w1/runs/${RID}/history?pageToken=${token}` )
+        .expect( 200 );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+        runId: RID,
+        pageToken: token
+      } ) );
+    } );
+  } );
+
   describe( 'GET /workflow/catalog/:id', () => {
     it( 'returns workflows from catalog by id via queryWorkflow', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/catalog/cat-1' ).expect( 200 );

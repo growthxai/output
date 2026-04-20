@@ -10,20 +10,11 @@ import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
 import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
 import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
-
-const runIdPathSchema = z.uuid();
+import { readPinnedRunId } from './handlers/utils.js';
 
 // Sunset date for the three deprecated `/workflow/:id/{stop,terminate,reset}` shortcuts.
 // 90 days after the PR that introduces the pinned-run scheme.
 const PINNED_MUTATION_SUNSET = new Date( '2026-07-16T00:00:00Z' ).toUTCString();
-
-/**
- * Read the pinned runId from the path, if present, validating it is a UUID.
- * Returns undefined for shortcut routes where `:rid` is not part of the URL.
- * @param {import('express').Request} req
- * @returns {string|undefined}
- */
-const readPinnedRunId = req => ( req.params.rid ? runIdPathSchema.parse( req.params.rid ) : undefined );
 
 const app = express();
 
@@ -1047,8 +1038,75 @@ app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
  *         $ref: '#/components/responses/NotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/runs/{rid}/history:
+ *   get:
+ *     summary: Get paginated workflow execution history for a specific run
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The workflow execution ID
+ *       - in: path
+ *         name: rid
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The specific run id to target
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Number of events per page
+ *       - in: query
+ *         name: pageToken
+ *         schema:
+ *           type: string
+ *         description: Base64 pagination token from previous response
+ *       - in: query
+ *         name: includePayloads
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include decoded input/output payloads in events
+ *     responses:
+ *       200:
+ *         description: Paginated history events
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 workflow:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Workflow metadata (null on subsequent pages)
+ *                 events:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 runId:
+ *                   type: string
+ *                   description: The pinned run ID
+ *                 nextPageToken:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
  */
-app.get( '/workflow/:id/history', createWorkflowHistoryHandler( client ) );
+const historyHandler = createWorkflowHistoryHandler( client );
+app.get( '/workflow/:id/history', historyHandler );
+app.get( '/workflow/:id/runs/:rid/history', historyHandler );
 
 /**
  * @swagger

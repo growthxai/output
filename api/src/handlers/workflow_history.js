@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readPinnedRunId } from './utils.js';
 
 export function createWorkflowHistoryHandler( client ) {
   const querySchema = z.object( {
@@ -17,7 +18,10 @@ export function createWorkflowHistoryHandler( client ) {
   return async ( req, res, next ) => {
     try {
       const workflowId = req.params.id;
-      const { runId, pageSize, pageToken, includePayloads } = querySchema.parse( req.query );
+      const pathRunId = readPinnedRunId( req );
+      const { runId, pageSize, pageToken, includePayloads } = querySchema.parse(
+        pathRunId ? { ...req.query, runId: pathRunId } : req.query
+      );
 
       const result = await client.getWorkflowHistory( workflowId, {
         runId,
