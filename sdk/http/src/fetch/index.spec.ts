@@ -117,12 +117,12 @@ describe( 'fetch/index', () => {
       expect( utilsMocks.logError ).not.toHaveBeenCalled();
     } );
 
-    it( 'sends x-request-id and custom headers when init.headers is a plain object', async () => {
+    it( 'sends x-request-trace-id and custom headers when init.headers is a plain object', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/with-plain-headers',
         method: 'GET',
         headers: {
-          'x-request-id': FIXED_REQUEST_ID,
+          'x-request-trace-id': FIXED_REQUEST_ID,
           'x-custom': 'plain-value'
         }
       } ).reply( 200, 'ok' );
@@ -133,16 +133,16 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       const { request } = utilsMocks.logRequest.mock.calls[0][0];
-      expect( request.headers.get( 'x-request-id' ) ).toBe( FIXED_REQUEST_ID );
+      expect( request.headers.get( 'x-request-trace-id' ) ).toBe( FIXED_REQUEST_ID );
       expect( request.headers.get( 'x-custom' ) ).toBe( 'plain-value' );
     } );
 
-    it( 'sends x-request-id and custom headers when init.headers is a Headers instance', async () => {
+    it( 'sends x-request-trace-id and custom headers when init.headers is a Headers instance', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/with-headers-instance',
         method: 'GET',
         headers: {
-          'x-request-id': FIXED_REQUEST_ID,
+          'x-request-trace-id': FIXED_REQUEST_ID,
           'x-from-headers': 'yes'
         }
       } ).reply( 200, 'ok' );
@@ -156,7 +156,7 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       const { request } = utilsMocks.logRequest.mock.calls[0][0];
-      expect( request.headers.get( 'x-request-id' ) ).toBe( FIXED_REQUEST_ID );
+      expect( request.headers.get( 'x-request-trace-id' ) ).toBe( FIXED_REQUEST_ID );
       expect( request.headers.get( 'x-from-headers' ) ).toBe( 'yes' );
     } );
 
@@ -275,7 +275,7 @@ describe( 'fetch/index', () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
         path: '/url-post',
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-request-id': FIXED_REQUEST_ID }
+        headers: { 'content-type': 'application/json', 'x-request-trace-id': FIXED_REQUEST_ID }
       } ).reply( 200, '{}' );
 
       const href = new URL( '/url-post', `${MOCK_ORIGIN}/` );

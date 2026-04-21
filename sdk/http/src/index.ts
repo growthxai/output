@@ -1,37 +1,11 @@
 import ky from 'ky';
 import type { Options } from 'ky';
-import { assignRequestId, traceRequest, traceResponse, traceError } from './hooks/index.js';
-import { applyFetchErrorTracing } from '#hooks/trace_error.js';
-export * from './fetch/index.js';
-
-const baseHttpClient = ky.create( {
-  hooks: {
-    beforeRequest: [
-      assignRequestId,
-      traceRequest
-    ],
-    afterResponse: [
-      traceResponse
-    ],
-    beforeError: [
-      traceError
-    ]
-  }
-} );
-
-const applyDefaultOptions = ( userOptions: Options ) => ( parentOptions: Options ) => {
-  const kyFetch = parentOptions.fetch || globalThis.fetch.bind( globalThis );
-  const patchedFetch = applyFetchErrorTracing( kyFetch );
-  return {
-    fetch: patchedFetch,
-    ...userOptions
-  };
-};
+import { fetch as customFetch } from './fetch/index.js';
 
 /**
  * Creates a ky client.
  *
- * This client is customized with hooks to integrate with Output.ai tracing.
+ * This client uses a custom fetch that introduces hooks to integrate with Output.ai tracing.
  *
  * @example
  * ```ts
@@ -51,8 +25,9 @@ const applyDefaultOptions = ( userOptions: Options ) => ( parentOptions: Options
  * @returns A ky instance extended with Output.ai tracing hooks.
  */
 export function httpClient( options: Options = {} ) {
-  return baseHttpClient.extend( applyDefaultOptions( options ) );
+  return ky.create( { fetch: customFetch as NonNullable<Options['fetch']>, ...options } );
 }
 
 export { HTTPError, TimeoutError } from 'ky';
 export type { Options as HttpClientOptions } from 'ky';
+export * from './fetch/index.js';

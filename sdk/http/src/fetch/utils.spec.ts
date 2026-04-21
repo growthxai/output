@@ -31,6 +31,65 @@ beforeEach( () => {
 } );
 
 describe( 'fetch/utils', () => {
+  describe( 'serializeError', () => {
+    it( 'serializes name, message, stack and sets code and cause to undefined when absent', async () => {
+      const { serializeError } = await loadUtils( false );
+      const err = new Error( 'boom' );
+
+      expect( serializeError( err ) ).toEqual( {
+        name: 'Error',
+        message: 'boom',
+        stack: err.stack,
+        code: undefined,
+        cause: undefined
+      } );
+    } );
+
+    it( 'uses the subclass constructor name', async () => {
+      const { serializeError } = await loadUtils( false );
+      const err = new TypeError( 'bad type' );
+
+      expect( serializeError( err ).name ).toBe( 'TypeError' );
+      expect( serializeError( err ).message ).toBe( 'bad type' );
+    } );
+
+    it( 'includes string code when set on the error', async () => {
+      const { serializeError } = await loadUtils( false );
+      const err = new Error( 'e' ) as Error & { code?: string };
+      err.code = 'ENOENT';
+
+      expect( serializeError( err ).code ).toBe( 'ENOENT' );
+    } );
+
+    it( 'serializes Error cause as a nested plain object', async () => {
+      const { serializeError } = await loadUtils( false );
+      const root = new Error( 'root' );
+      const leaf = new TypeError( 'leaf' );
+      root.cause = leaf;
+
+      expect( serializeError( root ) ).toEqual( {
+        name: 'Error',
+        message: 'root',
+        stack: root.stack,
+        code: undefined,
+        cause: {
+          name: 'TypeError',
+          message: 'leaf',
+          stack: leaf.stack,
+          code: undefined,
+          cause: undefined
+        }
+      } );
+    } );
+
+    it( 'uses max-depth sentinel for cause when depth is greater than 5', async () => {
+      const { serializeError } = await loadUtils( false );
+      const err = new Error( 'x' );
+
+      expect( serializeError( err, 6 ).cause ).toBe( '<Max recursion depth reached>' );
+    } );
+  } );
+
   describe( 'redactHeaders', () => {
     it( 'redacts sensitive headers case-insensitively', async () => {
       const { redactHeaders } = await loadUtils( false );
