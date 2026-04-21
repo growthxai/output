@@ -75,6 +75,33 @@ describe( 'workflow list parsing', () => {
     expect( parsed.inputs ).toBe( 'none' );
     expect( parsed.outputs ).toBe( 'none' );
     expect( parsed.scenarios ).toBe( 'none' );
+    expect( parsed.aliases ).toBe( 'none' );
+  } );
+
+  it( 'should include aliases when present', async () => {
+    const { parseWorkflowForDisplay } = await import( './list.js' );
+
+    const mockWorkflow = {
+      name: 'aliased-workflow',
+      description: 'Has aliases',
+      aliases: [ 'old_name', 'legacy_name' ]
+    };
+
+    const parsed = parseWorkflowForDisplay( mockWorkflow );
+    expect( parsed.aliases ).toBe( 'old_name, legacy_name' );
+  } );
+
+  it( 'should show none when aliases array is empty', async () => {
+    const { parseWorkflowForDisplay } = await import( './list.js' );
+
+    const mockWorkflow = {
+      name: 'no-aliases',
+      description: 'Empty aliases',
+      aliases: []
+    };
+
+    const parsed = parseWorkflowForDisplay( mockWorkflow );
+    expect( parsed.aliases ).toBe( 'none' );
   } );
 
   it( 'should include scenario names when scenarios exist', async () => {

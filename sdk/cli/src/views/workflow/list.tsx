@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
-import { getWorkflowIdResult, type GetWorkflowIdResult200 } from '#api/generated/api.js';
+import { getWorkflowIdResult, type WorkflowResultResponse } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
@@ -80,7 +80,7 @@ const HeaderRow: React.FC = () => (
 );
 
 const WorkflowDetailPane: React.FC<{
-  detail: GetWorkflowIdResult200;
+  detail: WorkflowResultResponse;
   loading: boolean;
 }> = ( { detail, loading } ) => {
   if ( loading ) {
@@ -119,9 +119,9 @@ export const WorkflowListView: React.FC<{
   onBack: () => void;
 }> = ( { runs, onBack } ) => {
   const [ selectedIndex, setSelectedIndex ] = useState( 0 );
-  const [ detail, setDetail ] = useState<GetWorkflowIdResult200 | null>( null );
+  const [ detail, setDetail ] = useState<WorkflowResultResponse | null>( null );
   const [ detailLoading, setDetailLoading ] = useState( false );
-  const cacheRef = useRef( new Map<string, GetWorkflowIdResult200>() );
+  const cacheRef = useRef( new Map<string, WorkflowResultResponse>() );
   const fetchIdRef = useRef( 0 );
 
   const sortedRuns = useMemo( () => sortRuns( runs ), [ runs ] );
@@ -157,7 +157,7 @@ export const WorkflowListView: React.FC<{
         if ( fetchIdRef.current !== currentFetchId ) {
           return;
         }
-        const data = response.data as GetWorkflowIdResult200;
+        const data = response.data as WorkflowResultResponse;
         cacheRef.current.set( selectedWorkflowId, data );
         setDetail( data );
         setDetailLoading( false );

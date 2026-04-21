@@ -373,31 +373,50 @@ Informational evaluators never affect the case verdict.
 
 ## Datasets
 
-Datasets are YAML files that live in `tests/datasets/` within your workflow directory. Each file defines one test case:
+Datasets are YAML files that live in `tests/datasets/` within your workflow directory. Each file contains one or more test cases — the top-level key is the case name.
 
-```yaml tests/datasets/basic_input.yml
-name: basic_input
-input:
-  values:
-    - 1
-    - 2
-    - 3
-    - 4
-    - 5
-last_output:
-  output:
-    result: 15
-  executionTimeMs: 100
-  date: '2026-02-13T00:00:00.000Z'
+```yaml tests/datasets/core_cases.yml
+basic_sum:
+  input:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+  ground_truth:
+    notes: "Simple sum test"
+
+edge_case_empty:
+  input:
+    values: []
+  ground_truth:
+    notes: "Empty input should return 0"
 ```
+
+The key is the case name — no separate `name:` field inside. Every case must have an `input` field; the framework throws if one is missing.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | Yes | Unique name for this test case |
 | `input` | Yes | The workflow input |
 | `ground_truth` | No | Expected values for evaluators to check against |
 | `last_output` | No | Cached workflow output (used with `--cached` flag) |
 | `last_eval` | No | Cached evaluation results from the last run |
+
+Organise files however makes sense for your project — by topic, test suite version, or importance level:
+
+```
+tests/datasets/
+├── core_cases.yml       # happy path coverage
+├── edge_cases.yml       # edge cases and error paths
+└── v2_regression.yml    # cases added for v2
+```
+
+The `--dataset` flag filters by case name regardless of which file it lives in:
+
+```bash
+output workflow test my_workflow --dataset basic_sum,edge_case_empty
+```
 
 You can write datasets by hand, or generate them from workflow executions using the CLI — see [Dataset Commands](/packages/cli#dataset-commands).
 
@@ -441,9 +460,8 @@ src/workflows/
         │   ├── judge_topic@v1.prompt
         │   └── judge_quality@v1.prompt
         └── datasets/
-            ├── happy_path.yml
-            ├── edge_case.yml
-            └── stripe_blog.yml
+            ├── core_cases.yml
+            └── edge_cases.yml
 ```
 
 The eval workflow file (`tests/evals/workflow.ts`) is discovered automatically by the worker alongside your regular workflow.

@@ -45,7 +45,7 @@
     "@temporalio/common": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
-    "redis": "5.11.0",
+    "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
     "undici": "catalog:",
     "winston": "catalog:",
