@@ -117,6 +117,34 @@ describe( 'API endpoints', () => {
       expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', { x: 1 }, expect.any( Object ) );
     } );
 
+    it( 'forwards catalog body field as taskQueue to runWorkflow', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat' } )
+        .expect( 200 );
+      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+    } );
+
+    it( 'accepts deprecated taskQueue body field, forwards as taskQueue, and warns', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, taskQueue: 'sepcat' } )
+        .expect( 200 );
+      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockLogger.warn ).toHaveBeenCalledWith(
+        'Deprecated body field',
+        expect.objectContaining( { field: 'taskQueue', successor: 'catalog', route: '/workflow/run' } )
+      );
+    } );
+
+    it( 'prefers catalog over taskQueue when both are provided', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'wins', taskQueue: 'loses' } )
+        .expect( 200 );
+      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'wins' } ) );
+    } );
+
     it( 'validation error returns 400', async () => {
       const res = await request( `http://localhost:${PORT}` ).post( '/workflow/run' ).send( { input: { x: 1 } } ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError', message: 'Invalid Payload' } );
@@ -133,6 +161,26 @@ describe( 'API endpoints', () => {
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'start-1', runId: 'r-start' } );
       expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.any( Object ) );
+    } );
+
+    it( 'forwards catalog body field as taskQueue to startWorkflow', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/start' )
+        .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat' } )
+        .expect( 200 );
+      expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+    } );
+
+    it( 'accepts deprecated taskQueue body field, forwards as taskQueue, and warns', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/start' )
+        .send( { workflowName: 'MyWorkflow', input: {}, taskQueue: 'sepcat' } )
+        .expect( 200 );
+      expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockLogger.warn ).toHaveBeenCalledWith(
+        'Deprecated body field',
+        expect.objectContaining( { field: 'taskQueue', successor: 'catalog', route: '/workflow/start' } )
+      );
     } );
 
     it( 'validation error returns 400', async () => {
@@ -403,6 +451,24 @@ describe( 'API endpoints', () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/runs' ).expect( 200 );
       expect( res.body ).toEqual( { runs: [] } );
       expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( expect.any( Object ) );
+    } );
+
+    it( 'forwards catalog query param to listWorkflowRuns as taskQueue', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/runs?catalog=session-123' ).expect( 200 );
+      expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( {
+        workflowType: undefined,
+        taskQueue: 'session-123',
+        limit: 100
+      } );
+    } );
+
+    it( 'forwards both workflowType and catalog (as taskQueue) together', async () => {
+      await request( `http://localhost:${PORT}` ).get( '/workflow/runs?workflowType=simple&catalog=session-456' ).expect( 200 );
+      expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( {
+        workflowType: 'simple',
+        taskQueue: 'session-456',
+        limit: 100
+      } );
     } );
 
     it( 'validation error when limit is out of range returns 400', async () => {

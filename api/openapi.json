@@ -545,9 +545,14 @@
                     "type": "string",
                     "description": "(Optional) The workflowId to use. Must be unique"
                   },
+                  "catalog": {
+                    "type": "string",
+                    "description": "The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog."
+                  },
                   "taskQueue": {
                     "type": "string",
-                    "description": "The name of the task queue to send the workflow to"
+                    "deprecated": true,
+                    "description": "Deprecated alias for `catalog`. If both are sent, `catalog` wins."
                   },
                   "timeout": {
                     "type": "number",
@@ -637,9 +642,14 @@
                     "type": "string",
                     "description": "(Optional) The workflowId to use. Must be unique"
                   },
+                  "catalog": {
+                    "type": "string",
+                    "description": "The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog."
+                  },
                   "taskQueue": {
                     "type": "string",
-                    "description": "The name of the task queue to send the workflow to"
+                    "deprecated": true,
+                    "description": "Deprecated alias for `catalog`. If both are sent, `catalog` wins."
                   }
                 }
               }
@@ -1548,6 +1558,14 @@
               "type": "string"
             },
             "description": "Filter by workflow type/name"
+          },
+          {
+            "in": "query",
+            "name": "catalog",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by catalog ID (scopes runs to a single worker's catalog/session)"
           },
           {
             "in": "query",

@@ -16,6 +16,22 @@ import { readPinnedRunId } from './handlers/utils.js';
 // 90 days after the PR that introduces the pinned-run scheme.
 const PINNED_MUTATION_SUNSET = new Date( '2026-07-16T00:00:00Z' ).toUTCString();
 
+/**
+ * Resolve the catalog field on workflow run/start request bodies, accepting
+ * both `catalog` and the deprecated `taskQueue` alias. When `taskQueue` is
+ * supplied, log a deprecation warning so callers can migrate.
+ *
+ * @param {{ catalog?: string, taskQueue?: string }} body
+ * @param {string} route
+ * @returns {string|undefined}
+ */
+const resolveCatalogField = ( body, route ) => {
+  if ( body.taskQueue !== undefined ) {
+    logger.warn( 'Deprecated body field', { field: 'taskQueue', successor: 'catalog', route } );
+  }
+  return body.catalog ?? body.taskQueue;
+};
+
 const app = express();
 
 const client = await temporalClient.init().catch( e => {
@@ -434,9 +450,13 @@ app.use( ( req, res, next ) => {
  *               workflowId:
  *                 type: string
  *                 description: (Optional) The workflowId to use. Must be unique
+ *               catalog:
+ *                 type: string
+ *                 description: The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog.
  *               taskQueue:
  *                 type: string
- *                 description: The name of the task queue to send the workflow to
+ *                 deprecated: true
+ *                 description: Deprecated alias for `catalog`. If both are sent, `catalog` wins.
  *               timeout:
  *                 type: number
  *                 description: (Optional) The max time to wait for the execution, defaults to 30s
@@ -475,14 +495,21 @@ app.use( ( req, res, next ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.post( '/workflow/run', async ( req, res ) => {
-  const { workflowName, input, workflowId, taskQueue, timeout } = z.object( {
+  const parsed = z.object( {
     workflowName: z.string(),
     input: z.any().optional(),
     workflowId: z.string().optional(),
+    catalog: z.string().optional(),
     taskQueue: z.string().optional(),
     timeout: z.coerce.number().int().min( 250 ).optional()
   } ).parse( req.body );
-  res.json( await client.runWorkflow( workflowName, input, { workflowId, taskQueue, timeout } ) );
+  const catalog = resolveCatalogField( parsed, '/workflow/run' );
+  const result = await client.runWorkflow( parsed.workflowName, parsed.input, {
+    workflowId: parsed.workflowId,
+    taskQueue: catalog,
+    timeout: parsed.timeout
+  } );
+  res.json( result );
 } );
 
 /**
@@ -508,9 +535,13 @@ app.post( '/workflow/run', async ( req, res ) => {
  *               workflowId:
  *                 type: string
  *                 description: (Optional) The workflowId to use. Must be unique
+ *               catalog:
+ *                 type: string
+ *                 description: The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog.
  *               taskQueue:
  *                 type: string
- *                 description: The name of the task queue to send the workflow to
+ *                 deprecated: true
+ *                 description: Deprecated alias for `catalog`. If both are sent, `catalog` wins.
  *     responses:
  *       200:
  *         description: The workflow start result
@@ -534,14 +565,16 @@ app.post( '/workflow/run', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.post( '/workflow/start', async ( req, res ) => {
-  const { workflowName, input, workflowId, taskQueue } = z.object( {
+  const parsed = z.object( {
     workflowName: z.string(),
     input: z.any().optional(),
     workflowId: z.string().optional(),
+    catalog: z.string().optional(),
     taskQueue: z.string().optional()
   } ).parse( req.body );
+  const catalog = resolveCatalogField( parsed, '/workflow/start' );
 
-  res.json( await client.startWorkflow( workflowName, input, { workflowId, taskQueue } ) );
+  res.json( await client.startWorkflow( parsed.workflowName, parsed.input, { workflowId: parsed.workflowId, taskQueue: catalog } ) );
 } );
 
 /**
@@ -1185,6 +1218,11 @@ app.get( '/workflow/catalog', async ( _req, res ) => {
  *           type: string
  *         description: Filter by workflow type/name
  *       - in: query
+ *         name: catalog
+ *         schema:
+ *           type: string
+ *         description: Filter by catalog ID (scopes runs to a single worker's catalog/session)
+ *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
@@ -1205,11 +1243,12 @@ app.get( '/workflow/catalog', async ( _req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/runs', async ( req, res ) => {
-  const { workflowType, limit } = z.object( {
+  const { workflowType, catalog, limit } = z.object( {
     workflowType: z.string().optional(),
+    catalog: z.string().optional(),
     limit: z.coerce.number().int().min( 1 ).max( 1000 ).default( 100 )
   } ).parse( req.query );
-  res.json( await client.listWorkflowRuns( { workflowType, limit } ) );
+  res.json( await client.listWorkflowRuns( { workflowType, taskQueue: catalog, limit } ) );
 } );
 
 /**

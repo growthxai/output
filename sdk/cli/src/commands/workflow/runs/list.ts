@@ -67,6 +67,7 @@ export default class WorkflowRunsList extends Command {
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> simple',
     '<%= config.bin %> <%= command.id %> simple --limit 10',
+    '<%= config.bin %> <%= command.id %> --catalog my-catalog',
     '<%= config.bin %> <%= command.id %> --format json',
     '<%= config.bin %> <%= command.id %> --format table'
   ];
@@ -79,6 +80,11 @@ export default class WorkflowRunsList extends Command {
   };
 
   static override flags = {
+    catalog: Flags.string( {
+      char: 'c',
+      description: 'Filter runs by catalog (defaults to OUTPUT_CATALOG_ID)',
+      env: 'OUTPUT_CATALOG_ID'
+    } ),
     limit: Flags.integer( {
       char: 'l',
       description: 'Maximum number of runs to return',
@@ -97,6 +103,7 @@ export default class WorkflowRunsList extends Command {
 
     const { runs, count } = await fetchWorkflowRuns( {
       workflowType: args.workflowName,
+      catalog: flags.catalog,
       limit: flags.limit
     } );
 
