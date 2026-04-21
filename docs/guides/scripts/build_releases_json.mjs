@@ -13,6 +13,7 @@
  *   node docs/guides/scripts/build_releases_json.mjs --from 0.1.12 --to 0.2.0
  */
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
   readChangesets,
@@ -33,18 +34,6 @@ const paths = {
   releasesJson: path.join( guidesDir, 'data/releases.json' )
 };
 
-function parseFlag( name ) {
-  const withEquals = process.argv.find( a => a.startsWith( `--${name}=` ) );
-  if ( withEquals ) {
-    return withEquals.slice( `--${name}=`.length );
-  }
-  const idx = process.argv.indexOf( `--${name}` );
-  if ( idx >= 0 && idx + 1 < process.argv.length ) {
-    return process.argv[ idx + 1 ];
-  }
-  return null;
-}
-
 function today() {
   return new Date().toISOString().slice( 0, 10 );
 }
@@ -63,8 +52,13 @@ function buildReleaseRecord( { toVersion, changesets, level } ) {
 }
 
 async function main() {
-  const fromVersion = parseFlag( 'from' );
-  const toVersion = parseFlag( 'to' );
+  const { values } = parseArgs( {
+    options: {
+      from: { type: 'string' },
+      to: { type: 'string' }
+    }
+  } );
+  const { from: fromVersion, to: toVersion } = values;
 
   if ( !fromVersion || !toVersion ) {
     console.error( 'Usage: build_releases_json.mjs --from <version> --to <version>' );

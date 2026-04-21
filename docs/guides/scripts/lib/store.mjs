@@ -9,10 +9,7 @@ export async function readReleasesJson( path ) {
   try {
     const raw = await fs.readFile( path, 'utf8' );
     const parsed = JSON.parse( raw );
-    return {
-      generatedAt: parsed.generatedAt,
-      releases: parsed.releases ?? []
-    };
+    return { releases: parsed.releases ?? [] };
   } catch ( err ) {
     if ( err.code === 'ENOENT' ) {
       return { ...EMPTY_DATA };
@@ -22,11 +19,7 @@ export async function readReleasesJson( path ) {
 }
 
 export async function writeReleasesJson( path, data ) {
-  const payload = {
-    generatedAt: new Date().toISOString(),
-    releases: data.releases
-  };
-  await fs.writeFile( path, `${JSON.stringify( payload, null, 2 )}\n` );
+  await fs.writeFile( path, `${JSON.stringify( { releases: data.releases }, null, 2 )}\n` );
 }
 
 export function appendRelease( data, release ) {
