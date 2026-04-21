@@ -27,8 +27,13 @@ const envVarSchema = z.object( {
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
   // Time to allow for hooks to flush before shutdown
   OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 3000 ) ),
-  // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080")
-  TEMPORAL_GRPC_PROXY: z.string().optional()
+  // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080").
+  // Must be a bare host:port — no scheme (Temporal's native HTTP CONNECT
+  // option is not a URL).
+  TEMPORAL_GRPC_PROXY: z.string().optional().refine(
+    v => !v || !v.includes( '://' ),
+    'TEMPORAL_GRPC_PROXY must be host:port without a scheme (e.g. "proxy:8080", not "http://proxy:8080")'
+  )
 } );
 
 const { data: envVars, error } = envVarSchema.safeParse( process.env );

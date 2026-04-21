@@ -47,4 +47,15 @@ describe( 'proxy bootstrap', () => {
     expect( MockEnvHttpProxyAgent ).toHaveBeenCalled();
     expect( mockSetGlobalDispatcher ).toHaveBeenCalledTimes( 1 );
   } );
+
+  it( 'does not set global dispatcher when proxy URL is malformed', async () => {
+    process.env.HTTPS_PROXY = 'not a url';
+    const warnSpy = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
+    const { bootstrapProxy } = await import( './proxy.js' );
+    bootstrapProxy();
+
+    expect( mockSetGlobalDispatcher ).not.toHaveBeenCalled();
+    expect( warnSpy ).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  } );
 } );

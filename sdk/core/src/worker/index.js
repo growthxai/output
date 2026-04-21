@@ -56,6 +56,9 @@ const callerDir = process.argv[2];
 
   log.info( 'Connecting Temporal...' );
   const proxy = grpcProxy ? { type: 'http-connect', targetHost: grpcProxy } : undefined;
+  if ( proxy ) {
+    log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
+  }
   const connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
   log.info( 'Creating worker...' );

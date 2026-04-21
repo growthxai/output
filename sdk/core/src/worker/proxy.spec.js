@@ -60,4 +60,12 @@ describe( 'worker/proxy', () => {
 
     expect( mockSetGlobalDispatcher ).toHaveBeenCalledTimes( 1 );
   } );
+
+  it( 'does not set global dispatcher when proxy URL is malformed', async () => {
+    process.env.HTTPS_PROXY = 'not a url';
+    const { bootstrapFetchProxy } = await import( './proxy.js' );
+    bootstrapFetchProxy();
+
+    expect( mockSetGlobalDispatcher ).not.toHaveBeenCalled();
+  } );
 } );

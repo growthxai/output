@@ -105,6 +105,7 @@ describe( 'worker/index', () => {
     expect( createWorkflowsEntryPointMock ).toHaveBeenCalledWith( [] );
     expect( initTracing ).toHaveBeenCalled();
     expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
+    expect( bootstrapFetchProxyMock ).toHaveBeenCalled();
     expect( NativeConnection.connect ).toHaveBeenCalledWith( {
       address: configValues.address,
       tls: false,
