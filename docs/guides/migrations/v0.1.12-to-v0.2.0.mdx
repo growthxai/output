@@ -8,14 +8,6 @@ This release ships two breaking changes that require attention:
 1. **`@outputai/evals`** — dataset files use a new multi-case format; the old single-case format is no longer supported.
 2. **`output-api`** — several workflow run routes are deprecated in favour of pinned-run equivalents. Old routes keep working until 2026-07-16 but emit `Deprecation` response headers.
 
-## Automate what you can
-
-```bash
-npx output migrate --to 0.2.0
-```
-
-The CLI reads this page, applies the mechanical parts, bumps `@outputai/*` dependencies, and runs your type checker. Steps below describe what the migration does so you can follow along or apply manually.
-
 ## `@outputai/evals` — dataset file format
 
 Old dataset files carried a top-level `name:` field and held a single case:
