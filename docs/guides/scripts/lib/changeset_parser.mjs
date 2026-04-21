@@ -1,6 +1,7 @@
 /**
  * Parse .changeset/*.md files into structured data.
- * Extracted from the previous ops/generate_docs_from_changesets.mjs.
+ * Migration content (if any) lives in hand-authored pages under
+ * docs/guides/migrations/ — this parser only cares about the summary.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,20 +18,6 @@ export function parseFrontmatter( text ) {
     .map( ( [ , name, bump ] ) => ( { name, bump } ) );
 }
 
-export function splitSections( body ) {
-  const match = body.match( /^##\s+Migration\s*$/im );
-  if ( !match ) {
-    return { summary: body.trim(), migration: null };
-  }
-
-  const summary = body.slice( 0, match.index ).trim();
-  const rest = body.slice( match.index + match[0].length );
-  const nextHeading = rest.search( /^##\s+/m );
-  const migration = ( nextHeading === -1 ? rest : rest.slice( 0, nextHeading ) ).trim();
-
-  return { summary, migration };
-}
-
 export function parseChangeset( raw ) {
   const match = raw.match( /^---\n([\s\S]*?)\n---\n([\s\S]*)$/ );
   if ( !match ) {
@@ -43,7 +30,7 @@ export function parseChangeset( raw ) {
     return null;
   }
 
-  return { packages, ...splitSections( body ) };
+  return { packages, summary: body.trim() };
 }
 
 export async function readChangesets( changesetsDir ) {

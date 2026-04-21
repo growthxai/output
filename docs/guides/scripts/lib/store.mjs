@@ -3,7 +3,7 @@
  */
 import fs from 'node:fs/promises';
 
-const EMPTY_DATA = { releases: [], migrationGuides: [] };
+const EMPTY_DATA = { releases: [] };
 
 export async function readReleasesJson( path ) {
   try {
@@ -11,8 +11,7 @@ export async function readReleasesJson( path ) {
     const parsed = JSON.parse( raw );
     return {
       generatedAt: parsed.generatedAt,
-      releases: parsed.releases ?? [],
-      migrationGuides: parsed.migrationGuides ?? []
+      releases: parsed.releases ?? []
     };
   } catch ( err ) {
     if ( err.code === 'ENOENT' ) {
@@ -25,8 +24,7 @@ export async function readReleasesJson( path ) {
 export async function writeReleasesJson( path, data ) {
   const payload = {
     generatedAt: new Date().toISOString(),
-    releases: data.releases,
-    migrationGuides: data.migrationGuides
+    releases: data.releases
   };
   await fs.writeFile( path, `${JSON.stringify( payload, null, 2 )}\n` );
 }
@@ -37,12 +35,6 @@ export function appendRelease( data, release ) {
   return { ...data, releases };
 }
 
-export function addMigrationGuide( data, guide ) {
-  const filtered = data.migrationGuides.filter( g => g.slug !== guide.slug );
-  const migrationGuides = [ guide, ...filtered ].sort( compareMigrationGuides );
-  return { ...data, migrationGuides };
-}
-
 function parseVersion( version ) {
   const [ major, minor, patch ] = version.split( '.' ).map( Number );
   return { major, minor, patch };
@@ -51,14 +43,6 @@ function parseVersion( version ) {
 function compareVersions( a, b ) {
   const va = parseVersion( a.version );
   const vb = parseVersion( b.version );
-  if ( va.major !== vb.major ) return vb.major - va.major;
-  if ( va.minor !== vb.minor ) return vb.minor - va.minor;
-  return vb.patch - va.patch;
-}
-
-function compareMigrationGuides( a, b ) {
-  const va = parseVersion( a.fromVersionFull );
-  const vb = parseVersion( b.fromVersionFull );
   if ( va.major !== vb.major ) return vb.major - va.major;
   if ( va.minor !== vb.minor ) return vb.minor - va.minor;
   return vb.patch - va.patch;

@@ -15,9 +15,14 @@ Use the todo tool to track your progress.
 
 ## URL contract
 
-All migration guidance lives on a single page: `https://docs.output.ai/migrations`.
+Migration guides are hand-authored MDX pages linked from a single index:
 
-The page has one section per version boundary (e.g. `### v0.1 → v0.2`). Each section covers the changes needed to upgrade across that boundary. If the user is jumping multiple minor versions, apply the sections in order.
+- Index: `https://docs.output.ai/migrations`
+- Per-boundary guide: `https://docs.output.ai/migrations/v{FROM_FULL}-to-v{TO_FULL}` (e.g. `v0.1.12-to-v0.2.0`)
+
+The index lists every available guide with a title and a short description. A release only has a guide if it introduced breaking changes — most releases will not have one.
+
+If the user is jumping multiple boundaries, fetch each applicable guide in order and apply them sequentially.
 
 <process_flow>
 
@@ -71,19 +76,20 @@ If FROM and TO still resolve to the same version after this recovery, stop and t
 
 <step number="3" name="fetch_migration_guide">
 
-### Step 3: Fetch the migration guide
+### Step 3: Fetch migration guides
 
-WebFetch `https://docs.output.ai/migrations`. The page has one `### v{A}.{B} → v{C}.{D}` section per version boundary.
+WebFetch `https://docs.output.ai/migrations`. This is the index page — it links to every hand-authored migration guide with a title keyed on the version boundary.
 
-Identify the chain of sections covering the FROM → TO range. Examples:
-  - FROM `0.1.12`, TO `0.2.0` → read the `### v0.1 → v0.2` section.
-  - FROM `0.1.12`, TO `0.3.0` → read `### v0.1 → v0.2` and `### v0.2 → v0.3` in order.
+From the index, identify every guide whose `v{FROM}-to-v{TO}` range falls between the user's FROM and TO versions. Examples:
+  - User FROM `0.1.12`, TO `0.2.0` → if a `v0.1.12-to-v0.2.0` guide is listed, fetch it.
+  - User FROM `0.1.12`, TO `0.3.0` → fetch `v0.1.12-to-v0.2.0` first, then (if listed) `v0.2.0-to-v0.3.0`.
+  - Multiple patch-level guides between the same minor boundaries should all be applied in chronological order.
 
-Under each section, every `#### <package-name>` sub-heading describes a change for that package. The body below it contains the migration steps.
+Fetch each applicable guide by hitting `https://docs.output.ai/migrations/v{FROM_FULL}-to-v{TO_FULL}`.
 
-If no section on the page matches the FROM → TO range, stop and tell the user: "No migration sections found for `vFROM` → `vTO` on the migrations page. The releases in this range were additive; just bump your dependencies."
+If the index lists no guides covering the FROM → TO range, stop and tell the user: "No migration guides found for `vFROM` → `vTO`. The releases in this range were additive; just bump your dependencies."
 
-Also WebFetch `https://docs.output.ai/changelog` to cross-reference what changed in the range — use it to fill in gaps the migrations page may not cover.
+Also WebFetch `https://docs.output.ai/changelog` to cross-reference what shipped in the range — use it to fill in gaps the migration guides may not cover.
 
 </step>
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Reads pending changesets and appends a new release entry (plus optional
- * migration guide) to docs/guides/data/releases.json.
+ * Reads pending changesets and appends a new release entry to
+ * docs/guides/data/releases.json.
  *
  * Called from ops/bump_release.sh BEFORE `pnpm changeset version` runs,
  * while the .changeset/*.md files are still on disk.
  *
- * Does not run the version bump and does not render MDX — those are
- * explicit separate steps in the release pipeline.
+ * Migration guides are hand-authored MDX pages under docs/guides/migrations/
+ * and are not touched by this script.
  *
  * Usage:
  *   node docs/guides/scripts/build_releases_json.mjs --from 0.1.12 --to 0.2.0
@@ -21,8 +21,7 @@ import {
 import {
   readReleasesJson,
   writeReleasesJson,
-  appendRelease,
-  addMigrationGuide
+  appendRelease
 } from './lib/store.mjs';
 
 const scriptDir = path.dirname( fileURLToPath( import.meta.url ) );
@@ -46,20 +45,11 @@ function parseFlag( name ) {
   return null;
 }
 
-function minorSlug( version ) {
-  const [ major, minor ] = version.split( '.' );
-  return `v${major}.${minor}`;
-}
-
-function migrationSlug( fromVersion, toVersion ) {
-  return `${minorSlug( fromVersion )}-to-${minorSlug( toVersion )}`;
-}
-
 function today() {
   return new Date().toISOString().slice( 0, 10 );
 }
 
-function buildReleaseRecord( { toVersion, changesets, level, migrationSlugId } ) {
+function buildReleaseRecord( { toVersion, changesets, level } ) {
   return {
     version: toVersion,
     date: today(),
@@ -68,22 +58,6 @@ function buildReleaseRecord( { toVersion, changesets, level, migrationSlugId } )
       id: cs.file.replace( /\.md$/, '' ),
       packages: cs.packages,
       summary: cs.summary
-    } ) ),
-    migrationSlug: migrationSlugId
-  };
-}
-
-function buildMigrationGuide( { slug, fromVersion, toVersion, entries } ) {
-  return {
-    slug,
-    fromVersionFull: fromVersion,
-    toVersionFull: toVersion,
-    fromLabel: minorSlug( fromVersion ),
-    toLabel: minorSlug( toVersion ),
-    sections: entries.map( entry => ( {
-      packages: entry.packages.map( p => p.name ),
-      summary: entry.summary,
-      migration: entry.migration
     } ) )
   };
 }
@@ -109,33 +83,13 @@ async function main() {
   }
 
   const level = highestBump( changesets );
-  const migrationEntries = changesets.filter( c => c.migration );
-  const slug = migrationEntries.length > 0
-    ? migrationSlug( fromVersion, toVersion )
-    : null;
-
-  const release = buildReleaseRecord( {
-    toVersion,
-    changesets,
-    level,
-    migrationSlugId: slug
-  } );
+  const release = buildReleaseRecord( { toVersion, changesets, level } );
 
   let data = await readReleasesJson( paths.releasesJson );
   data = appendRelease( data, release );
 
-  if ( slug ) {
-    const guide = buildMigrationGuide( {
-      slug,
-      fromVersion,
-      toVersion,
-      entries: migrationEntries
-    } );
-    data = addMigrationGuide( data, guide );
-  }
-
   await writeReleasesJson( paths.releasesJson, data );
-  console.log( `Appended v${toVersion}${slug ? ` and migration guide ${slug}` : ''} to releases.json.` );
+  console.log( `Appended v${toVersion} to releases.json.` );
 }
 
 main().catch( err => {

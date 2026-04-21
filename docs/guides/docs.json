@@ -145,7 +145,8 @@
           {
             "group": "Migration Guides",
             "pages": [
-              "migrations/index"
+              "migrations/index",
+              "migrations/v0.1.12-to-v0.2.0"
             ]
           }
         ]

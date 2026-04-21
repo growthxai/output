@@ -1,0 +1,135 @@
+---
+title: "v0.1.12 → v0.2.0"
+description: "Upgrading Output.ai projects from v0.1.12 to v0.2.0. Covers dataset file format changes and deprecated workflow run endpoints."
+---
+
+This release ships two breaking changes that require attention:
+
+1. **`@outputai/evals`** — dataset files use a new multi-case format; the old single-case format is no longer supported.
+2. **`output-api`** — several workflow run routes are deprecated in favour of pinned-run equivalents. Old routes keep working until 2026-07-16 but emit `Deprecation` response headers.
+
+## Automate what you can
+
+```bash
+npx output migrate --to 0.2.0
+```
+
+The CLI reads this page, applies the mechanical parts, bumps `@outputai/*` dependencies, and runs your type checker. Steps below describe what the migration does so you can follow along or apply manually.
+
+## `@outputai/evals` — dataset file format
+
+Old dataset files carried a top-level `name:` field and held a single case:
+
+```yaml tests/datasets/stripe_blog.yml
+name: stripe_blog
+input:
+  topic: "Stripe the payment processor"
+  requirements: "Include a link to https://stripe.com/en-gb/pricing"
+last_output:
+  output:
+    title: "Stripe: The Modern Payment Processing Platform"
+    word_count: 350
+  executionTimeMs: 5000
+ground_truth:
+  notes: "Known good case"
+  evals:
+    length_of_output:
+      min_length: 100
+```
+
+New files use the case name as a top-level YAML key, and can hold multiple cases:
+
+```yaml tests/datasets/stripe_blog.yml
+stripe_blog:
+  input:
+    topic: "Stripe the payment processor"
+    requirements: "Include a link to https://stripe.com/en-gb/pricing"
+  last_output:
+    output:
+      title: "Stripe: The Modern Payment Processing Platform"
+      word_count: 350
+    executionTimeMs: 5000
+  ground_truth:
+    notes: "Known good case"
+    evals:
+      length_of_output:
+        min_length: 100
+
+stripe_blog_low_quality:
+  input:
+    topic: "Stripe the payment processor"
+    requirements: "Include a link to https://stripe.com/en-gb/pricing"
+  last_output:
+    output:
+      title: "Payment Processing"
+      blog_post: "Payment processing is important for businesses."
+      word_count: 12
+    executionTimeMs: 1200
+  ground_truth:
+    notes: "Known low quality case"
+    evals:
+      length_of_output:
+        min_length: 100
+```
+
+### Migration steps
+
+For every `.yml` file under `tests/datasets/`:
+
+1. Remove the top-level `name:` field.
+2. Use the value of `name` as a new top-level YAML key.
+3. Indent everything else by two spaces so it nests under that key.
+
+Optionally collapse related cases into a single file by adding more top-level keys. Case names must be unique across every file in `tests/datasets/` — duplicates now throw instead of silently overwriting.
+
+<Tip>
+The old format is no longer supported. Files that still have `name:` at the top will fail to load with an explicit error.
+</Tip>
+
+## `output-api` — deprecated workflow run endpoints
+
+Three mutation endpoints are deprecated. They still respond, but should be migrated to pinned-run equivalents by 2026-07-16:
+
+| Deprecated | Replacement |
+|------------|-------------|
+| `PATCH /workflow/:id/stop` | `PATCH /workflow/:id/runs/:rid/stop` |
+| `POST /workflow/:id/terminate` | `POST /workflow/:id/runs/:rid/terminate` |
+| `POST /workflow/:id/reset` | `POST /workflow/:id/runs/:rid/reset` |
+
+Pinned-run routes target a specific Temporal run by ID. You get the `runId` from `POST /workflow/run` or `POST /workflow/start` — both responses now include it.
+
+### Migration steps
+
+Replace each deprecated call with its pinned-run equivalent, passing the `runId` you captured when the workflow started:
+
+```diff
+- await fetch(`/workflow/${workflowId}/stop`, { method: 'PATCH' })
++ await fetch(`/workflow/${workflowId}/runs/${runId}/stop`, { method: 'PATCH' })
+
+- await fetch(`/workflow/${workflowId}/terminate`, { method: 'POST' })
++ await fetch(`/workflow/${workflowId}/runs/${runId}/terminate`, { method: 'POST' })
+
+- await fetch(`/workflow/${workflowId}/reset`, { method: 'POST' })
++ await fetch(`/workflow/${workflowId}/runs/${runId}/reset`, { method: 'POST' })
+```
+
+If you're using the generated SDK client, regenerate it after upgrading. Every deprecated call now emits `Deprecation`, `Sunset`, and `Link` response headers you can alert on.
+
+### Additive changes (no action required)
+
+These are backwards-compatible response-shape additions — mentioned here so they don't surprise you when you regenerate clients:
+
+- `POST /workflow/run` response now includes `runId`.
+- `POST /workflow/start` response now includes `runId`.
+- `PATCH /workflow/:id/stop` response is now `{ workflowId, runId }` (previously had no body).
+- `POST /workflow/:id/terminate` response now includes `runId`.
+- All status, result, and trace-log responses now include `runId`.
+
+## Verify
+
+After applying both migrations:
+
+1. Bump the framework packages in your `package.json` to `0.2.0`.
+2. Run `pnpm install` (or the equivalent for your package manager).
+3. Run your type checker. The dataset format change surfaces at runtime rather than compile time, so also run whatever test suite exercises your evals.
+4. Start your workers and hit a sample workflow; confirm responses include `runId`.
