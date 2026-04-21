@@ -1,11 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { confirm } from '@inquirer/prompts';
 import * as credentialsService from '#services/credentials_service.js';
 import CredentialsSet from './set.js';
 
 vi.mock( '#services/credentials_service.js' );
+vi.mock( '@inquirer/prompts', () => ( {
+  confirm: vi.fn()
+} ) );
 vi.mock( 'js-yaml', () => ( {
   load: vi.fn( ( yaml: string ) => {
+    if ( yaml.includes( '__PRIMITIVE_AT_X_Y__' ) ) {
+      return { x: { y: 'FOO' } };
+    }
+    if ( yaml.includes( '__OBJECT_AT_X_Y__' ) ) {
+      return { x: { y: { z: 'FOO' } } };
+    }
     if ( yaml.includes( 'sk-existing' ) ) {
       return { anthropic: { api_key: 'sk-existing' } };
     }
@@ -20,6 +30,7 @@ describe( 'credentials set command', () => {
     vi.mocked( credentialsService.credentialsExist ).mockReturnValue( true );
     vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( 'anthropic:\n  api_key: sk-existing\n' );
     vi.mocked( credentialsService.writeEncrypted ).mockImplementation( () => {} );
+    vi.mocked( confirm ).mockResolvedValue( true );
   } );
 
   afterEach( () => {
@@ -32,13 +43,14 @@ describe( 'credentials set command', () => {
   ) => {
     const cmd = new CredentialsSet( [], {} as any );
     cmd.log = vi.fn();
+    cmd.warn = vi.fn() as any;
     cmd.error = vi.fn( ( msg: string ) => {
       throw new Error( msg );
     } ) as any;
     Object.defineProperty( cmd, 'parse', {
       value: vi.fn().mockResolvedValue( {
         args: { path: 'anthropic.api_key', value: 'sk-new-key', ...parsedArgs },
-        flags: { environment: undefined, workflow: undefined, ...flags }
+        flags: { environment: undefined, workflow: undefined, yes: false, ...flags }
       } ),
       configurable: true
     } );
@@ -57,9 +69,10 @@ describe( 'credentials set command', () => {
       expect( CredentialsSet.args.value.required ).toBe( true );
     } );
 
-    it( 'should have environment and workflow flags', () => {
+    it( 'should have environment, workflow, and yes flags', () => {
       expect( CredentialsSet.flags.environment ).toBeDefined();
       expect( CredentialsSet.flags.workflow ).toBeDefined();
+      expect( CredentialsSet.flags.yes ).toBeDefined();
     } );
   } );
 
@@ -74,6 +87,7 @@ describe( 'credentials set command', () => {
         expect.any( String ),
         undefined
       );
+      expect( confirm ).not.toHaveBeenCalled();
       expect( cmd.log ).toHaveBeenCalledWith( 'Set anthropic.api_key' );
     } );
 
@@ -83,6 +97,7 @@ describe( 'credentials set command', () => {
       await cmd.run();
 
       expect( credentialsService.writeEncrypted ).toHaveBeenCalledTimes( 1 );
+      expect( confirm ).not.toHaveBeenCalled();
       expect( cmd.log ).toHaveBeenCalledWith( 'Set new.nested.key' );
     } );
 
@@ -134,6 +149,54 @@ describe( 'credentials set command', () => {
       const cmd = createTestCommand();
 
       await expect( cmd.run() ).rejects.toThrow( 'Failed to update credentials: Permission denied' );
+    } );
+  } );
+
+  describe( 'shape-change confirmation', () => {
+    it( 'should prompt before converting a primitive value into an object', async () => {
+      vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( '__PRIMITIVE_AT_X_Y__' );
+      const cmd = createTestCommand( { path: 'x.y.z', value: 'BAR' } );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( 'convert "x.y" from a value into an object' ) );
+      expect( confirm ).toHaveBeenCalledTimes( 1 );
+      expect( credentialsService.writeEncrypted ).toHaveBeenCalledTimes( 1 );
+      expect( cmd.log ).toHaveBeenCalledWith( 'Set x.y.z' );
+    } );
+
+    it( 'should prompt before replacing an object with a primitive value', async () => {
+      vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( '__OBJECT_AT_X_Y__' );
+      const cmd = createTestCommand( { path: 'x.y', value: 'BAR' } );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( 'replace the existing object' ) );
+      expect( confirm ).toHaveBeenCalledTimes( 1 );
+      expect( credentialsService.writeEncrypted ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'should abort without writing when the user declines the prompt', async () => {
+      vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( '__PRIMITIVE_AT_X_Y__' );
+      vi.mocked( confirm ).mockResolvedValue( false );
+      const cmd = createTestCommand( { path: 'x.y.z', value: 'BAR' } );
+
+      await cmd.run();
+
+      expect( credentialsService.writeEncrypted ).not.toHaveBeenCalled();
+      expect( cmd.log ).toHaveBeenCalledWith( 'Aborted.' );
+      expect( cmd.log ).not.toHaveBeenCalledWith( 'Set x.y.z' );
+    } );
+
+    it( 'should skip the prompt when --yes is passed', async () => {
+      vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( '__PRIMITIVE_AT_X_Y__' );
+      const cmd = createTestCommand( { path: 'x.y.z', value: 'BAR' }, { yes: true } );
+
+      await cmd.run();
+
+      expect( confirm ).not.toHaveBeenCalled();
+      expect( credentialsService.writeEncrypted ).toHaveBeenCalledTimes( 1 );
+      expect( cmd.log ).toHaveBeenCalledWith( 'Set x.y.z' );
     } );
   } );
 } );
