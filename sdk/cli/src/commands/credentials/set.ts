@@ -1,5 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
+import { getErrorMessage } from '#utils/error_utils.js';
 import {
   decryptCredentials,
   credentialsExist,
@@ -67,12 +68,16 @@ export default class CredentialsSet extends Command {
       );
     }
 
-    const plaintext = decryptCredentials( environment, workflow );
-    const data = ( parseYaml( plaintext ) || {} ) as CredentialsObject;
+    try {
+      const plaintext = decryptCredentials( environment, workflow );
+      const data = ( parseYaml( plaintext ) || {} ) as CredentialsObject;
 
-    setNestedValue( data, args.path, args.value );
+      setNestedValue( data, args.path, args.value );
 
-    writeEncrypted( environment, stringifyYaml( data ), workflow );
+      writeEncrypted( environment, stringifyYaml( data ), workflow );
+    } catch ( error ) {
+      this.error( `Failed to update credentials: ${getErrorMessage( error )}` );
+    }
 
     this.log( `Set ${args.path}` );
   }

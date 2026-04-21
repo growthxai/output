@@ -117,5 +117,23 @@ describe( 'credentials set command', () => {
 
       await expect( cmd.run() ).rejects.toThrow( 'No credentials file found' );
     } );
+
+    it( 'should surface a friendly error when decryption fails', async () => {
+      vi.mocked( credentialsService.decryptCredentials ).mockImplementation( () => {
+        throw new Error( 'Invalid key' );
+      } );
+      const cmd = createTestCommand();
+
+      await expect( cmd.run() ).rejects.toThrow( 'Failed to update credentials: Invalid key' );
+    } );
+
+    it( 'should surface a friendly error when encryption fails', async () => {
+      vi.mocked( credentialsService.writeEncrypted ).mockImplementation( () => {
+        throw new Error( 'Permission denied' );
+      } );
+      const cmd = createTestCommand();
+
+      await expect( cmd.run() ).rejects.toThrow( 'Failed to update credentials: Permission denied' );
+    } );
   } );
 } );
