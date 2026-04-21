@@ -155,7 +155,7 @@ export default class WorkflowTest extends Command {
       };
 
       if ( save ) {
-        const filePath = join( dir, `${dataset.name}.yml` );
+        const filePath = dataset._source ?? join( dir, `${dataset.name}.yml` );
         await writeDataset( updated, filePath );
         this.log( `    Saved output to ${filePath}` );
       }
@@ -188,7 +188,7 @@ export default class WorkflowTest extends Command {
         }
       };
 
-      const filePath = join( dir, `${dataset.name}.yml` );
+      const filePath = dataset._source ?? join( dir, `${dataset.name}.yml` );
       await writeDataset( updated, filePath );
       this.log( `  Saved eval result to ${filePath}` );
     }

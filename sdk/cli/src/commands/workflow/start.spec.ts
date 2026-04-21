@@ -7,6 +7,7 @@ vi.mock( '../../api/generated/api.js', () => ( {
 describe( 'workflow start command', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    delete process.env.OUTPUT_CATALOG_ID;
   } );
 
   describe( 'command definition', () => {

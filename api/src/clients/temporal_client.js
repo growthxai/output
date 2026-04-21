@@ -148,14 +148,15 @@ export const extractWorkflowInput = history => {
  * @param {string} workflowId - The workflow execution id
  * @param {string} status - The workflow status
  * @param {Object} [options] - Optional fields
+ * @param {string|null} [options.runId] - The specific run id for this execution
  * @param {any} [options.input] - The original workflow input
  * @param {any} [options.output] - The workflow output
  * @param {object} [options.trace] - Trace information
  * @param {string} [options.error] - Error message if failed
  * @returns {Object} Standardized workflow response
  */
-const buildWorkflowResponse = ( workflowId, status, { input = null, output = null, trace = null, error = null } = {} ) =>
-  ( { workflowId, status, input, output, trace, error } );
+const buildWorkflowResponse = ( workflowId, status, { runId = null, input = null, output = null, trace = null, error = null } = {} ) =>
+  ( { workflowId, runId, status, input, output, trace, error } );
 
 export default {
   async init() {
@@ -189,10 +190,16 @@ export default {
 
     return {
       /**
-       * Workflow execution result
+       * Shape produced by buildWorkflowResponse — shared base for run and result responses.
+       *
        * @typedef {Object} WorkflowResult
-       * @property {object} workflowId - The workflow execution id
-       * @property {object} trace - Information about the traces of the execution
+       * @property {string} workflowId - The workflow execution id
+       * @property {string|null} runId - The specific run id for this execution, null if unavailable
+       * @property {('completed'|'failed'|'canceled'|'terminated'|'timed_out'|'continued'|'unspecified')} status - Execution status
+       * @property {any} input - The original workflow input, null if unavailable
+       * @property {any} output - The workflow output, null if failed or unavailable
+       * @property {object|null} trace - Trace information including destinations, null if none
+       * @property {string|null} error - Error message if workflow failed, null otherwise
        */
       /**
        * Start the execution of a single workflow
@@ -205,7 +212,7 @@ export default {
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowExecutionTimedOutError}
        * @throws {CatalogNotAvailableError}
-       * @returns {WorkflowResult}
+       * @returns {WorkflowResult} status is always 'completed' or 'failed'
        */
       async runWorkflow( workflowName, input, options = {} ) {
         const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout } = options;
@@ -217,6 +224,7 @@ export default {
         const workflowId = userWorkflowId ?? buildWorkflowId();
         const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
         const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        const runId = handle.firstExecutionRunId ?? null;
 
         try {
           const result = await Promise.race( [
@@ -224,6 +232,7 @@ export default {
             new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
           ] );
           return buildWorkflowResponse( workflowId, 'completed', {
+            runId,
             output: result.output ?? null,
             trace: result.trace ?? null
           } );
@@ -236,6 +245,7 @@ export default {
               hasTrace: Boolean( extractTraceInfo( error ) )
             } );
             return buildWorkflowResponse( workflowId, 'failed', {
+              runId,
               trace: extractTraceInfo( error ) ?? null,
               error: extractErrorMessage( error )
             } );
@@ -251,6 +261,7 @@ export default {
        *
        * @typedef {Object} WorkflowStartResult
        * @property {string} workflowId - The id of the started workflow
+       * @property {string|null} runId - The first execution's run id, null if unavailable
        */
       /**
        * Start an workflow execution asynchronously
@@ -267,13 +278,14 @@ export default {
         const catalog = await getCatalog( { client, taskQueue } );
         const resolvedName = resolveWorkflowName( catalog, workflowName, taskQueue );
         const workflowId = userWorkflowId ?? buildWorkflowId();
-        await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
-        return { workflowId };
+        const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+        return { workflowId, runId: handle.firstExecutionRunId ?? null };
       },
 
       /**
        * @typedef {Object} WorkflowExecutionStatus
        * @property {string} workflowId - The workflow execution id
+       * @property {string|null} runId - The specific run id for this execution
        * @property {('canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'|'unspecified')} status - The workflow execution status
        * @property {number} startedAt - The start date of the workflow execution
        * @property {number} completedAt - The end date of the workflow execution
@@ -282,15 +294,17 @@ export default {
        * Get the status of a workflow execution
        *
        * @param {string} workflowId
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
        * @returns {WorkflowExecutionStatus}
        * @throws WorkflowNotFoundError
        */
-      async getWorkflowStatus( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async getWorkflowStatus( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         const description = await handle.describe();
 
         return {
           workflowId,
+          runId: description.runId,
           status: description.status.name.toLocaleLowerCase(),
           startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
           completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
@@ -298,64 +312,86 @@ export default {
       },
 
       /**
-       * Cancel a workflow execution
+       * Stop a workflow execution (graceful cancellation; workflow may run cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
+       * @returns {{ workflowId: string, runId: string }} The stopped workflow id and the run id that was actually targeted.
        * @throws {WorkflowNotFoundError}
        */
-      async stopWorkflow( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async stopWorkflow( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         await handle.cancel();
+        if ( runId ) {
+          return { workflowId, runId };
+        }
+        const description = await handle.describe();
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        return { workflowId, runId: resolvedRunId };
       },
 
       /**
-       * Terminate a workflow execution (force stop)
+       * Terminate a workflow execution (force stop; no cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [reason]    - Optional reason for termination
+       * @param {string} [runId]     - Optional specific run id; defaults to the latest run
+       * @returns {{ workflowId: string, runId: string }} The terminated workflow id and the run id that was actually targeted.
        * @throws {WorkflowNotFoundError}
        */
-      async terminateWorkflow( workflowId, reason ) {
-        const handle = client.workflow.getHandle( workflowId );
+      async terminateWorkflow( workflowId, reason, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
         await handle.terminate( reason );
+        if ( runId ) {
+          return { workflowId, runId };
+        }
+        const description = await handle.describe();
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        return { workflowId, runId: resolvedRunId };
       },
 
       /**
-       * Workflow result with trace information
-       * @typedef {Object} WorkflowResultWithTrace
-       * @property {string} workflowId - The workflow execution id
-       * @property {object|null} output - The workflow output, null if workflow failed
-       * @property {object|null} trace - Trace information including destinations
-       * @property {string} status - The workflow status (completed, failed, canceled, etc.)
-       * @property {string|null} error - Error message if workflow failed, null otherwise
-       */
-      /**
-       * Get the result of a workflow execution
+       * Get the result of a workflow execution.
        *
        * @param {string} workflowId - The workflow execution id
-       * @returns {WorkflowResultWithTrace}
+       * @param {string} [runId] - Optional specific run id; defaults to the latest run
+       * @returns {WorkflowResult}
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowNotCompletedError} - Only thrown if workflow is still running
        */
-      async getWorkflowResult( workflowId ) {
-        const handle = client.workflow.getHandle( workflowId );
-        const [ description, history ] = await Promise.all( [
-          handle.describe(),
-          handle.fetchHistory()
-        ] );
+      async getWorkflowResult( workflowId, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
+        const description = await handle.describe();
 
         // Only throw if workflow is still running (not in a terminal state)
         if ( !TERMINAL_STATUS_CODES.has( description.status.code ) ) {
           throw new WorkflowNotCompletedError();
         }
 
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          // Temporal should always report a runId for a terminal execution; if not, fail loudly
+          // rather than silently reuse the unpinned handle (which risks racing continueAsNew).
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
+        const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
+        const history = await pinnedHandle.fetchHistory();
+
         const status = mapWorkflowStatus( description.status.name );
         const input = extractWorkflowInput( history );
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
-          const result = await handle.result();
+          const result = await pinnedHandle.result();
           return buildWorkflowResponse( workflowId, status, {
+            runId: resolvedRunId,
             input,
             output: result.output ?? null,
             trace: result.trace ?? null
@@ -364,19 +400,19 @@ export default {
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
         if ( description.status.code === TemporalStatus.CONTINUED_AS_NEW ) {
-          return buildWorkflowResponse( workflowId, status, { input } );
+          return buildWorkflowResponse( workflowId, status, { runId: resolvedRunId, input } );
         }
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
         // The workflow interceptor puts trace metadata in ApplicationFailure.details when workflows fail
-        const workflowError = await handle.result()
+        const workflowError = await pinnedHandle.result()
           .then( () => null )
           .catch( e => {
             if ( e instanceof WorkflowFailedError ) {
               return e;
             }
-            // Unexpected error (connection, auth, etc.) - don't mask as workflow failure
-            logger.error( 'Unexpected error fetching workflow result', {
+            // Unexpected error (connection, auth, etc.) - log at warn; error_handler logs at error on re-throw
+            logger.warn( 'Unexpected error fetching workflow result', {
               workflowId,
               status,
               errorType: e.constructor.name,
@@ -386,6 +422,7 @@ export default {
           } );
 
         return buildWorkflowResponse( workflowId, status, {
+          runId: resolvedRunId,
           input,
           trace: workflowError ? extractTraceInfo( workflowError ) ?? null : null,
           error: workflowError ? extractErrorMessage( workflowError ) : null
@@ -457,19 +494,31 @@ export default {
        * @param {string} workflowId - The workflow execution id
        * @param {string} stepName - The step name to reset after (e.g., "consolidateCompetitors")
        * @param {string} [reason] - Optional reason for the reset
-       * @returns {{ workflowId: string, runId: string }}
+       * @param {string} [runId] - Optional specific run id to reset; defaults to the latest run
+       * @returns {{ workflowId: string, runId: string }} The original workflowId and the runId of the **new** execution created by the reset (not the input pin).
        * @throws {WorkflowNotFoundError}
        * @throws {StepNotFoundError}
        * @throws {StepNotCompletedError}
        */
-      async resetWorkflow( workflowId, stepName, reason ) {
-        const handle = client.workflow.getHandle( workflowId );
-        const history = await handle.fetchHistory();
+      async resetWorkflow( workflowId, stepName, reason, runId ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
+
+        // Pin the runId before reading history so fetchHistory and the reset RPC
+        // target the same execution. Describing first (not after fetchHistory)
+        // closes the continueAsNew race where the "latest" run can change between
+        // the history read and the reset.
+        const resolvedRunId = runId ?? ( await handle.describe() ).runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
+
+        const history = await pinnedHandle.fetchHistory();
         const resetEventId = resolveResetEventId( history.events, stepName );
 
         const response = await connection.workflowService.resetWorkflowExecution( {
           namespace,
-          workflowExecution: { workflowId },
+          workflowExecution: { workflowId, runId: resolvedRunId },
           reason: reason || `Reset to re-run from after step "${stepName}"`,
           workflowTaskFinishEventId: resetEventId,
           requestId: buildWorkflowId()

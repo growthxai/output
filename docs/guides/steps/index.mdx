@@ -54,11 +54,13 @@ Steps are called from workflows like regular async functions — `await lookupCo
 
 <CardGroup cols={2}>
   <Card title="Workflows" icon="diagram-project">
+    **Workflows:**
     - Orchestrate steps in sequence or parallel
     - Must be deterministic (no I/O)
     - Replayed on failure to recover state
   </Card>
   <Card title="Steps" icon="list-check">
+    **Steps:**
     - Where I/O happens: APIs, databases, LLMs
     - Results cached — won't re-run on replay
     - Automatically retried on failure

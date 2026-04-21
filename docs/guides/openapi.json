@@ -197,6 +197,7 @@
         "type": "object",
         "required": [
           "source",
+          "runId",
           "data"
         ],
         "properties": {
@@ -207,6 +208,10 @@
             ],
             "description": "Indicates trace was fetched from remote storage"
           },
+          "runId": {
+            "type": "string",
+            "description": "The specific run id this trace belongs to"
+          },
           "data": {
             "$ref": "#/components/schemas/TraceData"
           }
@@ -216,6 +221,7 @@
         "type": "object",
         "required": [
           "source",
+          "runId",
           "localPath"
         ],
         "properties": {
@@ -225,6 +231,10 @@
               "local"
             ],
             "description": "Indicates trace is available locally"
+          },
+          "runId": {
+            "type": "string",
+            "description": "The specific run id this trace belongs to"
           },
           "localPath": {
             "type": "string",
@@ -283,6 +293,134 @@
             "description": "Total number of runs returned"
           }
         }
+      },
+      "WorkflowStatusResponse": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "The id of workflow"
+          },
+          "runId": {
+            "type": "string",
+            "description": "The specific run id for this execution"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "canceled",
+              "completed",
+              "continued_as_new",
+              "failed",
+              "running",
+              "terminated",
+              "timed_out",
+              "unspecified"
+            ],
+            "description": "The workflow execution status"
+          },
+          "startedAt": {
+            "type": "number",
+            "description": "An epoch timestamp representing when the workflow started"
+          },
+          "completedAt": {
+            "type": "number",
+            "description": "An epoch timestamp representing when the workflow ended"
+          }
+        }
+      },
+      "WorkflowResultResponse": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "The workflow execution id"
+          },
+          "runId": {
+            "type": "string",
+            "description": "The specific run id for this execution"
+          },
+          "input": {
+            "description": "The original input passed to the workflow, null if unavailable"
+          },
+          "output": {
+            "description": "The result of workflow, null if workflow failed"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/TraceInfo"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed",
+              "canceled",
+              "terminated",
+              "timed_out",
+              "continued"
+            ],
+            "description": "The workflow execution status"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message if workflow failed, null otherwise"
+          }
+        }
+      },
+      "StopWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      },
+      "TerminateWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "terminated": {
+            "type": "boolean"
+          },
+          "workflowId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      },
+      "ResetWorkflowRequest": {
+        "type": "object",
+        "required": [
+          "stepName"
+        ],
+        "properties": {
+          "stepName": {
+            "type": "string",
+            "description": "The name of the step to reset after"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Optional reason for the reset"
+          }
+        }
+      },
+      "ResetWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "The original workflow ID"
+          },
+          "runId": {
+            "type": "string",
+            "description": "The run ID of the new execution created by the reset"
+          }
+        }
       }
     },
     "responses": {
@@ -318,6 +456,16 @@
       },
       "FailedDependency": {
         "description": "Workflow not in a terminal state (still running)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Workflow run is in a state that conflicts with the requested operation (e.g. operating on an already-terminal run, or resetting to an incomplete step).",
         "content": {
           "application/json": {
             "schema": {
@@ -498,6 +646,11 @@
                     "workflowId": {
                       "type": "string",
                       "description": "The id of the started workflow"
+                    },
+                    "runId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The first execution's run id for this workflow"
                     }
                   }
                 }
@@ -518,7 +671,8 @@
     },
     "/workflow/{id}/status": {
       "get": {
-        "summary": "Get workflow execution status",
+        "summary": "Get workflow execution status (latest run)",
+        "description": "Returns the status of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/status`.",
         "parameters": [
           {
             "in": "path",
@@ -536,35 +690,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "workflowId": {
-                      "type": "string",
-                      "description": "The id of workflow"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "canceled",
-                        "completed",
-                        "continued_as_new",
-                        "failed",
-                        "running",
-                        "terminated",
-                        "timed_out",
-                        "unspecified"
-                      ],
-                      "description": "The workflow execution status"
-                    },
-                    "startedAt": {
-                      "type": "number",
-                      "description": "An epoch timestamp representing when the workflow started"
-                    },
-                    "completedAt": {
-                      "type": "number",
-                      "description": "An epoch timestamp representing when the workflow ended"
-                    }
-                  }
+                  "$ref": "#/components/schemas/WorkflowStatusResponse"
                 }
               }
             }
@@ -578,9 +704,9 @@
         }
       }
     },
-    "/workflow/{id}/stop": {
-      "patch": {
-        "summary": "Stop a workflow execution",
+    "/workflow/{id}/runs/{rid}/status": {
+      "get": {
+        "summary": "Get workflow execution status for a specific run",
         "parameters": [
           {
             "in": "path",
@@ -589,12 +715,32 @@
             "schema": {
               "type": "string"
             },
-            "description": "The id of workflow to stop"
+            "description": "The id of workflow"
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to target"
           }
         ],
         "responses": {
           "200": {
-            "description": "The workflow stopped"
+            "description": "The workflow status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -605,10 +751,9 @@
         }
       }
     },
-    "/workflow/{id}/terminate": {
-      "post": {
-        "summary": "Terminate a workflow execution (force stop)",
-        "description": "Force terminates a workflow. Unlike stop/cancel, terminate immediately stops the workflow without allowing cleanup.",
+    "/workflow/{id}/runs/{rid}/stop": {
+      "patch": {
+        "summary": "Stop a specific workflow run",
         "parameters": [
           {
             "in": "path",
@@ -616,8 +761,105 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             },
-            "description": "The id of workflow to terminate"
+            "description": "The specific run id to stop"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow run was stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/stop": {
+      "patch": {
+        "deprecated": true,
+        "summary": "[Deprecated] Stop the latest workflow run",
+        "description": "Stops the latest run of the given workflow. The returned `runId` reflects the run at describe-time and may differ from the cancelled run if a new execution started concurrently. Deprecated; use `PATCH /workflow/{id}/runs/{rid}/stop` to pin a specific run. Scheduled for removal after 2026-07-16.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow run was stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopWorkflowResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/runs/{rid}/terminate": {
+      "post": {
+        "summary": "Terminate a specific workflow run (force stop)",
+        "description": "Force terminates a workflow run. Unlike stop/cancel, terminate immediately stops the run without allowing cleanup.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to terminate"
           }
         ],
         "requestBody": {
@@ -637,90 +879,11 @@
         },
         "responses": {
           "200": {
-            "description": "The workflow was terminated",
+            "description": "The workflow run was terminated",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "terminated": {
-                      "type": "boolean"
-                    },
-                    "workflowId": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/workflow/{id}/reset": {
-      "post": {
-        "summary": "Reset a workflow to re-run from after a specific step",
-        "description": "Resets a workflow execution to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The workflow ID to reset"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "stepName"
-                ],
-                "properties": {
-                  "stepName": {
-                    "type": "string",
-                    "description": "The name of the step to reset after"
-                  },
-                  "reason": {
-                    "type": "string",
-                    "description": "Optional reason for the reset"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The workflow was reset successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "workflowId": {
-                      "type": "string",
-                      "description": "The original workflow ID"
-                    },
-                    "runId": {
-                      "type": "string",
-                      "description": "The run ID of the new execution created by the reset"
-                    }
-                  }
+                  "$ref": "#/components/schemas/TerminateWorkflowResponse"
                 }
               }
             }
@@ -732,14 +895,174 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "Step has not completed yet (conflict with current workflow state)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/terminate": {
+      "post": {
+        "deprecated": true,
+        "summary": "[Deprecated] Terminate the latest workflow run",
+        "description": "Force terminates the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/terminate` to target a specific run. Scheduled for removal after 2026-07-16.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
                 }
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workflow run was terminated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/runs/{rid}/reset": {
+      "post": {
+        "summary": "Reset a specific workflow run to re-run from after a completed step",
+        "description": "Resets a pinned workflow run to the point after a completed step, creating a new run that replays from that point. The current execution is terminated.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The workflow ID to reset"
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to reset"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workflow was reset successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/reset": {
+      "post": {
+        "deprecated": true,
+        "summary": "[Deprecated] Reset the latest workflow run",
+        "description": "Resets the latest run. Deprecated; use `POST /workflow/{id}/runs/{rid}/reset` to target a specific run. Scheduled for removal after 2026-07-16.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetWorkflowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workflow was reset successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -749,7 +1072,8 @@
     },
     "/workflow/{id}/result": {
       "get": {
-        "summary": "Return the result of a workflow",
+        "summary": "Return the result of a workflow (latest run)",
+        "description": "Returns the result of the latest run for the given workflow. To pin a specific run, use `/workflow/{id}/runs/{rid}/result`.",
         "parameters": [
           {
             "in": "path",
@@ -767,39 +1091,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "workflowId": {
-                      "type": "string",
-                      "description": "The workflow execution id"
-                    },
-                    "input": {
-                      "description": "The original input passed to the workflow, null if unavailable"
-                    },
-                    "output": {
-                      "description": "The result of workflow, null if workflow failed"
-                    },
-                    "trace": {
-                      "$ref": "#/components/schemas/TraceInfo"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "completed",
-                        "failed",
-                        "canceled",
-                        "terminated",
-                        "timed_out",
-                        "continued"
-                      ],
-                      "description": "The workflow execution status"
-                    },
-                    "error": {
-                      "type": "string",
-                      "nullable": true,
-                      "description": "Error message if workflow failed, null otherwise"
-                    }
-                  }
+                  "$ref": "#/components/schemas/WorkflowResultResponse"
                 }
               }
             }
@@ -816,10 +1108,59 @@
         }
       }
     },
+    "/workflow/{id}/runs/{rid}/result": {
+      "get": {
+        "summary": "Return the result of a specific workflow run",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to target"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workflow result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResultResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "424": {
+            "$ref": "#/components/responses/FailedDependency"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/workflow/{id}/trace-log": {
       "get": {
-        "summary": "Get workflow trace log data",
-        "description": "Returns trace data for a completed workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.",
+        "summary": "Get workflow trace log data (latest run)",
+        "description": "Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.",
         "parameters": [
           {
             "in": "path",
@@ -848,6 +1189,63 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "424": {
+            "$ref": "#/components/responses/FailedDependency"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/runs/{rid}/trace-log": {
+      "get": {
+        "summary": "Get workflow trace log data for a specific run",
+        "description": "Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run id to target"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trace log response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TraceLogRemoteResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TraceLogLocalResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -984,6 +1382,7 @@
     "/workflow/{id}/feedback": {
       "post": {
         "summary": "Send feedback to a workflow",
+        "description": "Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.",
         "parameters": [
           {
             "in": "path",
@@ -1031,6 +1430,7 @@
     "/workflow/{id}/signal/{signal}": {
       "post": {
         "summary": "Send a signal to an workflow",
+        "description": "Always targets the latest run; `runId` cannot be pinned for Temporal signal operations.",
         "parameters": [
           {
             "in": "path",
@@ -1087,6 +1487,7 @@
     "/workflow/{id}/query/{query}": {
       "post": {
         "summary": "Send a query to an workflow",
+        "description": "Always targets the latest run; `runId` cannot be pinned for Temporal query operations.",
         "parameters": [
           {
             "in": "path",
@@ -1143,6 +1544,7 @@
     "/workflow/{id}/update/{update}": {
       "post": {
         "summary": "Execute an update on an workflow",
+        "description": "Always targets the latest run; `runId` cannot be pinned for Temporal update operations.",
         "parameters": [
           {
             "in": "path",

@@ -1,4 +1,5 @@
 ---
+name: plan-workflow
 argument-hint: [workflow-description-and-additional-instructions]
 description: Use when the user asks to create, build, generate, scaffold, or plan a new workflow. Orchestrates the full planning process including architecture, steps, prompts, evaluators, and testing strategy using specialized subagents.
 version: 0.1.3
