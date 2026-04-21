@@ -4,7 +4,7 @@ import { logRequest, logResponse, logError, logFailure } from './utils.js';
 import type { RequestInfo, RequestInit } from 'undici';
 
 /*
- * Unifies undici and nodes helms
+ * Unifies undici and nodes realms
  * https://github.com/nodejs/undici#keep-fetch-and-formdata-together
  */
 undici.install();
