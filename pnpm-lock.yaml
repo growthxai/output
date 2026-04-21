@@ -31,8 +31,8 @@ catalogs:
       specifier: 4.1.1
       version: 4.1.1
     ky:
-      specifier: 1.14.3
-      version: 1.14.3
+      specifier: 2.0.1
+      version: 2.0.1
     semver:
       specifier: 7.7.4
       version: 7.7.4
@@ -234,7 +234,7 @@ importers:
         version: 11.4.0
       ky:
         specifier: 'catalog:'
-        version: 1.14.3
+        version: 2.0.1
       react:
         specifier: 19.2.5
         version: 19.2.5
@@ -365,7 +365,7 @@ importers:
         version: link:../core
       ky:
         specifier: 'catalog:'
-        version: 1.14.3
+        version: 2.0.1
 
   sdk/llm:
     dependencies:
@@ -5113,9 +5113,9 @@ packages:
   kuler@2.0.0:
     resolution: {integrity: sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==}
 
-  ky@1.14.3:
-    resolution: {integrity: sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw==}
-    engines: {node: '>=18'}
+  ky@2.0.1:
+    resolution: {integrity: sha512-HJPEjEpQPZQ5M3G5eu90/LWZDwysCnvqcfbLvq9FUvfizBZRi58WEixswyyI32LOLcFQd43w7kcfgkCPFxDt/Q==}
+    engines: {node: '>=22'}
 
   lcm@0.0.3:
     resolution: {integrity: sha512-TB+ZjoillV6B26Vspf9l2L/vKaRY/4ep3hahcyVkCGFgsTNRUQdc24bQeNFiZeoxH0vr5+7SfNRMQuPHv/1IrQ==}
@@ -13337,7 +13337,7 @@ snapshots:
 
   kuler@2.0.0: {}
 
-  ky@1.14.3: {}
+  ky@2.0.1: {}
 
   lcm@0.0.3:
     dependencies:
