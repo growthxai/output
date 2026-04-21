@@ -1,17 +1,24 @@
 ---
-argument-hint: "[from-version] [to-version] [additional-instructions]"
-description: Use when the user asks to upgrade, migrate, or move between versions of the Output framework. Detects the current @outputai/* version in the project, fetches the matching migration guide from docs.output.ai, applies the changes, and verifies the project still type-checks.
-version: 0.1.0
-model: opus
+name: output-migrate
+description: Upgrade a project between versions of the Output framework. Use when the user asks to upgrade, migrate, or move to a newer Output version. Detects the current @outputai/* version in the project, fetches the matching migration guide from docs.output.ai, applies the changes, and verifies the project still type-checks.
+allowed-tools: [Bash, Read, Write, Edit, MultiEdit, Grep, WebFetch, TodoWrite]
 ---
 
-Your task is to migrate a project from one version of the Output framework to another.
+# Migrate an Output Project
+
+## Overview
+
+This skill migrates a project from one version of the Output framework to another.
 
 You do not carry migration instructions in your own context. The docs site at `https://docs.output.ai/migrations` is the source of truth — fetch the right page and follow it.
 
 Use the todo tool to track your progress.
 
-# Migration Rules
+## When to Use This Skill
+
+- The user wants to upgrade `@outputai/*` packages to a newer version
+- The user mentions "migrate", "upgrade", or "move to vX.Y.Z"
+- A breaking-change release shipped and the user is still on an older version
 
 ## URL contract
 
@@ -24,20 +31,18 @@ The index lists every available guide with a title and a short description. A re
 
 If the user is jumping multiple boundaries, fetch each applicable guide in order and apply them sequentially.
 
+## Instructions
+
 <process_flow>
 
 <step number="0" name="arguments_analysis">
 
 ### Step 0: Arguments Analysis
 
-Analyze the arguments provided to the command:
-
-{ $ARGUMENTS }
-
-Expected positional arguments (all optional):
-  - from-version: The version the project is currently on. If blank, detect it.
-  - to-version: The target version. If blank, use the latest published version.
-  - additional-instructions: Free-form guidance from the user (e.g. "skip the http changes, we don't use that package").
+If the user passed arguments when invoking this skill, parse them as positional values in this order (all optional):
+  - `from-version`: The version the project is currently on. If blank, detect it in Step 2.
+  - `to-version`: The target version. If blank, resolve it in Step 1.
+  - `additional-instructions`: Free-form guidance from the user (e.g. "skip the http changes, we don't use that package").
 
 </step>
 
@@ -161,9 +166,3 @@ Do not suggest additional commands or next steps — the CLI handles post-migrat
 </step>
 
 </process_flow>
-
----- START ----
-
-Migration arguments:
-
-$ARGUMENTS

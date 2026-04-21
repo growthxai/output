@@ -37,7 +37,7 @@ export default class Migrate extends Command {
     this.log( 'Checking .outputai directory structure...' );
     await ensureOutputAISystem( projectRoot );
 
-    this.log( '\nInvoking the /outputai:migrate command...' );
+    this.log( '\nInvoking the /output-migrate skill...' );
     this.log( 'This may take a moment...\n' );
 
     const summary = await invokeMigrate( flags.from ?? '', flags.to ?? '', flags.notes );

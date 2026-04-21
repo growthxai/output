@@ -57,7 +57,7 @@ date: <plan-date>
 
 const PLAN_COMMAND = 'outputai:plan_workflow';
 const BUILD_COMMAND = 'outputai:build_workflow';
-const MIGRATE_COMMAND = 'outputai:migrate';
+const MIGRATE_COMMAND = 'output-migrate';
 
 const GLOBAL_CLAUDE_OPTIONS: Options = {
   settingSources: [ 'user', 'project', 'local' ]
@@ -319,7 +319,7 @@ export async function invokeBuildWorkflow(
 }
 
 /**
- * Invoke claude-code with /outputai:migrate slash command
+ * Invoke claude-code with /output-migrate slash command (registered via the output-migrate skill).
  * The slash command fetches migration instructions from docs.output.ai —
  * this CLI wrapper just passes through the version arguments.
  * @param fromVersion - Current framework version (empty string = auto-detect)
