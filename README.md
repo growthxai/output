@@ -197,39 +197,7 @@ Browse the full gallery at [output.ai/gallery](https://output.ai/gallery).
 
 ## Configuration
 
-### LLM Providers
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-AZURE_OPENAI_API_KEY=...
-AZURE_OPENAI_ENDPOINT=...
-AWS_ACCESS_KEY_ID=...        # For Amazon Bedrock
-AWS_SECRET_ACCESS_KEY=...
-AWS_REGION=us-east-1
-```
-
-### Temporal
-
-For local development, `output dev` handles everything. For production, use [Temporal Cloud](https://temporal.io/cloud) or self-hosted Temporal:
-
-```bash
-TEMPORAL_ADDRESS=your-namespace.tmprl.cloud:7233
-TEMPORAL_NAMESPACE=your-namespace
-TEMPORAL_API_KEY=your-api-key
-```
-
-### Tracing
-
-```bash
-# Local tracing (writes JSON to disk; default under "logs/runs/")
-OUTPUT_TRACE_LOCAL_ON=true
-
-# Remote tracing (upload to S3 on run completion)
-OUTPUT_TRACE_REMOTE_ON=true
-OUTPUT_REDIS_URL=redis://localhost:6379
-OUTPUT_TRACE_REMOTE_S3_BUCKET=my-traces
-```
+For production configuration and advanced settings (LLM providers, Temporal Cloud, tracing, and more), see the [operations docs](https://docs.output.ai/operations/testing).
 
 ## Contributing
 
