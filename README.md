@@ -14,6 +14,8 @@ One framework. Prompts, evals, tracing, cost tracking, orchestration, credential
 
 <p align="center">
   <a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
+  <br/>
+  <em>▶ <a href="https://output.ai/?autoplay=true">Watch a complete example of using Output to build a newsletter pipeline</a></em>
 </p>
 
 ## Why Output
