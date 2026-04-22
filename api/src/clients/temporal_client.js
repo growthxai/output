@@ -35,22 +35,19 @@ const getCatalog = async ( { client, taskQueue } ) => {
 };
 
 /**
- * Map Temporal workflow execution status to user-friendly string
- * @param {string} statusName - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
+ * Maps Temporal workflow execution status to user-friendly string
+ * @param {string} status - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
  * @returns {string} User-friendly status string
  */
-const mapWorkflowStatus = statusName => {
-  const statusMap = {
-    RUNNING: 'running',
-    COMPLETED: 'completed',
-    FAILED: 'failed',
-    CANCELED: 'canceled',
-    TERMINATED: 'terminated',
-    TIMED_OUT: 'timed_out',
-    CONTINUED_AS_NEW: 'continued'
-  };
-  return statusMap[statusName] || statusName.toLowerCase();
-};
+const mapWorkflowStatus = status => ( {
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELED: 'canceled',
+  TERMINATED: 'terminated',
+  TIMED_OUT: 'timed_out',
+  CONTINUED_AS_NEW: 'continued'
+}[status] || status.toLowerCase() );
 
 /**
  * Terminal Temporal workflow execution status codes.
@@ -78,7 +75,7 @@ const EventType = {
 };
 
 /**
- * Resolve a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
+ * Resolves a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
  * Scans the workflow history to find the activity matching the step, then locates
  * the workflow task completed event immediately after that activity finished.
  *
@@ -129,7 +126,7 @@ export const resolveResetEventId = ( events, stepName ) => {
 };
 
 /**
- * Extract the workflow input from a Temporal history object.
+ * Extracts the workflow input from a Temporal history object.
  * The first event is always WorkflowExecutionStarted, which contains the input payloads.
  *
  * @param {object} history - Temporal History object from handle.fetchHistory()
@@ -144,19 +141,37 @@ export const extractWorkflowInput = history => {
 };
 
 /**
- * Build a standardized workflow response object
- * @param {string} workflowId - The workflow execution id
- * @param {string} status - The workflow status
- * @param {Object} [options] - Optional fields
- * @param {string|null} [options.runId] - The specific run id for this execution
- * @param {any} [options.input] - The original workflow input
- * @param {any} [options.output] - The workflow output
- * @param {object} [options.trace] - Trace information
- * @param {string} [options.error] - Error message if failed
- * @returns {Object} Standardized workflow response
+ * @typedef {'canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'} WorkflowExecutionStatus
  */
-const buildWorkflowResponse = ( workflowId, status, { runId = null, input = null, output = null, trace = null, error = null } = {} ) =>
-  ( { workflowId, runId, status, input, output, trace, error } );
+
+/**
+ * A representation of a workflow execution result, including input, output, error and meta information
+ *
+ * @typedef {object} WorkflowResult
+ * @property {string} workflowId - The workflow execution id
+ * @property {WorkflowExecutionStatus} status - The workflow status
+ * @property {string} runId - The specific run id for this execution
+ * @property {string|number|boolean|object|array|undefined|null} input - The original workflow input
+ * @property {string|number|boolean|object|array|undefined|null} output - The workflow output
+ * @property {object|null} trace - Trace information
+ * @property {string|null} error - Error message if failed
+ */
+
+/**
+ * Builds a WorkflowResult object
+ *
+ * @param {Object} args - Fields
+ * @param {string} args.workflowId - The workflow execution id
+ * @param {WorkflowExecutionStatus} args.status - The workflow status
+ * @param {string} args.runId - The specific run id for this execution
+ * @param {string|number|boolean|object|array|undefined|null} args.input - The original workflow input
+ * @param {string|number|boolean|object|array|undefined|null} args.output - The workflow output
+ * @param {object|undefined} args.trace - Trace information
+ * @param {string|undefined} args.error - Error message if failed
+ * @returns {WorkflowResult}
+ */
+const buildWorkflowResult = ( { workflowId, status, runId, input, output, trace, error } ) =>
+  ( { workflowId, runId, status, input, output: output ?? null, trace: trace ?? null, error: error ?? null } );
 
 export default {
   async init() {
@@ -169,7 +184,7 @@ export default {
     logger.info( 'Temporal client connected', { address, namespace } );
 
     /**
-     * Resolve a workflow name (or alias) to the canonical workflow name via the catalog.
+     * Resolves a workflow name (or alias) to the canonical workflow name via the catalog.
      *
      * @param {object} catalog - The catalog object
      * @param {string} workflowName - The workflow name or alias
@@ -190,19 +205,9 @@ export default {
 
     return {
       /**
-       * Shape produced by buildWorkflowResponse — shared base for run and result responses.
+       * Executes a workflow and return its result.
        *
-       * @typedef {Object} WorkflowResult
-       * @property {string} workflowId - The workflow execution id
-       * @property {string|null} runId - The specific run id for this execution, null if unavailable
-       * @property {('completed'|'failed'|'canceled'|'terminated'|'timed_out'|'continued'|'unspecified')} status - Execution status
-       * @property {any} input - The original workflow input, null if unavailable
-       * @property {any} output - The workflow output, null if failed or unavailable
-       * @property {object|null} trace - Trace information including destinations, null if none
-       * @property {string|null} error - Error message if workflow failed, null otherwise
-       */
-      /**
-       * Start the execution of a single workflow
+       * The status field of the result is always 'completed' or 'failed'
        *
        * @param {string} workflowName - The type of the workflow
        * @param {any} input - The input arguments of the workflow
@@ -212,7 +217,7 @@ export default {
        * @throws {WorkflowNotFoundError}
        * @throws {WorkflowExecutionTimedOutError}
        * @throws {CatalogNotAvailableError}
-       * @returns {WorkflowResult} status is always 'completed' or 'failed'
+       * @returns {WorkflowResult}
        */
       async runWorkflow( workflowName, input, options = {} ) {
         const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout } = options;
@@ -231,11 +236,7 @@ export default {
             handle.result(),
             new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
           ] );
-          return buildWorkflowResponse( workflowId, 'completed', {
-            runId,
-            output: result.output ?? null,
-            trace: result.trace ?? null
-          } );
+          return buildWorkflowResult( { workflowId, status: 'completed', runId, input, output: result.output, trace: result.trace } );
         } catch ( error ) {
           // Workflow failures are returned as data, not thrown
           if ( error instanceof WorkflowFailedError ) {
@@ -244,9 +245,9 @@ export default {
               errorMessage: error.message,
               hasTrace: Boolean( extractTraceInfo( error ) )
             } );
-            return buildWorkflowResponse( workflowId, 'failed', {
-              runId,
-              trace: extractTraceInfo( error ) ?? null,
+            return buildWorkflowResult( {
+              workflowId, status: 'failed', runId, input,
+              trace: extractTraceInfo( error ),
               error: extractErrorMessage( error )
             } );
           }
@@ -264,7 +265,7 @@ export default {
        * @property {string|null} runId - The first execution's run id, null if unavailable
        */
       /**
-       * Start an workflow execution asynchronously
+       * Starts an workflow execution asynchronously
        *
        * @param {string} workflowName - The type of the workflow
        * @param {any} input - The input arguments of the workflow
@@ -283,19 +284,19 @@ export default {
       },
 
       /**
-       * @typedef {Object} WorkflowExecutionStatus
+       * @typedef {Object} WorkflowStatus
        * @property {string} workflowId - The workflow execution id
        * @property {string|null} runId - The specific run id for this execution
-       * @property {('canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'|'unspecified')} status - The workflow execution status
+       * @property {WorkflowExecutionStatus} status - The workflow execution status
        * @property {number} startedAt - The start date of the workflow execution
        * @property {number} completedAt - The end date of the workflow execution
        */
       /**
-       * Get the status of a workflow execution
+       * Returns the status of a workflow execution
        *
        * @param {string} workflowId
        * @param {string} [runId] - Optional specific run id; defaults to the latest run
-       * @returns {WorkflowExecutionStatus}
+       * @returns {WorkflowStatus}
        * @throws WorkflowNotFoundError
        */
       async getWorkflowStatus( workflowId, runId ) {
@@ -305,14 +306,14 @@ export default {
         return {
           workflowId,
           runId: description.runId,
-          status: description.status.name.toLocaleLowerCase(),
+          status: mapWorkflowStatus( description.status.name ),
           startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
           completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
         };
       },
 
       /**
-       * Stop a workflow execution (graceful cancellation; workflow may run cleanup).
+       * Stops a workflow execution (graceful cancellation; workflow may run cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [runId] - Optional specific run id; defaults to the latest run
@@ -334,7 +335,7 @@ export default {
       },
 
       /**
-       * Terminate a workflow execution (force stop; no cleanup).
+       * Terminates a workflow execution (force stop; no cleanup).
        *
        * @param {string} workflowId  - The workflow execution id
        * @param {string} [reason]    - Optional reason for termination
@@ -357,7 +358,7 @@ export default {
       },
 
       /**
-       * Get the result of a workflow execution.
+       * Returns the result of a workflow execution.
        *
        * @param {string} workflowId - The workflow execution id
        * @param {string} [runId] - Optional specific run id; defaults to the latest run
@@ -390,17 +391,12 @@ export default {
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
           const result = await pinnedHandle.result();
-          return buildWorkflowResponse( workflowId, status, {
-            runId: resolvedRunId,
-            input,
-            output: result.output ?? null,
-            trace: result.trace ?? null
-          } );
+          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, output: result.output, trace: result.trace } );
         }
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
         if ( description.status.code === TemporalStatus.CONTINUED_AS_NEW ) {
-          return buildWorkflowResponse( workflowId, status, { runId: resolvedRunId, input } );
+          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input } );
         }
 
         // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
@@ -421,16 +417,17 @@ export default {
             throw e;
           } );
 
-        return buildWorkflowResponse( workflowId, status, {
-          runId: resolvedRunId,
-          input,
-          trace: workflowError ? extractTraceInfo( workflowError ) ?? null : null,
-          error: workflowError ? extractErrorMessage( workflowError ) : null
+        return buildWorkflowResult( {
+          workflowId, status, runId: resolvedRunId, input,
+          ...( workflowError && {
+            trace: extractTraceInfo( workflowError ),
+            error: extractErrorMessage( workflowError )
+          } )
         } );
       },
 
       /**
-       * Execute a query on a given workflow (The query has to be registered beforehand).
+       * Executes a query on a given workflow (The query has to be registered beforehand).
        *
        * @param {string} workflowId - The id of the workflow to send the query to
        * @param {string} queryName - The name of the query to execute
@@ -443,7 +440,7 @@ export default {
       },
 
       /**
-       * Send an arbitrary signal to a workflow
+       * Sends an arbitrary signal to a workflow
        *
        * @param {string} workflowId - The id of the workflow
        * @param {string} signalName - The name of the signal to send (as set using defineSignal)
@@ -457,7 +454,7 @@ export default {
       },
 
       /**
-       * Send an arbitrary query to a workflow
+       * Sends an arbitrary query to a workflow
        *
        * @param {string} workflowId - The id of the workflow
        * @param {string} queryName - The name of the query to send (as set using defineQuery)
@@ -471,7 +468,7 @@ export default {
       },
 
       /**
-       * Execute an arbitrary update to a workflow
+       * Executes an arbitrary update to a workflow
        *
        * @param {string} workflowId - The id of the workflow
        * @param {string} updateName - The name of the query (as set using defineUpdate)
@@ -487,7 +484,7 @@ export default {
       },
 
       /**
-       * Reset a workflow to re-run from after a specific completed step.
+       * Resets a workflow to re-run from after a specific completed step.
        * Terminates the current run and creates a new one that replays up to the
        * specified step, then re-executes all subsequent steps.
        *
@@ -551,7 +548,7 @@ export default {
        * @property {number} count - Number of runs returned
        */
       /**
-       * List workflow runs with optional filtering
+       * Lists workflow runs with optional filtering
        *
        * @param {Object} [options] - Optional configuration
        * @param {string} [options.workflowType] - Filter by workflow type/name
