@@ -121,7 +121,7 @@ export const getProjectConfig = async ( userFolderNameArg?: string ): Promise<Pr
   }
 };
 
-async function scaffoldProjectFiles(
+export async function scaffoldProjectFiles(
   projectPath: string,
   projectName: string,
   description: string
@@ -129,6 +129,7 @@ async function scaffoldProjectFiles(
   const __filename = fileURLToPath( import.meta.url );
   const __dirname = path.dirname( __filename );
   const templatesDir = path.join( __dirname, '..', 'templates', 'project' );
+  const npmrcSourcePath = path.join( __dirname, '..', 'assets', 'npm', '.npmrc' );
 
   // Get framework version for dynamic template injection
   const frameworkVersion = await getFrameworkVersion();
@@ -146,7 +147,9 @@ async function scaffoldProjectFiles(
     templateFiles.map( templateFile => processTemplateFile( templateFile, projectPath, templateVars ) )
   );
 
-  return templateFiles.map( f => f.outputName );
+  await fs.copyFile( npmrcSourcePath, path.join( projectPath, '.npmrc' ) );
+
+  return [ ...templateFiles.map( f => f.outputName ), '.npmrc' ];
 }
 
 const CREDENTIALS_TEMPLATE_CONTENT = 'anthropic:\n  api_key: "<FILL_ME_OUT>"\nopenai:\n  api_key: "<FILL_ME_OUT>"\n';

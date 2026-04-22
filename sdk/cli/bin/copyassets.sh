@@ -11,6 +11,12 @@ find ./src -name '.*.template' -type f | while read -r file; do
   cp "$file" "$dest"
 done
 copyfiles './src/assets/**/*' dist -u 1
+# native-copyfiles ** globs skip dotfiles under assets; copy them explicitly
+find ./src/assets -type f -name '.*' | while read -r file; do
+  dest="dist/${file#./src/}"
+  mkdir -p "$(dirname "$dest")"
+  cp "$file" "$dest"
+done
 copyfiles './src/**/*.prompt' dist -u 1
 
 echo "✅ Assets copied to dist/"

@@ -1,5 +1,11 @@
+import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getProjectConfig, checkDependencies, createSigintHandler } from './project_scaffold.js';
+import {
+  getProjectConfig,
+  checkDependencies,
+  createSigintHandler,
+  scaffoldProjectFiles
+} from './project_scaffold.js';
 import { UserCancelledError } from '#types/errors.js';
 
 // Mock the framework version utility
@@ -30,7 +36,10 @@ vi.mock( 'node:fs/promises', () => ( {
     copyFile: vi.fn().mockResolvedValue( undefined )
   }
 } ) );
-vi.mock( './template_processor.js' );
+vi.mock( './template_processor.js', () => ( {
+  getTemplateFiles: vi.fn().mockResolvedValue( [] ),
+  processTemplateFile: vi.fn().mockResolvedValue( undefined )
+} ) );
 vi.mock( './coding_agents.js' );
 vi.mock( '#services/docker.js', () => ( {
   isDockerInstalled: vi.fn().mockReturnValue( true )
@@ -125,6 +134,45 @@ describe( 'project_scaffold', () => {
       vi.mocked( confirm ).mockResolvedValue( false );
 
       await expect( checkDependencies() ).rejects.toThrow( UserCancelledError );
+    } );
+  } );
+
+  describe( 'scaffoldProjectFiles', () => {
+    it( 'should copy bundled npmrc to project root as .npmrc', async () => {
+      const fs = await import( 'node:fs/promises' );
+      const projectRoot = path.join( '/tmp', 'output-init-test', 'proj' );
+
+      await scaffoldProjectFiles( projectRoot, 'my-app', 'A test project' );
+
+      expect( vi.mocked( fs.default.copyFile ) ).toHaveBeenCalledWith(
+        expect.stringContaining( path.join( 'assets', 'npm', '.npmrc' ) ),
+        path.join( projectRoot, '.npmrc' )
+      );
+    } );
+
+    it( 'should list .npmrc in created files', async () => {
+      const created = await scaffoldProjectFiles(
+        path.join( '/tmp', 'output-init-test', 'proj2' ),
+        'my-app',
+        'A test project'
+      );
+
+      expect( created ).toContain( '.npmrc' );
+    } );
+
+    it( 'should append .npmrc after template output names', async () => {
+      const { getTemplateFiles } = await import( './template_processor.js' );
+      vi.mocked( getTemplateFiles ).mockResolvedValueOnce( [
+        { name: 'README.md.template', path: '/fake/README.md.template', outputName: 'README.md' }
+      ] );
+
+      const created = await scaffoldProjectFiles(
+        path.join( '/tmp', 'output-init-test', 'proj3' ),
+        'my-app',
+        'A test project'
+      );
+
+      expect( created ).toEqual( [ 'README.md', '.npmrc' ] );
     } );
   } );
 

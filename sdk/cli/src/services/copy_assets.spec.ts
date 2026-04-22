@@ -24,4 +24,9 @@ describe( 'copy-assets build output', () => {
     const configFile = path.join( distTemplatesDir, 'config', 'costs.yml.template' );
     expect( fs.existsSync( configFile ), 'Missing config/costs.yml.template in dist' ).toBe( true );
   } );
+
+  it( 'should include scaffold .npmrc asset in dist/assets/npm/', () => {
+    const npmrcPath = path.join( cliRoot, 'dist', 'assets', 'npm', '.npmrc' );
+    expect( fs.existsSync( npmrcPath ), 'Missing assets/npm/.npmrc in dist' ).toBe( true );
+  } );
 } );
