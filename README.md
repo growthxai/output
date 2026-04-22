@@ -52,43 +52,31 @@ AI apps need a lot of API keys. Sharing `.env` files is risky, and coding agents
 
 ## Quick Start
 
-### Prerequisites
+Requirements:
 
 - [Node.js](https://nodejs.org/) 20+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - An LLM API key (e.g. [Anthropic](https://console.anthropic.com/))
 
-### Create your project
+Scaffold a project and add your API key to `.env` (`ANTHROPIC_API_KEY=sk-ant-...`):
 
 ```bash
 npx @outputai/cli init
 cd <project-name>
 ```
 
-Add your API key to `.env`:
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-### Start developing
+Start the full development environment — Temporal server, API server, a worker with hot reload, and the Temporal UI at http://localhost:8080:
 
 ```bash
 npx output dev
 ```
 
-This starts the full development environment:
-- Temporal server for workflow orchestration
-- API server for workflow execution
-- Worker with hot reload for your workflows
-- Temporal UI at http://localhost:8080
-
-### Run your first workflow
+Run your first workflow and inspect the execution:
 
 ```bash
 npx output workflow run blog_evaluator paulgraham_hwh
 ```
 
-Inspect the execution:
 ```bash
 npx output workflow debug <workflow-id>
 ```
