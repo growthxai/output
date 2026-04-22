@@ -197,7 +197,7 @@ See [test_workflows/](test_workflows/) for complete examples:
 
 | Project | Description |
 |---|---|
-| <a href="https://checkthat.ai"><img src="assets/checkthat.png" alt="CheckThat" width="500" /></a> | **[CheckThat](https://checkthat.ai)** is an AEO platform that tracks how B2B brands show up across ChatGPT, Claude, Perplexity, and Google AI — analyzing 2.6M+ AI responses across 5,875+ brands, powered by **Output**'s durable, deterministic LLM workflows. |
+| <a href="https://checkthat.ai"><img src="assets/checkthat.png" alt="CheckThat" width="500" /></a> | **[CheckThat](https://checkthat.ai)** is an AEO platform built on **Output**'s durable, deterministic LLM workflows — tracking how B2B brands show up across ChatGPT, Claude, Perplexity, and Google AI, covering 2.6M+ AI responses spanning 5,875+ brands. |
 
 ## Configuration
 
