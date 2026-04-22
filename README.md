@@ -191,6 +191,12 @@ See [test_workflows/](test_workflows/) for complete examples:
 - **[Evaluation](test_workflows/src/workflows/evaluation)** — Quality evaluation workflows
 - **[Stream Text](test_workflows/src/workflows/stream_text)** — Streaming text generation
 
+## Projects using Output
+
+| Project | Description |
+|---|---|
+| <a href="https://checkthat.ai"><img src="assets/checkthat.png" alt="CheckThat" width="240" /></a><br/>**[CheckThat](https://checkthat.ai)** | AEO platform that tracks how B2B brands show up across ChatGPT, Claude, Perplexity, and Google AI — analyzing 2.6M+ AI responses across 5,875+ brands, powered by **Output**'s durable, deterministic LLM workflows. |
+
 ## Configuration
 
 ### LLM Providers
