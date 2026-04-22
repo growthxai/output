@@ -239,25 +239,7 @@ OUTPUT_TRACE_REMOTE_S3_BUCKET=my-traces
 
 ## Contributing
 
-We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first — all contributions require an approved issue and maintainer assignment before work begins.
-
-```bash
-git clone https://github.com/growthxai/output.git
-cd output
-pnpm install && npm run build:packages
-```
-
-```bash
-npm run dev           # Start dev environment
-npm test              # Run tests
-npm run lint          # Lint code
-./run.sh validate     # Validate everything
-```
-
-**Project structure:**
-- `sdk/` — SDK packages (core, llm, http, cli)
-- `api/` — API server for workflow execution
-- `test_workflows/` — Example workflows
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
