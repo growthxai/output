@@ -141,7 +141,7 @@ export const extractWorkflowInput = history => {
 };
 
 /**
- * @typedef {'canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'|'unspecified'} WorkflowExecutionStatus
+ * @typedef {'canceled'|'completed'|'continued_as_new'|'failed'|'running'|'terminated'|'timed_out'} WorkflowExecutionStatus
  */
 
 /**
@@ -306,7 +306,7 @@ export default {
         return {
           workflowId,
           runId: description.runId,
-          status: description.status.name.toLocaleLowerCase(),
+          status: mapWorkflowStatus( description.status.name ),
           startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
           completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
         };
