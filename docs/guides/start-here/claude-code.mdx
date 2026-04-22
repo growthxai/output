@@ -36,9 +36,9 @@ In practice, you rarely need to type these directly — Claude Code picks the ri
 
 | Command | What it does | Example |
 |---------|-------------|---------|
-| `/outputai:plan_workflow` | Produces a detailed implementation plan before writing code. Covers workflow structure, step boundaries, prompt design, error handling, and testing strategy. Saves to `.outputai/plans/`. | `A workflow that researches a company and produces a sales brief` |
-| `/outputai:build_workflow` | Takes a plan and generates working code — `workflow.ts`, `steps.ts`, `types.ts`, prompts, evaluators, and test scenarios. Every file follows Output conventions. | `.outputai/plans/2026_03_19_company_research/PLAN.md` |
-| `/outputai:debug_workflow` | Checks infrastructure, pulls execution traces, identifies the failure, and suggests a fix. Systematic — no guessing. | `The company_research workflow is timing out on the scrape step` |
+| `/output-plan-workflow` | Produces a detailed implementation plan before writing code. Covers workflow structure, step boundaries, prompt design, error handling, and testing strategy. Saves to `.outputai/plans/`. | `A workflow that researches a company and produces a sales brief` |
+| `/output-build-workflow` | Takes a plan and generates working code — `workflow.ts`, `steps.ts`, `types.ts`, prompts, evaluators, and test scenarios. Every file follows Output conventions. | `.outputai/plans/2026_03_19_company_research/PLAN.md` |
+| `/output-debug-workflow` | Checks infrastructure, pulls execution traces, identifies the failure, and suggests a fix. Systematic — no guessing. | `The company_research workflow is timing out on the scrape step` |
 
 ### Specialized Agents
 
