@@ -74,7 +74,7 @@ const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
 
 // Subset of gRPC status codes from @grpc/grpc-js (transitive through @temporalio/client).
 // See https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
-const GRPC_STATUS = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
+const GrpcStatus = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
 
 /**
  * Resolves a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
@@ -531,7 +531,7 @@ export default {
         const metadata = isFirstPage ? await ( async () => {
           const handle = client.workflow.getHandle( workflowId, runId );
           const description = await handle.describe().catch( error => {
-            if ( error?.code === GRPC_STATUS.NOT_FOUND ) {
+            if ( error?.code === GrpcStatus.NOT_FOUND ) {
               throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
             }
             throw error;
@@ -559,13 +559,13 @@ export default {
           if ( !error ) {
             throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
           }
-          if ( error.code === GRPC_STATUS.NOT_FOUND ) {
+          if ( error.code === GrpcStatus.NOT_FOUND ) {
             throw new WorkflowNotFoundError( runId ?
               `Run "${runId}" not found for workflow "${workflowId}"` :
               `Workflow "${workflowId}" not found`
             );
           }
-          if ( error.code === GRPC_STATUS.INVALID_ARGUMENT ) {
+          if ( error.code === GrpcStatus.INVALID_ARGUMENT ) {
             throw new InvalidPageTokenError();
           }
           throw error;

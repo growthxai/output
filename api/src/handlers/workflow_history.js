@@ -15,24 +15,20 @@ export function createWorkflowHistoryHandler( client ) {
     { message: 'runId is required when using pageToken', path: [ 'runId' ] }
   );
 
-  return async ( req, res, next ) => {
-    try {
-      const workflowId = req.params.id;
-      const pathRunId = readPinnedRunId( req );
-      const { runId, pageSize, pageToken, includePayloads } = querySchema.parse(
-        pathRunId ? { ...req.query, runId: pathRunId } : req.query
-      );
+  return async ( req, res ) => {
+    const workflowId = req.params.id;
+    const pathRunId = readPinnedRunId( req );
+    const { runId, pageSize, pageToken, includePayloads } = querySchema.parse(
+      pathRunId ? { ...req.query, runId: pathRunId } : req.query
+    );
 
-      const result = await client.getWorkflowHistory( workflowId, {
-        runId,
-        pageSize,
-        pageToken,
-        includePayloads
-      } );
+    const result = await client.getWorkflowHistory( workflowId, {
+      runId,
+      pageSize,
+      pageToken,
+      includePayloads
+    } );
 
-      res.json( result );
-    } catch ( error ) {
-      next( error );
-    }
+    res.json( result );
   };
 }

@@ -4,23 +4,11 @@ import { EventTypeName } from './event_types.js';
 
 const warnedUnknownEventTypes = new Set();
 
-const toNumberSafe = v => {
-  if ( v === null || v === undefined ) {
-    return 0;
-  }
-  return typeof v === 'object' && typeof v.toString === 'function' ? Number( v.toString() ) : Number( v );
-};
-
 export const serializeEventTime = eventTime => {
-  if ( eventTime?.seconds === null || eventTime?.seconds === undefined ) {
+  if ( !eventTime?.seconds ) {
     return null;
   }
-  const seconds = toNumberSafe( eventTime.seconds );
-  const nanos = toNumberSafe( eventTime.nanos );
-  if ( !Number.isFinite( seconds ) || !Number.isFinite( nanos ) ) {
-    return null;
-  }
-  return new Date( ( seconds * 1000 ) + Math.floor( nanos / 1e6 ) ).toISOString();
+  return new Date( ( +eventTime.seconds * 1000 ) + Math.floor( eventTime.nanos / 1e6 ) ).toISOString();
 };
 
 const PAYLOAD_FIELDS = {
