@@ -1,5 +1,63 @@
 # @outputai/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 0fd573d: Add `output migrate` command for upgrading projects between versions of the Output framework.
+
+  The command reads the project's current `@outputai/*` version, fetches the matching migration guide from `docs.output.ai/migrations`, applies the steps, bumps dependencies, and runs the project's type checker. If the user is jumping multiple boundaries, it chains the guides covering the full range.
+
+  Under the hood the CLI invokes `/output-migrate` — a Claude Code skill shipped via the `outputai` plugin marketplace. The skill carries the migration logic but no version-specific content; it fetches every guide at runtime so the docs remain the source of truth.
+
+- 04243eb: Update the Claude plugin for Output to improve workflow code generation"
+
+### Patch Changes
+
+- 91c5d78: Fix `workflow generate` success message to show actual workflow ID and scenario name
+- 455ac5e: Add `credentials set` command for programmatic credential updates by dot-notation path. Prompts for confirmation when the write would change a value's shape (primitive → object or object → primitive); pass `--yes` to skip in non-interactive environments.
+- b651368: Add interactive workflow run panel to `output dev` with live status polling, keyboard navigation, and Temporal UI integration
+- cc1ead7: Update plugin command invocations to match renamed `output-plan-workflow`, `output-build-workflow`, and `output-debug-workflow` skills.
+- b3dea5c: Add Docker Compose version check to prevent silent hangs on versions older than v2.24.0
+- 320acd1: Upgrading Docker Node image version from 24.13.0-slim to 24.15.0-slim
+- f13723b: Updating dependencies:
+
+  - @oclif/plugin-help
+  - dotenv
+  - json-schema-library
+  - react
+  - redis
+  - undici
+  - @noble/ciphers
+  - @ai-sdk/amazon-bedrock
+  - @ai-sdk/anthropic
+  - @ai-sdk/azure
+  - @ai-sdk/google-vertex
+  - @ai-sdk/openai
+  - @ai-sdk/perplexity
+  - ai
+  - liquidjs
+
+  Adding version overrides to fix vulnerabilities:
+
+  - vite@>=7.1.0 <=7.3.1: `>=7.3.2`
+  - hono@<4.12.12: `>=4.12.12`
+  - hono@>=4.0.0 <=4.12.11: `>=4.12.12`
+  - @hono/node-server@<1.19.13: `>=1.19.13`
+  - follow-redirects@<=1.15.11: `>=1.16.0`
+  - hono@<4.12.14: `>=4.12.14`
+  - axios@>=1.0.0 <1.15.0: `>=1.15.0`
+  - protobufjs@<7.5.5: `>=7.5.5`
+
+- 0bb44fb: Auto-forward OUTPUT_CATALOG_ID as default task queue for workflow run/start commands
+- ac8c0f7: Bumping dependency versions
+- Updated dependencies [4407119]
+- Updated dependencies [f13723b]
+- Updated dependencies [ac8c0f7]
+  - @outputai/evals@0.2.0
+  - @outputai/credentials@0.2.0
+  - @outputai/llm@0.2.0
+
 ## 0.1.12
 
 ### Patch Changes

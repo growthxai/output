@@ -1,6 +1,189 @@
 {
   "releases": [
     {
+      "version": "0.2.0",
+      "date": "2026-04-22",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "bright-doors-wave",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fix `workflow generate` success message to show actual workflow ID and scenario name"
+        },
+        {
+          "id": "credentials-set-command",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add `credentials set` command for programmatic credential updates by dot-notation path. Prompts for confirmation when the write would change a value's shape (primitive → object or object → primitive); pass `--yes` to skip in non-interactive environments."
+        },
+        {
+          "id": "eager-streets-wear",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add interactive workflow run panel to `output dev` with live status polling, keyboard navigation, and Temporal UI integration"
+        },
+        {
+          "id": "flat-chefs-lay",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Update plugin command invocations to match renamed `output-plan-workflow`, `output-build-workflow`, and `output-debug-workflow` skills."
+        },
+        {
+          "id": "frank-teeth-think",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add Docker Compose version check to prevent silent hangs on versions older than v2.24.0"
+        },
+        {
+          "id": "fresh-cloths-argue",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Fixed `/run` endpoint response to have the same format as `/result`;\n- Fixed `/status` endpoints `status` field format;"
+        },
+        {
+          "id": "migrate-command",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add `output migrate` command for upgrading projects between versions of the Output framework.\n\nThe command reads the project's current `@outputai/*` version, fetches the matching migration guide from `docs.output.ai/migrations`, applies the steps, bumps dependencies, and runs the project's type checker. If the user is jumping multiple boundaries, it chains the guides covering the full range.\n\nUnder the hood the CLI invokes `/output-migrate` — a Claude Code skill shipped via the `outputai` plugin marketplace. The skill carries the migration logic but no version-specific content; it fetches every guide at runtime so the docs remain the source of truth."
+        },
+        {
+          "id": "multi-case-datasets",
+          "packages": [
+            {
+              "name": "@outputai/evals",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Switch dataset files to multi-case format where each top-level YAML key is the case name. Allows grouping multiple test cases into a single file instead of one file per case.\n\nThe old single-case format (with a top-level `name:` field) is no longer supported — existing files must be migrated to the new format. Treated as minor rather than major because adoption is still early and the migration is mechanical."
+        },
+        {
+          "id": "pinned-run-routes",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add pinned-run routes and deprecate mutation shortcuts.\n\nNew routes: `GET /workflow/:id/runs/:rid/{status,result,trace-log}` and `PATCH/POST /workflow/:id/runs/:rid/{stop,terminate,reset}` allow targeting a specific Temporal run by ID.\n\nThe following routes are deprecated (sunset 2026-07-16) and should be migrated to their pinned equivalents:\n- `PATCH /workflow/:id/stop` → `PATCH /workflow/:id/runs/:rid/stop`\n- `POST /workflow/:id/terminate` → `POST /workflow/:id/runs/:rid/terminate`\n- `POST /workflow/:id/reset` → `POST /workflow/:id/runs/:rid/reset`\n\nDeprecated routes emit `Deprecation`, `Sunset`, and `Link` response headers on every call.\n\n**Additive response-shape changes (backwards-compatible):**\n- `POST /workflow/run` now includes `runId` in the response\n- `POST /workflow/start` now includes `runId` in the response\n- `PATCH /workflow/:id/stop` now returns `{ workflowId, runId }` (previously no response body)\n- `POST /workflow/:id/terminate` response now includes `runId`\n- All status, result, and trace-log responses now include `runId`"
+        },
+        {
+          "id": "salty-boxes-cheer",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Upgrading Docker Node image version from 24.13.0-slim to 24.15.0-slim"
+        },
+        {
+          "id": "salty-meteors-invent",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Update the Claude plugin for Output to improve workflow code generation\""
+        },
+        {
+          "id": "tangy-weeks-hear",
+          "packages": [
+            {
+              "name": "@outputai/credentials",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            },
+            {
+              "name": "output-api",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/evals",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/output",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Updating dependencies:\n- @oclif/plugin-help\n- dotenv\n- json-schema-library\n- react\n- redis\n- undici\n- @noble/ciphers\n- @ai-sdk/amazon-bedrock\n- @ai-sdk/anthropic\n- @ai-sdk/azure\n- @ai-sdk/google-vertex\n- @ai-sdk/openai\n- @ai-sdk/perplexity\n- ai\n- liquidjs\n\nAdding version overrides to fix vulnerabilities:\n- vite@>=7.1.0 <=7.3.1: `>=7.3.2`\n- hono@<4.12.12: `>=4.12.12`\n- hono@>=4.0.0 <=4.12.11: `>=4.12.12`\n- @hono/node-server@<1.19.13: `>=1.19.13`\n- follow-redirects@<=1.15.11: `>=1.16.0`\n- hono@<4.12.14: `>=4.12.14`\n- axios@>=1.0.0 <1.15.0: `>=1.15.0`\n- protobufjs@<7.5.5: `>=7.5.5`"
+        },
+        {
+          "id": "taskqueue-env-forwarding",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Auto-forward OUTPUT_CATALOG_ID as default task queue for workflow run/start commands"
+        },
+        {
+          "id": "warm-apples-camp",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Bumping dependency versions"
+        }
+      ]
+    },
+    {
       "version": "0.1.12",
       "date": "2026-04-07",
       "level": "patch",
