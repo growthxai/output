@@ -1,5 +1,5 @@
 # Use Node.js slim image for smaller size
-FROM node:24.13.0-slim
+FROM node:24.15.0-slim
 
 # Set working directory
 WORKDIR /app

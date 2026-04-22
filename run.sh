@@ -35,7 +35,7 @@ if [[ $cmd == 'validate' ]]; then
   docker run -it --rm --entrypoint bash \
     -v $(pwd):/app \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    -w /app node:24.13.0 -c "corepack enable && ./ops/validate.sh"
+    -w /app node:24.15.0 -c "corepack enable && ./ops/validate.sh"
 
 # Expose docs at http://localhost/
 elif [[ $cmd == 'docs:mint' ]]; then
@@ -51,7 +51,7 @@ elif [[ $cmd == 'dev' ]]; then
     -v $(pwd):/app \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     -e CI=1 \
-    -w /app node:24.13.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile"
+    -w /app node:24.15.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile"
   docker compose -f ./docker-compose.dev.yml up
 
 elif [[ $cmd == 'dev:destroy' ]]; then
@@ -72,5 +72,5 @@ else
     --network host \
     --env-file=.env \
     -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    -w /app node:24.13.0 -c "corepack enable && exec bash"
+    -w /app node:24.15.0 -c "corepack enable && exec bash"
 fi
