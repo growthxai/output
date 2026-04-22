@@ -173,13 +173,21 @@ evaluator({
 
 ## Example Workflows
 
-See [test_workflows/](test_workflows/) for complete examples:
+Production-ready workflows you can run locally, learn from, and fork — all from the [output-examples](https://github.com/growthxai/output-examples) gallery:
 
-- **[Simple](test_workflows/src/workflows/simple)** — Basic workflow with steps
-- **[HTTP](test_workflows/src/workflows/http)** — API integration with HTTP client
-- **[Prompt](test_workflows/src/workflows/prompt)** — LLM generation with prompts
-- **[Evaluation](test_workflows/src/workflows/evaluation)** — Quality evaluation workflows
-- **[Stream Text](test_workflows/src/workflows/stream_text)** — Streaming text generation
+| Workflow | Description | APIs |
+|----------|-------------|------|
+| [blog_evaluator](https://github.com/growthxai/output-examples/tree/main/src/workflows/blog_evaluator) | Evaluate blog post signal-to-noise quality | Jina Reader |
+| [call_scorer](https://github.com/growthxai/output-examples/tree/main/src/workflows/call_scorer) | Score sales call transcripts against MEDDIC, BANT, or SPIN | LLM only |
+| [changelog_generator](https://github.com/growthxai/output-examples/tree/main/src/workflows/changelog_generator) | Generate categorized changelogs from GitHub commits and PRs | GitHub |
+| [dependency_audit](https://github.com/growthxai/output-examples/tree/main/src/workflows/dependency_audit) | Audit npm dependencies for vulnerabilities, licenses, and abandonment | GitHub, OSV, npm |
+| [recipe_extractor](https://github.com/growthxai/output-examples/tree/main/src/workflows/recipe_extractor) | Extract structured recipes from blog URLs | Jina Reader |
+| [url_summarizer](https://github.com/growthxai/output-examples/tree/main/src/workflows/url_summarizer) | Summarize any webpage into TLDR, key points, and FAQ | Jina Reader |
+| [youtube_summarizer](https://github.com/growthxai/output-examples/tree/main/src/workflows/youtube_summarizer) | Summarize YouTube videos with key moments and takeaways | YouTube |
+| [ai_hn_digest](https://github.com/growthxai/output-examples/tree/main/src/workflows/ai_hn_digest) | Personalized Hacker News digest published to Beehiiv newsletter | HN, Jina Reader, Beehiiv |
+| [sales_call_processor](https://github.com/growthxai/output-examples/tree/main/src/workflows/sales_call_processor) | Process sales call transcripts into notes + parallel recipe analyses | LLM only |
+
+Browse the full gallery at [output.ai/gallery](https://output.ai/gallery).
 
 ## Projects using Output
 
