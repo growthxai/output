@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
     container:
-      image: node:24.13.0
+      image: node:24.15.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4

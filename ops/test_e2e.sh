@@ -44,7 +44,7 @@ docker run --rm \
   -v "$(pwd):/app" \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -w /app \
-  node:24.13.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile && npm run build:packages" | tail -n 25
+  node:24.15.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile && npm run build:packages" | tail -n 25
 
 # Build the API docker image.
 print "Building API docker image..."
