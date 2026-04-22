@@ -12,7 +12,9 @@ One framework. Prompts, evals, tracing, cost tracking, orchestration, credential
 
 [![Star on GitHub](https://img.shields.io/github/stars/growthxai/output?style=social&label=%E2%AD%90%20If%20this%20helps%20you%2C%20star%20us%20on%20GitHub)](https://github.com/growthxai/output)
 
-<a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
+<p align="center">
+  <a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
+</p>
 
 ## Why Output
 
