@@ -47,7 +47,7 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
   try {
     const response = await undici.fetch( request );
     if ( response.status > 399 ) {
-      logError( { requestId, response } );
+      await logError( { requestId, response } );
       return response;
     }
     await logResponse( { requestId, response } );

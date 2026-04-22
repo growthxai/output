@@ -30,7 +30,7 @@ beforeEach( () => {
   tracing.addEventError.mockClear();
 } );
 
-describe( 'fetch/utils', () => {
+describe( 'fetch/logger', () => {
   describe( 'logRequest', () => {
     it( 'records minimal details when verbose is off', async () => {
       const { logRequest } = await logLogger( false );
@@ -87,15 +87,20 @@ describe( 'fetch/utils', () => {
   } );
 
   describe( 'logError', () => {
-    it( 'records status, statusText, and redacted headers', async () => {
+    it( 'records status, statusText, redacted headers, and parsed JSON body', async () => {
       const { logError } = await logLogger( false );
-      const response = new Response( null, {
+      const body = { message: 'Upstream unavailable', code: 'E_UPSTREAM' };
+      const response = new Response( JSON.stringify( body ), {
         status: 502,
         statusText: 'Bad Gateway',
-        headers: { 'X-API-Key': 'k', Accept: 'text/plain' }
+        headers: {
+          'X-API-Key': 'k',
+          Accept: 'text/plain',
+          'content-type': 'application/json'
+        }
       } );
 
-      logError( { requestId: 'e1', response } );
+      await logError( { requestId: 'e1', response } );
 
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'e1',
@@ -104,8 +109,32 @@ describe( 'fetch/utils', () => {
           statusText: 'Bad Gateway',
           headers: {
             'x-api-key': '[REDACTED]',
-            accept: 'text/plain'
-          }
+            accept: 'text/plain',
+            'content-type': 'application/json'
+          },
+          body
+        }
+      } );
+    } );
+
+    it( 'records error body as raw text when content-type is not application/json', async () => {
+      const { logError } = await logLogger( false );
+      const text = 'Bad Gateway: no healthy upstream';
+      const response = new Response( text, {
+        status: 502,
+        statusText: 'Bad Gateway',
+        headers: { 'content-type': 'text/plain' }
+      } );
+
+      await logError( { requestId: 'e2', response } );
+
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'e2',
+        details: {
+          status: 502,
+          statusText: 'Bad Gateway',
+          headers: { 'content-type': 'text/plain' },
+          body: text
         }
       } );
     } );

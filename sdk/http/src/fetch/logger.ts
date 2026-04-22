@@ -9,7 +9,6 @@ import { parseBody, redactHeaders, serializeError } from './utils.js';
  * @param options
  * @param options.requestId - id of the request
  * @param options.request - The HTTP Request object
- * @returns
  */
 export const logRequest = async ( { requestId, request } : { requestId: string, request: Request } ) : Promise<void> =>
   Tracing.addEventStart( {
@@ -26,10 +25,16 @@ export const logRequest = async ( { requestId, request } : { requestId: string, 
  * @param options
  * @param options.requestId - id of the request
  * @param options.response - The HTTP Response object
- * @returns
  */
-export const logError = ( { requestId: id, response: { status, statusText, headers } } : { requestId: string, response: Response } ) : void =>
-  Tracing.addEventError( { id, details: { status, statusText, headers: redactHeaders( headers ) } } );
+export const logError = async ( { requestId, response } : { requestId: string, response: Response } ) : Promise<void> =>
+  Tracing.addEventError( {
+    id: requestId, details: {
+      status: response.status,
+      statusText: response.statusText,
+      headers: redactHeaders( response.headers ),
+      body: await parseBody( response )
+    }
+  } );
 
 /**
  * Sends the trace end event for an http response
@@ -37,7 +42,6 @@ export const logError = ( { requestId: id, response: { status, statusText, heade
  * @param {object} options
  * @param options.requestId - id of the request
  * @param {Response} options.response - The HTTP Response object
- * @returns
  */
 export const logResponse = async ( { requestId, response } : { requestId: string, response: Response } ) : Promise<void> =>
   Tracing.addEventEnd( {
