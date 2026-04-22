@@ -10,8 +10,6 @@ The open-source TypeScript framework for building AI workflows and agents. Desig
 
 One framework. Prompts, evals, tracing, cost tracking, orchestration, credentials. No SaaS fragmentation. No vendor lock-in. Everything in your codebase, everything your AI coding agent can reach.
 
-[![Star on GitHub](https://img.shields.io/github/stars/growthxai/output?style=social&label=%E2%AD%90%20If%20this%20helps%20you%2C%20star%20us%20on%20GitHub)](https://github.com/growthxai/output)
-
 <p align="center">
   <a href="https://output.ai/?autoplay=true"><img src="assets/home.png" alt="Output.ai Demo" /></a>
   <br/>
@@ -199,7 +197,7 @@ See [test_workflows/](test_workflows/) for complete examples:
 
 | Project | Description |
 |---|---|
-| <a href="https://checkthat.ai"><img src="assets/checkthat.png" alt="CheckThat" width="240" /></a><br/>**[CheckThat](https://checkthat.ai)** | AEO platform that tracks how B2B brands show up across ChatGPT, Claude, Perplexity, and Google AI — analyzing 2.6M+ AI responses across 5,875+ brands, powered by **Output**'s durable, deterministic LLM workflows. |
+| <a href="https://checkthat.ai"><img src="assets/checkthat.png" alt="CheckThat" width="500" /></a> | **[CheckThat](https://checkthat.ai)** is an AEO platform that tracks how B2B brands show up across ChatGPT, Claude, Perplexity, and Google AI — analyzing 2.6M+ AI responses across 5,875+ brands, powered by **Output**'s durable, deterministic LLM workflows. |
 
 ## Configuration
 
