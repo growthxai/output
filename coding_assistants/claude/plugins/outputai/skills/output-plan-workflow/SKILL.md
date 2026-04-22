@@ -1,5 +1,5 @@
 ---
-name: plan-workflow
+name: output-plan-workflow
 argument-hint: [workflow-description-and-additional-instructions]
 description: Use when the user asks to create, build, generate, scaffold, or plan a new workflow. Orchestrates the full planning process including architecture, steps, prompts, evaluators, and testing strategy using specialized subagents.
 version: 0.1.3
@@ -290,7 +290,7 @@ Then instruct the user to:
 
 1. Review the plan
 2. Make any necessary changes
-3. Implement the workflow with the appropriate build command. e.g. `/outputai:build_workflow <plan_file_path> <workflow_name> <workflow_directory>`
+3. Implement the workflow with the appropriate build command. e.g. `/output-build-workflow <plan_file_path> <workflow_name> <workflow_directory>`
 
 </step>
 

@@ -20,7 +20,7 @@ describe( 'invokePlanWorkflow - Integration Tests', () => {
 
     try {
       for await ( const message of query( {
-        prompt: `/outputai:plan_workflow ${description}`,
+        prompt: `/output-plan-workflow ${description}`,
         options: { maxTurns: 1 }
       } ) ) {
         console.log( '\nReceived message:', JSON.stringify( message, null, 2 ) );
@@ -38,7 +38,7 @@ describe( 'invokePlanWorkflow - Integration Tests', () => {
     expect( messages.length ).toBeGreaterThan( 0 );
   }, 60000 ); // 60 second timeout
 
-  it( 'should successfully invoke /outputai:plan_workflow slash command and return content', async () => {
+  it( 'should successfully invoke /output-plan-workflow slash command and return content', async () => {
     const description = 'Simple workflow that takes a number and doubles it';
 
     const result = await invokePlanWorkflow( description );

@@ -13,9 +13,9 @@ claude
 Afterwards you should see slash commands in the Claude Code autocomplete.
 
 ```bash
-/outputai:plan_workflow
-/outputai:build_workflow
-/outputai:debug_workflow
+/output-plan-workflow
+/output-build-workflow
+/output-debug-workflow
 # ... and more
 ```
 

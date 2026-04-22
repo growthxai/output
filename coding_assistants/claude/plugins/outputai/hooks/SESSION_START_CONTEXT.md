@@ -14,7 +14,7 @@ There will be a skill and/or agent for every task you will need to complete.
 
 ## Workflow Creation Routing
 
-When a user asks to create, build, generate, or scaffold a new workflow, ALWAYS use `/outputai:plan_workflow` with the user's description as arguments. Do not plan or build workflows manually. This command orchestrates specialized subagents for architecture, step design, prompt engineering, and testing strategy.
+When a user asks to create, build, generate, or scaffold a new workflow, ALWAYS use `/output-plan-workflow` with the user's description as arguments. Do not plan or build workflows manually. This command orchestrates specialized subagents for architecture, step design, prompt engineering, and testing strategy.
 
 ---
 
