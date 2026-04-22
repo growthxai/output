@@ -1,5 +1,85 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.2.0" description="2026-04-22 · minor release">
+
+**`@outputai/cli`** — Fix `workflow generate` success message to show actual workflow ID and scenario name
+
+**`@outputai/cli`** — Add `credentials set` command for programmatic credential updates by dot-notation path. Prompts for confirmation when the write would change a value's shape (primitive → object or object → primitive); pass `--yes` to skip in non-interactive environments.
+
+**`@outputai/cli`** — Add interactive workflow run panel to `output dev` with live status polling, keyboard navigation, and Temporal UI integration
+
+**`@outputai/cli`** — Update plugin command invocations to match renamed `output-plan-workflow`, `output-build-workflow`, and `output-debug-workflow` skills.
+
+**`@outputai/cli`** — Add Docker Compose version check to prevent silent hangs on versions older than v2.24.0
+
+**`output-api`** — - Fixed `/run` endpoint response to have the same format as `/result`;
+- Fixed `/status` endpoints `status` field format;
+
+**`@outputai/cli`** — Add `output migrate` command for upgrading projects between versions of the Output framework.
+
+The command reads the project's current `@outputai/*` version, fetches the matching migration guide from `docs.output.ai/migrations`, applies the steps, bumps dependencies, and runs the project's type checker. If the user is jumping multiple boundaries, it chains the guides covering the full range.
+
+Under the hood the CLI invokes `/output-migrate` — a Claude Code skill shipped via the `outputai` plugin marketplace. The skill carries the migration logic but no version-specific content; it fetches every guide at runtime so the docs remain the source of truth.
+
+**`@outputai/evals`** — Switch dataset files to multi-case format where each top-level YAML key is the case name. Allows grouping multiple test cases into a single file instead of one file per case.
+
+The old single-case format (with a top-level `name:` field) is no longer supported — existing files must be migrated to the new format. Treated as minor rather than major because adoption is still early and the migration is mechanical.
+
+**`output-api`** — Add pinned-run routes and deprecate mutation shortcuts.
+
+New routes: `GET /workflow/:id/runs/:rid/{status,result,trace-log}` and `PATCH/POST /workflow/:id/runs/:rid/{stop,terminate,reset}` allow targeting a specific Temporal run by ID.
+
+The following routes are deprecated (sunset 2026-07-16) and should be migrated to their pinned equivalents:
+- `PATCH /workflow/:id/stop` → `PATCH /workflow/:id/runs/:rid/stop`
+- `POST /workflow/:id/terminate` → `POST /workflow/:id/runs/:rid/terminate`
+- `POST /workflow/:id/reset` → `POST /workflow/:id/runs/:rid/reset`
+
+Deprecated routes emit `Deprecation`, `Sunset`, and `Link` response headers on every call.
+
+**Additive response-shape changes (backwards-compatible):**
+- `POST /workflow/run` now includes `runId` in the response
+- `POST /workflow/start` now includes `runId` in the response
+- `PATCH /workflow/:id/stop` now returns `{ workflowId, runId }` (previously no response body)
+- `POST /workflow/:id/terminate` response now includes `runId`
+- All status, result, and trace-log responses now include `runId`
+
+**`@outputai/cli`** — Upgrading Docker Node image version from 24.13.0-slim to 24.15.0-slim
+
+**`@outputai/cli`** — Update the Claude plugin for Output to improve workflow code generation"
+
+**`@outputai/credentials`, `@outputai/core`, `@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/evals`, `@outputai/output`, `@outputai/http`** — Updating dependencies:
+- @oclif/plugin-help
+- dotenv
+- json-schema-library
+- react
+- redis
+- undici
+- @noble/ciphers
+- @ai-sdk/amazon-bedrock
+- @ai-sdk/anthropic
+- @ai-sdk/azure
+- @ai-sdk/google-vertex
+- @ai-sdk/openai
+- @ai-sdk/perplexity
+- ai
+- liquidjs
+
+Adding version overrides to fix vulnerabilities:
+- vite@>=7.1.0 <=7.3.1: `>=7.3.2`
+- hono@<4.12.12: `>=4.12.12`
+- hono@>=4.0.0 <=4.12.11: `>=4.12.12`
+- @hono/node-server@<1.19.13: `>=1.19.13`
+- follow-redirects@<=1.15.11: `>=1.16.0`
+- hono@<4.12.14: `>=4.12.14`
+- axios@>=1.0.0 <1.15.0: `>=1.15.0`
+- protobufjs@<7.5.5: `>=7.5.5`
+
+**`@outputai/cli`** — Auto-forward OUTPUT_CATALOG_ID as default task queue for workflow run/start commands
+
+**`@outputai/core`, `@outputai/cli`, `@outputai/llm`** — Bumping dependency versions
+
+</Update>
+
 <Update label="v0.1.12" description="2026-04-07 · patch release">
 
 **`@outputai/llm`, `@outputai/core`** — Add `agent()` and `skill()` abstractions to `@outputai/llm` for composing reusable LLM agents with structured output and a lazy-loaded skills system. Add `findContentDir()` to `@outputai/core` and fix skill path resolution to be relative to the prompt file rather than the calling module. Add `output-copy-assets` bin to `@outputai/core` to centralise worker asset copying.
