@@ -56,10 +56,10 @@ date: <plan-date>
 } as const;
 
 // Slash-command naming convention used by the outputai plugin:
-// `output-<kebab-name>` — skills under coding_assistants/.../skills/, which surface as top-level slash commands without the plugin prefix.
-const PLAN_COMMAND = 'output-plan-workflow';
-const BUILD_COMMAND = 'output-build-workflow';
-const MIGRATE_COMMAND = 'output-migrate';
+// `outputai:<kebab-name>` — skills under coding_assistants/.../skills/, which surface as top-level slash commands without the plugin prefix.
+const PLAN_COMMAND = 'outputai:output-plan-workflow';
+const BUILD_COMMAND = 'outputai:output-build-workflow';
+const MIGRATE_COMMAND = 'outputai:output-migrate';
 
 const GLOBAL_CLAUDE_OPTIONS: Options = {
   settingSources: [ 'user', 'project', 'local' ]
