@@ -149,7 +149,7 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'matches substrings in header names (e.g. Keyboard, Secretary, Tokens)', () => {
+    it( 'does not redact benign names that only contained sensitive substrings before', () => {
       const headers = new Headers( {
         Keyboard: 'qwerty',
         Secretary: 'admin',
@@ -157,10 +157,65 @@ describe( 'fetch/utils', () => {
         'Content-Length': '123'
       } );
       expect( redactHeaders( headers ) ).toEqual( {
-        keyboard: '[REDACTED]',
-        secretary: '[REDACTED]',
-        tokens: '[REDACTED]',
+        keyboard: 'qwerty',
+        secretary: 'admin',
+        tokens: 'abc123',
         'content-length': '123'
+      } );
+    } );
+
+    it( 'does not redact exempt headers but still redacts any header whose name contains a key segment', () => {
+      const headers = new Headers( [
+        [ 'X-Csrf-Token', 'abc' ],
+        [ 'Public-Key-Pins', 'pin-sha256=dummy' ],
+        [ 'ratelimit-tokens-left', '9' ],
+        [ 'Cache-Key', 'lookup-1' ],
+        [ 'X-Auth-Token', 'real-secret' ]
+      ] );
+      expect( redactHeaders( headers ) ).toEqual( {
+        'x-csrf-token': 'abc',
+        'public-key-pins': 'pin-sha256=dummy',
+        'ratelimit-tokens-left': '9',
+        'cache-key': '[REDACTED]',
+        'x-auth-token': '[REDACTED]'
+      } );
+    } );
+
+    describe( 'key suffix pattern /key(?![a-z0-9])/i', () => {
+      it.each( [
+        [ 'x-api-key', 'hyphen before key at end' ],
+        [ 'apikey', 'single segment ending in key' ],
+        [ 'X-LicenseKey', 'camel segment ending in Key' ],
+        [ 'webhook-signing-key', 'key before end' ],
+        [ 'pre-key-post', 'key surrounded by hyphens' ],
+        [ 'encryption_key', 'underscore after key' ],
+        [ 'signing-key-id', 'key in middle of kebab name' ],
+        [ 'monkey', 'key followed by end of string (substring key)' ],
+        [ 'turkey-vulture', 'key in first segment before hyphen' ],
+        [ 'v1__key', 'non-alnum before key' ]
+      ] )( 'redacts %s (%s)', headerName => {
+        const headers = new Headers( [ [ headerName, 'secret-value' ] ] );
+        const out = redactHeaders( headers );
+        const canonical = Object.keys( out )[0];
+        expect( out[canonical] ).toBe( '[REDACTED]' );
+      } );
+
+      it.each( [
+        [ 'keyboard', 'key followed by letter b' ],
+        [ 'KeyAccountId', 'key followed by letter a' ],
+        [ 'WhiskeyBar', 'key followed by letter b' ],
+        [ 'my-keyring', 'key followed by letter r' ],
+        [ 'Cache-Control', 'no key substring with allowed lookahead' ]
+      ] )( 'does not redact %s (%s)', headerName => {
+        const headers = new Headers( [ [ headerName, 'visible' ] ] );
+        const out = redactHeaders( headers );
+        const canonical = Object.keys( out )[0];
+        expect( out[canonical] ).toBe( 'visible' );
+      } );
+
+      it( 'still applies exempt list when the key rule would match (e.g. public-key-pins)', () => {
+        const headers = new Headers( [ [ 'Public-Key-Pins', 'pins-value' ] ] );
+        expect( redactHeaders( headers ) ).toEqual( { 'public-key-pins': 'pins-value' } );
       } );
     } );
   } );

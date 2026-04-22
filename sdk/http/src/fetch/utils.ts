@@ -1,17 +1,33 @@
 import type { Request, Response, Headers } from 'undici';
 
 /**
- * Sensitive header patterns for redaction (case-insensitive)
+ * Header names that look sensitive by substring rules but are not secret material.
+ */
+const HEADER_REDACTION_EXEMPT = new Set( [
+  'x-csrf-token',
+  'public-key-pins'
+] );
+
+/** Matches red int "hot-red-pie", but not int "redact" */
+const wordMatcher = ( term : string ) => new RegExp( `(?<![a-z\\d])${term}(?![a-z\\d])`, 'i' );
+
+/** Matches red in "acquired", but not in "redact" */
+const wordEndMatcher = ( term : string ) => new RegExp( `${term}(?![a-z\\d])`, 'i' );
+
+/**
+ * Sensitive header patterns for redaction (case-insensitive).
+ * Uses alphanumeric boundaries so e.g. `token` does not match inside `tokens`.
  */
 const SENSITIVE_HEADER_PATTERNS : RegExp[] = [
-  /authorization/i,
-  /token/i,
-  /api-?key/i,
-  /secret/i,
-  /password/i,
-  /pwd/i,
-  /key/i,
-  /cookie/i
+  // matches headers that contain these exact words
+  wordMatcher( 'authorization' ),
+  wordMatcher( 'token' ),
+  wordMatcher( 'secret' ),
+  wordMatcher( 'password' ),
+  wordMatcher( 'pwd' ),
+  wordMatcher( 'cookie' ),
+  // matches header that contain words ending with these sequences
+  wordEndMatcher( 'key' )
 ];
 
 /**
@@ -51,7 +67,9 @@ export const serializeError = ( error: Error, depth : number = 1 ) => ( {
 export const redactHeaders = ( headers: Headers ) : Record<string, unknown> => {
   const result : Record<string, unknown> = {};
   for ( const [ key, value ] of headers.entries() ) {
-    const isSensitive = SENSITIVE_HEADER_PATTERNS.some( pattern => pattern.test( key ) );
+    const lowerCaseKey = key.toLowerCase();
+    const isSensitive = !HEADER_REDACTION_EXEMPT.has( lowerCaseKey ) &&
+      SENSITIVE_HEADER_PATTERNS.some( pattern => pattern.test( key ) );
     result[key] = isSensitive ? '[REDACTED]' : value;
   }
   return result;
