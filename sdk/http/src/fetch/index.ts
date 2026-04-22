@@ -1,6 +1,6 @@
 import * as undici from 'undici';
 import { randomUUID } from 'node:crypto';
-import { logRequest, logResponse, logError, logFailure } from './utils.js';
+import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
 
 /*

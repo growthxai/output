@@ -6,7 +6,7 @@ const FIXED_REQUEST_ID = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee';
 
 const randomUUIDMock = vi.hoisted( () => vi.fn( () => FIXED_REQUEST_ID ) );
 
-const utilsMocks = vi.hoisted( () => ( {
+const loggerMock = vi.hoisted( () => ( {
   logRequest: vi.fn( async ( _args: { requestId: string; request: UndiciRequest } ): Promise<void> => {} ),
   logResponse: vi.fn( async ( _args: { requestId: string; response: UndiciResponse } ): Promise<void> => {} ),
   logError: vi.fn( ( _args: { requestId: string; response: UndiciResponse } ): void => {} ),
@@ -17,11 +17,11 @@ vi.mock( 'node:crypto', () => ( {
   randomUUID: () => randomUUIDMock()
 } ) );
 
-vi.mock( './utils.js', () => ( {
-  logRequest: utilsMocks.logRequest,
-  logResponse: utilsMocks.logResponse,
-  logError: utilsMocks.logError,
-  logFailure: utilsMocks.logFailure
+vi.mock( './logger.js', () => ( {
+  logRequest: loggerMock.logRequest,
+  logResponse: loggerMock.logResponse,
+  logError: loggerMock.logError,
+  logFailure: loggerMock.logFailure
 } ) );
 
 import { fetch } from './index.js';
@@ -42,10 +42,10 @@ describe( 'fetch/index', () => {
     undiciCtx.mockAgent.disableNetConnect();
     undiciCtx.previousDispatcher = getGlobalDispatcher();
     setGlobalDispatcher( undiciCtx.mockAgent );
-    utilsMocks.logRequest.mockClear();
-    utilsMocks.logResponse.mockClear();
-    utilsMocks.logError.mockClear();
-    utilsMocks.logFailure.mockClear();
+    loggerMock.logRequest.mockClear();
+    loggerMock.logResponse.mockClear();
+    loggerMock.logError.mockClear();
+    loggerMock.logFailure.mockClear();
     randomUUIDMock.mockClear();
     randomUUIDMock.mockImplementation( () => FIXED_REQUEST_ID );
   } );
@@ -72,17 +72,17 @@ describe( 'fetch/index', () => {
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'hello' );
 
-      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.url ).toBe( `${MOCK_ORIGIN}/ok` );
+      expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logRequest.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.url ).toBe( `${MOCK_ORIGIN}/ok` );
 
-      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logResponse.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
-      expect( utilsMocks.logResponse.mock.calls[0][0].response ).toBe( response );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logResponse.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( loggerMock.logResponse.mock.calls[0][0].response ).toBe( response );
 
-      expect( utilsMocks.logError ).not.toHaveBeenCalled();
-      expect( utilsMocks.logFailure ).not.toHaveBeenCalled();
+      expect( loggerMock.logError ).not.toHaveBeenCalled();
+      expect( loggerMock.logFailure ).not.toHaveBeenCalled();
     } );
 
     it( 'uses logError for status > 399 without logging response end', async () => {
@@ -96,11 +96,11 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 404 );
 
-      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
-      expect( utilsMocks.logError ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logError.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
-      expect( utilsMocks.logError.mock.calls[0][0].response ).toBe( response );
+      expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logResponse ).not.toHaveBeenCalled();
+      expect( loggerMock.logError ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logError.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      expect( loggerMock.logError.mock.calls[0][0].response ).toBe( response );
     } );
 
     it( 'treats status 399 as success (logs response end, not HTTP error)', async () => {
@@ -113,8 +113,8 @@ describe( 'fetch/index', () => {
       const response = await fetch( `${MOCK_ORIGIN}/edge` );
 
       expect( response.status ).toBe( 399 );
-      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logError ).not.toHaveBeenCalled();
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logError ).not.toHaveBeenCalled();
     } );
 
     it( 'sends x-request-trace-id and custom headers when init.headers is a plain object', async () => {
@@ -132,7 +132,7 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
-      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      const { request } = loggerMock.logRequest.mock.calls[0][0];
       expect( request.headers.get( 'x-request-trace-id' ) ).toBe( FIXED_REQUEST_ID );
       expect( request.headers.get( 'x-custom' ) ).toBe( 'plain-value' );
     } );
@@ -155,7 +155,7 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
-      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      const { request } = loggerMock.logRequest.mock.calls[0][0];
       expect( request.headers.get( 'x-request-trace-id' ) ).toBe( FIXED_REQUEST_ID );
       expect( request.headers.get( 'x-from-headers' ) ).toBe( 'yes' );
     } );
@@ -167,11 +167,11 @@ describe( 'fetch/index', () => {
 
       await expect( fetch( `${MOCK_ORIGIN}/boom` ) ).rejects.toThrow( 'fetch failed' );
 
-      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
-      expect( utilsMocks.logFailure ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logFailure.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
-      const failure = utilsMocks.logFailure.mock.calls[0][0].error;
+      expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logResponse ).not.toHaveBeenCalled();
+      expect( loggerMock.logFailure ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logFailure.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
+      const failure = loggerMock.logFailure.mock.calls[0][0].error;
       expect( failure ).toBeInstanceOf( TypeError );
       expect( ( failure as TypeError ).message ).toBe( 'fetch failed' );
       expect( ( failure as TypeError ).cause ).toBeInstanceOf( Error );
@@ -181,9 +181,9 @@ describe( 'fetch/index', () => {
     it( 'fails when no mock matches (disabled net)', async () => {
       await expect( fetch( `${MOCK_ORIGIN}/unmocked` ) ).rejects.toThrow();
 
-      expect( utilsMocks.logRequest ).toHaveBeenCalledTimes( 1 );
-      expect( utilsMocks.logResponse ).not.toHaveBeenCalled();
-      expect( utilsMocks.logFailure ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logResponse ).not.toHaveBeenCalled();
+      expect( loggerMock.logFailure ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'passes method and body through to undici for POST JSON', async () => {
@@ -200,8 +200,8 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 201 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
-      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'works when the second argument is omitted', async () => {
@@ -210,7 +210,7 @@ describe( 'fetch/index', () => {
       const response = await fetch( `${MOCK_ORIGIN}/bare` );
 
       expect( response.status ).toBe( 204 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
     } );
   } );
 
@@ -227,7 +227,7 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'url-ok' );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.url ).toBe( href.href );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.url ).toBe( href.href );
     } );
 
     it( 'accepts a Request as the first argument (no init)', async () => {
@@ -238,7 +238,7 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'r1' );
-      const { request } = utilsMocks.logRequest.mock.calls[0][0];
+      const { request } = loggerMock.logRequest.mock.calls[0][0];
       expect( request.method ).toBe( 'GET' );
       expect( request.url ).toBe( `${MOCK_ORIGIN}/req-only` );
     } );
@@ -258,8 +258,8 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 201 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
-      expect( utilsMocks.logResponse ).toHaveBeenCalledTimes( 1 );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
     } );
 
     it( 'accepts string URL with explicit undefined init', async () => {
@@ -268,7 +268,7 @@ describe( 'fetch/index', () => {
       const response = await fetch( `${MOCK_ORIGIN}/explicit-undefined`, undefined );
 
       expect( response.status ).toBe( 200 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
     } );
 
     it( 'accepts URL plus init with method and headers', async () => {
@@ -286,7 +286,7 @@ describe( 'fetch/index', () => {
       } );
 
       expect( response.status ).toBe( 200 );
-      expect( utilsMocks.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
     } );
   } );
 } );

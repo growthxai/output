@@ -1,68 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Response, Request, Headers } from 'undici';
-
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
-  Tracing: {
-    addEventStart: vi.fn(),
-    addEventEnd: vi.fn(),
-    addEventError: vi.fn()
-  }
-} ) );
-
-import { Tracing } from '@outputai/core/sdk_activity_integration';
-
-const tracing = vi.mocked( Tracing, true );
-
-/** Loads utils with optional verbose tracing env so `config.js` is evaluated fresh. */
-async function loadUtils( verbose: boolean ): Promise<typeof import( './utils.js' )> {
-  vi.resetModules();
-  if ( verbose ) {
-    process.env.OUTPUT_TRACE_HTTP_VERBOSE = 'true';
-  } else {
-    delete process.env.OUTPUT_TRACE_HTTP_VERBOSE;
-  }
-  return import( './utils.js' );
-}
-
-beforeEach( () => {
-  tracing.addEventStart.mockClear();
-  tracing.addEventEnd.mockClear();
-  tracing.addEventError.mockClear();
-} );
+import { parseBody, redactHeaders, serializeError } from './utils.js';
 
 describe( 'fetch/utils', () => {
   describe( 'serializeError', () => {
-    it( 'serializes name, message, stack and sets code and cause to undefined when absent', async () => {
-      const { serializeError } = await loadUtils( false );
+    it( 'serializes name, message, stack and sets code and cause to undefined when absent', () => {
       const err = new Error( 'boom' );
-
-      expect( serializeError( err ) ).toEqual( {
-        name: 'Error',
-        message: 'boom',
-        stack: err.stack,
-        code: undefined,
-        cause: undefined
-      } );
+      expect( serializeError( err ) ).toEqual( { name: 'Error', message: 'boom', stack: err.stack, code: undefined, cause: undefined } );
     } );
 
-    it( 'uses the subclass constructor name', async () => {
-      const { serializeError } = await loadUtils( false );
+    it( 'uses the subclass constructor name', () => {
       const err = new TypeError( 'bad type' );
 
       expect( serializeError( err ).name ).toBe( 'TypeError' );
       expect( serializeError( err ).message ).toBe( 'bad type' );
     } );
 
-    it( 'includes string code when set on the error', async () => {
-      const { serializeError } = await loadUtils( false );
+    it( 'includes string code when set on the error', () => {
       const err = new Error( 'e' ) as Error & { code?: string };
       err.code = 'ENOENT';
 
       expect( serializeError( err ).code ).toBe( 'ENOENT' );
     } );
 
-    it( 'serializes Error cause as a nested plain object', async () => {
-      const { serializeError } = await loadUtils( false );
+    it( 'serializes Error cause as a nested plain object', () => {
       const root = new Error( 'root' );
       const leaf = new TypeError( 'leaf' );
       root.cause = leaf;
@@ -82,8 +43,7 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'uses max-depth sentinel for cause when depth is greater than 5', async () => {
-      const { serializeError } = await loadUtils( false );
+    it( 'uses max-depth sentinel for cause when depth is greater than 5', () => {
       const err = new Error( 'x' );
 
       expect( serializeError( err, 6 ).cause ).toBe( '<Max recursion depth reached>' );
@@ -91,8 +51,7 @@ describe( 'fetch/utils', () => {
   } );
 
   describe( 'redactHeaders', () => {
-    it( 'redacts sensitive headers case-insensitively', async () => {
-      const { redactHeaders } = await loadUtils( false );
+    it( 'redacts sensitive headers case-insensitively', () => {
       const headers = new Headers( [
         [ 'Authorization', 'Bearer token123' ],
         [ 'X-API-Key', 'secret-key' ],
@@ -120,8 +79,7 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'leaves non-sensitive headers unchanged', async () => {
-      const { redactHeaders } = await loadUtils( false );
+    it( 'leaves non-sensitive headers unchanged', () => {
       const headers = new Headers( {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -134,13 +92,11 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'handles empty Headers', async () => {
-      const { redactHeaders } = await loadUtils( false );
+    it( 'handles empty Headers', () => {
       expect( redactHeaders( new Headers() ) ).toEqual( {} );
     } );
 
-    it( 'redacts sensitive keys even when values are empty', async () => {
-      const { redactHeaders } = await loadUtils( false );
+    it( 'redacts sensitive keys even when values are empty', () => {
       const headers = new Headers( [
         [ 'Authorization', '' ],
         [ 'Content-Type', 'application/json' ],
@@ -153,8 +109,7 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'matches substrings in header names (e.g. Keyboard, Secretary, Tokens)', async () => {
-      const { redactHeaders } = await loadUtils( false );
+    it( 'matches substrings in header names (e.g. Keyboard, Secretary, Tokens)', () => {
       const headers = new Headers( {
         Keyboard: 'qwerty',
         Secretary: 'admin',
@@ -172,7 +127,6 @@ describe( 'fetch/utils', () => {
 
   describe( 'parseBody', () => {
     it( 'parses JSON when content-type is application/json', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( JSON.stringify( { ok: true } ), {
         headers: { 'content-type': 'application/json' }
       } );
@@ -180,7 +134,6 @@ describe( 'fetch/utils', () => {
     } );
 
     it( 'parses JSON when content-type includes charset', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( JSON.stringify( [ 1, 2 ] ), {
         headers: { 'content-type': 'application/json; charset=utf-8' }
       } );
@@ -188,7 +141,6 @@ describe( 'fetch/utils', () => {
     } );
 
     it( 'returns text when content-type is not JSON', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( 'hello', {
         headers: { 'content-type': 'text/plain' }
       } );
@@ -196,177 +148,33 @@ describe( 'fetch/utils', () => {
     } );
 
     it( 'uses text branch when content-type is missing', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( 'plain' );
       await expect( parseBody( response ) ).resolves.toBe( 'plain' );
     } );
 
     it( 'returns empty string for empty body (text)', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( '', { headers: { 'content-type': 'text/plain' } } );
       await expect( parseBody( response ) ).resolves.toBe( '' );
     } );
 
     it( 'rejects when JSON branch is used with an empty body', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( '', { headers: { 'content-type': 'application/json' } } );
       await expect( parseBody( response ) ).rejects.toThrow( SyntaxError );
     } );
 
     it( 'does not consume the original body (clone)', async () => {
-      const { parseBody } = await loadUtils( false );
       const response = new Response( 'read-me', { headers: { 'content-type': 'text/plain' } } );
       await parseBody( response );
       await expect( response.text() ).resolves.toBe( 'read-me' );
     } );
 
     it( 'parses JSON Request body', async () => {
-      const { parseBody } = await loadUtils( false );
       const request = new Request( 'https://ex.com', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify( { a: 1 } )
       } );
       await expect( parseBody( request ) ).resolves.toEqual( { a: 1 } );
-    } );
-  } );
-
-  describe( 'logRequest', () => {
-    it( 'records minimal details when verbose is off', async () => {
-      const { logRequest } = await loadUtils( false );
-      const request = new Request( 'https://api.example.com/r', { method: 'GET' } );
-
-      await logRequest( { requestId: 'req-1', request } );
-
-      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
-        id: 'req-1',
-        kind: 'http',
-        name: 'request',
-        details: {
-          method: 'GET',
-          url: 'https://api.example.com/r'
-        }
-      } );
-    } );
-
-    it( 'defaults method to GET', async () => {
-      const { logRequest } = await loadUtils( false );
-      const request = new Request( 'https://x.test' );
-
-      await logRequest( { requestId: 'r2', request } );
-
-      expect( ( tracing.addEventStart.mock.calls[0][0].details as { method: string } ).method ).toBe( 'GET' );
-    } );
-
-    it( 'includes redacted headers and parsed body when verbose is on', async () => {
-      const { logRequest } = await loadUtils( true );
-      const request = new Request( 'https://api.example.com/p', {
-        method: 'POST',
-        headers: {
-          authorization: 'tok',
-          'X-Custom': 'ok',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify( { x: 1 } )
-      } );
-
-      await logRequest( { requestId: 'req-v', request } );
-
-      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
-        id: 'req-v',
-        kind: 'http',
-        name: 'request',
-        details: {
-          method: 'POST',
-          url: 'https://api.example.com/p',
-          headers: { authorization: '[REDACTED]', 'x-custom': 'ok', 'content-type': 'application/json' },
-          body: { x: 1 }
-        }
-      } );
-    } );
-  } );
-
-  describe( 'logError', () => {
-    it( 'records status, statusText, and redacted headers', async () => {
-      const { logError } = await loadUtils( false );
-      const response = new Response( null, {
-        status: 502,
-        statusText: 'Bad Gateway',
-        headers: { 'X-API-Key': 'k', Accept: 'text/plain' }
-      } );
-
-      logError( { requestId: 'e1', response } );
-
-      expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'e1',
-        details: {
-          status: 502,
-          statusText: 'Bad Gateway',
-          headers: {
-            'x-api-key': '[REDACTED]',
-            accept: 'text/plain'
-          }
-        }
-      } );
-    } );
-  } );
-
-  describe( 'logResponse', () => {
-    it( 'records status and statusText without headers/body when verbose is off', async () => {
-      const { logResponse } = await loadUtils( false );
-      const response = new Response( JSON.stringify( { a: 1 } ), {
-        status: 200,
-        statusText: 'OK',
-        headers: { 'content-type': 'application/json', Authorization: 'x' }
-      } );
-
-      await logResponse( { requestId: 'lr1', response } );
-
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'lr1',
-        details: {
-          status: 200,
-          statusText: 'OK'
-        }
-      } );
-    } );
-
-    it( 'includes redacted headers and parsed body when verbose is on', async () => {
-      const { logResponse } = await loadUtils( true );
-      const response = new Response( JSON.stringify( { ok: true } ), {
-        status: 201,
-        statusText: 'Created',
-        headers: {
-          'content-type': 'application/json',
-          'Set-Cookie': 'a=b'
-        }
-      } );
-
-      await logResponse( { requestId: 'lr-v', response } );
-
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'lr-v',
-        details: {
-          status: 201,
-          statusText: 'Created',
-          headers: {
-            'content-type': 'application/json',
-            'set-cookie': '[REDACTED]'
-          },
-          body: { ok: true }
-        }
-      } );
-    } );
-  } );
-
-  describe( 'logFailure', () => {
-    it( 'forwards error details to Tracing.addEventError', async () => {
-      const { logFailure } = await loadUtils( false );
-      const err = new TypeError( 'network' );
-
-      logFailure( { requestId: 'f1', error: err } );
-
-      expect( tracing.addEventError ).toHaveBeenCalledWith( { id: 'f1', details: err } );
     } );
   } );
 } );
