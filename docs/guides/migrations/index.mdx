@@ -1,0 +1,24 @@
+---
+title: "Migrations"
+description: "Upgrade guides for moving between versions of the Output framework."
+---
+
+Breaking changes are rare. When they happen, each one gets a dedicated guide below with the before/after patterns and a checklist.
+
+## How to upgrade
+
+The fastest path is the CLI:
+
+```bash
+npx output migrate
+```
+
+It reads the `@outputai/*` version in your `package.json`, finds the matching guide below, applies the steps, and runs your type checker. If you're jumping several versions, apply each guide in order.
+
+## Guides
+
+<CardGroup cols={1}>
+  <Card title="v0.1.12 → v0.2.0" href="/migrations/v0.1.12-to-v0.2.0">
+    Dataset file format and deprecated workflow run endpoints.
+  </Card>
+</CardGroup>

@@ -40,11 +40,27 @@ date: <plan-date>
 3. Implement all workflow files following Output.ai patterns and best practices.
 
 4. After you mark all todos as complete, provide a summary of what was implemented.
+`,
+  MIGRATE: `
+! IMPORTANT !
+1. Use TodoWrite to track your progress through the migration.
+
+2. Fetch the migration guide from https://docs.output.ai/migrations — do not invent migration steps from memory.
+
+3. If the specific guide URL 404s, fall back to the /migrations index and chain the guides that cover the version range.
+
+4. Confirm the planned changes with the user before editing files.
+
+5. After you mark all todos as complete, provide a summary of which files changed and whether the type check passed.
 `
 } as const;
 
+// Slash-command naming convention used by the outputai plugin:
+// - `outputai:<name>` — plugin commands under coding_assistants/.../commands/
+// - `output-<kebab-name>` — skills under coding_assistants/.../skills/, which surface as top-level slash commands without the plugin prefix.
 const PLAN_COMMAND = 'outputai:plan_workflow';
 const BUILD_COMMAND = 'outputai:build_workflow';
+const MIGRATE_COMMAND = 'output-migrate';
 
 const GLOBAL_CLAUDE_OPTIONS: Options = {
   settingSources: [ 'user', 'project', 'local' ]
@@ -60,6 +76,10 @@ interface ReplyToClaudeOptions {
 }
 
 export const BUILD_COMMAND_OPTIONS: Options = {
+  permissionMode: 'bypassPermissions'
+};
+
+export const MIGRATE_COMMAND_OPTIONS: Options = {
   permissionMode: 'bypassPermissions'
 };
 
@@ -105,7 +125,7 @@ function validateEnvironment(): void {
 }
 
 function validateSystem( systemMessage: SDKSystemMessage ): SystemValidation {
-  const requiredCommands = [ PLAN_COMMAND, BUILD_COMMAND ];
+  const requiredCommands = [ PLAN_COMMAND, BUILD_COMMAND, MIGRATE_COMMAND ];
   const availableCommands = systemMessage.slash_commands;
   const missingCommands = requiredCommands.filter( command => !availableCommands.includes( command ) );
 
@@ -299,4 +319,28 @@ export async function invokeBuildWorkflow(
     `/${BUILD_COMMAND} ${commandArgs}`;
 
   return singleQuery( applyInstructions( fullCommand, ADDITIONAL_INSTRUCTIONS.BUILD ), BUILD_COMMAND_OPTIONS );
+}
+
+/**
+ * Invoke claude-code with /output-migrate slash command (registered via the output-migrate skill).
+ * The slash command fetches migration instructions from docs.output.ai —
+ * this CLI wrapper just passes through the version arguments.
+ * @param fromVersion - Current framework version (empty string = auto-detect)
+ * @param toVersion - Target version (empty string = use npm "latest")
+ * @param additionalInstructions - Optional user-supplied guidance
+ * @returns Migration summary from claude-code
+ */
+export async function invokeMigrate(
+  fromVersion: string,
+  toVersion: string,
+  additionalInstructions?: string
+): Promise<string> {
+  const from = fromVersion || 'auto';
+  const to = toVersion || 'latest';
+  const commandArgs = [ from, to, additionalInstructions ].filter( Boolean ).join( ' ' );
+
+  return singleQuery(
+    applyInstructions( `/${MIGRATE_COMMAND} ${commandArgs}`, ADDITIONAL_INSTRUCTIONS.MIGRATE ),
+    MIGRATE_COMMAND_OPTIONS
+  );
 }
