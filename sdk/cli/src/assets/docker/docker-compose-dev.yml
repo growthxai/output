@@ -103,7 +103,7 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
-    image: node:24.13.0-slim
+    image: node:24.15.0-slim
     healthcheck:
       test: [ 'CMD-SHELL', 'npx output-healthcheck' ]
       interval: 3s
