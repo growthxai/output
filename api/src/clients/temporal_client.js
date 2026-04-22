@@ -527,12 +527,18 @@ export default {
       },
 
       async getWorkflowHistory( workflowId, { runId, pageSize = 20, pageToken, includePayloads = false } = {} ) {
+        if ( pageToken && !runId ) {
+          throw new InvalidPageTokenError();
+        }
         const isFirstPage = !pageToken;
         const metadata = isFirstPage ? await ( async () => {
           const handle = client.workflow.getHandle( workflowId, runId );
           const description = await handle.describe().catch( error => {
             if ( error?.code === GrpcStatus.NOT_FOUND ) {
-              throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+              throw new WorkflowNotFoundError( runId ?
+                `Run "${runId}" not found for workflow "${workflowId}"` :
+                `Workflow "${workflowId}" not found`
+              );
             }
             throw error;
           } );

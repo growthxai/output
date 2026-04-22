@@ -7,7 +7,7 @@ export function createWorkflowHistoryHandler( client ) {
     pageSize: z.coerce.number().int().min( 1 ).max( 50 ).default( 20 ),
     pageToken: z.preprocess(
       v => v === '' ? undefined : v,
-      z.string().regex( /^[A-Za-z0-9+/]+={0,2}$/, 'Invalid pageToken format' ).optional()
+      z.string().max( 4096 ).regex( /^[A-Za-z0-9+/]+={0,2}$/, 'Invalid pageToken format' ).optional()
     ),
     includePayloads: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' )
   } ).refine(
