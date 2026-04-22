@@ -112,9 +112,9 @@ src/
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/outputai:plan_workflow` | Plan workflow architecture | **ALWAYS FIRST** - creates implementation blueprint |
-| `/outputai:build_workflow` | Build/implement workflows | After planning, or for modifications |
-| `/outputai:debug_workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
+| `/output-plan-workflow` | Plan workflow architecture | **ALWAYS FIRST** - creates implementation blueprint |
+| `/output-build-workflow` | Build/implement workflows | After planning, or for modifications |
+| `/output-debug-workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
 
 ### Skills (32)
 

@@ -56,10 +56,9 @@ date: <plan-date>
 } as const;
 
 // Slash-command naming convention used by the outputai plugin:
-// - `outputai:<name>` — plugin commands under coding_assistants/.../commands/
-// - `output-<kebab-name>` — skills under coding_assistants/.../skills/, which surface as top-level slash commands without the plugin prefix.
-const PLAN_COMMAND = 'outputai:plan_workflow';
-const BUILD_COMMAND = 'outputai:build_workflow';
+// `output-<kebab-name>` — skills under coding_assistants/.../skills/, which surface as top-level slash commands without the plugin prefix.
+const PLAN_COMMAND = 'output-plan-workflow';
+const BUILD_COMMAND = 'output-build-workflow';
 const MIGRATE_COMMAND = 'output-migrate';
 
 const GLOBAL_CLAUDE_OPTIONS: Options = {
@@ -285,7 +284,7 @@ export async function replyToClaude(
 }
 
 /**
- * Invoke claude-code with /outputai:plan_workflow slash command
+ * Invoke claude-code with /output-plan-workflow slash command
  * The SDK loads custom commands from .claude/commands/ when settingSources includes 'project'.
  * ensureOutputAISystem() scaffolds the command files to that location.
  * @param description - Workflow description
@@ -298,7 +297,7 @@ export async function invokePlanWorkflow(
 }
 
 /**
- * Invoke claude-code with /outputai:build_workflow slash command
+ * Invoke claude-code with /output-build-workflow slash command
  * The SDK loads custom commands from .claude/commands/ when settingSources includes 'project'.
  * ensureOutputAISystem() scaffolds the command files to that location.
  * @param planFilePath - Absolute path to the plan file

@@ -18,7 +18,7 @@ describe( 'invokePlanWorkflow', () => {
     delete process.env.ANTHROPIC_API_KEY;
   } );
 
-  it( 'should invoke /outputai:plan_workflow slash command with settingSources', async () => {
+  it( 'should invoke /output-plan-workflow slash command with settingSources', async () => {
     const { query } = await import( '@anthropic-ai/claude-agent-sdk' );
 
     process.env.ANTHROPIC_API_KEY = 'test-key';
@@ -32,7 +32,7 @@ describe( 'invokePlanWorkflow', () => {
     await invokePlanWorkflow( 'Test workflow' );
 
     const calls = vi.mocked( query ).mock.calls;
-    expect( calls[0]?.[0]?.prompt ).toContain( '/outputai:plan_workflow Test workflow' );
+    expect( calls[0]?.[0]?.prompt ).toContain( '/output-plan-workflow Test workflow' );
     expect( calls[0]?.[0]?.options?.settingSources ).toEqual( [ 'user', 'project', 'local' ] );
     expect( calls[0]?.[0]?.options?.allowedTools ).toEqual( [ 'Read', 'Grep', 'WebSearch', 'WebFetch', 'TodoWrite' ] );
   } );
@@ -52,7 +52,7 @@ describe( 'invokePlanWorkflow', () => {
     await invokePlanWorkflow( description );
 
     const calls = vi.mocked( query ).mock.calls;
-    expect( calls[0]?.[0]?.prompt ).toContain( `/outputai:plan_workflow ${description}` );
+    expect( calls[0]?.[0]?.prompt ).toContain( `/output-plan-workflow ${description}` );
     expect( calls[0]?.[0]?.options?.settingSources ).toEqual( [ 'user', 'project', 'local' ] );
   } );
 

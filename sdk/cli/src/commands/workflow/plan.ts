@@ -82,7 +82,7 @@ export default class WorkflowPlan extends Command {
     planName: string,
     projectRoot: string
   ): Promise<void> {
-    this.log( '\nInvoking the /outputai:plan_workflow command...' );
+    this.log( '\nInvoking the /output-plan-workflow command...' );
     this.log( 'This may take a moment...\n' );
 
     const planContent = await invokePlanWorkflow( promptDescription );

@@ -42,7 +42,7 @@ function isEmpty( modification: string ): boolean {
 }
 
 /**
- * Build a workflow from a plan file using the /outputai:build_workflow slash command
+ * Build a workflow from a plan file using the /output-build-workflow slash command
  * @param planFilePath - Absolute path to the plan file
  * @param workflowDir - Absolute path to the workflow directory
  * @param workflowName - Name of the workflow
