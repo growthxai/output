@@ -36,7 +36,7 @@ export const serializeError = ( error: Error, depth : number = 1 ) => ( {
       return '<Max recursion depth reached>';
     }
     if ( error.cause instanceof Error ) {
-      return serializeError( error.cause );
+      return serializeError( error.cause, depth + 1 );
     }
     return undefined; // eslint-disable-line consistent-return
   } )()
@@ -58,15 +58,24 @@ export const redactHeaders = ( headers: Headers ) : Record<string, unknown> => {
 };
 
 /**
- * Clones a Request or Response object and parses its body based on its content type:
- * - application/json: object
- * - text/plain: string
+ * Clones a Request or Response object and reads the body as text, then:
+ * - non-JSON content-type, or empty body: returns the text as-is
+ * - application/json with a non-empty body: returns JSON.parse result, or the raw text if parsing fails
  *
  * @param r
- * @returns Parsed body (JSON or text)
+ * @returns Parsed JSON value or raw body string
  */
 export const parseBody = async ( r : Request | Response ) : Promise<string | object> => {
   const clone = r.clone();
   const contentType = clone.headers.get( 'content-type' ) || '';
-  return clone[contentType.includes( 'application/json' ) ? 'json' : 'text']() as Promise<string | object>;
+  const textContent = await clone.text();
+  if ( !contentType.includes( 'application/json' ) || textContent.length === 0 ) {
+    return textContent;
+  }
+
+  try {
+    return JSON.parse( textContent );
+  } catch {
+    return textContent;
+  }
 };

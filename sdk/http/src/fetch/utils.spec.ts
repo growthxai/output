@@ -2,6 +2,20 @@ import { describe, it, expect } from 'vitest';
 import { Response, Request, Headers } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';
 
+const createMultiLevelError = ( levels : number, depth : number = 1 ) : Error =>
+  depth === levels ?
+    new Error( `level-${depth}` ) :
+    new Error( `level-${depth}`, { cause: createMultiLevelError( levels, depth + 1 ) } );
+
+type SerializedError = ReturnType<typeof serializeError>;
+
+const walkSerializedCause = ( root : SerializedError, steps : number ) : SerializedError => {
+  if ( steps === 0 ) {
+    return root;
+  }
+  return walkSerializedCause( root.cause as SerializedError, steps - 1 );
+};
+
 describe( 'fetch/utils', () => {
   describe( 'serializeError', () => {
     it( 'serializes name, message, stack and sets code and cause to undefined when absent', () => {
@@ -43,10 +57,36 @@ describe( 'fetch/utils', () => {
       } );
     } );
 
-    it( 'uses max-depth sentinel for cause when depth is greater than 5', () => {
-      const err = new Error( 'x' );
+    it( 'does not recurse into cause when initial depth is already past the limit', () => {
+      const inner = new Error( 'inner' );
+      const outer = new Error( 'outer' );
+      outer.cause = inner;
 
-      expect( serializeError( err, 6 ).cause ).toBe( '<Max recursion depth reached>' );
+      expect( serializeError( outer, 6 ).cause ).toBe( '<Max recursion depth reached>' );
+    } );
+
+    it( 'serializes up to five nested Error causes without hitting the sentinel', () => {
+      const root = createMultiLevelError( 5 );
+      const innermost = walkSerializedCause( serializeError( root ), 4 );
+
+      expect( innermost.message ).toBe( 'level-5' );
+      expect( innermost.cause ).toBeUndefined();
+    } );
+
+    it( 'replaces cause with the max-depth sentinel on the sixth nested Error', () => {
+      const root = createMultiLevelError( 6 );
+      const innermost = walkSerializedCause( serializeError( root ), 5 );
+
+      expect( innermost.message ).toBe( 'level-6' );
+      expect( innermost.cause ).toBe( '<Max recursion depth reached>' );
+    } );
+
+    it( 'does not expose a seventh error when the chain is longer than the limit', () => {
+      const root = createMultiLevelError( 7 );
+      const innermost = walkSerializedCause( serializeError( root ), 5 );
+
+      expect( innermost.message ).toBe( 'level-6' );
+      expect( innermost.cause ).toBe( '<Max recursion depth reached>' );
     } );
   } );
 
@@ -157,9 +197,17 @@ describe( 'fetch/utils', () => {
       await expect( parseBody( response ) ).resolves.toBe( '' );
     } );
 
-    it( 'rejects when JSON branch is used with an empty body', async () => {
+    it( 'returns empty string for empty body even when content-type is application/json', async () => {
       const response = new Response( '', { headers: { 'content-type': 'application/json' } } );
-      await expect( parseBody( response ) ).rejects.toThrow( SyntaxError );
+      await expect( parseBody( response ) ).resolves.toBe( '' );
+    } );
+
+    it( 'returns raw text when content-type is application/json but the body is not valid JSON', async () => {
+      const raw = '{ not json';
+      const response = new Response( raw, { headers: { 'content-type': 'application/json' } } );
+      const result = await parseBody( response );
+      expect( result ).toBe( raw );
+      expect( result ).toBeTypeOf( 'string' );
     } );
 
     it( 'does not consume the original body (clone)', async () => {
@@ -175,6 +223,16 @@ describe( 'fetch/utils', () => {
         body: JSON.stringify( { a: 1 } )
       } );
       await expect( parseBody( request ) ).resolves.toEqual( { a: 1 } );
+    } );
+
+    it( 'returns raw text for invalid JSON on a Request with application/json', async () => {
+      const raw = '{';
+      const request = new Request( 'https://ex.com', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: raw
+      } );
+      await expect( parseBody( request ) ).resolves.toBe( raw );
     } );
   } );
 } );
