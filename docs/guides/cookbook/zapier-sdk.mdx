@@ -9,7 +9,7 @@ Output workflows can invoke any app a user has authorized in their Zapier accoun
 
 - Access hundreds of third-party apps (Slack, Gmail, Airtable, HubSpot, …) through a single SDK.
 - Zero OAuth code — Zapier injects tokens from the user's stored connection.
-- Two ways to execute actions: an unified `runAction()` entry point or a dot notation to access applications methods.
+- Two ways to execute actions: a unified `runAction()` entry point, or dot notation to access app-specific methods.
 - Machine credentials that run from a headless worker, not a browser.
 
 ## When to use
@@ -21,11 +21,11 @@ Output workflows can invoke any app a user has authorized in their Zapier accoun
 
 ## Install & authenticate
 
-Access https://zapier.com/app/assets/connections and create your connections to apps you want.
+Visit [https://zapier.com/app/assets/connections](https://zapier.com/app/assets/connections) and create connections to the apps you want to use.
 
 ![Zapier App Connections page listing authorized Slack workspaces](/cookbook/assets/zapier-app-connections.png)
 
-After install the Zapier SDK
+Then install the Zapier SDK:
 
 ```bash
 npm install @zapier/zapier-sdk
@@ -41,7 +41,7 @@ npx zapier-sdk login          # one-time browser OAuth
 npx zapier-sdk add slack      # writes .zapier-manifest.json
 ```
 
-If add the app it will install typed system and you can access it using dot notation and use typed returns.
+Adding an app installs a typed system, so you can access it through dot notation with typed return values.
 
 ## Machine credentials for the worker
 
@@ -58,7 +58,8 @@ zapier:
   client_secret: zap_cs_xxxxxxxx
 ```
 
-Need to update the `.env` as well 
+You also need to update your `.env`:
+
 ```.env
 # Zapier credentials
 ZAPIER_CLIENT_ID=credential:zapier.client_id
@@ -125,7 +126,7 @@ export type DraftAnnouncementOutput = z.infer<typeof DraftAnnouncementOutput>;
 Each authorized app shows up on the **App Connections** page in Zapier — that's what `findFirstConnection` queries under the hood:
 
 
-Put every Zapier call inside a `step()` so it's traced and retried. Resolve the user's connection, then invoke the action through the unified `runAction()` entry point:
+Put every Zapier call inside a `step()` so it's traced and retried. Resolve the user's connection, then invoke the action through the typed dot-notation API:
 
 ```ts steps.ts
 import { step, FatalError } from '@outputai/core';
@@ -146,7 +147,7 @@ export const postToSlackChannel = step( {
     fn: async ({ channel, message }) => {
     
       const { data: firstSlackConnection } = await zapier.findFirstConnection({
-        search: 'Slack Connection 2', // if you have more than one app it's better provide the complete name
+        search: 'Slack Connection 2', // if you have more than one app it's better to provide the complete name
         appKey: 'slack',
         owner: 'me',
         isExpired: false,
@@ -184,7 +185,7 @@ export const draftAnnouncement = step({
 });
 ```
 
-Write the prompt to generate message 
+Write the prompt to generate the message:
 
 ```draft_announcement.prompt
 ---
@@ -224,7 +225,7 @@ You can also invoke the action using this syntax:
       } );
 ```
 
-Always destructure `{ data }` from the response, the Zapier SDK returns a wrapped envelope.
+Always destructure `{ data }` from the response — the Zapier SDK returns a wrapped envelope.
 
 <Note>
   For endpoints with no built-in action, fall back to `zapier.fetch()` — it injects the user's credentials and returns a standard `Response`:
@@ -246,17 +247,17 @@ Keep the workflow pure — it only sequences step calls. No SDK clients, no `fet
 
 ```ts workflow.ts
 import { workflow } from '@outputai/core';
-import { draftAnnouncement, postToSlack } from './steps.js';
-import { SlackBroadcastInput, SlackBroadcastOutput } from './types.js';
+import { draftAnnouncement, postToSlackChannel } from './steps.js';
+import { WorkflowInputSchema, WorkflowOutputSchema } from './types.js';
 
 export default workflow({
   name: 'slack_broadcast',
-  inputSchema: SlackBroadcastInput,
-  outputSchema: SlackBroadcastOutput,
+  inputSchema: WorkflowInputSchema,
+  outputSchema: WorkflowOutputSchema,
   fn: async ({ topic, channel }) => {
     const { message } = await draftAnnouncement({ topic });
-    const { ts } = await postToSlack({ channel, message });
-    return { message, ts };
+    const { ts } = await postToSlackChannel({ channel, message });
+    return { message, channel, ts };
   },
 });
 ```
@@ -276,4 +277,4 @@ Run the workflow against that scenario:
 npx output workflow run slack_broadcast happy_message
 ```
 
-The Output trace captures each step independently, including the full Zapier request and response inside `postToSlack`.
+The Output trace captures each step independently, including the full Zapier request and response inside `postToSlackChannel`.
