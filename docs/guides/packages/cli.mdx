@@ -36,6 +36,7 @@ npx output workflow run lead_enrichment acme
 | `output workflow result` | Get a completed workflow's result |
 | `output workflow stop` | Stop a workflow gracefully |
 | `output workflow terminate` | Force-stop a workflow |
+| `output workflow reset` | Rerun a workflow from after a completed step |
 | `output workflow debug` | Show the execution trace |
 | `output workflow cost` | Calculate execution cost from a trace |
 | `output workflow test` | Run evaluations against a workflow |
@@ -306,6 +307,30 @@ output workflow terminate wf-12345 --reason "Cleaning up old workflows"
 | `--reason, -r` | — | Reason for termination |
 
 Unlike `stop` (which cancels gracefully), `terminate` kills the workflow immediately.
+
+### output workflow reset
+
+Rerun a workflow from after a specific completed step. The current run is terminated and a new run is created that replays up to the given step (reusing its output), then re-executes every step after it. Useful when iterating on a late step without re-paying the cost of earlier LLM or API calls:
+
+```bash
+output workflow reset <workflowId> --step <stepName>
+output workflow reset lead_enrichment-a1b2c3d4 --step consolidateCompetitors --reason "Retry with updated prompt"
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--step, -s` | — | **Required.** Name of the completed step to reset after. The step itself is not re-executed; every step after it is. |
+| `--reason, -r` | — | Free-text reason, recorded in Temporal history for auditability |
+
+The command prints the original `workflowId` and a new `runId` for the fresh execution. Use `output workflow status <workflowId>` and `output workflow result <workflowId>` to track it.
+
+<Tip>
+Find valid step names with `output workflow debug <workflowId> --format json` — the step name you pass to `--step` is the one shown on completed step entries.
+</Tip>
 
 ### output workflow debug
 
