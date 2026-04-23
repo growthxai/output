@@ -42,19 +42,21 @@ const getCatalog = async ( { client, taskQueue } ) => {
  * @param {string} status - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
  * @returns {string} User-friendly status string
  */
+const WORKFLOW_STATUS_MAP = {
+  RUNNING: 'running',
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELED: 'canceled',
+  TERMINATED: 'terminated',
+  TIMED_OUT: 'timed_out',
+  CONTINUED_AS_NEW: 'continued'
+};
+
 const mapWorkflowStatus = status => {
   if ( !status ) {
     return 'unspecified';
   }
-  return ( {
-    RUNNING: 'running',
-    COMPLETED: 'completed',
-    FAILED: 'failed',
-    CANCELED: 'canceled',
-    TERMINATED: 'terminated',
-    TIMED_OUT: 'timed_out',
-    CONTINUED_AS_NEW: 'continued'
-  }[status] || status.toLowerCase() );
+  return WORKFLOW_STATUS_MAP[status] || status.toLowerCase();
 };
 
 /**

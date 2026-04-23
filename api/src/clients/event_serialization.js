@@ -11,6 +11,22 @@ export const serializeEventTime = eventTime => {
   return new Date( ( +eventTime.seconds * 1000 ) + Math.floor( eventTime.nanos / 1e6 ) ).toISOString();
 };
 
+const decodePayload = ( p, eventId ) => {
+  try {
+    return defaultPayloadConverter.fromPayload( p );
+  } catch ( error ) {
+    const encoding = p?.metadata?.encoding ?
+      Buffer.from( p.metadata.encoding ).toString() :
+      'unknown';
+    logger.warn( 'Failed to decode event payload', {
+      eventId: eventId?.toString(),
+      encoding,
+      error: error.message
+    } );
+    return { _raw: true, encoding };
+  }
+};
+
 const PAYLOAD_FIELDS = {
   workflowExecutionStartedEventAttributes: [ 'input' ],
   workflowExecutionCompletedEventAttributes: [ 'result' ],
@@ -44,21 +60,7 @@ export const decodeEventPayloads = event => {
       if ( !payloads?.length ) {
         continue;
       }
-      decoded[field] = payloads.map( p => {
-        try {
-          return defaultPayloadConverter.fromPayload( p );
-        } catch ( error ) {
-          const encoding = p?.metadata?.encoding ?
-            Buffer.from( p.metadata.encoding ).toString() :
-            'unknown';
-          logger.warn( 'Failed to decode event payload', {
-            eventId: event.eventId?.toString(),
-            encoding,
-            error: error.message
-          } );
-          return { _raw: true, encoding };
-        }
-      } );
+      decoded[field] = payloads.map( p => decodePayload( p, event.eventId ) );
     }
     return { ...event, [attrKey]: decoded };
   }
