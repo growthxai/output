@@ -10,144 +10,167 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "groups": [
+    "tabs": [
       {
-        "group": " ",
-        "pages": [
-          "index"
-        ]
-      },
-      {
-        "group": "Start Here",
-        "icon": "rocket",
-        "pages": [
-          "start-here/getting-started",
-          "start-here/claude-code",
-          "start-here/learning-path"
-        ]
-      },
-      {
-        "group": "Workflows",
-        "icon": "diagram-project",
-        "pages": [
-          "workflows/index",
-          "workflows/context",
-          "workflows/child-workflows",
-          "workflows/parallel-execution",
-          "workflows/external-integration",
-          "workflows/running"
-        ]
-      },
-      {
-        "group": "Steps",
-        "icon": "layer-group",
-        "pages": [
-          "steps/index",
-          "steps/best-practices"
-        ]
-      },
-      {
-        "group": "Prompts",
-        "icon": "message",
-        "pages": [
-          "prompts/index",
-          "prompts/templating",
-          "prompts/skills",
-          "prompts/best-practices"
-        ]
-      },
-      {
-        "group": "Clients",
-        "icon": "plug",
-        "pages": [
-          "clients/index"
-        ]
-      },
-      {
-        "group": "Costs",
-        "icon": "receipt",
-        "pages": [
-          "costs/index",
-          "costs/cost-events"
-        ]
-      },
-      {
-        "group": "Evaluators",
-        "icon": "scale-balanced",
-        "pages": [
-          "evaluators/index",
-          "evaluators/evaluator-step",
+        "tab": "Documentation",
+        "groups": [
           {
-            "group": "Evaluation Workflow",
+            "group": " ",
             "pages": [
-              "evaluators/workflow-evaluators",
-              "evaluators/verdicts",
-              "evaluators/datasets",
-              "evaluators/datasets-and-cli"
-            ]
-          },
-          "evaluators/best-practices"
-        ]
-      },
-      {
-        "group": "Production Readiness",
-        "icon": "shield-halved",
-        "pages": [
-          "operations/credentials",
-          "operations/error-handling",
-          "operations/error-hooks",
-          "operations/testing",
-          "operations/tracing"
-        ]
-      },
-      {
-        "group": "Deployment",
-        "icon": "cloud-arrow-up",
-        "pages": [
-          "operations/deployment",
-          "operations/deployment/render",
-          "operations/deployment/railway",
-          "operations/deployment/advanced"
-        ]
-      },
-      {
-        "group": "Integrate with Your App",
-        "icon": "code",
-        "openapi": "openapi.json",
-        "pages": [
-          "api/index",
-          "api/configuration",
-          "api/authentication",
-          "api/errors"
-        ]
-      },
-      {
-        "group": "Packages",
-        "icon": "cube",
-        "pages": [
-          "packages/core",
-          "packages/cli",
-          "packages/credentials",
-          "packages/evals",
-          "packages/http",
-          "packages/llm"
-        ]
-      },
-      {
-        "group": "Releases",
-        "icon": "clock-rotate-left",
-        "pages": [
-          {
-            "group": "Changelog",
-            "pages": [
-              "changelog/index"
+              "index"
             ]
           },
           {
-            "group": "Migration Guides",
+            "group": "Start Here",
+            "icon": "rocket",
             "pages": [
-              "migrations/index",
-              "migrations/v0.1.12-to-v0.2.0"
+              "start-here/getting-started",
+              "start-here/claude-code",
+              "start-here/learning-path"
+            ]
+          },
+          {
+            "group": "Workflows",
+            "icon": "diagram-project",
+            "pages": [
+              "workflows/index",
+              "workflows/context",
+              "workflows/child-workflows",
+              "workflows/parallel-execution",
+              "workflows/external-integration",
+              "workflows/running"
+            ]
+          },
+          {
+            "group": "Steps",
+            "icon": "layer-group",
+            "pages": [
+              "steps/index",
+              "steps/best-practices"
+            ]
+          },
+          {
+            "group": "Prompts",
+            "icon": "message",
+            "pages": [
+              "prompts/index",
+              "prompts/templating",
+              "prompts/skills",
+              "prompts/best-practices"
+            ]
+          },
+          {
+            "group": "Clients",
+            "icon": "plug",
+            "pages": [
+              "clients/index"
+            ]
+          },
+          {
+            "group": "Costs",
+            "icon": "receipt",
+            "pages": [
+              "costs/index",
+              "costs/cost-events"
+            ]
+          },
+          {
+            "group": "Evaluators",
+            "icon": "scale-balanced",
+            "pages": [
+              "evaluators/index",
+              "evaluators/evaluator-step",
+              {
+                "group": "Evaluation Workflow",
+                "pages": [
+                  "evaluators/workflow-evaluators",
+                  "evaluators/verdicts",
+                  "evaluators/datasets",
+                  "evaluators/datasets-and-cli"
+                ]
+              },
+              "evaluators/best-practices"
+            ]
+          },
+          {
+            "group": "Production Readiness",
+            "icon": "shield-halved",
+            "pages": [
+              "operations/credentials",
+              "operations/error-handling",
+              "operations/error-hooks",
+              "operations/testing",
+              "operations/tracing"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "icon": "cloud-arrow-up",
+            "pages": [
+              "operations/deployment",
+              "operations/deployment/render",
+              "operations/deployment/railway",
+              "operations/deployment/advanced"
+            ]
+          },
+          {
+            "group": "Integrate with Your App",
+            "icon": "code",
+            "openapi": "openapi.json",
+            "pages": [
+              "api/index",
+              "api/configuration",
+              "api/authentication",
+              "api/errors"
+            ]
+          },
+          {
+            "group": "Packages",
+            "icon": "cube",
+            "pages": [
+              "packages/core",
+              "packages/cli",
+              "packages/credentials",
+              "packages/evals",
+              "packages/http",
+              "packages/llm"
+            ]
+          },
+          {
+            "group": "Releases",
+            "icon": "clock-rotate-left",
+            "pages": [
+              {
+                "group": "Changelog",
+                "pages": [
+                  "changelog/index"
+                ]
+              },
+              {
+                "group": "Migration Guides",
+                "pages": [
+                  "migrations/index",
+                  "migrations/v0.1.12-to-v0.2.0"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Cookbook",
+        "groups": [
+          {
+            "group": " ",
+            "pages": [
+              "cookbook/overview"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "icon": "chart-diagram",
+            "pages": [
+              "cookbook/zapier-sdk"
             ]
           }
         ]
