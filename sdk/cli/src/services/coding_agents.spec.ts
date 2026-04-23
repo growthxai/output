@@ -29,6 +29,9 @@ vi.mock( '@oclif/core', () => ( {
 vi.mock( '#utils/prompt.js', () => ( {
   confirm: vi.fn()
 } ) );
+vi.mock( '#utils/interactive.js', () => ( {
+  isInteractive: vi.fn( () => true )
+} ) );
 
 describe( 'coding_agents service', () => {
   beforeEach( () => {
@@ -358,6 +361,22 @@ describe( 'coding_agents service', () => {
 
       // File operations should still complete
       expect( fs.mkdir ).toHaveBeenCalled();
+    } );
+
+    it( 'should rethrow plugin error in non-interactive mode without prompting', async () => {
+      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { confirm } = await import( '#utils/prompt.js' );
+      const { isInteractive } = await import( '#utils/interactive.js' );
+
+      vi.mocked( isInteractive ).mockReturnValueOnce( false );
+      vi.mocked( executeClaudeCommand )
+        .mockRejectedValueOnce( new Error( 'Plugin marketplace add failed' ) );
+
+      await expect(
+        initializeAgentConfig( { projectRoot: '/test/project', force: true } )
+      ).rejects.toThrow( /plugin marketplace add/i );
+
+      expect( confirm ).not.toHaveBeenCalled();
     } );
   } );
 } );

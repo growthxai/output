@@ -8,6 +8,7 @@ import path from 'node:path';
 import { join } from 'node:path';
 import { ux } from '@oclif/core';
 import { confirm } from '#utils/prompt.js';
+import { isInteractive } from '#utils/interactive.js';
 import debugFactory from 'debug';
 import { getTemplateDir } from '#utils/paths.js';
 import { executeClaudeCommand } from '#utils/claude.js';
@@ -197,6 +198,10 @@ async function handlePluginError( error: unknown, commandName: string, silent = 
   if ( silent ) {
     debug( 'Plugin error: %s', pluginError.message );
     throw error;
+  }
+
+  if ( !isInteractive() ) {
+    throw pluginError;
   }
 
   ux.warn( pluginError.message );

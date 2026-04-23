@@ -63,17 +63,11 @@ describe( 'prompt wrapper', () => {
       vi.mocked( isInteractive ).mockReturnValue( false );
     } );
 
-    it( 'confirm returns default value', async () => {
+    it( 'confirm always returns true regardless of default', async () => {
       const { confirm } = await import( './prompt.js' );
 
-      expect( await confirm( { message: 'Continue?', default: false } ) ).toBe( false );
+      expect( await confirm( { message: 'Continue?', default: false } ) ).toBe( true );
       expect( await confirm( { message: 'Continue?', default: true } ) ).toBe( true );
-      expect( inquirerConfirm ).not.toHaveBeenCalled();
-    } );
-
-    it( 'confirm defaults to true when no default specified', async () => {
-      const { confirm } = await import( './prompt.js' );
-
       expect( await confirm( { message: 'Continue?' } ) ).toBe( true );
       expect( inquirerConfirm ).not.toHaveBeenCalled();
     } );

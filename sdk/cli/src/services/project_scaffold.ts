@@ -63,7 +63,7 @@ export async function checkDependencies(): Promise<void> {
   try {
     const shouldProceed = await confirm( {
       message: 'Would you like to proceed anyway?',
-      default: true
+      default: false
     } );
 
     if ( !shouldProceed ) {

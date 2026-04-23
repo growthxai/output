@@ -11,7 +11,7 @@ type PasswordOptions = { message: string; mask?: boolean };
 
 export const confirm = async ( options: ConfirmOptions ): Promise<boolean> => {
   if ( !isInteractive() ) {
-    return options.default ?? true;
+    return true;
   }
   return inquirerConfirm( options );
 };
