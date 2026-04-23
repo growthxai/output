@@ -9,7 +9,7 @@ Output workflows can invoke any app a user has authorized in their Zapier accoun
 
 - Access hundreds of third-party apps (Slack, Gmail, Airtable, HubSpot, …) through a single SDK.
 - Zero OAuth code — Zapier injects tokens from the user's stored connection.
-- One unified `runAction()` entry point — call any app's read or write action by key.
+- Two ways to execute actions: an unified `runAction()` entry point or a dot notation to access applications methods.
 - Machine credentials that run from a headless worker, not a browser.
 
 ## When to use
@@ -42,8 +42,6 @@ npx zapier-sdk add slack      # writes .zapier-manifest.json
 ```
 
 If add the app it will install typed system and you can access it using dot notation and use typed returns.
-
-
 
 ## Machine credentials for the worker
 
