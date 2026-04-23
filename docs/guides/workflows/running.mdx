@@ -183,6 +183,22 @@ output workflow stop lead_enrichment-a1b2c3d4
 output workflow terminate lead_enrichment-a1b2c3d4 --reason "Cleaning up old runs"
 ```
 
+## Rerunning From a Step
+
+When a workflow fails late — or you've edited a prompt that only affects a downstream step — you usually don't want to re-run the whole thing. Early steps may have made expensive LLM calls, or slow API requests whose results haven't changed.
+
+`output workflow reset` creates a new run that replays up to a given completed step (reusing its recorded output), then re-executes every step after it:
+
+```bash
+# After editing a prompt used by `generate_blog_post`, rerun just the steps
+# after `consolidate_competitors` — the upstream competitor analysis is reused.
+output workflow reset lead_enrichment-a1b2c3d4 \
+  --step consolidate_competitors \
+  --reason "Retry with updated blog-post prompt"
+```
+
+Find valid step names with `output workflow debug <workflowId> --format json`. The step itself is not re-executed; only the steps after it.
+
 ## Quick Reference
 
 | What you want to do | Command |
@@ -194,6 +210,7 @@ output workflow terminate lead_enrichment-a1b2c3d4 --reason "Cleaning up old run
 | See the execution trace | `output workflow debug <workflowId>` |
 | Stop gracefully | `output workflow stop <workflowId>` |
 | Force stop | `output workflow terminate <workflowId>` |
+| Rerun from after a step | `output workflow reset <workflowId> --step <stepName>` |
 
 For the full CLI reference including all flags and additional commands like `workflow cost` and `workflow test`, see the [CLI package docs](/packages/cli).
 

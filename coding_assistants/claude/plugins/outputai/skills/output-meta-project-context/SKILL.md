@@ -1,6 +1,6 @@
 ---
 name: output-meta-project-context
-description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 33 skills).
+description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 34 skills).
 allowed-tools: [Read]
 ---
 
@@ -116,9 +116,9 @@ src/
 | `/output-build-workflow` | Build/implement workflows | After planning, or for modifications |
 | `/output-debug-workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
 
-### Skills (32)
+### Skills (34)
 
-#### Workflow Operations (5)
+#### Workflow Operations (6)
 | Skill | Purpose |
 |-------|---------|
 | `output-workflow-run` | Synchronous workflow execution (waits for result) |
@@ -126,6 +126,7 @@ src/
 | `output-workflow-list` | List available workflows |
 | `output-workflow-status` | Check async workflow status |
 | `output-workflow-result` | Get async workflow result |
+| `output-workflow-reset` | Rerun a workflow from after a completed step |
 
 #### Monitoring & Debugging (5)
 | Skill | Purpose |
@@ -195,6 +196,10 @@ npx output workflow result <id>              # Get async result
 # Debug
 npx output workflow debug <id>               # Debug failed workflow
 npx output workflow debug <id> --format json # Machine-readable output
+
+# Rerun from a step (replays up to <stepName>, re-executes everything after)
+npx output workflow reset <id> --step <stepName>
+npx output workflow reset <id> --step <stepName> --reason "why"
 
 # Eval Testing
 npx output workflow test <name>              # Run eval tests against datasets

@@ -181,7 +181,13 @@ npx output workflow run <workflowName> <input>
 npx output workflow start <workflowName> <input>
 npx output workflow status <workflowId>
 npx output workflow result <workflowId>
+
+# Or, if the fix only affects a specific step and earlier steps succeeded,
+# re-run from after the last known-good step (skips re-executing earlier work)
+npx output workflow reset <workflowId> --step <lastGoodStep> --reason "<fix description>"
 ```
+
+For targeted rerun after fixing a downstream step, see the `output-workflow-reset` skill.
 </verification>
 
 </step>

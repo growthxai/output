@@ -38,6 +38,7 @@ For detailed command usage, Claude will automatically invoke the relevant skill.
 | `npx output workflow status` | Check execution status |
 | `npx output workflow result` | Get execution result |
 | `npx output workflow stop` | Stop running workflow |
+| `npx output workflow reset` | Rerun workflow from after a completed step |
 | `npx output workflow debug` | Analyze execution trace |
 | `npx output workflow test` | Run offline eval tests against datasets |
 
@@ -68,6 +69,7 @@ Match error symptoms to solutions and verify the fix.
 - **Skills**: `output-error-*` (matched by symptoms)
 - **Skill**: `output-dev-eval-testing` (for offline test evaluation failures)
 - **Skill**: `output-dev-credentials` (for `MissingCredentialError` or `MissingKeyError`)
+- **Skill**: `output-workflow-reset` (for targeted rerun after fixing a downstream step, skipping already-successful earlier steps)
 
 ## Example Interaction
 
