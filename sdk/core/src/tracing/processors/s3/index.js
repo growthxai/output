@@ -4,6 +4,7 @@ import buildTraceTree from '../../tools/build_trace_tree.js';
 import { EOL } from 'node:os';
 import { loadEnv, getVars } from './configs.js';
 import { createChildLogger } from '#logger';
+import { safeFormatJSON } from '../../tools/utils.js';
 
 const log = createChildLogger( 'S3 Processor' );
 
@@ -97,7 +98,7 @@ export const exec = async ( { entry, executionContext } ) => {
   }
   await upload( {
     key: getS3Key( { workflowId, workflowName, startTime } ),
-    content: JSON.stringify( content, undefined, 2 ) + EOL
+    content: safeFormatJSON( content ) + EOL
   } );
   await bustEntries( cacheKey );
 };

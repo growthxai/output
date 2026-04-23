@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFile
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'url';
 import buildTraceTree from '../../tools/build_trace_tree.js';
+import { safeFormatJSON } from '../../tools/utils.js';
 import { EOL } from 'node:os';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
@@ -13,12 +14,32 @@ const callerDir = process.argv[2];
 
 const tempTraceFilesDir = join( __dirname, 'temp', 'traces' );
 
-const accumulate = ( { entry, executionContext: { workflowId, startTime } } ) => {
-  const path = join( tempTraceFilesDir, `${startTime}_${workflowId}.trace` );
-  appendFileSync( path, JSON.stringify( entry ) + EOL, 'utf-8' );
-  return readFileSync( path, 'utf-8' ).split( EOL ).slice( 0, -1 ).map( v => JSON.parse( v ) );
-};
+/**
+ * Builds the temp file path to accumulate trace entries
+ *
+ * @param {object} executionContext - The execution context around a given trace entry
+ * @returns {string}
+ */
+const createTempFilePath = ( { workflowId, startTime } ) => join( tempTraceFilesDir, `${startTime}_${workflowId}.trace` );
 
+/**
+ * Adds an trace entry to the accumulation file
+ * @param {object} entry - The trace entry
+ * @param {string} path - Accumulation file path
+ */
+const addEntry = ( entry, path ) => appendFileSync( path, JSON.stringify( entry ) + EOL, 'utf-8' );
+
+/**
+ * Reads the accumulation file and returns all the entries, each serialized to JSON
+ * @param {string} path - Accumulation file path
+ * @returns {object[]} Trace entries
+ */
+const getEntries = path => readFileSync( path, 'utf-8' ).split( EOL ).slice( 0, -1 ).map( v => JSON.parse( v ) );
+
+/**
+ * Deletes old accumulation files
+ * @param {number} [threshold] Timestamp in ms epoch. All files below this date are considered old
+ */
 const cleanupOldTempFiles = ( threshold = Date.now() - tempFilesTTL ) =>
   readdirSync( tempTraceFilesDir )
     .filter( f => +f.split( '_' )[0] < threshold )
@@ -79,7 +100,8 @@ export const init = () => {
 /**
  * Execute this processor:
  *
- * Persist a trace tree file to local file system, updating upon each new entry
+ * Append each trace entry to a temp file; when the root workflow ends (non-start phase on the
+ * workflow id) or any entry is an error phase, build the trace tree and write the JSON file once.
  *
  * @param {object} args
  * @param {object} entry - Trace event phase
@@ -88,12 +110,22 @@ export const init = () => {
  */
 export const exec = ( { entry, executionContext } ) => {
   const { workflowId, workflowName, startTime } = executionContext;
-  const content = buildTraceTree( accumulate( { entry, executionContext } ) );
+  const tempFilePath = createTempFilePath( executionContext );
+  addEntry( entry, tempFilePath );
+
+  const isRootWorkflowEnd = entry.id === workflowId && entry.phase !== 'start';
+  const isError = entry.phase === 'error';
+
+  if ( !isRootWorkflowEnd && !isError ) {
+    return;
+  }
+
+  const content = buildTraceTree( getEntries( tempFilePath ) );
   const dir = resolveIOPath( workflowName );
   const path = join( dir, buildTraceFilename( { startTime, workflowId } ) );
 
   mkdirSync( dir, { recursive: true } );
-  writeFileSync( path, JSON.stringify( content, undefined, 2 ) + EOL, 'utf-8' );
+  writeFileSync( path, safeFormatJSON( content ) + EOL, 'utf-8' );
 };
 
 /**

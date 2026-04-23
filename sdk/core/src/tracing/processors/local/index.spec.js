@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EOL } from 'node:os';
 
 // In-memory fs mock store
 const store = { files: new Map() };
@@ -24,12 +25,17 @@ vi.mock( 'node:fs', () => ( {
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
 
+/** Flush happens when root id matches workflowId and phase is not start, or when phase is error. */
+const rootStart = ( workflowId, ts ) => ( { id: workflowId, phase: 'start', timestamp: ts } );
+const rootEnd = ( workflowId, ts ) => ( { id: workflowId, phase: 'end', timestamp: ts } );
+const childTick = ( id, ts ) => ( { id, phase: 'tick', timestamp: ts } );
+
 describe( 'tracing/processors/local', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     store.files.clear();
     process.argv[2] = '/tmp/project';
-    delete process.env.OUTPUT_TRACE_HOST_PATH; // Clear OUTPUT_TRACE_HOST_PATH for clean tests
+    delete process.env.OUTPUT_TRACE_HOST_PATH;
   } );
 
   it( 'init(): creates temp dir and cleans up old files', async () => {
@@ -40,34 +46,63 @@ describe( 'tracing/processors/local', () => {
 
     init();
 
-    // Should create temp dir relative to module location using __dirname
     expect( mkdirSyncMock ).toHaveBeenCalledWith( expect.stringMatching( /temp\/traces$/ ), { recursive: true } );
     expect( rmSyncMock ).toHaveBeenCalledTimes( 1 );
   } );
 
-  it( 'exec(): accumulates entries and writes aggregated tree', async () => {
+  it( 'exec(): appends each entry and writes aggregated tree once on root workflow end', async () => {
     const { exec, init } = await import( './index.js' );
     init();
 
     const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
+    const workflowId = 'id1';
+    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: { name: 'A', phase: 'start', timestamp: startTime } } );
-    exec( { ...ctx, entry: { name: 'A', phase: 'tick', timestamp: startTime + 1 } } );
-    exec( { ...ctx, entry: { name: 'A', phase: 'end', timestamp: startTime + 2 } } );
+    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
+    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 2 ) } );
 
-    // buildTraceTree called with 1, 2, 3 entries respectively
-    expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 3 );
-    expect( buildTraceTreeMock.mock.calls.at( -1 )[0].length ).toBe( 3 );
+    expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
+    expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 3 );
 
-    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 3 );
-    const [ writtenPath, content ] = writeFileSyncMock.mock.calls.at( -1 );
-    // Changed: Now uses process.cwd() + '/logs' fallback when OUTPUT_TRACE_HOST_PATH not set
-    expect( writtenPath ).toMatch( /\/runs\/WF\// );
+    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
+    const [ writtenPath, content ] = writeFileSyncMock.mock.calls[0];
+    expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/WF\// );
     expect( JSON.parse( content.trim() ).count ).toBe( 3 );
   } );
 
-  it( 'getDestination(): returns absolute path', async () => {
+  it( 'exec(): does not build or write on non-flush entries', async () => {
+    const { exec, init } = await import( './index.js' );
+    init();
+
+    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
+    const workflowId = 'id1';
+    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
+
+    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
+
+    expect( buildTraceTreeMock ).not.toHaveBeenCalled();
+    expect( writeFileSyncMock ).not.toHaveBeenCalled();
+  } );
+
+  it( 'exec(): flushes on error phase before root end', async () => {
+    const { exec, init } = await import( './index.js' );
+    init();
+
+    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
+    const workflowId = 'id1';
+    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
+
+    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    exec( { ...ctx, entry: { id: 'step-1', phase: 'error', timestamp: startTime + 1 } } );
+
+    expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
+    expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 2 );
+    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
+  } );
+
+  it( 'getDestination(): returns absolute path under callerDir logs', async () => {
     const { getDestination } = await import( './index.js' );
 
     const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
@@ -76,36 +111,36 @@ describe( 'tracing/processors/local', () => {
 
     const destination = getDestination( { startTime, workflowId, workflowName } );
 
-    // Should return an absolute path
-    expect( destination ).toMatch( /^\/|^[A-Z]:\\/i ); // Starting with / or Windows drive letter
-    expect( destination ).toContain( '/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json' );
+    expect( destination ).toMatch( /^\/|^[A-Z]:\\/i );
+    expect( destination ).toBe(
+      '/tmp/project/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json'
+    );
   } );
 
-  it( 'exec(): writes to container path regardless of OUTPUT_TRACE_HOST_PATH', async () => {
+  it( 'exec(): writes under process.argv[2] logs even when OUTPUT_TRACE_HOST_PATH is set', async () => {
     const { exec, init } = await import( './index.js' );
 
-    // Set OUTPUT_TRACE_HOST_PATH to simulate Docker environment
     process.env.OUTPUT_TRACE_HOST_PATH = '/host/path/logs';
 
     init();
 
     const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
+    const workflowId = 'id1';
+    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: { name: 'A', phase: 'start', timestamp: startTime } } );
+    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
 
     expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
-    const [ writtenPath ] = writeFileSyncMock.mock.calls.at( -1 );
+    const [ writtenPath ] = writeFileSyncMock.mock.calls[0];
 
-    // Should write to process.cwd()/logs, NOT to OUTPUT_TRACE_HOST_PATH
     expect( writtenPath ).not.toContain( '/host/path/logs' );
-    expect( writtenPath ).toMatch( /logs\/runs\/WF\// );
+    expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/WF\// );
   } );
 
   it( 'getDestination(): returns OUTPUT_TRACE_HOST_PATH when set', async () => {
     const { getDestination } = await import( './index.js' );
 
-    // Set OUTPUT_TRACE_HOST_PATH to simulate Docker environment
     process.env.OUTPUT_TRACE_HOST_PATH = '/host/path/logs';
 
     const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
@@ -114,14 +149,12 @@ describe( 'tracing/processors/local', () => {
 
     const destination = getDestination( { startTime, workflowId, workflowName } );
 
-    // Should return OUTPUT_TRACE_HOST_PATH-based path for reporting
     expect( destination ).toBe( '/host/path/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json' );
   } );
 
   it( 'separation of write and report paths works correctly', async () => {
     const { exec, getDestination, init } = await import( './index.js' );
 
-    // Set OUTPUT_TRACE_HOST_PATH to simulate Docker environment
     process.env.OUTPUT_TRACE_HOST_PATH = '/Users/ben/project/logs';
 
     init();
@@ -131,19 +164,16 @@ describe( 'tracing/processors/local', () => {
     const workflowName = 'test-workflow';
     const ctx = { executionContext: { workflowId, workflowName, startTime } };
 
-    // Execute to write file
-    exec( { ...ctx, entry: { name: 'A', phase: 'start', timestamp: startTime } } );
+    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
 
-    // Get destination for reporting
     const destination = getDestination( { startTime, workflowId, workflowName } );
 
-    // Verify write path is local
-    const [ writtenPath ] = writeFileSyncMock.mock.calls.at( -1 );
+    const [ writtenPath, payload ] = writeFileSyncMock.mock.calls[0];
     expect( writtenPath ).not.toContain( '/Users/ben/project' );
-    expect( writtenPath ).toMatch( /logs\/runs\/test-workflow\// );
+    expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/test-workflow\// );
+    expect( payload.endsWith( EOL ) ).toBe( true );
 
-    // Verify report path uses OUTPUT_TRACE_HOST_PATH
     expect( destination ).toBe( '/Users/ben/project/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json' );
   } );
 } );
-
