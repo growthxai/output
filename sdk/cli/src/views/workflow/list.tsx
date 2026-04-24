@@ -7,8 +7,7 @@ import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { CommandFooter } from '#components/command_footer.js';
 import { openUrl } from '#utils/open_url.js';
-
-const TEMPORAL_UI_BASE = 'http://localhost:8080';
+import { config } from '#config.js';
 const VISIBLE_ROWS = 15;
 
 const STATUS_ORDER: Record<string, number> = {
@@ -181,7 +180,7 @@ export const WorkflowListView: React.FC<{
     } else if ( key.escape || input === 'q' ) {
       onBack();
     } else if ( input === 'o' && selectedWorkflowId ) {
-      openUrl( `${TEMPORAL_UI_BASE}/namespaces/default/workflows/${selectedWorkflowId}` );
+      openUrl( `${config.temporalUiUrl}/namespaces/default/workflows/${selectedWorkflowId}` );
     }
   } );
 

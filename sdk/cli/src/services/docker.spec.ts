@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { parseServiceStatus, getServiceStatus, waitForServicesHealthy, isServiceHealthy, isServiceFailed } from './docker.js';
+import { execFileSync, spawn } from 'node:child_process';
+import {
+  parseServiceStatus, getServiceStatus, startDockerCompose, stopDockerCompose,
+  waitForServicesHealthy, isServiceHealthy, isServiceFailed
+} from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
@@ -102,7 +105,7 @@ describe( 'docker service', () => {
 
       expect( execFileSync ).toHaveBeenCalledWith(
         'docker',
-        [ 'compose', '-f', '/path/to/docker-compose.yml', 'ps', '--all', '--format', 'json' ],
+        [ 'compose', '-f', '/path/to/docker-compose.yml', '--project-name', 'output-sdk', 'ps', '--all', '--format', 'json' ],
         expect.objectContaining( { encoding: 'utf-8' } )
       );
     } );
@@ -123,6 +126,29 @@ describe( 'docker service', () => {
       } );
 
       await expect( getServiceStatus( '/path/to/docker-compose.yml' ) ).rejects.toThrow();
+    } );
+  } );
+
+  describe( 'startDockerCompose', () => {
+    it( 'should pass --project-name to docker compose up', async () => {
+      await startDockerCompose( '/path/to/docker-compose.yml' );
+      expect( spawn ).toHaveBeenCalledWith(
+        'docker',
+        expect.arrayContaining( [ '--project-name', 'output-sdk', '--project-directory', process.cwd() ] ),
+        expect.anything()
+      );
+    } );
+  } );
+
+  describe( 'stopDockerCompose', () => {
+    it( 'should pass --project-name and --project-directory to docker compose down', async () => {
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+      await stopDockerCompose( '/path/to/docker-compose.yml' );
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [ 'compose', '-f', '/path/to/docker-compose.yml', '--project-directory', process.cwd(), '--project-name', 'output-sdk', 'down' ],
+        expect.objectContaining( { stdio: 'inherit' } )
+      );
     } );
   } );
 

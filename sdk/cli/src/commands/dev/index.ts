@@ -18,7 +18,15 @@ import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev.js';
 
 export default class Dev extends Command {
-  static description = 'Start Output development services (auto-restarts worker on file changes)';
+  static description = [
+    'Start Output development services (auto-restarts worker on file changes)',
+    '',
+    'To run a second dev stack concurrently, override host ports in .env:',
+    '',
+    '  OUTPUT_API_HOST_PORT=3002',
+    '  OUTPUT_TEMPORAL_HOST_PORT=7234',
+    '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081'
+  ].join( '\n' );
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',

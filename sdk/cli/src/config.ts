@@ -1,6 +1,16 @@
 export const config = {
   get apiUrl() {
-    return process.env.OUTPUT_API_URL || 'http://localhost:3001';
+    return process.env.OUTPUT_API_URL || `http://localhost:${process.env.OUTPUT_API_HOST_PORT ?? '3001'}`;
+  },
+  get ports() {
+    return {
+      temporal: parseInt( process.env.OUTPUT_TEMPORAL_HOST_PORT ?? '7233', 10 ),
+      temporalUi: parseInt( process.env.OUTPUT_TEMPORAL_UI_HOST_PORT ?? '8080', 10 ),
+      api: parseInt( process.env.OUTPUT_API_HOST_PORT ?? '3001', 10 )
+    };
+  },
+  get temporalUiUrl() {
+    return `http://localhost:${process.env.OUTPUT_TEMPORAL_UI_HOST_PORT ?? '8080'}`;
   },
   get apiToken() {
     return process.env.OUTPUT_API_AUTH_TOKEN;
