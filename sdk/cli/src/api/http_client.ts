@@ -31,10 +31,10 @@ export type ApiRequestOptions = RequestInit & {
   config?: KyOptions;
 };
 
-const _state: { api?: ReturnType<typeof ky.create> } = {};
+const apiState: { api?: ReturnType<typeof ky.create> } = {};
 function getApi() {
-  if ( !_state.api ) {
-    _state.api = ky.create( {
+  if ( !apiState.api ) {
+    apiState.api = ky.create( {
       prefixUrl: config.apiUrl,
       timeout: config.requestTimeout,
       retry: {
@@ -54,7 +54,7 @@ function getApi() {
       }
     } );
   }
-  return _state.api;
+  return apiState.api;
 }
 
 const stripLeadingSlash = ( url: string ): string =>
