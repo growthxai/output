@@ -22,10 +22,10 @@
     "prebuild": "npm run generate:api"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.92",
+    "@anthropic-ai/claude-agent-sdk": "0.2.116",
     "@aws-sdk/client-s3": "catalog:",
     "@hackylabs/deep-redact": "3.0.5",
-    "@inquirer/prompts": "8.4.1",
+    "@inquirer/prompts": "8.4.2",
     "@oclif/core": "4.10.5",
     "@oclif/plugin-help": "6.2.44",
     "@outputai/credentials": "workspace:",
@@ -54,7 +54,7 @@
     "@types/js-yaml": "catalog:",
     "@types/react": "19.2.14",
     "@types/semver": "7.7.1",
-    "orval": "8.8.0"
+    "orval": "8.8.1"
   },
   "license": "Apache-2.0",
   "publishConfig": {
