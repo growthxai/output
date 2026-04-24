@@ -7,13 +7,12 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as dotenv from 'dotenv';
 import debugFactory from 'debug';
-import { config } from '#config.js';
 
 const debug = debugFactory( 'output-cli:env-loader' );
 
 export function loadEnvironment(): void {
   const cwd = process.cwd();
-  const envFile = config.envFile;
+  const envFile = process.env.OUTPUT_CLI_ENV || '.env';
   const envPath = resolve( cwd, envFile );
 
   if ( !existsSync( envPath ) ) {
