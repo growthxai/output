@@ -42,7 +42,7 @@ const getCatalog = async ( { client, taskQueue } ) => {
  * @param {string} status - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
  * @returns {string} User-friendly status string
  */
-const WORKFLOW_STATUS_MAP = {
+const WorkflowStatusMap = {
   RUNNING: 'running',
   COMPLETED: 'completed',
   FAILED: 'failed',
@@ -56,7 +56,7 @@ const mapWorkflowStatus = status => {
   if ( !status ) {
     return 'unspecified';
   }
-  return WORKFLOW_STATUS_MAP[status] || status.toLowerCase();
+  return WorkflowStatusMap[status] || status.toLowerCase();
 };
 
 /**
