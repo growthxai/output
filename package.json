@@ -19,24 +19,24 @@
     "docs:validate": "typedoc --emit none"
   },
   "devDependencies": {
-    "@changesets/cli": "2.30.0",
+    "@changesets/cli": "2.31.0",
     "@eslint/js": "10.0.1",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "24.10.15",
-    "eslint": "10.2.0",
+    "eslint": "10.2.1",
     "eslint-plugin-check-file": "3.3.1",
     "globals": "17.5.0",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "mintlify": "4.2.520",
+    "mintlify": "4.2.523",
     "native-copyfiles": "2.0.1",
     "semver": "catalog:",
     "supertest": "7.2.2",
     "typedoc": "0.28.19",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.58.2",
+    "typescript-eslint": "8.59.0",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.4"
+    "vitest": "4.1.5"
   },
   "license": "UNLICENSED",
   "repository": {

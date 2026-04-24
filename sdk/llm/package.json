@@ -9,7 +9,7 @@
     "./src"
   ],
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "4.0.95",
+    "@ai-sdk/amazon-bedrock": "4.0.96",
     "@ai-sdk/anthropic": "3.0.71",
     "@ai-sdk/azure": "3.0.54",
     "@ai-sdk/google-vertex": "4.0.112",
@@ -22,7 +22,7 @@
     "ai": "6.0.168",
     "decimal.js": "10.6.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.25.5"
+    "liquidjs": "10.25.6"
   },
   "license": "Apache-2.0",
   "publishConfig": {
