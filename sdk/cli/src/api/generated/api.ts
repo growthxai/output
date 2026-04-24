@@ -179,6 +179,8 @@ export const WorkflowRunInfoStatus = {
 export interface WorkflowRunInfo {
   /** Unique identifier for this run */
   workflowId?: string;
+  /** The specific run id for this execution */
+  runId?: string;
   /** Name of the workflow definition */
   workflowType?: string;
   /** Current run status */

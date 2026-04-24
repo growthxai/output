@@ -257,6 +257,9 @@ app.use( ( req, res, next ) => {
  *         workflowId:
  *           type: string
  *           description: Unique identifier for this run
+ *         runId:
+ *           type: string
+ *           description: The specific run id for this execution
  *         workflowType:
  *           type: string
  *           description: Name of the workflow definition

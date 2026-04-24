@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
-import { getWorkflowIdResult, type WorkflowResultResponse } from '#api/generated/api.js';
+import { getWorkflowIdRunsRidResult, type WorkflowResultResponse } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
@@ -129,6 +129,7 @@ export const WorkflowListView: React.FC<{
   const clampedIndex = Math.min( selectedIndex, Math.max( 0, sortedRuns.length - 1 ) );
   const selectedRun = sortedRuns[clampedIndex];
   const selectedWorkflowId = selectedRun?.workflowId;
+  const selectedRunId = selectedRun?.runId;
 
   useEffect( () => {
     if ( clampedIndex !== selectedIndex ) {
@@ -137,12 +138,13 @@ export const WorkflowListView: React.FC<{
   }, [ clampedIndex, selectedIndex ] );
 
   useEffect( () => {
-    if ( !selectedWorkflowId ) {
+    if ( !selectedWorkflowId || !selectedRunId ) {
       setDetail( null );
       return;
     }
 
-    const cached = cacheRef.current.get( selectedWorkflowId );
+    const cacheKey = `${selectedWorkflowId}:${selectedRunId}`;
+    const cached = cacheRef.current.get( cacheKey );
     if ( cached ) {
       setDetail( cached );
       setDetailLoading( false );
@@ -152,13 +154,13 @@ export const WorkflowListView: React.FC<{
     const currentFetchId = ++fetchIdRef.current;
     setDetailLoading( true );
 
-    getWorkflowIdResult( selectedWorkflowId )
+    getWorkflowIdRunsRidResult( selectedWorkflowId, selectedRunId )
       .then( response => {
         if ( fetchIdRef.current !== currentFetchId ) {
           return;
         }
         const data = response.data as WorkflowResultResponse;
-        cacheRef.current.set( selectedWorkflowId, data );
+        cacheRef.current.set( cacheKey, data );
         setDetail( data );
         setDetailLoading( false );
       } )
@@ -169,7 +171,7 @@ export const WorkflowListView: React.FC<{
         setDetail( null );
         setDetailLoading( false );
       } );
-  }, [ selectedWorkflowId ] );
+  }, [ selectedWorkflowId, selectedRunId ] );
 
   useInput( ( input, key ) => {
     if ( key.upArrow ) {

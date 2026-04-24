@@ -16,6 +16,7 @@ const {
   mockQuery,
   mockStart,
   mockGetHandle,
+  mockList,
   mockConnect,
   mockFetchHistory,
   mockCancel,
@@ -32,6 +33,7 @@ const {
   const mockQuery = vi.fn();
   const mockStart = vi.fn();
   const mockGetHandle = vi.fn();
+  const mockList = vi.fn();
   const mockConnect = vi.fn();
   const mockFetchHistory = vi.fn();
   const mockCancel = vi.fn();
@@ -57,6 +59,7 @@ const {
     mockQuery,
     mockStart,
     mockGetHandle,
+    mockList,
     mockConnect,
     mockFetchHistory,
     mockCancel,
@@ -75,7 +78,8 @@ vi.mock( '@temporalio/client', () => ( {
     return {
       workflow: {
         getHandle: mockGetHandle,
-        start: mockStart
+        start: mockStart,
+        list: mockList
       }
     };
   } ),
@@ -118,7 +122,17 @@ const walkCause = e => e?.cause ? walkCause( e.cause ) : ( e?.message ?? null );
 vi.mock( '#utils', () => ( {
   buildWorkflowId: vi.fn( () => 'test-uuid' ),
   extractTraceInfo: vi.fn( e => e?.details?.find?.( d => d.trace )?.trace ),
-  extractErrorMessage: vi.fn( e => walkCause( e ) )
+  extractErrorMessage: vi.fn( e => walkCause( e ) ),
+  takeFromAsyncIterable: async ( iterable, count ) => {
+    const items = [];
+    for await ( const item of iterable ) {
+      if ( items.length >= count ) {
+        break;
+      }
+      items.push( item );
+    }
+    return items;
+  }
 } ) );
 
 describe( 'temporal_client', () => {
@@ -1150,6 +1164,63 @@ describe( 'temporal_client', () => {
         'Temporal getWorkflowExecutionHistory returned no history field',
         expect.objectContaining( { workflowId: 'wf-123', runId: 'run-abc' } )
       );
+    } );
+  } );
+
+  describe( 'listWorkflowRuns', () => {
+    const asAsyncIterable = items => ( {
+      async *[Symbol.asyncIterator]() {
+        for ( const item of items ) {
+          yield item;
+        }
+      }
+    } );
+
+    it( 'includes runId on every run so the CLI can pin result fetches', async () => {
+      const executions = [
+        {
+          workflowId: 'wf-1',
+          runId: 'run-1',
+          type: 'factChecker',
+          status: { name: 'COMPLETED' },
+          startTime: new Date( '2024-04-15T12:00:00Z' ),
+          closeTime: new Date( '2024-04-15T12:05:00Z' )
+        },
+        {
+          workflowId: 'wf-1',
+          runId: 'run-2',
+          type: 'factChecker',
+          status: { name: 'RUNNING' },
+          startTime: new Date( '2024-04-15T12:10:00Z' ),
+          closeTime: null
+        }
+      ];
+      mockList.mockReturnValue( asAsyncIterable( executions ) );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.listWorkflowRuns( { workflowType: 'factChecker', limit: 10 } );
+
+      expect( mockList ).toHaveBeenCalledWith( { query: 'WorkflowType = "factChecker"' } );
+      expect( result.count ).toBe( 2 );
+      expect( result.runs ).toEqual( [
+        {
+          workflowId: 'wf-1',
+          runId: 'run-1',
+          workflowType: 'factChecker',
+          status: 'completed',
+          startedAt: '2024-04-15T12:00:00.000Z',
+          completedAt: '2024-04-15T12:05:00.000Z'
+        },
+        {
+          workflowId: 'wf-1',
+          runId: 'run-2',
+          workflowType: 'factChecker',
+          status: 'running',
+          startedAt: '2024-04-15T12:10:00.000Z',
+          completedAt: null
+        }
+      ] );
     } );
   } );
 } );
