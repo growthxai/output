@@ -18,6 +18,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@temporalio/proto": "catalog:",
     "swagger-jsdoc": "6.2.8"
   },
   "license": "UNLISENCED",

@@ -11,6 +11,7 @@ const { mockClient, mockLogger } = vi.hoisted( () => ( {
     stopWorkflow: vi.fn(),
     terminateWorkflow: vi.fn(),
     getWorkflowResult: vi.fn(),
+    getWorkflowHistory: vi.fn(),
     resetWorkflow: vi.fn(),
     queryWorkflow: vi.fn(),
     listWorkflowRuns: vi.fn(),
@@ -81,6 +82,15 @@ describe( 'API endpoints', () => {
       output: { done: true },
       trace: { destinations: { local: '/tmp/trace.json', remote: null } },
       error: null
+    } );
+    mockClient.getWorkflowHistory.mockResolvedValue( {
+      workflow: {
+        workflowId: 'w1', runId: 'run-1', status: 'running',
+        startTime: '2024-04-15T12:00:00.000Z', closeTime: null,
+        historyLength: 10, taskQueue: 'default'
+      },
+      events: [ { eventId: '1', eventTypeName: 'WORKFLOW_EXECUTION_STARTED' } ],
+      nextPageToken: null
     } );
     mockClient.queryWorkflow.mockResolvedValue( { workflows: [] } );
     mockClient.listWorkflowRuns.mockResolvedValue( { runs: [] } );
@@ -325,6 +335,50 @@ describe( 'API endpoints', () => {
     it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/trace-log' ).expect( 400 );
       expect( mockClient.getWorkflowResult ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'GET /workflow/:id/history', () => {
+    it( 'returns 200 with expected shape', async () => {
+      const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/history' ).expect( 200 );
+      expect( res.body ).toMatchObject( {
+        workflow: { workflowId: 'w1', status: 'running' },
+        events: expect.any( Array ),
+        nextPageToken: null
+      } );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', {
+        runId: undefined,
+        pageSize: 20,
+        pageToken: undefined,
+        includePayloads: false
+      } );
+    } );
+
+    it( 'returns 400 when pageToken is provided without runId', async () => {
+      const token = Buffer.from( 'test' ).toString( 'base64' );
+      await request( `http://localhost:${PORT}` )
+        .get( `/workflow/w1/history?pageToken=${token}` )
+        .expect( 400 );
+    } );
+  } );
+
+  describe( 'GET /workflow/:id/runs/:rid/history', () => {
+    it( 'passes pinned runId from path to client', async () => {
+      await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/history` ).expect( 200 );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+        runId: RID
+      } ) );
+    } );
+
+    it( 'allows pageToken without query runId when runId is in path', async () => {
+      const token = Buffer.from( 'test' ).toString( 'base64' );
+      await request( `http://localhost:${PORT}` )
+        .get( `/workflow/w1/runs/${RID}/history?pageToken=${token}` )
+        .expect( 200 );
+      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+        runId: RID,
+        pageToken: token
+      } ) );
     } );
   } );
 

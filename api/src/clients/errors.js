@@ -66,3 +66,10 @@ export class TraceNotAvailableError extends Error {
     this.workflowId = workflowId;
   }
 }
+
+/** Thrown when a pageToken cannot be parsed by Temporal. */
+export class InvalidPageTokenError extends Error {
+  constructor() {
+    super( 'Invalid pageToken. Use the nextPageToken value returned by the previous page.' );
+  }
+}

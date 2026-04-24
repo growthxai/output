@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorkflowNotCompletedError, WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError } from './errors.js';
+import {
+  WorkflowNotCompletedError,
+  WorkflowExecutionTimedOutError,
+  StepNotFoundError,
+  StepNotCompletedError,
+  WorkflowNotFoundError,
+  InvalidPageTokenError
+}
+  from './errors.js';
 import { resolveResetEventId, extractWorkflowInput } from './temporal_client.js';
 
 const {
@@ -13,6 +21,7 @@ const {
   mockCancel,
   mockTerminate,
   mockResetWorkflowExecution,
+  mockGetWorkflowExecutionHistory,
   mockLoggerInfo,
   mockLoggerError,
   mockLoggerWarn,
@@ -28,6 +37,7 @@ const {
   const mockCancel = vi.fn();
   const mockTerminate = vi.fn();
   const mockResetWorkflowExecution = vi.fn();
+  const mockGetWorkflowExecutionHistory = vi.fn();
   const mockLoggerInfo = vi.fn();
   const mockLoggerError = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -52,6 +62,7 @@ const {
     mockCancel,
     mockTerminate,
     mockResetWorkflowExecution,
+    mockGetWorkflowExecutionHistory,
     mockLoggerInfo,
     mockLoggerError,
     mockLoggerWarn,
@@ -114,7 +125,10 @@ describe( 'temporal_client', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mockConnect.mockResolvedValue( {
-      workflowService: { resetWorkflowExecution: mockResetWorkflowExecution },
+      workflowService: {
+        resetWorkflowExecution: mockResetWorkflowExecution,
+        getWorkflowExecutionHistory: mockGetWorkflowExecutionHistory
+      },
       close: vi.fn()
     } );
     mockFetchHistory.mockResolvedValue( { events: [] } );
@@ -920,6 +934,222 @@ describe( 'temporal_client', () => {
 
       const result = resolveResetEventId( events, 'commonStep' );
       expect( result.toString() ).toBe( '10' );
+    } );
+  } );
+
+  describe( 'getWorkflowHistory', () => {
+    it( 'returns workflow metadata and events on first page', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'RUNNING' },
+        startTime: new Date( '2024-04-15T12:00:00Z' ),
+        closeTime: null,
+        historyLength: 42,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: {
+          events: [ {
+            eventId: { toString: () => '1' },
+            eventType: 1,
+            eventTime: { seconds: { toString: () => '1713182400' }, nanos: 0 },
+            workflowExecutionStartedEventAttributes: {
+              workflowType: { name: 'factChecker' }
+            }
+          } ]
+        },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.workflow ).toEqual( {
+        workflowId: 'wf-123',
+        runId: 'run-abc',
+        status: 'running',
+        startTime: '2024-04-15T12:00:00.000Z',
+        closeTime: null,
+        historyLength: 42,
+        taskQueue: 'default'
+      } );
+      expect( result.events ).toHaveLength( 1 );
+      expect( result.events[0].eventTypeName ).toBe( 'WORKFLOW_EXECUTION_STARTED' );
+      expect( result.nextPageToken ).toBeNull();
+      expect( result.runId ).toBe( 'run-abc' );
+    } );
+
+    it( 'returns workflow: null when pageToken is present', async () => {
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123', {
+        runId: 'run-abc',
+        pageToken: Buffer.from( 'token' ).toString( 'base64' )
+      } );
+
+      expect( result.workflow ).toBeNull();
+      expect( mockDescribe ).not.toHaveBeenCalled();
+    } );
+
+    it( 'passes correct params to gRPC call', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 10,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { pageSize: 30 } );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledWith( {
+        namespace: 'default',
+        execution: { workflowId: 'wf-123', runId: 'run-abc' },
+        maximumPageSize: 30,
+        nextPageToken: undefined
+      } );
+    } );
+
+    it( 'caps pageSize at 50', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 10,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { pageSize: 100 } );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledWith(
+        expect.objectContaining( { maximumPageSize: 50 } )
+      );
+    } );
+
+    it( 'returns base64 nextPageToken when present', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'run-abc',
+        status: { name: 'RUNNING' },
+        startTime: new Date(),
+        closeTime: null,
+        historyLength: 100,
+        taskQueue: 'default'
+      } );
+      const tokenBytes = Buffer.from( 'next-page-data' );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: tokenBytes
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.nextPageToken ).toBe( tokenBytes.toString( 'base64' ) );
+    } );
+
+    it( 'uses provided runId for describe when no pageToken', async () => {
+      mockDescribe.mockResolvedValue( {
+        runId: 'specific-run',
+        status: { name: 'COMPLETED' },
+        startTime: new Date(),
+        closeTime: new Date(),
+        historyLength: 5,
+        taskQueue: 'default'
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [] },
+        nextPageToken: null
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowHistory( 'wf-123', { runId: 'specific-run' } );
+
+      expect( mockGetHandle ).toHaveBeenCalledWith( 'wf-123', 'specific-run' );
+    } );
+
+    it( 'maps gRPC NOT_FOUND to WorkflowNotFoundError', async () => {
+      mockGetHandle.mockReturnValue( {
+        describe: vi.fn().mockResolvedValue( {
+          runId: 'run-abc',
+          status: { name: 'RUNNING' },
+          startTime: new Date( '2024-04-15T12:00:00Z' ),
+          closeTime: null,
+          historyLength: 5,
+          taskQueue: 'default'
+        } )
+      } );
+      const grpcError = Object.assign( new Error( 'not found' ), { code: 5 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowHistory( 'missing-wf' ) )
+        .rejects.toBeInstanceOf( WorkflowNotFoundError );
+    } );
+
+    it( 'maps gRPC INVALID_ARGUMENT to InvalidPageTokenError', async () => {
+      const grpcError = Object.assign( new Error( 'invalid token' ), { code: 3 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowHistory( 'wf-123', {
+        runId: 'run-abc',
+        pageToken: Buffer.from( 'bogus' ).toString( 'base64' )
+      } ) ).rejects.toBeInstanceOf( InvalidPageTokenError );
+    } );
+
+    it( 'warns when Temporal response is missing the history field', async () => {
+      mockGetHandle.mockReturnValue( {
+        describe: vi.fn().mockResolvedValue( {
+          runId: 'run-abc',
+          status: { name: 'RUNNING' },
+          startTime: new Date( '2024-04-15T12:00:00Z' ),
+          closeTime: null,
+          historyLength: 0,
+          taskQueue: 'default'
+        } )
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        nextPageToken: Buffer.from( 'would-loop' )
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      mockLoggerWarn.mockClear();
+
+      const result = await client.getWorkflowHistory( 'wf-123' );
+
+      expect( result.events ).toEqual( [] );
+      expect( result.nextPageToken ).toBeNull();
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
+        'Temporal getWorkflowExecutionHistory returned no history field',
+        expect.objectContaining( { workflowId: 'wf-123', runId: 'run-abc' } )
+      );
     } );
   } );
 } );

@@ -9,8 +9,11 @@ import {
   WorkflowNotCompletedError,
   CatalogNotAvailableError,
   StepNotFoundError,
-  StepNotCompletedError
+  StepNotCompletedError,
+  InvalidPageTokenError
 } from './errors.js';
+import { EventType } from './event_types.js';
+import { decodeEventPayloads, serializeEvent } from './event_serialization.js';
 
 const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
 
@@ -39,7 +42,7 @@ const getCatalog = async ( { client, taskQueue } ) => {
  * @param {string} status - The Temporal status name (e.g., 'RUNNING', 'COMPLETED')
  * @returns {string} User-friendly status string
  */
-const mapWorkflowStatus = status => ( {
+const WorkflowStatusMap = {
   RUNNING: 'running',
   COMPLETED: 'completed',
   FAILED: 'failed',
@@ -47,7 +50,14 @@ const mapWorkflowStatus = status => ( {
   TERMINATED: 'terminated',
   TIMED_OUT: 'timed_out',
   CONTINUED_AS_NEW: 'continued'
-}[status] || status.toLowerCase() );
+};
+
+const mapWorkflowStatus = status => {
+  if ( !status ) {
+    return 'unspecified';
+  }
+  return WorkflowStatusMap[status] || status.toLowerCase();
+};
 
 /**
  * Terminal Temporal workflow execution status codes.
@@ -64,15 +74,9 @@ const TemporalStatus = {
 
 const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
 
-/**
- * Temporal history event types used for workflow reset resolution.
- * Values correspond to temporal.api.enums.v1.EventType protobuf enum.
- */
-const EventType = {
-  WORKFLOW_TASK_COMPLETED: 7,
-  ACTIVITY_TASK_SCHEDULED: 10,
-  ACTIVITY_TASK_COMPLETED: 12
-};
+// Subset of gRPC status codes from @grpc/grpc-js (transitive through @temporalio/client).
+// See https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+const GrpcStatus = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
 
 /**
  * Resolves a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
@@ -522,6 +526,78 @@ export default {
         } );
 
         return { workflowId, runId: response.runId };
+      },
+
+      async getWorkflowHistory( workflowId, { runId, pageSize = 20, pageToken, includePayloads = false } = {} ) {
+        if ( pageToken && !runId ) {
+          throw new InvalidPageTokenError();
+        }
+        const isFirstPage = !pageToken;
+        const metadata = isFirstPage ? await ( async () => {
+          const handle = client.workflow.getHandle( workflowId, runId );
+          const description = await handle.describe().catch( error => {
+            if ( error?.code === GrpcStatus.NOT_FOUND ) {
+              throw new WorkflowNotFoundError( runId ?
+                `Run "${runId}" not found for workflow "${workflowId}"` :
+                `Workflow "${workflowId}" not found`
+              );
+            }
+            throw error;
+          } );
+          return {
+            workflow: {
+              workflowId,
+              runId: description.runId,
+              status: mapWorkflowStatus( description.status.name ),
+              startTime: description.startTime?.toISOString() ?? null,
+              closeTime: description.closeTime?.toISOString() ?? null,
+              historyLength: description.historyLength,
+              taskQueue: description.taskQueue
+            },
+            resolvedRunId: description.runId
+          };
+        } )() : { workflow: null, resolvedRunId: runId };
+
+        const response = await connection.workflowService.getWorkflowExecutionHistory( {
+          namespace,
+          execution: { workflowId, runId: metadata.resolvedRunId },
+          maximumPageSize: Math.min( pageSize, 50 ),
+          nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
+        } ).catch( error => {
+          if ( !error ) {
+            throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
+          }
+          if ( error.code === GrpcStatus.NOT_FOUND ) {
+            throw new WorkflowNotFoundError( runId ?
+              `Run "${runId}" not found for workflow "${workflowId}"` :
+              `Workflow "${workflowId}" not found`
+            );
+          }
+          if ( error.code === GrpcStatus.INVALID_ARGUMENT ) {
+            throw new InvalidPageTokenError();
+          }
+          throw error;
+        } );
+
+        if ( !response.history ) {
+          logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: metadata.resolvedRunId } );
+        }
+
+        const events = ( response.history?.events || [] ).map( event => {
+          const decoded = includePayloads ? decodeEventPayloads( event ) : event;
+          return serializeEvent( decoded, { includePayloads } );
+        } );
+
+        const nextPageToken = response.history && response.nextPageToken?.length ?
+          Buffer.from( response.nextPageToken ).toString( 'base64' ) :
+          null;
+
+        return {
+          workflow: metadata.workflow,
+          events,
+          runId: metadata.resolvedRunId,
+          nextPageToken
+        };
       },
 
       /**

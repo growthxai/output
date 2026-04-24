@@ -18,6 +18,9 @@ catalogs:
     '@temporalio/common':
       specifier: 1.15.0
       version: 1.15.0
+    '@temporalio/proto':
+      specifier: 1.15.0
+      version: 1.15.0
     '@temporalio/worker':
       specifier: 1.15.0
       version: 1.15.0
@@ -169,6 +172,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
+      '@temporalio/proto':
+        specifier: 'catalog:'
+        version: 1.15.0
       swagger-jsdoc:
         specifier: 6.2.8
         version: 6.2.8(openapi-types@12.1.3)
