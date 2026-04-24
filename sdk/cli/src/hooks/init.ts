@@ -4,14 +4,25 @@ import { setNonInteractive } from '#utils/interactive.js';
 
 const GLOBAL_FLAGS = new Set( [ '--yes', '--non-interactive' ] );
 
-const hook: Hook<'init'> = async function () {
-  const hadGlobalFlag = process.argv.some( arg => GLOBAL_FLAGS.has( arg ) );
+// Strip global flags from an argv array IN PLACE. oclif threads the same
+// array reference from its init hook into the command parser, so a splice
+// here removes the flags before the per-command strict validator sees them.
+// Reassignment (`argv = argv.filter(...)`) would break that shared reference.
+const stripGlobalFlags = ( argv: string[] ): boolean => {
+  const kept = argv.filter( arg => !GLOBAL_FLAGS.has( arg ) );
+  if ( kept.length === argv.length ) {
+    return false;
+  }
+  argv.splice( 0, argv.length, ...kept );
+  return true;
+};
 
-  if ( hadGlobalFlag ) {
+const hook: Hook<'init'> = async function ( opts ) {
+  const strippedFromOpts = stripGlobalFlags( opts.argv );
+  const strippedFromProcess = stripGlobalFlags( process.argv );
+
+  if ( strippedFromOpts || strippedFromProcess ) {
     setNonInteractive( true );
-    // Strip these flags so oclif's per-command strict parser doesn't reject
-    // them (they're handled globally here, not declared on any command).
-    process.argv = process.argv.filter( arg => !GLOBAL_FLAGS.has( arg ) );
   }
 
   try {
