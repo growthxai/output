@@ -48,7 +48,7 @@ describe( 'init command', () => {
       Object.defineProperty( cmd, 'parse', {
         value: vi.fn().mockResolvedValue( {
           args: { folderName: undefined, ...parsedArgs },
-          flags: { 'skip-env': false, ...flags }
+          flags: { 'skip-env': false, 'skip-git': false, ...flags }
         } ),
         configurable: true
       } );
@@ -66,11 +66,11 @@ describe( 'init command', () => {
       expect( typeof cmd.run ).toBe( 'function' );
     } );
 
-    it( 'should call runInit with skip-env flag and folder name', async () => {
+    it( 'should call runInit with skip-env flag, skip-git flag, and folder name', async () => {
       const cmd = createTestCommand();
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, undefined );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, undefined );
     } );
 
     it( 'should handle UserCancelledError', async () => {
@@ -117,14 +117,21 @@ describe( 'init command', () => {
       const cmd = createTestCommand( [], { 'skip-env': true } );
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( true, undefined );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( true, false, undefined );
+    } );
+
+    it( 'should pass skip-git flag to runInit when --skip-git is provided', async () => {
+      const cmd = createTestCommand( [], { 'skip-git': true } );
+      await cmd.run();
+
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, true, undefined );
     } );
 
     it( 'should pass folder name to runInit when provided', async () => {
       const cmd = createTestCommand( [], {}, { folderName: 'my-project' } );
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, 'my-project' );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, 'my-project' );
     } );
   } );
 } );
