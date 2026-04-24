@@ -1,5 +1,5 @@
 /**
- * Record the start of an event on the default trace for the current workflow.
+ * Record the start of an event for the current workflow.
  *
  * @param args - Event information
  * @param args.id - A unique id for the Event, must be the same across all phases: start, end, error.
@@ -10,9 +10,7 @@
 export declare function addEventStart( args: { id: string; kind: string; name: string; details: unknown } ): void;
 
 /**
- * Record the end of an event on the default trace for the current workflow.
- *
- * Use the same id as the start phase to correlate phases.
+ * Record the end of an event.
  *
  * @param args - Event information
  * @param args.id - Identifier matching the event's start phase.
@@ -21,12 +19,22 @@ export declare function addEventStart( args: { id: string; kind: string; name: s
 export declare function addEventEnd( args: { id: string; details: unknown } ): void;
 
 /**
- * Record an error for an event on the default trace for the current workflow.
- *
- * Use the same id as the start phase to correlate phases.
+ * Record the error in an event.
  *
  * @param args - Event metadata for the error phase.
  * @param args.id - Identifier matching the event's start phase.
  * @param args.details - Arbitrary metadata associated with this phase, possible error info.
  */
 export declare function addEventError( args: { id: string; details: unknown } ): void;
+
+/**
+ * Add an attribute to an event.
+ *
+ * Use the same id as the start phase to correlate phases.
+ *
+ * @param args - Event metadata for the error phase.
+ * @param args.eventId - The event id
+ * @param args.name - The attribute name
+ * @param args.value - The attribute value
+ */
+export declare function addEventAttribute( args: { eventId: string; name: string, value: unknown } ): void;

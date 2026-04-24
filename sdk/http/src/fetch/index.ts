@@ -2,6 +2,7 @@ import * as undici from 'undici';
 import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
+import { config } from '../config.js';
 
 /*
  * Unifies undici and nodes realms
@@ -46,6 +47,9 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   try {
     const response = await undici.fetch( request );
+
+    Object.defineProperty( response, config.requestIdSymbol, { value: requestId, enumerable: false, configurable: false, writable: false } );
+
     if ( response.status > 399 ) {
       await logError( { requestId, response } );
       return response;

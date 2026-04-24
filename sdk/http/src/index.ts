@@ -31,3 +31,5 @@ export function httpClient( options: Options = {} ) {
 export { HTTPError, TimeoutError } from 'ky';
 export type { Options as HttpClientOptions } from 'ky';
 export * from './fetch/index.js';
+
+export { addRequestCost } from './cost.js';

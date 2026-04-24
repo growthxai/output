@@ -1,3 +1,4 @@
+import { EventPhase } from '../trace_consts.js';
 /**
  * @typedef {object} NodeEntry
  * @property {string} id
@@ -27,7 +28,8 @@ const createEntry = id => ( {
   input: undefined,
   output: undefined,
   error: undefined,
-  children: []
+  children: [],
+  attributes: {}
 } );
 
 /**
@@ -56,15 +58,17 @@ export default entries => {
     const { kind, id, name, parentId, details, phase, timestamp } = entry;
     const node = ensureNode( id );
 
-    if ( phase === 'start' ) {
+    if ( phase === EventPhase.START ) {
       Object.assign( node, { input: details, startedAt: timestamp, kind, name } );
-    } else if ( phase === 'end' ) {
+    } else if ( phase === EventPhase.ADD_ATTR ) {
+      node.attributes[details.name] = details.value;
+    } else if ( phase === EventPhase.END ) {
       Object.assign( node, { output: details, endedAt: timestamp } );
-    } else if ( phase === 'error' ) {
+    } else if ( phase === EventPhase.ERROR ) {
       Object.assign( node, { error: details, endedAt: timestamp } );
     }
 
-    if ( parentId && phase === 'start' ) {
+    if ( parentId && phase === EventPhase.START ) {
       const parent = ensureNode( parentId );
       parent.children.push( node );
       parent.children.sort( ( a, b ) => a.startedAt - b.startedAt );

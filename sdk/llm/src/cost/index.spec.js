@@ -47,10 +47,11 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBe( 7 );
-    expect( result.components.input ).toEqual( { value: 2 } );
-    expect( result.components.cachedInput ).toEqual( { value: 0 } );
-    expect( result.components.output ).toEqual( { value: 5 } );
-    expect( result.components.reasoning ).toBeUndefined();
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 2 },
+      { name: 'input_cached_tokens', value: 0 },
+      { name: 'output_tokens', value: 5 }
+    ] );
   } );
 
   it( 'splits input into non-cached and cached at respective rates', async () => {
@@ -62,13 +63,15 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 1_000_000, cachedInputTokens: 500_000, outputTokens: 100_000 }
     } );
 
-    expect( result.components.input ).toEqual( { value: 2 } );
-    expect( result.components.cachedInput ).toEqual( { value: 0.5 } );
-    expect( result.components.output ).toEqual( { value: 1 } );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 2 },
+      { name: 'input_cached_tokens', value: 0.5 },
+      { name: 'output_tokens', value: 1 }
+    ] );
     expect( result.total ).toBeCloseTo( 3.5 );
   } );
 
-  it( 'sets cachedInput to null when model has no cache_read', async () => {
+  it( 'omits cached component when model has no cache_read (non-cached rate applies to full input minus cached)', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-cache', { input: 2, output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -76,12 +79,14 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 0 }
     } );
 
-    expect( result.components.input ).toEqual( { value: 1.6 } );
-    expect( result.components.cachedInput ).toEqual( { value: null, message: 'Missing cache input cost' } );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 1.6 },
+      { name: 'output_tokens', value: 0 }
+    ] );
     expect( result.total ).toBe( 1.6 );
   } );
 
-  it( 'sets input to null and message when pricing has no input', async () => {
+  it( 'omits input component when pricing has no input rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'out-only', { output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -90,11 +95,12 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBe( 0.0005 );
-    expect( result.components.input ).toEqual( { value: null, message: 'Missing input cost' } );
-    expect( result.components.output ).toEqual( { value: 0.0005 } );
+    expect( result.components ).toEqual( [
+      { name: 'output_tokens', value: 0.0005 }
+    ] );
   } );
 
-  it( 'sets output to null and message when pricing has no output', async () => {
+  it( 'omits output component when pricing has no output rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'in-only', { input: 1 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -103,8 +109,9 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBe( 0.0001 );
-    expect( result.components.input ).toEqual( { value: 0.0001 } );
-    expect( result.components.output ).toEqual( { value: null, message: 'Missing output' } );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 0.0001 }
+    ] );
   } );
 
   it( 'uses reasoning cost when present', async () => {
@@ -119,7 +126,11 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBeCloseTo( 0.0033 );
-    expect( result.components.reasoning ).toEqual( { value: 0.003 } );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 0.0001 },
+      { name: 'output_tokens', value: 0.0002 },
+      { name: 'reasoning_tokens', value: 0.003 }
+    ] );
   } );
 
   it( 'omits reasoning component when reasoning cost missing (included in output)', async () => {
@@ -131,10 +142,13 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBeCloseTo( 0.0003 );
-    expect( result.components.reasoning ).toBeUndefined();
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 0.0001 },
+      { name: 'output_tokens', value: 0.0002 }
+    ] );
   } );
 
-  it( 'Calculate reasoning component when reasoningTokens is zero', async () => {
+  it( 'includes reasoning component with zero when reasoningTokens is zero', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [
       'full',
       { input: 2, output: 8, reasoning: 60 }
@@ -145,7 +159,11 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50, reasoningTokens: 0 }
     } );
 
-    expect( result.components.reasoning ).toEqual( { value: 0 } );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 0.0002 },
+      { name: 'output_tokens', value: 0.0004 },
+      { name: 'reasoning_tokens', value: 0 }
+    ] );
     expect( result.total ).toBeCloseTo( 0.0006 );
   } );
 
@@ -158,5 +176,9 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.total ).toBe( 0 );
+    expect( result.components ).toEqual( [
+      { name: 'input_tokens', value: 0 },
+      { name: 'output_tokens', value: 0 }
+    ] );
   } );
 } );

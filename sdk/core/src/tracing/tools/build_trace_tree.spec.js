@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { EventPhase } from '../trace_consts.js';
 import buildTraceTree from './build_trace_tree.js';
 
 describe( 'build_trace_tree', () => {
@@ -8,7 +9,7 @@ describe( 'build_trace_tree', () => {
 
   it( 'sets root output with a fixed message when workflow has no end/error phase yet', () => {
     const entries = [
-      { kind: 'workflow', id: 'wf', parentId: undefined, phase: 'start', name: 'wf', details: {}, timestamp: 1000 }
+      { kind: 'workflow', id: 'wf', parentId: undefined, phase: EventPhase.START, name: 'wf', details: {}, timestamp: 1000 }
     ];
     const result = buildTraceTree( entries );
     expect( result ).not.toBeNull();
@@ -19,17 +20,52 @@ this can indicate it timed out or was interrupted.>>' );
 
   it( 'returns null when there is no root (all entries have parentId)', () => {
     const entries = [
-      { id: 'a', parentId: 'x', phase: 'start', name: 'a', timestamp: 1 },
-      { id: 'b', parentId: 'a', phase: 'start', name: 'b', timestamp: 2 }
+      { id: 'a', parentId: 'x', phase: EventPhase.START, name: 'a', timestamp: 1 },
+      { id: 'b', parentId: 'a', phase: EventPhase.START, name: 'b', timestamp: 2 }
     ];
     expect( buildTraceTree( entries ) ).toBeNull();
   } );
 
+  it( 'add_attr phase merges details.name and details.value into node.attributes', () => {
+    const entries = [
+      { kind: 'workflow', id: 'wf', parentId: undefined, phase: EventPhase.START, name: 'wf', details: {}, timestamp: 100 },
+      { kind: 'step', id: 's', parentId: 'wf', phase: EventPhase.START, name: 'step', details: {}, timestamp: 200 },
+      { id: 's', phase: EventPhase.ADD_ATTR, details: { name: 'latency_ms', value: 42 }, timestamp: 250 },
+      { id: 's', phase: EventPhase.ADD_ATTR, details: { name: 'retries', value: 1 }, timestamp: 260 },
+      { id: 'wf', phase: EventPhase.END, details: {}, timestamp: 300 }
+    ];
+    const result = buildTraceTree( entries );
+    expect( result ).not.toBeNull();
+    expect( result.children[0].attributes ).toEqual( { latency_ms: 42, retries: 1 } );
+  } );
+
+  it( 'add_attr phase overwrites prior value for the same attribute name', () => {
+    const entries = [
+      { kind: 'workflow', id: 'wf', parentId: undefined, phase: EventPhase.START, name: 'wf', details: {}, timestamp: 1 },
+      { id: 'wf', phase: EventPhase.ADD_ATTR, details: { name: 'x', value: 1 }, timestamp: 2 },
+      { id: 'wf', phase: EventPhase.ADD_ATTR, details: { name: 'x', value: 2 }, timestamp: 3 },
+      { id: 'wf', phase: EventPhase.END, details: {}, timestamp: 4 }
+    ];
+    const result = buildTraceTree( entries );
+    expect( result.attributes ).toEqual( { x: 2 } );
+  } );
+
+  it( 'add_attr does not attach nodes as children (only start does)', () => {
+    const entries = [
+      { kind: 'workflow', id: 'wf', parentId: undefined, phase: EventPhase.START, name: 'wf', details: {}, timestamp: 1 },
+      { id: 'orphan', parentId: 'wf', phase: EventPhase.ADD_ATTR, details: { name: 'k', value: 'v' }, timestamp: 2 },
+      { id: 'wf', phase: EventPhase.END, details: {}, timestamp: 3 }
+    ];
+    const result = buildTraceTree( entries );
+    expect( result.children ).toHaveLength( 0 );
+    expect( result.attributes ).toEqual( {} );
+  } );
+
   it( 'error phase sets error and endedAt on node', () => {
     const entries = [
-      { kind: 'wf', id: 'r', parentId: undefined, phase: 'start', name: 'root', details: {}, timestamp: 100 },
-      { kind: 'step', id: 's', parentId: 'r', phase: 'start', name: 'step', details: {}, timestamp: 200 },
-      { id: 's', phase: 'error', details: { message: 'failed' }, timestamp: 300 }
+      { kind: 'wf', id: 'r', parentId: undefined, phase: EventPhase.START, name: 'root', details: {}, timestamp: 100 },
+      { kind: 'step', id: 's', parentId: 'r', phase: EventPhase.START, name: 'step', details: {}, timestamp: 200 },
+      { id: 's', phase: EventPhase.ERROR, details: { message: 'failed' }, timestamp: 300 }
     ];
     const result = buildTraceTree( entries );
     expect( result ).not.toBeNull();
@@ -41,27 +77,28 @@ this can indicate it timed out or was interrupted.>>' );
   it( 'builds a tree from workflow/step/IO entries with grouping and sorting', () => {
     const entries = [
       // workflow start
-      { kind: 'workflow', phase: 'start', name: 'wf', id: 'wf', parentId: undefined, details: { a: 1 }, timestamp: 1000 },
+      { kind: 'workflow', phase: EventPhase.START, name: 'wf', id: 'wf', parentId: undefined, details: { a: 1 }, timestamp: 1000 },
       // evaluator start/stop
-      { kind: 'evaluator', phase: 'start', name: 'eval', id: 'eval', parentId: 'wf', details: { z: 0 }, timestamp: 1500 },
-      { id: 'eval', phase: 'end', details: { z: 1 }, timestamp: 1600 },
+      { kind: 'evaluator', phase: EventPhase.START, name: 'eval', id: 'eval', parentId: 'wf', details: { z: 0 }, timestamp: 1500 },
+      { id: 'eval', phase: EventPhase.END, details: { z: 1 }, timestamp: 1600 },
       // step1 start
-      { kind: 'step', phase: 'start', name: 'step-1', id: 's1', parentId: 'wf', details: { x: 1 }, timestamp: 2000 },
+      { kind: 'step', phase: EventPhase.START, name: 'step-1', id: 's1', parentId: 'wf', details: { x: 1 }, timestamp: 2000 },
+      { id: 's1', phase: EventPhase.ADD_ATTR, details: { name: 'step_tag', value: 'alpha' }, timestamp: 2050 },
       // IO under step1
-      { kind: 'IO', phase: 'start', name: 'test-1', id: 'io1', parentId: 's1', details: { y: 2 }, timestamp: 2300 },
+      { kind: 'IO', phase: EventPhase.START, name: 'test-1', id: 'io1', parentId: 's1', details: { y: 2 }, timestamp: 2300 },
       // step2 start
-      { kind: 'step', phase: 'start', name: 'step-2', id: 's2', parentId: 'wf', details: { x: 2 }, timestamp: 2400 },
+      { kind: 'step', phase: EventPhase.START, name: 'step-2', id: 's2', parentId: 'wf', details: { x: 2 }, timestamp: 2400 },
       // IO under step2
-      { kind: 'IO', phase: 'start', name: 'test-2', id: 'io2', parentId: 's2', details: { y: 3 }, timestamp: 2500 },
-      { id: 'io2', phase: 'end', details: { y: 4 }, timestamp: 2600 },
+      { kind: 'IO', phase: EventPhase.START, name: 'test-2', id: 'io2', parentId: 's2', details: { y: 3 }, timestamp: 2500 },
+      { id: 'io2', phase: EventPhase.END, details: { y: 4 }, timestamp: 2600 },
       // IO under step1 ends
-      { id: 'io1', phase: 'end', details: { y: 5 }, timestamp: 2700 },
+      { id: 'io1', phase: EventPhase.END, details: { y: 5 }, timestamp: 2700 },
       // step1 end
-      { id: 's1', phase: 'end', details: { done: true }, timestamp: 2800 },
+      { id: 's1', phase: EventPhase.END, details: { done: true }, timestamp: 2800 },
       // step2 end
-      { id: 's2', phase: 'end', details: { done: true }, timestamp: 2900 },
+      { id: 's2', phase: EventPhase.END, details: { done: true }, timestamp: 2900 },
       // workflow end
-      { id: 'wf', phase: 'end', details: { ok: true }, timestamp: 3000 }
+      { id: 'wf', phase: EventPhase.END, details: { ok: true }, timestamp: 3000 }
     ];
 
     const result = buildTraceTree( entries );
@@ -74,6 +111,7 @@ this can indicate it timed out or was interrupted.>>' );
       endedAt: 3000,
       input: { a: 1 },
       output: { ok: true },
+      attributes: {},
       children: [
         {
           id: 'eval',
@@ -83,6 +121,7 @@ this can indicate it timed out or was interrupted.>>' );
           endedAt: 1600,
           input: { z: 0 },
           output: { z: 1 },
+          attributes: {},
           children: []
         },
         {
@@ -93,6 +132,7 @@ this can indicate it timed out or was interrupted.>>' );
           endedAt: 2800,
           input: { x: 1 },
           output: { done: true },
+          attributes: { step_tag: 'alpha' },
           children: [
             {
               id: 'io1',
@@ -102,6 +142,7 @@ this can indicate it timed out or was interrupted.>>' );
               endedAt: 2700,
               input: { y: 2 },
               output: { y: 5 },
+              attributes: {},
               children: []
             }
           ]
@@ -114,6 +155,7 @@ this can indicate it timed out or was interrupted.>>' );
           endedAt: 2900,
           input: { x: 2 },
           output: { done: true },
+          attributes: {},
           children: [
             {
               id: 'io2',
@@ -123,6 +165,7 @@ this can indicate it timed out or was interrupted.>>' );
               endedAt: 2600,
               input: { y: 3 },
               output: { y: 4 },
+              attributes: {},
               children: []
             }
           ]
