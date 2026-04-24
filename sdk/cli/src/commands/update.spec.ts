@@ -10,7 +10,7 @@ import {
   isOutdated
 } from '#services/npm_update_service.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
-import { confirm } from '@inquirer/prompts';
+import { confirm } from '#utils/prompt.js';
 
 vi.mock( '#services/npm_update_service.js', () => ( {
   fetchLatestVersion: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock( '#services/coding_agents.js', () => ( {
   ensureClaudePlugin: vi.fn()
 } ) );
 
-vi.mock( '@inquirer/prompts', () => ( {
+vi.mock( '#utils/prompt.js', () => ( {
   confirm: vi.fn()
 } ) );
 

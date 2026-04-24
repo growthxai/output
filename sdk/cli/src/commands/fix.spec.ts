@@ -3,14 +3,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fix from './fix.js';
 import type { FixPlan } from '#services/fix_package.js';
 import * as fixService from '#services/fix_package.js';
-import { confirm } from '@inquirer/prompts';
+import { confirm } from '#utils/prompt.js';
 
 vi.mock( '#services/fix_package.js', () => ( {
   planFix: vi.fn(),
   applyFix: vi.fn()
 } ) );
 
-vi.mock( '@inquirer/prompts', () => ( {
+vi.mock( '#utils/prompt.js', () => ( {
   confirm: vi.fn()
 } ) );
 

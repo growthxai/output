@@ -1,4 +1,4 @@
-import { input, confirm } from '@inquirer/prompts';
+import { input, confirm } from '#utils/prompt.js';
 import { ux } from '@oclif/core';
 import { kebabCase, pascalCase } from 'change-case';
 import fs from 'node:fs/promises';

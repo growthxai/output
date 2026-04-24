@@ -4,7 +4,7 @@ import path from 'node:path';
 import { configureEnvironmentVariables } from './env_configurator.js';
 
 // Mock inquirer prompts
-vi.mock( '@inquirer/prompts', () => ( {
+vi.mock( '#utils/prompt.js', () => ( {
   input: vi.fn(),
   confirm: vi.fn(),
   password: vi.fn()
@@ -57,7 +57,7 @@ describe( 'configureEnvironmentVariables', () => {
   } );
 
   it( 'should return false if user declines configuration', async () => {
-    const { confirm } = await import( '@inquirer/prompts' );
+    const { confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( false );
 
     await fs.writeFile(
@@ -72,7 +72,7 @@ describe( 'configureEnvironmentVariables', () => {
   } );
 
   it( 'should return false if no empty variables exist', async () => {
-    const { confirm } = await import( '@inquirer/prompts' );
+    const { confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
 
     await fs.writeFile(
@@ -86,7 +86,7 @@ describe( 'configureEnvironmentVariables', () => {
   } );
 
   it( 'should copy .env.example to .env when user confirms configuration', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'sk-proj-123' );
 
@@ -103,7 +103,7 @@ APIKEY=`;
   } );
 
   it( 'should write configured values to .env while leaving .env.example unchanged', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'sk-proj-123' );
 
@@ -126,7 +126,7 @@ APIKEY=`;
   } );
 
   it( 'should prompt for empty variables and update .env', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'sk-proj-123' );
     vi.mocked( input ).mockResolvedValueOnce( '' );
@@ -151,7 +151,7 @@ OPENAI_API_KEY=`
   } );
 
   it( 'should preserve comments in .env file', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'test-key' );
 
@@ -175,7 +175,7 @@ OTHER=value`;
   } );
 
   it( 'should skip placeholder values and only prompt for truly empty variables', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'new-key' );
 
@@ -195,7 +195,7 @@ EMPTY_KEY=`
   } );
 
   it( 'should skip variables with existing values', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'new-key' );
 
@@ -213,7 +213,7 @@ EMPTY_KEY=`
   } );
 
   it( 'should handle case where .env already exists (overwrite with copy)', async () => {
-    const { input, confirm } = await import( '@inquirer/prompts' );
+    const { input, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( input ).mockResolvedValueOnce( 'new-configured-value' );
 
@@ -234,7 +234,7 @@ EMPTY_KEY=`
   } );
 
   it( 'should return false if an error occurs during parsing', async () => {
-    const { confirm } = await import( '@inquirer/prompts' );
+    const { confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
 
     await fs.writeFile(
@@ -259,7 +259,7 @@ EMPTY_KEY=`
   } );
 
   it( 'should prompt for SECRET marker values with password input', async () => {
-    const { password, confirm } = await import( '@inquirer/prompts' );
+    const { password, confirm } = await import( '#utils/prompt.js' );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( password ).mockResolvedValueOnce( 'my-secret-api-key' );
 
