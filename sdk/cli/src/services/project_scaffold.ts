@@ -165,6 +165,25 @@ async function initializeAgents( projectPath: string ): Promise<void> {
   await initializeAgentConfig( { projectRoot: projectPath, force: false } );
 }
 
+async function maybeInitializeGit( projectPath: string ): Promise<boolean> {
+  const shouldInit = await confirm( {
+    message: 'Initialize a git repository?',
+    default: true
+  } );
+
+  if ( !shouldInit ) {
+    return false;
+  }
+
+  return executeCommandWithMessages(
+    async () => {
+      await executeCommand( 'git', [ 'init' ], projectPath );
+    },
+    'Initializing git repository...',
+    'Git repository initialized'
+  );
+}
+
 /**
  * Format error message for init errors
  * Single responsibility: only format error messages, no cleanup logic
@@ -239,10 +258,12 @@ interface RunInitState {
 /**
  * Run the init command workflow
  * @param skipEnv - Whether to skip environment configuration prompts
+ * @param skipGit - Whether to skip git repository initialization
  * @param folderName - Optional folder name to skip folder name prompt
  */
 export async function runInit(
   skipEnv: boolean = false,
+  skipGit: boolean = false,
   folderName?: string
 ): Promise<void> {
   // Track state for SIGINT cleanup using an object to avoid let
@@ -310,6 +331,10 @@ export async function runInit(
       'Installing dependencies...',
       'Dependencies installed'
     );
+
+    if ( !skipGit ) {
+      await maybeInitializeGit( config.projectPath );
+    }
 
     const nextSteps = getProjectSuccessMessage( config.folderName, installSuccess, credentialsConfigured );
     ux.stdout( 'Project created successfully!' );
