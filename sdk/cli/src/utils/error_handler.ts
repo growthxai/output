@@ -13,13 +13,15 @@ type ErrorOverrides = {
   ECONNREFUSED?: string;
 };
 
-const DEFAULT_MESSAGES = {
-  ECONNREFUSED: `Connection refused to ${config.apiUrl}. Is the API server running?`,
-  401: 'Authentication failed. Check your OUTPUT_API_AUTH_TOKEN.',
-  404: 'Resource not found.',
-  500: 'Server error.',
-  UNKNOWN: 'An unknown error occurred.'
-};
+function getDefaultMessages() {
+  return {
+    ECONNREFUSED: `Connection refused to ${config.apiUrl}. Is the API server running?`,
+    401: 'Authentication failed. Check your OUTPUT_API_AUTH_TOKEN.',
+    404: 'Resource not found.',
+    500: 'Server error.',
+    UNKNOWN: 'An unknown error occurred.'
+  };
+}
 
 interface ApiErrorData {
   error?: string;
@@ -86,7 +88,7 @@ export function handleApiError(
   overrides: ErrorOverrides = {}
 ): never {
   const apiError = error as ApiError & { cause?: Error & { code?: string } };
-  const errorMessages = { ...DEFAULT_MESSAGES, ...overrides };
+  const errorMessages = { ...getDefaultMessages(), ...overrides };
 
   if ( apiError.code === 'ECONNREFUSED' || apiError.cause?.code === 'ECONNREFUSED' ) {
     errorFn( errorMessages.ECONNREFUSED, { exit: 1 } );

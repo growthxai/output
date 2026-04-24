@@ -31,26 +31,31 @@ export type ApiRequestOptions = RequestInit & {
   config?: KyOptions;
 };
 
-const api = ky.create( {
-  prefixUrl: config.apiUrl,
-  timeout: config.requestTimeout,
-  retry: {
-    limit: 2,
-    methods: [ 'get', 'put', 'head', 'delete', 'options', 'trace' ],
-    statusCodes: [ 408, 413, 429, 502, 503, 504 ]
-  },
-  throwHttpErrors: false,
-  hooks: {
-    beforeRequest: [
-      request => {
-        // Add auth token if available
-        if ( config.apiToken ) {
-          request.headers.set( 'Authorization', `Basic ${config.apiToken}` );
-        }
+const apiState: { api?: ReturnType<typeof ky.create> } = {};
+function getApi() {
+  if ( !apiState.api ) {
+    apiState.api = ky.create( {
+      prefixUrl: config.apiUrl,
+      timeout: config.requestTimeout,
+      retry: {
+        limit: 2,
+        methods: [ 'get', 'put', 'head', 'delete', 'options', 'trace' ],
+        statusCodes: [ 408, 413, 429, 502, 503, 504 ]
+      },
+      throwHttpErrors: false,
+      hooks: {
+        beforeRequest: [
+          request => {
+            if ( config.apiToken ) {
+              request.headers.set( 'Authorization', `Basic ${config.apiToken}` );
+            }
+          }
+        ]
       }
-    ]
+    } );
   }
-} );
+  return apiState.api;
+}
 
 const stripLeadingSlash = ( url: string ): string =>
   url.startsWith( '/' ) ? url.slice( 1 ) : url;
@@ -81,7 +86,7 @@ export const customFetchInstance = async <T>(
   url: string,
   options: ApiRequestOptions
 ): Promise<T> => {
-  const response = await api(
+  const response = await getApi()(
     stripLeadingSlash( url ),
     buildKyOptions( options )
   );
