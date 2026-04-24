@@ -1,9 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { checkForUpdate } from '#services/version_check.js';
+import { setNonInteractive } from '#utils/interactive.js';
 
 vi.mock( '#services/version_check.js', () => ( {
   checkForUpdate: vi.fn()
+} ) );
+
+vi.mock( '#utils/interactive.js', () => ( {
+  setNonInteractive: vi.fn()
 } ) );
 
 vi.mock( '@oclif/core', () => ( {
@@ -65,5 +70,51 @@ describe( 'init hook', () => {
     await hook.call( ctx as any, {} as any );
 
     expect( ux.stdout ).not.toHaveBeenCalled();
+  } );
+
+  describe( 'global interactive flags', () => {
+    const originalArgv = process.argv;
+
+    beforeEach( () => {
+      vi.mocked( checkForUpdate ).mockResolvedValue( {
+        updateAvailable: false,
+        currentVersion: '0.8.4',
+        latestVersion: '0.8.4'
+      } );
+    } );
+
+    afterEach( () => {
+      process.argv = originalArgv;
+    } );
+
+    it( 'should strip --yes from process.argv and flip non-interactive', async () => {
+      process.argv = [ 'node', 'run.js', 'init', '--yes', 'my-project' ];
+
+      const ctx = createHookContext();
+      await hook.call( ctx as any, {} as any );
+
+      expect( setNonInteractive ).toHaveBeenCalledWith( true );
+      expect( process.argv ).toEqual( [ 'node', 'run.js', 'init', 'my-project' ] );
+    } );
+
+    it( 'should strip --non-interactive from process.argv and flip non-interactive', async () => {
+      process.argv = [ 'node', 'run.js', 'init', '--non-interactive' ];
+
+      const ctx = createHookContext();
+      await hook.call( ctx as any, {} as any );
+
+      expect( setNonInteractive ).toHaveBeenCalledWith( true );
+      expect( process.argv ).toEqual( [ 'node', 'run.js', 'init' ] );
+    } );
+
+    it( 'should leave process.argv untouched when no global flag is present', async () => {
+      process.argv = [ 'node', 'run.js', 'init', '--skip-env' ];
+
+      const ctx = createHookContext();
+      await hook.call( ctx as any, {} as any );
+
+      expect( setNonInteractive ).not.toHaveBeenCalled();
+      expect( process.argv ).toEqual( [ 'node', 'run.js', 'init', '--skip-env' ] );
+    } );
   } );
 } );

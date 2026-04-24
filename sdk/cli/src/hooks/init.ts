@@ -2,9 +2,16 @@ import { Hook, ux } from '@oclif/core';
 import { checkForUpdate } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
 
+const GLOBAL_FLAGS = new Set( [ '--yes', '--non-interactive' ] );
+
 const hook: Hook<'init'> = async function () {
-  if ( process.argv.includes( '--yes' ) || process.argv.includes( '--non-interactive' ) ) {
+  const hadGlobalFlag = process.argv.some( arg => GLOBAL_FLAGS.has( arg ) );
+
+  if ( hadGlobalFlag ) {
     setNonInteractive( true );
+    // Strip these flags so oclif's per-command strict parser doesn't reject
+    // them (they're handled globally here, not declared on any command).
+    process.argv = process.argv.filter( arg => !GLOBAL_FLAGS.has( arg ) );
   }
 
   try {
