@@ -612,6 +612,7 @@ export default {
        * Workflow run info
        * @typedef {Object} WorkflowRunInfo
        * @property {string} workflowId - The workflow execution id
+       * @property {string} runId - The specific run id for this execution
        * @property {string} workflowType - The workflow type/name
        * @property {string} status - The workflow execution status
        * @property {string} startedAt - The start date of the workflow execution (ISO 8601)
@@ -645,6 +646,7 @@ export default {
 
         const runs = executions.map( execution => ( {
           workflowId: execution.workflowId,
+          runId: execution.runId,
           workflowType: execution.type,
           status: mapWorkflowStatus( execution.status.name ),
           startedAt: execution.startTime.toISOString(),
