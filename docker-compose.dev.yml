@@ -50,7 +50,7 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
-      - worker_node_modules:/app/test_workflows/node_modules
+      - worker_node_modules:/app/node_modules
 
 volumes:
   worker_node_modules:
