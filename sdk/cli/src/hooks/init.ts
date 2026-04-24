@@ -2,8 +2,27 @@ import { Hook, ux } from '@oclif/core';
 import { checkForUpdate } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
 
-const hook: Hook<'init'> = async function () {
-  if ( process.argv.includes( '--yes' ) || process.argv.includes( '--non-interactive' ) ) {
+export const INTERACTIVE_FLAGS = [ '--yes', '--non-interactive' ];
+
+export const GLOBAL_FLAGS = new Set<string>( INTERACTIVE_FLAGS );
+
+export const hasInteractiveFlag = ( argv: string[] ): boolean =>
+  argv.some( arg => INTERACTIVE_FLAGS.includes( arg ) );
+
+export const stripGlobalFlags = ( argv: string[] ): void => {
+  const kept = argv.filter( arg => !GLOBAL_FLAGS.has( arg ) );
+  if ( kept.length !== argv.length ) {
+    argv.splice( 0, argv.length, ...kept );
+  }
+};
+
+const hook: Hook<'init'> = async function ( opts ) {
+  const interactive = hasInteractiveFlag( opts.argv ) || hasInteractiveFlag( process.argv );
+
+  stripGlobalFlags( opts.argv );
+  stripGlobalFlags( process.argv );
+
+  if ( interactive ) {
     setNonInteractive( true );
   }
 

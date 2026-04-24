@@ -22,6 +22,10 @@ export default class Init extends Command {
     'skip-env': Flags.boolean( {
       description: 'Skip interactive environment variable configuration',
       default: false
+    } ),
+    'skip-git': Flags.boolean( {
+      description: 'Skip git repository initialization',
+      default: false
     } )
   };
 
@@ -29,7 +33,7 @@ export default class Init extends Command {
     try {
       const { args, flags } = await this.parse( Init );
 
-      await runInit( flags['skip-env'], args.folderName );
+      await runInit( flags['skip-env'], flags['skip-git'], args.folderName );
     } catch ( error: unknown ) {
       if ( error instanceof UserCancelledError ) {
         this.log( error.message );
