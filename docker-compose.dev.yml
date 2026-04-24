@@ -46,7 +46,11 @@ services:
       - OUTPUT_TRACE_LOCAL_ON=true
       - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
-    command: sh -c "corepack enable && npm run build:packages && cd ./test_workflows && npm run output:worker:watch"
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && npm run build:packages && cd ./test_workflows && npm run output:worker:watch"
     working_dir: /app
     volumes:
       - ./:/app
+      - worker_node_modules:/app/node_modules
+
+volumes:
+  worker_node_modules:
