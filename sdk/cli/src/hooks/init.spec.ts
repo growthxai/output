@@ -19,7 +19,7 @@ vi.mock( '@oclif/core', () => ( {
 } ) );
 
 import { ux } from '@oclif/core';
-import hook from './init.js';
+import hook, { hasInteractiveFlag, stripGlobalFlags } from './init.js';
 
 describe( 'init hook', () => {
   beforeEach( () => {
@@ -96,7 +96,6 @@ describe( 'init hook', () => {
       await hook.call( ctx as any, { argv: optsArgv, id: 'init' } as any );
 
       expect( setNonInteractive ).toHaveBeenCalledWith( true );
-      // Same reference — oclif forwards this array to the command parser.
       expect( optsArgv ).toBe( argvRef );
       expect( optsArgv ).toEqual( [ 'my-project' ] );
       expect( process.argv ).toEqual( [ 'node', 'run.js', 'init', 'my-project' ] );
@@ -124,6 +123,44 @@ describe( 'init hook', () => {
       expect( setNonInteractive ).not.toHaveBeenCalled();
       expect( optsArgv ).toEqual( [ '--skip-env' ] );
       expect( process.argv ).toEqual( [ 'node', 'run.js', 'init', '--skip-env' ] );
+    } );
+  } );
+
+  describe( 'hasInteractiveFlag', () => {
+    it( 'returns true when --yes is present', () => {
+      expect( hasInteractiveFlag( [ 'init', '--yes', 'foo' ] ) ).toBe( true );
+    } );
+
+    it( 'returns true when --non-interactive is present', () => {
+      expect( hasInteractiveFlag( [ '--non-interactive' ] ) ).toBe( true );
+    } );
+
+    it( 'returns false for unrelated flags', () => {
+      expect( hasInteractiveFlag( [ 'init', '--skip-env', '--skip-git' ] ) ).toBe( false );
+    } );
+
+    it( 'returns false for an empty argv', () => {
+      expect( hasInteractiveFlag( [] ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'stripGlobalFlags', () => {
+    it( 'mutates argv in place to remove global flags', () => {
+      const argv = [ 'init', '--yes', 'foo', '--non-interactive' ];
+      const ref = argv;
+
+      stripGlobalFlags( argv );
+
+      expect( argv ).toBe( ref );
+      expect( argv ).toEqual( [ 'init', 'foo' ] );
+    } );
+
+    it( 'leaves argv untouched when no global flag is present', () => {
+      const argv = [ 'init', '--skip-env' ];
+
+      stripGlobalFlags( argv );
+
+      expect( argv ).toEqual( [ 'init', '--skip-env' ] );
     } );
   } );
 } );

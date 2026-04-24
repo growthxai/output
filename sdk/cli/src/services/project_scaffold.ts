@@ -258,7 +258,6 @@ interface RunInitState {
 /**
  * Run the init command workflow
  * @param skipEnv - Whether to skip environment configuration prompts
- * @param skipGit - Whether to skip git repository initialization
  * @param folderName - Optional folder name to skip folder name prompt
  */
 export async function runInit(
