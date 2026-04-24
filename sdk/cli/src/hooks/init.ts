@@ -3,7 +3,7 @@ import { checkForUpdate } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
 
 const hook: Hook<'init'> = async function () {
-  if ( process.argv.includes( '--yes' ) || process.argv.includes( '--non-interactive' ) || !process.stdin.isTTY ) {
+  if ( process.argv.includes( '--yes' ) || process.argv.includes( '--non-interactive' ) ) {
     setNonInteractive( true );
   }
 
