@@ -1,5 +1,5 @@
 /**
- * Each possible phase a of a trace event
+ * Each possible phase of a trace event
  */
 export const EventPhase = {
   START: 'start',

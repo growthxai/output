@@ -31,7 +31,7 @@ export { EventPhase };
  * @param {string} args.kind - The kind of Event, like HTTP, DiskWrite, DBOp, etc.
  * @param {string} args.name - The human friendly name of the Event: query, request, create.
  * @param {any} args.details - All details attached to this Event Phase. DB queried records, HTTP response body.
- * @param {string} args.parentId - The parent Event, used to build a three.
+ * @param {string} args.parentId - The parent Event, used to build a tree.
  * @param {object} args.executionContext - The original execution context from the workflow
  * @returns {void}
  */
@@ -45,7 +45,6 @@ export const addEventStart = options => addEventPhase( EventPhase.START, options
  * @param {object} args
  * @param {string} args.id - A unique id for the Event, must be the same across all phases: start, end, error.
  * @param {any} args.details - All details attached to this Event Phase. DB queried records, HTTP response body.
- * @param {string} args.parentId - The parent Event, used to build a three.
  * @param {object} args.executionContext - The original execution context from the workflow
  * @returns {void}
  */
@@ -54,12 +53,11 @@ export const addEventEnd = options => addEventPhase( EventPhase.END, options );
 /**
  * Internal use only
  *
- * Adds the error phase of an event, matching buy its id.
+ * Adds the error phase of an event, matching by its id.
  *
  * @param {object} args
  * @param {string} args.id - A unique id for the Event, must be the same across all phases: start, end, error.
  * @param {any} args.details - All details attached to this Event Phase. DB queried records, HTTP response body.
- * @param {string} args.parentId - The parent Event, used to build a three.
  * @param {object} args.executionContext - The original execution context from the workflow
  * @returns {void}
  */
@@ -73,7 +71,6 @@ export const addEventError = options => addEventPhase( EventPhase.ERROR, options
  * @param {object} args
  * @param {string} args.id - A unique id for the Event, must be the same across all phases: start, end, error.
  * @param {any} args.details - All details attached to this Event Phase. DB queried records, HTTP response body.
- * @param {string} args.parentId - The parent Event, used to build a three.
  * @param {object} args.executionContext - The original execution context from the workflow
  * @returns {void}
  */

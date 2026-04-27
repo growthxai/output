@@ -32,7 +32,7 @@ export declare function addEventError( args: { id: string; details: unknown } ):
  *
  * Use the same id as the start phase to correlate phases.
  *
- * @param args - Event metadata for the error phase.
+ * @param args - Arguments for the attribute phase.
  * @param args.eventId - The event id
  * @param args.name - The attribute name
  * @param args.value - The attribute value
