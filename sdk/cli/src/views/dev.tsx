@@ -236,7 +236,6 @@ const DevSuccessMessage: React.FC<{ services: ServiceStatus[] }> = ( { services 
         <Box><Text color="white">{'Temporal:    '}</Text><Text color="yellow">localhost:{config.ports.temporal}</Text></Box>
         <Box><Text color="white">{'Temporal UI: '}</Text><Text color="cyan">{config.temporalUiUrl}</Text></Box>
         <Box><Text color="white">{'API Server:  '}</Text><Text color="yellow">localhost:{config.ports.api}</Text></Box>
-        <Box><Text color="white">{'Redis:       '}</Text><Text color="yellow">localhost:6379</Text></Box>
       </Box>
       <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Box marginBottom={1}><Text bold>🚀 RUN A WORKFLOW</Text></Box>

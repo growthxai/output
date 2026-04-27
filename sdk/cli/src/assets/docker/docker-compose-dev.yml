@@ -4,8 +4,6 @@ services:
     image: redis:8-alpine
     networks:
       - main
-    ports:
-      - '6379:6379'
     volumes:
       - redis:/data
     healthcheck:
