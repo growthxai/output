@@ -10,7 +10,7 @@ import { parseBody, redactHeaders, serializeError } from './utils.js';
  * @param options.requestId - id of the request
  * @param options.request - The HTTP Request object
  */
-export const logRequest = async ( { requestId, request } : { requestId: string, request: Request } ) : Promise<void> =>
+export const logRequest = async ( { requestId, request } : { requestId: string, request: Request } ) : Promise<void> => {
   Tracing.addEventStart( {
     id: requestId, kind: 'http', name: 'request', details: {
       method: request.method,
@@ -18,6 +18,8 @@ export const logRequest = async ( { requestId, request } : { requestId: string, 
       ...( config.logVerbose && { headers: redactHeaders( request.headers ), body: await parseBody( request ) } )
     }
   } );
+  Tracing.addEventAttribute( { eventId: requestId, name: 'requestId', value: requestId } );
+};
 
 /**
  * Sends the trace error event for an http response with error status
