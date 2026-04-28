@@ -51,7 +51,7 @@ export function extractSourcesFromSteps( steps ) {
 /**
  * Merge sources used tools and sources from AI SDK response into a single list
  *
- * Deduplicate by url (first in stays).
+ * Deduplicate by url (prefer to keep items from sources from response).
  *
  * @param {object} args
  * @param {object[]} args.sourcesFromTools
