@@ -24,7 +24,7 @@ vi.mock( './trace.js', () => ( {
   endTraceWithError: mocks.endTraceWithError
 } ) );
 
-import { wrapTextResponse, wrapStreamResponse } from './response_wrappers.js';
+import { wrapTextResponse, wrapStreamOnFinishResponse } from './response_wrappers.js';
 
 describe( 'wrapTextResponse', () => {
   const traceId = 'trace-1';
@@ -133,7 +133,7 @@ describe( 'wrapTextResponse', () => {
   } );
 } );
 
-describe( 'wrapStreamResponse', () => {
+describe( 'wrapStreamOnFinishResponse', () => {
   const traceId = 'stream-trace';
   const modelId = 'stream-model';
   const mockCost = { total: 0.002, components: [] };
@@ -151,7 +151,7 @@ describe( 'wrapStreamResponse', () => {
       finishReason: 'stop'
     };
 
-    const callbacks = wrapStreamResponse( {
+    const callbacks = wrapStreamOnFinishResponse( {
       traceId,
       modelId,
       onFinish: userOnFinish,
@@ -176,7 +176,7 @@ describe( 'wrapStreamResponse', () => {
     const userOnError = vi.fn();
     const err = new Error( 'stream failed' );
 
-    const callbacks = wrapStreamResponse( {
+    const callbacks = wrapStreamOnFinishResponse( {
       traceId,
       modelId,
       onFinish: undefined,

@@ -7,7 +7,7 @@ const traceMocks = vi.hoisted( () => ( {
 
 const wrapMocks = vi.hoisted( () => ( {
   wrapTextResponse: vi.fn(),
-  wrapStreamResponse: vi.fn()
+  wrapStreamOnFinishResponse: vi.fn()
 } ) );
 
 vi.mock( './utils/trace.js', () => ( {
@@ -17,7 +17,7 @@ vi.mock( './utils/trace.js', () => ( {
 
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapStreamResponse: ( ...args ) => wrapMocks.wrapStreamResponse( ...args )
+  wrapStreamOnFinishResponse: ( ...args ) => wrapMocks.wrapStreamOnFinishResponse( ...args )
 } ) );
 
 const loadModelImpl = vi.fn();
@@ -93,7 +93,7 @@ beforeEach( () => {
 
   wrapMocks.wrapTextResponse.mockReset().mockImplementation( async ( { response } ) => response );
 
-  wrapMocks.wrapStreamResponse.mockReset().mockImplementation( ( { traceId, onFinish, onError } ) => ( {
+  wrapMocks.wrapStreamOnFinishResponse.mockReset().mockImplementation( ( { traceId, onFinish, onError } ) => ( {
     async onFinish( response ) {
       onFinish?.( response );
     },
@@ -375,13 +375,13 @@ describe( 'ai_sdk', () => {
     expect( result.fullStream ).toBe( 'MOCK_FULL_STREAM' );
   } );
 
-  it( 'streamText: forwards stream onFinish through wrapStreamResponse to the user callback', async () => {
+  it( 'streamText: forwards stream onFinish through wrapStreamOnFinishResponse to the user callback', async () => {
     const { streamText } = await importSut();
     const userOnFinish = vi.fn();
 
     streamText( { prompt: 'test_prompt@v1', onFinish: userOnFinish } );
 
-    expect( wrapMocks.wrapStreamResponse ).toHaveBeenCalledWith( expect.objectContaining( {
+    expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( expect.objectContaining( {
       traceId: 'trace-id',
       modelId: basePrompt.config.model,
       onFinish: userOnFinish

@@ -51,10 +51,10 @@ vi.mock( './utils/trace.js', () => ( {
 } ) );
 
 const wrapTextResponseImpl = vi.fn( async ( { response } ) => response );
-const wrapStreamResponseImpl = vi.fn( () => ( {} ) );
+const wrapStreamOnFinishResponseImpl = vi.fn( () => ( {} ) );
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapTextResponseImpl( ...args ),
-  wrapStreamResponse: ( ...args ) => wrapStreamResponseImpl( ...args )
+  wrapStreamOnFinishResponse: ( ...args ) => wrapStreamOnFinishResponseImpl( ...args )
 } ) );
 
 vi.mock( './skill.js', () => ( {
@@ -89,7 +89,7 @@ beforeEach( () => {
   superGenerateImpl.mockResolvedValue( { text: 'response', response: { messages: [] } } );
   superStreamImpl.mockReturnValue( { textStream: 'stream' } );
   wrapTextResponseImpl.mockImplementation( async ( { response } ) => response );
-  wrapStreamResponseImpl.mockReturnValue( {} );
+  wrapStreamOnFinishResponseImpl.mockReturnValue( {} );
 } );
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -279,13 +279,13 @@ describe( 'Agent — utils delegation', () => {
     } );
   } );
 
-  it( 'stream() calls trace and wrapStreamResponse', async () => {
+  it( 'stream() calls trace and wrapStreamOnFinishResponse', async () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
     await agent.stream();
 
     expect( startTraceImpl ).toHaveBeenCalledWith( { name: 'Agent.stream', prompt: 'test@v1' } );
-    expect( wrapStreamResponseImpl ).toHaveBeenCalledWith( {
+    expect( wrapStreamOnFinishResponseImpl ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       modelId: 'claude-sonnet-4-6',
       onFinish: undefined,

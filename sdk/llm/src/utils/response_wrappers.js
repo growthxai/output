@@ -52,7 +52,7 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
  * @param {Function} args.onError - User added callback
  * @returns {object} Proxied response
  */
-export const wrapStreamResponse = ( { traceId, modelId, onFinish: userOnFinish, onError: userOnError } ) => ( {
+export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: userOnFinish, onError: userOnError } ) => ( {
   async onFinish( response ) {
     const cost = await calculateLLMCallCost( { modelId, usage: response.totalUsage } );
 
@@ -60,6 +60,9 @@ export const wrapStreamResponse = ( { traceId, modelId, onFinish: userOnFinish, 
 
     userOnFinish?.( new Proxy( response, {
       get( target, prop, receiver ) {
+        if ( prop === 'result' ) {
+          return target.text;
+        }
         if ( prop === 'cost' ) {
           return cost;
         }

@@ -3,7 +3,7 @@ import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { hydratePromptTemplate, loadAiSdkOptionsFromPrompt } from './ai_sdk.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
 import { ROLE, isRole, getContent } from './utils/message.js';
 
 export { skill } from './skill.js';
@@ -90,7 +90,7 @@ export class Agent extends AIToolLoopAgent {
       return super.stream( {
         messages,
         ...callOptions,
-        ...wrapStreamResponse( { traceId, modelId: this.#modelId, onFinish, onError } )
+        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, onFinish, onError } )
       } );
     } catch ( error ) {
       endTraceWithError( { traceId, error } );

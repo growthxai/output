@@ -5,7 +5,7 @@ import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.
 import { loadPrompt } from './prompt_loader.js';
 import { buildSystemSkillsVar, buildLoadSkillTool, loadPromptSkills, loadColocatedSkills } from './skill.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
 
 export const loadAiSdkOptionsFromPrompt = prompt => {
   const options = {
@@ -99,7 +99,7 @@ export function streamText( { prompt, variables, onFinish, onError, ...restOptio
     return AI.streamText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
       ...restOptions,
-      ...wrapStreamResponse( { traceId, modelId, onFinish, onError } )
+      ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish, onError } )
     } );
   } catch ( error ) {
     endTraceWithError( { traceId, error } );
