@@ -107,6 +107,33 @@ All requests made with `@outputai/http` are automatically traced — no configur
 
 See [Tracing](/operations/tracing) for details on the trace format.
 
+## Attaching Request Cost
+
+When you know the dollar cost of an HTTP request (for example from provider billing headers), you can attach it to the HTTP trace event with `addRequestCost`.
+
+```typescript
+import { httpClient, addRequestCost } from '@outputai/http';
+
+const client = httpClient( { prefixUrl: 'https://api.vendor.com' } );
+
+const response = await client.post( 'search', {
+  json: { query: 'acme' }
+} );
+
+const inputCost = Number( response.headers.get( 'x-cost-input-usd' ) ?? 0 );
+const outputCost = Number( response.headers.get( 'x-cost-output-usd' ) ?? 0 );
+
+addRequestCost( response, {
+  total: inputCost + outputCost,
+  components: [
+    { name: 'input', value: inputCost },
+    { name: 'output', value: outputCost }
+  ]
+} );
+```
+
+`addRequestCost` only works with responses created by `@outputai/http` (or its exported `fetch`). If the response did not come from this package, the function safely no-ops and logs a warning.
+
 ## Error Handling
 
 The client throws `HTTPError` for non-2xx responses and `TimeoutError` for timeouts:
