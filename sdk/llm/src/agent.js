@@ -90,7 +90,11 @@ export class Agent extends AIToolLoopAgent {
       return super.stream( {
         messages,
         ...callOptions,
-        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, onFinish, onError } )
+        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, onFinish } ),
+        onError( event ) {
+          endTraceWithError( { traceId, error: event.error } );
+          onError?.( event );
+        }
       } );
     } catch ( error ) {
       endTraceWithError( { traceId, error } );

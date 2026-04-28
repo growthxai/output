@@ -99,7 +99,11 @@ export function streamText( { prompt, variables, onFinish, onError, ...restOptio
     return AI.streamText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
       ...restOptions,
-      ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish, onError } )
+      ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
+      onError( event ) {
+        endTraceWithError( { traceId, error: event.error } );
+        onError?.( event );
+      }
     } );
   } catch ( error ) {
     endTraceWithError( { traceId, error } );

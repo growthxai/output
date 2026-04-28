@@ -288,8 +288,7 @@ describe( 'Agent — utils delegation', () => {
     expect( wrapStreamOnFinishResponseImpl ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       modelId: 'claude-sonnet-4-6',
-      onFinish: undefined,
-      onError: undefined
+      onFinish: undefined
     } );
   } );
 } );
@@ -299,9 +298,11 @@ describe( 'Agent.stream()', () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
     await agent.stream();
-    expect( superStreamImpl ).toHaveBeenCalledWith( {
-      messages: defaultMessages
-    } );
+    expect( superStreamImpl ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        messages: defaultMessages
+      } )
+    );
   } );
 
   it( 'loads prior messages from store', async () => {
@@ -315,9 +316,11 @@ describe( 'Agent.stream()', () => {
     const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
     await agent.stream( { messages: [ { role: 'user', content: 'new' } ] } );
 
-    expect( superStreamImpl ).toHaveBeenCalledWith( {
-      messages: [ ...defaultMessages, ...priorMessages, { role: 'user', content: 'new' } ]
-    } );
+    expect( superStreamImpl ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        messages: [ ...defaultMessages, ...priorMessages, { role: 'user', content: 'new' } ]
+      } )
+    );
   } );
 
   it( 'does not auto-append to store', async () => {

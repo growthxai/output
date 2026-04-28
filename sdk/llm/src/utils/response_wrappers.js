@@ -1,6 +1,6 @@
 import { combineSources, extractSourcesFromSteps } from './source_extraction.js';
 import { calculateLLMCallCost } from '../cost/index.js';
-import { endTraceWithError, endTraceWithSuccess } from './trace.js';
+import { endTraceWithSuccess } from './trace.js';
 
 /**
  * Calculates the cost and wraps an AI SDK text response in a Proxy with shortcut for 'result' and 'cost'
@@ -38,27 +38,24 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
 };
 
 /**
- * Adds actions to the stream callbacks.
+ * Wraps the response returned by the onFinish callback from the stream.
  *
- * onFinish: Concludes the trace event, calculates cost and emits `llm:call_cost`.
+ * When the onFinish is triggered, concludes the trace event, calculates cost and emits `llm:call_cost`.
  * Returns a proxy around the response with `cost` property.
- *
- * onError: Concludes the trace event
  *
  * @param {object} args
  * @param {string} args.traceId - id created by the startTrace
  * @param {string} args.modelId - id of the model used
- * @param {Function} args.onFinish - User added callback
- * @param {Function} args.onError - User added callback
+ * @param {Function} args.onFinish - Original callback to call with the Proxied reponse
  * @returns {object} Proxied response
  */
-export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: userOnFinish, onError: userOnError } ) => ( {
+export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFinish } ) => ( {
   async onFinish( response ) {
     const cost = await calculateLLMCallCost( { modelId, usage: response.totalUsage } );
 
     endTraceWithSuccess( { traceId, modelId, response, cost } );
 
-    userOnFinish?.( new Proxy( response, {
+    _onFinish?.( new Proxy( response, {
       get( target, prop, receiver ) {
         if ( prop === 'result' ) {
           return target.text;
@@ -69,9 +66,5 @@ export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: userOn
         return Reflect.get( target, prop, receiver );
       }
     } ) );
-  },
-  onError( event ) {
-    endTraceWithError( { traceId, error: event.error } );
-    userOnError?.( event );
   }
 } );

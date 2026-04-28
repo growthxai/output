@@ -3,8 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted( () => ( {
   extractSourcesFromSteps: vi.fn(),
   calculateLLMCallCost: vi.fn(),
-  endTraceWithSuccess: vi.fn(),
-  endTraceWithError: vi.fn()
+  endTraceWithSuccess: vi.fn()
 } ) );
 
 vi.mock( './source_extraction.js', async importOriginal => {
@@ -20,8 +19,7 @@ vi.mock( '../cost/index.js', () => ( {
 } ) );
 
 vi.mock( './trace.js', () => ( {
-  endTraceWithSuccess: mocks.endTraceWithSuccess,
-  endTraceWithError: mocks.endTraceWithError
+  endTraceWithSuccess: mocks.endTraceWithSuccess
 } ) );
 
 import { wrapTextResponse, wrapStreamOnFinishResponse } from './response_wrappers.js';
@@ -143,7 +141,7 @@ describe( 'wrapStreamOnFinishResponse', () => {
     mocks.calculateLLMCallCost.mockResolvedValue( mockCost );
   } );
 
-  it( 'onFinish finishes trace, proxies cost for user callback, and forwards other props', async () => {
+  it( 'onFinish finishes trace, proxies result and cost for user callback, and forwards other props', async () => {
     const userOnFinish = vi.fn();
     const response = {
       text: 'done',
@@ -154,8 +152,7 @@ describe( 'wrapStreamOnFinishResponse', () => {
     const callbacks = wrapStreamOnFinishResponse( {
       traceId,
       modelId,
-      onFinish: userOnFinish,
-      onError: undefined
+      onFinish: userOnFinish
     } );
 
     await callbacks.onFinish( response );
@@ -168,24 +165,8 @@ describe( 'wrapStreamOnFinishResponse', () => {
     } );
     expect( userOnFinish ).toHaveBeenCalledTimes( 1 );
     const proxied = userOnFinish.mock.calls[0][0];
+    expect( proxied.result ).toBe( 'done' );
     expect( proxied.cost ).toEqual( mockCost );
     expect( proxied.finishReason ).toBe( 'stop' );
-  } );
-
-  it( 'onError records trace error and invokes user onError', () => {
-    const userOnError = vi.fn();
-    const err = new Error( 'stream failed' );
-
-    const callbacks = wrapStreamOnFinishResponse( {
-      traceId,
-      modelId,
-      onFinish: undefined,
-      onError: userOnError
-    } );
-
-    callbacks.onError( { error: err } );
-
-    expect( mocks.endTraceWithError ).toHaveBeenCalledWith( { traceId, error: err } );
-    expect( userOnError ).toHaveBeenCalledWith( { error: err } );
   } );
 } );

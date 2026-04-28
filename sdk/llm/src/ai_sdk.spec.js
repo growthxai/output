@@ -93,13 +93,9 @@ beforeEach( () => {
 
   wrapMocks.wrapTextResponse.mockReset().mockImplementation( async ( { response } ) => response );
 
-  wrapMocks.wrapStreamOnFinishResponse.mockReset().mockImplementation( ( { traceId, onFinish, onError } ) => ( {
+  wrapMocks.wrapStreamOnFinishResponse.mockReset().mockImplementation( ( { onFinish } ) => ( {
     async onFinish( response ) {
       onFinish?.( response );
-    },
-    onError( event ) {
-      traceMocks.endTraceWithError( { traceId, error: event.error } );
-      onError?.( event );
     }
   } ) );
 
