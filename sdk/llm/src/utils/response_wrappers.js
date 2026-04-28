@@ -5,7 +5,7 @@ import { endTraceWithSuccess } from './trace.js';
 /**
  * Calculates the cost and wraps an AI SDK text response in a Proxy with shortcut for 'result' and 'cost'
  *
- * Emits the `llm:call_cost` event.
+ * Emits the `cost:llm:request` event.
  *
  * Also finishes the trace events.
  *
@@ -40,7 +40,7 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
 /**
  * Wraps the response returned by the onFinish callback from the stream.
  *
- * When the onFinish is triggered, concludes the trace event, calculates cost and emits `llm:call_cost`.
+ * When the onFinish is triggered, concludes the trace event, calculates cost and emits `cost:llm:request`.
  * Returns a proxy around the response with `cost` property.
  *
  * @param {object} args

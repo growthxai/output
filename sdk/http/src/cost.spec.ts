@@ -54,7 +54,7 @@ describe( 'addRequestCost', () => {
       name: Tracing.Attribute.COST,
       value: cost
     } );
-    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-1',
       url: response.url,
       cost
@@ -79,7 +79,7 @@ describe( 'addRequestCost', () => {
       name: Tracing.Attribute.COST,
       value: cost
     } );
-    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-2',
       url: response.url,
       cost
@@ -98,7 +98,7 @@ describe( 'addRequestCost', () => {
       name: Tracing.Attribute.COST,
       value: cost
     } );
-    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-3',
       url: response.url,
       cost

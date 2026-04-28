@@ -24,5 +24,5 @@ export const addRequestCost = ( response: KyResponse | Response, cost: RequestCo
     return;
   }
   Tracing.addEventAttribute( { eventId, name: Tracing.Attribute.COST, value: cost } );
-  emitEvent( 'http:request_cost', { requestId: eventId, url: response.url, cost } );
+  emitEvent( 'cost:http:request', { requestId: eventId, url: response.url, cost } );
 };

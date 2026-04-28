@@ -54,7 +54,7 @@ describe( 'trace utils', () => {
   } );
 
   describe( 'endTraceWithSuccess', () => {
-    it( 'adds cost attribute, ends the trace with response fields and extra details, and emits llm:call_cost', () => {
+    it( 'adds cost attribute, ends the trace with response fields and extra details, and emits cost:llm:request', () => {
       const cost = { total: 0.01, components: [] };
       const usage = { inputTokens: 2, outputTokens: 3 };
       const response = {
@@ -85,7 +85,7 @@ describe( 'trace utils', () => {
           sourcesFromTools: [ { url: 'https://u.test', title: '' } ]
         }
       } );
-      expect( emitEvent ).toHaveBeenCalledWith( 'llm:call_cost', {
+      expect( emitEvent ).toHaveBeenCalledWith( 'cost:llm:request', {
         modelId: 'my-model',
         cost,
         usage

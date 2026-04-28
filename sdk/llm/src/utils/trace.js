@@ -14,5 +14,5 @@ export const endTraceWithSuccess = ( { traceId, modelId, response, cost, ...extr
   const { totalUsage: usage, text: result, providerMetadata } = response;
   Tracing.addEventAttribute( { eventId: traceId, name: Tracing.Attribute.COST, value: cost } );
   Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, ...extra } } );
-  emitEvent( 'llm:call_cost', { modelId, cost, usage } );
+  emitEvent( 'cost:llm:request', { modelId, cost, usage } );
 };
