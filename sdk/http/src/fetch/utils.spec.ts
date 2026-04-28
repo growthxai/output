@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Response, Request, Headers } from 'undici';
-import { parseBody, redactHeaders, serializeError } from './utils.js';
+import { requestIdSymbol } from '../consts.js';
+import { addRequestIdToResponse, parseBody, redactHeaders, serializeError } from './utils.js';
 
 const createMultiLevelError = ( levels : number, depth : number = 1 ) : Error =>
   depth === levels ?
@@ -288,6 +289,31 @@ describe( 'fetch/utils', () => {
         body: raw
       } );
       await expect( parseBody( request ) ).resolves.toBe( raw );
+    } );
+  } );
+
+  describe( 'addRequestIdToResponse', () => {
+    it( 'stores request id under requestIdSymbol and returns the same response', () => {
+      const response = new Response( 'ok' );
+
+      const enriched = addRequestIdToResponse( response, 'req-123' );
+
+      expect( enriched ).toBe( response );
+      expect( ( response as unknown as Record<symbol, unknown> )[requestIdSymbol] ).toBe( 'req-123' );
+    } );
+
+    it( 'defines request id as non-enumerable, non-writable and non-configurable', () => {
+      const response = new Response( 'ok' );
+      addRequestIdToResponse( response, 'req-456' );
+
+      const descriptor = Object.getOwnPropertyDescriptor( response, requestIdSymbol );
+      expect( descriptor ).toBeDefined();
+      expect( descriptor ).toMatchObject( {
+        enumerable: false,
+        configurable: false,
+        writable: false,
+        value: 'req-456'
+      } );
     } );
   } );
 } );

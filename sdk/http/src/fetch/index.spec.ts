@@ -12,6 +12,9 @@ const loggerMock = vi.hoisted( () => ( {
   logError: vi.fn( ( _args: { requestId: string; response: UndiciResponse } ): void => {} ),
   logFailure: vi.fn( ( _args: { requestId: string; error: Error } ): void => {} )
 } ) );
+const utilsMock = vi.hoisted( () => ( {
+  addRequestIdToResponse: vi.fn()
+} ) );
 
 vi.mock( 'node:crypto', () => ( {
   randomUUID: () => randomUUIDMock()
@@ -22,6 +25,9 @@ vi.mock( './logger.js', () => ( {
   logResponse: loggerMock.logResponse,
   logError: loggerMock.logError,
   logFailure: loggerMock.logFailure
+} ) );
+vi.mock( './utils.js', () => ( {
+  addRequestIdToResponse: utilsMock.addRequestIdToResponse
 } ) );
 
 import { fetch } from './index.js';
@@ -46,6 +52,7 @@ describe( 'fetch/index', () => {
     loggerMock.logResponse.mockClear();
     loggerMock.logError.mockClear();
     loggerMock.logFailure.mockClear();
+    utilsMock.addRequestIdToResponse.mockClear();
     randomUUIDMock.mockClear();
     randomUUIDMock.mockImplementation( () => FIXED_REQUEST_ID );
   } );
@@ -80,6 +87,8 @@ describe( 'fetch/index', () => {
       expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
       expect( loggerMock.logResponse.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
       expect( loggerMock.logResponse.mock.calls[0][0].response ).toBe( response );
+      expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledWith( response, FIXED_REQUEST_ID );
 
       expect( loggerMock.logError ).not.toHaveBeenCalled();
       expect( loggerMock.logFailure ).not.toHaveBeenCalled();
@@ -101,6 +110,8 @@ describe( 'fetch/index', () => {
       expect( loggerMock.logError ).toHaveBeenCalledTimes( 1 );
       expect( loggerMock.logError.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
       expect( loggerMock.logError.mock.calls[0][0].response ).toBe( response );
+      expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledWith( response, FIXED_REQUEST_ID );
     } );
 
     it( 'treats status 399 as success (logs response end, not HTTP error)', async () => {
@@ -184,6 +195,7 @@ describe( 'fetch/index', () => {
       expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
       expect( loggerMock.logResponse ).not.toHaveBeenCalled();
       expect( loggerMock.logFailure ).toHaveBeenCalledTimes( 1 );
+      expect( utilsMock.addRequestIdToResponse ).not.toHaveBeenCalled();
     } );
 
     it( 'passes method and body through to undici for POST JSON', async () => {

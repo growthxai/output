@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { config } from './config.js';
+import { requestIdSymbol } from './consts.js';
 
 vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
   Tracing: {
@@ -36,7 +36,7 @@ describe( 'addRequestCost', () => {
 
   it( 'records cost on the trace event when the response carries the request id', () => {
     const response = new Response();
-    Reflect.set( response, config.requestIdSymbol, 'evt-cost-1' );
+    Reflect.set( response, requestIdSymbol, 'evt-cost-1' );
     const cost = { total: 2.5 };
 
     addRequestCost( response, cost );
@@ -51,7 +51,7 @@ describe( 'addRequestCost', () => {
 
   it( 'forwards multiple components to tracing', () => {
     const response = new Response();
-    Reflect.set( response, config.requestIdSymbol, 'evt-cost-2' );
+    Reflect.set( response, requestIdSymbol, 'evt-cost-2' );
     const cost = {
       total: 10,
       components: [
@@ -71,7 +71,7 @@ describe( 'addRequestCost', () => {
 
   it( 'forwards an empty components array to tracing', () => {
     const response = new Response();
-    Reflect.set( response, config.requestIdSymbol, 'evt-cost-3' );
+    Reflect.set( response, requestIdSymbol, 'evt-cost-3' );
     const cost = { total: 1, components: [] };
 
     addRequestCost( response, cost );

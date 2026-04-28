@@ -1,6 +1,6 @@
 import { KyResponse } from 'ky';
-import { config } from './config.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { requestIdSymbol } from './consts.js';
 
 export type RequestCost = {
   total: number,
@@ -18,7 +18,7 @@ export type RequestCost = {
  * @returns
  */
 export const addRequestCost = ( response: KyResponse | Response, cost: RequestCost ) : void => {
-  const eventId = Reflect.get( response, config.requestIdSymbol ) as string;
+  const eventId = Reflect.get( response, requestIdSymbol ) as string;
   if ( !eventId ) {
     console.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.' );
     return;
