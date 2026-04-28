@@ -44,7 +44,7 @@ on( 'cost:http:request', async ( { workflowId, activityId, requestId, url, cost 
 
 Handler errors are caught and logged by the framework — they never affect the workflow or the request that triggered them.
 
-## `cost:llm:request`
+## LLM request cost
 
 ### When events fire
 
@@ -126,7 +126,7 @@ A given response may list only a subset of these — for example no `reasoning_t
 }
 ```
 
-## `cost:http:request` {#http-request-cost}
+## HTTP request cost
 
 Events fire only when your code calls [`addRequestCost( response, cost )`](/packages/http#attaching-request-cost) with a **response object created by `@outputai/http`** (or its exported `fetch`). The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
 
@@ -142,7 +142,7 @@ The handler receives a single object. As with `cost:llm:request`, `workflowId` a
 | `url` | `string` | Final response URL (same as `response.url`). |
 | `cost` | `object` | Dollar cost you passed to `addRequestCost`. See [HTTP cost shape](#http-cost-shape). |
 
-### HTTP cost shape {#http-cost-shape}
+### HTTP cost shape
 
 Same top-level shape as LLM costs: a numeric **`total`** and an optional **`components`** array of `{ name, value }`. For HTTP, **`name` and `value` are entirely yours** — they mirror what you pass to `addRequestCost` (for example labels derived from vendor billing headers).
 
