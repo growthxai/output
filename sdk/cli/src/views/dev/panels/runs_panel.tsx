@@ -7,6 +7,7 @@ import { elapsedMs, formatDurationCompact, formatDate } from '#utils/date_format
 import { openUrl } from '#utils/open_url.js';
 import Spinner from 'ink-spinner';
 import { Footer } from '#views/dev/chrome/footer.js';
+import { HorizontalRule } from '#views/dev/chrome/divider.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { RunDetailView } from '#views/dev/panels/run_detail_view.js';
 import { useRunDetail } from '#views/dev/hooks/use_run_detail.js';
@@ -14,7 +15,7 @@ import { JsonView } from '#views/dev/utils/json_render.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
-const VISIBLE_ROWS = 16;
+const VISIBLE_ROWS = 8;
 
 const STATUS_ORDER: Record<string, number> = {
   running: 0,
@@ -103,13 +104,6 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
   );
 };
 
-const SidebarKV: React.FC<{ label: string; value: string; color?: string }> = ( { label, value, color } ) => (
-  <Box flexDirection="column" marginTop={1}>
-    <Text dimColor bold>{label}</Text>
-    <Text color={color}>{value}</Text>
-  </Box>
-);
-
 const PREVIEW_LINES = 12;
 
 const extractRunInput = ( trace: TraceData | null ): unknown => {
@@ -148,12 +142,19 @@ interface RunPaneData {
   loading: boolean;
 }
 
-const Sidebar: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | null }> = ( { run, pane } ) => {
+const InlineKV: React.FC<{ label: string; value: string }> = ( { label, value } ) => (
+  <Box>
+    <Text dimColor>{label}: </Text>
+    <Text>{value}</Text>
+  </Box>
+);
+
+const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | null }> = ( { run, pane } ) => {
   const ui = useUiState();
 
   if ( !run || !pane ) {
     return (
-      <Box flexDirection="column" paddingLeft={2}>
+      <Box>
         <Text dimColor>Select a run to see details.</Text>
       </Box>
     );
@@ -190,19 +191,24 @@ const Sidebar: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | null
     return <JsonView value={runOutput} maxLines={PREVIEW_LINES} />;
   };
 
+  const heading = `${run.workflowType ?? 'run'} : ${run.runId ?? run.workflowId ?? '-'}`;
+
   return (
-    <Box flexDirection="column" paddingLeft={2}>
+    <Box flexDirection="column">
       <Box>
+        <Text backgroundColor="magenta" color="white" bold>{` ${heading} `}</Text>
+      </Box>
+      <Box marginTop={1}>
         <StatusIcon status={status} />
         <Text> </Text>
         <Text bold color={statusColor( status )}>{status.toUpperCase()}</Text>
+        <Text dimColor>     </Text>
+        <InlineKV label="DURATION" value={duration} />
+        <Text dimColor>     </Text>
+        <InlineKV label="STARTED" value={formatDate( run.startedAt )} />
+        <Text dimColor>     </Text>
+        <InlineKV label="COMPLETED" value={run.completedAt ? formatDate( run.completedAt ) : '—'} />
       </Box>
-      <SidebarKV label="WORKFLOW ID" value={run.workflowId ?? '-'} />
-      <SidebarKV label="TYPE" value={run.workflowType ?? '-'} />
-      <SidebarKV label="DURATION" value={duration} />
-      <SidebarKV label="STARTED" value={formatDate( run.startedAt )} />
-      <SidebarKV label="COMPLETED" value={run.completedAt ? formatDate( run.completedAt ) : '—' } />
-
       <Box marginTop={1}>
         <PaneTabs active={activePane} />
       </Box>
@@ -214,9 +220,9 @@ const Sidebar: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | null
 };
 
 const HINTS = [
-  { key: 'j/k', label: 'navigate' },
+  { key: '↑/↓', label: 'navigate' },
   { key: 'enter', label: 'open' },
-  { key: 'h/l', label: 'switch pane' },
+  { key: '←/→', label: 'switch pane' },
   { key: 'e', label: 'expand' },
   { key: 'o', label: 'temporal' },
   { key: '/', label: 'filter' },
@@ -262,11 +268,11 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
   }, [ selectedRun?.runId, selectedRun?.workflowId, selectedRun?.workflowType, setSelection ] );
 
   useInput( ( input, key ) => {
-    if ( key.upArrow || input === 'k' ) {
+    if ( key.upArrow ) {
       setSelectedIndex( i => Math.max( 0, i - 1 ) );
       return;
     }
-    if ( key.downArrow || input === 'j' ) {
+    if ( key.downArrow ) {
       setSelectedIndex( i => Math.min( filteredRuns.length - 1, i + 1 ) );
       return;
     }
@@ -278,7 +284,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
       ui.setRunsView( 'detail' );
       return;
     }
-    if ( input === 'h' || input === 'l' ) {
+    if ( key.leftArrow || key.rightArrow ) {
       ui.setRightPaneTab( ui.rightPaneTab === 'input' ? 'output' : 'input' );
       return;
     }
@@ -342,34 +348,24 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="row">
-        <Box flexDirection="column" flexGrow={1}>
-          <HeaderRow />
-          {windowStart > 0 && <Text dimColor>  ↑ {windowStart} more above</Text>}
-          {visibleRuns.map( ( run, i ) => (
-            <RunRow
-              key={`${run.workflowId}-${run.runId ?? run.startedAt}-${windowStart + i}`}
-              run={run}
-              selected={windowStart + i === clampedIndex}
-            />
-          ) )}
-          {windowStart + VISIBLE_ROWS < filteredRuns.length && (
-            <Text dimColor>  ↓ {filteredRuns.length - windowStart - VISIBLE_ROWS} more below</Text>
-          )}
-        </Box>
-        <Box
-          flexDirection="column"
-          width={40}
-          borderStyle="single"
-          borderColor="gray"
-          borderTop={false}
-          borderBottom={false}
-          borderRight={false}
-          paddingLeft={1}
-        >
-          <Sidebar run={selectedRun} pane={pane} />
-        </Box>
+      <Box flexDirection="column">
+        <HeaderRow />
+        {windowStart > 0 && <Text dimColor>  ↑ {windowStart} more above</Text>}
+        {visibleRuns.map( ( run, i ) => (
+          <RunRow
+            key={`${run.workflowId}-${run.runId ?? run.startedAt}-${windowStart + i}`}
+            run={run}
+            selected={windowStart + i === clampedIndex}
+          />
+        ) )}
+        {windowStart + VISIBLE_ROWS < filteredRuns.length && (
+          <Text dimColor>  ↓ {filteredRuns.length - windowStart - VISIBLE_ROWS} more below</Text>
+        )}
       </Box>
+      <Box marginTop={1} marginBottom={1}>
+        <HorizontalRule color="gray" />
+      </Box>
+      <DetailPane run={selectedRun} pane={pane} />
       <Footer hints={HINTS} itemCount={filteredRuns.length} itemLabel="runs" />
     </Box>
   );

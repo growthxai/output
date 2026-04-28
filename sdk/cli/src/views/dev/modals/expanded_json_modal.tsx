@@ -21,32 +21,24 @@ export const ExpandedJsonModal: React.FC = () => {
   const clampedOffset = Math.min( offset, maxOffset );
 
   useInput( ( input, key ) => {
-    if ( key.escape || input === 'q' ) {
+    if ( key.escape ) {
       ui.closeExpandedJson();
       return;
     }
-    if ( input === 'j' || key.downArrow ) {
+    if ( key.downArrow ) {
       setOffset( o => Math.min( maxOffset, o + 1 ) );
       return;
     }
-    if ( input === 'k' || key.upArrow ) {
+    if ( key.upArrow ) {
       setOffset( o => Math.max( 0, o - 1 ) );
       return;
     }
-    if ( input === 'J' || ( key.ctrl && input === 'd' ) || key.pageDown ) {
+    if ( key.pageDown ) {
       setOffset( o => Math.min( maxOffset, o + PAGE_SIZE ) );
       return;
     }
-    if ( input === 'K' || ( key.ctrl && input === 'u' ) || key.pageUp ) {
+    if ( key.pageUp ) {
       setOffset( o => Math.max( 0, o - PAGE_SIZE ) );
-      return;
-    }
-    if ( input === 'g' ) {
-      setOffset( 0 );
-      return;
-    }
-    if ( input === 'G' ) {
-      setOffset( maxOffset );
     }
   } );
 
@@ -70,9 +62,8 @@ export const ExpandedJsonModal: React.FC = () => {
         <Text color="#a78bfa">{'─'.repeat( Math.max( 1, cols ) )}</Text>
       </Box>
       <Box>
-        <Text bold>j/k</Text><Text dimColor> scroll  </Text>
-        <Text bold>J/K</Text><Text dimColor> page  </Text>
-        <Text bold>g/G</Text><Text dimColor> top/bottom  </Text>
+        <Text bold>↑/↓</Text><Text dimColor> scroll  </Text>
+        <Text bold>pgup/pgdn</Text><Text dimColor> page  </Text>
         <Text bold>esc</Text><Text dimColor> close</Text>
       </Box>
     </Box>

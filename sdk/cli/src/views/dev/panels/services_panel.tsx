@@ -5,6 +5,7 @@ import { isServiceFailed, SERVICE_HEALTH, type ServiceStatus } from '#services/d
 import { StatusIcon } from '#components/status_icon.js';
 import { openUrl } from '#utils/open_url.js';
 import { Footer } from '#views/dev/chrome/footer.js';
+import { HorizontalRule } from '#views/dev/chrome/divider.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { useDockerLogs } from '#views/dev/hooks/use_docker_logs.js';
 import { restartService, restartStack } from '#views/dev/services/docker_control.js';
@@ -98,9 +99,9 @@ const LogPane: React.FC<{ serviceName: string | null; lines: string[]; paused: b
 };
 
 const HINTS = [
-  { key: 'j/k', label: 'navigate' },
+  { key: '↑/↓', label: 'navigate' },
   { key: 'r/R', label: 'restart one/all' },
-  { key: 'l', label: 'pause logs' },
+  { key: 'p', label: 'pause logs' },
   { key: 'c', label: 'clear' },
   { key: 'o', label: 'open url' },
   { key: 'tab', label: 'next tab' },
@@ -148,18 +149,18 @@ export const ServicesPanel: React.FC<{
   }, [ banner ] );
 
   useInput( ( input, key ) => {
-    if ( key.upArrow || input === 'k' ) {
+    if ( key.upArrow ) {
       setSelectedIndex( i => Math.max( 0, i - 1 ) );
       return;
     }
-    if ( key.downArrow || input === 'j' ) {
+    if ( key.downArrow ) {
       setSelectedIndex( i => Math.min( services.length - 1, i + 1 ) );
       return;
     }
     if ( !selectedService ) {
       return;
     }
-    if ( input === 'l' ) {
+    if ( input === 'p' ) {
       logs.setPaused( !logs.paused );
       return;
     }
@@ -215,38 +216,25 @@ export const ServicesPanel: React.FC<{
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="row">
-        <Box flexDirection="column" width={56}>
-          <Text bold>🐳 Services</Text>
-          <Box flexDirection="column" marginTop={1}>
-            <HeaderRow />
-            {services.map( ( s, i ) => (
-              <ServiceRow key={s.name} service={s} selected={i === clamped} />
-            ) )}
-          </Box>
-          <FailureBanner services={services} />
-          <Box marginTop={1} flexDirection="column">
-            <Text dimColor>To stop the stack and exit:</Text>
-            <Box>
-              <Text bold>ctrl+c</Text>
-              <Text dimColor> — terminates the worker, API, Temporal, and Redis containers cleanly.</Text>
-            </Box>
-          </Box>
+      <Box flexDirection="column">
+        <Text bold>🐳 Services</Text>
+        <Box flexDirection="column" marginTop={1}>
+          <HeaderRow />
+          {services.map( ( s, i ) => (
+            <ServiceRow key={s.name} service={s} selected={i === clamped} />
+          ) )}
         </Box>
-        <Box
-          flexDirection="column"
-          flexGrow={1}
-          borderStyle="single"
-          borderColor="gray"
-          borderTop={false}
-          borderBottom={false}
-          borderRight={false}
-          paddingLeft={1}
-        >
-          <Text bold>📜 {selectedService?.name ?? 'Logs'}</Text>
-          <Box flexDirection="column" marginTop={1}>
-            <LogPane serviceName={selectedService?.name ?? null} lines={logs.lines} paused={logs.paused} />
-          </Box>
+        <FailureBanner services={services} />
+      </Box>
+      <Box marginTop={1} marginBottom={1}>
+        <HorizontalRule color="gray" />
+      </Box>
+      <Box flexDirection="column">
+        <Box>
+          <Text backgroundColor="magenta" color="white" bold>{` 📜 ${selectedService?.name ?? 'Logs'} `}</Text>
+        </Box>
+        <Box flexDirection="column" marginTop={1}>
+          <LogPane serviceName={selectedService?.name ?? null} lines={logs.lines} paused={logs.paused} />
         </Box>
       </Box>
       {banner && (

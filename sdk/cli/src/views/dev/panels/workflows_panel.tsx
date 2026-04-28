@@ -6,18 +6,15 @@ import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { format, parseISO } from 'date-fns';
 import { Footer } from '#views/dev/chrome/footer.js';
+import { HorizontalRule } from '#views/dev/chrome/divider.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 
-const VISIBLE_ROWS = 16;
-const RECENT_RUNS_LIMIT = 6;
-
-const truncate = ( str: string, max: number ): string =>
-  str.length > max ? `${str.slice( 0, max - 1 )}…` : str;
+const VISIBLE_ROWS = 8;
+const RECENT_RUNS_LIMIT = 5;
 
 const COL = {
   indicator: 2,
-  name: 30,
-  description: 60
+  name: 30
 };
 
 const matchesQuery = ( workflow: Workflow, query: string ): boolean => {
@@ -38,7 +35,7 @@ const HeaderRow: React.FC = () => (
   <Box>
     <Box width={COL.indicator}><Text> </Text></Box>
     <Box width={COL.name}><Text dimColor bold>WORKFLOW</Text></Box>
-    <Box width={COL.description}><Text dimColor bold>DESCRIPTION</Text></Box>
+    <Box flexGrow={1}><Text dimColor bold>DESCRIPTION</Text></Box>
   </Box>
 );
 
@@ -47,9 +44,9 @@ const WorkflowRow: React.FC<{ workflow: Workflow; selected: boolean }> = ( { wor
     <Box width={COL.indicator}>
       <Text bold={selected}>{selected ? '▸' : ' '}</Text>
     </Box>
-    <Box width={COL.name}><Text bold={selected}>{truncate( workflow.name ?? '-', COL.name - 1 )}</Text></Box>
-    <Box width={COL.description}>
-      <Text dimColor={!selected}>{truncate( workflow.description ?? 'No description', COL.description - 1 )}</Text>
+    <Box width={COL.name}><Text bold={selected} wrap="truncate-end">{workflow.name ?? '-'}</Text></Box>
+    <Box flexGrow={1}>
+      <Text dimColor={!selected} wrap="truncate-end">{workflow.description ?? 'No description'}</Text>
     </Box>
   </Box>
 );
@@ -79,10 +76,10 @@ const SidebarRunRow: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
   );
 };
 
-const Sidebar: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[] }> = ( { workflow, runs } ) => {
+const DetailPane: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[] }> = ( { workflow, runs } ) => {
   if ( !workflow ) {
     return (
-      <Box flexDirection="column" paddingLeft={2}>
+      <Box>
         <Text dimColor>Select a workflow to see details.</Text>
       </Box>
     );
@@ -97,36 +94,45 @@ const Sidebar: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[] }>
   const recent = wfRuns.slice( 0, RECENT_RUNS_LIMIT );
 
   return (
-    <Box flexDirection="column" paddingLeft={2}>
-      <Text bold>{workflow.name}</Text>
-      <Box marginTop={1}>
-        <Text wrap="wrap">{workflow.description ?? 'No description'}</Text>
+    <Box flexDirection="column">
+      <Box>
+        <Text backgroundColor="magenta" color="white" bold>{` ${workflow.name} `}</Text>
+        <Text dimColor>   </Text>
+        <Text>{stats.total} runs</Text>
+        {stats.running > 0 && <><Text dimColor>   </Text><Text color="blue">● {stats.running} running</Text></>}
+        {stats.failed > 0 && <><Text dimColor>   </Text><Text color="red">✗ {stats.failed} failed</Text></>}
+        {stats.completed > 0 && <><Text dimColor>   </Text><Text color="green">● {stats.completed} ok</Text></>}
       </Box>
-
-      <Box flexDirection="column" marginTop={1}>
-        <Text dimColor bold>STATS</Text>
-        <Box marginTop={1}>
-          <Text>{stats.total} total</Text>
-          {stats.running > 0 && <Text color="blue">  ● {stats.running} running</Text>}
-          {stats.failed > 0 && <Text color="red">  ✗ {stats.failed} failed</Text>}
-          {stats.completed > 0 && <Text color="green">  ● {stats.completed} ok</Text>}
+      <Box flexDirection="row" marginTop={1}>
+        <Box flexDirection="column" flexGrow={1} paddingRight={2}>
+          <Text wrap="wrap">{workflow.description ?? 'No description'}</Text>
         </Box>
-      </Box>
-
-      <Box flexDirection="column" marginTop={1}>
-        <Text dimColor bold>RECENT RUNS</Text>
-        {recent.length === 0 ? (
-          <Text dimColor>No runs yet</Text>
-        ) : (
-          recent.map( ( run, i ) => <SidebarRunRow key={`${run.runId ?? i}`} run={run} /> )
-        )}
+        <Box
+          flexDirection="column"
+          width={42}
+          borderStyle="single"
+          borderColor="gray"
+          borderTop={false}
+          borderBottom={false}
+          borderRight={false}
+          paddingLeft={2}
+        >
+          <Text dimColor bold>RECENT RUNS</Text>
+          <Box flexDirection="column" marginTop={1}>
+            {recent.length === 0 ? (
+              <Text dimColor>No runs yet</Text>
+            ) : (
+              recent.map( ( run, i ) => <SidebarRunRow key={`${run.runId ?? i}`} run={run} /> )
+            )}
+          </Box>
+        </Box>
       </Box>
     </Box>
   );
 };
 
 const HINTS = [
-  { key: 'j/k', label: 'navigate' },
+  { key: '↑/↓', label: 'navigate' },
   { key: 'enter', label: 'show runs' },
   { key: 'r', label: 'run' },
   { key: '/', label: 'search' },
@@ -165,9 +171,9 @@ export const WorkflowsPanel: React.FC<{
   }, [ selectedWorkflow?.name, setSelection ] );
 
   useInput( ( input, key ) => {
-    if ( key.upArrow || input === 'k' ) {
+    if ( key.upArrow ) {
       setSelectedIndex( i => Math.max( 0, i - 1 ) );
-    } else if ( key.downArrow || input === 'j' ) {
+    } else if ( key.downArrow ) {
       setSelectedIndex( i => Math.min( filtered.length - 1, i + 1 ) );
     } else if ( key.return && selectedWorkflow?.name ) {
       ui.setSearchQuery( selectedWorkflow.name );
@@ -214,30 +220,20 @@ export const WorkflowsPanel: React.FC<{
 
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="row">
-        <Box flexDirection="column" flexGrow={1}>
-          <HeaderRow />
-          {windowStart > 0 && <Text dimColor>  ↑ {windowStart} more above</Text>}
-          {visible.map( ( wf, i ) => (
-            <WorkflowRow key={wf.name ?? i} workflow={wf} selected={windowStart + i === clamped} />
-          ) )}
-          {windowStart + VISIBLE_ROWS < filtered.length && (
-            <Text dimColor>  ↓ {filtered.length - windowStart - VISIBLE_ROWS} more below</Text>
-          )}
-        </Box>
-        <Box
-          flexDirection="column"
-          width={44}
-          borderStyle="single"
-          borderColor="gray"
-          borderTop={false}
-          borderBottom={false}
-          borderRight={false}
-          paddingLeft={1}
-        >
-          <Sidebar workflow={selectedWorkflow} runs={runs} />
-        </Box>
+      <Box flexDirection="column">
+        <HeaderRow />
+        {windowStart > 0 && <Text dimColor>  ↑ {windowStart} more above</Text>}
+        {visible.map( ( wf, i ) => (
+          <WorkflowRow key={wf.name ?? i} workflow={wf} selected={windowStart + i === clamped} />
+        ) )}
+        {windowStart + VISIBLE_ROWS < filtered.length && (
+          <Text dimColor>  ↓ {filtered.length - windowStart - VISIBLE_ROWS} more below</Text>
+        )}
       </Box>
+      <Box marginTop={1} marginBottom={1}>
+        <HorizontalRule color="gray" />
+      </Box>
+      <DetailPane workflow={selectedWorkflow} runs={runs} />
       <Footer hints={HINTS} itemCount={filtered.length} itemLabel="workflows" />
     </Box>
   );

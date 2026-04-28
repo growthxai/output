@@ -31,10 +31,16 @@ export interface HeaderCounters {
   failed: number;
   totalWorkflows: number;
   totalRuns: number;
+  failingServices: number;
 }
 
 const Counters: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => (
   <Box flexDirection="row">
+    {counters.failingServices > 0 && (
+      <Box marginRight={3}>
+        <Text color="red" bold>⚠ {counters.failingServices} service{counters.failingServices === 1 ? '' : 's'} down</Text>
+      </Box>
+    )}
     {counters.running > 0 && (
       <Box marginRight={3}>
         <Text color="blue">● </Text>
@@ -70,12 +76,14 @@ const Logo: React.FC<{ cols: number }> = ( { cols } ) => {
 
 export const buildSummaryCounters = (
   summary: WorkflowSummary | null,
-  totalWorkflows: number
+  totalWorkflows: number,
+  failingServices: number = 0
 ): HeaderCounters => ( {
   running: summary?.running ?? 0,
   failed: summary?.failed ?? 0,
   totalWorkflows,
-  totalRuns: summary?.total ?? 0
+  totalRuns: summary?.total ?? 0,
+  failingServices
 } );
 
 export const Header: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => {

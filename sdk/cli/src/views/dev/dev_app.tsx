@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, useApp, useInput, useStdout } from 'ink';
-import type { ServiceStatus } from '#services/docker.js';
+import { isServiceFailed, type ServiceStatus } from '#services/docker.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
 import type { WorkflowSummary } from '#components/workflow_summary.js';
@@ -134,21 +134,22 @@ const Shell: React.FC<{
   useGlobalInput( { onCleanup } );
 
   const summary = useMemo( () => computeWorkflowSummary( runs ), [ runs ] );
-  const counters = buildSummaryCounters( summary, workflows.length );
+  const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
+  const counters = buildSummaryCounters( summary, workflows.length, failingServices );
 
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;
 
   if ( ui.expandedJson.open ) {
     return (
-      <Box flexDirection="column" height={rows}>
+      <Box flexDirection="column" height={rows} paddingX={2} paddingTop={1}>
         <ExpandedJsonModal />
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" height={rows}>
+    <Box flexDirection="column" height={rows} paddingX={2} paddingTop={1}>
       <Header counters={counters} />
       <TabBar active={ui.tab} />
       <HorizontalRule />

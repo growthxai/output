@@ -20,12 +20,12 @@ interface Entry {
 const buildEntries = ( scenarios: string[] ): Entry[] => {
   const list: Entry[] = scenarios.map( s => ( {
     kind: 'scenario' as const,
-    label: `▶  ${s}`,
+    label: s,
     scenarioName: s
   } ) );
-  list.push( { kind: 'custom', label: '✏  Custom input  (in-tui editor)' } );
+  list.push( { kind: 'custom', label: 'Custom input' } );
   for ( const s of scenarios ) {
-    list.push( { kind: 'duplicate', label: `📋 Duplicate '${s}' → new scenario`, scenarioName: s } );
+    list.push( { kind: 'duplicate', label: `Duplicate '${s}' → new scenario`, scenarioName: s } );
   }
   return list;
 };
@@ -141,11 +141,11 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         closeWith();
         return;
       }
-      if ( key.upArrow || input === 'k' ) {
+      if ( key.upArrow ) {
         setIndex( i => Math.max( 0, i - 1 ) );
         return;
       }
-      if ( key.downArrow || input === 'j' ) {
+      if ( key.downArrow ) {
         setIndex( i => Math.min( entries.length - 1, i + 1 ) );
         return;
       }
@@ -251,7 +251,7 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         </Box>
       )}
       <Box marginTop={1}>
-        <Text dimColor>j/k</Text>
+        <Text dimColor>↑/↓</Text>
         <Text> navigate   </Text>
         <Text dimColor>enter</Text>
         <Text> run   </Text>

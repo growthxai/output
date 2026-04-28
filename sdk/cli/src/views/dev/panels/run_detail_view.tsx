@@ -118,8 +118,8 @@ const StepDetail: React.FC<{ step: RunStep | undefined; activeTab: RightPaneTab 
 };
 
 const HINTS = [
-  { key: 'j/k', label: 'navigate' },
-  { key: 'h/l', label: 'switch pane' },
+  { key: '↑/↓', label: 'navigate' },
+  { key: '←/→', label: 'switch pane' },
   { key: 'e', label: 'expand' },
   { key: 'esc', label: 'back' },
   { key: 'tab', label: 'next tab' }
@@ -146,19 +146,19 @@ export const RunDetailView: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
       ui.setRunsView( 'list' );
       return;
     }
-    if ( key.upArrow || input === 'k' ) {
+    if ( key.upArrow ) {
       setStepIndex( i => Math.max( 0, i - 1 ) );
       return;
     }
-    if ( key.downArrow || input === 'j' ) {
+    if ( key.downArrow ) {
       setStepIndex( i => Math.min( steps.length - 1, i + 1 ) );
       return;
     }
-    if ( input === 'h' ) {
+    if ( key.leftArrow ) {
       ui.setRightPaneTab( cycleRightPane( ui.rightPaneTab, -1 ) );
       return;
     }
-    if ( input === 'l' ) {
+    if ( key.rightArrow ) {
       ui.setRightPaneTab( cycleRightPane( ui.rightPaneTab, 1 ) );
       return;
     }

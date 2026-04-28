@@ -142,7 +142,7 @@ const SECTIONS: Section[] = [
 ];
 
 const HINTS = [
-  { key: 'j/k', label: 'navigate' },
+  { key: '↑/↓', label: 'navigate' },
   { key: 'tab', label: 'next tab' },
   { key: 'ctrl+c', label: 'quit' }
 ];
@@ -152,10 +152,10 @@ export const HelpPanel: React.FC = () => {
   const [ index, setIndex ] = useState( 0 );
   const isActive = ui.tab === 'help' && !ui.search.open && !ui.runModal.open;
 
-  useInput( ( input, key ) => {
-    if ( key.upArrow || input === 'k' ) {
+  useInput( ( _input, key ) => {
+    if ( key.upArrow ) {
       setIndex( i => Math.max( 0, i - 1 ) );
-    } else if ( key.downArrow || input === 'j' ) {
+    } else if ( key.downArrow ) {
       setIndex( i => Math.min( SECTIONS.length - 1, i + 1 ) );
     }
   }, { isActive } );
