@@ -80,7 +80,6 @@ describe( 'trace utils', () => {
         id: 'trace-a',
         details: {
           result: 'hello',
-          cost,
           usage,
           providerMetadata: { provider: 'x' },
           sourcesFromTools: [ { url: 'https://u.test', title: '' } ]
