@@ -7,7 +7,7 @@ const calcCost = ( tokens, ppm ) => Decimal( tokens ?? 0 ).div( M ).mul( ppm ).t
 /**
  * Calculates the cost of an llm call based on the model and usage.
  * @param {object} args
- * @param {string} args.modelId - Name of the mode, provider prefix is optional
+ * @param {string} args.modelId - Name of the model, provider prefix is optional
  * @param {object} args.usage - Usage, as returned from AI SDK
  * @returns {object} The cost with total value and components
  */

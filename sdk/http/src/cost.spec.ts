@@ -7,17 +7,20 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
     Attribute: {
       COST: 'cost'
     }
-  }
+  },
+  emitEvent: vi.fn()
 } ) );
 
-import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { addRequestCost } from './cost.js';
 
 const tracing = vi.mocked( Tracing, true );
+const emit = vi.mocked( emitEvent, true );
 
 describe( 'addRequestCost', () => {
   beforeEach( () => {
     tracing.addEventAttribute.mockClear();
+    emit.mockClear();
     vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
   } );
 
@@ -35,10 +38,11 @@ describe( 'addRequestCost', () => {
       'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.'
     );
     expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
+    expect( emit ).not.toHaveBeenCalled();
   } );
 
   it( 'records cost on the trace event when the response carries the request id', () => {
-    const response = new Response();
+    const response = new Response( undefined, { status: 200 } );
     Reflect.set( response, requestIdSymbol, 'evt-cost-1' );
     const cost = { total: 2.5 };
 
@@ -49,6 +53,11 @@ describe( 'addRequestCost', () => {
       eventId: 'evt-cost-1',
       name: Tracing.Attribute.COST,
       value: cost
+    } );
+    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+      requestId: 'evt-cost-1',
+      url: response.url,
+      cost
     } );
   } );
 
@@ -70,6 +79,11 @@ describe( 'addRequestCost', () => {
       name: Tracing.Attribute.COST,
       value: cost
     } );
+    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+      requestId: 'evt-cost-2',
+      url: response.url,
+      cost
+    } );
   } );
 
   it( 'forwards an empty components array to tracing', () => {
@@ -83,6 +97,11 @@ describe( 'addRequestCost', () => {
       eventId: 'evt-cost-3',
       name: Tracing.Attribute.COST,
       value: cost
+    } );
+    expect( emit ).toHaveBeenCalledWith( 'http:request_cost', {
+      requestId: 'evt-cost-3',
+      url: response.url,
+      cost
     } );
   } );
 } );

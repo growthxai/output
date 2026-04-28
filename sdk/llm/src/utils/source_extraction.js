@@ -47,3 +47,17 @@ export function extractSourcesFromSteps( steps ) {
     return [];
   }
 }
+
+/**
+ * Merge sources used tools and sources from AI SDK response into a single list
+ *
+ * Deduplicate by url (first in stays).
+ *
+ * @param {object} args
+ * @param {object[]} args.sourcesFromTools
+ * @param {object[]} args.sourcesFromResponse
+ * @returns {object[]} Merged sources
+ */
+export const combineSources = ( { sourcesFromTools, sourcesFromResponse } ) =>
+  new Map( sourcesFromTools.concat( Array.isArray( sourcesFromResponse ) ? sourcesFromResponse : [] )
+    .map( s => [ s.url, s ] ) ).values().toArray();

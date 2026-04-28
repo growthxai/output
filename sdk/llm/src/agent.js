@@ -2,9 +2,9 @@ import { ValidationError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { hydratePromptTemplate, loadAiSdkOptionsFromPrompt } from './ai_sdk.js';
-import { startTrace, endTraceWithError, traceStreamCallbacks } from './trace_utils.js';
-import { wrapInOutputResponse } from './response_utils.js';
-import { ROLE, isRole, getContent } from './message_utils.js';
+import { startTrace, endTraceWithError } from './utils/trace.js';
+import { wrapTextResponse, wrapStreamResponse } from './utils/response_wrappers.js';
+import { ROLE, isRole, getContent } from './utils/message.js';
 
 export { skill } from './skill.js';
 
@@ -17,10 +17,10 @@ export const createMemoryConversationStore = () => {
 };
 
 export class Agent extends AIToolLoopAgent {
-  _prompt;
-  _modelId;
-  _initialMessages;
-  _store;
+  #prompt;
+  #modelId;
+  #initialMessages;
+  #store;
 
   constructor( {
     prompt, promptDir, variables = {}, skills = [], tools = {},
@@ -52,48 +52,48 @@ export class Agent extends AIToolLoopAgent {
       ...rest
     } );
 
-    this._prompt = prompt;
-    this._modelId = loadedPrompt.config.model;
-    this._initialMessages = allMessages.filter( isRole( ROLE.USER ) );
-    this._store = conversationStore ?? null;
+    this.#prompt = prompt;
+    this.#modelId = loadedPrompt.config.model;
+    this.#initialMessages = allMessages.filter( isRole( ROLE.USER ) );
+    this.#store = conversationStore ?? null;
   }
 
-  async _preSendHook( userMessages ) {
-    const priorMessages = this._store ? await this._store.getMessages() : [];
-    return [ ...this._initialMessages, ...priorMessages, ...userMessages ];
+  async #fetchMessages( userMessages ) {
+    const priorMessages = this.#store ? await this.#store.getMessages() : [];
+    return [ ...this.#initialMessages, ...priorMessages, ...userMessages ];
   }
 
-  async _postSendHook( userMessages, result ) {
-    if ( this._store ) {
-      await this._store.addMessages( [ ...userMessages, ...( result.response?.messages ?? [] ) ] );
+  async #storeMessages( userMessages, result ) {
+    if ( this.#store ) {
+      await this.#store.addMessages( [ ...userMessages, ...( result.response?.messages ?? [] ) ] );
     }
   }
 
   async generate( { messages: userMessages = [], ...callOptions } = {} ) {
-    const traceId = startTrace( 'Agent.generate', { prompt: this._prompt } );
+    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
     try {
-      const messages = await this._preSendHook( userMessages );
-      const result = await super.generate( { messages, ...callOptions } );
-      const wrapped = await wrapInOutputResponse( result, { traceId, modelId: this._modelId } );
-      await this._postSendHook( userMessages, wrapped );
+      const messages = await this.#fetchMessages( userMessages );
+      const response = await super.generate( { messages, ...callOptions } );
+      const wrapped = await wrapTextResponse( { traceId, response, modelId: this.#modelId } );
+      await this.#storeMessages( userMessages, wrapped );
       return wrapped;
     } catch ( error ) {
-      endTraceWithError( traceId, error );
+      endTraceWithError( { traceId, error } );
       throw error;
     }
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( 'Agent.stream', { prompt: this._prompt } );
+    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
     try {
-      const messages = await this._preSendHook( userMessages );
+      const messages = await this.#fetchMessages( userMessages );
       return super.stream( {
         messages,
         ...callOptions,
-        ...traceStreamCallbacks( traceId, this._modelId, { onFinish, onError } )
+        ...wrapStreamResponse( { traceId, modelId: this.#modelId, onFinish, onError } )
       } );
     } catch ( error ) {
-      endTraceWithError( traceId, error );
+      endTraceWithError( { traceId, error } );
       throw error;
     }
   }
