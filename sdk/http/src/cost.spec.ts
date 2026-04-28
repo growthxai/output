@@ -3,7 +3,10 @@ import { requestIdSymbol } from './consts.js';
 
 vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
   Tracing: {
-    addEventAttribute: vi.fn()
+    addEventAttribute: vi.fn(),
+    Attribute: {
+      COST: 'cost'
+    }
   }
 } ) );
 
@@ -44,7 +47,7 @@ describe( 'addRequestCost', () => {
     expect( console.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-1',
-      name: 'cost',
+      name: Tracing.Attribute.COST,
       value: cost
     } );
   } );
@@ -64,7 +67,7 @@ describe( 'addRequestCost', () => {
 
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-2',
-      name: 'cost',
+      name: Tracing.Attribute.COST,
       value: cost
     } );
   } );
@@ -78,7 +81,7 @@ describe( 'addRequestCost', () => {
 
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-3',
-      name: 'cost',
+      name: Tracing.Attribute.COST,
       value: cost
     } );
   } );

@@ -36,3 +36,10 @@ export declare function addEventError( args: { id: string; details: unknown } ):
  * @param args.value - The attribute value
  */
 export declare function addEventAttribute( args: { eventId: string; name: string, value: unknown } ): void;
+
+/**
+ * Known attributes.
+ */
+export declare const Attribute: {
+  COST: 'cost';
+};

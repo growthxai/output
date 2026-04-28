@@ -4,7 +4,10 @@ const tracingSpies = {
   addEventStart: vi.fn(),
   addEventEnd: vi.fn(),
   addEventError: vi.fn(),
-  addEventAttribute: vi.fn()
+  addEventAttribute: vi.fn(),
+  Attribute: {
+    COST: 'cost'
+  }
 };
 const emitEventSpy = vi.fn();
 vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
@@ -119,7 +122,7 @@ describe( 'ai_sdk', () => {
     expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventAttribute ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: 'cost', value: cost } )
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
     );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
@@ -401,7 +404,7 @@ describe( 'ai_sdk', () => {
       usage
     } );
     expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: 'cost', value: cost } )
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
     );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
       expect.objectContaining( {
@@ -636,7 +639,7 @@ describe( 'ai_sdk', () => {
       modelId: basePrompt.config.model
     } );
     expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: 'cost', value: customCost } )
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: customCost } )
     );
   } );
 
