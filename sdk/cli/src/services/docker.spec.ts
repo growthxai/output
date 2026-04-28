@@ -192,6 +192,35 @@ describe( 'docker service', () => {
     } );
   } );
 
+  describe( 'DOCKER_SERVICE_NAME wiring', () => {
+    const saved = process.env.DOCKER_SERVICE_NAME;
+    afterEach( () => {
+      if ( saved === undefined ) {
+        delete process.env.DOCKER_SERVICE_NAME;
+      } else {
+        process.env.DOCKER_SERVICE_NAME = saved;
+      }
+    } );
+
+    it( 'threads DOCKER_SERVICE_NAME through to --project-name (not hardcoded output-sdk)', async () => {
+      process.env.DOCKER_SERVICE_NAME = 'custom-project';
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+
+      await stopDockerCompose( '/path/to/docker-compose.yml' );
+
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'custom-project',
+          'down'
+        ],
+        expect.objectContaining( { stdio: 'inherit' } )
+      );
+    } );
+  } );
+
   describe( 'stopDockerCompose', () => {
     it( 'should pass --project-name and --project-directory to docker compose down', async () => {
       vi.mocked( execFileSync ).mockReturnValue( '' );

@@ -16,6 +16,7 @@ import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev.js';
+import { config } from '#config.js';
 
 export default class Dev extends Command {
   static description = [
@@ -24,7 +25,6 @@ export default class Dev extends Command {
     'To run a second dev stack concurrently, override host ports in .env:',
     '',
     '  OUTPUT_API_HOST_PORT=3002',
-    '  OUTPUT_TEMPORAL_HOST_PORT=7234',
     '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081'
   ].join( '\n' );
 
@@ -75,6 +75,7 @@ export default class Dev extends Command {
     }
 
     this.log( '\n🚀 Starting Output development services...\n' );
+    this.log( `Docker project name: ${config.dockerServiceName}\n` );
 
     if ( flags['compose-file'] ) {
       this.log( `Using custom docker-compose file: ${flags['compose-file']}\n` );

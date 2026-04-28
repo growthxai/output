@@ -1,7 +1,6 @@
 import { parsePort } from '#utils/validation.js';
 
 const DEFAULT_API_PORT = 3001;
-const DEFAULT_TEMPORAL_PORT = 7233;
 const DEFAULT_TEMPORAL_UI_PORT = 8080;
 
 export const config = {
@@ -10,7 +9,6 @@ export const config = {
   },
   get ports() {
     return {
-      temporal: parsePort( process.env.OUTPUT_TEMPORAL_HOST_PORT, DEFAULT_TEMPORAL_PORT, 'OUTPUT_TEMPORAL_HOST_PORT' ),
       temporalUi: parsePort( process.env.OUTPUT_TEMPORAL_UI_HOST_PORT, DEFAULT_TEMPORAL_UI_PORT, 'OUTPUT_TEMPORAL_UI_HOST_PORT' ),
       api: parsePort( process.env.OUTPUT_API_HOST_PORT, DEFAULT_API_PORT, 'OUTPUT_API_HOST_PORT' )
     };
