@@ -43,10 +43,11 @@ export class InvalidPortError extends Error {
 /**
  * Parse a port number from an env var. Empty string and undefined fall back to
  * the default silently (matching Compose's `${VAR:-default}` semantics).
- * Throws InvalidPortError on anything other than a positive integer literal in
- * range 1-65535. Throwing (vs warn-and-fallback) prevents CLI/Docker
- * disagreement: Compose reads the same env var via `${VAR:-default}` and uses
- * its own parser, so a CLI fallback would silently desync from the bound port.
+ * Throws InvalidPortError on anything else: non-numeric, signed, decimal,
+ * trailing junk (e.g. "3001abc"), or out of range 1-65535. Throwing (vs
+ * warn-and-fallback) prevents CLI/Docker disagreement: Compose reads the same
+ * env var via `${VAR:-default}` and uses its own parser, so a CLI fallback
+ * would silently desync from the bound port.
  */
 export function parsePort(
   raw: string | undefined,
