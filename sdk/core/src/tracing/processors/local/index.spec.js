@@ -25,10 +25,10 @@ vi.mock( 'node:fs', () => ( {
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
 
-/** Flush happens when root id matches workflowId and phase is not start, or when phase is error. */
-const rootStart = ( workflowId, ts ) => ( { id: workflowId, phase: 'start', timestamp: ts } );
-const rootEnd = ( workflowId, ts ) => ( { id: workflowId, phase: 'end', timestamp: ts } );
-const childTick = ( id, ts ) => ( { id, phase: 'tick', timestamp: ts } );
+/** Flush happens when the root id matches workflowId and action is not 'start', or when action is 'error'. */
+const rootStart = ( workflowId, ts ) => ( { id: workflowId, action: 'start', timestamp: ts } );
+const rootEnd = ( workflowId, ts ) => ( { id: workflowId, action: 'end', timestamp: ts } );
+const childTick = ( id, ts ) => ( { id, action: 'tick', timestamp: ts } );
 
 describe( 'tracing/processors/local', () => {
   beforeEach( () => {
@@ -86,7 +86,7 @@ describe( 'tracing/processors/local', () => {
     expect( writeFileSyncMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'exec(): flushes on error phase before root end', async () => {
+  it( 'exec(): flushes on error action before root end', async () => {
     const { exec, init } = await import( './index.js' );
     init();
 
@@ -95,7 +95,7 @@ describe( 'tracing/processors/local', () => {
     const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
     exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: { id: 'step-1', phase: 'error', timestamp: startTime + 1 } } );
+    exec( { ...ctx, entry: { id: 'step-1', action: 'error', timestamp: startTime + 1 } } );
 
     expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
     expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 2 );

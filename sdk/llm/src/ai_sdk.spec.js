@@ -3,7 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const tracingSpies = {
   addEventStart: vi.fn(),
   addEventEnd: vi.fn(),
-  addEventError: vi.fn()
+  addEventError: vi.fn(),
+  addEventAttribute: vi.fn(),
+  Attribute: {
+    COST: 'cost'
+  }
 };
 const emitEventSpy = vi.fn();
 vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
@@ -111,19 +115,28 @@ describe( 'ai_sdk', () => {
   it( 'generateText: validates, traces, calls AI and returns text', async () => {
     const { generateText } = await importSut();
     const result = await generateText( { prompt: 'test_prompt@v1' } );
+    const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
 
     expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( { prompt: 'test_prompt@v1' } );
     expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
     expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
+    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledTimes( 1 );
+    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
+    );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledTimes( 1 );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
-      expect.objectContaining( { details: expect.objectContaining( { cost } ) } )
+      expect.objectContaining( {
+        details: expect.objectContaining( {
+          result: 'TEXT',
+          usage: defaultUsage
+        } )
+      } )
     );
     expect( calculateLLMCallCostImpl ).toHaveBeenCalledWith( {
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      usage: defaultUsage,
       modelId: basePrompt.config.model
     } );
-    const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
     expect( emitEventSpy ).toHaveBeenCalledTimes( 1 );
     expect( emitEventSpy ).toHaveBeenCalledWith( 'llm:call_cost', {
       modelId: basePrompt.config.model,
@@ -390,12 +403,14 @@ describe( 'ai_sdk', () => {
       cost,
       usage
     } );
+    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
+    );
     expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
       expect.objectContaining( {
         details: {
           result: 'STREAMED_TEXT',
           usage,
-          cost,
           providerMetadata: finishEvent.providerMetadata
         }
       } )
@@ -606,8 +621,14 @@ describe( 'ai_sdk', () => {
     expect( result.sources ).toEqual( nativeSources );
   } );
 
-  it( 'generateText: includes costs from cost module in trace details', async () => {
-    const customCost = { total: 0.02, components: { input: { value: 0.01 }, output: { value: 0.01 } } };
+  it( 'generateText: records cost from cost module as a trace attribute', async () => {
+    const customCost = {
+      total: 0.02,
+      components: [
+        { name: 'input_tokens', value: 0.01 },
+        { name: 'output_tokens', value: 0.01 }
+      ]
+    };
     calculateLLMCallCostImpl.mockResolvedValueOnce( customCost );
 
     const { generateText } = await importSut();
@@ -617,8 +638,8 @@ describe( 'ai_sdk', () => {
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
       modelId: basePrompt.config.model
     } );
-    expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
-      expect.objectContaining( { details: expect.objectContaining( { cost: customCost } ) } )
+    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
+      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: customCost } )
     );
   } );
 

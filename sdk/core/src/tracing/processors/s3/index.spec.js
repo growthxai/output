@@ -52,9 +52,9 @@ describe( 'tracing/processors/s3', () => {
 
     redisMulti.exec.mockResolvedValue( [] );
 
-    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', phase: 'start', details: {}, timestamp: startTime };
-    const activityStart = { id: 'act-1', name: 'DoSomething', kind: 'step', parentId: 'id1', phase: 'start', details: {}, timestamp: startTime + 1 };
-    const workflowEnd = { id: 'id1', phase: 'end', details: { ok: true }, timestamp: startTime + 2 };
+    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
+    const activityStart = { id: 'act-1', name: 'DoSomething', kind: 'step', parentId: 'id1', action: 'start', details: {}, timestamp: startTime + 1 };
+    const workflowEnd = { id: 'id1', action: 'end', details: { ok: true }, timestamp: startTime + 2 };
     zRangeMock.mockResolvedValue( [
       JSON.stringify( workflowStart ),
       JSON.stringify( activityStart ),
@@ -97,7 +97,7 @@ describe( 'tracing/processors/s3', () => {
 
     redisMulti.exec.mockResolvedValue( [] );
     const workflowStart = {
-      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, phase: 'start', details: {}, timestamp: startTime
+      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, action: 'start', details: {}, timestamp: startTime
     };
     zRangeMock.mockResolvedValue( [ JSON.stringify( workflowStart ) ] );
 
@@ -113,8 +113,8 @@ describe( 'tracing/processors/s3', () => {
     const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
 
     redisMulti.exec.mockResolvedValue( [] );
-    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', phase: 'start', details: {}, timestamp: startTime };
-    const stepEndNoParent = { id: 'step-1', phase: 'end', details: { done: true }, timestamp: startTime + 1 };
+    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
+    const stepEndNoParent = { id: 'step-1', action: 'end', details: { done: true }, timestamp: startTime + 1 };
     zRangeMock.mockResolvedValue( [
       JSON.stringify( workflowStart ),
       JSON.stringify( stepEndNoParent )
@@ -136,7 +136,7 @@ describe( 'tracing/processors/s3', () => {
 
     redisMulti.exec.mockResolvedValue( [] );
     const workflowEnd = {
-      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, phase: 'end', details: {}, timestamp: startTime
+      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, action: 'end', details: {}, timestamp: startTime
     };
     zRangeMock.mockResolvedValue( [ JSON.stringify( workflowEnd ) ] );
     buildTraceTreeMock.mockReturnValueOnce( null );

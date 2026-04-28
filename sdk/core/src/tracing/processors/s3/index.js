@@ -67,11 +67,15 @@ export const init = async () => {
 };
 
 /**
- * Execute this processor: send a complete trace tree file to S3 when the workflow finishes
+ * Execute this processor:
+ *
+ * Appends each trace entry to Redis.
+ *
+ * When the root workflow ends or the entry is an error action, it builds the trace tree and uploads it to S3.
  *
  * @param {object} args
- * @param {object} entry - Trace event phase
- * @param {object} executionContext - Execution info: workflowId, workflowName, startTime
+ * @param {object} args.entry - The trace entry to append
+ * @param {object} args.executionContext - Execution info: workflowId, workflowName, startTime
  */
 export const exec = async ( { entry, executionContext } ) => {
   const { workflowName, workflowId, startTime } = executionContext;
@@ -79,7 +83,7 @@ export const exec = async ( { entry, executionContext } ) => {
 
   await addEntry( entry, cacheKey );
 
-  const isRootWorkflowEnd = entry.id === workflowId && entry.phase !== 'start';
+  const isRootWorkflowEnd = entry.id === workflowId && entry.action !== 'start';
   if ( !isRootWorkflowEnd ) {
     return;
   }

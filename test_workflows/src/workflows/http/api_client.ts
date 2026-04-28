@@ -1,4 +1,4 @@
-import { httpClient, HttpClientOptions } from '@outputai/http';
+import { httpClient, HttpClientOptions, addRequestCost } from '@outputai/http';
 import type { HttpBinResponse, ClientInput, ContractInput } from './types.js';
 
 const httpBinClient = httpClient( {
@@ -57,6 +57,9 @@ export async function exportClients(): Promise<HttpBinResponse> {
  */
 export async function getContracts(): Promise<HttpBinResponse> {
   const response = await contractsClient.get( '' );
+  await addRequestCost( response, {
+    total: 120
+  } );
   return response.json() as Promise<HttpBinResponse>;
 }
 
@@ -66,5 +69,6 @@ export async function getContracts(): Promise<HttpBinResponse> {
  */
 export async function createContract( data: ContractInput ): Promise<HttpBinResponse> {
   const response = await contractsClient.post( '', { json: data } );
+
   return response.json() as Promise<HttpBinResponse>;
 }

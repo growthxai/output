@@ -5,7 +5,8 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
   Tracing: {
     addEventStart: vi.fn(),
     addEventEnd: vi.fn(),
-    addEventError: vi.fn()
+    addEventError: vi.fn(),
+    addEventAttribute: vi.fn()
   }
 } ) );
 
@@ -28,10 +29,19 @@ beforeEach( () => {
   tracing.addEventStart.mockClear();
   tracing.addEventEnd.mockClear();
   tracing.addEventError.mockClear();
+  tracing.addEventAttribute.mockClear();
 } );
 
 describe( 'fetch/logger', () => {
   describe( 'logRequest', () => {
+    const expectRequestIdAttribute = ( requestId: string ) => {
+      expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
+        eventId: requestId,
+        name: 'requestId',
+        value: requestId
+      } );
+    };
+
     it( 'records minimal details when verbose is off', async () => {
       const { logRequest } = await logLogger( false );
       const request = new Request( 'https://api.example.com/r', { method: 'GET' } );
@@ -47,6 +57,7 @@ describe( 'fetch/logger', () => {
           url: 'https://api.example.com/r'
         }
       } );
+      expectRequestIdAttribute( 'req-1' );
     } );
 
     it( 'defaults method to GET', async () => {
@@ -56,6 +67,7 @@ describe( 'fetch/logger', () => {
       await logRequest( { requestId: 'r2', request } );
 
       expect( ( tracing.addEventStart.mock.calls[0][0].details as { method: string } ).method ).toBe( 'GET' );
+      expectRequestIdAttribute( 'r2' );
     } );
 
     it( 'includes redacted headers and parsed body when verbose is on', async () => {
@@ -83,6 +95,7 @@ describe( 'fetch/logger', () => {
           body: { x: 1 }
         }
       } );
+      expectRequestIdAttribute( 'req-v' );
     } );
   } );
 

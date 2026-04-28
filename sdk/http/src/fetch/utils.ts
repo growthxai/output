@@ -1,4 +1,5 @@
 import type { Request, Response, Headers } from 'undici';
+import { requestIdSymbol } from '../consts.js';
 
 /**
  * Header names that look sensitive by substring rules but are not secret material.
@@ -97,3 +98,14 @@ export const parseBody = async ( r : Request | Response ) : Promise<string | obj
     return textContent;
   }
 };
+
+/**
+ * Adds a non-enumerable, non-configurable and non-writable property to a response.
+ *
+ * This property is identified by a unique symbol and contains the id of the request.
+ *
+ * @param response
+ * @param requestId
+ */
+export const addRequestIdToResponse = ( response: Response, requestId: string ) =>
+  Object.defineProperty( response, requestIdSymbol, { value: requestId, enumerable: false, configurable: false, writable: false } );

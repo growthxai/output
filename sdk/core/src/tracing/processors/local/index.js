@@ -23,7 +23,7 @@ const tempTraceFilesDir = join( __dirname, 'temp', 'traces' );
 const createTempFilePath = ( { workflowId, startTime } ) => join( tempTraceFilesDir, `${startTime}_${workflowId}.trace` );
 
 /**
- * Adds an trace entry to the accumulation file
+ * Adds a trace entry to the accumulation file.
  * @param {object} entry - The trace entry
  * @param {string} path - Accumulation file path
  */
@@ -100,12 +100,13 @@ export const init = () => {
 /**
  * Execute this processor:
  *
- * Append each trace entry to a temp file; when the root workflow ends (non-start phase on the
- * workflow id) or any entry is an error phase, build the trace tree and write the JSON file once.
+ * Appends each trace entry to a temp file.
+ *
+ * When the root workflow ends or the entry is an error action, build the trace tree and write the JSON file.
  *
  * @param {object} args
- * @param {object} entry - Trace event phase
- * @param {object} executionContext - Execution info: workflowId, workflowName, startTime
+ * @param {object} args.entry - The trace entry to append.
+ * @param {object} args.executionContext - Execution info: workflowId, workflowName, startTime
  * @returns {void}
  */
 export const exec = ( { entry, executionContext } ) => {
@@ -113,8 +114,8 @@ export const exec = ( { entry, executionContext } ) => {
   const tempFilePath = createTempFilePath( executionContext );
   addEntry( entry, tempFilePath );
 
-  const isRootWorkflowEnd = entry.id === workflowId && entry.phase !== 'start';
-  const isError = entry.phase === 'error';
+  const isRootWorkflowEnd = entry.id === workflowId && entry.action !== 'start';
+  const isError = entry.action === 'error';
 
   if ( !isRootWorkflowEnd && !isError ) {
     return;

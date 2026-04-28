@@ -2,6 +2,7 @@ import * as undici from 'undici';
 import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
+import { addRequestIdToResponse } from './utils.js';
 
 /*
  * Unifies undici and nodes realms
@@ -46,6 +47,10 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   try {
     const response = await undici.fetch( request );
+
+    // This enriches the response of the request id, so it is identifiable later.
+    addRequestIdToResponse( response, requestId );
+
     if ( response.status > 399 ) {
       await logError( { requestId, response } );
       return response;

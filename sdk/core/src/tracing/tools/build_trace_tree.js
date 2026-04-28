@@ -1,3 +1,4 @@
+import { EventAction } from '../trace_consts.js';
 /**
  * @typedef {object} NodeEntry
  * @property {string} id
@@ -27,19 +28,21 @@ const createEntry = id => ( {
   input: undefined,
   output: undefined,
   error: undefined,
-  children: []
+  children: [],
+  attributes: {}
 } );
 
 /**
- * Build a tree of nodes from a list of entries
+ * Builds a tree of nodes from a list of entries.
  *
  * Each node will have: id, name, kind, children, input, output or error, startedAt, endedAt.
  *
- * Entries with same id will be combined according to their phase (start, end OR error).
- * - The details of the start phase becomes input, timestamp becomes startedAt;
- * - The details of the end phase become output, timestamp becomes endedAt;
- * - The details of the error phase become error, timestamp becomes endedAt;
- * - Only start phase's kind and name are used;
+ * Entries with the same id are combined according to their actions.
+ * - The details of the START action become input, and timestamp becomes startedAt;
+ * - The details of the END action become output, timestamp becomes endedAt;
+ * - The details of the ERROR action become error, timestamp becomes endedAt;
+ * - The details of the ADD_ATTR action are attached to `.attributes`;
+ * - Only the START action's `kind` and `name` fields are used;
  *
  *
  * Children are added according to the parentId of each entry.
@@ -53,18 +56,20 @@ export default entries => {
   const ensureNode = id => nodes.get( id ) ?? nodes.set( id, createEntry( id ) ).get( id );
 
   for ( const entry of entries ) {
-    const { kind, id, name, parentId, details, phase, timestamp } = entry;
+    const { kind, id, name, parentId, details, action, timestamp } = entry;
     const node = ensureNode( id );
 
-    if ( phase === 'start' ) {
+    if ( action === EventAction.START ) {
       Object.assign( node, { input: details, startedAt: timestamp, kind, name } );
-    } else if ( phase === 'end' ) {
+    } else if ( action === EventAction.ADD_ATTR ) {
+      node.attributes[details.name] = details.value;
+    } else if ( action === EventAction.END ) {
       Object.assign( node, { output: details, endedAt: timestamp } );
-    } else if ( phase === 'error' ) {
+    } else if ( action === EventAction.ERROR ) {
       Object.assign( node, { error: details, endedAt: timestamp } );
     }
 
-    if ( parentId && phase === 'start' ) {
+    if ( parentId && action === EventAction.START ) {
       const parent = ensureNode( parentId );
       parent.children.push( node );
       parent.children.sort( ( a, b ) => a.startedAt - b.startedAt );
