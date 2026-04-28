@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ux } from '@oclif/core';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { config } from '#config.js';
+import { InvalidPortError } from '#utils/validation.js';
 
 describe( 'config', () => {
   const envVars = [
@@ -85,8 +85,7 @@ describe( 'config', () => {
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8081' );
   } );
 
-  it( 'treats empty-string OUTPUT_API_HOST_PORT as unset (matches Compose semantics)', () => {
-    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+  it( 'treats empty-string port env vars as unset (matches Compose semantics)', () => {
     delete process.env.OUTPUT_API_URL;
     process.env.OUTPUT_API_HOST_PORT = '';
     process.env.OUTPUT_TEMPORAL_UI_HOST_PORT = '';
@@ -94,33 +93,28 @@ describe( 'config', () => {
     expect( config.apiUrl ).toBe( 'http://localhost:3001' );
     expect( config.ports ).toEqual( { temporalUi: 8080, api: 3001 } );
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8080' );
-    expect( warn ).not.toHaveBeenCalled();
   } );
 
-  it( 'falls back to defaults and warns on non-numeric port values', () => {
-    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+  it( 'throws InvalidPortError on non-numeric port values', () => {
     delete process.env.OUTPUT_API_URL;
     process.env.OUTPUT_API_HOST_PORT = 'abc';
-
-    expect( config.ports.api ).toBe( 3001 );
-    expect( config.apiUrl ).toBe( 'http://localhost:3001' );
-    expect( warn ).toHaveBeenCalled();
+    expect( () => config.ports ).toThrow( InvalidPortError );
+    expect( () => config.apiUrl ).toThrow( InvalidPortError );
   } );
 
-  it( 'falls back to defaults and warns on out-of-range port values', () => {
-    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+  it( 'throws InvalidPortError on out-of-range port values', () => {
     process.env.OUTPUT_API_HOST_PORT = '99999';
-
-    expect( config.ports.api ).toBe( 3001 );
-    expect( warn ).toHaveBeenCalled();
+    expect( () => config.ports ).toThrow( InvalidPortError );
   } );
 
-  it( 'falls back to defaults and warns on trailing-junk port values', () => {
-    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+  it( 'throws InvalidPortError on trailing-junk port values', () => {
     process.env.OUTPUT_TEMPORAL_UI_HOST_PORT = '8080abc';
+    expect( () => config.ports ).toThrow( InvalidPortError );
+  } );
 
-    expect( config.ports.temporalUi ).toBe( 8080 );
-    expect( warn ).toHaveBeenCalled();
+  it( 'throws InvalidPortError on port 0 (Compose treats 0 as ephemeral - prevents CLI/Docker desync)', () => {
+    process.env.OUTPUT_API_HOST_PORT = '0';
+    expect( () => config.ports ).toThrow( InvalidPortError );
   } );
 
   it( 'reads apiToken from env', () => {

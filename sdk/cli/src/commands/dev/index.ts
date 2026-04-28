@@ -64,6 +64,9 @@ export default class Dev extends Command {
 
     validateDockerEnvironment();
 
+    // Eagerly resolve ports so InvalidPortError surfaces before Ink mounts.
+    void config.ports;
+
     const dockerComposePath = flags['compose-file'] ?
       path.resolve( process.cwd(), flags['compose-file'] ) :
       getDefaultDockerComposePath();
