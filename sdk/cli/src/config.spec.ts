@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ux } from '@oclif/core';
 import { config } from '#config.js';
 
 describe( 'config', () => {
@@ -79,6 +80,45 @@ describe( 'config', () => {
 
     expect( config.ports ).toEqual( { temporal: 7234, temporalUi: 8081, api: 3002 } );
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8081' );
+  } );
+
+  it( 'treats empty-string OUTPUT_API_HOST_PORT as unset (matches Compose semantics)', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    delete process.env.OUTPUT_API_URL;
+    process.env.OUTPUT_API_HOST_PORT = '';
+    process.env.OUTPUT_TEMPORAL_HOST_PORT = '';
+    process.env.OUTPUT_TEMPORAL_UI_HOST_PORT = '';
+
+    expect( config.apiUrl ).toBe( 'http://localhost:3001' );
+    expect( config.ports ).toEqual( { temporal: 7233, temporalUi: 8080, api: 3001 } );
+    expect( config.temporalUiUrl ).toBe( 'http://localhost:8080' );
+    expect( warn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'falls back to defaults and warns on non-numeric port values', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    delete process.env.OUTPUT_API_URL;
+    process.env.OUTPUT_API_HOST_PORT = 'abc';
+
+    expect( config.ports.api ).toBe( 3001 );
+    expect( config.apiUrl ).toBe( 'http://localhost:3001' );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'falls back to defaults and warns on out-of-range port values', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    process.env.OUTPUT_API_HOST_PORT = '99999';
+
+    expect( config.ports.api ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'falls back to defaults and warns on trailing-junk port values', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    process.env.OUTPUT_TEMPORAL_HOST_PORT = '7233abc';
+
+    expect( config.ports.temporal ).toBe( 7233 );
+    expect( warn ).toHaveBeenCalled();
   } );
 
   it( 'reads apiToken from env', () => {

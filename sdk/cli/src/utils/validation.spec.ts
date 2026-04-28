@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { isValidWorkflowName } from './validation.js';
+import { describe, expect, it, vi } from 'vitest';
+import { ux } from '@oclif/core';
+import { isValidWorkflowName, parsePort } from './validation.js';
 
 describe( 'isValidWorkflowName', () => {
   describe( 'valid workflow names', () => {
@@ -156,5 +157,65 @@ describe( 'isValidWorkflowName', () => {
       expect( isValidWorkflowName( '_000000000' ) ).toBe( true );
       expect( isValidWorkflowName( 'a_0_1_2_3' ) ).toBe( true );
     } );
+  } );
+} );
+
+describe( 'parsePort', () => {
+  it( 'returns the parsed value for a valid port', () => {
+    expect( parsePort( '3001', 3001 ) ).toBe( 3001 );
+    expect( parsePort( '7234', 7233 ) ).toBe( 7234 );
+  } );
+
+  it( 'falls back to default for undefined', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( undefined, 3001 ) ).toBe( 3001 );
+    expect( warn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'falls back to default for empty string without warning', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( '', 3001 ) ).toBe( 3001 );
+    expect( warn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'warns and falls back for non-numeric input', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( 'abc', 3001 ) ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'warns and falls back for trailing junk (parseInt would silently truncate)', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( '3001abc', 3001 ) ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'warns and falls back for negative input', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( '-1', 3001 ) ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'warns and falls back for port 0', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( '0', 3001 ) ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'warns and falls back for port above 65535', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    expect( parsePort( '65536', 3001 ) ).toBe( 3001 );
+    expect( warn ).toHaveBeenCalled();
+  } );
+
+  it( 'accepts boundary ports 1 and 65535', () => {
+    expect( parsePort( '1', 3001 ) ).toBe( 1 );
+    expect( parsePort( '65535', 3001 ) ).toBe( 65535 );
+  } );
+
+  it( 'includes env var name in warning when provided', () => {
+    const warn = vi.spyOn( ux, 'warn' ).mockImplementation( () => undefined as unknown as Error );
+    parsePort( 'abc', 3001, 'OUTPUT_API_HOST_PORT' );
+    expect( warn ).toHaveBeenCalledWith( expect.stringContaining( 'OUTPUT_API_HOST_PORT' ) );
   } );
 } );

@@ -1,16 +1,22 @@
+import { parsePort } from '#utils/validation.js';
+
+const DEFAULT_API_PORT = 3001;
+const DEFAULT_TEMPORAL_PORT = 7233;
+const DEFAULT_TEMPORAL_UI_PORT = 8080;
+
 export const config = {
   get apiUrl() {
-    return process.env.OUTPUT_API_URL || `http://localhost:${process.env.OUTPUT_API_HOST_PORT ?? '3001'}`;
+    return process.env.OUTPUT_API_URL || `http://localhost:${this.ports.api}`;
   },
   get ports() {
     return {
-      temporal: parseInt( process.env.OUTPUT_TEMPORAL_HOST_PORT ?? '7233', 10 ),
-      temporalUi: parseInt( process.env.OUTPUT_TEMPORAL_UI_HOST_PORT ?? '8080', 10 ),
-      api: parseInt( process.env.OUTPUT_API_HOST_PORT ?? '3001', 10 )
+      temporal: parsePort( process.env.OUTPUT_TEMPORAL_HOST_PORT, DEFAULT_TEMPORAL_PORT, 'OUTPUT_TEMPORAL_HOST_PORT' ),
+      temporalUi: parsePort( process.env.OUTPUT_TEMPORAL_UI_HOST_PORT, DEFAULT_TEMPORAL_UI_PORT, 'OUTPUT_TEMPORAL_UI_HOST_PORT' ),
+      api: parsePort( process.env.OUTPUT_API_HOST_PORT, DEFAULT_API_PORT, 'OUTPUT_API_HOST_PORT' )
     };
   },
   get temporalUiUrl() {
-    return `http://localhost:${process.env.OUTPUT_TEMPORAL_UI_HOST_PORT ?? '8080'}`;
+    return `http://localhost:${this.ports.temporalUi}`;
   },
   get apiToken() {
     return process.env.OUTPUT_API_AUTH_TOKEN;
