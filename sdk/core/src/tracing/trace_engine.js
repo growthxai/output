@@ -64,34 +64,34 @@ export const init = async () => {
 const serializeDetails = details => details instanceof Error ? serializeError( details ) : details;
 
 /**
- * Creates a new trace event phase and sends it to be written
+ * Emits an event action to the event bus.
  *
- * @param {string} phase - The phase
+ * @param {string} action - The action
  * @param {object} fields - All the trace fields
  * @returns {void}
  */
-export const addEventPhase = ( phase, { kind, name, id, parentId, details, executionContext } ) => {
+export const addEventAction = ( action, { kind, name, id, parentId, details, executionContext } ) => {
   // Ignores internal steps in the actual trace files, ignore trace if the flag is true
   if ( kind !== ComponentType.INTERNAL_STEP && !executionContext.disableTrace ) {
     traceBus.emit( 'entry', {
       executionContext,
-      entry: { kind, phase, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) }
+      entry: { kind, action, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) }
     } );
   }
 };
 
 /**
- * Adds an Event Phase, complementing the options with parentId and executionContext from the async storage.
+ * Attaches contextual information to an event action before calling the method to emit it to the bus.
  *
- * This function will have no effect if called from outside an Temporal Workflow/Activity environment,
- * so it is safe to be used on unit tests or any dependencies that might be used elsewhere
+ * This function has no effect if called outside a Temporal Workflow/Activity environment,
+ * so it is safe to use in unit tests or dependencies that might be used elsewhere.
  *
  * @param {object} options - The common trace configurations
  */
-export function addEventPhaseWithContext( phase, options ) {
+export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
-  if ( storeContent ) { // If there is no storageContext this was not called from an Temporal Environment
+  if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
     const { parentId, executionContext } = storeContent;
-    addEventPhase( phase, { ...options, parentId, executionContext } );
+    addEventAction( action, { ...options, parentId, executionContext } );
   }
 };

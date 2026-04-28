@@ -39,7 +39,7 @@ describe( 'tracing/trace_engine', () => {
   it( 'init() starts only enabled processors and attaches listeners', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     process.env.OUTPUT_TRACE_REMOTE_ON = '0';
-    const { init, addEventPhase } = await loadTraceEngine();
+    const { init, addEventAction } = await loadTraceEngine();
 
     await init();
 
@@ -47,96 +47,96 @@ describe( 'tracing/trace_engine', () => {
     expect( s3InitMock ).not.toHaveBeenCalled();
 
     const executionContext = { disableTrace: false };
-    addEventPhase( 'start', {
+    addEventAction( 'start', {
       kind: 'step', name: 'N', id: '1', parentId: 'p', details: { ok: true }, executionContext
     } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
     expect( payload.entry.name ).toBe( 'N' );
     expect( payload.entry.kind ).toBe( 'step' );
-    expect( payload.entry.phase ).toBe( 'start' );
+    expect( payload.entry.action ).toBe( 'start' );
     expect( payload.entry.details ).toEqual( { ok: true } );
     expect( payload.executionContext ).toBe( executionContext );
   } );
 
-  it( 'addEventPhase() emits an entry consumed by processors', async () => {
+  it( 'addEventAction() emits an entry consumed by processors', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'on';
-    const { init, addEventPhase } = await loadTraceEngine();
+    const { init, addEventAction } = await loadTraceEngine();
     await init();
 
-    addEventPhase( 'end', {
+    addEventAction( 'end', {
       kind: 'workflow', name: 'W', id: '2', parentId: 'p2', details: 'done',
       executionContext: { disableTrace: false }
     } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
     expect( payload.entry.name ).toBe( 'W' );
-    expect( payload.entry.phase ).toBe( 'end' );
+    expect( payload.entry.action ).toBe( 'end' );
     expect( payload.entry.details ).toBe( 'done' );
   } );
 
-  it( 'addEventPhase() does not emit when executionContext.disableTrace is true', async () => {
+  it( 'addEventAction() does not emit when executionContext.disableTrace is true', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
-    const { init, addEventPhase } = await loadTraceEngine();
+    const { init, addEventAction } = await loadTraceEngine();
     await init();
 
-    addEventPhase( 'start', {
+    addEventAction( 'start', {
       kind: 'step', name: 'X', id: '1', parentId: 'p', details: {},
       executionContext: { disableTrace: true }
     } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'addEventPhase() does not emit when kind is INTERNAL_STEP', async () => {
+  it( 'addEventAction() does not emit when kind is INTERNAL_STEP', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
-    const { init, addEventPhase } = await loadTraceEngine();
+    const { init, addEventAction } = await loadTraceEngine();
     await init();
 
-    addEventPhase( 'start', {
+    addEventAction( 'start', {
       kind: 'internal_step', name: 'Internal', id: '1', parentId: 'p', details: {},
       executionContext: { disableTrace: false }
     } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'addEventPhaseWithContext() uses storage when available', async () => {
+  it( 'addEventActionWithContext() uses storage when available', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
       executionContext: { runId: 'r1', disableTrace: false }
     } );
-    const { init, addEventPhaseWithContext } = await loadTraceEngine();
+    const { init, addEventActionWithContext } = await loadTraceEngine();
     await init();
 
-    addEventPhaseWithContext( 'tick', { kind: 'step', name: 'S', id: '3', details: 1 } );
+    addEventActionWithContext( 'tick', { kind: 'step', name: 'S', id: '3', details: 1 } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
     expect( payload.executionContext ).toEqual( { runId: 'r1', disableTrace: false } );
     expect( payload.entry.parentId ).toBe( 'ctx-p' );
     expect( payload.entry.name ).toBe( 'S' );
-    expect( payload.entry.phase ).toBe( 'tick' );
+    expect( payload.entry.action ).toBe( 'tick' );
   } );
 
-  it( 'addEventPhaseWithContext() does not emit when storage executionContext.disableTrace is true', async () => {
+  it( 'addEventActionWithContext() does not emit when storage executionContext.disableTrace is true', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
       executionContext: { runId: 'r1', disableTrace: true }
     } );
-    const { init, addEventPhaseWithContext } = await loadTraceEngine();
+    const { init, addEventActionWithContext } = await loadTraceEngine();
     await init();
 
-    addEventPhaseWithContext( 'tick', { kind: 'step', name: 'S', id: '3', details: 1 } );
+    addEventActionWithContext( 'tick', { kind: 'step', name: 'S', id: '3', details: 1 } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'addEventPhaseWithContext() is a no-op when storage is absent', async () => {
+  it( 'addEventActionWithContext() is a no-op when storage is absent', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     storageLoadMock.mockReturnValue( undefined );
-    const { init, addEventPhaseWithContext } = await loadTraceEngine();
+    const { init, addEventActionWithContext } = await loadTraceEngine();
     await init();
 
-    addEventPhaseWithContext( 'noop', { kind: 'step', name: 'X', id: '4', details: null } );
+    addEventActionWithContext( 'noop', { kind: 'step', name: 'X', id: '4', details: null } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 

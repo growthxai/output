@@ -1,7 +1,7 @@
 /**
- * Each possible phase of a trace event
+ * Each possible action of a trace event
  */
-export const EventPhase = {
+export const EventAction = {
   START: 'start',
   END: 'end',
   ERROR: 'error',
