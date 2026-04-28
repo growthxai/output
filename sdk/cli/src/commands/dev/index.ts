@@ -15,7 +15,7 @@ import {
 import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
-import { DevApp } from '#views/dev.js';
+import { DevApp } from '#views/dev/dev_app.js';
 
 export default class Dev extends Command {
   static description = 'Start Output development services (auto-restarts worker on file changes)';
@@ -66,12 +66,6 @@ export default class Dev extends Command {
       throw new DockerComposeConfigNotFoundError( dockerComposePath );
     }
 
-    this.log( '\n🚀 Starting Output development services...\n' );
-
-    if ( flags['compose-file'] ) {
-      this.log( `Using custom docker-compose file: ${flags['compose-file']}\n` );
-    }
-
     const pullPolicy = flags['image-pull-policy'] as PullPolicy;
     if ( flags.detached ) {
       this.log( '🐳 Starting services in detached mode...\n' );
@@ -79,8 +73,6 @@ export default class Dev extends Command {
       this.log( '✅ Services started. Run `output dev` without --detached to monitor status.\n' );
       return;
     }
-
-    this.log( 'File watching enabled - worker will restart automatically on changes\n' );
 
     const cleanup = async () => {
       this.log( '\n' );
@@ -90,6 +82,28 @@ export default class Dev extends Command {
       await stopDockerCompose( dockerComposePath );
     };
 
+    // Use the alternate screen buffer so INK has a fixed-height canvas and
+    // log-update doesn't scroll old frames into scrollback when the TUI is
+    // taller than the terminal window.
+    const enterAltScreen = (): void => {
+      process.stdout.write( '\x1b[?1049h\x1b[2J\x1b[H' );
+    };
+    const exitAltScreen = (): void => {
+      process.stdout.write( '\x1b[?1049l' );
+    };
+    const exitAltScreenOnce = ( () => {
+      const state = { fired: false };
+      return (): void => {
+        if ( state.fired ) {
+          return;
+        }
+        state.fired = true;
+        exitAltScreen();
+      };
+    } )();
+
+    process.on( 'exit', exitAltScreenOnce );
+
     try {
       const { process: dockerProc } = await startDockerCompose(
         dockerComposePath,
@@ -97,6 +111,8 @@ export default class Dev extends Command {
       );
 
       this.dockerProcess = dockerProc;
+
+      enterAltScreen();
 
       const instance = render(
         React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup } ),
@@ -116,7 +132,9 @@ export default class Dev extends Command {
       process.on( 'SIGTERM', handleSignal );
 
       await instance.waitUntilExit();
+      exitAltScreenOnce();
     } catch ( error ) {
+      exitAltScreenOnce();
       this.error( getErrorMessage( error ), { exit: 1 } );
     }
   }

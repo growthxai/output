@@ -48,7 +48,7 @@ vi.mock( 'ink', () => ( {
   } )
 } ) );
 
-vi.mock( '#views/dev.js', () => ( {
+vi.mock( '#views/dev/dev_app.js', () => ( {
   DevApp: () => null
 } ) );
 
