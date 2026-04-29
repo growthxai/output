@@ -81,6 +81,28 @@ describe( 'loadCredentialRefs', () => {
     expect( exitSpy ).toHaveBeenCalledWith( 1 );
   } );
 
+  it( 'should print a clean error message and exit on MalformedCredentialsKeyError', () => {
+    vi.mocked( credentials.resolveCredentialRefs ).mockImplementation( () => {
+      throw new credentials.MalformedCredentialsKeyError(
+        'config/credentials.yml.enc',
+        'hex string expected, got unpadded hex of length 55'
+      );
+    } );
+
+    const consoleErrorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
+    const exitSpy = vi.spyOn( process, 'exit' ).mockImplementation( ( () => undefined ) as never );
+
+    loadCredentialRefs();
+
+    const printedMessage = consoleErrorSpy.mock.calls[0]?.[0] as string;
+    expect( printedMessage ).toContain( 'is malformed' );
+    expect( printedMessage ).toContain( 'must be exactly 64 hex characters' );
+    expect( printedMessage ).toContain( 'unpadded hex of length 55' );
+    expect( printedMessage ).not.toContain( '    at ' );
+
+    expect( exitSpy ).toHaveBeenCalledWith( 1 );
+  } );
+
   it( 'should rethrow unexpected errors so they are not silently swallowed', () => {
     vi.mocked( credentials.resolveCredentialRefs ).mockImplementation( () => {
       throw new Error( 'something else broke' );

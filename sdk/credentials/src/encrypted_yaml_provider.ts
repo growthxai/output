@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { load as parseYaml } from 'js-yaml';
 import { decrypt } from './encryption.js';
-import { InvalidCredentialsKeyError, MissingKeyError } from './errors.js';
+import { InvalidCredentialsKeyError, MalformedCredentialsKeyError, MissingKeyError } from './errors.js';
 import {
   resolveKeyEnvVar,
   resolveCredentialsPath,
@@ -52,8 +52,17 @@ const resolveWorkflowKey = ( workflowName: string, workflowDir: string ): string
 const safeDecrypt = ( ciphertext: string, key: string, credPath: string ): string => {
   try {
     return decrypt( ciphertext, key );
-  } catch {
-    throw new InvalidCredentialsKeyError( credPath );
+  } catch ( error ) {
+    if ( error instanceof RangeError ) {
+      throw new MalformedCredentialsKeyError( credPath, error.message );
+    }
+    if ( error instanceof Error && error.message.includes( 'aes/gcm' ) ) {
+      throw new InvalidCredentialsKeyError( credPath );
+    }
+    throw new InvalidCredentialsKeyError(
+      credPath,
+      error instanceof Error ? error.message : String( error )
+    );
   }
 };
 
