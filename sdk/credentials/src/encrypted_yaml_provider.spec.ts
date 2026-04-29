@@ -116,6 +116,36 @@ describe( 'encrypted YAML provider', () => {
       expect( () => provider.loadGlobal( { environment: undefined } ) )
         .toThrow( /Failed to decrypt .*credentials\.yml\.enc/ );
     } );
+
+    it( 'should throw InvalidCredentialsKeyError when the key has the wrong length', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = key.slice( 0, 55 );
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( InvalidCredentialsKeyError );
+    } );
+
+    it( 'should throw InvalidCredentialsKeyError when the key contains non-hex characters', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = `${key.slice( 0, 10 )} ${key.slice( 11 )}`;
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( InvalidCredentialsKeyError );
+    } );
   } );
 
   describe( 'loadForWorkflow', () => {

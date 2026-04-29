@@ -49,15 +49,18 @@ const resolveWorkflowKey = ( workflowName: string, workflowDir: string ): string
   return resolveKey( undefined );
 };
 
-const decryptYaml = ( credPath: string, key: string ): Record<string, unknown> => {
+const safeDecrypt = ( ciphertext: string, key: string, credPath: string ): string => {
   try {
-    return ( parseYaml( decrypt( readFileSync( credPath, 'utf8' ).trim(), key ) ) as Record<string, unknown> ) || {};
-  } catch ( error: unknown ) {
-    if ( error instanceof Error && error.message.includes( 'aes/gcm' ) ) {
-      throw new InvalidCredentialsKeyError( credPath );
-    }
-    throw error;
+    return decrypt( ciphertext, key );
+  } catch {
+    throw new InvalidCredentialsKeyError( credPath );
   }
+};
+
+const decryptYaml = ( credPath: string, key: string ): Record<string, unknown> => {
+  const ciphertext = readFileSync( credPath, 'utf8' ).trim();
+  const plaintext = safeDecrypt( ciphertext, key, credPath );
+  return ( parseYaml( plaintext ) as Record<string, unknown> ) || {};
 };
 
 export const encryptedYamlProvider: CredentialsProvider = {
