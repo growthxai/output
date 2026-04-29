@@ -1,6 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { extractSteps } from './use_run_detail.js';
+import { extractSteps, isTerminalRunStatus } from './use_run_detail.js';
 import type { TraceData } from '#types/trace.js';
+
+describe( 'isTerminalRunStatus', () => {
+  it( 'returns true for completed states', () => {
+    expect( isTerminalRunStatus( 'completed' ) ).toBe( true );
+    expect( isTerminalRunStatus( 'failed' ) ).toBe( true );
+    expect( isTerminalRunStatus( 'canceled' ) ).toBe( true );
+    expect( isTerminalRunStatus( 'terminated' ) ).toBe( true );
+    expect( isTerminalRunStatus( 'timed_out' ) ).toBe( true );
+  } );
+
+  it( 'returns false for in-progress states', () => {
+    expect( isTerminalRunStatus( 'running' ) ).toBe( false );
+    expect( isTerminalRunStatus( 'continued' ) ).toBe( false );
+  } );
+
+  it( 'returns false for nullish input', () => {
+    expect( isTerminalRunStatus( null ) ).toBe( false );
+    expect( isTerminalRunStatus( undefined ) ).toBe( false );
+    expect( isTerminalRunStatus( '' ) ).toBe( false );
+  } );
+} );
 
 const trace = ( children: TraceData['children'] ): TraceData => ( {
   root: { workflowName: 'demo', workflowId: 'wf-1', startTime: 0 },

@@ -127,7 +127,7 @@ const HINTS = [
 
 export const RunDetailView: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
   const ui = useUiState();
-  const { result, steps, loading } = useRunDetail( run.workflowId, run.runId );
+  const { result, steps, loading } = useRunDetail( run.workflowId, run.runId, run.status );
   const [ stepIndex, setStepIndex ] = useState( 0 );
 
   const isActive = ui.tab === 'runs' && ui.runsView === 'detail' && !ui.search.open && !ui.runModal.open && !ui.expandedJson.open;

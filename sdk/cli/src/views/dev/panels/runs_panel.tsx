@@ -239,7 +239,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
 
   const clampedIndex = Math.min( selectedIndex, Math.max( 0, filteredRuns.length - 1 ) );
   const selectedRun = filteredRuns[clampedIndex];
-  const { result, trace, loading } = useRunDetail( selectedRun?.workflowId, selectedRun?.runId );
+  const { result, trace, loading } = useRunDetail( selectedRun?.workflowId, selectedRun?.runId, selectedRun?.status );
 
   const pane: RunPaneData | null = selectedRun ? {
     input: extractRunInput( trace ),

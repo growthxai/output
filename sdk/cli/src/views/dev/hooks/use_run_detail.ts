@@ -135,7 +135,22 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
   }
 };
 
-export const useRunDetail = ( workflowId: string | undefined, runId: string | undefined ): RunDetail => {
+/**
+ * Statuses that mean the workflow has stopped advancing. The cache is
+ * intentionally only populated for these — partial results from a still-
+ * running workflow would otherwise stick and stall the UI when the run
+ * eventually finishes.
+ */
+const TERMINAL_STATUSES = new Set( [ 'completed', 'failed', 'canceled', 'terminated', 'timed_out' ] );
+
+export const isTerminalRunStatus = ( status: string | null | undefined ): boolean =>
+  Boolean( status && TERMINAL_STATUSES.has( status ) );
+
+export const useRunDetail = (
+  workflowId: string | undefined,
+  runId: string | undefined,
+  status?: string
+): RunDetail => {
   const [ detail, setDetail ] = useState<RunDetail>( EMPTY_DETAIL );
   const cacheRef = useRef( new Map<string, RunDetail>() );
   const fetchIdRef = useRef( 0 );
@@ -146,6 +161,8 @@ export const useRunDetail = ( workflowId: string | undefined, runId: string | un
       return;
     }
 
+    // The cache only ever holds terminal-status entries (see below), so
+    // a hit here is always safe to reuse without a network roundtrip.
     const key = `${workflowId}:${runId ?? 'latest'}`;
     const cached = cacheRef.current.get( key );
     if ( cached ) {
@@ -171,7 +188,12 @@ export const useRunDetail = ( workflowId: string | undefined, runId: string | un
           loading: false,
           error: null
         };
-        cacheRef.current.set( key, next );
+        // Only memoize the result once the workflow is done. While it's
+        // still running the API returns partial data; a follow-up status
+        // change re-fires this effect and we re-fetch fresh.
+        if ( isTerminalRunStatus( result?.status ) ) {
+          cacheRef.current.set( key, next );
+        }
         setDetail( next );
       } )
       .catch( err => {
@@ -183,7 +205,11 @@ export const useRunDetail = ( workflowId: string | undefined, runId: string | un
           error: err instanceof Error ? err.message : String( err )
         } );
       } );
-  }, [ workflowId, runId ] );
+    // `status` is in the dep array so a run flipping running → completed
+    // (the runs list polls every 2s) re-fires the effect and pulls the
+    // fresh output, instead of pinning to the partial result captured
+    // mid-run.
+  }, [ workflowId, runId, status ] );
 
   return detail;
 };
