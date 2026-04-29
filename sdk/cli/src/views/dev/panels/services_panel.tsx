@@ -217,7 +217,7 @@ export const ServicesPanel: React.FC<{
   return (
     <Box flexDirection="column" marginTop={1}>
       <Box flexDirection="column">
-        <Text bold>🐳 Services</Text>
+        <Text bold>Services</Text>
         <Box flexDirection="column" marginTop={1}>
           <HeaderRow />
           {services.map( ( s, i ) => (
@@ -231,7 +231,7 @@ export const ServicesPanel: React.FC<{
       </Box>
       <Box flexDirection="column">
         <Box>
-          <Text backgroundColor="magenta" color="white" bold>{` 📜 ${selectedService?.name ?? 'Logs'} `}</Text>
+          <Text bold color="white">{selectedService?.name ?? 'Logs'}</Text>
         </Box>
         <Box flexDirection="column" marginTop={1}>
           <LogPane serviceName={selectedService?.name ?? null} lines={logs.lines} paused={logs.paused} />

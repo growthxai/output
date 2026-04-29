@@ -96,9 +96,10 @@ const DetailPane: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[]
   return (
     <Box flexDirection="column">
       <Box>
-        <Text backgroundColor="magenta" color="white" bold>{` ${workflow.name} `}</Text>
-        <Text dimColor>   </Text>
-        <Text>{stats.total} runs</Text>
+        <Text bold color="white">{workflow.name}</Text>
+      </Box>
+      <Box marginTop={1}>
+        <Text dimColor>{stats.total} runs</Text>
         {stats.running > 0 && <><Text dimColor>   </Text><Text color="blue">● {stats.running} running</Text></>}
         {stats.failed > 0 && <><Text dimColor>   </Text><Text color="red">✗ {stats.failed} failed</Text></>}
         {stats.completed > 0 && <><Text dimColor>   </Text><Text color="green">● {stats.completed} ok</Text></>}

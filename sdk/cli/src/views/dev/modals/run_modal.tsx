@@ -9,7 +9,7 @@ import { JsonEditor } from '#views/dev/utils/json_editor.js';
 
 type Mode = 'select' | 'duplicate_name' | 'editing' | 'submitting' | 'error';
 
-type EntryKind = 'scenario' | 'custom' | 'duplicate';
+type EntryKind = 'scenario' | 'custom';
 
 interface Entry {
   kind: EntryKind;
@@ -24,9 +24,6 @@ const buildEntries = ( scenarios: string[] ): Entry[] => {
     scenarioName: s
   } ) );
   list.push( { kind: 'custom', label: 'Custom input' } );
-  for ( const s of scenarios ) {
-    list.push( { kind: 'duplicate', label: `Duplicate '${s}' → new scenario`, scenarioName: s } );
-  }
   return list;
 };
 
@@ -91,15 +88,15 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
       }
       return;
     }
-    if ( entry.kind === 'duplicate' && entry.scenarioName ) {
-      setDuplicateSource( entry.scenarioName );
-      setDuplicateName( `${entry.scenarioName}_copy` );
-      setMode( 'duplicate_name' );
-      return;
-    }
     if ( entry.kind === 'custom' ) {
       setMode( 'editing' );
     }
+  };
+
+  const startDuplicate = ( scenarioName: string ): void => {
+    setDuplicateSource( scenarioName );
+    setDuplicateName( `${scenarioName}_copy` );
+    setMode( 'duplicate_name' );
   };
 
   const handleEditorSubmit = ( value: unknown ): void => {
@@ -153,6 +150,13 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         const entry = entries[index];
         if ( entry ) {
           void handleSelect( entry );
+        }
+        return;
+      }
+      if ( input === 'd' ) {
+        const entry = entries[index];
+        if ( entry?.kind === 'scenario' && entry.scenarioName ) {
+          startDuplicate( entry.scenarioName );
         }
       }
       return;
@@ -241,13 +245,24 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         </Box>
       ) : (
         <Box flexDirection="column" marginTop={1}>
-          {entries.map( ( entry, i ) => (
-            <Box key={`${entry.kind}-${entry.scenarioName ?? i}`}>
-              <Text color={i === index ? 'cyan' : undefined} bold={i === index}>
-                {i === index ? '▸ ' : '  '}{entry.label}
-              </Text>
-            </Box>
-          ) )}
+          {entries.map( ( entry, i ) => {
+            const prev = i > 0 ? entries[i - 1] : undefined;
+            const showSeparator = prev?.kind === 'scenario' && entry.kind !== 'scenario';
+            return (
+              <React.Fragment key={`${entry.kind}-${entry.scenarioName ?? i}`}>
+                {showSeparator && (
+                  <Box marginY={0}>
+                    <Text dimColor>{'─'.repeat( 40 )}</Text>
+                  </Box>
+                )}
+                <Box>
+                  <Text color={i === index ? 'cyan' : undefined} bold={i === index}>
+                    {i === index ? '▸ ' : '  '}{entry.label}
+                  </Text>
+                </Box>
+              </React.Fragment>
+            );
+          } )}
         </Box>
       )}
       <Box marginTop={1}>
@@ -255,6 +270,8 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         <Text> navigate   </Text>
         <Text dimColor>enter</Text>
         <Text> run   </Text>
+        <Text dimColor>d</Text>
+        <Text> duplicate   </Text>
         <Text dimColor>esc</Text>
         <Text> cancel</Text>
       </Box>

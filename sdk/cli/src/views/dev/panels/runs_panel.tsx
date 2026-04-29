@@ -196,7 +196,7 @@ const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | n
   return (
     <Box flexDirection="column">
       <Box>
-        <Text backgroundColor="magenta" color="white" bold>{` ${heading} `}</Text>
+        <Text bold color="white">{heading}</Text>
       </Box>
       <Box marginTop={1}>
         <StatusIcon status={status} />

@@ -166,7 +166,7 @@ export const HelpPanel: React.FC = () => {
     <Box flexDirection="column" marginTop={1}>
       <Box flexDirection="row">
         <Box flexDirection="column" width={28}>
-          <Text bold>📖 Help</Text>
+          <Text bold>Help</Text>
           <Box flexDirection="column" marginTop={1}>
             {SECTIONS.map( ( section, i ) => (
               <Box key={section.id} backgroundColor={i === index ? 'magenta' : undefined}>

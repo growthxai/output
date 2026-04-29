@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import type { WorkflowSummary } from '#components/workflow_summary.js';
 
-const LOGO_FULL = [
+const LOGO_PIXELS = [
   ' ██████  ██    ██ ████████ ██████  ██    ██ ████████',
   '██    ██ ██    ██    ██    ██   ██ ██    ██    ██   ',
   '██    ██ ██    ██    ██    ██████  ██    ██    ██   ',
@@ -10,21 +10,52 @@ const LOGO_FULL = [
   ' ██████   ██████     ██    ██       ██████     ██   '
 ];
 
-const FULL_WIDTH_THRESHOLD = 90;
+const QUADRANT_CHARS = [
+  ' ', '▗', '▖', '▄',
+  '▝', '▐', '▞', '▟',
+  '▘', '▚', '▌', '▙',
+  '▀', '▜', '▛', '█'
+];
+
+const compressPixels = ( rows: string[] ): string[] => {
+  const maxCol = Math.max( ...rows.map( r => r.length ) );
+  const evenCol = maxCol + ( maxCol % 2 );
+  const padded = rows.map( r => r.padEnd( evenCol, ' ' ) );
+  const fullPadded = padded.length % 2 === 1 ?
+    [ ...padded, ' '.repeat( evenCol ) ] :
+    padded;
+
+  const rowPairs = fullPadded.reduce<Array<[string, string]>>( ( acc, row, i ) => {
+    if ( i % 2 === 0 ) {
+      acc.push( [ row, fullPadded[i + 1] ] );
+    }
+    return acc;
+  }, [] );
+
+  const colCount = Math.floor( evenCol / 2 );
+
+  return rowPairs.map( ( [ top, bot ] ) => {
+    const chars = Array.from( { length: colCount }, ( _, k ) => {
+      const j = k * 2;
+      const tl = top[j] === '█' ? 8 : 0;
+      const tr = top[j + 1] === '█' ? 4 : 0;
+      const bl = bot[j] === '█' ? 2 : 0;
+      const br = bot[j + 1] === '█' ? 1 : 0;
+      return QUADRANT_CHARS[tl + tr + bl + br];
+    } );
+    return chars.join( '' );
+  } );
+};
+
+const LOGO_COMPRESSED = compressPixels( LOGO_PIXELS );
+
+const FULL_WIDTH_THRESHOLD = 60;
 
 const COLOR_LIGHT = '#c4b5fd';
-const COLOR_MEDIUM_LIGHT = '#a78bfa';
 const COLOR_MEDIUM = '#8b5cf6';
-const COLOR_MEDIUM_DARK = '#7c3aed';
 const COLOR_DARK = '#6d28d9';
 
-const FULL_LOGO_ROW_COLORS = [
-  COLOR_LIGHT,
-  COLOR_MEDIUM_LIGHT,
-  COLOR_MEDIUM,
-  COLOR_MEDIUM_DARK,
-  COLOR_DARK
-];
+const LOGO_ROW_COLORS = [ COLOR_LIGHT, COLOR_MEDIUM, COLOR_DARK ];
 
 export interface HeaderCounters {
   running: number;
@@ -63,12 +94,12 @@ const Counters: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => (
 
 const Logo: React.FC<{ cols: number }> = ( { cols } ) => {
   if ( cols < FULL_WIDTH_THRESHOLD ) {
-    return <Text color={COLOR_MEDIUM_LIGHT} bold>OUTPUT</Text>;
+    return <Text color={COLOR_MEDIUM} bold>OUTPUT</Text>;
   }
   return (
     <Box flexDirection="column">
-      {LOGO_FULL.map( ( line, i ) => (
-        <Text key={i} color={FULL_LOGO_ROW_COLORS[i] ?? COLOR_MEDIUM_LIGHT} bold>{line}</Text>
+      {LOGO_COMPRESSED.map( ( line, i ) => (
+        <Text key={i} color={LOGO_ROW_COLORS[i] ?? COLOR_MEDIUM} bold>{line}</Text>
       ) )}
     </Box>
   );
