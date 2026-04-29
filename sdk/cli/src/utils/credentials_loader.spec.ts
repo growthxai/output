@@ -62,6 +62,25 @@ describe( 'loadCredentialRefs', () => {
     expect( exitSpy ).toHaveBeenCalledWith( 1 );
   } );
 
+  it( 'should print a clean error message and exit on InvalidCredentialsKeyError', () => {
+    vi.mocked( credentials.resolveCredentialRefs ).mockImplementation( () => {
+      throw new credentials.InvalidCredentialsKeyError( 'config/credentials.yml.enc' );
+    } );
+
+    const consoleErrorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
+    const exitSpy = vi.spyOn( process, 'exit' ).mockImplementation( ( () => undefined ) as never );
+
+    loadCredentialRefs();
+
+    expect( consoleErrorSpy ).toHaveBeenCalledTimes( 1 );
+    const printedMessage = consoleErrorSpy.mock.calls[0]?.[0] as string;
+    expect( printedMessage ).toContain( 'Failed to decrypt config/credentials.yml.enc' );
+    expect( printedMessage ).toContain( 'does not match' );
+    expect( printedMessage ).not.toContain( '    at ' );
+
+    expect( exitSpy ).toHaveBeenCalledWith( 1 );
+  } );
+
   it( 'should rethrow unexpected errors so they are not silently swallowed', () => {
     vi.mocked( credentials.resolveCredentialRefs ).mockImplementation( () => {
       throw new Error( 'something else broke' );

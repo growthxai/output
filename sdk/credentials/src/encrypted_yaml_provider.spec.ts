@@ -99,6 +99,23 @@ describe( 'encrypted YAML provider', () => {
       expect( () => provider.loadGlobal( { environment: undefined } ) )
         .toThrow( 'No credentials key found' );
     } );
+
+    it( 'should throw InvalidCredentialsKeyError when the key does not match the encrypted file', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = generateKey();
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( InvalidCredentialsKeyError );
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( /Failed to decrypt .*credentials\.yml\.enc/ );
+    } );
   } );
 
   describe( 'loadForWorkflow', () => {

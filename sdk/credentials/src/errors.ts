@@ -17,3 +17,13 @@ export class MissingCredentialError extends Error {
     this.name = 'MissingCredentialError';
   }
 }
+
+export class InvalidCredentialsKeyError extends Error {
+  constructor( credentialsPath: string ) {
+    super(
+      `Failed to decrypt ${credentialsPath}. The credentials key does not match the one used to encrypt this file. ` +
+      'Check OUTPUT_CREDENTIALS_KEY env var or config/credentials.key.'
+    );
+    this.name = 'InvalidCredentialsKeyError';
+  }
+}

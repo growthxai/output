@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { load as parseYaml } from 'js-yaml';
 import { decrypt } from './encryption.js';
-import { MissingKeyError } from './errors.js';
+import { InvalidCredentialsKeyError, MissingKeyError } from './errors.js';
 import {
   resolveKeyEnvVar,
   resolveCredentialsPath,
@@ -49,8 +49,16 @@ const resolveWorkflowKey = ( workflowName: string, workflowDir: string ): string
   return resolveKey( undefined );
 };
 
-const decryptYaml = ( credPath: string, key: string ): Record<string, unknown> =>
-  ( parseYaml( decrypt( readFileSync( credPath, 'utf8' ).trim(), key ) ) as Record<string, unknown> ) || {};
+const decryptYaml = ( credPath: string, key: string ): Record<string, unknown> => {
+  try {
+    return ( parseYaml( decrypt( readFileSync( credPath, 'utf8' ).trim(), key ) ) as Record<string, unknown> ) || {};
+  } catch ( error: unknown ) {
+    if ( error instanceof Error && error.message.includes( 'aes/gcm' ) ) {
+      throw new InvalidCredentialsKeyError( credPath );
+    }
+    throw error;
+  }
+};
 
 export const encryptedYamlProvider: CredentialsProvider = {
   loadGlobal: ( { environment } ) => {
