@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import Spinner from 'ink-spinner';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { formatDurationCompact, formatDate, elapsedMs } from '#utils/date_formatter.js';
 import { Footer } from '#views/dev/chrome/footer.js';
+import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
 import { useUiState, type RightPaneTab } from '#views/dev/state/ui_state.js';
 import { useRunDetail, type RunStep } from '#views/dev/hooks/use_run_detail.js';
 import { JsonView } from '#views/dev/utils/json_render.js';
-
-const VISIBLE_STEPS = 12;
-
-const truncate = ( str: string, max: number ): string =>
-  str.length > max ? `${str.slice( 0, max - 1 )}…` : str;
+import { truncate, computeWindowStart } from '#views/dev/utils/panel_helpers.js';
+import {
+  RUN_DETAIL_VISIBLE_STEPS,
+  RUN_DETAIL_PREVIEW_LINES
+} from '#views/dev/utils/constants.js';
 
 const RIGHT_PANE_ORDER: RightPaneTab[] = [ 'input', 'output', 'meta' ];
 
@@ -111,7 +111,7 @@ const StepDetail: React.FC<{ step: RunStep | undefined; activeTab: RightPaneTab 
     <Box flexDirection="column" marginTop={1}>
       <PaneTabs active={activeTab} />
       <Box marginTop={1} flexDirection="column">
-        <JsonView value={stepPaneValue( step, activeTab )} maxLines={18} />
+        <JsonView value={stepPaneValue( step, activeTab )} maxLines={RUN_DETAIL_PREVIEW_LINES} />
       </Box>
     </Box>
   );
@@ -169,21 +169,15 @@ export const RunDetailView: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
     }
   }, { isActive } );
 
-  const windowStart = ( () => {
-    const half = Math.floor( VISIBLE_STEPS / 2 );
-    const start = Math.max( 0, clamped - half );
-    const maxStart = Math.max( 0, steps.length - VISIBLE_STEPS );
-    return Math.min( start, maxStart );
-  } )();
+  const windowStart = computeWindowStart( clamped, steps.length, RUN_DETAIL_VISIBLE_STEPS );
 
-  const visibleSteps = steps.slice( windowStart, windowStart + VISIBLE_STEPS );
+  const visibleSteps = steps.slice( windowStart, windowStart + RUN_DETAIL_VISIBLE_STEPS );
 
   const renderStepList = (): React.ReactNode => {
     if ( loading && steps.length === 0 ) {
       return (
         <Box marginTop={1}>
-          <Text color="yellow"><Spinner type="dots" /></Text>
-          <Text> Loading steps…</Text>
+          <LoadingSpinner label="Loading steps…" />
         </Box>
       );
     }
@@ -200,8 +194,8 @@ export const RunDetailView: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
         {visibleSteps.map( ( step, i ) => (
           <StepRow key={`${step.index}-${i}`} step={step} selected={windowStart + i === clamped} />
         ) )}
-        {windowStart + VISIBLE_STEPS < steps.length && (
-          <Text dimColor>  ↓ {steps.length - windowStart - VISIBLE_STEPS} more below</Text>
+        {windowStart + RUN_DETAIL_VISIBLE_STEPS < steps.length && (
+          <Text dimColor>  ↓ {steps.length - windowStart - RUN_DETAIL_VISIBLE_STEPS} more below</Text>
         )}
       </>
     );

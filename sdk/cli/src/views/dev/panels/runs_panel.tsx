@@ -1,22 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { format, parseISO } from 'date-fns';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact, formatDate } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
-import Spinner from 'ink-spinner';
 import { Footer } from '#views/dev/chrome/footer.js';
-import { HorizontalRule } from '#views/dev/chrome/divider.js';
+import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { RunDetailView } from '#views/dev/panels/run_detail_view.js';
 import { useRunDetail } from '#views/dev/hooks/use_run_detail.js';
 import { JsonView } from '#views/dev/utils/json_render.js';
+import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
+import { truncate, formatStartedShort } from '#views/dev/utils/panel_helpers.js';
+import { CATALOG_WORKFLOW_NAME, RUNS_VISIBLE_ROWS, RUNS_PREVIEW_LINES } from '#views/dev/utils/constants.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
-const VISIBLE_ROWS = 8;
-const CATALOG_WORKFLOW_NAME = '$catalog';
 
 const STATUS_ORDER: Record<string, number> = {
   running: 0,
@@ -49,8 +48,25 @@ const matchesFilter = ( run: WorkflowRun, query: string ): boolean => {
     ( run.status ?? '' ).toLowerCase().includes( q );
 };
 
-const truncate = ( str: string, max: number ): string =>
-  str.length > max ? `${str.slice( 0, max - 1 )}…` : str;
+export const buildVisibleRuns = ( runs: WorkflowRun[], query: string ): WorkflowRun[] => {
+  const visible = runs.filter( r => !( r.workflowType === CATALOG_WORKFLOW_NAME && r.status === 'completed' ) );
+  const filtered = query ? visible.filter( r => matchesFilter( r, query ) ) : visible;
+  return sortRuns( filtered );
+};
+
+export const extractRunInput = ( trace: TraceData | null ): unknown => {
+  if ( !trace?.children ) {
+    return null;
+  }
+  const firstChild = trace.children[0] as DebugNode | undefined;
+  if ( !firstChild ) {
+    return null;
+  }
+  if ( firstChild.input !== undefined ) {
+    return firstChild.input;
+  }
+  return firstChild.details?.input ?? null;
+};
 
 const COL = {
   indicator: 2,
@@ -60,17 +76,6 @@ const COL = {
   id: 26,
   duration: 9,
   started: 14
-};
-
-const formatStartedShort = ( iso: string | undefined ): string => {
-  if ( !iso ) {
-    return '-';
-  }
-  try {
-    return format( parseISO( iso ), 'MMM d HH:mm' );
-  } catch {
-    return '-';
-  }
 };
 
 const HeaderRow: React.FC = () => (
@@ -103,22 +108,6 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
       <Box width={COL.started} marginLeft={2}><Text dimColor={!selected}>{formatStartedShort( run.startedAt )}</Text></Box>
     </Box>
   );
-};
-
-const PREVIEW_LINES = 12;
-
-const extractRunInput = ( trace: TraceData | null ): unknown => {
-  if ( !trace?.children ) {
-    return null;
-  }
-  const firstChild = trace.children[0] as DebugNode | undefined;
-  if ( !firstChild ) {
-    return null;
-  }
-  if ( firstChild.input !== undefined ) {
-    return firstChild.input;
-  }
-  return firstChild.details?.input ?? null;
 };
 
 const PaneTabs: React.FC<{ active: 'input' | 'output' }> = ( { active } ) => (
@@ -167,11 +156,9 @@ const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | n
   const renderPane = (): React.ReactNode => {
     if ( activePane === 'input' ) {
       if ( loading && runInput === null ) {
-        return (
-          <Box><Text color="yellow"><Spinner type="dots" /></Text><Text dimColor> loading…</Text></Box>
-        );
+        return <LoadingSpinner />;
       }
-      return <JsonView value={runInput} maxLines={PREVIEW_LINES} />;
+      return <JsonView value={runInput} maxLines={RUNS_PREVIEW_LINES} />;
     }
     if ( runError ) {
       return (
@@ -183,13 +170,11 @@ const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | n
     }
     if ( runOutput === undefined || runOutput === null ) {
       if ( loading ) {
-        return (
-          <Box><Text color="yellow"><Spinner type="dots" /></Text><Text dimColor> loading…</Text></Box>
-        );
+        return <LoadingSpinner />;
       }
       return <Text dimColor>No output yet.</Text>;
     }
-    return <JsonView value={runOutput} maxLines={PREVIEW_LINES} />;
+    return <JsonView value={runOutput} maxLines={RUNS_PREVIEW_LINES} />;
   };
 
   const heading = `${run.workflowType ?? 'run'} : ${run.runId ?? run.workflowId ?? '-'}`;
@@ -229,12 +214,6 @@ const HINTS = [
   { key: '/', label: 'filter' },
   { key: 'tab', label: 'next tab' }
 ];
-
-const buildVisibleRuns = ( runs: WorkflowRun[], query: string ): WorkflowRun[] => {
-  const visible = runs.filter( r => !( r.workflowType === CATALOG_WORKFLOW_NAME && r.status === 'completed' ) );
-  const filtered = query ? visible.filter( r => matchesFilter( r, query ) ) : visible;
-  return sortRuns( filtered );
-};
 
 export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
   const ui = useUiState();
@@ -332,7 +311,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
   if ( runs.length === 0 ) {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text bold>📋 Recent Runs</Text>
+        <Text bold>Recent Runs</Text>
         <Box marginTop={1}>
           <Text dimColor>No runs yet. Trigger one from the Workflows tab or with `output workflow run …`.</Text>
         </Box>
@@ -344,7 +323,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
   if ( filteredRuns.length === 0 ) {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Text bold>📋 Recent Runs</Text>
+        <Text bold>Recent Runs</Text>
         <Box marginTop={1}>
           <Text dimColor>No runs match `{ui.search.query}`. Press </Text>
           <Text bold>esc</Text>
@@ -355,36 +334,17 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
     );
   }
 
-  const windowStart = ( () => {
-    const half = Math.floor( VISIBLE_ROWS / 2 );
-    const start = Math.max( 0, clampedIndex - half );
-    const maxStart = Math.max( 0, filteredRuns.length - VISIBLE_ROWS );
-    return Math.min( start, maxStart );
-  } )();
-
-  const visibleRuns = filteredRuns.slice( windowStart, windowStart + VISIBLE_ROWS );
-
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="column">
-        <HeaderRow />
-        {windowStart > 0 && <Text dimColor>  ↑ {windowStart} more above</Text>}
-        {visibleRuns.map( ( run, i ) => (
-          <RunRow
-            key={`${run.workflowId}-${run.runId ?? run.startedAt}-${windowStart + i}`}
-            run={run}
-            selected={windowStart + i === clampedIndex}
-          />
-        ) )}
-        {windowStart + VISIBLE_ROWS < filteredRuns.length && (
-          <Text dimColor>  ↓ {filteredRuns.length - windowStart - VISIBLE_ROWS} more below</Text>
-        )}
-      </Box>
-      <Box marginTop={1} marginBottom={1}>
-        <HorizontalRule color="gray" />
-      </Box>
-      <DetailPane run={selectedRun} pane={pane} />
-      <Footer hints={HINTS} itemCount={filteredRuns.length} itemLabel="runs" />
-    </Box>
+    <MasterDetailPanel
+      items={filteredRuns}
+      selectedIndex={clampedIndex}
+      visibleRows={RUNS_VISIBLE_ROWS}
+      renderHeader={() => <HeaderRow />}
+      renderRow={( run, selected ) => <RunRow run={run} selected={selected} />}
+      rowKey={( run, i ) => `${run.workflowId}-${run.runId ?? run.startedAt}-${i}`}
+      detail={<DetailPane run={selectedRun} pane={pane} />}
+      hints={HINTS}
+      itemLabel="runs"
+    />
   );
 };

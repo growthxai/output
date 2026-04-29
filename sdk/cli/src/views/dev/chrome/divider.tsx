@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
+import { RULE_PURPLE } from '#views/dev/chrome/palette.js';
 
-const DEFAULT_RULE_COLOR = '#a78bfa';
+const DEFAULT_RULE_COLOR = RULE_PURPLE;
 const DEFAULT_VRULE_COLOR = 'gray';
 
 // dev_app.tsx Shell uses paddingX={2}, so 4 cols are eaten by horizontal padding.

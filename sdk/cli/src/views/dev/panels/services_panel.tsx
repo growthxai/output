@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import Spinner from 'ink-spinner';
 import { isServiceFailed, SERVICE_HEALTH, type ServiceStatus } from '#services/docker.js';
 import { StatusIcon } from '#components/status_icon.js';
 import { openUrl } from '#utils/open_url.js';
 import { Footer } from '#views/dev/chrome/footer.js';
-import { HorizontalRule } from '#views/dev/chrome/divider.js';
+import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { useDockerLogs } from '#views/dev/hooks/use_docker_logs.js';
 import { restartService, restartStack } from '#views/dev/services/docker_control.js';
+import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
 import type { Phase } from '#views/dev/dev_app.js';
 
 const VISIBLE_LOG_LINES = 18;
@@ -32,12 +32,15 @@ const COL = {
 };
 
 const HeaderRow: React.FC = () => (
-  <Box>
-    <Box width={COL.indicator}><Text> </Text></Box>
-    <Box width={COL.icon}><Text> </Text></Box>
-    <Box width={COL.name}><Text dimColor bold>SERVICE</Text></Box>
-    <Box width={COL.status}><Text dimColor bold>STATUS</Text></Box>
-    <Box width={COL.ports}><Text dimColor bold>PORTS</Text></Box>
+  <Box flexDirection="column">
+    <Text bold>Services</Text>
+    <Box marginTop={1}>
+      <Box width={COL.indicator}><Text> </Text></Box>
+      <Box width={COL.icon}><Text> </Text></Box>
+      <Box width={COL.name}><Text dimColor bold>SERVICE</Text></Box>
+      <Box width={COL.status}><Text dimColor bold>STATUS</Text></Box>
+      <Box width={COL.ports}><Text dimColor bold>PORTS</Text></Box>
+    </Box>
   </Box>
 );
 
@@ -75,12 +78,7 @@ const LogPane: React.FC<{ serviceName: string | null; lines: string[]; paused: b
     return <Text dimColor>Select a service to tail its logs.</Text>;
   }
   if ( lines.length === 0 ) {
-    return (
-      <Box>
-        <Text color="yellow"><Spinner type="dots" /></Text>
-        <Text> Waiting for logs from {serviceName}…</Text>
-      </Box>
-    );
+    return <LoadingSpinner label={`Waiting for logs from ${serviceName}…`} />;
   }
   const visible = lines.slice( -VISIBLE_LOG_LINES );
   return (
@@ -88,7 +86,7 @@ const LogPane: React.FC<{ serviceName: string | null; lines: string[]; paused: b
       {paused && (
         <Box marginBottom={1}>
           <Text backgroundColor="yellow" color="black"> PAUSED </Text>
-          <Text dimColor> press l to resume</Text>
+          <Text dimColor> press p to resume</Text>
         </Box>
       )}
       {visible.map( ( line, i ) => (
@@ -100,7 +98,12 @@ const LogPane: React.FC<{ serviceName: string | null; lines: string[]; paused: b
 
 const SERVICE_PRIORITY = [ 'worker', 'api' ] as const;
 
-const compareService = ( a: ServiceStatus, b: ServiceStatus ): number => {
+/**
+ * Worker first (most-watched in development), then API, then everything
+ * else alphabetically. Promoting the priority list to a constant keeps
+ * the comparator three lines.
+ */
+export const compareService = ( a: ServiceStatus, b: ServiceStatus ): number => {
   const ai = SERVICE_PRIORITY.indexOf( a.name as typeof SERVICE_PRIORITY[number] );
   const bi = SERVICE_PRIORITY.indexOf( b.name as typeof SERVICE_PRIORITY[number] );
   if ( ai !== -1 || bi !== -1 ) {
@@ -124,6 +127,31 @@ const HINTS_BOOT = [
   { key: '?', label: 'help' },
   { key: 'ctrl+c', label: 'quit' }
 ];
+
+interface DetailProps {
+  service: ServiceStatus | undefined;
+  services: ServiceStatus[];
+  lines: string[];
+  paused: boolean;
+  banner: string | null;
+}
+
+const Detail: React.FC<DetailProps> = ( { service, services, lines, paused, banner } ) => (
+  <Box flexDirection="column">
+    <FailureBanner services={services} />
+    <Box marginTop={1}>
+      <Text bold color="white">{service?.name ?? 'Logs'}</Text>
+    </Box>
+    <Box flexDirection="column" marginTop={1}>
+      <LogPane serviceName={service?.name ?? null} lines={lines} paused={paused} />
+    </Box>
+    {banner && (
+      <Box marginTop={1}>
+        <Text color="cyan">{banner}</Text>
+      </Box>
+    )}
+  </Box>
+);
 
 export const ServicesPanel: React.FC<{
   phase: Phase;
@@ -209,10 +237,7 @@ export const ServicesPanel: React.FC<{
   if ( phase === 'waiting' && services.length === 0 ) {
     return (
       <Box flexDirection="column" marginTop={1}>
-        <Box>
-          <Text color="yellow"><Spinner type="dots" /></Text>
-          <Text> Starting Docker services…</Text>
-        </Box>
+        <LoadingSpinner label="Starting Docker services…" />
         <Footer hints={HINTS_BOOT} />
       </Box>
     );
@@ -228,34 +253,24 @@ export const ServicesPanel: React.FC<{
   }
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="column">
-        <Text bold>Services</Text>
-        <Box flexDirection="column" marginTop={1}>
-          <HeaderRow />
-          {sortedServices.map( ( s, i ) => (
-            <ServiceRow key={s.name} service={s} selected={i === clamped} />
-          ) )}
-        </Box>
-        <FailureBanner services={services} />
-      </Box>
-      <Box marginTop={1} marginBottom={1}>
-        <HorizontalRule color="gray" />
-      </Box>
-      <Box flexDirection="column">
-        <Box>
-          <Text bold color="white">{selectedService?.name ?? 'Logs'}</Text>
-        </Box>
-        <Box flexDirection="column" marginTop={1}>
-          <LogPane serviceName={selectedService?.name ?? null} lines={logs.lines} paused={logs.paused} />
-        </Box>
-      </Box>
-      {banner && (
-        <Box marginTop={1}>
-          <Text color="cyan">{banner}</Text>
-        </Box>
-      )}
-      <Footer hints={phase === 'running' ? HINTS : HINTS_BOOT} itemCount={services.length} itemLabel="services" />
-    </Box>
+    <MasterDetailPanel
+      items={sortedServices}
+      selectedIndex={clamped}
+      visibleRows={sortedServices.length}
+      renderHeader={() => <HeaderRow />}
+      renderRow={( service, selected ) => <ServiceRow service={service} selected={selected} />}
+      rowKey={service => service.name}
+      detail={
+        <Detail
+          service={selectedService}
+          services={services}
+          lines={logs.lines}
+          paused={logs.paused}
+          banner={banner}
+        />
+      }
+      hints={phase === 'running' ? HINTS : HINTS_BOOT}
+      itemLabel="services"
+    />
   );
 };

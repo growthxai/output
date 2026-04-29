@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
 import type { WorkflowSummary } from '#components/workflow_summary.js';
+import { LOGO_GRADIENT, PURPLE_100 } from '#views/dev/chrome/palette.js';
 
 const LOGO_PIXELS = [
   ' ██████  ██    ██ ████████ ██████  ██    ██ ████████',
@@ -51,12 +52,6 @@ const compressPixels = ( rows: string[] ): string[] => {
 const LOGO_COMPRESSED = compressPixels( LOGO_PIXELS );
 
 const FULL_WIDTH_THRESHOLD = 60;
-
-const COLOR_LIGHT = '#c4b5fd';
-const COLOR_MEDIUM = '#8b5cf6';
-const COLOR_DARK = '#6d28d9';
-
-const LOGO_ROW_COLORS = [ COLOR_LIGHT, COLOR_MEDIUM, COLOR_DARK ];
 
 export type ServiceBadge = 'healthy' | 'starting' | 'failed';
 
@@ -120,12 +115,12 @@ const Counters: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => (
 
 const Logo: React.FC<{ cols: number }> = ( { cols } ) => {
   if ( cols < FULL_WIDTH_THRESHOLD ) {
-    return <Text color={COLOR_MEDIUM} bold>OUTPUT</Text>;
+    return <Text color={PURPLE_100} bold>OUTPUT</Text>;
   }
   return (
     <Box flexDirection="column">
       {LOGO_COMPRESSED.map( ( line, i ) => (
-        <Text key={i} color={LOGO_ROW_COLORS[i] ?? COLOR_MEDIUM} bold>{line}</Text>
+        <Text key={i} color={LOGO_GRADIENT[i] ?? PURPLE_100} bold>{line}</Text>
       ) )}
     </Box>
   );
