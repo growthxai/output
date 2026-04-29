@@ -123,8 +123,8 @@ export type {
   TextStreamPart
 } from 'ai';
 
-// Re-export the tool helper function, Output, smoothStream, and stop condition helpers
-export { tool, Output, smoothStream, stepCountIs, hasToolCall } from 'ai';
+// Re-export the tool helper function, Output, smoothStream, stop condition helpers, and jsonSchema
+export { tool, Output, smoothStream, stepCountIs, hasToolCall, jsonSchema } from 'ai';
 
 // Web search tool factories
 export { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';
