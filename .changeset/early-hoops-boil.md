@@ -1,7 +1,9 @@
 ---
 "@outputai/http": patch
-"@outputai/llm": patch
+"@outputai/llm": minor
 ---
 
-- Emitting "cost:http:request" event when attaching cost to an HTTP request using `addRequestCost()`;
-- Adding `.cost` property to all responses from LLM with the calculated costs of the call;
+- HTTP: Added a new event `cost:http:request` that is dispatched after calling `addRequestCost()`: the event's payload is `requestId`, `cost` and `url`;
+- LLM: Renamed `llm:call_cost` event to `cost:llm:request`;
+- LLM: Updated the format of the `.cost` property on `.generateText()` response and on the cost hook payload: `components` is now an array;
+- LLM: Updated `.streamText()` `onFinish()` callback to have the `.cost` property: contains the calculated cost for the stream.
