@@ -8,6 +8,6 @@ on( 'custom_event', async payload => {
   console.log( '>>> on(\'custom_event\') >>>', payload );
 } );
 
-on( 'llm:call_cost', async payload => {
-  console.log( '>>> on(\'llm:call_cost\') >>>', payload );
+on( 'cost:llm:request', async payload => {
+  console.log( '>>> on(\'cost:llm:request\') >>>', payload );
 } );

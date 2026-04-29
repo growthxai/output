@@ -4,8 +4,8 @@ import { stepCountIs } from 'ai';
 import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.js';
 import { loadPrompt } from './prompt_loader.js';
 import { buildSystemSkillsVar, buildLoadSkillTool, loadPromptSkills, loadColocatedSkills } from './skill.js';
-import { startTrace, endTraceWithError, traceStreamCallbacks } from './trace_utils.js';
-import { wrapInOutputResponse } from './response_utils.js';
+import { startTrace, endTraceWithError } from './utils/trace.js';
+import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
 
 export const loadAiSdkOptionsFromPrompt = prompt => {
   const options = {
@@ -72,7 +72,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
 
   validateGenerateTextArgs( { prompt, variables: allVariables } );
 
-  const traceId = startTrace( 'generateText', { prompt, variables: allVariables, loadedPrompt } );
+  const traceId = startTrace( { name: 'generateText', prompt, variables: allVariables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
   try {
@@ -82,9 +82,9 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
       ...( hasTools ? { tools } : {} ),
       ...( hasTools && !extraAiSdkOptions.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
-    return wrapInOutputResponse( response, { traceId, modelId } );
+    return wrapTextResponse( { traceId, modelId, response } );
   } catch ( error ) {
-    endTraceWithError( traceId, error );
+    endTraceWithError( { traceId, error } );
     throw error;
   }
 }
@@ -92,17 +92,21 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
 export function streamText( { prompt, variables, onFinish, onError, ...restOptions } ) {
   validateStreamTextArgs( { prompt, variables } );
   const loadedPrompt = loadPrompt( prompt, variables );
-  const traceId = startTrace( 'streamText', { prompt, variables, loadedPrompt } );
+  const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
   try {
     return AI.streamText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
       ...restOptions,
-      ...traceStreamCallbacks( traceId, modelId, { onFinish, onError } )
+      ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
+      onError( event ) {
+        endTraceWithError( { traceId, error: event.error } );
+        onError?.( event );
+      }
     } );
   } catch ( error ) {
-    endTraceWithError( traceId, error );
+    endTraceWithError( { traceId, error } );
     throw error;
   }
 }

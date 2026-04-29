@@ -1,4 +1,5 @@
 import type {
+  AgentStreamParameters,
   GenerateTextResult as AIGenerateTextResult,
   StreamTextResult as AIStreamTextResult,
   CallSettings,
@@ -196,6 +197,21 @@ type StreamTextAiSdkOptions<
   experimental_transform?: StreamTextTransform<Tools> | Array<StreamTextTransform<Tools>>;
 };
 
+/**
+ * Like {@link StreamTextAiSdkOptions} but `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (adds `cost`).
+ */
+type OutputStreamTextAiSdkOptions<
+  Tools extends ToolSet = ToolSet,
+  Output extends AIOutput<unknown, unknown> = AIOutput<unknown, unknown>
+> = Omit<StreamTextAiSdkOptions<Tools, Output>, 'onFinish'> & {
+  onFinish?: WrappedStreamTextOnFinishCallback<Tools>;
+};
+
+/** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
+export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish'> & {
+  onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
+};
+
 /** A source extracted from search tool results during multi-step LLM execution. */
 export type ExtractedSource = {
   type: 'source';
@@ -204,6 +220,29 @@ export type ExtractedSource = {
   url: string;
   title: string;
 };
+
+/**
+ * Cost breakdown from the cost module (`calculateLLMCallCost`). `total` is null when pricing data is missing or calculation fails.
+ */
+export type LLMCallCost = {
+  total: number | null;
+  components?: Array<{
+    name: string,
+    value: number
+  }>;
+  message?: string;
+};
+
+/**
+ * `streamText` and agent `stream` `onFinish` event after the stream response wrapper: same as the AI SDK
+ * finish payload plus optional `cost` from pricing.
+ */
+export type WrappedStreamTextOnFinishEvent<Tools extends ToolSet = ToolSet> =
+  Parameters<StreamTextOnFinishCallback<Tools>>[0] & { cost?: LLMCallCost };
+
+export type WrappedStreamTextOnFinishCallback<Tools extends ToolSet = ToolSet> = (
+  event: WrappedStreamTextOnFinishEvent<Tools>
+) => void | PromiseLike<void>;
 
 /**
  * Result from generateText including full AI SDK response metadata.
@@ -216,6 +255,8 @@ export type GenerateTextResult<
 > = AIGenerateTextResult<Tools, Output> & {
   /** Unified field name alias for 'text' - provides consistency across all generate* functions */
   result: string;
+  /** Calculated cost in USD for the LLM call (present after wrapping; `total` may be null if pricing is unavailable) */
+  cost?: LLMCallCost;
   /** Sources extracted from search tool results, merged with any native provider sources */
   sources: ExtractedSource[];
 };
@@ -300,7 +341,7 @@ export function generateText<
  * @param args.prompt - Prompt file name.
  * @param args.variables - Variables to interpolate.
  * @param args.onChunk - Callback for each stream chunk (optional).
- * @param args.onFinish - Callback when stream finishes (optional).
+ * @param args.onFinish - Callback when stream finishes; receives {@link WrappedStreamTextOnFinishEvent} (`cost` optional).
  * @param args.onError - Callback when stream errors (optional).
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
  */
@@ -311,7 +352,7 @@ export function streamText<
   args: {
     prompt: string,
     variables?: Record<string, string | number | boolean>
-  } & StreamTextAiSdkOptions<Tools, Output>
+  } & OutputStreamTextAiSdkOptions<Tools, Output>
 ): AIStreamTextResult<Tools, Output>;
 
 export { skill } from './skill.js';
@@ -385,18 +426,21 @@ export declare class Agent extends import( 'ai' ).ToolLoopAgent {
     maxRetries?: number;
   } );
 
-  /** Run the agent and return when complete. */
+  /**
+   * Run the agent and return when complete.
+   * Same augmented shape as {@link generateText}: `result`, optional `cost`, merged `sources`.
+   */
   generate( options?: {
     messages?: import( 'ai' ).ModelMessage[];
     abortSignal?: AbortSignal;
     onStepFinish?: import( 'ai' ).GenerateTextOnStepFinishCallback<ToolSet>;
-  } ): Promise<import( 'ai' ).GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+  } ): Promise<GenerateTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
 
-  /** Stream the agent's response. */
-  stream( options?: {
-    messages?: import( 'ai' ).ModelMessage[];
-    abortSignal?: AbortSignal;
-    onStepFinish?: import( 'ai' ).StreamTextOnStepFinishCallback<ToolSet>;
-    experimental_transform?: import( 'ai' ).StreamTextTransform<ToolSet> | import( 'ai' ).StreamTextTransform<ToolSet>[];
-  } ): Promise<import( 'ai' ).StreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>>;
+  /**
+   * Stream the agent's response.
+   * `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`cost` optional), matching {@link streamText}.
+   */
+  stream( options?: OutputAgentStreamParameters ): Promise<
+    AIStreamTextResult<ToolSet, import( 'ai' ).Output<unknown, unknown>>
+  >;
 };

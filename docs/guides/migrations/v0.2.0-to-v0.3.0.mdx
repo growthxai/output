@@ -1,0 +1,67 @@
+---
+title: "v0.2.0 → v0.3.0"
+description: "Upgrading Output.ai projects from v0.2.0 to v0.3.0: New LLM cost payload format and cost event name change."
+---
+
+This release has two breaking changes:
+
+1. The `llm:call_cost` hook event was renamed to `cost:llm:request`;
+2. The `cost` object in events and LLM responses has a new format.
+
+## Migration steps
+
+### Event renaming
+
+Update each hook that listens for `llm:call_cost` to use `cost:llm:request`:
+
+#### Before
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'llm:call_cost', async ( { modelId, cost, usage } ) => {
+  ...
+} );
+```
+
+#### After
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:llm:request', async ( { modelId, cost, usage } ) => {
+  ...
+} );
+```
+
+### Cost payload
+
+On the `@outputai/llm` module, the `cost` field in both the `.generateText()` response and the `cost:llm:request` event has a new format:
+
+#### Before
+
+```json
+{
+  "total": 0.002341,
+  "components": {
+    "input": { "value": 0.001302 },
+    "cachedInput": { "value": 0 },
+    "output": { "value": 0.001039 },
+    "reasoning": { "value": 0.00027 }
+  }
+}
+```
+
+#### After
+
+```json
+{
+  "total": 0.002341,
+  "components": [
+    { "name": "input_tokens", "value": 0.001302 },
+    { "name": "input_cached_tokens", "value": 0 },
+    { "name": "output_tokens", "value": 0.001039 },
+    { "name": "reasoning_tokens", "value": 0.00027 }
+  ]
+}
+```
+
+**Note:** `components` used to be an object; it is now an array.

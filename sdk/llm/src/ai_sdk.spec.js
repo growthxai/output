@@ -1,19 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const tracingSpies = {
-  addEventStart: vi.fn(),
-  addEventEnd: vi.fn(),
-  addEventError: vi.fn(),
-  addEventAttribute: vi.fn(),
-  Attribute: {
-    COST: 'cost'
-  }
-};
-const emitEventSpy = vi.fn();
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
-  Tracing: tracingSpies,
-  emitEvent: emitEventSpy
-} ), { virtual: true } );
+const traceMocks = vi.hoisted( () => ( {
+  startTrace: vi.fn( () => 'trace-id' ),
+  endTraceWithError: vi.fn()
+} ) );
+
+const wrapMocks = vi.hoisted( () => ( {
+  wrapTextResponse: vi.fn(),
+  wrapStreamOnFinishResponse: vi.fn()
+} ) );
+
+vi.mock( './utils/trace.js', () => ( {
+  startTrace: ( ...args ) => traceMocks.startTrace( ...args ),
+  endTraceWithError: ( ...args ) => traceMocks.endTraceWithError( ...args )
+} ) );
+
+vi.mock( './utils/response_wrappers.js', () => ( {
+  wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
+  wrapStreamOnFinishResponse: ( ...args ) => wrapMocks.wrapStreamOnFinishResponse( ...args )
+} ) );
 
 const loadModelImpl = vi.fn();
 const loadToolsImpl = vi.fn();
@@ -52,16 +57,6 @@ vi.mock( './skill.js', async importOriginal => {
   };
 } );
 
-const extractSourcesFromStepsImpl = vi.fn().mockReturnValue( [] );
-vi.mock( './source_extraction.js', () => ( {
-  extractSourcesFromSteps: ( ...args ) => extractSourcesFromStepsImpl( ...args )
-} ) );
-
-const calculateLLMCallCostImpl = vi.fn();
-vi.mock( './cost/index.js', () => ( {
-  calculateLLMCallCost: ( ...args ) => calculateLLMCallCostImpl( ...args )
-} ) );
-
 const importSut = async () => import( './ai_sdk.js' );
 
 const basePrompt = {
@@ -74,27 +69,45 @@ const basePrompt = {
   messages: [ { role: 'user', content: 'Hi' } ]
 };
 
-const cost = 'calculate cost';
+/** Mutable payload from `AI.generateText` — identity checks prove `generateText` returns `wrapTextResponse(...)` without substitution. */
+const generateTextAiFixture = {
+  response: {
+    text: 'TEXT',
+    sources: [],
+    usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    totalUsage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    finishReason: 'stop'
+  }
+};
 
 beforeEach( () => {
-  emitEventSpy.mockReset();
   loadModelImpl.mockReset().mockReturnValue( 'MODEL' );
   loadPromptImpl.mockReset().mockReturnValue( { ...basePrompt, messages: [ ...basePrompt.messages ] } );
-  extractSourcesFromStepsImpl.mockReset().mockReturnValue( [] );
-  calculateLLMCallCostImpl.mockReset().mockResolvedValue( cost );
   aiFns.tool.mockReset().mockImplementation( def => def );
   aiFns.stepCountIs.mockReset().mockImplementation( n => ( { type: 'stepCount', count: n } ) );
   loadPromptSkillsImpl.mockReset().mockReturnValue( [] );
   loadColocatedSkillsImpl.mockReset().mockReturnValue( [] );
 
+  traceMocks.startTrace.mockReset().mockReturnValue( 'trace-id' );
+  traceMocks.endTraceWithError.mockReset();
+
+  wrapMocks.wrapTextResponse.mockReset().mockImplementation( async ( { response } ) => response );
+
+  wrapMocks.wrapStreamOnFinishResponse.mockReset().mockImplementation( ( { onFinish } ) => ( {
+    async onFinish( response ) {
+      onFinish?.( response );
+    }
+  } ) );
+
   const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-  aiFns.generateText.mockReset().mockResolvedValue( {
+  generateTextAiFixture.response = {
     text: 'TEXT',
     sources: [],
     usage: defaultUsage,
     totalUsage: defaultUsage,
     finishReason: 'stop'
-  } );
+  };
+  aiFns.generateText.mockReset().mockResolvedValue( generateTextAiFixture.response );
 
   aiFns.streamText.mockReset().mockReturnValue( {
     textStream: 'MOCK_TEXT_STREAM',
@@ -112,36 +125,23 @@ afterEach( async () => {
 } );
 
 describe( 'ai_sdk', () => {
-  it( 'generateText: validates, traces, calls AI and returns text', async () => {
+  it( 'generateText: validates, delegates trace/wrap utils, calls AI and returns wrapTextResponse output', async () => {
     const { generateText } = await importSut();
-    const result = await generateText( { prompt: 'test_prompt@v1' } );
     const defaultUsage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
+    const result = await generateText( { prompt: 'test_prompt@v1' } );
 
     expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( { prompt: 'test_prompt@v1' } );
     expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined, undefined );
-    expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
-    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledTimes( 1 );
-    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
-    );
-    expect( tracingSpies.addEventEnd ).toHaveBeenCalledTimes( 1 );
-    expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        details: expect.objectContaining( {
-          result: 'TEXT',
-          usage: defaultUsage
-        } )
-      } )
-    );
-    expect( calculateLLMCallCostImpl ).toHaveBeenCalledWith( {
-      usage: defaultUsage,
-      modelId: basePrompt.config.model
-    } );
-    expect( emitEventSpy ).toHaveBeenCalledTimes( 1 );
-    expect( emitEventSpy ).toHaveBeenCalledWith( 'llm:call_cost', {
+    expect( traceMocks.startTrace ).toHaveBeenCalledTimes( 1 );
+    expect( traceMocks.startTrace ).toHaveBeenCalledWith( expect.objectContaining( {
+      name: 'generateText',
+      prompt: 'test_prompt@v1'
+    } ) );
+    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledTimes( 1 );
+    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+      traceId: 'trace-id',
       modelId: basePrompt.config.model,
-      cost,
-      usage: defaultUsage
+      response: generateTextAiFixture.response
     } );
 
     expect( loadModelImpl ).toHaveBeenCalledWith( basePrompt );
@@ -151,10 +151,8 @@ describe( 'ai_sdk', () => {
       temperature: 0.3,
       providerOptions: basePrompt.config.providerOptions
     } );
-    expect( result.text ).toBe( 'TEXT' );
-    expect( result.sources ).toEqual( [] );
-    expect( result.usage ).toEqual( { inputTokens: 10, outputTokens: 5, totalTokens: 15 } );
-    expect( result.finishReason ).toBe( 'stop' );
+    expect( result ).toBe( generateTextAiFixture.response );
+    expect( result.totalUsage ).toEqual( defaultUsage );
   } );
 
   it( 'generateText: passes provider-specific options to AI SDK', async () => {
@@ -234,26 +232,16 @@ describe( 'ai_sdk', () => {
     expect( result.response ).toEqual( { id: 'req_123', modelId: 'gpt-4o-2024-05-13' } );
   } );
 
-  it( 'generateText: includes unified result field that matches text', async () => {
-    const { generateText } = await importSut();
-    const response = await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( response.result ).toBe( 'TEXT' );
-    expect( response.result ).toBe( response.text );
-  } );
-
   it( 'generateText: traces error and rethrows when AI SDK fails', async () => {
     const error = new Error( 'API rate limit exceeded' );
     aiFns.generateText.mockRejectedValueOnce( error );
     const { generateText } = await importSut();
 
     await expect( generateText( { prompt: 'test_prompt@v1' } ) ).rejects.toThrow( 'API rate limit exceeded' );
-    expect( tracingSpies.addEventError ).toHaveBeenCalledWith(
-      expect.objectContaining( { details: error } )
-    );
+    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( { traceId: 'trace-id', error } );
   } );
 
-  it( 'generateText: Proxy correctly handles AI SDK response with getter', async () => {
+  it( 'generateText: passes the AI response object through to wrapTextResponse and returns it', async () => {
     const responseWithGetter = {
       _internalText: 'TEXT_FROM_GETTER',
       get text() {
@@ -267,10 +255,15 @@ describe( 'ai_sdk', () => {
     aiFns.generateText.mockResolvedValueOnce( responseWithGetter );
 
     const { generateText } = await importSut();
-    const response = await generateText( { prompt: 'test_prompt@v1' } );
+    const out = await generateText( { prompt: 'test_prompt@v1' } );
 
-    expect( response.text ).toBe( 'TEXT_FROM_GETTER' );
-    expect( response.result ).toBe( 'TEXT_FROM_GETTER' );
+    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+      traceId: 'trace-id',
+      modelId: basePrompt.config.model,
+      response: responseWithGetter
+    } );
+    expect( out ).toBe( responseWithGetter );
+    expect( out.text ).toBe( 'TEXT_FROM_GETTER' );
   } );
 
   it( 'generateText: passes through AI SDK options like tools and maxRetries', async () => {
@@ -331,13 +324,11 @@ describe( 'ai_sdk', () => {
     );
   } );
 
-  it( 'generateText: .object returns undefined instead of leaking text', async () => {
+  it( 'generateText: does not add structured output fields the AI response lacks', async () => {
     const { generateText } = await importSut();
     const result = await generateText( { prompt: 'test_prompt@v1' } );
 
     expect( result.object ).toBeUndefined();
-    expect( result.text ).toBe( 'TEXT' );
-    expect( result.result ).toBe( 'TEXT' );
   } );
 
   it( 'generateText: passes through unknown future options for forward compatibility', async () => {
@@ -357,13 +348,13 @@ describe( 'ai_sdk', () => {
     );
   } );
 
-  it( 'streamText: validates, traces, calls AI streamText and returns stream result', async () => {
+  it( 'streamText: validates, delegates trace/wrap utils, calls AI streamText and returns stream result', async () => {
     const { streamText } = await importSut();
     const result = streamText( { prompt: 'test_prompt@v1' } );
 
     expect( validators.validateStreamTextArgs ).toHaveBeenCalledWith( { prompt: 'test_prompt@v1' } );
     expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', undefined );
-    expect( tracingSpies.addEventStart ).toHaveBeenCalledTimes( 1 );
+    expect( traceMocks.startTrace ).toHaveBeenCalledTimes( 1 );
 
     expect( loadModelImpl ).toHaveBeenCalledWith( basePrompt );
     expect( aiFns.streamText ).toHaveBeenCalledWith(
@@ -380,11 +371,17 @@ describe( 'ai_sdk', () => {
     expect( result.fullStream ).toBe( 'MOCK_FULL_STREAM' );
   } );
 
-  it( 'streamText: onFinish callback traces end event and calls user callback', async () => {
+  it( 'streamText: forwards stream onFinish through wrapStreamOnFinishResponse to the user callback', async () => {
     const { streamText } = await importSut();
     const userOnFinish = vi.fn();
 
     streamText( { prompt: 'test_prompt@v1', onFinish: userOnFinish } );
+
+    expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( expect.objectContaining( {
+      traceId: 'trace-id',
+      modelId: basePrompt.config.model,
+      onFinish: userOnFinish
+    } ) );
 
     const callArgs = aiFns.streamText.mock.calls[0][0];
     const usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
@@ -397,24 +394,7 @@ describe( 'ai_sdk', () => {
     };
     await callArgs.onFinish( finishEvent );
 
-    expect( emitEventSpy ).toHaveBeenCalledTimes( 1 );
-    expect( emitEventSpy ).toHaveBeenCalledWith( 'llm:call_cost', {
-      modelId: basePrompt.config.model,
-      cost,
-      usage
-    } );
-    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: cost } )
-    );
-    expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        details: {
-          result: 'STREAMED_TEXT',
-          usage,
-          providerMetadata: finishEvent.providerMetadata
-        }
-      } )
-    );
+    expect( userOnFinish ).toHaveBeenCalledTimes( 1 );
     expect( userOnFinish ).toHaveBeenCalledWith( finishEvent );
   } );
 
@@ -428,9 +408,7 @@ describe( 'ai_sdk', () => {
     const error = new Error( 'Stream failed' );
     callArgs.onError( { error } );
 
-    expect( tracingSpies.addEventError ).toHaveBeenCalledWith(
-      expect.objectContaining( { details: error } )
-    );
+    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( { traceId: 'trace-id', error } );
     expect( userOnError ).toHaveBeenCalledWith( { error } );
   } );
 
@@ -448,11 +426,6 @@ describe( 'ai_sdk', () => {
       finishReason: 'stop'
     };
     await expect( callArgs.onFinish( finishEvent ) ).resolves.toBeUndefined();
-    expect( emitEventSpy ).toHaveBeenCalledWith( 'llm:call_cost', {
-      modelId: basePrompt.config.model,
-      cost,
-      usage
-    } );
     expect( () => callArgs.onError( { error: new Error( 'fail' ) } ) ).not.toThrow();
   } );
 
@@ -514,15 +487,11 @@ describe( 'ai_sdk', () => {
 
     streamText( { prompt: 'test_prompt@v1', variables: vars } );
 
-    expect( tracingSpies.addEventStart ).toHaveBeenCalledWith( {
-      kind: 'llm',
+    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'streamText',
-      id: expect.stringContaining( 'streamText-' ),
-      details: {
-        prompt: 'test_prompt@v1',
-        variables: vars,
-        loadedPrompt: basePrompt
-      }
+      prompt: 'test_prompt@v1',
+      variables: vars,
+      loadedPrompt: basePrompt
     } );
   } );
 
@@ -534,9 +503,7 @@ describe( 'ai_sdk', () => {
     const { streamText } = await importSut();
 
     expect( () => streamText( { prompt: 'test_prompt@v1' } ) ).toThrow( syncError );
-    expect( tracingSpies.addEventError ).toHaveBeenCalledWith(
-      expect.objectContaining( { details: syncError } )
-    );
+    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( { traceId: 'trace-id', error: syncError } );
   } );
 
   it( 'streamText: passes variables to prompt loader', async () => {
@@ -546,101 +513,6 @@ describe( 'ai_sdk', () => {
     streamText( { prompt: 'test_prompt@v1', variables: vars } );
 
     expect( loadPromptImpl ).toHaveBeenCalledWith( 'test_prompt@v1', vars );
-  } );
-
-  it( 'generateText: merges tool-extracted sources into response.sources', async () => {
-    const extracted = [
-      { type: 'source', sourceType: 'url', id: 'abc123', url: 'https://tool.com/1', title: 'Tool 1' },
-      { type: 'source', sourceType: 'url', id: 'def456', url: 'https://tool.com/2', title: 'Tool 2' }
-    ];
-    extractSourcesFromStepsImpl.mockReturnValue( extracted );
-
-    const usageTools = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-    aiFns.generateText.mockResolvedValueOnce( {
-      text: 'answer',
-      sources: [],
-      steps: [ { toolResults: [] } ],
-      usage: usageTools,
-      totalUsage: usageTools,
-      finishReason: 'stop'
-    } );
-
-    const { generateText } = await importSut();
-    const result = await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( result.sources ).toEqual( extracted );
-  } );
-
-  it( 'generateText: deduplicates extracted sources against native sources', async () => {
-    const nativeSources = [
-      { type: 'source', sourceType: 'url', id: 'native1', url: 'https://shared.com', title: 'Native' }
-    ];
-    const extracted = [
-      { type: 'source', sourceType: 'url', id: 'ext1', url: 'https://shared.com', title: 'Extracted' },
-      { type: 'source', sourceType: 'url', id: 'ext2', url: 'https://unique.com', title: 'Unique' }
-    ];
-    extractSourcesFromStepsImpl.mockReturnValue( extracted );
-
-    const usageDedup = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-    aiFns.generateText.mockResolvedValueOnce( {
-      text: 'answer',
-      sources: nativeSources,
-      steps: [ { toolResults: [] } ],
-      usage: usageDedup,
-      totalUsage: usageDedup,
-      finishReason: 'stop'
-    } );
-
-    const { generateText } = await importSut();
-    const result = await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( result.sources ).toHaveLength( 2 );
-    expect( result.sources[0].url ).toBe( 'https://shared.com' );
-    expect( result.sources[0].title ).toBe( 'Native' );
-    expect( result.sources[1].url ).toBe( 'https://unique.com' );
-  } );
-
-  it( 'generateText: returns native sources unchanged when no tool sources extracted', async () => {
-    const nativeSources = [
-      { type: 'source', sourceType: 'url', id: 'n1', url: 'https://native.com', title: 'Native' }
-    ];
-    extractSourcesFromStepsImpl.mockReturnValue( [] );
-
-    const usageNative = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-    aiFns.generateText.mockResolvedValueOnce( {
-      text: 'answer',
-      sources: nativeSources,
-      usage: usageNative,
-      totalUsage: usageNative,
-      finishReason: 'stop'
-    } );
-
-    const { generateText } = await importSut();
-    const result = await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( result.sources ).toEqual( nativeSources );
-  } );
-
-  it( 'generateText: records cost from cost module as a trace attribute', async () => {
-    const customCost = {
-      total: 0.02,
-      components: [
-        { name: 'input_tokens', value: 0.01 },
-        { name: 'output_tokens', value: 0.01 }
-      ]
-    };
-    calculateLLMCallCostImpl.mockResolvedValueOnce( customCost );
-
-    const { generateText } = await importSut();
-    await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( calculateLLMCallCostImpl ).toHaveBeenCalledWith( {
-      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
-      modelId: basePrompt.config.model
-    } );
-    expect( tracingSpies.addEventAttribute ).toHaveBeenCalledWith(
-      expect.objectContaining( { name: tracingSpies.Attribute.COST, value: customCost } )
-    );
   } );
 
   it( 'generateText: loads frontmatter skills from prompt config using promptFileDir', async () => {
@@ -824,32 +696,6 @@ describe( 'ai_sdk', () => {
 
     expect( aiFns.generateText ).toHaveBeenCalledWith(
       expect.objectContaining( { stopWhen: customStop } )
-    );
-  } );
-
-  it( 'generateText: includes sourcesFromTools in trace details', async () => {
-    const extracted = [
-      { type: 'source', sourceType: 'url', id: 'abc', url: 'https://t.com', title: 'T' }
-    ];
-    extractSourcesFromStepsImpl.mockReturnValue( extracted );
-
-    const usageSources = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
-    aiFns.generateText.mockResolvedValueOnce( {
-      text: 'TEXT',
-      sources: [],
-      steps: [],
-      usage: usageSources,
-      totalUsage: usageSources,
-      finishReason: 'stop'
-    } );
-
-    const { generateText } = await importSut();
-    await generateText( { prompt: 'test_prompt@v1' } );
-
-    expect( tracingSpies.addEventEnd ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        details: expect.objectContaining( { sourcesFromTools: extracted } )
-      } )
     );
   } );
 } );
