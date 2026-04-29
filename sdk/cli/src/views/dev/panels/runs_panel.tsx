@@ -16,6 +16,7 @@ import type { TraceData, DebugNode } from '#types/trace.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
 const VISIBLE_ROWS = 8;
+const CATALOG_WORKFLOW_NAME = '$catalog';
 
 const STATUS_ORDER: Record<string, number> = {
   running: 0,
@@ -229,14 +230,31 @@ const HINTS = [
   { key: 'tab', label: 'next tab' }
 ];
 
+const buildVisibleRuns = ( runs: WorkflowRun[], query: string ): WorkflowRun[] => {
+  const visible = runs.filter( r => !( r.workflowType === CATALOG_WORKFLOW_NAME && r.status === 'completed' ) );
+  const filtered = query ? visible.filter( r => matchesFilter( r, query ) ) : visible;
+  return sortRuns( filtered );
+};
+
 export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
   const ui = useUiState();
-  const [ selectedIndex, setSelectedIndex ] = useState( 0 );
 
-  const filteredRuns = useMemo( () => {
-    const filtered = ui.search.query ? runs.filter( r => matchesFilter( r, ui.search.query ) ) : runs;
-    return sortRuns( filtered );
-  }, [ runs, ui.search.query ] );
+  const filteredRuns = useMemo(
+    () => buildVisibleRuns( runs, ui.search.query ),
+    [ runs, ui.search.query ]
+  );
+
+  // Lazy initializer — runs once on mount. Restores the previously selected
+  // run after the expanded-JSON modal unmounts and remounts the panel.
+  const [ selectedIndex, setSelectedIndex ] = useState( () => {
+    const previousRunId = ui.selection.runId;
+    if ( !previousRunId ) {
+      return 0;
+    }
+    const initial = buildVisibleRuns( runs, ui.search.query );
+    const i = initial.findIndex( r => r.runId === previousRunId );
+    return i >= 0 ? i : 0;
+  } );
 
   const isActive = ui.tab === 'runs' && ui.runsView === 'list' && !ui.search.open && !ui.runModal.open && !ui.expandedJson.open;
 

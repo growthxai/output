@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import { isServiceFailed, SERVICE_HEALTH, type ServiceStatus } from '#services/docker.js';
@@ -98,6 +98,17 @@ const LogPane: React.FC<{ serviceName: string | null; lines: string[]; paused: b
   );
 };
 
+const SERVICE_PRIORITY = [ 'worker', 'api' ] as const;
+
+const compareService = ( a: ServiceStatus, b: ServiceStatus ): number => {
+  const ai = SERVICE_PRIORITY.indexOf( a.name as typeof SERVICE_PRIORITY[number] );
+  const bi = SERVICE_PRIORITY.indexOf( b.name as typeof SERVICE_PRIORITY[number] );
+  if ( ai !== -1 || bi !== -1 ) {
+    return ( ai === -1 ? Infinity : ai ) - ( bi === -1 ? Infinity : bi );
+  }
+  return a.name.localeCompare( b.name );
+};
+
 const HINTS = [
   { key: '↑/↓', label: 'navigate' },
   { key: 'r/R', label: 'restart one/all' },
@@ -123,9 +134,11 @@ export const ServicesPanel: React.FC<{
   const [ selectedIndex, setSelectedIndex ] = useState( 0 );
   const [ banner, setBanner ] = useState<string | null>( null );
 
+  const sortedServices = useMemo( () => [ ...services ].sort( compareService ), [ services ] );
+
   const isActive = ui.tab === 'services' && !ui.search.open && !ui.runModal.open;
-  const clamped = Math.min( selectedIndex, Math.max( 0, services.length - 1 ) );
-  const selectedService = services[clamped];
+  const clamped = Math.min( selectedIndex, Math.max( 0, sortedServices.length - 1 ) );
+  const selectedService = sortedServices[clamped];
   const enabledLogs = isActive && phase === 'running' && Boolean( selectedService );
 
   useEffect( () => {
@@ -154,7 +167,7 @@ export const ServicesPanel: React.FC<{
       return;
     }
     if ( key.downArrow ) {
-      setSelectedIndex( i => Math.min( services.length - 1, i + 1 ) );
+      setSelectedIndex( i => Math.min( sortedServices.length - 1, i + 1 ) );
       return;
     }
     if ( !selectedService ) {
@@ -220,7 +233,7 @@ export const ServicesPanel: React.FC<{
         <Text bold>Services</Text>
         <Box flexDirection="column" marginTop={1}>
           <HeaderRow />
-          {services.map( ( s, i ) => (
+          {sortedServices.map( ( s, i ) => (
             <ServiceRow key={s.name} service={s} selected={i === clamped} />
           ) )}
         </Box>

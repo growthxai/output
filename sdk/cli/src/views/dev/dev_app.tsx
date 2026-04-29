@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, useApp, useInput, useStdout } from 'ink';
-import { isServiceFailed, type ServiceStatus } from '#services/docker.js';
+import { isServiceFailed, isServiceHealthy, type ServiceStatus } from '#services/docker.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
 import type { WorkflowSummary } from '#components/workflow_summary.js';
@@ -10,7 +10,7 @@ import {
   useWorkflowRunsPolling
 } from '#views/dev/hooks/use_poll.js';
 import { useWorkflowCatalog } from '#views/dev/hooks/use_workflow_catalog.js';
-import { Header, buildSummaryCounters } from '#views/dev/chrome/header.js';
+import { Header, buildSummaryCounters, type ServiceBadge } from '#views/dev/chrome/header.js';
 import { TabBar } from '#views/dev/chrome/tab_bar.js';
 import { SearchBar } from '#views/dev/chrome/search_bar.js';
 import { Toasts } from '#views/dev/chrome/toasts.js';
@@ -135,7 +135,16 @@ const Shell: React.FC<{
 
   const summary = useMemo( () => computeWorkflowSummary( runs ), [ runs ] );
   const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
-  const counters = buildSummaryCounters( summary, workflows.length, failingServices );
+  const serviceBadge: ServiceBadge = useMemo( () => {
+    if ( failingServices > 0 ) {
+      return 'failed';
+    }
+    if ( phase === 'waiting' || services.length === 0 || !services.every( isServiceHealthy ) ) {
+      return 'starting';
+    }
+    return 'healthy';
+  }, [ phase, services, failingServices ] );
+  const counters = buildSummaryCounters( summary, workflows.length, serviceBadge, failingServices );
 
   const { stdout } = useStdout();
   const rows = stdout?.rows ?? 30;

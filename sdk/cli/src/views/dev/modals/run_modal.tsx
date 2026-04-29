@@ -7,7 +7,7 @@ import { startWorkflow } from '#views/dev/services/run_workflow.js';
 import { readScenario, writeScenario } from '#views/dev/services/scenario_io.js';
 import { JsonEditor } from '#views/dev/utils/json_editor.js';
 
-type Mode = 'select' | 'duplicate_name' | 'editing' | 'submitting' | 'error';
+type Mode = 'select' | 'edit_name' | 'edit_content' | 'submitting' | 'error';
 
 type EntryKind = 'scenario' | 'custom';
 
@@ -16,6 +16,9 @@ interface Entry {
   label: string;
   scenarioName?: string;
 }
+
+const CUSTOM_SEED: unknown = { '': '' };
+const SCENARIO_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 const buildEntries = ( scenarios: string[] ): Entry[] => {
   const list: Entry[] = scenarios.map( s => ( {
@@ -52,8 +55,10 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
 
   const [ mode, setMode ] = useState<Mode>( 'select' );
   const [ index, setIndex ] = useState( 0 );
-  const [ duplicateName, setDuplicateName ] = useState( '' );
-  const [ duplicateSource, setDuplicateSource ] = useState<string | undefined>( undefined );
+  const [ editName, setEditName ] = useState( '' );
+  const [ editSeed, setEditSeed ] = useState<unknown>( CUSTOM_SEED );
+  const [ editFrameTitle, setEditFrameTitle ] = useState( '' );
+  const [ nameError, setNameError ] = useState<string | null>( null );
   const [ errorMessage, setErrorMessage ] = useState<string | null>( null );
 
   const closeWith = ( message?: string, tone: 'info' | 'success' | 'error' = 'info' ): void => {
@@ -77,60 +82,78 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
     }
   };
 
-  const handleSelect = async ( entry: Entry ): Promise<void> => {
-    if ( entry.kind === 'scenario' && entry.scenarioName ) {
-      try {
-        const input = await readScenario( workflowName, entry.scenarioName );
-        await submit( input, entry.scenarioName );
-      } catch ( err ) {
-        setErrorMessage( err instanceof Error ? err.message : String( err ) );
-        setMode( 'error' );
-      }
-      return;
-    }
-    if ( entry.kind === 'custom' ) {
-      setMode( 'editing' );
-    }
-  };
-
-  const startDuplicate = ( scenarioName: string ): void => {
-    setDuplicateSource( scenarioName );
-    setDuplicateName( `${scenarioName}_copy` );
-    setMode( 'duplicate_name' );
-  };
-
-  const handleEditorSubmit = ( value: unknown ): void => {
-    void submit( value, 'custom input' );
-  };
-
-  const handleEditorCancel = (): void => {
-    setMode( 'select' );
-  };
-
-  const submitDuplicate = async (): Promise<void> => {
-    if ( !duplicateSource ) {
-      setMode( 'select' );
-      return;
-    }
-    const name = duplicateName.trim();
-    if ( !name ) {
-      setErrorMessage( 'Scenario name cannot be empty.' );
-      setMode( 'error' );
-      return;
-    }
+  const runScenario = async ( scenarioName: string ): Promise<void> => {
     try {
-      const sourceContent = await readScenario( workflowName, duplicateSource );
-      const writtenPath = await writeScenario( workflowName, name, sourceContent );
-      ui.pushToast( `Saved scenario at ${writtenPath}`, 'info' );
-      await submit( sourceContent, name );
+      const input = await readScenario( workflowName, scenarioName );
+      await submit( input, scenarioName );
     } catch ( err ) {
       setErrorMessage( err instanceof Error ? err.message : String( err ) );
       setMode( 'error' );
     }
   };
 
+  const startDuplicate = async ( scenarioName: string ): Promise<void> => {
+    try {
+      const sourceContent = await readScenario( workflowName, scenarioName );
+      setEditName( `${scenarioName}_copy` );
+      setEditSeed( sourceContent );
+      setEditFrameTitle( `Duplicate '${scenarioName}'` );
+      setNameError( null );
+      setMode( 'edit_name' );
+    } catch ( err ) {
+      setErrorMessage( err instanceof Error ? err.message : String( err ) );
+      setMode( 'error' );
+    }
+  };
+
+  const startCustom = (): void => {
+    setEditName( '' );
+    setEditSeed( CUSTOM_SEED );
+    setEditFrameTitle( 'New scenario' );
+    setNameError( null );
+    setMode( 'edit_name' );
+  };
+
+  const validateName = ( raw: string ): string | null => {
+    const name = raw.trim();
+    if ( !name ) {
+      return 'Scenario name cannot be empty.';
+    }
+    if ( !SCENARIO_NAME_RE.test( name ) ) {
+      return 'Use letters, numbers, dashes, and underscores only.';
+    }
+    if ( scenarios.includes( name ) ) {
+      return `A scenario named '${name}' already exists.`;
+    }
+    return null;
+  };
+
+  const handleEditorSubmit = async ( value: unknown ): Promise<void> => {
+    const name = editName.trim();
+    const writeError = validateName( editName );
+    if ( writeError ) {
+      setNameError( writeError );
+      setMode( 'edit_name' );
+      return;
+    }
+    setMode( 'submitting' );
+    try {
+      const writtenPath = await writeScenario( workflowName, name, value );
+      ui.pushToast( `Saved scenario at ${writtenPath}`, 'info' );
+      await submit( value, name );
+    } catch ( err ) {
+      setErrorMessage( err instanceof Error ? err.message : String( err ) );
+      setMode( 'error' );
+    }
+  };
+
+  const handleEditorCancel = (): void => {
+    // Bring the user back to the name step so they can adjust it or bail.
+    setMode( 'edit_name' );
+  };
+
   useInput( ( input, key ) => {
-    if ( mode === 'editing' ) {
+    if ( mode === 'edit_content' || mode === 'submitting' ) {
       return;
     }
     if ( mode === 'select' ) {
@@ -148,34 +171,48 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
       }
       if ( key.return ) {
         const entry = entries[index];
-        if ( entry ) {
-          void handleSelect( entry );
+        if ( entry?.kind === 'scenario' && entry.scenarioName ) {
+          void runScenario( entry.scenarioName );
+        } else if ( entry?.kind === 'custom' ) {
+          startCustom();
         }
         return;
       }
       if ( input === 'd' ) {
         const entry = entries[index];
         if ( entry?.kind === 'scenario' && entry.scenarioName ) {
-          startDuplicate( entry.scenarioName );
+          void startDuplicate( entry.scenarioName );
         }
       }
       return;
     }
-    if ( mode === 'duplicate_name' ) {
+    if ( mode === 'edit_name' ) {
       if ( key.escape ) {
         setMode( 'select' );
         return;
       }
       if ( key.return ) {
-        void submitDuplicate();
+        const err = validateName( editName );
+        if ( err ) {
+          setNameError( err );
+          return;
+        }
+        setNameError( null );
+        setMode( 'edit_content' );
         return;
       }
       if ( key.backspace || key.delete ) {
-        setDuplicateName( v => v.slice( 0, -1 ) );
+        setEditName( v => v.slice( 0, -1 ) );
+        if ( nameError ) {
+          setNameError( null );
+        }
         return;
       }
       if ( input && !key.ctrl && !key.meta ) {
-        setDuplicateName( v => v + input );
+        setEditName( v => v + input );
+        if ( nameError ) {
+          setNameError( null );
+        }
       }
       return;
     }
@@ -187,16 +224,37 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
     }
   } );
 
-  if ( mode === 'editing' ) {
+  if ( mode === 'edit_content' ) {
     return (
-      <Frame title={`Run ${workflowName}`}>
+      <Frame title={`${editFrameTitle} → ${editName}.json`}>
         <JsonEditor
-          seed={{}}
-          title="custom input"
+          seed={editSeed}
+          title={`${editName}.json`}
           isActive
-          onSubmit={handleEditorSubmit}
+          onSubmit={value => {
+            void handleEditorSubmit( value );
+          }}
           onCancel={handleEditorCancel}
         />
+      </Frame>
+    );
+  }
+
+  if ( mode === 'edit_name' ) {
+    return (
+      <Frame title={editFrameTitle}>
+        <TextPrompt label="Scenario name:" value={editName} />
+        {nameError ? (
+          <Box marginTop={1}>
+            <Text color="red">{nameError}</Text>
+          </Box>
+        ) : null}
+        <Box marginTop={1}>
+          <Text dimColor>enter</Text>
+          <Text> next   </Text>
+          <Text dimColor>esc</Text>
+          <Text> back</Text>
+        </Box>
       </Frame>
     );
   }
@@ -218,20 +276,6 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
         <Box marginTop={1} flexDirection="column">
           <Text color="red" bold>✗ {errorMessage ?? 'Something went wrong.'}</Text>
           <Box marginTop={1}><Text dimColor>Press enter or esc to return.</Text></Box>
-        </Box>
-      </Frame>
-    );
-  }
-
-  if ( mode === 'duplicate_name' ) {
-    return (
-      <Frame title={`Duplicate '${duplicateSource}' for ${workflowName}`}>
-        <TextPrompt label="New scenario name:" value={duplicateName} />
-        <Box marginTop={1}>
-          <Text dimColor>enter</Text>
-          <Text> save & run</Text>
-          <Text dimColor>   esc</Text>
-          <Text> back</Text>
         </Box>
       </Frame>
     );

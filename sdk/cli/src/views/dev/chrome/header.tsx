@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
+import Spinner from 'ink-spinner';
 import type { WorkflowSummary } from '#components/workflow_summary.js';
 
 const LOGO_PIXELS = [
@@ -57,21 +58,46 @@ const COLOR_DARK = '#6d28d9';
 
 const LOGO_ROW_COLORS = [ COLOR_LIGHT, COLOR_MEDIUM, COLOR_DARK ];
 
+export type ServiceBadge = 'healthy' | 'starting' | 'failed';
+
 export interface HeaderCounters {
   running: number;
   failed: number;
   totalWorkflows: number;
   totalRuns: number;
+  serviceBadge: ServiceBadge;
   failingServices: number;
 }
 
+const ServicesBadge: React.FC<{ badge: ServiceBadge; failingCount: number }> = ( { badge, failingCount } ) => {
+  if ( badge === 'failed' ) {
+    return (
+      <Text color="red" bold>
+        ⚠ {failingCount} service{failingCount === 1 ? '' : 's'} down
+      </Text>
+    );
+  }
+  if ( badge === 'starting' ) {
+    return (
+      <>
+        <Text color="yellow"><Spinner type="dots" /></Text>
+        <Text> services</Text>
+      </>
+    );
+  }
+  return (
+    <>
+      <Text color="green">● </Text>
+      <Text>services</Text>
+    </>
+  );
+};
+
 const Counters: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => (
   <Box flexDirection="row">
-    {counters.failingServices > 0 && (
-      <Box marginRight={3}>
-        <Text color="red" bold>⚠ {counters.failingServices} service{counters.failingServices === 1 ? '' : 's'} down</Text>
-      </Box>
-    )}
+    <Box marginRight={3}>
+      <ServicesBadge badge={counters.serviceBadge} failingCount={counters.failingServices} />
+    </Box>
     {counters.running > 0 && (
       <Box marginRight={3}>
         <Text color="blue">● </Text>
@@ -108,12 +134,14 @@ const Logo: React.FC<{ cols: number }> = ( { cols } ) => {
 export const buildSummaryCounters = (
   summary: WorkflowSummary | null,
   totalWorkflows: number,
+  serviceBadge: ServiceBadge = 'starting',
   failingServices: number = 0
 ): HeaderCounters => ( {
   running: summary?.running ?? 0,
   failed: summary?.failed ?? 0,
   totalWorkflows,
   totalRuns: summary?.total ?? 0,
+  serviceBadge,
   failingServices
 } );
 

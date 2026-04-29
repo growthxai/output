@@ -4,10 +4,15 @@ import { Box, Text, useStdout } from 'ink';
 const DEFAULT_RULE_COLOR = '#a78bfa';
 const DEFAULT_VRULE_COLOR = 'gray';
 
-export const HorizontalRule: React.FC<{ color?: string }> = ( { color = DEFAULT_RULE_COLOR } ) => {
+// dev_app.tsx Shell uses paddingX={2}, so 4 cols are eaten by horizontal padding.
+const SHELL_HORIZONTAL_PADDING = 4;
+
+export const HorizontalRule: React.FC<{ color?: string; widthOffset?: number }> = (
+  { color = DEFAULT_RULE_COLOR, widthOffset = SHELL_HORIZONTAL_PADDING }
+) => {
   const { stdout } = useStdout();
   const cols = stdout?.columns ?? 80;
-  return <Text color={color}>{'─'.repeat( Math.max( 1, cols ) )}</Text>;
+  return <Text color={color}>{'─'.repeat( Math.max( 1, cols - widthOffset ) )}</Text>;
 };
 
 export const VerticalRule: React.FC<{ color?: string }> = ( { color = DEFAULT_VRULE_COLOR } ) => (

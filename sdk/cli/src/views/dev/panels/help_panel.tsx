@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { config } from '#config.js';
+import { openUrl } from '#utils/open_url.js';
 import { Footer } from '#views/dev/chrome/footer.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
+
+const DOCS_URL = 'https://docs.output.ai';
 
 interface Section {
   id: string;
@@ -28,28 +31,47 @@ const RunFromCli: React.FC = () => (
       <Text bold>r</Text>
       <Text dimColor>.</Text>
     </Box>
-    <Box marginTop={1}><Text dimColor>Custom input from the TUI opens $EDITOR (vim by default; respects $EDITOR / $VISUAL).</Text></Box>
-  </Box>
-);
-
-const Quickstart: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Quickstart</Text>
-    <Box marginTop={1}><Text>`output dev` boots the local Output stack — Temporal, the API, the worker, and Redis.</Text></Box>
-    <Box marginTop={1}><Text>Use the four tabs at the top to discover workflows, watch runs, manage services, and read help.</Text></Box>
-    <Box marginTop={1}><Text dimColor>Press <Text bold>Ctrl+C</Text> to stop the stack and exit cleanly.</Text></Box>
-  </Box>
-);
-
-const Tabs: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Tabs at a glance</Text>
-    <Box marginTop={1} flexDirection="column">
-      <KV label="Workflows" value="catalog of available workflows; press r to run one" valueColor="white" />
-      <KV label="Recent Runs" value="execution history; enter to drill into steps" valueColor="white" />
-      <KV label="Services" value="docker stack health + log tail; r/R to restart" valueColor="white" />
-      <KV label="Help" value="this page" valueColor="white" />
+    <Box marginTop={1}>
+      <Text dimColor>Custom input from the TUI uses an in-tui editor with live JSON validation.</Text>
     </Box>
+  </Box>
+);
+
+const Hotkeys: React.FC = () => (
+  <Box flexDirection="column">
+    <Text bold>Hotkeys</Text>
+
+    <Box marginTop={1}><Text dimColor bold>Global</Text></Box>
+    <KV label="Switch tab" value="tab / shift+tab / 1-4" valueColor="white" />
+    <KV label="Search / filter" value="/  (esc clears, enter applies)" valueColor="white" />
+    <KV label="Open this help" value="?" valueColor="white" />
+    <KV label="Open docs.output.ai" value="d" valueColor="white" />
+    <KV label="Stop services & quit" value="ctrl+c" valueColor="white" />
+
+    <Box marginTop={1}><Text dimColor bold>Workflows tab</Text></Box>
+    <KV label="Navigate" value="↑/↓" valueColor="white" />
+    <KV label="Show runs (filtered)" value="enter" valueColor="white" />
+    <KV label="Run workflow" value="r  (scenario · custom input · duplicate)" valueColor="white" />
+
+    <Box marginTop={1}><Text dimColor bold>Recent Runs tab</Text></Box>
+    <KV label="Navigate" value="↑/↓" valueColor="white" />
+    <KV label="Open run detail" value="enter  (esc to go back)" valueColor="white" />
+    <KV label="Open in Temporal UI" value="o" valueColor="white" />
+    <KV label="Switch input/output" value="←/→" valueColor="white" />
+    <KV label="Expand JSON pane" value="e  (↑/↓ scroll, pgup/pgdn page)" valueColor="white" />
+
+    <Box marginTop={1}><Text dimColor bold>Services tab</Text></Box>
+    <KV label="Navigate" value="↑/↓" valueColor="white" />
+    <KV label="Restart one / all" value="r / R" valueColor="white" />
+    <KV label="Pause / resume tail" value="p" valueColor="white" />
+    <KV label="Clear log buffer" value="c" valueColor="white" />
+    <KV label="Open service URL" value="o" valueColor="white" />
+
+    <Box marginTop={1}><Text dimColor bold>Run modal</Text></Box>
+    <KV label="Navigate" value="↑/↓" valueColor="white" />
+    <KV label="Run scenario" value="enter" valueColor="white" />
+    <KV label="Duplicate scenario" value="d" valueColor="white" />
+    <KV label="Cancel" value="esc" valueColor="white" />
   </Box>
 );
 
@@ -65,54 +87,41 @@ const ServiceUrls: React.FC = () => (
   </Box>
 );
 
-const GlobalHotkeys: React.FC = () => (
+const UpdatingMigrating: React.FC = () => (
   <Box flexDirection="column">
-    <Text bold>Global hotkeys</Text>
-    <Box marginTop={1} flexDirection="column">
-      <KV label="Switch tab" value="tab / shift+tab / 1-4" valueColor="white" />
-      <KV label="Search / filter" value="/  (esc clears, enter applies)" valueColor="white" />
-      <KV label="Open this help" value="?" valueColor="white" />
+    <Text bold>Updating / Migrating</Text>
+    <Box marginTop={1}>
+      <Text dimColor>Update the CLI to the latest published version:</Text>
+    </Box>
+    <Box><Text color="cyan">output update</Text></Box>
+    <Box marginTop={1}>
+      <Text dimColor>Migrate a workflow project to the SDK version this CLI ships with:</Text>
+    </Box>
+    <Box><Text color="cyan">output migrate</Text></Box>
+    <Box marginTop={1}>
+      <Text dimColor wrap="wrap">
+        The migration walks `package.json` and project files, updates `@outputai/*` deps,
+        and applies any code-mod steps the SDK ships with the new version.
+      </Text>
+    </Box>
+  </Box>
+);
+
+const ClaudePlugins: React.FC = () => (
+  <Box flexDirection="column">
+    <Text bold>Claude Plugins</Text>
+    <Box marginTop={1}>
+      <Text dimColor wrap="wrap">
+        `output init` installs the Claude Code plugins (skills, commands, agents) into
+        your project automatically when scaffolding a new workflow.
+      </Text>
     </Box>
     <Box marginTop={1}>
-      <Text dimColor>Stop services & quit lives on the </Text>
-      <Text bold>Services</Text>
-      <Text dimColor> tab.</Text>
+      <Text dimColor>To re-install or refresh the plugins after a CLI update:</Text>
     </Box>
-  </Box>
-);
-
-const WorkflowsHotkeys: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Workflows tab</Text>
-    <Box marginTop={1} flexDirection="column">
-      <KV label="Navigate" value="j/k or arrow keys" valueColor="white" />
-      <KV label="Show runs (filtered)" value="enter" valueColor="white" />
-      <KV label="Run workflow" value="r  (scenario · custom input · duplicate)" valueColor="white" />
-    </Box>
-  </Box>
-);
-
-const RunsHotkeys: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Recent Runs tab</Text>
-    <Box marginTop={1} flexDirection="column">
-      <KV label="Navigate" value="j/k or arrow keys" valueColor="white" />
-      <KV label="Open run detail" value="enter  (esc to go back)" valueColor="white" />
-      <KV label="Open in Temporal UI" value="o" valueColor="white" />
-      <KV label="Switch right pane" value="h / l  (Input · Output · Meta)" valueColor="white" />
-    </Box>
-  </Box>
-);
-
-const ServicesHotkeys: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Services tab</Text>
-    <Box marginTop={1} flexDirection="column">
-      <KV label="Navigate" value="j/k or arrow keys" valueColor="white" />
-      <KV label="Restart one / all" value="r / R" valueColor="white" />
-      <KV label="Pause / resume tail" value="l" valueColor="white" />
-      <KV label="Clear log buffer" value="c" valueColor="white" />
-      <KV label="Open service URL" value="o" valueColor="white" />
+    <Box><Text color="cyan">output update --agents</Text></Box>
+    <Box marginTop={1}>
+      <Text dimColor>This pulls the latest plugin bundle that ships with the installed CLI version.</Text>
     </Box>
   </Box>
 );
@@ -131,18 +140,16 @@ const Troubleshooting: React.FC = () => {
 
 const SECTIONS: Section[] = [
   { id: 'cli', title: 'Run from CLI', body: RunFromCli },
-  { id: 'quickstart', title: 'Quickstart', body: Quickstart },
-  { id: 'tabs', title: 'Tabs at a glance', body: Tabs },
+  { id: 'hotkeys', title: 'Hotkeys', body: Hotkeys },
   { id: 'urls', title: 'Service URLs', body: ServiceUrls },
-  { id: 'global', title: 'Global hotkeys', body: GlobalHotkeys },
-  { id: 'workflows-keys', title: 'Workflows hotkeys', body: WorkflowsHotkeys },
-  { id: 'runs-keys', title: 'Recent Runs hotkeys', body: RunsHotkeys },
-  { id: 'services-keys', title: 'Services hotkeys', body: ServicesHotkeys },
+  { id: 'updating', title: 'Updating / Migrating', body: UpdatingMigrating },
+  { id: 'claude-plugins', title: 'Claude Plugins', body: ClaudePlugins },
   { id: 'troubleshooting', title: 'Troubleshooting', body: Troubleshooting }
 ];
 
 const HINTS = [
   { key: '↑/↓', label: 'navigate' },
+  { key: 'd', label: 'docs' },
   { key: 'tab', label: 'next tab' },
   { key: 'ctrl+c', label: 'quit' }
 ];
@@ -152,11 +159,17 @@ export const HelpPanel: React.FC = () => {
   const [ index, setIndex ] = useState( 0 );
   const isActive = ui.tab === 'help' && !ui.search.open && !ui.runModal.open;
 
-  useInput( ( _input, key ) => {
+  useInput( ( input, key ) => {
     if ( key.upArrow ) {
       setIndex( i => Math.max( 0, i - 1 ) );
-    } else if ( key.downArrow ) {
+      return;
+    }
+    if ( key.downArrow ) {
       setIndex( i => Math.min( SECTIONS.length - 1, i + 1 ) );
+      return;
+    }
+    if ( input === 'd' ) {
+      openUrl( DOCS_URL );
     }
   }, { isActive } );
 
