@@ -58,6 +58,11 @@ export const useDockerLogs = (
 
     child.stdout.on( 'data', onChunk );
     child.stderr.on( 'data', onChunk );
+    // Swallow spawn errors. Docker isn't reachable in only two cases the
+    // user can't act on inside this panel: the daemon stopped (the
+    // services list will already show this) and the binary is missing
+    // (ruled out by `validateDockerEnvironment` at startup). The user
+    // can always tail logs from a host shell as a fallback.
     child.on( 'error', () => {} );
 
     return () => {

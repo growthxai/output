@@ -1,5 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 
+// stdio: 'pipe' so docker's stderr/stdout never reach the host terminal
+// while INK owns the screen. Stderr is buffered and surfaced through the
+// rejected Promise so the panel can present it as a banner instead of
+// having garbled output collide with the rendered TUI.
 const run = ( args: string[] ): Promise<void> => new Promise( ( resolve, reject ) => {
   const child = spawn( 'docker', args, { stdio: 'pipe' } );
   const stderrChunks: string[] = [];

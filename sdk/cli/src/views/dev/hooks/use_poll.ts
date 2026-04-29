@@ -17,6 +17,11 @@ export const usePoll = (
   intervalMs: number,
   onTick: () => Promise<TickResult>
 ): void => {
+  // Ref-shadowed callback. The polling effect intentionally only depends
+  // on `enabled` and `intervalMs` so it doesn't tear down and re-subscribe
+  // on every render — but we still want each tick to invoke the latest
+  // callback closure. The ref reassignment on every render keeps that
+  // closure fresh without nudging the effect's dependency array.
   const onTickRef = useRef( onTick );
   onTickRef.current = onTick;
 
