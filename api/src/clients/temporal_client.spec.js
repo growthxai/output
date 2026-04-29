@@ -1222,5 +1222,37 @@ describe( 'temporal_client', () => {
         }
       ] );
     } );
+
+    it( 'sends only the TaskQueue clause when only taskQueue is provided', async () => {
+      mockList.mockReturnValue( asAsyncIterable( [] ) );
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await client.listWorkflowRuns( { taskQueue: 'sepcat' } );
+
+      expect( mockList ).toHaveBeenCalledWith( { query: 'TaskQueue = "sepcat"' } );
+    } );
+
+    it( 'AND-joins WorkflowType and TaskQueue when both are provided', async () => {
+      mockList.mockReturnValue( asAsyncIterable( [] ) );
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await client.listWorkflowRuns( { workflowType: 'factChecker', taskQueue: 'sepcat' } );
+
+      expect( mockList ).toHaveBeenCalledWith( {
+        query: 'WorkflowType = "factChecker" AND TaskQueue = "sepcat"'
+      } );
+    } );
+
+    it( 'sends no query (returns all runs) when neither filter is provided', async () => {
+      mockList.mockReturnValue( asAsyncIterable( [] ) );
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await client.listWorkflowRuns();
+
+      expect( mockList ).toHaveBeenCalledWith( { query: undefined } );
+    } );
   } );
 } );

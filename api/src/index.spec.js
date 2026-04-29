@@ -151,6 +151,14 @@ describe( 'API endpoints', () => {
       expect( res.body.issues ).toBeDefined();
       expect( mockClient.runWorkflow ).not.toHaveBeenCalled();
     } );
+
+    it( 'rejects catalog containing characters that could break the visibility query', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat" OR "x' } )
+        .expect( 400 );
+      expect( mockClient.runWorkflow ).not.toHaveBeenCalled();
+    } );
   } );
 
   describe( 'POST /workflow/start', () => {
@@ -475,6 +483,13 @@ describe( 'API endpoints', () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/runs?limit=0' ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError', message: 'Invalid Payload' } );
       expect( res.body.issues ).toBeDefined();
+      expect( mockClient.listWorkflowRuns ).not.toHaveBeenCalled();
+    } );
+
+    it( 'rejects catalog containing characters that could break the visibility query', async () => {
+      await request( `http://localhost:${PORT}` )
+        .get( '/workflow/runs?catalog=sepcat%22%20OR%20%22x' ) // sepcat" OR "x
+        .expect( 400 );
       expect( mockClient.listWorkflowRuns ).not.toHaveBeenCalled();
     } );
   } );

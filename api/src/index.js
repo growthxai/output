@@ -16,6 +16,14 @@ import { readPinnedRunId } from './handlers/utils.js';
 // 90 days after the PR that introduces the pinned-run scheme.
 const PINNED_MUTATION_SUNSET = new Date( '2026-07-16T00:00:00Z' ).toUTCString();
 
+// Identifier shape for values that flow into Temporal visibility queries
+// (`catalog` and `workflowType`). Mirrors the `OUTPUT_CATALOG_ID` regex from
+// `@outputai/core` so a worker-routable id always satisfies the API too.
+// Restricting to `[a-z0-9_.@-]` prevents query injection via embedded quotes
+// or operators since the value is interpolated into the visibility query string.
+const QUERY_IDENTIFIER = /^[a-z0-9_.@-]+$/i;
+const queryIdentifier = z.string().regex( QUERY_IDENTIFIER );
+
 /**
  * Resolve the catalog field on workflow run/start request bodies, accepting
  * both `catalog` and the deprecated `taskQueue` alias. When `taskQueue` is
@@ -499,8 +507,8 @@ app.post( '/workflow/run', async ( req, res ) => {
     workflowName: z.string(),
     input: z.any().optional(),
     workflowId: z.string().optional(),
-    catalog: z.string().optional(),
-    taskQueue: z.string().optional(),
+    catalog: queryIdentifier.optional(),
+    taskQueue: queryIdentifier.optional(),
     timeout: z.coerce.number().int().min( 250 ).optional()
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/run' );
@@ -569,8 +577,8 @@ app.post( '/workflow/start', async ( req, res ) => {
     workflowName: z.string(),
     input: z.any().optional(),
     workflowId: z.string().optional(),
-    catalog: z.string().optional(),
-    taskQueue: z.string().optional()
+    catalog: queryIdentifier.optional(),
+    taskQueue: queryIdentifier.optional()
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/start' );
 
@@ -1244,8 +1252,8 @@ app.get( '/workflow/catalog', async ( _req, res ) => {
  */
 app.get( '/workflow/runs', async ( req, res ) => {
   const { workflowType, catalog, limit } = z.object( {
-    workflowType: z.string().optional(),
-    catalog: z.string().optional(),
+    workflowType: queryIdentifier.optional(),
+    catalog: queryIdentifier.optional(),
     limit: z.coerce.number().int().min( 1 ).max( 1000 ).default( 100 )
   } ).parse( req.query );
   res.json( await client.listWorkflowRuns( { workflowType, taskQueue: catalog, limit } ) );
