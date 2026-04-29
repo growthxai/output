@@ -10,7 +10,7 @@ interface RawToken {
   text: string;
 }
 
-interface ColoredToken {
+export interface ColoredToken {
   text: string;
   color?: string;
 }
@@ -38,7 +38,7 @@ const classifyRaw = ( text: string ): RawToken => {
   return { kind: 'punct', text };
 };
 
-const tokenizeLine = ( line: string ): ColoredToken[] => {
+export const tokenizeLine = ( line: string ): ColoredToken[] => {
   const raws: RawToken[] = Array.from( line.matchAll( RAW_TOKEN_RE ), m => classifyRaw( m[0] ) );
 
   return raws.map( ( raw, idx ) => {

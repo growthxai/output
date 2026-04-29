@@ -19,7 +19,7 @@ const QUADRANT_CHARS = [
   '▀', '▜', '▛', '█'
 ];
 
-const compressPixels = ( rows: string[] ): string[] => {
+export const compressPixels = ( rows: string[] ): string[] => {
   const maxCol = Math.max( ...rows.map( r => r.length ) );
   const evenCol = maxCol + ( maxCol % 2 );
   const padded = rows.map( r => r.padEnd( evenCol, ' ' ) );

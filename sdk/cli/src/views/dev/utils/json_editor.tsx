@@ -6,13 +6,13 @@ interface CursorPos {
   col: number;
 }
 
-const cursorToPosition = ( buffer: string, cursor: number ): CursorPos => {
+export const cursorToPosition = ( buffer: string, cursor: number ): CursorPos => {
   const before = buffer.slice( 0, cursor );
   const lines = before.split( '\n' );
   return { line: lines.length - 1, col: lines[lines.length - 1].length };
 };
 
-const positionToCursor = ( buffer: string, line: number, col: number ): number => {
+export const positionToCursor = ( buffer: string, line: number, col: number ): number => {
   const allLines = buffer.split( '\n' );
   const targetLine = Math.max( 0, Math.min( line, allLines.length - 1 ) );
   const targetCol = Math.max( 0, Math.min( col, allLines[targetLine].length ) );
@@ -20,7 +20,7 @@ const positionToCursor = ( buffer: string, line: number, col: number ): number =
   return charsBefore + targetCol;
 };
 
-const tryParseJson = ( text: string ): { ok: true } | { ok: false; error: string } => {
+export const tryParseJson = ( text: string ): { ok: true } | { ok: false; error: string } => {
   if ( text.trim().length === 0 ) {
     return { ok: false, error: 'Empty' };
   }
