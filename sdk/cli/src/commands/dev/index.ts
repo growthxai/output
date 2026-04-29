@@ -82,15 +82,17 @@ export default class Dev extends Command {
       await stopDockerCompose( dockerComposePath );
     };
 
-    // Use the alternate screen buffer so INK has a fixed-height canvas and
-    // log-update doesn't scroll old frames into scrollback when the TUI is
-    // taller than the terminal window.
+    // INK paints onto the alternate screen buffer so log-update has a
+    // fixed-height canvas and doesn't scroll old frames into the user's
+    // scrollback when the rendered tree exceeds the visible terminal rows.
     const enterAltScreen = (): void => {
       process.stdout.write( '\x1b[?1049h\x1b[2J\x1b[H' );
     };
     const exitAltScreen = (): void => {
       process.stdout.write( '\x1b[?1049l' );
     };
+    // Idempotent so repeated SIGINTs / process.exit don't re-emit the leave
+    // sequence (which produces visible garbage in some terminals).
     const exitAltScreenOnce = ( () => {
       const state = { fired: false };
       return (): void => {
@@ -102,7 +104,20 @@ export default class Dev extends Command {
       };
     } )();
 
+    // Register cleanup before anything that can throw or get signaled. The
+    // `instance` ref is filled in once `render()` returns; until then,
+    // signal handlers just stop docker and exit.
+    const instanceRef: { current: ReturnType<typeof render> | null } = { current: null };
+
     process.on( 'exit', exitAltScreenOnce );
+
+    const handleSignal = async () => {
+      await cleanup();
+      instanceRef.current?.unmount();
+    };
+
+    process.on( 'SIGINT', handleSignal );
+    process.on( 'SIGTERM', handleSignal );
 
     try {
       const { process: dockerProc } = await startDockerCompose(
@@ -118,18 +133,11 @@ export default class Dev extends Command {
         React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup } ),
         { exitOnCtrlC: false }
       );
+      instanceRef.current = instance;
 
       dockerProc.on( 'error', error => {
         instance.unmount( new Error( `Docker process error: ${getErrorMessage( error )}` ) );
       } );
-
-      const handleSignal = async () => {
-        await cleanup();
-        instance.unmount();
-      };
-
-      process.on( 'SIGINT', handleSignal );
-      process.on( 'SIGTERM', handleSignal );
 
       await instance.waitUntilExit();
       exitAltScreenOnce();

@@ -40,21 +40,17 @@ const useGlobalInput = ( opts: {
   const isExitingRef = useRef( false );
 
   useInput( ( input, key ) => {
-    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open ) {
-      if ( key.ctrl && input === 'c' && !isExitingRef.current ) {
-        isExitingRef.current = true;
-        void opts.onCleanup()
-          .then( () => exit() )
-          .catch( err => exit( err instanceof Error ? err : new Error( String( err ) ) ) );
-      }
-      return;
-    }
-
+    // Ctrl+C is the universal escape hatch — handle it regardless of which
+    // overlay is open so the user can always quit.
     if ( key.ctrl && input === 'c' && !isExitingRef.current ) {
       isExitingRef.current = true;
       void opts.onCleanup()
         .then( () => exit() )
         .catch( err => exit( err instanceof Error ? err : new Error( String( err ) ) ) );
+      return;
+    }
+
+    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open ) {
       return;
     }
 
@@ -146,8 +142,11 @@ const Shell: React.FC<{
   }, [ phase, services, failingServices ] );
   const counters = buildSummaryCounters( summary, workflows.length, serviceBadge, failingServices );
 
+  // `stdout.rows` is undefined on a small set of TTYs (mostly piped envs).
+  // 60 is a generous default — chrome alone is ~10 rows, and run-detail
+  // wants ~25 of content, so anything below 40 starts to clip step rows.
   const { stdout } = useStdout();
-  const rows = stdout?.rows ?? 30;
+  const rows = stdout?.rows ?? 60;
 
   if ( ui.expandedJson.open ) {
     return (

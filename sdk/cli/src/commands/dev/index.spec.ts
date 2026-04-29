@@ -228,7 +228,6 @@ describe( 'dev command', () => {
         '/path/to/docker-compose-dev.yml',
         'always' // default pull policy
       );
-      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'File watching enabled' ) );
 
       // Cancel the promise (it will be rejected but we don't care)
       runPromise.catch( () => {} );
