@@ -7,11 +7,13 @@ export class MissingKeyError extends Error {
       `config/credentials/${environment}.key` :
       'config/credentials.key';
     super( `No credentials key found. Set ${envVar} env var or create ${keyFile}.` );
+    this.name = 'MissingKeyError';
   }
 }
 
 export class MissingCredentialError extends Error {
   constructor( path: string ) {
     super( `Required credential not found: "${path}".` );
+    this.name = 'MissingCredentialError';
   }
 }
