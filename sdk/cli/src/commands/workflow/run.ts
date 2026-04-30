@@ -48,7 +48,7 @@ export default class WorkflowRun extends Command {
     '<%= config.bin %> <%= command.id %> simple my_scenario --format json',
     '<%= config.bin %> <%= command.id %> simple --input \'{"values":[1,2,3]}\'',
     '<%= config.bin %> <%= command.id %> simple --input input.json',
-    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --task-queue my-queue'
+    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog'
   ];
 
   static override args = {
@@ -68,9 +68,12 @@ export default class WorkflowRun extends Command {
       description: 'Workflow input as JSON string or file path (overrides scenario)',
       required: false
     } ),
-    'task-queue': Flags.string( {
-      char: 'q',
-      description: 'Task queue name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
+    catalog: Flags.string( {
+      char: 'c',
+      aliases: [ 'task-queue' ],
+      charAliases: [ 'q' ],
+      deprecateAliases: true,
+      description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
     } ),
     format: Flags.string( {
@@ -92,7 +95,7 @@ export default class WorkflowRun extends Command {
       body: {
         workflowName: args.workflowName,
         input,
-        taskQueue: flags['task-queue']
+        catalog: flags.catalog
       },
       options: { config: { timeout: 600000 } as const },
       log: msg => this.log( msg )

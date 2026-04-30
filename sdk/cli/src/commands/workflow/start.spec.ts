@@ -17,7 +17,7 @@ describe( 'workflow start command', () => {
       expect( WorkflowStart.description ).toContain( 'Start a workflow' );
       expect( WorkflowStart.args ).toHaveProperty( 'workflowName' );
       expect( WorkflowStart.flags ).toHaveProperty( 'input' );
-      expect( WorkflowStart.flags ).toHaveProperty( 'task-queue' );
+      expect( WorkflowStart.flags ).toHaveProperty( 'catalog' );
     } );
 
     it( 'should have correct flag configuration', async () => {

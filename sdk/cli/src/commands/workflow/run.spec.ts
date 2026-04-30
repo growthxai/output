@@ -32,7 +32,7 @@ describe( 'workflow run command', () => {
       expect( WorkflowRun.args ).toHaveProperty( 'workflowName' );
       expect( WorkflowRun.flags ).toHaveProperty( 'input' );
       expect( WorkflowRun.flags ).toHaveProperty( 'format' );
-      expect( WorkflowRun.flags ).toHaveProperty( 'task-queue' );
+      expect( WorkflowRun.flags ).toHaveProperty( 'catalog' );
     } );
 
     it( 'should have correct flag configuration', async () => {
@@ -62,7 +62,7 @@ describe( 'workflow run command', () => {
       } ) as any;
       ( cmd as any ).parse = vi.fn().mockResolvedValue( {
         args: { workflowName: 'my_workflow', scenario: undefined },
-        flags: { input: undefined, 'task-queue': undefined, format: 'text' }
+        flags: { input: undefined, catalog: undefined, format: 'text' }
       } );
 
       return { cmd, postWorkflowRun: vi.mocked( postWorkflowRun ), resolveInput: vi.mocked( resolveInput ) };
@@ -81,7 +81,7 @@ describe( 'workflow run command', () => {
 
       expect( postWorkflowRun ).toHaveBeenCalledTimes( 1 );
       expect( postWorkflowRun ).toHaveBeenCalledWith(
-        { workflowName: 'my_workflow', input: { key: 'value' }, taskQueue: undefined },
+        { workflowName: 'my_workflow', input: { key: 'value' }, catalog: undefined },
         expect.objectContaining( { config: { timeout: 600000 } } )
       );
       expect( cmd.log ).toHaveBeenCalledWith( 'Executing workflow: my_workflow...' );

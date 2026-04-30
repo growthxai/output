@@ -331,7 +331,12 @@ export type PostWorkflowRunBody = {
   input: unknown;
   /** (Optional) The workflowId to use. Must be unique */
   workflowId?: string;
-  /** The name of the task queue to send the workflow to */
+  /** The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog. */
+  catalog?: string;
+  /**
+     * Deprecated alias for `catalog`. If both are sent, `catalog` wins.
+     * @deprecated
+     */
   taskQueue?: string;
   /** (Optional) The max time to wait for the execution, defaults to 30s */
   timeout?: number;
@@ -370,7 +375,12 @@ export type PostWorkflowStartBody = {
   input: unknown;
   /** (Optional) The workflowId to use. Must be unique */
   workflowId?: string;
-  /** The name of the task queue to send the workflow to */
+  /** The catalog (Temporal task queue) to route the execution to. Falls back to the default catalog. */
+  catalog?: string;
+  /**
+     * Deprecated alias for `catalog`. If both are sent, `catalog` wins.
+     * @deprecated
+     */
   taskQueue?: string;
 };
 
@@ -488,6 +498,10 @@ export type GetWorkflowRunsParams = {
  * Filter by workflow type/name
  */
 workflowType?: string;
+/**
+ * Filter by catalog ID (scopes runs to a single worker's catalog/session)
+ */
+catalog?: string;
 /**
  * Maximum number of runs to return
  * @minimum 1
