@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { resolveScenarioPath } from '#utils/scenario_resolver.js';
+import { getWorkflowsBasePath } from '#utils/paths.js';
 
 const WORKFLOWS_PATHS = [ 'src/workflows', 'workflows' ];
 
@@ -15,8 +16,9 @@ export const readScenario = async ( workflowName: string, scenarioName: string )
 };
 
 const findWorkflowDirectory = ( workflowName: string ): string | null => {
+  const basePath = getWorkflowsBasePath();
   for ( const wfDir of WORKFLOWS_PATHS ) {
-    const candidate = resolve( process.cwd(), wfDir, workflowName );
+    const candidate = resolve( basePath, wfDir, workflowName );
     if ( existsSync( candidate ) ) {
       return candidate;
     }

@@ -27,6 +27,21 @@ export function resolveOutputDir( outputDir: string ): string {
 }
 
 /**
+ * Resolve the project root that holds `src/workflows` / `workflows`.
+ *
+ * When the CLI is invoked from inside the workflow project (the common
+ * case for `output workflow run` and friends) `process.cwd()` already
+ * points at the right place. When it's invoked from the repo root with
+ * `OUTPUT_WORKFLOWS_DIR=test_workflows` (how `npm run dev` drives
+ * `output dev` in this repo), we need to descend into that subdirectory
+ * before searching for scenarios.
+ */
+export function getWorkflowsBasePath(): string {
+  const subdir = process.env.OUTPUT_WORKFLOWS_DIR;
+  return subdir ? path.resolve( process.cwd(), subdir ) : process.cwd();
+}
+
+/**
  * Create target directory path for a workflow
  */
 export function createTargetDir( outputDir: string, workflowName: string ): string {
