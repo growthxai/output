@@ -1,16 +1,20 @@
+import { join } from 'node:path';
 import traverseModule from '@babel/traverse';
 import {
+  buildWorkflowCatalogExportNameMap,
   buildWorkflowNameMap,
+  buildEvaluatorsNameMap,
+  buildSharedEvaluatorsNameMap,
+  buildSharedStepsNameMap,
+  buildStepsNameMap,
   getLocalNameFromDestructuredProperty,
   isEvaluatorsPath,
   isSharedEvaluatorsPath,
   isSharedStepsPath,
   isStepsPath,
+  isExternalWorkflowPackageSpecifier,
   isWorkflowPath,
-  buildStepsNameMap,
-  buildSharedStepsNameMap,
-  buildEvaluatorsNameMap,
-  buildSharedEvaluatorsNameMap,
+  resolveExternalWorkflowPackageEntryPath,
   toAbsolutePath
 } from '../tools.js';
 import {
@@ -34,6 +38,18 @@ const unresolvedImportError = ( name, fileLabel, filePath ) =>
     'Use the matching factory function for the file ' +
     '(e.g. step() in steps files, evaluator() in evaluators files, workflow() in workflow files).'
   );
+
+/**
+ * @param {string} resolutionPath - Absolute path used for Node resolution (resource path or synthetic).
+ * @param {string} specifier - Bare package name from import/require.
+ * @param {Map<string, {default: (string|null), named: Map<string,string>}>} workflowNameCache
+ * @returns {{ indexPath: string, exportNameMap: Map<string, string> }}
+ */
+const resolveExternalWorkflowExportNameMap = ( resolutionPath, specifier, workflowNameCache ) => {
+  const indexPath = resolveExternalWorkflowPackageEntryPath( resolutionPath, specifier );
+  const exportNameMap = buildWorkflowCatalogExportNameMap( indexPath, workflowNameCache );
+  return { indexPath, exportNameMap };
+};
 
 const removeRequireDeclarator = path => {
   if ( isVariableDeclaration( path.parent ) && path.parent.declarations.length === 1 ) {
@@ -77,13 +93,17 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
  * @param {string} fileDir - Absolute directory of the file represented by `ast`.
  * @param {{ stepsNameCache: Map<string,Map<string,string>>, workflowNameCache: Map<string,{default:(string|null),named:Map<string,string>}> }} caches
  *  Resolved-name caches to avoid re-reading same modules.
+ * @param {string} [resourcePath] - Absolute path of the file being transformed; used to resolve
+ *  external workflow packages from the consumer's `node_modules`.
  * @returns {{ stepImports: Array<{localName:string,stepName:string}>,
  *  flowImports: Array<{localName:string,workflowName:string}> }} Collected info mappings.
  */
 export default function collectTargetImports(
   ast, fileDir,
-  { stepsNameCache, workflowNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache }
+  { stepsNameCache, workflowNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache },
+  resourcePath
 ) {
+  const resolutionPath = resourcePath ?? join( fileDir, 'file.js' );
   const stepImports = [];
   const sharedStepImports = [];
   const flowImports = [];
@@ -95,7 +115,8 @@ export default function collectTargetImports(
       const src = path.node.source.value;
       // Ignore other imports
       const isTargetImport = isStepsPath( src ) || isSharedStepsPath( src ) ||
-        isWorkflowPath( src ) || isEvaluatorsPath( src ) || isSharedEvaluatorsPath( src );
+        isWorkflowPath( src ) || isExternalWorkflowPackageSpecifier( src ) ||
+        isEvaluatorsPath( src ) || isSharedEvaluatorsPath( src );
       if ( !isTargetImport ) {
         return;
       }
@@ -127,6 +148,29 @@ export default function collectTargetImports(
         isSharedEvaluatorsPath( src ), buildSharedEvaluatorsNameMap,
         sharedEvaluatorsNameCache, sharedEvaluatorImports, 'evaluatorName', 'shared evaluators'
       );
+      if ( isExternalWorkflowPackageSpecifier( src ) ) {
+        const { indexPath, exportNameMap } = resolveExternalWorkflowExportNameMap(
+          resolutionPath, src, workflowNameCache
+        );
+        for ( const s of path.node.specifiers ) {
+          if ( isImportDefaultSpecifier( s ) ) {
+            throw new Error(
+              `Default import from '${src}' is not supported; import named workflow exports ` +
+              `(e.g. import { myFlow } from '${src}').`
+            );
+          }
+          if ( isImportSpecifier( s ) ) {
+            const importedName = s.imported.name;
+            const localName = s.local.name;
+            const workflowName = exportNameMap.get( importedName );
+            if ( workflowName ) {
+              flowImports.push( { localName, workflowName } );
+            } else {
+              throw unresolvedImportError( importedName, 'workflow catalog', indexPath );
+            }
+          }
+        }
+      }
       if ( isWorkflowPath( src ) ) {
         const { named, default: defName } = buildWorkflowNameMap( absolutePath, workflowNameCache );
         for ( const s of path.node.specifiers ) {
@@ -162,7 +206,8 @@ export default function collectTargetImports(
 
       const req = firstArgument.value;
       const isTargetRequire = isStepsPath( req ) || isSharedStepsPath( req ) ||
-        isWorkflowPath( req ) || isEvaluatorsPath( req ) || isSharedEvaluatorsPath( req );
+        isWorkflowPath( req ) || isExternalWorkflowPackageSpecifier( req ) ||
+        isEvaluatorsPath( req ) || isSharedEvaluatorsPath( req );
       if ( !isTargetRequire ) {
         return;
       }
@@ -171,6 +216,27 @@ export default function collectTargetImports(
 
       // Destructured requires: const { X } = require('./steps.js')
       if ( isObjectPattern( path.node.id ) ) {
+        // External workflows are installed as a single project and export from index.js, hence the destruction
+        if ( isExternalWorkflowPackageSpecifier( req ) ) {
+          const { indexPath, exportNameMap } = resolveExternalWorkflowExportNameMap(
+            resolutionPath, req, workflowNameCache
+          );
+          const propFilter = p => isObjectProperty( p ) && isIdentifier( p.key );
+          for ( const prop of path.node.id.properties.filter( propFilter ) ) {
+            const importedName = prop.key.name;
+            const localName = getLocalNameFromDestructuredProperty( prop );
+            if ( localName ) {
+              const workflowName = exportNameMap.get( importedName );
+              if ( workflowName ) {
+                flowImports.push( { localName, workflowName } );
+              } else {
+                throw unresolvedImportError( importedName, 'workflow catalog', indexPath );
+              }
+            }
+          }
+          removeRequireDeclarator( path );
+          return;
+        }
         const cjsDescriptors = [
           {
             match: isStepsPath, buildMap: buildStepsNameMap,
@@ -208,6 +274,12 @@ export default function collectTargetImports(
       }
 
       // Default workflow require: const WF = require('./workflow.js')
+      if ( isExternalWorkflowPackageSpecifier( req ) && isIdentifier( path.node.id ) ) {
+        throw new Error(
+          `Default require() from '${req}' is not supported; use destructuring ` +
+          `(e.g. const { myFlow } = require('${req}')).`
+        );
+      }
       if ( isWorkflowPath( req ) && isIdentifier( path.node.id ) ) {
         const { default: defName } = buildWorkflowNameMap( absolutePath, workflowNameCache );
         const localName = path.node.id.name;

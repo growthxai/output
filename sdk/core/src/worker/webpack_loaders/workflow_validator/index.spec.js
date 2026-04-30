@@ -76,6 +76,43 @@ describe( 'workflow_validator loader', () => {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
+  it( 'steps.js: warns when calling imported catalog workflow inside fn', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'steps-catalog-warn-' ) );
+    const src = [
+      'import { sumNumbers } from "@growthxlabs/workflows_catalog";',
+      'const A = step({ name: "a", fn: async () => ({}) });',
+      'const obj = { fn: function() { sumNumbers(); } };'
+    ].join( '\n' );
+    const result = await runLoader( join( dir, 'steps.js' ), src );
+    expect( result.warnings ).toHaveLength( 1 );
+    expect( result.warnings[0].message ).toMatch( /Invalid call in .*steps\.js fn: calling a workflow/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'evaluators.js: warns when calling catalog workflow inside fn (require)', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'evals-catalog-warn-' ) );
+    const src = [
+      'const { sumNumbers } = require("@growthxlabs/workflows_catalog");',
+      'const E = evaluator({ name: "e", fn: async () => ({ value: 1 }) });',
+      'const obj = { fn: function() { sumNumbers(); } };'
+    ].join( '\n' );
+    const result = await runLoader( join( dir, 'evaluators.js' ), src );
+    expect( result.warnings ).toHaveLength( 1 );
+    expect( result.warnings[0].message ).toMatch( /Invalid call in .*evaluators\.js fn: calling a workflow/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'workflow.js: allows import from @growthxlabs/workflows_catalog', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'wf-catalog-allow-' ) );
+    const src = [
+      'import { sumNumbers } from "@growthxlabs/workflows_catalog";',
+      'const x = 1;'
+    ].join( '\n' );
+    const result = await runLoader( join( dir, 'workflow.js' ), src );
+    expect( result.warnings ).toHaveLength( 0 );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
   it( 'steps.js: warns when calling another step inside fn', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'steps-call-reject-' ) );
     // Can only test same-type components since cross-type declarations are now blocked by instantiation validation

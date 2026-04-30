@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { importComponents, staticMatchers } from './loader_tools.js';
 
@@ -112,6 +112,56 @@ describe( '.importComponents', () => {
     }
     expect( collected.length ).toBe( 1 );
     expect( collected[0].path ).toBe( okFile );
+
+    rmSync( root, { recursive: true, force: true } );
+  } );
+
+  it( 'follows symlinks to directories and collects matching files inside the target', async () => {
+    const base = join( process.cwd(), 'sdk/core/temp_test_modules', `symlink-dir-${Date.now()}` );
+    const targetDir = join( base, 'target' );
+    const scanRoot = join( base, 'root' );
+    mkdirSync( targetDir, { recursive: true } );
+    mkdirSync( scanRoot, { recursive: true } );
+    const moduleFile = join( targetDir, 'meta.module.js' );
+    writeFileSync( moduleFile, [
+      'import { METADATA_ACCESS_SYMBOL } from "#consts";',
+      'export const ViaLink = () => {};',
+      'ViaLink[METADATA_ACCESS_SYMBOL] = { kind: "step", name: "via_link" };'
+    ].join( '\n' ) );
+
+    symlinkSync( join( '..', 'target' ), join( scanRoot, 'pkg' ), 'dir' );
+
+    const collected = [];
+    for await ( const m of importComponents( scanRoot, [ v => v.endsWith( 'meta.module.js' ) ] ) ) {
+      collected.push( m );
+    }
+
+    expect( collected.length ).toBe( 1 );
+    expect( collected[0].path ).toBe( moduleFile );
+    expect( collected[0].metadata.name ).toBe( 'via_link' );
+
+    rmSync( base, { recursive: true, force: true } );
+  } );
+
+  it( 'does not traverse a symlink whose target is a file (only directory targets are recursed)', async () => {
+    const root = join( process.cwd(), 'sdk/core/temp_test_modules', `symlink-file-${Date.now()}` );
+    mkdirSync( root, { recursive: true } );
+    const realFile = join( root, 'real.module.js' );
+    writeFileSync( realFile, [
+      'import { METADATA_ACCESS_SYMBOL } from "#consts";',
+      'export const R = () => {};',
+      'R[METADATA_ACCESS_SYMBOL] = { kind: "step", name: "r" };'
+    ].join( '\n' ) );
+    const linkPath = join( root, 'alias.module.js' );
+    symlinkSync( 'real.module.js', linkPath, 'file' );
+
+    const collected = [];
+    for await ( const m of importComponents( root, [ v => v.endsWith( '.module.js' ) ] ) ) {
+      collected.push( m );
+    }
+
+    expect( collected.length ).toBe( 1 );
+    expect( collected[0].path ).toBe( realFile );
 
     rmSync( root, { recursive: true, force: true } );
   } );

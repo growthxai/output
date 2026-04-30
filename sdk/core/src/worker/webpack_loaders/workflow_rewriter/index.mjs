@@ -34,7 +34,8 @@ export default function stepImportRewriterAstLoader( source, inputMap ) {
     const filename = this.resourcePath;
     const ast = parse( String( source ), filename );
     const fileDir = dirname( filename );
-    const { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports } = collectTargetImports( ast, fileDir, cache );
+    const { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports } =
+      collectTargetImports( ast, fileDir, cache, filename );
 
     // No imports
     if ( [].concat( stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports ).length === 0 ) {

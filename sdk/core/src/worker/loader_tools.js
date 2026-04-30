@@ -1,7 +1,7 @@
 import { resolve, sep } from 'path';
 import { pathToFileURL } from 'url';
 import { METADATA_ACCESS_SYMBOL } from '#consts';
-import { readdirSync } from 'fs';
+import { lstatSync, readdirSync, realpathSync } from 'fs';
 
 /**
  * @typedef {object} CollectedFile
@@ -18,6 +18,8 @@ import { readdirSync } from 'fs';
 /**
  * Recursive traverse directories collection files with paths that match one of the given matches.
  *
+ * Follows symlinks to directories
+ *
  * @param {string} path - The path to scan
  * @param {function[]} matchers - Boolean functions to match files to add to collection
  * @returns {CollectedFile[]} An array containing the collected files
@@ -30,7 +32,12 @@ const findByNameRecursively = ( parentPath, matchers, ignoreDirNames = [ 'vendor
     }
 
     const path = resolve( parentPath, entry.name );
-    if ( entry.isDirectory() ) {
+    if ( entry.isSymbolicLink() ) {
+      const symLinkTarget = realpathSync( path );
+      if ( lstatSync( symLinkTarget ).isDirectory() ) {
+        collection.push( ...findByNameRecursively( symLinkTarget, matchers ) );
+      }
+    } else if ( entry.isDirectory() ) {
       collection.push( ...findByNameRecursively( path, matchers ) );
     } else if ( matchers.some( m => m( path ) ) ) {
       collection.push( { path, url: pathToFileURL( path ).href } );

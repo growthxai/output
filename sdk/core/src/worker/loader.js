@@ -64,10 +64,10 @@ export async function loadActivities( rootDir, workflows ) {
   const activityOptionsMap = {};
 
   // Load workflow based activities
-  for ( const { path: workflowPath, name: workflowName } of workflows ) {
+  for ( const { path: workflowPath, name: workflowName, external } of workflows ) {
     const dir = dirname( workflowPath );
     for await ( const { fn, metadata, path } of importComponents( dir, Object.values( activityMatchersBuilder( dir ) ) ) ) {
-      log.info( 'Component loaded', { type: metadata.type, name: metadata.name, path, workflow: workflowName } );
+      log.info( 'Component loaded', { type: metadata.type, name: metadata.name, path, workflow: workflowName, ...( external && { external } ) } );
       // Activities loaded from a workflow path will use the workflow name as a namespace, which is unique across the platform, avoiding collision
       const activityKey = generateActivityKey( { namespace: workflowName, activityName: metadata.name } );
       activities[activityKey] = fn;
@@ -110,6 +110,11 @@ export async function loadWorkflows( rootDir ) {
     }
     log.info( 'Workflow loaded', { name: metadata.name, path } );
     workflows.push( { ...metadata, path } );
+  }
+  const externalWorkflowsDir = join( rootDir, 'node_modules', '@growthxlabs' );
+  for await ( const { metadata, path } of importComponents( externalWorkflowsDir, [ staticMatchers.workflowFile ] ) ) {
+    log.info( 'Workflow loaded', { name: metadata.name, path, external: true } );
+    workflows.push( { ...metadata, path, external: true } );
   }
   return workflows;
 };

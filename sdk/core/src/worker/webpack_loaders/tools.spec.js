@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 import * as t from '@babel/types';
 import {
   toAbsolutePath,
@@ -16,6 +16,11 @@ import {
   isEvaluatorsPath,
   isSharedEvaluatorsPath,
   isWorkflowPath,
+  EXTERNAL_WORKFLOW_PACKAGE_NAMES,
+  isExternalWorkflowPackagePath,
+  isExternalWorkflowPackageSpecifier,
+  resolveExternalWorkflowPackageEntryPath,
+  buildWorkflowCatalogExportNameMap,
   createThisMethodCall,
   resolveNameFromArg,
   resolveNameFromOptions,
@@ -189,6 +194,49 @@ describe( 'workflow_rewriter tools', () => {
     expect( isWorkflowPath( '/a/b/workflow.js' ) ).toBe( true );
     expect( isWorkflowPath( 'workflow.ts' ) ).toBe( false );
     expect( isWorkflowPath( 'steps.js' ) ).toBe( false );
+  } );
+
+  it( 'EXTERNAL_WORKFLOW_PACKAGE_NAMES lists known published workflow bundles', () => {
+    expect( EXTERNAL_WORKFLOW_PACKAGE_NAMES ).toContain( '@growthxlabs/workflows_catalog' );
+  } );
+
+  it( 'isExternalWorkflowPackagePath matches node_modules paths for listed packages', () => {
+    expect( isExternalWorkflowPackagePath( '/app/node_modules/@growthxlabs/workflows_catalog/src/x.js' ) ).toBe( true );
+    expect( isExternalWorkflowPackagePath( '/app/node_modules/other/pkg/x.js' ) ).toBe( false );
+  } );
+
+  it( 'isExternalWorkflowPackageSpecifier: matches only exact known package names', () => {
+    expect( isExternalWorkflowPackageSpecifier( '@growthxlabs/workflows_catalog' ) ).toBe( true );
+    expect( isExternalWorkflowPackageSpecifier( '@growthxlabs/workflows_catalog/foo' ) ).toBe( false );
+    expect( isExternalWorkflowPackageSpecifier( 'workflow.js' ) ).toBe( false );
+  } );
+
+  it( 'resolveExternalWorkflowPackageEntryPath + buildWorkflowCatalogExportNameMap: resolve via node_modules', () => {
+    const dir = mkdtempSync( join( tmpdir(), 'tools-catalog-' ) );
+    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
+    const srcDir = join( pkgRoot, 'src' );
+    mkdirSync( join( pkgRoot, 'src', 'workflows', 'wf' ), { recursive: true } );
+    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
+      name: '@growthxlabs/workflows_catalog',
+      type: 'module',
+      main: './src/index.js'
+    } ) );
+    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
+    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'__sum_numbers\' });\n' );
+    const consumer = join( dir, 'proj', 'workflow.js' );
+    mkdirSync( dirname( consumer ), { recursive: true } );
+    writeFileSync( consumer, 'export default workflow({ name: \'x\' });\n' );
+
+    const entry = resolveExternalWorkflowPackageEntryPath(
+      consumer,
+      '@growthxlabs/workflows_catalog'
+    );
+    expect( entry ).toBe( join( srcDir, 'index.js' ) );
+
+    const map = buildWorkflowCatalogExportNameMap( entry, new Map() );
+    expect( map.get( 'sumNumbers' ) ).toBe( '__sum_numbers' );
+
+    rmSync( dir, { recursive: true, force: true } );
   } );
 
   it( 'isEvaluatorsPath: matches local evaluators.js but excludes shared', () => {

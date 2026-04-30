@@ -332,5 +332,70 @@ const obj = {};`;
 
     rmSync( dir, { recursive: true, force: true } );
   } );
+
+  it( 'collects ESM imports from @growthxlabs/workflows_catalog', () => {
+    const dir = mkdtempSync( join( tmpdir(), 'collect-cat-esm-' ) );
+    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
+    const srcDir = join( pkgRoot, 'src' );
+    mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
+    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
+      name: '@growthxlabs/workflows_catalog',
+      type: 'module',
+      main: './src/index.js'
+    } ) );
+    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
+    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow\' });\n' );
+
+    const fileDir = join( dir, 'consumer' );
+    mkdirSync( fileDir, { recursive: true } );
+    const resourcePath = join( fileDir, 'workflow.js' );
+
+    const source = `
+import { sumNumbers as SN } from '@growthxlabs/workflows_catalog';
+const x = 1;`;
+    const ast = makeAst( source, resourcePath );
+
+    const { flowImports } = collectTargetImports(
+      ast,
+      fileDir,
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() },
+      resourcePath
+    );
+    expect( flowImports ).toEqual( [ { localName: 'SN', workflowName: 'cat.flow' } ] );
+    expect( ast.program.body.find( n => n.type === 'ImportDeclaration' ) ).toBeUndefined();
+
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'collects CJS destructured require from @growthxlabs/workflows_catalog', () => {
+    const dir = mkdtempSync( join( tmpdir(), 'collect-cat-cjs-' ) );
+    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
+    const srcDir = join( pkgRoot, 'src' );
+    mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
+    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
+      name: '@growthxlabs/workflows_catalog',
+      type: 'module',
+      main: './src/index.js'
+    } ) );
+    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
+    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow2\' });\n' );
+
+    const fileDir = join( dir, 'consumer' );
+    mkdirSync( fileDir, { recursive: true } );
+    const resourcePath = join( fileDir, 'workflow.js' );
+
+    const source = 'const { sumNumbers } = require( \'@growthxlabs/workflows_catalog\' );\nconst x = 1;';
+    const ast = makeAst( source, resourcePath );
+
+    const { flowImports } = collectTargetImports(
+      ast,
+      fileDir,
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() },
+      resourcePath
+    );
+    expect( flowImports ).toEqual( [ { localName: 'sumNumbers', workflowName: 'cat.flow2' } ] );
+
+    rmSync( dir, { recursive: true, force: true } );
+  } );
 } );
 

@@ -1,6 +1,14 @@
 import traverseModule from '@babel/traverse';
 import { dirname } from 'node:path';
-import { parse, toAbsolutePath, getFileKind, isAnyStepsPath, isAnyEvaluatorsPath, isWorkflowPath } from '../tools.js';
+import {
+  parse,
+  toAbsolutePath,
+  getFileKind,
+  isAnyStepsPath,
+  isAnyEvaluatorsPath,
+  isWorkflowPath,
+  isExternalWorkflowPackageSpecifier
+} from '../tools.js';
 import { ComponentFile } from '../consts.js';
 import {
   isCallExpression,
@@ -95,6 +103,15 @@ export default function workflowValidatorLoader( source, inputMap ) {
       ImportDeclaration: path => {
         const specifier = path.node.source.value;
 
+        if ( isExternalWorkflowPackageSpecifier( specifier ) ) {
+          for ( const s of path.node.specifiers ) {
+            if ( isImportSpecifier( s ) || isImportDefaultSpecifier( s ) ) {
+              importedWorkflowIds.add( s.local.name );
+            }
+          }
+          return;
+        }
+
         // Collect imported identifiers for later call checks
         const importedKind = getFileKind( specifier );
         const accumulator = ( {
@@ -140,6 +157,18 @@ export default function workflowValidatorLoader( source, inputMap ) {
             return;
           }
           const req = firstArg.value;
+
+          if ( isExternalWorkflowPackageSpecifier( req ) ) {
+            if ( isObjectPattern( path.node.id ) ) {
+              for ( const prop of path.node.id.properties ) {
+                if ( isObjectProperty( prop ) && isIdentifier( prop.value ) ) {
+                  importedWorkflowIds.add( prop.value.name );
+                }
+              }
+            } else if ( isIdentifier( path.node.id ) ) {
+              importedWorkflowIds.add( path.node.id.name );
+            }
+          }
 
           // Collect imported identifiers from require patterns
           const reqType = getFileKind( toAbsolutePath( fileDir, req ) );

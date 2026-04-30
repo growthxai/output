@@ -436,6 +436,9 @@ importers:
 
   test_workflows:
     dependencies:
+      '@growthxlabs/workflows_catalog':
+        specifier: 0.0.3
+        version: 0.0.3(@outputai/core@sdk+core)
       '@outputai/core':
         specifier: workspace:^
         version: link:../sdk/core
@@ -1078,6 +1081,11 @@ packages:
 
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
+
+  '@growthxlabs/workflows_catalog@0.0.3':
+    resolution: {integrity: sha512-/p/cAku0nIZJ/tWdx0d/nYSdVjdofZTvRUq63hV0CD4zXlSCul64+1rFYQKvNxmF7CvdsQq36Rf9xd8FaDZiwg==}
+    peerDependencies:
+      '@outputai/core': '>=0.2.0'
 
   '@grpc/grpc-js@1.14.3':
     resolution: {integrity: sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA==}
@@ -8563,6 +8571,10 @@ snapshots:
       '@shikijs/themes': 3.23.0
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
+
+  '@growthxlabs/workflows_catalog@0.0.3(@outputai/core@sdk+core)':
+    dependencies:
+      '@outputai/core': link:sdk/core
 
   '@grpc/grpc-js@1.14.3':
     dependencies:

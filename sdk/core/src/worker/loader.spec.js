@@ -38,6 +38,8 @@ vi.mock( 'node:fs', () => ( {
 describe( 'worker/loader', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    importComponentsMock.mockReset();
+    importComponentsMock.mockImplementation( async function *() {} );
   } );
 
   it( 'loadActivities returns map including system activity and writes options file', async () => {
@@ -89,12 +91,59 @@ describe( 'worker/loader', () => {
   it( 'loadWorkflows returns array of workflows with metadata', async () => {
     const { loadWorkflows } = await import( './loader.js' );
 
-    importComponentsMock.mockImplementationOnce( async function *() {
-      yield { metadata: { name: 'Flow1', description: 'd' }, path: '/b/workflow.js' };
-    } );
+    importComponentsMock
+      .mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'Flow1', description: 'd' }, path: '/b/workflow.js' };
+      } )
+      .mockImplementationOnce( async function *() {} );
 
     const workflows = await loadWorkflows( '/root' );
     expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js' } ] );
+  } );
+
+  it( 'loadWorkflows scans project root then node_modules/@growthxlabs with the workflow file matcher', async () => {
+    const { loadWorkflows } = await import( './loader.js' );
+
+    importComponentsMock
+      .mockImplementationOnce( async function *() {} )
+      .mockImplementationOnce( async function *() {} );
+
+    await loadWorkflows( '/my/app' );
+
+    expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
+    expect( importComponentsMock.mock.calls[0][0] ).toBe( '/my/app' );
+    expect( importComponentsMock.mock.calls[1][0] ).toBe( join( '/my/app', 'node_modules', '@growthxlabs' ) );
+    const [ , matchersA ] = importComponentsMock.mock.calls[0];
+    const [ , matchersB ] = importComponentsMock.mock.calls[1];
+    expect( matchersA.length ).toBe( 1 );
+    expect( matchersB.length ).toBe( 1 );
+    expect( matchersB[0] ).toBe( matchersA[0] );
+  } );
+
+  it( 'loadWorkflows merges local workflows and installed @growthxlabs workflows with external flag', async () => {
+    const { loadWorkflows } = await import( './loader.js' );
+
+    importComponentsMock
+      .mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'LocalFlow', description: 'local' }, path: '/my/app/workflows/wf/workflow.js' };
+      } )
+      .mockImplementationOnce( async function *() {
+        yield {
+          metadata: { name: '__sum_numbers', description: 'from catalog' },
+          path: '/my/app/node_modules/@growthxlabs/workflows_catalog/src/w/workflow.js'
+        };
+      } );
+
+    const workflows = await loadWorkflows( '/my/app' );
+    expect( workflows ).toEqual( [
+      { name: 'LocalFlow', description: 'local', path: '/my/app/workflows/wf/workflow.js' },
+      {
+        name: '__sum_numbers',
+        description: 'from catalog',
+        path: '/my/app/node_modules/@growthxlabs/workflows_catalog/src/w/workflow.js',
+        external: true
+      }
+    ] );
   } );
 
   it( 'createWorkflowsEntryPoint writes index and returns its path', async () => {
