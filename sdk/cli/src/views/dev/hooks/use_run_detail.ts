@@ -7,19 +7,7 @@ import {
   getWorkflowIdRunsRidTraceLog,
   type WorkflowResultResponse
 } from '#api/generated/api.js';
-import { HttpError } from '#api/http_client.js';
-import { useUiState } from '#views/dev/state/ui_state.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
-
-/**
- * 404 from `/result` and `/trace-log` is the API's normal "run hasn't
- * produced this yet" signal — every poll while a workflow is running hits
- * this. Anything else is a real error and should bubble to the caller so
- * the detail view can surface it (the run detail UI renders `error` from
- * the hook's return shape).
- */
-const isExpectedMissingError = ( err: unknown ): boolean =>
-  err instanceof HttpError && err.response.status === 404;
 
 export interface RunStep {
   index: number;
@@ -37,15 +25,13 @@ export interface RunDetail {
   trace: TraceData | null;
   steps: RunStep[];
   loading: boolean;
-  error: string | null;
 }
 
 const EMPTY_DETAIL: RunDetail = {
   result: null,
   trace: null,
   steps: [],
-  loading: false,
-  error: null
+  loading: false
 };
 
 const stepNameOf = ( node: DebugNode ): string => {
@@ -119,17 +105,18 @@ const readTraceLog = async (
   return JSON.parse( content ) as TraceData;
 };
 
+// Run detail and trace fetches are best-effort. Many statuses (in-progress,
+// failed, canceled) don't have a fully-formed result or trace available at
+// any given moment, and that's expected — the caller falls back to
+// EMPTY_DETAIL and the UI renders whatever's there. Swallow everything.
 const fetchTrace = async ( workflowId: string, runId: string | undefined ): Promise<TraceData | null> => {
   try {
     const response = runId ?
       await getWorkflowIdRunsRidTraceLog( workflowId, runId ) :
       await getWorkflowIdTraceLog( workflowId );
     return await readTraceLog( response.data as Parameters<typeof readTraceLog>[0] );
-  } catch ( err ) {
-    if ( isExpectedMissingError( err ) ) {
-      return null;
-    }
-    throw err;
+  } catch {
+    return null;
   }
 };
 
@@ -139,11 +126,8 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
       await getWorkflowIdRunsRidResult( workflowId, runId ) :
       await getWorkflowIdResult( workflowId );
     return response.data as WorkflowResultResponse;
-  } catch ( err ) {
-    if ( isExpectedMissingError( err ) ) {
-      return null;
-    }
-    throw err;
+  } catch {
+    return null;
   }
 };
 
@@ -163,15 +147,9 @@ export const useRunDetail = (
   runId: string | undefined,
   status?: string
 ): RunDetail => {
-  const ui = useUiState();
-  const pushToast = ui.pushToast;
   const [ detail, setDetail ] = useState<RunDetail>( EMPTY_DETAIL );
   const cacheRef = useRef( new Map<string, RunDetail>() );
   const fetchIdRef = useRef( 0 );
-  // Toast at most once per (workflowId, runId, error message). Without
-  // this the 2s status poll re-fires the effect on every tick while the
-  // backend is unhealthy and we'd stack a toast each time.
-  const toastedRef = useRef( new Set<string>() );
 
   useEffect( () => {
     if ( !workflowId ) {
@@ -191,46 +169,32 @@ export const useRunDetail = (
     const id = ++fetchIdRef.current;
     setDetail( { ...EMPTY_DETAIL, loading: true } );
 
-    Promise.all( [
+    void Promise.all( [
       fetchResult( workflowId, runId ),
       fetchTrace( workflowId, runId )
-    ] )
-      .then( ( [ result, trace ] ) => {
-        if ( fetchIdRef.current !== id ) {
-          return;
-        }
-        const next: RunDetail = {
-          result,
-          trace,
-          steps: extractSteps( trace ),
-          loading: false,
-          error: null
-        };
-        // Only memoize the result once the workflow is done. While it's
-        // still running the API returns partial data; a follow-up status
-        // change re-fires this effect and we re-fetch fresh.
-        if ( isTerminalRunStatus( result?.status ) ) {
-          cacheRef.current.set( key, next );
-        }
-        setDetail( next );
-      } )
-      .catch( err => {
-        if ( fetchIdRef.current !== id ) {
-          return;
-        }
-        const message = err instanceof Error ? err.message : String( err );
-        const toastKey = `${key}:${message}`;
-        if ( !toastedRef.current.has( toastKey ) ) {
-          toastedRef.current.add( toastKey );
-          pushToast( `Failed to load run detail — ${message}`, 'error' );
-        }
-        setDetail( { ...EMPTY_DETAIL, error: message } );
-      } );
+    ] ).then( ( [ result, trace ] ) => {
+      if ( fetchIdRef.current !== id ) {
+        return;
+      }
+      const next: RunDetail = {
+        result,
+        trace,
+        steps: extractSteps( trace ),
+        loading: false
+      };
+      // Only memoize the result once the workflow is done. While it's
+      // still running the API returns partial data; a follow-up status
+      // change re-fires this effect and we re-fetch fresh.
+      if ( isTerminalRunStatus( result?.status ) ) {
+        cacheRef.current.set( key, next );
+      }
+      setDetail( next );
+    } );
     // `status` is in the dep array so a run flipping running → completed
     // (the runs list polls every 2s) re-fires the effect and pulls the
     // fresh output, instead of pinning to the partial result captured
     // mid-run.
-  }, [ workflowId, runId, status, pushToast ] );
+  }, [ workflowId, runId, status ] );
 
   return detail;
 };
