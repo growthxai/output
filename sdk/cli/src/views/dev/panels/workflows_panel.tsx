@@ -35,6 +35,11 @@ const matchesQuery = ( workflow: Workflow, query: string ): boolean => {
 const sortByName = ( workflows: Workflow[] ): Workflow[] =>
   [ ...workflows ].sort( ( a, b ) => ( a.name ?? '' ).localeCompare( b.name ?? '' ) );
 
+const buildVisibleWorkflows = ( workflows: Workflow[], query: string ): Workflow[] => {
+  const list = query ? workflows.filter( w => matchesQuery( w, query ) ) : workflows;
+  return sortByName( list );
+};
+
 const HeaderRow: React.FC = () => (
   <Box>
     <Box width={COL.indicator}><Text> </Text></Box>
@@ -138,12 +143,24 @@ export const WorkflowsPanel: React.FC<{
   runs: WorkflowRun[];
 }> = ( { workflows, runs } ) => {
   const ui = useUiState();
-  const [ selectedIndex, setSelectedIndex ] = useState( 0 );
 
-  const filtered = useMemo( () => {
-    const list = ui.search.query ? workflows.filter( w => matchesQuery( w, ui.search.query ) ) : workflows;
-    return sortByName( list );
-  }, [ workflows, ui.search.query ] );
+  const filtered = useMemo(
+    () => buildVisibleWorkflows( workflows, ui.search.query ),
+    [ workflows, ui.search.query ]
+  );
+
+  // Lazy initializer — runs once on mount. Restores the previously
+  // highlighted workflow after the run modal unmounts and remounts the
+  // panel.
+  const [ selectedIndex, setSelectedIndex ] = useState( () => {
+    const previousName = ui.selection.workflowName;
+    if ( !previousName ) {
+      return 0;
+    }
+    const initial = buildVisibleWorkflows( workflows, ui.search.query );
+    const i = initial.findIndex( w => w.name === previousName );
+    return i >= 0 ? i : 0;
+  } );
 
   const isActive = ui.tab === 'workflows' && !ui.search.open && !ui.runModal.open;
   const clamped = Math.min( selectedIndex, Math.max( 0, filtered.length - 1 ) );
