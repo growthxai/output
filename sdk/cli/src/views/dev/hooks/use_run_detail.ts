@@ -7,7 +7,19 @@ import {
   getWorkflowIdRunsRidTraceLog,
   type WorkflowResultResponse
 } from '#api/generated/api.js';
+import { HttpError } from '#api/http_client.js';
+import { useUiState } from '#views/dev/state/ui_state.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
+
+/**
+ * 404 from `/result` and `/trace-log` is the API's normal "run hasn't
+ * produced this yet" signal — every poll while a workflow is running hits
+ * this. Anything else is a real error and should bubble to the caller so
+ * the detail view can surface it (the run detail UI renders `error` from
+ * the hook's return shape).
+ */
+const isExpectedMissingError = ( err: unknown ): boolean =>
+  err instanceof HttpError && err.response.status === 404;
 
 export interface RunStep {
   index: number;
@@ -112,12 +124,12 @@ const fetchTrace = async ( workflowId: string, runId: string | undefined ): Prom
     const response = runId ?
       await getWorkflowIdRunsRidTraceLog( workflowId, runId ) :
       await getWorkflowIdTraceLog( workflowId );
-    if ( response.status !== 200 ) {
+    return await readTraceLog( response.data as Parameters<typeof readTraceLog>[0] );
+  } catch ( err ) {
+    if ( isExpectedMissingError( err ) ) {
       return null;
     }
-    return await readTraceLog( response.data as Parameters<typeof readTraceLog>[0] );
-  } catch {
-    return null;
+    throw err;
   }
 };
 
@@ -126,12 +138,12 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
     const response = runId ?
       await getWorkflowIdRunsRidResult( workflowId, runId ) :
       await getWorkflowIdResult( workflowId );
-    if ( response.status !== 200 ) {
+    return response.data as WorkflowResultResponse;
+  } catch ( err ) {
+    if ( isExpectedMissingError( err ) ) {
       return null;
     }
-    return response.data as WorkflowResultResponse;
-  } catch {
-    return null;
+    throw err;
   }
 };
 
@@ -151,9 +163,15 @@ export const useRunDetail = (
   runId: string | undefined,
   status?: string
 ): RunDetail => {
+  const ui = useUiState();
+  const pushToast = ui.pushToast;
   const [ detail, setDetail ] = useState<RunDetail>( EMPTY_DETAIL );
   const cacheRef = useRef( new Map<string, RunDetail>() );
   const fetchIdRef = useRef( 0 );
+  // Toast at most once per (workflowId, runId, error message). Without
+  // this the 2s status poll re-fires the effect on every tick while the
+  // backend is unhealthy and we'd stack a toast each time.
+  const toastedRef = useRef( new Set<string>() );
 
   useEffect( () => {
     if ( !workflowId ) {
@@ -200,16 +218,19 @@ export const useRunDetail = (
         if ( fetchIdRef.current !== id ) {
           return;
         }
-        setDetail( {
-          ...EMPTY_DETAIL,
-          error: err instanceof Error ? err.message : String( err )
-        } );
+        const message = err instanceof Error ? err.message : String( err );
+        const toastKey = `${key}:${message}`;
+        if ( !toastedRef.current.has( toastKey ) ) {
+          toastedRef.current.add( toastKey );
+          pushToast( `Failed to load run detail — ${message}`, 'error' );
+        }
+        setDetail( { ...EMPTY_DETAIL, error: message } );
       } );
     // `status` is in the dep array so a run flipping running → completed
     // (the runs list polls every 2s) re-fires the effect and pulls the
     // fresh output, instead of pinning to the partial result captured
     // mid-run.
-  }, [ workflowId, runId, status ] );
+  }, [ workflowId, runId, status, pushToast ] );
 
   return detail;
 };

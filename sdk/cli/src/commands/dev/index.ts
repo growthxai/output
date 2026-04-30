@@ -111,9 +111,14 @@ export default class Dev extends Command {
 
     process.on( 'exit', exitAltScreenOnce );
 
-    const handleSignal = async () => {
-      await cleanup();
-      instanceRef.current?.unmount();
+    // `process.on` doesn't await the handler, so the cleanup promise would
+    // float and any rejection would surface as an unhandled rejection.
+    // Wrap the async work in a sync registration that explicitly logs
+    // failures and always unmounts Ink afterwards.
+    const handleSignal = (): void => {
+      cleanup()
+        .catch( err => console.error( 'Cleanup failed:', getErrorMessage( err ) ) )
+        .finally( () => instanceRef.current?.unmount() );
     };
 
     process.on( 'SIGINT', handleSignal );
