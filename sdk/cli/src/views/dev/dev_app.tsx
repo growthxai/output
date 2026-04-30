@@ -54,6 +54,26 @@ const useGlobalInput = ( opts: {
       return;
     }
 
+    // Esc on a list view drops an active filter. Skip when we're on
+    // the run detail sub-view — the panel's own esc handler pops back
+    // to the list and the filter should still apply when we land
+    // there. The search bar's esc (close + clear) returns above, so
+    // it never reaches this branch.
+    if ( key.escape && ui.search.query && ui.runsView === 'list' ) {
+      ui.clearSearch();
+      return;
+    }
+
+    // Switching tabs is treated as leaving the current view, so any
+    // active filter goes with it. App-driven setTab calls (e.g. the
+    // run modal pre-filtering Recent Runs to a workflow) bypass this
+    // path on purpose.
+    if ( key.tab || ( input && TAB_NUMBER_KEYS[input] ) ) {
+      if ( ui.search.query ) {
+        ui.clearSearch();
+      }
+    }
+
     if ( key.tab && key.shift ) {
       ui.prevTab();
       return;
