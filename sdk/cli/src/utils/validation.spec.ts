@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidWorkflowName } from './validation.js';
+import { isValidWorkflowName, parsePort, InvalidPortError } from './validation.js';
 
 describe( 'isValidWorkflowName', () => {
   describe( 'valid workflow names', () => {
@@ -156,5 +156,60 @@ describe( 'isValidWorkflowName', () => {
       expect( isValidWorkflowName( '_000000000' ) ).toBe( true );
       expect( isValidWorkflowName( 'a_0_1_2_3' ) ).toBe( true );
     } );
+  } );
+} );
+
+describe( 'parsePort', () => {
+  it( 'returns the parsed value for a valid port', () => {
+    expect( parsePort( '3001', 3001, 'P' ) ).toBe( 3001 );
+    expect( parsePort( '7234', 7233, 'P' ) ).toBe( 7234 );
+  } );
+
+  it( 'falls back to default for undefined silently', () => {
+    expect( parsePort( undefined, 3001, 'P' ) ).toBe( 3001 );
+  } );
+
+  it( 'falls back to default for empty string silently (matches Compose ${VAR:-default})', () => {
+    expect( parsePort( '', 3001, 'P' ) ).toBe( 3001 );
+  } );
+
+  it( 'throws InvalidPortError for non-numeric input', () => {
+    expect( () => parsePort( 'abc', 3001, 'OUTPUT_API_HOST_PORT' ) ).toThrow( InvalidPortError );
+    expect( () => parsePort( 'abc', 3001, 'OUTPUT_API_HOST_PORT' ) )
+      .toThrow( /OUTPUT_API_HOST_PORT=abc/ );
+  } );
+
+  it( 'throws for trailing junk (parseInt would silently truncate)', () => {
+    expect( () => parsePort( '3001abc', 3001, 'P' ) ).toThrow( InvalidPortError );
+  } );
+
+  it( 'throws for negative input', () => {
+    expect( () => parsePort( '-1', 3001, 'P' ) ).toThrow( InvalidPortError );
+  } );
+
+  it( 'throws for port 0 (CLI rejects but Compose would treat as ephemeral - prevents desync)', () => {
+    expect( () => parsePort( '0', 3001, 'P' ) ).toThrow( InvalidPortError );
+  } );
+
+  it( 'throws for port above 65535', () => {
+    expect( () => parsePort( '65536', 3001, 'P' ) ).toThrow( InvalidPortError );
+    expect( () => parsePort( '99999', 3001, 'P' ) ).toThrow( InvalidPortError );
+  } );
+
+  it( 'accepts boundary ports 1 and 65535', () => {
+    expect( parsePort( '1', 3001, 'P' ) ).toBe( 1 );
+    expect( parsePort( '65535', 3001, 'P' ) ).toBe( 65535 );
+  } );
+
+  it( 'error message includes env var name and remediation hint', () => {
+    try {
+      parsePort( 'abc', 3001, 'OUTPUT_API_HOST_PORT' );
+      expect.fail( 'expected throw' );
+    } catch ( err ) {
+      expect( err ).toBeInstanceOf( InvalidPortError );
+      expect( ( err as Error ).message ).toContain( 'OUTPUT_API_HOST_PORT=abc' );
+      expect( ( err as Error ).message ).toContain( '1-65535' );
+      expect( ( err as Error ).message ).toContain( '.env file' );
+    }
   } );
 } );

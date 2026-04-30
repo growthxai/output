@@ -3,6 +3,7 @@
  */
 
 import { ux } from '@oclif/core';
+import { config } from '#config.js';
 
 /**
  * Creates a colored ASCII art banner for Output.ai
@@ -209,7 +210,7 @@ export const getProjectSuccessMessage = (
     },
     {
       step: 'Monitor workflows',
-      command: 'open http://localhost:8080',
+      command: `open ${config.temporalUiUrl}`,
       note: 'Access Temporal UI for workflow visualization'
     }
   );

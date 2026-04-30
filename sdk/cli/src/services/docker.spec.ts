@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { parseServiceStatus, getServiceStatus, waitForServicesHealthy, isServiceHealthy, isServiceFailed } from './docker.js';
+import { execFileSync, spawn } from 'node:child_process';
+import {
+  parseServiceStatus, getServiceStatus,
+  startDockerCompose, startDockerComposeDetached, stopDockerCompose,
+  waitForServicesHealthy, isServiceHealthy, isServiceFailed
+} from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
@@ -102,7 +106,7 @@ describe( 'docker service', () => {
 
       expect( execFileSync ).toHaveBeenCalledWith(
         'docker',
-        [ 'compose', '-f', '/path/to/docker-compose.yml', 'ps', '--all', '--format', 'json' ],
+        [ 'compose', '-f', '/path/to/docker-compose.yml', '--project-name', 'output-sdk', 'ps', '--all', '--format', 'json' ],
         expect.objectContaining( { encoding: 'utf-8' } )
       );
     } );
@@ -123,6 +127,109 @@ describe( 'docker service', () => {
       } );
 
       await expect( getServiceStatus( '/path/to/docker-compose.yml' ) ).rejects.toThrow();
+    } );
+  } );
+
+  describe( 'startDockerCompose', () => {
+    it( 'should pass --project-name to docker compose up', async () => {
+      await startDockerCompose( '/path/to/docker-compose.yml' );
+      expect( spawn ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'output-sdk',
+          'up'
+        ],
+        expect.objectContaining( { stdio: [ 'ignore', 'pipe', 'pipe' ], cwd: process.cwd() } )
+      );
+    } );
+
+    it( 'should append --pull when pullPolicy is provided', async () => {
+      await startDockerCompose( '/path/to/docker-compose.yml', 'always' );
+      expect( spawn ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'output-sdk',
+          'up', '--pull', 'always'
+        ],
+        expect.objectContaining( { stdio: [ 'ignore', 'pipe', 'pipe' ], cwd: process.cwd() } )
+      );
+    } );
+  } );
+
+  describe( 'startDockerComposeDetached', () => {
+    it( 'should pass --project-name and -d to docker compose up', () => {
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+      startDockerComposeDetached( '/path/to/docker-compose.yml' );
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'output-sdk',
+          'up', '-d'
+        ],
+        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+      );
+    } );
+
+    it( 'should append --pull when pullPolicy is provided', () => {
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+      startDockerComposeDetached( '/path/to/docker-compose.yml', 'missing' );
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'output-sdk',
+          'up', '-d', '--pull', 'missing'
+        ],
+        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+      );
+    } );
+  } );
+
+  describe( 'DOCKER_SERVICE_NAME wiring', () => {
+    const saved = process.env.DOCKER_SERVICE_NAME;
+    afterEach( () => {
+      if ( saved === undefined ) {
+        delete process.env.DOCKER_SERVICE_NAME;
+      } else {
+        process.env.DOCKER_SERVICE_NAME = saved;
+      }
+    } );
+
+    it( 'threads DOCKER_SERVICE_NAME through to --project-name (not hardcoded output-sdk)', async () => {
+      process.env.DOCKER_SERVICE_NAME = 'custom-project';
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+
+      await stopDockerCompose( '/path/to/docker-compose.yml' );
+
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'custom-project',
+          'down'
+        ],
+        expect.objectContaining( { stdio: 'inherit' } )
+      );
+    } );
+  } );
+
+  describe( 'stopDockerCompose', () => {
+    it( 'should pass --project-name and --project-directory to docker compose down', async () => {
+      vi.mocked( execFileSync ).mockReturnValue( '' );
+      await stopDockerCompose( '/path/to/docker-compose.yml' );
+      expect( execFileSync ).toHaveBeenCalledWith(
+        'docker',
+        [ 'compose', '-f', '/path/to/docker-compose.yml', '--project-directory', process.cwd(), '--project-name', 'output-sdk', 'down' ],
+        expect.objectContaining( { stdio: 'inherit' } )
+      );
     } );
   } );
 

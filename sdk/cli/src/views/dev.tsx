@@ -233,10 +233,8 @@ const DevSuccessMessage: React.FC<{ services: ServiceStatus[] }> = ( { services 
       <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Box marginBottom={1}><Text bold>🐳 SERVICES</Text></Box>
       <Box flexDirection="column" marginLeft={2}>
-        <Box><Text color="white">{'Temporal:    '}</Text><Text color="yellow">localhost:7233</Text></Box>
-        <Box><Text color="white">{'Temporal UI: '}</Text><Text color="cyan">http://localhost:8080</Text></Box>
-        <Box><Text color="white">{'API Server:  '}</Text><Text color="yellow">localhost:3001</Text></Box>
-        <Box><Text color="white">{'Redis:       '}</Text><Text color="yellow">localhost:6379</Text></Box>
+        <Box><Text color="white">{'Temporal UI: '}</Text><Text color="cyan">{config.temporalUiUrl}</Text></Box>
+        <Box><Text color="white">{'API Server:  '}</Text><Text color="yellow">localhost:{config.ports.api}</Text></Box>
       </Box>
       <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Box marginBottom={1}><Text bold>🚀 RUN A WORKFLOW</Text></Box>
@@ -249,7 +247,7 @@ const DevSuccessMessage: React.FC<{ services: ServiceStatus[] }> = ( { services 
       <Box marginTop={1} marginBottom={1}><Text dimColor>{divider}</Text></Box>
       <Box marginBottom={1}><Text bold>⚡ USEFUL COMMANDS</Text></Box>
       <Box flexDirection="column" marginLeft={2}>
-        <Box><Text color="white">{'Open Temporal UI: '}</Text><Text color="cyan">open http://localhost:8080</Text></Box>
+        <Box><Text color="white">{'Open Temporal UI: '}</Text><Text color="cyan">open {config.temporalUiUrl}</Text></Box>
         <Box><Text color="white">{'View logs:        '}</Text><Text color="cyan">{logsCommand}</Text></Box>
         <Box><Text color="white">{'Stop services:    '}</Text><Text color="cyan">Press Ctrl+C</Text></Box>
       </Box>
@@ -286,7 +284,7 @@ const RunningView: React.FC<{
     {workflowSummary && <WorkflowSummarySection summary={workflowSummary} />}
     <Box marginTop={1}>
       <Text color="cyan">{'🌐 Temporal UI: '}</Text>
-      <Text bold>http://localhost:8080</Text>
+      <Text bold>{config.temporalUiUrl}</Text>
     </Box>
     <CommandFooter hints={[
       { key: 'o', label: 'open ui' },
@@ -348,7 +346,7 @@ export const DevApp: React.FC<{
   useMainViewInput(
     activeView === 'main' && phase !== 'waiting',
     {
-      onOpenTemporal: () => openUrl( 'http://localhost:8080' ),
+      onOpenTemporal: () => openUrl( config.temporalUiUrl ),
       onOpenWorkflows: () => setActiveView( 'workflows' )
     }
   );

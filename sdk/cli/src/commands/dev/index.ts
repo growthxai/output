@@ -16,9 +16,17 @@ import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev.js';
+import { config } from '#config.js';
 
 export default class Dev extends Command {
-  static description = 'Start Output development services (auto-restarts worker on file changes)';
+  static description = [
+    'Start Output development services (auto-restarts worker on file changes)',
+    '',
+    'To run a second dev stack concurrently, override host ports in .env:',
+    '',
+    '  OUTPUT_API_HOST_PORT=3002',
+    '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081'
+  ].join( '\n' );
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
@@ -56,6 +64,9 @@ export default class Dev extends Command {
 
     validateDockerEnvironment();
 
+    // Eagerly resolve ports so InvalidPortError surfaces before Ink mounts.
+    void config.ports;
+
     const dockerComposePath = flags['compose-file'] ?
       path.resolve( process.cwd(), flags['compose-file'] ) :
       getDefaultDockerComposePath();
@@ -67,6 +78,7 @@ export default class Dev extends Command {
     }
 
     this.log( '\n🚀 Starting Output development services...\n' );
+    this.log( `Docker project name: ${config.dockerServiceName}\n` );
 
     if ( flags['compose-file'] ) {
       this.log( `Using custom docker-compose file: ${flags['compose-file']}\n` );
