@@ -5,6 +5,7 @@ import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { formatDurationCompact, formatDate, elapsedMs } from '#utils/date_formatter.js';
 import { Footer } from '#views/dev/chrome/footer.js';
 import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
+import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState, type RightPaneTab } from '#views/dev/state/ui_state.js';
 import { useRunDetail, type RunStep } from '#views/dev/hooks/use_run_detail.js';
 import { JsonView } from '#views/dev/utils/json_render.js';
@@ -23,16 +24,17 @@ const cycleRightPane = ( current: RightPaneTab, direction: 1 | -1 ): RightPaneTa
 };
 
 const COL = {
-  num: 4,
+  num: 6,
   icon: 3,
   name: 50,
   duration: 8
 };
 
 const StepRow: React.FC<{ step: RunStep; selected: boolean }> = ( { step, selected } ) => (
-  <Box backgroundColor={selected ? 'magenta' : undefined}>
+  <Box>
     <Box width={COL.num}>
-      <Text bold={selected}>{selected ? '▸' : ' '}{step.index}</Text>
+      <SelectionIndicator selected={selected} />
+      <Text bold={selected}>{` ${step.index}`}</Text>
     </Box>
     <Box width={COL.icon}><StatusIcon status={step.status} /></Box>
     <Box width={COL.name}><Text bold={selected}>{truncate( step.name, COL.name - 1 )}</Text></Box>
@@ -74,7 +76,7 @@ const PaneTabs: React.FC<{ active: RightPaneTab }> = ( { active } ) => (
     {RIGHT_PANE_ORDER.map( ( tab, i ) => (
       <Box key={tab} marginRight={2}>
         {tab === active ? (
-          <Text backgroundColor="magenta" color="white" bold>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
+          <Text inverse bold>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
         ) : (
           <Text dimColor>{`${tab[0].toUpperCase()}${tab.slice( 1 )}${i < RIGHT_PANE_ORDER.length - 1 ? '' : ''}`}</Text>
         )}
@@ -218,7 +220,6 @@ export const RunDetailView: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
           flexDirection="column"
           width={40}
           borderStyle="single"
-          borderColor="gray"
           borderTop={false}
           borderBottom={false}
           borderRight={false}

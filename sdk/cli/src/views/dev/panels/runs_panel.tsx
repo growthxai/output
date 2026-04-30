@@ -6,6 +6,7 @@ import { elapsedMs, formatDurationCompact, formatDate } from '#utils/date_format
 import { openUrl } from '#utils/open_url.js';
 import { Footer } from '#views/dev/chrome/footer.js';
 import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
+import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { RunDetailView } from '#views/dev/panels/run_detail_view.js';
 import { useRunDetail } from '#views/dev/hooks/use_run_detail.js';
@@ -69,7 +70,7 @@ export const extractRunInput = ( trace: TraceData | null ): unknown => {
 };
 
 const COL = {
-  indicator: 2,
+  indicator: 3,
   icon: 3,
   status: 11,
   type: 22,
@@ -96,9 +97,9 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
   const duration = run.startedAt ? formatDurationCompact( elapsedMs( run.startedAt, run.completedAt ) ) : '-';
 
   return (
-    <Box backgroundColor={selected ? 'magenta' : undefined}>
+    <Box>
       <Box width={COL.indicator}>
-        <Text bold={selected}>{selected ? '▸' : ' '}</Text>
+        <SelectionIndicator selected={selected} />
       </Box>
       <Box width={COL.icon}><StatusIcon status={status} /></Box>
       <Box width={COL.status}><Text color={color}>{status}</Text></Box>
@@ -115,7 +116,7 @@ const PaneTabs: React.FC<{ active: 'input' | 'output' }> = ( { active } ) => (
     {( [ 'input', 'output' ] as const ).map( ( tab, i ) => (
       <Box key={tab} marginRight={i === 0 ? 1 : 0}>
         {tab === active ? (
-          <Text backgroundColor="magenta" color="white" bold>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
+          <Text inverse bold>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
         ) : (
           <Text dimColor>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
         )}
@@ -182,7 +183,7 @@ const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | n
   return (
     <Box flexDirection="column">
       <Box>
-        <Text bold color="white">{heading}</Text>
+        <Text bold>{heading}</Text>
       </Box>
       <Box marginTop={1}>
         <StatusIcon status={status} />

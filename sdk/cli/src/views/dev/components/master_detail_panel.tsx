@@ -1,9 +1,8 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { Footer } from '#views/dev/chrome/footer.js';
+import { Footer, type CommandHint } from '#views/dev/chrome/footer.js';
 import { HorizontalRule } from '#views/dev/chrome/divider.js';
 import { computeWindowStart } from '#views/dev/utils/panel_helpers.js';
-import type { CommandHint } from '#components/command_footer.js';
 
 /**
  * Generic two-pane shell shared by every panel that has a windowed list
@@ -51,7 +50,7 @@ export const MasterDetailPanel = <T extends object>( props: MasterDetailPanelPro
         {overflowBelow > 0 && <OverflowIndicator direction="down" count={overflowBelow} />}
       </Box>
       <Box marginTop={1} marginBottom={1}>
-        <HorizontalRule color="gray" />
+        <HorizontalRule />
       </Box>
       {detail}
       <Footer hints={hints} itemCount={items.length} itemLabel={itemLabel} />

@@ -40,9 +40,9 @@ export const SearchBar: React.FC<{
 
   return (
     <Box marginTop={1}>
-      <Text color="cyan">/ </Text>
+      <Text bold>/ </Text>
       <Text>{ui.search.query}</Text>
-      <Text color="cyan">▌</Text>
+      <Text inverse>{' '}</Text>
     </Box>
   );
 };

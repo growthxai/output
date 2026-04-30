@@ -7,7 +7,7 @@ export const TabBar: React.FC<{ active: Tab }> = ( { active } ) => (
     {TAB_ORDER.map( tab => (
       <Box key={tab} marginRight={3}>
         {tab === active ? (
-          <Text backgroundColor="magenta" color="white" bold>{` ${TAB_LABELS[tab]} `}</Text>
+          <Text inverse bold>{` ${TAB_LABELS[tab]} `}</Text>
         ) : (
           <Text dimColor>{TAB_LABELS[tab]}</Text>
         )}

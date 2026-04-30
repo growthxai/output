@@ -1,6 +1,10 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { CommandHint } from '#components/command_footer.js';
+
+export interface CommandHint {
+  key: string;
+  label: string;
+}
 
 export const Footer: React.FC<{
   hints: CommandHint[];

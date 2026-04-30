@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import Spinner from 'ink-spinner';
 import { listScenariosForWorkflow } from '#utils/scenario_resolver.js';
+import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { startWorkflow } from '#views/dev/services/run_workflow.js';
 import { readScenario, writeScenario } from '#views/dev/services/scenario_io.js';
@@ -31,8 +32,8 @@ const buildEntries = ( scenarios: string[] ): Entry[] => {
 };
 
 const Frame: React.FC<{ title: string; children: React.ReactNode }> = ( { title, children } ) => (
-  <Box flexDirection="column" marginTop={1} borderStyle="round" borderColor="magenta" paddingX={1} paddingY={0}>
-    <Text bold color="magenta">{title}</Text>
+  <Box flexDirection="column" marginTop={1} borderStyle="round" paddingX={1} paddingY={0}>
+    <Text bold>{title}</Text>
     {children}
   </Box>
 );
@@ -43,8 +44,8 @@ const TextPrompt: React.FC<{
 }> = ( { label, value } ) => (
   <Box marginTop={1}>
     <Text>{label} </Text>
-    <Text color="cyan">{value}</Text>
-    <Text color="cyan">▌</Text>
+    <Text>{value}</Text>
+    <Text inverse>{' '}</Text>
   </Box>
 );
 
@@ -300,9 +301,8 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
                   </Box>
                 )}
                 <Box>
-                  <Text color={i === index ? 'cyan' : undefined} bold={i === index}>
-                    {i === index ? '▸ ' : '  '}{entry.label}
-                  </Text>
+                  <SelectionIndicator selected={i === index} />
+                  <Text bold={i === index}>{' '}{entry.label}</Text>
                 </Box>
               </React.Fragment>
             );

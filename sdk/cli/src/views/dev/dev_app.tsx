@@ -3,14 +3,18 @@ import { Box, useApp, useInput, useStdout } from 'ink';
 import { isServiceFailed, isServiceHealthy, type ServiceStatus } from '#services/docker.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
 import { openUrl } from '#utils/open_url.js';
-import type { WorkflowSummary } from '#components/workflow_summary.js';
 import {
   useHealthPolling,
   useStatusRefresh,
   useWorkflowRunsPolling
 } from '#views/dev/hooks/use_poll.js';
 import { useWorkflowCatalog } from '#views/dev/hooks/use_workflow_catalog.js';
-import { Header, buildSummaryCounters, type ServiceBadge } from '#views/dev/chrome/header.js';
+import {
+  Header,
+  buildSummaryCounters,
+  type ServiceBadge,
+  type WorkflowSummary
+} from '#views/dev/chrome/header.js';
 import { TabBar } from '#views/dev/chrome/tab_bar.js';
 import { SearchBar } from '#views/dev/chrome/search_bar.js';
 import { Toasts } from '#views/dev/chrome/toasts.js';

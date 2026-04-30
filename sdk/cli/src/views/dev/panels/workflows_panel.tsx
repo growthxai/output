@@ -5,6 +5,7 @@ import type { WorkflowRun } from '#services/workflow_runs.js';
 import { StatusIcon, statusColor } from '#components/status_icon.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { Footer } from '#views/dev/chrome/footer.js';
+import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
 import { formatStartedShort } from '#views/dev/utils/panel_helpers.js';
@@ -14,7 +15,7 @@ import {
 } from '#views/dev/utils/constants.js';
 
 const COL = {
-  indicator: 2,
+  indicator: 3,
   name: 30
 };
 
@@ -49,9 +50,9 @@ const HeaderRow: React.FC = () => (
 );
 
 const WorkflowRow: React.FC<{ workflow: Workflow; selected: boolean }> = ( { workflow, selected } ) => (
-  <Box backgroundColor={selected ? 'magenta' : undefined}>
+  <Box>
     <Box width={COL.indicator}>
-      <Text bold={selected}>{selected ? '▸' : ' '}</Text>
+      <SelectionIndicator selected={selected} />
     </Box>
     <Box width={COL.name}><Text bold={selected} wrap="truncate-end">{workflow.name ?? '-'}</Text></Box>
     <Box flexGrow={1}>
@@ -110,7 +111,6 @@ const DetailPane: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[]
           flexDirection="column"
           width={42}
           borderStyle="single"
-          borderColor="gray"
           borderTop={false}
           borderBottom={false}
           borderRight={false}

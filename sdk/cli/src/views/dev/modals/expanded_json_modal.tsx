@@ -48,7 +48,7 @@ export const ExpandedJsonModal: React.FC = () => {
   return (
     <Box flexDirection="column">
       <Box justifyContent="space-between">
-        <Text bold color="magenta">⤢  {title}</Text>
+        <Text bold>⤢  {title}</Text>
         <Text dimColor>
           {Math.min( 100, progress )}%   line {clampedOffset + 1}-{Math.min( totalLines, clampedOffset + visibleLines )}/{totalLines}
         </Text>

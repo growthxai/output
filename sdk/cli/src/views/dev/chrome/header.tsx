@@ -1,8 +1,14 @@
 import React from 'react';
 import { Box, Text, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
-import type { WorkflowSummary } from '#components/workflow_summary.js';
 import { LOGO_GRADIENT, PURPLE_100 } from '#views/dev/chrome/palette.js';
+
+export interface WorkflowSummary {
+  running: number;
+  completed: number;
+  failed: number;
+  total: number;
+}
 
 const LOGO_PIXELS = [
   ' ██████  ██    ██ ████████ ██████  ██    ██ ████████',

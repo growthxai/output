@@ -126,7 +126,7 @@ export const JsonEditor: React.FC<{
   return (
     <Box flexDirection="column">
       <Box justifyContent="space-between">
-        <Text bold color="magenta">✏  {title}</Text>
+        <Text bold>✏  {title}</Text>
         <Text bold color={status.ok ? 'green' : 'red'}>{status.ok ? '✓ valid JSON' : '✗ invalid JSON'}</Text>
       </Box>
 
@@ -142,7 +142,7 @@ export const JsonEditor: React.FC<{
           return (
             <Text key={lineIdx}>
               <Text>{before}</Text>
-              <Text backgroundColor="magenta" color="white">{at}</Text>
+              <Text inverse>{at}</Text>
               <Text>{after}</Text>
             </Text>
           );

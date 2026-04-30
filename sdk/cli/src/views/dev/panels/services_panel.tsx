@@ -5,6 +5,7 @@ import { StatusIcon } from '#components/status_icon.js';
 import { openUrl } from '#utils/open_url.js';
 import { Footer } from '#views/dev/chrome/footer.js';
 import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
+import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { useDockerLogs } from '#views/dev/hooks/use_docker_logs.js';
 import { restartService, restartStack } from '#views/dev/services/docker_control.js';
@@ -24,7 +25,7 @@ const SERVICE_URLS: Record<string, string> = {
 };
 
 const COL = {
-  indicator: 2,
+  indicator: 3,
   icon: 3,
   name: 16,
   status: 11,
@@ -49,9 +50,9 @@ const ServiceRow: React.FC<{ service: ServiceStatus; selected: boolean }> = ( { 
   const ports = service.ports.length ? service.ports.join( ', ' ) : '-';
 
   return (
-    <Box backgroundColor={selected ? 'magenta' : undefined}>
+    <Box>
       <Box width={COL.indicator}>
-        <Text bold={selected}>{selected ? '▸' : ' '}</Text>
+        <SelectionIndicator selected={selected} />
       </Box>
       <Box width={COL.icon}><StatusIcon status={status} /></Box>
       <Box width={COL.name}><Text bold={selected} wrap="truncate-end">{service.name}</Text></Box>
@@ -140,14 +141,14 @@ const Detail: React.FC<DetailProps> = ( { service, services, lines, paused, bann
   <Box flexDirection="column">
     <FailureBanner services={services} />
     <Box marginTop={1}>
-      <Text bold color="white">{service?.name ?? 'Logs'}</Text>
+      <Text bold>{service?.name ?? 'Logs'}</Text>
     </Box>
     <Box flexDirection="column" marginTop={1}>
       <LogPane serviceName={service?.name ?? null} lines={lines} paused={paused} />
     </Box>
     {banner && (
       <Box marginTop={1}>
-        <Text color="cyan">{banner}</Text>
+        <Text>{banner}</Text>
       </Box>
     )}
   </Box>
