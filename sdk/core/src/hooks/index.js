@@ -15,7 +15,7 @@ const safeInvoke = async ( fn, args, hookName ) => {
   try {
     await fn( args );
   } catch ( error ) {
-    log.error( `${hookName} hook error`, { error } );
+    log.error( `${hookName} hook error`, { message: error.message, stack: error.stack } );
   }
 };
 
