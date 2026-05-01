@@ -22,7 +22,6 @@ agent-os/
 
 # Claude Things
 .claude/settings.local.json
-.claude/settings.json
 .claude/worktrees/
 
 # Pnpm publish report
