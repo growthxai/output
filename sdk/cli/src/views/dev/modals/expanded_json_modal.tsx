@@ -62,10 +62,10 @@ export const ExpandedJsonModal: React.FC = () => {
       <Box marginTop={1}>
         <Text color={RULE_PURPLE}>{'─'.repeat( Math.max( 1, cols ) )}</Text>
       </Box>
-      <Box>
-        <Text bold>↑/↓</Text><Text dimColor> scroll  </Text>
-        <Text bold>pgup/pgdn</Text><Text dimColor> page  </Text>
-        <Text bold>esc</Text><Text dimColor> close</Text>
+      <Box columnGap={2}>
+        <Box columnGap={1}><Text bold>↑/↓</Text><Text dimColor>scroll</Text></Box>
+        <Box columnGap={1}><Text bold>pgup/pgdn</Text><Text dimColor>page</Text></Box>
+        <Box columnGap={1}><Text bold>esc</Text><Text dimColor>close</Text></Box>
       </Box>
     </Box>
   );

@@ -160,11 +160,11 @@ export const JsonEditor: React.FC<{
         </Box>
       )}
 
-      <Box marginTop={1}>
-        <Text bold>ctrl+s</Text><Text dimColor> submit  </Text>
-        <Text bold>esc</Text><Text dimColor> cancel  </Text>
-        <Text bold>↑↓←→</Text><Text dimColor> move  </Text>
-        <Text bold>tab</Text><Text dimColor> indent</Text>
+      <Box marginTop={1} columnGap={2}>
+        <Box columnGap={1}><Text bold>ctrl+s</Text><Text dimColor>submit</Text></Box>
+        <Box columnGap={1}><Text bold>esc</Text><Text dimColor>cancel</Text></Box>
+        <Box columnGap={1}><Text bold>↑↓←→</Text><Text dimColor>move</Text></Box>
+        <Box columnGap={1}><Text bold>tab</Text><Text dimColor>indent</Text></Box>
       </Box>
     </Box>
   );
