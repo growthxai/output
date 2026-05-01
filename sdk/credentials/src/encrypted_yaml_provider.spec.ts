@@ -99,6 +99,86 @@ describe( 'encrypted YAML provider', () => {
       expect( () => provider.loadGlobal( { environment: undefined } ) )
         .toThrow( 'No credentials key found' );
     } );
+
+    it( 'should throw InvalidCredentialsKeyError when the key does not match the encrypted file', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = generateKey();
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( InvalidCredentialsKeyError );
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( /Failed to decrypt .*credentials\.yml\.enc/ );
+    } );
+
+    it( 'should throw MalformedCredentialsKeyError when the key has the wrong length', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = key.slice( 0, 55 );
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { MalformedCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( MalformedCredentialsKeyError );
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( /must be exactly 64 hex characters/ );
+    } );
+
+    it( 'should throw MalformedCredentialsKeyError when the key contains non-hex characters', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = `${key.slice( 0, 10 )} ${key.slice( 11 )}`;
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { MalformedCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( MalformedCredentialsKeyError );
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( /typos, whitespace, or truncation/ );
+    } );
+
+    it( 'should throw InvalidCredentialsKeyError with the underlying message for unknown decrypt failures', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = key;
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      vi.doMock( './encryption.js', () => ( {
+        decrypt: () => {
+          throw new Error( 'unexpected internal failure' );
+        }
+      } ) );
+
+      try {
+        const provider = await loadProvider();
+        const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+        expect( () => provider.loadGlobal( { environment: undefined } ) )
+          .toThrow( InvalidCredentialsKeyError );
+        expect( () => provider.loadGlobal( { environment: undefined } ) )
+          .toThrow( /unexpected internal failure/ );
+        expect( () => provider.loadGlobal( { environment: undefined } ) )
+          .toThrow( /may not match.*or the credentials file may be corrupted/ );
+      } finally {
+        vi.doUnmock( './encryption.js' );
+      }
+    } );
   } );
 
   describe( 'loadForWorkflow', () => {

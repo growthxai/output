@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
 import semver from 'semver';
+import { config } from '#config.js';
 
 const DEFAULT_COMPOSE_PATH = '../assets/docker/docker-compose-dev.yml';
 
@@ -143,7 +144,7 @@ export function parseServiceStatus( jsonOutput: string ): ServiceStatus[] {
 export async function getServiceStatus( dockerComposePath: string ): Promise<ServiceStatus[]> {
   const result = execFileSync(
     'docker',
-    [ 'compose', '-f', dockerComposePath, 'ps', '--all', '--format', 'json' ],
+    [ 'compose', '-f', dockerComposePath, '--project-name', config.dockerServiceName, 'ps', '--all', '--format', 'json' ],
     { encoding: 'utf-8', cwd: process.cwd() }
   );
 
@@ -193,6 +194,7 @@ export async function startDockerCompose(
     'compose',
     '-f', dockerComposePath,
     '--project-directory', process.cwd(),
+    '--project-name', config.dockerServiceName,
     'up'
   ];
 
@@ -216,6 +218,7 @@ export function startDockerComposeDetached(
     'compose',
     '-f', dockerComposePath,
     '--project-directory', process.cwd(),
+    '--project-name', config.dockerServiceName,
     'up', '-d'
   ];
 
@@ -230,7 +233,7 @@ export async function stopDockerCompose( dockerComposePath: string ): Promise<vo
   ux.stdout( '⏹️  Stopping services...\n' );
   execFileSync(
     'docker',
-    [ 'compose', '-f', dockerComposePath, 'down' ],
+    [ 'compose', '-f', dockerComposePath, '--project-directory', process.cwd(), '--project-name', config.dockerServiceName, 'down' ],
     { stdio: 'inherit', cwd: process.cwd() }
   );
 }

@@ -12,11 +12,12 @@ export interface WorkflowRunsResult {
 
 export interface FetchWorkflowRunsOptions {
   workflowType?: string;
+  catalog?: string;
   limit?: number;
 }
 
 export async function fetchWorkflowRuns( options: FetchWorkflowRunsOptions = {} ): Promise<WorkflowRunsResult> {
-  const params: { workflowType?: string; limit?: number } = {};
+  const params: { workflowType?: string; catalog?: string; limit?: number } = {};
 
   if ( options.limit ) {
     params.limit = options.limit;
@@ -24,6 +25,10 @@ export async function fetchWorkflowRuns( options: FetchWorkflowRunsOptions = {} 
 
   if ( options.workflowType ) {
     params.workflowType = options.workflowType;
+  }
+
+  if ( options.catalog ) {
+    params.catalog = options.catalog;
   }
 
   const response = await getWorkflowRuns( params );

@@ -1,5 +1,5 @@
 import { KyResponse } from 'ky';
-import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { requestIdSymbol } from './consts.js';
 
 export type RequestCost = {
@@ -24,4 +24,5 @@ export const addRequestCost = ( response: KyResponse | Response, cost: RequestCo
     return;
   }
   Tracing.addEventAttribute( { eventId, name: Tracing.Attribute.COST, value: cost } );
+  emitEvent( 'cost:http:request', { requestId: eventId, url: response.url, cost } );
 };

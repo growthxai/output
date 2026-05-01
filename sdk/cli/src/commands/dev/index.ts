@@ -16,9 +16,17 @@ import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev/dev_app.js';
+import { config } from '#config.js';
 
 export default class Dev extends Command {
-  static description = 'Start Output development services (auto-restarts worker on file changes)';
+  static description = [
+    'Start Output development services (auto-restarts worker on file changes)',
+    '',
+    'To run a second dev stack concurrently, override host ports in .env:',
+    '',
+    '  OUTPUT_API_HOST_PORT=3002',
+    '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081'
+  ].join( '\n' );
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
@@ -55,6 +63,9 @@ export default class Dev extends Command {
     ensureClaudePlugin( process.cwd(), { silent: true } ).catch( () => {} );
 
     validateDockerEnvironment();
+
+    // Eagerly resolve ports so InvalidPortError surfaces before Ink mounts.
+    void config.ports;
 
     const dockerComposePath = flags['compose-file'] ?
       path.resolve( process.cwd(), flags['compose-file'] ) :
@@ -114,10 +125,16 @@ export default class Dev extends Command {
     // `process.on` doesn't await the handler, so the cleanup promise would
     // float and any rejection would surface as an unhandled rejection.
     // Wrap the async work in a sync registration that explicitly logs
-    // failures and always unmounts Ink afterwards.
+    // failures and always unmounts Ink afterwards. Exit the alt-screen
+    // first inside the catch — Ink still owns the alt-buffer until
+    // `unmount()` runs, so a bare `console.error` would paint into a
+    // buffer the user never sees.
     const handleSignal = (): void => {
       cleanup()
-        .catch( err => console.error( 'Cleanup failed:', getErrorMessage( err ) ) )
+        .catch( err => {
+          exitAltScreenOnce();
+          console.error( 'Cleanup failed:', getErrorMessage( err ) );
+        } )
         .finally( () => instanceRef.current?.unmount() );
     };
 

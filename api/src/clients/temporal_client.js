@@ -629,15 +629,21 @@ export default {
        *
        * @param {Object} [options] - Optional configuration
        * @param {string} [options.workflowType] - Filter by workflow type/name
+       * @param {string} [options.taskQueue] - Filter by Temporal task queue name
        * @param {number} [options.limit=100] - Maximum number of runs to return
        * @returns {WorkflowRunsListResult}
        */
       async listWorkflowRuns( options = {} ) {
-        const { workflowType, limit = 100 } = options;
+        const { workflowType, taskQueue, limit = 100 } = options;
 
-        const query = workflowType ?
-          `WorkflowType = "${workflowType}"` :
-          undefined;
+        const conditions = [];
+        if ( workflowType ) {
+          conditions.push( `WorkflowType = "${workflowType}"` );
+        }
+        if ( taskQueue ) {
+          conditions.push( `TaskQueue = "${taskQueue}"` );
+        }
+        const query = conditions.length > 0 ? conditions.join( ' AND ' ) : undefined;
 
         const executions = await takeFromAsyncIterable(
           client.workflow.list( { query } ),

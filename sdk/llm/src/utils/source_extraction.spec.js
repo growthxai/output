@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractSourcesFromSteps } from './source_extraction.js';
+import { combineSources, extractSourcesFromSteps } from './source_extraction.js';
 
 describe( 'extractSourcesFromSteps', () => {
   it( 'returns empty array for undefined/null/empty steps', () => {
@@ -165,5 +165,30 @@ describe( 'extractSourcesFromSteps', () => {
     const s2 = extractSourcesFromSteps( steps );
     expect( s1[0].id ).toBe( s2[0].id );
     expect( s1[0].id ).toHaveLength( 16 );
+  } );
+} );
+
+describe( 'combineSources', () => {
+  it( 'treats non-array sourcesFromResponse like empty array', () => {
+    const tool = [ { url: 'https://u.test', title: 'T', type: 'source', sourceType: 'url', id: '1' } ];
+
+    expect(
+      combineSources( { sourcesFromTools: tool, sourcesFromResponse: undefined } )
+    ).toHaveLength( 1 );
+
+    expect(
+      combineSources( { sourcesFromTools: tool, sourcesFromResponse: {} } )
+    ).toHaveLength( 1 );
+  } );
+
+  it( 'dedupes by url with response sources winning after tools', () => {
+    const url = 'https://shared.test';
+    const tools = [ { url, title: 'from-tool', type: 'source', sourceType: 'url', id: 'a' } ];
+    const response = [ { url, title: 'from-response', type: 'source', sourceType: 'url', id: 'b' } ];
+
+    const merged = combineSources( { sourcesFromTools: tools, sourcesFromResponse: response } );
+
+    expect( merged ).toHaveLength( 1 );
+    expect( merged[0].title ).toBe( 'from-response' );
   } );
 } );

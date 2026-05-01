@@ -210,7 +210,7 @@ output workflow run <workflowName> [scenario]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--input, -i` | — | JSON input or file path (overrides scenario) |
-| `--task-queue, -q` | — | Task queue name |
+| `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog name (the deprecated `--task-queue, -q` aliases still work) |
 | `--format, -f` | text | Output format: json, text |
 
 ```bash
@@ -243,7 +243,7 @@ output workflow start <workflowName> [scenario]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--input, -i` | — | JSON input or file path (overrides scenario) |
-| `--task-queue, -q` | — | Task queue name |
+| `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog name (the deprecated `--task-queue, -q` aliases still work) |
 
 ### output workflow status
 

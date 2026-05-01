@@ -134,6 +134,8 @@ addRequestCost( response, {
 
 `addRequestCost` only works with responses created by `@outputai/http` (or its exported `fetch`). If the response did not come from this package, the function safely no-ops and logs a warning.
 
+It also emits a **`cost:http:request`** hook event (same hooks system as [`cost:llm:request`](/costs/cost-events)). For the payload and examples, see [Cost Events — HTTP](/costs/cost-events#http-request-cost).
+
 ## Error Handling
 
 The client throws `HTTPError` for non-2xx responses and `TimeoutError` for timeouts:

@@ -45,16 +45,16 @@ vi.mock( './ai_sdk.js', () => ( {
 
 const startTraceImpl = vi.fn( () => 'trace-id' );
 const endTraceWithErrorImpl = vi.fn();
-const traceStreamCallbacksImpl = vi.fn( () => ( {} ) );
-vi.mock( './trace_utils.js', () => ( {
+vi.mock( './utils/trace.js', () => ( {
   startTrace: ( ...args ) => startTraceImpl( ...args ),
-  endTraceWithError: ( ...args ) => endTraceWithErrorImpl( ...args ),
-  traceStreamCallbacks: ( ...args ) => traceStreamCallbacksImpl( ...args )
+  endTraceWithError: ( ...args ) => endTraceWithErrorImpl( ...args )
 } ) );
 
-const wrapInOutputResponseImpl = vi.fn( response => response );
-vi.mock( './response_utils.js', () => ( {
-  wrapInOutputResponse: ( ...args ) => wrapInOutputResponseImpl( ...args )
+const wrapTextResponseImpl = vi.fn( async ( { response } ) => response );
+const wrapStreamOnFinishResponseImpl = vi.fn( () => ( {} ) );
+vi.mock( './utils/response_wrappers.js', () => ( {
+  wrapTextResponse: ( ...args ) => wrapTextResponseImpl( ...args ),
+  wrapStreamOnFinishResponse: ( ...args ) => wrapStreamOnFinishResponseImpl( ...args )
 } ) );
 
 vi.mock( './skill.js', () => ( {
@@ -88,6 +88,8 @@ beforeEach( () => {
   } );
   superGenerateImpl.mockResolvedValue( { text: 'response', response: { messages: [] } } );
   superStreamImpl.mockReturnValue( { textStream: 'stream' } );
+  wrapTextResponseImpl.mockImplementation( async ( { response } ) => response );
+  wrapStreamOnFinishResponseImpl.mockReturnValue( {} );
 } );
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -263,14 +265,44 @@ describe( 'createMemoryConversationStore()', () => {
   } );
 } );
 
+describe( 'Agent — utils delegation', () => {
+  it( 'generate() calls trace and wrapTextResponse with model id and response', async () => {
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+    await agent.generate( { messages: [ { role: 'user', content: 'hi' } ] } );
+
+    expect( startTraceImpl ).toHaveBeenCalledWith( { name: 'Agent.generate', prompt: 'test@v1' } );
+    expect( wrapTextResponseImpl ).toHaveBeenCalledWith( {
+      traceId: 'trace-id',
+      modelId: 'claude-sonnet-4-6',
+      response: expect.objectContaining( { text: 'response' } )
+    } );
+  } );
+
+  it( 'stream() calls trace and wrapStreamOnFinishResponse', async () => {
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+    await agent.stream();
+
+    expect( startTraceImpl ).toHaveBeenCalledWith( { name: 'Agent.stream', prompt: 'test@v1' } );
+    expect( wrapStreamOnFinishResponseImpl ).toHaveBeenCalledWith( {
+      traceId: 'trace-id',
+      modelId: 'claude-sonnet-4-6',
+      onFinish: undefined
+    } );
+  } );
+} );
+
 describe( 'Agent.stream()', () => {
   it( 'uses pre-rendered messages when no variables provided', async () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
     await agent.stream();
-    expect( superStreamImpl ).toHaveBeenCalledWith( {
-      messages: defaultMessages
-    } );
+    expect( superStreamImpl ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        messages: defaultMessages
+      } )
+    );
   } );
 
   it( 'loads prior messages from store', async () => {
@@ -284,9 +316,11 @@ describe( 'Agent.stream()', () => {
     const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
     await agent.stream( { messages: [ { role: 'user', content: 'new' } ] } );
 
-    expect( superStreamImpl ).toHaveBeenCalledWith( {
-      messages: [ ...defaultMessages, ...priorMessages, { role: 'user', content: 'new' } ]
-    } );
+    expect( superStreamImpl ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        messages: [ ...defaultMessages, ...priorMessages, { role: 'user', content: 'new' } ]
+      } )
+    );
   } );
 
   it( 'does not auto-append to store', async () => {
