@@ -30,9 +30,6 @@ export function createWorkflowHistoryStreamHandler( client ) {
       abortSignal: ctrl.signal
     } );
 
-    // Pull first yield (workflow metadata) before flushing headers.
-    // If describe() throws (e.g. WorkflowNotFoundError), it propagates here
-    // and Express 5 forwards it to errorHandler as a JSON response.
     const { value: firstChunk } = await stream.next();
 
     res.set( {

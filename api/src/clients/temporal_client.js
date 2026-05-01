@@ -648,7 +648,16 @@ export default {
           return;
         }
 
-        // Mutable loop state via object properties (const avoids let restriction)
+        const normalizeEventType = event => (
+          typeof event.eventType === 'object' ?
+            Number( event.eventType.toString() ) :
+            event.eventType
+        );
+        const processEvent = event => serializeEvent(
+          includePayloads ? decodeEventPayloads( event ) : event,
+          { includePayloads }
+        );
+
         const state = {
           nextPageToken: undefined,
           filterEventId: lastEventId,
@@ -680,17 +689,10 @@ export default {
           state.nextPageToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
           const rawEvents = response.history?.events || [];
 
-          const terminalEvent = rawEvents.find( event => {
-            const eventType = typeof event.eventType === 'object' ?
-              Number( event.eventType.toString() ) :
-              event.eventType;
-            return TERMINAL_EVENT_TYPES.has( eventType );
-          } );
+          const terminalEvent = rawEvents.find( event => TERMINAL_EVENT_TYPES.has( normalizeEventType( event ) ) );
 
           if ( terminalEvent && !state.sawTerminalEvent ) {
-            const eventType = typeof terminalEvent.eventType === 'object' ?
-              Number( terminalEvent.eventType.toString() ) :
-              terminalEvent.eventType;
+            const eventType = normalizeEventType( terminalEvent );
             const attrKey = NEW_RUN_ID_ATTRS[eventType];
             state.sawTerminalEvent = true;
             state.sawTerminalReason = EventTypeName[eventType];
@@ -702,7 +704,7 @@ export default {
               const eventId = Number( event.eventId?.toString() ?? 0 );
               return state.filterEventId === undefined || eventId > state.filterEventId;
             } )
-            .map( event => serializeEvent( includePayloads ? decodeEventPayloads( event ) : event, { includePayloads } ) );
+            .map( processEvent );
 
           if ( batch.length > 0 ) {
             const lastSerializedId = Number( batch[batch.length - 1].eventId );
@@ -739,10 +741,7 @@ export default {
               state.nextPageToken = drainResponse.nextPageToken?.length ? drainResponse.nextPageToken : undefined;
               const drainEvents = drainResponse.history?.events || [];
               if ( drainEvents.length > 0 ) {
-                const drainBatch = drainEvents.map( event => {
-                  const decoded = includePayloads ? decodeEventPayloads( event ) : event;
-                  return serializeEvent( decoded, { includePayloads } );
-                } );
+                const drainBatch = drainEvents.map( processEvent );
                 const drainLastId = Number( drainBatch[drainBatch.length - 1].eventId );
                 yield { type: 'events', events: drainBatch, lastEventId: drainLastId };
               }
