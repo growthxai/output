@@ -9,4 +9,6 @@
   - `onWorkflowError()`: Triggers when a workflow throws an error, receives the run id, workflow name, duration and error thrown;
   - Important: These three hooks are not triggered by the internal "$catalog" workflow lifecycle;
 - Renamed `onBeforeStart()` hook to `onBeforeWorkerStart()`;
-- Fixed possible issue where a broken handler attached to `onBeforeStart()` could interrupt the worker process.
+- Fixed possible issue where a broken handler attached to `onBeforeStart()` could interrupt the worker process;
+- Added `activityId` and `workflowId` to `onError()` hook handler payload when source is `'activity'`;
+- Added `workflowId` to `onError()` hook handler payload when source is `'workflow'`.
