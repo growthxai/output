@@ -96,12 +96,18 @@ Register handlers in hook files that the worker loads at startup (list paths und
 
 | Function | When it runs | Payload |
 |----------|--------------|---------|
-| `onError` | Activity, workflow, or runtime error | `source` (`activity`, `workflow`, or `runtime`), `error`, and when applicable `workflowName` / `activityName` — see [Error Hooks](/operations/error-hooks) |
+| `onError` | Activity, workflow, or runtime error | Object always includes `source` and `error`. Shape depends on `source` — see below and [Error Hooks](/operations/error-hooks) |
 | `onBeforeWorkerStart` | Once after hooks, workflows, and activities are loaded; before the Temporal worker is created | None |
 | `onWorkflowStart` | A user workflow execution starts | `id` (run id), `name` (workflow type) |
 | `onWorkflowEnd` | A user workflow execution completes successfully | `id`, `name`, `duration` (ms) |
 | `onWorkflowError` | A user workflow execution fails | `id`, `name`, `duration` (ms), `error` |
 | `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Optional object |
+
+**`onError` payload by `source`**
+
+- **`activity`** — `source`, `activityId`, `activityName`, `workflowId`, `workflowName`, `error`
+- **`workflow`** — `source`, `workflowId`, `workflowName`, `error`
+- **`runtime`** — `source`, `error`
 
 `onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onError` can still report failures from any workflow, including catalog, if you need them.
 

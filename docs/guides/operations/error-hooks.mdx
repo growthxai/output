@@ -15,8 +15,8 @@ Create a file that registers your handler. Import `onError` from `@outputai/core
 // src/error_hooks.js
 import { onError } from '@outputai/core/hooks';
 
-onError(async ({ source, error, workflowName, activityName }) => {
-  console.log('Error', { source, error, workflowName, activityName });
+onError(async (payload) => {
+  console.log('Error', payload);
 });
 ```
 
@@ -37,19 +37,19 @@ You can register multiple files: `"hookFiles": ["./src/error_hooks.js", "./src/o
 
 ## The three sources
 
-Errors are emitted from three origins. The payload passed to your handler always includes `source` and `error`; workflow- and activity-scoped errors also include the names below.
+Errors are emitted from three origins. Every payload includes `source` and `error`. Activity- and workflow-scoped errors also include stable ids and names for the run and workflow.
 
-| Source      | When it fires | `workflowName` | `activityName` |
-|------------|----------------|----------------|----------------|
-| `activity` | A step or evaluator fails (after retries are exhausted). | ✅ Set | ✅ Set |
-| `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | ✅ Set | ❌ Not set |
-| `runtime`  | An error outside workflow/activity scope (e.g. in the worker/runtime). | ❌ Not set | ❌ Not set |
+| Source | When it fires | Fields besides `source` and `error` |
+|--------|----------------|----------------------------------------|
+| `activity` | A step or evaluator fails (after retries are exhausted). | `activityId`, `activityName`, `workflowId`, `workflowName` |
+| `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | `workflowId`, `workflowName` |
+| `runtime` | An error outside workflow/activity scope (e.g. in the worker/runtime). | — |
 
 So:
 
-- For **activity** errors you get `source: 'activity'`, `workflowName`, `activityName`, and `error`.
-- For **workflow** errors you get `source: 'workflow'`, `workflowName`, and `error` (no `activityName`).
-- For **runtime** errors you get `source: 'runtime'` and `error` only.
+- **Activity** — `source: 'activity'`, `activityId`, `activityName`, `workflowId`, `workflowName`, `error`.
+- **Workflow** — `source: 'workflow'`, `workflowId`, `workflowName`, `error` (no activity fields).
+- **Runtime** — `source: 'runtime'` and `error` only.
 
 Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
 
@@ -63,11 +63,17 @@ Your handler is wrapped in a try/catch. If the handler throws or rejects, the fr
 // src/error_hooks.js
 import { onError } from '@outputai/core/hooks';
 
-onError(async ({ source, error, workflowName, activityName }) => {
+onError(async (payload) => {
+  const { source, error } = payload;
   if (source === 'activity') {
-    console.error(`Step/evaluator failed: ${workflowName} / ${activityName}`, error);
+    const { workflowName, activityName, workflowId, activityId } = payload;
+    console.error(
+      `Step/evaluator failed: ${workflowName} (${workflowId}) / ${activityName} (${activityId})`,
+      error
+    );
   } else if (source === 'workflow') {
-    console.error(`Workflow failed: ${workflowName}`, error);
+    const { workflowName, workflowId } = payload;
+    console.error(`Workflow failed: ${workflowName} (${workflowId})`, error);
   } else {
     console.error('Runtime error', error);
   }
