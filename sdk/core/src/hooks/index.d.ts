@@ -57,7 +57,7 @@ export declare function onError( handler: ( payload: ErrorHookPayload ) => void 
 
 /**
  * Register a handler to be invoked once, before the worker starts processing tasks.
- * Runs before Worker.create().
+ * It is invoked before Worker.create().
  *
  * @param handler - Function called with no arguments.
  */
