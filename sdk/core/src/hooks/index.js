@@ -21,10 +21,10 @@ const safeInvoke = async ( fn, args, hookName ) => {
 
 /** Triggers on any errors: workflow, activity and runtime */
 export const onError = handler => {
-  messageBus.on( BusEventType.ACTIVITY_ERROR, async ( { name, workflowName, error } ) =>
-    safeInvoke( handler, { source: 'activity', activityName: name, workflowName, error }, 'onError' ) );
-  messageBus.on( BusEventType.WORKFLOW_ERROR, async ( { name, error } ) =>
-    safeInvoke( handler, { source: 'workflow', workflowName: name, error }, 'onError' ) );
+  messageBus.on( BusEventType.ACTIVITY_ERROR, async ( { id, name, workflowId, workflowName, error } ) =>
+    safeInvoke( handler, { source: 'activity', activityId: id, activityName: name, workflowId, workflowName, error }, 'onError' ) );
+  messageBus.on( BusEventType.WORKFLOW_ERROR, async ( { id, name, error } ) =>
+    safeInvoke( handler, { source: 'workflow', workflowId: id, workflowName: name, error }, 'onError' ) );
   messageBus.on( BusEventType.RUNTIME_ERROR, async ( { error } ) =>
     safeInvoke( handler, { source: 'runtime', error }, 'onError' ) );
 };

@@ -49,15 +49,38 @@ describe( 'hooks/index', () => {
 
       const err = new Error( 'act-fail' );
       await onHandlers[BusEventType.ACTIVITY_ERROR]( {
+        id: 'act-1',
         name: 'wf#step',
+        workflowId: 'wf-run-1',
         workflowName: 'wf',
         error: err
       } );
 
       expect( handler ).toHaveBeenCalledWith( {
         source: 'activity',
+        activityId: 'act-1',
         activityName: 'wf#step',
+        workflowId: 'wf-run-1',
         workflowName: 'wf',
+        error: err
+      } );
+    } );
+
+    it( 'invokes handler with workflow-shaped payload', async () => {
+      const handler = vi.fn().mockResolvedValue( undefined );
+      onError( handler );
+
+      const err = new Error( 'wf-fail' );
+      await onHandlers[BusEventType.WORKFLOW_ERROR]( {
+        id: 'wf-run-2',
+        name: 'myWorkflow',
+        error: err
+      } );
+
+      expect( handler ).toHaveBeenCalledWith( {
+        source: 'workflow',
+        workflowId: 'wf-run-2',
+        workflowName: 'myWorkflow',
         error: err
       } );
     } );
@@ -66,7 +89,10 @@ describe( 'hooks/index', () => {
       const handler = vi.fn().mockRejectedValue( new Error( 'boom' ) );
       onError( handler );
 
-      await onHandlers[BusEventType.RUNTIME_ERROR]( { error: new Error( 'rt' ) } );
+      const error = new Error( 'rt' );
+      await onHandlers[BusEventType.RUNTIME_ERROR]( { error } );
+
+      expect( handler ).toHaveBeenCalledWith( { source: 'runtime', error } );
     } );
   } );
 
