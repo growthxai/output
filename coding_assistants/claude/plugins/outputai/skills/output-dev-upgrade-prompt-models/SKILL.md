@@ -47,13 +47,20 @@ If a model doesn't match any pattern, skip the file and log a warning. Do not gu
 
 ### Step 4 — Look up latest in family
 
-Fetch the snapshot once at the start of the run and reuse it for every prompt file:
+Fetch the snapshot once at the start of the run and reuse it for every prompt file. The pipeline is the same one [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) runs at skill-load time:
 
 ```bash
-SNAPSHOT=$(bash ${CLAUDE_SKILL_DIR}/../output-dev-model-selection/scripts/snapshot.sh)
+SNAPSHOT=$(curl -s https://ai-gateway.vercel.sh/v1/models | jq '
+  .data as $models
+  | {
+      anthropic: ([ $models[] | select(.id | startswith("anthropic/")) ] | sort_by(.released) | reverse | .[0:10]),
+      openai:    ([ $models[] | select(.id | startswith("openai/"))    ] | sort_by(.released) | reverse | .[0:10]),
+      google:    ([ $models[] | select(.id | startswith("google/"))    ] | sort_by(.released) | reverse | .[0:10])
+    }
+')
 ```
 
-The snapshot is JSON keyed by provider — see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) for the shape.
+The snapshot is JSON keyed by provider — see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) for the field reference.
 
 For each prompt, map family → snapshot key + `id` regex, then walk the array (already sorted newest-first) and pick the first entry that matches **all** of these:
 

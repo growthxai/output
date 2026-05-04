@@ -10,10 +10,17 @@ This skill is the single source of truth for model selection across Output SDK s
 
 ## Live model snapshot
 
-The block below runs at skill-load time via [`scripts/snapshot.sh`](scripts/snapshot.sh) and emits JSON containing the **10 most recently released** models per provider, with each model's payload preserved verbatim from the Vercel AI Gateway.
+The block below runs at skill-load time and emits JSON containing the **10 most recently released** models per provider, with each model's payload preserved verbatim from the Vercel AI Gateway.
 
 ```!
-bash ${CLAUDE_SKILL_DIR}/scripts/snapshot.sh
+curl -s https://ai-gateway.vercel.sh/v1/models | jq '
+  .data as $models
+  | {
+      anthropic: ([ $models[] | select(.id | startswith("anthropic/")) ] | sort_by(.released) | reverse | .[0:10]),
+      openai:    ([ $models[] | select(.id | startswith("openai/"))    ] | sort_by(.released) | reverse | .[0:10]),
+      google:    ([ $models[] | select(.id | startswith("google/"))    ] | sort_by(.released) | reverse | .[0:10])
+    }
+'
 ```
 
 ### Snapshot shape
