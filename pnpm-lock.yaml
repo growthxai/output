@@ -412,8 +412,8 @@ importers:
         specifier: 'workspace:'
         version: link:../core
       '@perplexity-ai/ai-sdk':
-        specifier: 0.1.2
-        version: 0.1.2(ai@6.0.168(zod@4.3.6))(zod@4.3.6)
+        specifier: 0.1.3
+        version: 0.1.3(ai@6.0.168(zod@4.3.6))(zod@4.3.6)
       '@tavily/ai-sdk':
         specifier: 0.4.1
         version: 0.4.1(ai@6.0.168(zod@4.3.6))(zod@4.3.6)
@@ -1927,10 +1927,10 @@ packages:
   '@paralleldrive/cuid2@2.3.1':
     resolution: {integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==}
 
-  '@perplexity-ai/ai-sdk@0.1.2':
-    resolution: {integrity: sha512-7/f6zFA0ND48wMPlJzBqpm+LH4g3GdsVBVAb2LZn9Zt4V6rg/uzy9XTduTovbZa9YdaYTLg4wS6UpxH21ssU3g==}
+  '@perplexity-ai/ai-sdk@0.1.3':
+    resolution: {integrity: sha512-vKe/iIp9jA5ZtePXZ8zjqp4ws+I0DlXokGaup3rnEng2dfYMM1NGm+plJDFhZtG1OztSnWRZLSFX2NdS3kdDjQ==}
     peerDependencies:
-      ai: ^5.0.0
+      ai: ^5.0.0 || ^6.0.0
       zod: ^4.0.0
 
   '@posthog/core@1.7.1':
@@ -9799,7 +9799,7 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@perplexity-ai/ai-sdk@0.1.2(ai@6.0.168(zod@4.3.6))(zod@4.3.6)':
+  '@perplexity-ai/ai-sdk@0.1.3(ai@6.0.168(zod@4.3.6))(zod@4.3.6)':
     dependencies:
       ai: 6.0.168(zod@4.3.6)
       zod: 4.3.6
