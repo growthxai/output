@@ -83,6 +83,7 @@ A judge for the "tone mismatch" failure mode:
 # tests/evals/judge_tone@v1.prompt
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-haiku-4-5-20251001
 temperature: 0
 maxTokens: 1500
@@ -214,6 +215,7 @@ Use `judgeScore()` when you need a numeric quality score rather than binary pass
 # tests/evals/judge_quality@v1.prompt
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-haiku-4-5-20251001
 temperature: 0
 maxTokens: 1500
@@ -305,15 +307,17 @@ In the eval workflow, use `interpret: { type: 'string' }` with label lists:
 
 ## Model Selection
 
-| Model | When to Use | Cost |
-|-------|-------------|------|
-| `claude-haiku-4-5-20251001` | Default for most judges. Fast, cheap, good at following structured instructions. | Low |
-| `claude-sonnet-4-6` | Complex reasoning required (faithfulness checking, multi-step logical analysis). | Medium |
-| `claude-opus-4-6` | Only if Sonnet fails validation. Rarely needed. | High |
+> Run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) to resolve each tier below to a current model ID.
+
+| Tier | When to Use | Cost |
+|------|-------------|------|
+| Smallest in family (`speed`/`cost` priority) | Default for most judges. Fast, cheap, good at following structured instructions. | Low |
+| Mid-tier (`balance` priority) | Complex reasoning required (faithfulness checking, multi-step logical analysis). | Medium |
+| Top-tier (`reasoning` priority) | Only if mid-tier fails validation. Rarely needed. | High |
 
 Always set `temperature: 0` for judges. Reproducibility matters more than creativity.
 
-Start with Haiku. If the judge fails validation (TPR/TNR below 80%), move to Sonnet before rewriting the prompt — the model upgrade alone often fixes it.
+**Escalation strategy:** start with the smallest tier. If the judge fails validation (TPR/TNR below 80%), move up one tier before rewriting the prompt — the model upgrade alone often fixes it.
 
 ## Anti-Patterns
 

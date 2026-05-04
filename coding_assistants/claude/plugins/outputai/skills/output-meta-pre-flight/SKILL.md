@@ -30,7 +30,7 @@ Before proceeding with any workflow operation, verify:
 ### Smart Defaults Application
 When information is not explicitly provided, apply these defaults:
 - **Retry Policies**: 3 attempts with exponential backoff (1s initial, 10s max)
-- **OpenAI Models**: Use `gpt-5` unless specified otherwise
+- **Model selection**: Run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) to pick the current default for the chosen provider. Don't pin a specific model ID here — the listing changes faster than the docs.
 - **Error Handling**: ApplicationFailure patterns with appropriate error types
 - **Performance**: Optimize for clarity and maintainability over raw speed
 - **Timeouts**: 30 seconds for activities, 5 minutes for workflows

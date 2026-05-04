@@ -1,6 +1,6 @@
 ---
 name: output-meta-project-context
-description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 34 skills).
+description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 49 skills).
 allowed-tools: [Read]
 ---
 
@@ -154,7 +154,7 @@ src/
 | `output-meta-post-flight` | Post-operation verification |
 | `output-meta-project-context` | Load full project context (this skill) |
 
-#### Development (10)
+#### Development (12)
 | Skill | Purpose |
 |-------|---------|
 | `output-dev-folder-structure` | Project and workflow directory layout |
@@ -164,6 +164,8 @@ src/
 | `output-dev-evaluator-function` | Quality assessment functions |
 | `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
 | `output-dev-prompt-file` | LLM prompt templates with Liquid.js |
+| `output-dev-model-selection` | Pick a current LLM model via the AI Gateway listing |
+| `output-dev-upgrade-prompt-models` | Bulk-upgrade `model:` fields across `.prompt` files |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
@@ -343,6 +345,7 @@ Prompts use YAML frontmatter + Liquid.js templating. Location: `src/workflows/{n
 ```
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4096
@@ -388,12 +391,7 @@ const { result } = await generateText( {
 } );
 ```
 
-**Provider options:**
-| Provider | Model Examples |
-|----------|----------------|
-| `anthropic` | `claude-sonnet-4-6`, `claude-opus-4-6` |
-| `openai` | `gpt-4o`, `gpt-4o-mini` |
-| `vertex` | `gemini-2.0-flash`, `gemini-2.5-pro` |
+**Provider & model selection:** the SDK supports `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, and `perplexity` (see [sdk/llm/src/ai_model.js](../../../../../../sdk/llm/src/ai_model.js) for the registered list). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 
 See `output-dev-prompt-file` for comprehensive patterns.
 

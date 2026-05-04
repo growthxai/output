@@ -204,6 +204,7 @@ Judge prompt files live alongside evaluators in `tests/evals/`:
 # tests/evals/judge_topic@v1.prompt
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-haiku-4-5-20251001
 temperature: 0
 maxTokens: 1000

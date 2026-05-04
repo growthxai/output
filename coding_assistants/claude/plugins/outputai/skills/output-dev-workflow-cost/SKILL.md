@@ -88,6 +88,9 @@ npx output workflow cost <runId> --verbose
 ## Understanding the Output
 
 ### Text format example:
+
+> Pricing values are illustrative — the model and per-token rates shown below were current as of 2026-05-04. Live pricing comes from [models.dev](https://models.dev). For current model IDs, see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).
+
 ```
 Workflow: process_transcripts
 Duration: 12.3s

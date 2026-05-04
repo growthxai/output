@@ -296,7 +296,8 @@ export interface GeminiImageGenerationOptions {
 
 export class GeminiImageService {
   private readonly client: GoogleGenerativeAI;
-  private readonly model: string = 'gemini-3-pro-image-preview';
+  // current as of 2026-05-04 — run output-dev-model-selection for the latest
+  private readonly model: string = 'gemini-3-pro-image';
 
   constructor(apiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GOOGLE_CLOUD_API_KEY) {
     if (!apiKey) {

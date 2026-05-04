@@ -1,6 +1,7 @@
 ---
 provider: anthropic
-model: claude-haiku-4-5
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
+model: claude-sonnet-4-6
 temperature: 0.3
 maxTokens: 4096
 ---

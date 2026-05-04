@@ -49,9 +49,12 @@ The version suffix (`@v1`, `@v2`) allows for prompt versioning without breaking 
 
 ## Basic Structure
 
+> Picking a model? See [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) for the current decision tree and AI Gateway lookup script. Examples below show concrete IDs as of 2026-05-04 — refresh them with that skill.
+
 ```
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4096
@@ -73,7 +76,8 @@ User message with {{ variable }} placeholders.
 ```yaml
 ---
 provider: anthropic    # LLM provider: anthropic, openai, vertex
-model: claude-sonnet-4-6  # Model identifier
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
+model: claude-sonnet-4-6
 ---
 ```
 
@@ -81,13 +85,14 @@ model: claude-sonnet-4-6  # Model identifier
 
 All prompt files in a workflow should use the **same provider** unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires the user to have API keys for all providers, which causes runtime failures if they don't.
 
-Default to `anthropic` with `claude-sonnet-4-6` when no provider preference is specified. If the user has stated a preferred provider during planning, use that for all prompts.
+When no existing prompts dictate a provider, default to `anthropic`. For the model itself, see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) — it walks priority (reasoning/balance/speed/cost), provider lookup, and produces a current model ID.
 
 ### Optional Fields
 
 ```yaml
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7       # 0.0 to 1.0, default varies by provider
 maxTokens: 4096        # Maximum output tokens
@@ -99,6 +104,8 @@ providerOptions:       # Provider-specific options
 ```
 
 ### Common Provider Configurations
+
+> Each example below pins a model that was current as of 2026-05-04. Run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) when picking or refreshing.
 
 #### Anthropic (Claude)
 
@@ -131,7 +138,8 @@ providerOptions:
 ```yaml
 ---
 provider: openai
-model: gpt-5
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
+model: gpt-5-5
 temperature: 0.7
 maxTokens: 4096
 ---
@@ -142,6 +150,7 @@ maxTokens: 4096
 ```yaml
 ---
 provider: vertex
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: gemini-3-pro
 temperature: 0.7
 maxTokens: 8192
@@ -236,6 +245,7 @@ Based on a real prompt file (`generateImageIdeas@v1.prompt`):
 ```
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 32000
@@ -549,6 +559,8 @@ Additional context: {{ optionalField }}
 
 ## Common Patterns
 
+> The model lines in the patterns below were current as of 2026-05-04. Refresh via [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) when copying into a new prompt.
+
 ### Classification Prompt
 
 ```
@@ -599,6 +611,7 @@ Text:
 ```
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.8
 ---
