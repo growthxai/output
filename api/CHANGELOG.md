@@ -1,5 +1,11 @@
 # output-api
 
+## 0.3.3
+
+### Minor Changes
+
+- Add SSE streaming endpoints `GET /workflow/:id/history/stream` and `GET /workflow/:id/runs/:rid/history/stream` that deliver Temporal workflow history events in real time. Supports automatic reconnect via `Last-Event-ID` and terminates cleanly when the workflow reaches a terminal state.
+
 ## 0.3.2
 
 ## 0.3.1
