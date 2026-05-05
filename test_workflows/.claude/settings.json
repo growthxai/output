@@ -6,7 +6,6 @@
     "outputai": {
       "source": {
         "source": "file",
-        "repo": "growthxai/output",
         "path": "../.claude-plugin/marketplace.json"
       }
     }

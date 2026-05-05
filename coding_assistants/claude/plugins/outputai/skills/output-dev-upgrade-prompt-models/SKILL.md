@@ -66,6 +66,8 @@ Use this family → snapshot-key + `id` regex map to pin the lookup to the exist
 
 If no stable match exists for a family (only pre-release entries available), surface that to the user and skip the file rather than guessing or downgrading to a different family.
 
+**Bail loudly on a failed snapshot.** If the snapshot fetch itself returned nothing — network down, gateway shape changed, `curl` or `jq` missing — abort the run before Step 5. Do **not** continue with an empty snapshot and report "no upgrades needed", because that lies: the prompts weren't actually checked. Tell the user the snapshot fetch failed, point them at the manual-fallback steps in [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), and exit.
+
 ### Step 5 — Diff & confirm
 
 Build a per-file report comparing the current model to the resolved `latest`:
