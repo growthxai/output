@@ -289,6 +289,32 @@ describe( 'workflow_history_stream handler', () => {
         lastEventId: 99
       } ) );
     } );
+
+    it( 'ignores non-numeric Last-Event-ID header', async () => {
+      const mockStream = vi.fn( () => simpleStream( makeWorkflow() ) );
+
+      await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream' )
+        .set( 'Last-Event-ID', 'abc' )
+        .expect( 200 );
+
+      expect( mockStream ).toHaveBeenCalledWith( 'wf-1', expect.objectContaining( {
+        lastEventId: undefined
+      } ) );
+    } );
+
+    it( 'ignores Last-Event-ID header value of 0', async () => {
+      const mockStream = vi.fn( () => simpleStream( makeWorkflow() ) );
+
+      await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream' )
+        .set( 'Last-Event-ID', '0' )
+        .expect( 200 );
+
+      expect( mockStream ).toHaveBeenCalledWith( 'wf-1', expect.objectContaining( {
+        lastEventId: undefined
+      } ) );
+    } );
   } );
 
   describe( 'pinned run route /workflow/:id/runs/:rid/history/stream', () => {
@@ -370,6 +396,7 @@ describe( 'workflow_history_stream handler', () => {
       await handlerPromise;
 
       expect( written.some( chunk => chunk === ': keepalive\n\n' ) ).toBe( true );
+      expect( vi.getTimerCount() ).toBe( 0 );
     } );
   } );
 } );

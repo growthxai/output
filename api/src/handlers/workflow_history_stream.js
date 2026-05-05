@@ -4,11 +4,12 @@ import { logger } from '#logger';
 import { readPinnedRunId } from './utils.js';
 
 export function createWorkflowHistoryStreamHandler( client ) {
+  const lastEventIdSchema = z.coerce.number().int().positive();
   const querySchema = z.object( {
     runId: z.string().optional(),
     includePayloads: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] )
       .default( 'false' ).transform( v => v === 'true' ),
-    lastEventId: z.coerce.number().int().positive().optional()
+    lastEventId: lastEventIdSchema.optional()
   } );
 
   return async ( req, res ) => {
@@ -18,8 +19,9 @@ export function createWorkflowHistoryStreamHandler( client ) {
       pathRunId ? { ...req.query, runId: pathRunId } : req.query
     );
 
-    const headerLastEventId = req.headers['last-event-id'] ?
-      parseInt( req.headers['last-event-id'], 10 ) || undefined :
+    const rawHeaderId = req.headers['last-event-id'];
+    const headerLastEventId = rawHeaderId !== undefined ?
+      lastEventIdSchema.safeParse( rawHeaderId ).data :
       undefined;
     const lastEventId = queryLastEventId ?? headerLastEventId;
 
@@ -71,11 +73,12 @@ export function createWorkflowHistoryStreamHandler( client ) {
         }
       }
     } catch ( error ) {
-      if ( !isGrpcCancelledError( error ) ) {
+      if ( !isGrpcCancelledError( error ) && !ctrl.signal.aborted ) {
         logger.error( 'SSE stream error', {
           workflowId, runId, error: error.constructor.name, message: error.message, stack: error.stack
         } );
-        res.write( `event: server_error\ndata: ${JSON.stringify( { error: error.constructor.name, message: error.message } )}\n\n` );
+        const payload = { error: error.constructor.name, message: error.message, workflowId, runId };
+        res.write( `event: server_error\ndata: ${JSON.stringify( payload )}\n\n` );
       }
     } finally {
       clearInterval( keepalive );
