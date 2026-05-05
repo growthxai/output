@@ -90,11 +90,26 @@ Output is built on [Temporal.io](https://temporal.io) for durable execution. You
 
 When you call a step from a workflow, Output executes it as a durable activity with automatic retries, schema validation, and tracing. If the worker crashes mid-execution, Temporal replays the workflow and skips already-completed steps.
 
-## Error Hooks
+## Hooks
 
-Core lets you observe errors from workflows, steps/evaluators, and the runtime without affecting execution. You register a handler with `onError` from the core package’s hooks API. The worker loads hook files at startup (paths are listed in `package.json` under `output.hookFiles`). In those files you import from `@outputai/core`.
+Register handlers in hook files that the worker loads at startup (list paths under `output.hookFiles` in `package.json`). Import from `@outputai/core/hooks`. The framework wraps each handler in a try/catch: failures are logged and do not stop the worker or workflow runs.
 
-Your handler receives a payload with `source` (`'workflow'`, `'activity'`, or `'runtime'`), the `error`, and when applicable `workflowName` and `activityName`. The framework runs your handler inside a try/catch: if the handler throws, the error is logged and execution continues. Use error hooks for logging, metrics, or alerting; see [Error Hooks](/operations/error-hooks) for setup, configuration, and payload details.
+| Function | When it runs | Payload |
+|----------|--------------|---------|
+| `onError` | Activity, workflow, or runtime error | Object always includes `source` and `error`. Shape depends on `source` — see below and [Error Hooks](/operations/error-hooks) |
+| `onBeforeWorkerStart` | Once after hooks, workflows, and activities are loaded; before the Temporal worker is created | None |
+| `onWorkflowStart` | A user workflow execution starts | `id` (run id), `name` (workflow type) |
+| `onWorkflowEnd` | A user workflow execution completes successfully | `id`, `name`, `duration` (ms) |
+| `onWorkflowError` | A user workflow execution fails | `id`, `name`, `duration` (ms), `error` |
+| `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Optional object |
+
+**`onError` payload by `source`**
+
+- **`activity`** — `source`, `activityId`, `activityName`, `workflowId`, `workflowName`, `error`
+- **`workflow`** — `source`, `workflowId`, `workflowName`, `error`
+- **`runtime`** — `source`, `error`
+
+`onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onError` can still report failures from any workflow, including catalog, if you need them.
 
 ## HTTP from Workflows
 

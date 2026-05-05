@@ -22,7 +22,7 @@
   },
   "output": {
     "hookFiles": [
-      "./src/error_hooks.js"
+      "./src/hooks.js"
     ]
   }
 }
