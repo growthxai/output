@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Git ref to checkout and publish (branch, tag, or full SHA). Must exist in this repository.'
+        description: 'Git ref to checkout and publish (branch, tag, or full SHA). Defaults to the dispatched ref.'
         required: false
-        default: 'main'
         type: string
 
 concurrency: ${{ github.workflow }}
@@ -21,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Enable pnpm
         run: corepack enable
