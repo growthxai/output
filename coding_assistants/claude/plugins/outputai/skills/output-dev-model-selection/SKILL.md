@@ -23,7 +23,7 @@ output=$(curl -fsS https://ai-gateway.vercel.sh/v1/models 2>/dev/null | jq '
 ' 2>/dev/null)
 if [ -n "$output" ]; then printf '%s\n' "$output"; else echo "(snapshot unavailable)"; fi
 ```
-
+### Snapshot Data
 ```!
 output=$(curl -fsS https://ai-gateway.vercel.sh/v1/models 2>/dev/null | jq '
   .data as $models
@@ -36,6 +36,7 @@ output=$(curl -fsS https://ai-gateway.vercel.sh/v1/models 2>/dev/null | jq '
 if [ -n "$output" ]; then printf '%s\n' "$output"; else echo "(snapshot unavailable)"; fi
 ```
 
+### Snapshot Fallback
 If the block above is empty, the script didn't execute automatically — likely because part of it (`jq`, `curl`, or network access) is missing. Query and filter the snapshot yourself before continuing.
 
 ## Snapshot shape
