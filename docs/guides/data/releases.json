@@ -1,6 +1,288 @@
 {
   "releases": [
     {
+      "version": "0.3.1",
+      "date": "2026-05-05",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "orange-badgers-unite",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Prevent template variables from injecting message blocks into rendered prompts. Variable content containing tag-shaped substrings (e.g. `</user>` or `<system>...</system>`, common when evaluating webpages or chat transcripts) was being tokenized by `parsePrompt` as real message blocks, producing duplicate `system` messages that providers like Anthropic reject. `loadPrompt` now arms every `{{ ... }}` interpolation with an internal escape filter so variable output stays inert at parse time."
+        }
+      ]
+    },
+    {
+      "version": "0.3.0",
+      "date": "2026-05-05",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "catalog-aware-runs-listing",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Use `catalog` as the public name for the routing/filtering target across the CLI and HTTP API:\n\n- `output workflow runs list` gains `--catalog`/`-c` (with `OUTPUT_CATALOG_ID` env fallback) and `GET /workflow/runs` accepts `?catalog=...`, scoping listed runs to a single worker's catalog/session.\n- `output workflow run` and `output workflow start` rename the routing flag to `--catalog`/`-c`. The previous `--task-queue` and `-q` are kept as deprecated aliases (oclif emits a warning when used).\n- `POST /workflow/run` and `POST /workflow/start` accept a `catalog` body field; the previous `taskQueue` field is still accepted as a deprecated alias and the API logs a deprecation warning when it is used.\n\nInternally the value is still a Temporal task queue — only the user-facing name changes."
+        },
+        {
+          "id": "clever-rats-build",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Optimizing local trace to use less memory and avoid \"RangeError: Invalid string length\""
+        },
+        {
+          "id": "crisp-masks-admire",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            },
+            {
+              "name": "output-api",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/credentials",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/evals",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/output",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            }
+          ],
+          "summary": "## Dependencies updates\n\n### Vulnerabilities fixed:\n- uuid: Missing buffer bounds check in v3/v5/v6 when buf: (bump to `>=14.0.0`)\n- postcss: PostCSS has XSS via Unescaped </style> in its CSS Stringify Output (bump to `>=8.5.10`)\n- @anthropic-ai/sdk: Claude SDK for TypeScript has Insecure Default File Permissions in Local Filesystem Memory Tool (bump to `>=0.91.1`)\n\n### Root package.json updates\n- @changesets/cli: `2.30.0` -> `2.31.0`\n- eslint: `10.2.0` -> `10.2.1`\n- mintlify: `4.2.520` -> `4.2.536`\n- typescript-eslint: `8.58.2` -> `8.59.1`\n- vitest: `4.1.4` -> `4.1.5`\n\n### pnpm-workspace.yaml (catalog) updates\n- @aws-sdk/client-s3: `3.1031.0` -> `3.1038.0`\n\n### sdk/cli/package.json updates\n- @inquirer/prompts: `8.4.1` -> `8.4.2`\n- @oclif/core: `4.10.5` -> `4.10.6`\n- @oclif/plugin-help: `6.2.44` -> `6.2.45`\n- undici: `8.0.2` -> `catalog:`\n- orval: `8.8.0` -> `8.9.0`\n\n### sdk/llm/package.json updates\n- @ai-sdk/amazon-bedrock: `4.0.95` -> `4.0.96`\n- liquidjs: `10.25.5` -> `10.25.7`"
+        },
+        {
+          "id": "early-hoops-boil",
+          "packages": [
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- HTTP: Added a new event `cost:http:request` that is dispatched after calling `addRequestCost()`: the event's payload is `requestId`, `cost` and `url`;\n- LLM: Renamed `llm:call_cost` event to `cost:llm:request`;\n- LLM: Updated the format of the `.cost` property on `.generateText()` response and on the cost hook payload: `components` is now an array;\n- LLM: Updated `.streamText()` `onFinish()` callback to have the `.cost` property: contains the calculated cost for the stream."
+        },
+        {
+          "id": "few-lines-fail",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Update perplexity-ai/ai-sdk to v0.1.3"
+        },
+        {
+          "id": "fix-credentials-handling",
+          "packages": [
+            {
+              "name": "@outputai/credentials",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Improve encrypted credentials loading: add clearer errors when keys are missing or invalid and ensure the CLI exits gracefully instead of printing stack traces."
+        },
+        {
+          "id": "long-meals-cover",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Offer to initialize a git repository when running `output init`. Adds a `--skip-git` flag to opt out in non-interactive / scripted use.\n- Fix `--yes` / `--non-interactive` being rejected as \"Nonexistent flag\" by oclif's per-command parser when passed to any command."
+        },
+        {
+          "id": "long-peaches-wish",
+          "packages": [
+            {
+              "name": "@outputai/credentials",
+              "bump": "minor"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Added new hook functions `onWorkflowStart`, `onWorkflowEnd`, `onWorkflowError`:\n  - `onWorkflowStart()`: Triggers when a workflow starts, receives the run id and workflow name;\n  - `onWorkflowEnd()`: Triggers when a workflow ends (no error), receives the run id, workflow name and duration (elapsed time);\n  - `onWorkflowError()`: Triggers when a workflow throws an error, receives the run id, workflow name, duration and error thrown;\n  - Important: These three hooks are not triggered by the internal \"$catalog\" workflow lifecycle;\n- Renamed `onBeforeStart()` hook to `onBeforeWorkerStart()`;\n- Fixed possible issue where a broken handler attached to `onBeforeStart()` could interrupt the worker process;\n- Added `activityId` and `workflowId` to `onError()` hook handler payload when source is `'activity'`;\n- Added `workflowId` to `onError()` hook handler payload when source is `'workflow'`."
+        },
+        {
+          "id": "lovely-parts-post",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Updating Temporal libraries from `v1.15.0` to `v1.17.0`:\n- @temporalio/activity;\n- @temporalio/client;\n- @temporalio/common;\n- @temporalio/proto (dev dependency for tests);\n- @temporalio/worker;\n- @temporalio/workflow"
+        },
+        {
+          "id": "non-interactive-mode",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add non-interactive mode with `--yes`/`--non-interactive` flags and TTY auto-detection for sandbox environments"
+        },
+        {
+          "id": "out-426-pinned-run-result",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fix the workflow runs pane in the CLI so the detail view reflects the highlighted run instead of always showing the latest run. `GET /workflow/runs` now includes `runId` per row, and the CLI fetches results via the pinned `GET /workflow/{id}/runs/{rid}/result` endpoint."
+        },
+        {
+          "id": "pretty-ends-share",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Enable multiple instance of Output to run locally simultaneously in Docker by enabling dynamic port mapping"
+        },
+        {
+          "id": "proxy-support",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add HTTP and gRPC proxy support for sandbox environments via HTTPS_PROXY and TEMPORAL_GRPC_PROXY env vars"
+        },
+        {
+          "id": "silly-bags-pick",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Shadow the worker container's `/app/node_modules` (root pnpm store) with a named Docker volume and run an explicit `output:worker:install` before `output:worker:watch`, so Linux-native packages installed in the container no longer leak into the host's `node_modules/`."
+        },
+        {
+          "id": "soft-teeth-mix",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fix issue where values in .env files were silently ignored"
+        },
+        {
+          "id": "strict-hands-pay",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Adding trace event attributes and adding method `addRequestCost` to attach cost related info to an HTTP call made with the http module"
+        },
+        {
+          "id": "twenty-ways-invite",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "re-export ai.jsonSchema for downstream use"
+        },
+        {
+          "id": "witty-donkeys-dig",
+          "packages": [
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            }
+          ],
+          "summary": "## Custom fetch\nAdded a `fetch` function export to the \"http\" module:\n- Fully compliant with the fetch [spec](https://fetch.spec.whatwg.org/);\n- Integrates with Traces, tracking requests, responses, errors and failures;\n\n## Updated http client\nRefactored `httpClient` exported by \"http\" to use the custom _fetch_ internally instead of _ky_ hooks."
+        },
+        {
+          "id": "young-rockets-pick",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            },
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add new workflow history endpoint"
+        }
+      ]
+    },
+    {
       "version": "0.2.0",
       "date": "2026-04-22",
       "level": "minor",

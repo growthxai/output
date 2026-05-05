@@ -1,5 +1,65 @@
 # output-api
 
+## 0.3.1
+
+## 0.3.0
+
+### Minor Changes
+
+- f1502fb: Add new workflow history endpoint
+
+### Patch Changes
+
+- 8836247: Use `catalog` as the public name for the routing/filtering target across the CLI and HTTP API:
+
+  - `output workflow runs list` gains `--catalog`/`-c` (with `OUTPUT_CATALOG_ID` env fallback) and `GET /workflow/runs` accepts `?catalog=...`, scoping listed runs to a single worker's catalog/session.
+  - `output workflow run` and `output workflow start` rename the routing flag to `--catalog`/`-c`. The previous `--task-queue` and `-q` are kept as deprecated aliases (oclif emits a warning when used).
+  - `POST /workflow/run` and `POST /workflow/start` accept a `catalog` body field; the previous `taskQueue` field is still accepted as a deprecated alias and the API logs a deprecation warning when it is used.
+
+  Internally the value is still a Temporal task queue — only the user-facing name changes.
+
+- b87b58f: ## Dependencies updates
+
+  ### Vulnerabilities fixed:
+
+  - uuid: Missing buffer bounds check in v3/v5/v6 when buf: (bump to `>=14.0.0`)
+  - postcss: PostCSS has XSS via Unescaped </style> in its CSS Stringify Output (bump to `>=8.5.10`)
+  - @anthropic-ai/sdk: Claude SDK for TypeScript has Insecure Default File Permissions in Local Filesystem Memory Tool (bump to `>=0.91.1`)
+
+  ### Root package.json updates
+
+  - @changesets/cli: `2.30.0` -> `2.31.0`
+  - eslint: `10.2.0` -> `10.2.1`
+  - mintlify: `4.2.520` -> `4.2.536`
+  - typescript-eslint: `8.58.2` -> `8.59.1`
+  - vitest: `4.1.4` -> `4.1.5`
+
+  ### pnpm-workspace.yaml (catalog) updates
+
+  - @aws-sdk/client-s3: `3.1031.0` -> `3.1038.0`
+
+  ### sdk/cli/package.json updates
+
+  - @inquirer/prompts: `8.4.1` -> `8.4.2`
+  - @oclif/core: `4.10.5` -> `4.10.6`
+  - @oclif/plugin-help: `6.2.44` -> `6.2.45`
+  - undici: `8.0.2` -> `catalog:`
+  - orval: `8.8.0` -> `8.9.0`
+
+  ### sdk/llm/package.json updates
+
+  - @ai-sdk/amazon-bedrock: `4.0.95` -> `4.0.96`
+  - liquidjs: `10.25.5` -> `10.25.7`
+
+- 756d32d: Updating Temporal libraries from `v1.15.0` to `v1.17.0`:
+  - @temporalio/activity;
+  - @temporalio/client;
+  - @temporalio/common;
+  - @temporalio/proto (dev dependency for tests);
+  - @temporalio/worker;
+  - @temporalio/workflow
+- 7e1c76d: Fix the workflow runs pane in the CLI so the detail view reflects the highlighted run instead of always showing the latest run. `GET /workflow/runs` now includes `runId` per row, and the CLI fetches results via the pinned `GET /workflow/{id}/runs/{rid}/result` endpoint.
+
 ## 0.2.0
 
 ### Minor Changes

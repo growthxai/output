@@ -40,8 +40,10 @@ if [[ -z "$DOCKERHUB_USERNAME" || -z "$DOCKERHUB_TOKEN" ]]; then ./alert.sh "err
 
 image_name=$DOCKERHUB_USERNAME/api
 version=$(cat ../api/package.json | grep \"version\" | cut -d'"' -f 4)
+platforms="linux/amd64,linux/arm64"
 
 print "API Image tag: $version"
+print "Target platforms: $platforms"
 
 print "Authenticating with Dockerhub"
 echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
@@ -52,16 +54,28 @@ if is_tag_already_pushed "$version"; then
   exit 0
 fi
 
-print "Building image"
+# Collect tags
+tag_args=(-t "$image_name:$version")
 if [[ $no_aliases == false ]]; then
-  # Parse semver components
   IFS='.' read -r major minor _patch <<< "$version"
-  docker build ../ --file ./api.Dockerfile -t "$image_name:$version" -t "$image_name:$major" -t "$image_name:$major.$minor" -t "$image_name:latest"
-else
-  docker build ../ --file ./api.Dockerfile -t "$image_name:$version"
+  tag_args+=(-t "$image_name:$major" -t "$image_name:$major.$minor" -t "$image_name:latest")
 fi
 
-print "Publishing"
-if [[ "$dry_run" == true ]]; then printf "\e[0;33mDry run mode, skipping\n"; else docker push --all-tags $image_name; fi
+# In dry-run mode, build for all platforms but don't push.
+# Multi-platform images can't be loaded into the local docker engine, so the
+# build output goes to the build cache only — which still validates that each
+# target architecture builds successfully.
+output_args=(--push)
+if [[ "$dry_run" == true ]]; then
+  printf "\e[0;33mDry run mode, skipping push\n"
+  output_args=()
+fi
+
+print "Building and publishing image"
+docker buildx build ../ \
+  --file ./api.Dockerfile \
+  --platform "$platforms" \
+  "${tag_args[@]}" \
+  "${output_args[@]}"
 
 print "Publish Complete" "OK"
