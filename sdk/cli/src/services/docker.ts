@@ -202,8 +202,6 @@ export async function startDockerCompose(
     args.push( '--pull', pullPolicy );
   }
 
-  ux.stdout( '🐳 Starting Docker services...\n' );
-
   const dockerProcess = spawn( 'docker', args, {
     cwd: process.cwd(),
     stdio: [ 'ignore', 'pipe', 'pipe' ]

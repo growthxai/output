@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getWorkflowCatalog, type GetWorkflowCatalog200 } from '#api/generated/api.js';
+import { getWorkflowsBasePath } from '#utils/paths.js';
 
 const SCENARIOS_DIR = 'scenarios';
 const WORKFLOWS_PATHS = [ 'src/workflows', 'workflows' ];
@@ -69,7 +70,7 @@ function resolveScenarioFromDirectory(
 export async function resolveScenarioPath(
   workflowName: string,
   scenarioName: string,
-  basePath: string = process.cwd()
+  basePath: string = getWorkflowsBasePath()
 ): Promise<ScenarioResolutionResult> {
   const scenarioFileName = scenarioName.endsWith( '.json' ) ?
     scenarioName :
@@ -104,7 +105,7 @@ export async function resolveScenarioPath(
 export function listScenariosForWorkflow(
   workflowName: string,
   workflowPath?: string,
-  basePath: string = process.cwd()
+  basePath: string = getWorkflowsBasePath()
 ): string[] {
   const relativeDir = ( workflowPath && extractWorkflowRelativePath( workflowPath ) ) || workflowName;
 
