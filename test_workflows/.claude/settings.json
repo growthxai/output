@@ -1,13 +1,13 @@
 {
+  "enabledPlugins": {
+    "outputai@outputai": true
+  },
   "extraKnownMarketplaces": {
     "outputai": {
       "source": {
-        "source": "github",
-        "repo": "growthxai/output"
+        "source": "file",
+        "path": "../.claude-plugin/marketplace.json"
       }
     }
-  },
-  "enabledPlugins": {
-    "outputai@outputai": true
   }
 }

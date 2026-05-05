@@ -31,6 +31,7 @@ Prompt files (`.prompt`) consist of YAML frontmatter followed by message content
 ```yaml
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 2000
@@ -52,22 +53,11 @@ maxTokens: 2000
 
 All prompt files in a workflow **must use the same provider** unless the user explicitly requests otherwise. Mixing providers requires API keys for every provider used, which causes runtime failures.
 
-Default to `anthropic` with `claude-sonnet-4-6` when no preference is specified. If the user or the workflow plan specifies a provider, use that for all prompts in the workflow.
+When a workflow has no existing prompts, default to `anthropic`. Otherwise match what sibling prompts already use.
 
-### Recommended Models
+### Picking a model
 
-**Anthropic (default):**
-- `claude-sonnet-4-6` - Balanced performance (default)
-- `claude-opus-4-5` - Complex reasoning tasks
-- `claude-haiku-4-5` - Fast, simple tasks
-
-**OpenAI:**
-- `gpt-5` - Balanced performance (default)
-- `gpt-5-mini` - Fast, simple tasks
-
-**Vertex (Gemini):**
-- `gemini-3-pro` - Reasoning-first, agentic (default)
-- `gemini-3-flash` - Fast multimodal
+> See [`output-dev-model-selection`](../skills/output-dev-model-selection/SKILL.md) for the canonical decision tree (priority → provider → live AI Gateway lookup → ID translation). Walk through it any time you write or review the `model:` field on a `.prompt` file.
 
 ## Role-Based Message Organization
 
@@ -580,8 +570,8 @@ Add comments at the top of complex prompts:
 #   - analysisDepth (string, optional): "summary" | "standard" | "comprehensive"
 #
 # Output: Structured competitive analysis with recommendations
-# Compatible with: claude-sonnet-4-6, gpt-5
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4000

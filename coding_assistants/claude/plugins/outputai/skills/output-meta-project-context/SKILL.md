@@ -1,6 +1,6 @@
 ---
 name: output-meta-project-context
-description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and complete inventory of available tools (5 agents, 3 commands, 34 skills).
+description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and the full inventory of available agents, commands, and skills.
 allowed-tools: [Read]
 ---
 
@@ -98,7 +98,7 @@ src/
 
 ## Available Tools Inventory
 
-### Agents (5)
+### Agents
 
 | Agent | Purpose |
 |-------|---------|
@@ -108,7 +108,7 @@ src/
 | `workflow-prompt-writer` | Creates and optimizes LLM prompt templates |
 | `workflow-context-fetcher` | Gathers documentation and existing patterns |
 
-### Commands (3)
+### Commands
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
@@ -116,9 +116,9 @@ src/
 | `/output-build-workflow` | Build/implement workflows | After planning, or for modifications |
 | `/output-debug-workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
 
-### Skills (34)
+### Skills
 
-#### Workflow Operations (6)
+#### Workflow Operations
 | Skill | Purpose |
 |-------|---------|
 | `output-workflow-run` | Synchronous workflow execution (waits for result) |
@@ -128,7 +128,7 @@ src/
 | `output-workflow-result` | Get async workflow result |
 | `output-workflow-reset` | Rerun a workflow from after a completed step |
 
-#### Monitoring & Debugging (5)
+#### Monitoring & Debugging
 | Skill | Purpose |
 |-------|---------|
 | `output-workflow-stop` | Stop running workflow |
@@ -137,7 +137,7 @@ src/
 | `output-dev-workflow-cost` | Calculate cost of a workflow run |
 | `output-services-check` | Verify Output services status |
 
-#### Error Diagnosis (6)
+#### Error Diagnosis
 | Skill | Catches |
 |-------|---------|
 | `output-error-zod-import` | Wrong zod import source |
@@ -147,14 +147,14 @@ src/
 | `output-error-direct-io` | I/O operations in workflow files |
 | `output-error-http-client` | Using axios instead of @outputai/http |
 
-#### Meta/Lifecycle (3)
+#### Meta/Lifecycle
 | Skill | Purpose |
 |-------|---------|
 | `output-meta-pre-flight` | Pre-operation validation checks |
 | `output-meta-post-flight` | Post-operation verification |
 | `output-meta-project-context` | Load full project context (this skill) |
 
-#### Development (10)
+#### Development
 | Skill | Purpose |
 |-------|---------|
 | `output-dev-folder-structure` | Project and workflow directory layout |
@@ -164,11 +164,13 @@ src/
 | `output-dev-evaluator-function` | Quality assessment functions |
 | `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
 | `output-dev-prompt-file` | LLM prompt templates with Liquid.js |
+| `output-dev-model-selection` | Pick a current LLM model via the AI Gateway listing |
+| `output-dev-upgrade-prompt-models` | Bulk-upgrade `model:` fields across `.prompt` files |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
 
-#### Credentials (4)
+#### Credentials
 | Skill | Purpose |
 |-------|---------|
 | `output-dev-credentials` | Full credentials system reference (API, scopes, merging, custom providers) |
@@ -343,6 +345,7 @@ Prompts use YAML frontmatter + Liquid.js templating. Location: `src/workflows/{n
 ```
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
 maxTokens: 4096
@@ -388,12 +391,7 @@ const { result } = await generateText( {
 } );
 ```
 
-**Provider options:**
-| Provider | Model Examples |
-|----------|----------------|
-| `anthropic` | `claude-sonnet-4-6`, `claude-opus-4-6` |
-| `openai` | `gpt-4o`, `gpt-4o-mini` |
-| `vertex` | `gemini-2.0-flash`, `gemini-2.5-pro` |
+**Provider & model selection:** the SDK supports `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, and `perplexity` (see [sdk/llm/src/ai_model.js](../../../../../../sdk/llm/src/ai_model.js) for the registered list). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 
 See `output-dev-prompt-file` for comprehensive patterns.
 

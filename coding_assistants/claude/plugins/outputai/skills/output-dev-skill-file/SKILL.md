@@ -84,7 +84,7 @@ Write good descriptions. They appear in the system message and are what the LLM 
 
 ### Method 1: Colocated Auto-Discovery (Default)
 
-Place `.md` files in a `skills/` folder next to your prompt file. Output discovers them automatically. The prompt file needs no special configuration:
+Place `.md` files in a `skills/` folder next to your prompt file. Output discovers them automatically. The prompt file needs no special configuration. (Model lines below are current as of 2026-05-04 — refresh via [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).)
 
 ```yaml
 ---
@@ -117,6 +117,7 @@ Reference specific skill files or directories in the prompt YAML frontmatter. Pa
 ```yaml
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 skills:
   - ./skills/
@@ -177,6 +178,7 @@ Set `skills: []` in the prompt frontmatter to opt out of auto-discovery:
 ```yaml
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-haiku-4-5-20251001
 skills: []
 ---
@@ -213,6 +215,7 @@ OUTPUT_COMPLETE
 ```yaml
 ---
 provider: anthropic
+# current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 maxTokens: 2048
 ---
