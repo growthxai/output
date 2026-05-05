@@ -423,6 +423,9 @@ importers:
       decimal.js:
         specifier: 10.6.0
         version: 10.6.0
+      entities:
+        specifier: ^6.0.1
+        version: 6.0.1
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3

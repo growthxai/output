@@ -1,28 +1,24 @@
 import { parsePrompt } from './parser.js';
 import { Liquid } from 'liquidjs';
+import { encodeXML, decodeXML } from 'entities';
 import { loadContentWithDir } from './load_content.js';
 import { validatePrompt } from './prompt_validations.js';
 import { FatalError } from '@outputai/core';
 
-// Sentinel characters from the Unicode Private Use Area. We use them to
-// neutralize `<` / `>` emitted from `{{ ... }}` interpolations so user-supplied
-// values can't be tokenized by parsePrompt as message-block tags. The sentinels
-// are reverted to real angle brackets after parsing.
-const TAG_OPEN = '\uE000';
-const TAG_CLOSE = '\uE001';
 const VAR_SAFE_FILTER = '__var_safe';
 
-const liquid = new Liquid();
-liquid.registerFilter( VAR_SAFE_FILTER, value =>
-  value === null || value === undefined ?
-    '' :
-    String( value ).replaceAll( '<', TAG_OPEN ).replaceAll( '>', TAG_CLOSE )
-);
+const escapeXML = value =>
+  value === null || value === undefined ? '' : encodeXML( String( value ) );
 
-// Append `| __var_safe` to every `{{ ... }}` expression in the raw template
-// so the escape filter runs last in the filter chain. `{% raw %}` regions are
-// emitted verbatim by Liquid and must be skipped.
-const armVariables = raw => {
+const liquid = new Liquid();
+liquid.registerFilter( VAR_SAFE_FILTER, escapeXML );
+
+// Append `| __var_safe` to every `{{ ... }}` expression so variable output is
+// XML-escaped before parsePrompt tokenizes message blocks. Without this, a
+// variable whose value contains `<system>` or `</user>` would inject extra
+// message blocks. `{% raw %}` regions are emitted verbatim by Liquid and must
+// be skipped so the rewrite isn't visible at render time.
+const escapeVariableContent = raw => {
   const segments = raw.split( /(\{%\s*raw\s*%\}[\s\S]*?\{%\s*endraw\s*%\})/ );
   return segments.map( ( segment, i ) => {
     if ( i % 2 === 1 ) {
@@ -35,19 +31,16 @@ const armVariables = raw => {
   } ).join( '' );
 };
 
-const unescapeSentinels = text =>
-  text.replaceAll( TAG_OPEN, '<' ).replaceAll( TAG_CLOSE, '>' );
-
-const unescapeConfigValues = value => {
+const decodeConfigValues = value => {
   if ( typeof value === 'string' ) {
-    return unescapeSentinels( value );
+    return decodeXML( value );
   }
   if ( Array.isArray( value ) ) {
-    return value.map( unescapeConfigValues );
+    return value.map( decodeConfigValues );
   }
   if ( value !== null && typeof value === 'object' ) {
     return Object.fromEntries(
-      Object.entries( value ).map( ( [ k, v ] ) => [ k, unescapeConfigValues( v ) ] )
+      Object.entries( value ).map( ( [ k, v ] ) => [ k, decodeConfigValues( v ) ] )
     );
   }
   return value;
@@ -55,7 +48,7 @@ const unescapeConfigValues = value => {
 
 const renderPrompt = ( name, content, values ) => {
   try {
-    return liquid.parseAndRenderSync( armVariables( content ), values );
+    return liquid.parseAndRenderSync( escapeVariableContent( content ), values );
   } catch ( error ) {
     throw new FatalError( `Failed to render template in prompt "${name}": ${error.message}`, { cause: error } );
   }
@@ -81,8 +74,8 @@ export const loadPrompt = ( name, values = {}, dir ) => {
 
   const prompt = {
     name,
-    config: unescapeConfigValues( config ),
-    messages: messages.map( m => ( { ...m, content: unescapeSentinels( m.content ) } ) )
+    config: decodeConfigValues( config ),
+    messages: messages.map( m => ( { ...m, content: decodeXML( m.content ) } ) )
   };
 
   validatePrompt( prompt );
