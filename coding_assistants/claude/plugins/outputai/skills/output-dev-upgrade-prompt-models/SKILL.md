@@ -47,26 +47,9 @@ If a model doesn't match any pattern, skip the file and log a warning. Do not gu
 
 ### Step 4 — Look up latest in family
 
-Fetch the snapshot once at the start of the run and reuse it for every prompt file. The pipeline is the same one [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) runs at skill-load time:
+For each prompt, find the latest stable model in the same family by following [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) — fetch its snapshot, apply its filter rules (skip preview/alpha/beta, prefer unversioned aliases), and translate the chosen `id` to prompt-file form.
 
-```bash
-SNAPSHOT=$(curl -s https://ai-gateway.vercel.sh/v1/models | jq '
-  .data as $models
-  | {
-      anthropic: ([ $models[] | select(.id | startswith("anthropic/")) ] | sort_by(.released) | reverse | .[0:10]),
-      openai:    ([ $models[] | select(.id | startswith("openai/"))    ] | sort_by(.released) | reverse | .[0:10]),
-      google:    ([ $models[] | select(.id | startswith("google/"))    ] | sort_by(.released) | reverse | .[0:10])
-    }
-')
-```
-
-The snapshot is JSON keyed by provider — see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) for the field reference.
-
-For each prompt, map family → snapshot key + `id` regex, then walk the array (already sorted newest-first) and pick the first entry that matches **all** of these:
-
-- `type == "language"`
-- `id` does **not** contain `preview`, `alpha`, or `beta`
-- `id` matches the family regex below
+Use this family → snapshot-key + `id` regex map to pin the lookup to the existing tier:
 
 | Family | Snapshot key | `id` regex |
 |---|---|---|
@@ -81,9 +64,7 @@ For each prompt, map family → snapshot key + `id` regex, then walk the array (
 | `google-flash` | `google` | `-flash$\|-flash-[0-9]` |
 | `google-flash-lite` | `google` | `-flash-lite` |
 
-Then translate that entry's `id` to prompt-file form (strip the `<provider>/` prefix, replace `.` with `-`).
-
-If no entry matches — meaning the family currently has only pre-release entries in the snapshot — surface that to the user and skip the file rather than guessing or downgrading to a different family.
+If no stable match exists for a family (only pre-release entries available), surface that to the user and skip the file rather than guessing or downgrading to a different family.
 
 ### Step 5 — Diff & confirm
 

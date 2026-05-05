@@ -13,15 +13,28 @@ This skill is the single source of truth for model selection across Output SDK s
 The block below runs at skill-load time and emits JSON containing the **10 most recently released** models per provider, with each model's payload preserved verbatim from the Vercel AI Gateway.
 
 ```!
-curl -s https://ai-gateway.vercel.sh/v1/models | jq '
+output=$(curl -fsS https://ai-gateway.vercel.sh/v1/models 2>/dev/null | jq '
   .data as $models
   | {
       anthropic: ([ $models[] | select(.id | startswith("anthropic/")) ] | sort_by(.released) | reverse | .[0:10]),
       openai:    ([ $models[] | select(.id | startswith("openai/"))    ] | sort_by(.released) | reverse | .[0:10]),
       google:    ([ $models[] | select(.id | startswith("google/"))    ] | sort_by(.released) | reverse | .[0:10])
     }
-'
+' 2>/dev/null)
+if [ -n "$output" ]; then printf '%s\n' "$output"; else echo "(snapshot unavailable — jq, curl, or network missing. Follow the fallback steps below.)"; fi
 ```
+
+The block always exits 0 and always prints something — `curl -fsS` swallows network errors, `2>/dev/null` mutes "command not found" if `jq` or `curl` isn't installed, and the empty-output check prints a fallback marker if the pipeline produced nothing. The rest of the skill body always loads regardless.
+
+### If the snapshot above is empty or shows the fallback marker
+
+The snapshot block depends on `curl` and `jq`. When either is missing or the network is unreachable, work around it:
+
+1. Reach the gateway with whatever HTTP tool is available (`curl`, `wget -qO-`, `http`, an editor's REST client, or a one-shot script in any language). The endpoint is unauthenticated and returns `{ "data": [ <model>, ... ] }` with every supported model.
+2. Filter client-side: keep entries where `id` starts with `anthropic/`, `openai/`, or `google/`; sort each group by `released` desc; take the top 10.
+3. Apply Steps 1–5 below to that filtered set.
+
+If no remote fetch is possible at all, fall back to the model IDs already present in the project's `*.prompt` files — surface that you couldn't refresh and ask the user to run the lookup themselves.
 
 ### Snapshot shape
 
