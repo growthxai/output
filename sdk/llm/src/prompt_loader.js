@@ -7,7 +7,7 @@ import { FatalError } from '@outputai/core';
 
 const VAR_SAFE_FILTER = '__var_safe';
 
-const escapeXML = value =>
+export const escapeXML = value =>
   value === null || value === undefined ? '' : encodeXML( String( value ) );
 
 const liquid = new Liquid();
@@ -16,20 +16,16 @@ liquid.registerFilter( VAR_SAFE_FILTER, escapeXML );
 // Append `| __var_safe` to every `{{ ... }}` expression so variable output is
 // XML-escaped before parsePrompt tokenizes message blocks. Without this, a
 // variable whose value contains `<system>` or `</user>` would inject extra
-// message blocks. `{% raw %}` regions are emitted verbatim by Liquid and must
-// be skipped so the rewrite isn't visible at render time.
-const escapeVariableContent = raw => {
-  const segments = raw.split( /(\{%\s*raw\s*%\}[\s\S]*?\{%\s*endraw\s*%\})/ );
-  return segments.map( ( segment, i ) => {
-    if ( i % 2 === 1 ) {
-      return segment;
-    }
-    return segment.replace(
-      /\{\{\s*([\s\S]+?)\s*\}\}/g,
-      ( _, expr ) => `{{ ${expr.trim()} | ${VAR_SAFE_FILTER} }}`
-    );
-  } ).join( '' );
-};
+// message blocks. `{% raw %}` regions are emitted verbatim by Liquid and are
+// preserved unchanged via the first alternative in the regex below — JS regex
+// with `g` consumes the matched span and advances past it, so any `{{ ... }}`
+// inside a raw block is never reached as a separate match.
+const VAR_OR_RAW = /(\{%\s*raw\s*%\}[\s\S]*?\{%\s*endraw\s*%\})|\{\{\s*([\s\S]+?)\s*\}\}/g;
+
+export const escapeVariableContent = raw =>
+  raw.replace( VAR_OR_RAW, ( _match, rawBlock, expr ) =>
+    rawBlock === undefined ? `{{ ${expr.trim()} | ${VAR_SAFE_FILTER} }}` : rawBlock
+  );
 
 const decodeConfigValues = value => {
   if ( typeof value === 'string' ) {
