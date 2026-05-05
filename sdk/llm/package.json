@@ -21,6 +21,7 @@
     "@tavily/ai-sdk": "0.4.1",
     "ai": "6.0.168",
     "decimal.js": "10.6.0",
+    "entities": "6.0.1",
     "gray-matter": "4.0.3",
     "liquidjs": "10.25.7"
   },
