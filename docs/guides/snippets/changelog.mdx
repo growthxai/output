@@ -1,5 +1,103 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.3.0" description="2026-05-05 · minor release">
+
+**`@outputai/cli`, `output-api`** — Use `catalog` as the public name for the routing/filtering target across the CLI and HTTP API:
+
+- `output workflow runs list` gains `--catalog`/`-c` (with `OUTPUT_CATALOG_ID` env fallback) and `GET /workflow/runs` accepts `?catalog=...`, scoping listed runs to a single worker's catalog/session.
+- `output workflow run` and `output workflow start` rename the routing flag to `--catalog`/`-c`. The previous `--task-queue` and `-q` are kept as deprecated aliases (oclif emits a warning when used).
+- `POST /workflow/run` and `POST /workflow/start` accept a `catalog` body field; the previous `taskQueue` field is still accepted as a deprecated alias and the API logs a deprecation warning when it is used.
+
+Internally the value is still a Temporal task queue — only the user-facing name changes.
+
+**`@outputai/core`** — Optimizing local trace to use less memory and avoid "RangeError: Invalid string length"
+
+**`@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/output`, `@outputai/http`** — ## Dependencies updates
+
+### Vulnerabilities fixed:
+- uuid: Missing buffer bounds check in v3/v5/v6 when buf: (bump to `>=14.0.0`)
+- postcss: PostCSS has XSS via Unescaped </style> in its CSS Stringify Output (bump to `>=8.5.10`)
+- @anthropic-ai/sdk: Claude SDK for TypeScript has Insecure Default File Permissions in Local Filesystem Memory Tool (bump to `>=0.91.1`)
+
+### Root package.json updates
+- @changesets/cli: `2.30.0` -> `2.31.0`
+- eslint: `10.2.0` -> `10.2.1`
+- mintlify: `4.2.520` -> `4.2.536`
+- typescript-eslint: `8.58.2` -> `8.59.1`
+- vitest: `4.1.4` -> `4.1.5`
+
+### pnpm-workspace.yaml (catalog) updates
+- @aws-sdk/client-s3: `3.1031.0` -> `3.1038.0`
+
+### sdk/cli/package.json updates
+- @inquirer/prompts: `8.4.1` -> `8.4.2`
+- @oclif/core: `4.10.5` -> `4.10.6`
+- @oclif/plugin-help: `6.2.44` -> `6.2.45`
+- undici: `8.0.2` -> `catalog:`
+- orval: `8.8.0` -> `8.9.0`
+
+### sdk/llm/package.json updates
+- @ai-sdk/amazon-bedrock: `4.0.95` -> `4.0.96`
+- liquidjs: `10.25.5` -> `10.25.7`
+
+**`@outputai/http`, `@outputai/llm`** — - HTTP: Added a new event `cost:http:request` that is dispatched after calling `addRequestCost()`: the event's payload is `requestId`, `cost` and `url`;
+- LLM: Renamed `llm:call_cost` event to `cost:llm:request`;
+- LLM: Updated the format of the `.cost` property on `.generateText()` response and on the cost hook payload: `components` is now an array;
+- LLM: Updated `.streamText()` `onFinish()` callback to have the `.cost` property: contains the calculated cost for the stream.
+
+**`@outputai/llm`** — Update perplexity-ai/ai-sdk to v0.1.3
+
+**`@outputai/credentials`, `@outputai/cli`** — Improve encrypted credentials loading: add clearer errors when keys are missing or invalid and ensure the CLI exits gracefully instead of printing stack traces.
+
+**`@outputai/cli`** — - Offer to initialize a git repository when running `output init`. Adds a `--skip-git` flag to opt out in non-interactive / scripted use.
+- Fix `--yes` / `--non-interactive` being rejected as "Nonexistent flag" by oclif's per-command parser when passed to any command.
+
+**`@outputai/credentials`, `@outputai/core`** — - Added new hook functions `onWorkflowStart`, `onWorkflowEnd`, `onWorkflowError`:
+  - `onWorkflowStart()`: Triggers when a workflow starts, receives the run id and workflow name;
+  - `onWorkflowEnd()`: Triggers when a workflow ends (no error), receives the run id, workflow name and duration (elapsed time);
+  - `onWorkflowError()`: Triggers when a workflow throws an error, receives the run id, workflow name, duration and error thrown;
+  - Important: These three hooks are not triggered by the internal "$catalog" workflow lifecycle;
+- Renamed `onBeforeStart()` hook to `onBeforeWorkerStart()`;
+- Fixed possible issue where a broken handler attached to `onBeforeStart()` could interrupt the worker process;
+- Added `activityId` and `workflowId` to `onError()` hook handler payload when source is `'activity'`;
+- Added `workflowId` to `onError()` hook handler payload when source is `'workflow'`.
+
+**`output-api`, `@outputai/core`** — Updating Temporal libraries from `v1.15.0` to `v1.17.0`:
+- @temporalio/activity;
+- @temporalio/client;
+- @temporalio/common;
+- @temporalio/proto (dev dependency for tests);
+- @temporalio/worker;
+- @temporalio/workflow
+
+**`@outputai/cli`** — Add non-interactive mode with `--yes`/`--non-interactive` flags and TTY auto-detection for sandbox environments
+
+**`@outputai/cli`, `output-api`** — Fix the workflow runs pane in the CLI so the detail view reflects the highlighted run instead of always showing the latest run. `GET /workflow/runs` now includes `runId` per row, and the CLI fetches results via the pinned `GET /workflow/{id}/runs/{rid}/result` endpoint.
+
+**`@outputai/cli`** — Enable multiple instance of Output to run locally simultaneously in Docker by enabling dynamic port mapping
+
+**`@outputai/core`, `@outputai/cli`** — Add HTTP and gRPC proxy support for sandbox environments via HTTPS_PROXY and TEMPORAL_GRPC_PROXY env vars
+
+**`@outputai/cli`** — Shadow the worker container's `/app/node_modules` (root pnpm store) with a named Docker volume and run an explicit `output:worker:install` before `output:worker:watch`, so Linux-native packages installed in the container no longer leak into the host's `node_modules/`.
+
+**`@outputai/cli`** — Fix issue where values in .env files were silently ignored
+
+**`@outputai/core`, `@outputai/http`, `@outputai/llm`** — Adding trace event attributes and adding method `addRequestCost` to attach cost related info to an HTTP call made with the http module
+
+**`@outputai/llm`** — re-export ai.jsonSchema for downstream use
+
+**`@outputai/http`** — ## Custom fetch
+Added a `fetch` function export to the "http" module:
+- Fully compliant with the fetch [spec](https://fetch.spec.whatwg.org/);
+- Integrates with Traces, tracking requests, responses, errors and failures;
+
+## Updated http client
+Refactored `httpClient` exported by "http" to use the custom _fetch_ internally instead of _ky_ hooks.
+
+**`@outputai/cli`, `output-api`** — Add new workflow history endpoint
+
+</Update>
+
 <Update label="v0.2.0" description="2026-04-22 · minor release">
 
 **`@outputai/cli`** — Fix `workflow generate` success message to show actual workflow ID and scenario name
