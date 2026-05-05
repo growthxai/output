@@ -354,7 +354,7 @@ describe( 'workflow_history_stream handler', () => {
       const mockClient = { streamWorkflowHistory: vi.fn( () => slowStream ) };
       const handler = createWorkflowHistoryStreamHandler( mockClient );
 
-      const handlerPromise = handler( fakeReq, fakeRes, vi.fn() );
+      const handlerPromise = handler( fakeReq, fakeRes );
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
