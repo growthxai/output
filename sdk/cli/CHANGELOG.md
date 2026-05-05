@@ -1,5 +1,14 @@
 # @outputai/cli
 
+## 0.3.2
+
+### Patch Changes
+
+- 1282dcf: Rebuild `output dev` as a full-featured INK TUI. Tabbed UI for Workflows, Recent Runs, Services, and Help with arrow-key navigation, an in-TUI scenario picker and JSON editor for running workflows, an expanded JSON modal for input/output, and a live `docker compose logs` tail with restart hotkeys.
+  - @outputai/credentials@0.3.2
+  - @outputai/evals@0.3.2
+  - @outputai/llm@0.3.2
+
 ## 0.3.1
 
 ### Patch Changes

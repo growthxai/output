@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "0.3.2",
+      "date": "2026-05-05",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "cli-output-dev-tui",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Rebuild `output dev` as a full-featured INK TUI. Tabbed UI for Workflows, Recent Runs, Services, and Help with arrow-key navigation, an in-TUI scenario picker and JSON editor for running workflows, an expanded JSON modal for input/output, and a live `docker compose logs` tail with restart hotkeys."
+        }
+      ]
+    },
+    {
       "version": "0.3.1",
       "date": "2026-05-05",
       "level": "patch",

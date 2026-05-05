@@ -1,5 +1,11 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.3.2" description="2026-05-05 · patch release">
+
+**`@outputai/cli`** — Rebuild `output dev` as a full-featured INK TUI. Tabbed UI for Workflows, Recent Runs, Services, and Help with arrow-key navigation, an in-TUI scenario picker and JSON editor for running workflows, an expanded JSON modal for input/output, and a live `docker compose logs` tail with restart hotkeys.
+
+</Update>
+
 <Update label="v0.3.1" description="2026-05-05 · patch release">
 
 **`@outputai/llm`** — Prevent template variables from injecting message blocks into rendered prompts. Variable content containing tag-shaped substrings (e.g. `</user>` or `<system>...</system>`, common when evaluating webpages or chat transcripts) was being tokenized by `parsePrompt` as real message blocks, producing duplicate `system` messages that providers like Anthropic reject. `loadPrompt` now arms every `{{ ... }}` interpolation with an internal escape filter so variable output stays inert at parse time.
