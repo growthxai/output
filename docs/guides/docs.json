@@ -99,6 +99,7 @@
               "operations/credentials",
               "operations/error-handling",
               "operations/error-hooks",
+              "operations/external-workflow-packages",
               "operations/testing",
               "operations/tracing"
             ]
