@@ -3,7 +3,14 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { EOL } from 'node:os';
 import { fileURLToPath } from 'url';
 import { getTraceDestinations, sendHttpRequest } from '#internal_activities';
-import { importComponents, staticMatchers, activityMatchersBuilder } from './loader_tools.js';
+import {
+  activityMatchersBuilder,
+  findSharedActivitiesFromWorkflows,
+  findWorkflowsInNodeModules,
+  importComponents,
+  matchFiles,
+  staticMatchers
+} from './loader_tools.js';
 import {
   ACTIVITY_SEND_HTTP_REQUEST,
   ACTIVITY_OPTIONS_FILENAME,
@@ -66,7 +73,7 @@ export async function loadActivities( rootDir, workflows ) {
   // Load workflow based activities
   for ( const { path: workflowPath, name: workflowName, external } of workflows ) {
     const dir = dirname( workflowPath );
-    for await ( const { fn, metadata, path } of importComponents( dir, Object.values( activityMatchersBuilder( dir ) ) ) ) {
+    for await ( const { fn, metadata, path } of importComponents( matchFiles( dir, Object.values( activityMatchersBuilder( dir ) ) ) ) ) {
       log.info( 'Component loaded', { type: metadata.type, name: metadata.name, path, workflow: workflowName, ...( external && { external } ) } );
       // Activities loaded from a workflow path will use the workflow name as a namespace, which is unique across the platform, avoiding collision
       const activityKey = generateActivityKey( { namespace: workflowName, activityName: metadata.name } );
@@ -77,9 +84,19 @@ export async function loadActivities( rootDir, workflows ) {
   }
 
   // Load shared activities/evaluators
-  for await ( const { fn, metadata, path } of importComponents( rootDir, [ staticMatchers.sharedStepsDir, staticMatchers.sharedEvaluatorsDir ] ) ) {
+  const sharedMatchers = [ staticMatchers.sharedStepsDir, staticMatchers.sharedEvaluatorsDir ];
+  for await ( const { fn, metadata, path } of importComponents( matchFiles( rootDir, sharedMatchers ) ) ) {
     log.info( 'Shared component loaded', { type: metadata.type, name: metadata.name, path } );
     // The namespace for shared activities is fixed
+    const activityKey = generateActivityKey( { namespace: SHARED_STEP_PREFIX, activityName: metadata.name } );
+    activities[activityKey] = fn;
+    activityOptionsMap[activityKey] = metadata.options?.activityOptions ?? undefined;
+  }
+
+  // Load shared activities/evaluators from external npm modules
+  for await ( const { fn, metadata, path } of importComponents( findSharedActivitiesFromWorkflows( workflows.filter( w => w.external ) ) ) ) {
+    log.info( 'Shared component loaded', { type: metadata.type, name: metadata.name, path, external: true } );
+    // Reuses the same global namespace for shared activities
     const activityKey = generateActivityKey( { namespace: SHARED_STEP_PREFIX, activityName: metadata.name } );
     activities[activityKey] = fn;
     activityOptionsMap[activityKey] = metadata.options?.activityOptions ?? undefined;
@@ -104,15 +121,14 @@ export async function loadActivities( rootDir, workflows ) {
  */
 export async function loadWorkflows( rootDir ) {
   const workflows = [];
-  for await ( const { metadata, path } of importComponents( rootDir, [ staticMatchers.workflowFile ] ) ) {
+  for await ( const { metadata, path } of importComponents( matchFiles( rootDir, [ staticMatchers.workflowFile ] ) ) ) {
     if ( staticMatchers.workflowPathHasShared( path ) ) {
       throw new Error( 'Workflow directory can\'t be named "shared"' );
     }
     log.info( 'Workflow loaded', { name: metadata.name, path } );
     workflows.push( { ...metadata, path } );
   }
-  const externalWorkflowsDir = join( rootDir, 'node_modules', '@growthxlabs' );
-  for await ( const { metadata, path } of importComponents( externalWorkflowsDir, [ staticMatchers.workflowFile ] ) ) {
+  for await ( const { metadata, path } of importComponents( findWorkflowsInNodeModules( rootDir ) ) ) {
     log.info( 'Workflow loaded', { name: metadata.name, path, external: true } );
     workflows.push( { ...metadata, path, external: true } );
   }

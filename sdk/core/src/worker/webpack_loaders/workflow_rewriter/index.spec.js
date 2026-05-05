@@ -204,7 +204,8 @@ const obj = {
     writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
       name: '@growthxlabs/workflows_catalog',
       type: 'module',
-      main: './src/index.js'
+      main: './src/index.js',
+      dependencies: { '@outputai/core': '1.0.0' }
     } ) );
     writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
     writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'nest.cat\' });\n' );
@@ -225,6 +226,44 @@ const obj = {
 
     expect( code ).not.toMatch( /@growthxlabs\/workflows_catalog/ );
     expect( code ).toMatch( /this\.startWorkflow\('nest\.cat',\s*1\)/ );
+
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'rewrites imports through the output workflow bundle export condition', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-catalog-condition-' ) );
+    const pkgRoot = join( dir, 'node_modules', '@test', 'conditional_catalog' );
+    mkdirSync( join( pkgRoot, 'bundle' ), { recursive: true } );
+    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
+      name: '@test/conditional_catalog',
+      type: 'module',
+      main: './node-entry.js',
+      exports: {
+        '.': {
+          'output-workflow-bundle': './bundle/workflow.js',
+          default: './node-entry.js'
+        }
+      }
+    } ) );
+    writeFileSync( join( pkgRoot, 'node-entry.js' ), 'export const helper = () => 1;\n' );
+    writeFileSync( join( pkgRoot, 'bundle', 'workflow.js' ), 'export default workflow({ name: \'bundle.cat\' });\n' );
+
+    const resourcePath = join( dir, 'workflows', 'mine', 'workflow.js' );
+    mkdirSync( dirname( resourcePath ), { recursive: true } );
+
+    const source = `
+import BundleCatalog from '@test/conditional_catalog';
+
+const obj = {
+  fn: async () => {
+    BundleCatalog( 1 );
+  }
+}`;
+
+    const { code } = await runLoader( source, resourcePath );
+
+    expect( code ).not.toMatch( /@test\/conditional_catalog/ );
+    expect( code ).toMatch( /this\.startWorkflow\('bundle\.cat',\s*1\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );

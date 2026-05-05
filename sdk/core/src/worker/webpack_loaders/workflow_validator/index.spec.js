@@ -4,6 +4,28 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import validatorLoader from './index.mjs';
 
+/**
+ * Minimal published catalog under `dir/node_modules` so `require.resolve` / export following works.
+ * @param {string} dir - Temp project root containing `steps.js` / `workflow.js` under test.
+ * @param {string} workflowName - Declared workflow `name` in the leaf `workflow.js`.
+ */
+const writeMockGrowthxlabsCatalog = ( dir, workflowName ) => {
+  const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
+  const srcDir = join( pkgRoot, 'src' );
+  mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
+  writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
+    name: '@growthxlabs/workflows_catalog',
+    type: 'module',
+    main: './src/index.js',
+    dependencies: { '@outputai/core': '1.0.0' }
+  } ) );
+  writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
+  writeFileSync(
+    join( srcDir, 'workflows', 'wf', 'workflow.js' ),
+    `export default workflow({ name: '${workflowName}' });\n`
+  );
+};
+
 function runLoader( filename, source ) {
   return new Promise( ( resolve, reject ) => {
     const warnings = [];
@@ -78,6 +100,7 @@ describe( 'workflow_validator loader', () => {
 
   it( 'steps.js: warns when calling imported catalog workflow inside fn', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'steps-catalog-warn-' ) );
+    writeMockGrowthxlabsCatalog( dir, 'cat.warn' );
     const src = [
       'import { sumNumbers } from "@growthxlabs/workflows_catalog";',
       'const A = step({ name: "a", fn: async () => ({}) });',
@@ -91,6 +114,7 @@ describe( 'workflow_validator loader', () => {
 
   it( 'evaluators.js: warns when calling catalog workflow inside fn (require)', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'evals-catalog-warn-' ) );
+    writeMockGrowthxlabsCatalog( dir, 'cat.warn.req' );
     const src = [
       'const { sumNumbers } = require("@growthxlabs/workflows_catalog");',
       'const E = evaluator({ name: "e", fn: async () => ({ value: 1 }) });',
@@ -104,6 +128,7 @@ describe( 'workflow_validator loader', () => {
 
   it( 'workflow.js: allows import from @growthxlabs/workflows_catalog', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'wf-catalog-allow-' ) );
+    writeMockGrowthxlabsCatalog( dir, 'cat.allow' );
     const src = [
       'import { sumNumbers } from "@growthxlabs/workflows_catalog";',
       'const x = 1;'

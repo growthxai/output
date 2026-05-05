@@ -1,77 +1,21 @@
-import { resolve, sep } from 'path';
+import { dirname, resolve, sep } from 'path';
 import { pathToFileURL } from 'url';
 import { METADATA_ACCESS_SYMBOL } from '#consts';
-import { lstatSync, readdirSync, realpathSync } from 'fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'fs';
 
 /**
- * @typedef {object} CollectedFile
- * @property {string} path - The file path
- * @property {string} url - The resolved url of the file, ready to be imported
+ * Returns the real path for symlink
+ *
+ * If the link is broken, returns null
+ *
+ * @param {string} link - The symlink to resolve
+ * @returns {string|null} The real path or null if it is unresolvable
  */
-/**
- * @typedef {object} Component
- * @property {Function} fn - The loaded component function
- * @property {object} metadata - Associated metadata with the component
- * @property {string} path - Associated metadata with the component
- */
-
-/**
- * Recursive traverse directories collection files with paths that match one of the given matches.
- *
- * Follows symlinks to directories
- *
- * @param {string} path - The path to scan
- * @param {function[]} matchers - Boolean functions to match files to add to collection
- * @returns {CollectedFile[]} An array containing the collected files
- */
-const findByNameRecursively = ( parentPath, matchers, ignoreDirNames = [ 'vendor', 'node_modules' ] ) => {
-  const collection = [];
-  for ( const entry of readdirSync( parentPath, { withFileTypes: true } ) ) {
-    if ( ignoreDirNames.includes( entry.name ) ) {
-      continue;
-    }
-
-    const path = resolve( parentPath, entry.name );
-    if ( entry.isSymbolicLink() ) {
-      const symLinkTarget = realpathSync( path );
-      if ( lstatSync( symLinkTarget ).isDirectory() ) {
-        collection.push( ...findByNameRecursively( symLinkTarget, matchers ) );
-      }
-    } else if ( entry.isDirectory() ) {
-      collection.push( ...findByNameRecursively( path, matchers ) );
-    } else if ( matchers.some( m => m( path ) ) ) {
-      collection.push( { path, url: pathToFileURL( path ).href } );
-    }
-  }
-
-  return collection;
-};
-
-/**
- * Scan a path for files testing each path against a matching function.
- *
- * For each file found, dynamic import it and for each exports on that file, yields it.
- *
- * @remarks
- * - Only yields exports that have the METADATA_ACCESS_SYMBOL, as they are output components (steps, evaluators, etc).
- *
- * @generator
- * @async
- * @function importComponents
- * @param {string} target - Place to look for files
- * @param {function[]} matchers - Boolean functions to match files
- * @yields {Component}
- */
-export async function *importComponents( target, matchers ) {
-  for ( const { url, path } of findByNameRecursively( target, matchers ) ) {
-    const imported = await import( url );
-    for ( const fn of Object.values( imported ) ) {
-      const metadata = fn[METADATA_ACCESS_SYMBOL];
-      if ( !metadata ) {
-        continue;
-      }
-      yield { fn, metadata, path };
-    }
+export const resolveSymlink = link => {
+  try {
+    return realpathSync( link );
+  } catch {
+    return null;
   }
 };
 
@@ -136,4 +80,225 @@ export const staticMatchers = {
    * @returns {boolean}
    */
   sharedEvaluatorsDir: v => v.includes( `${sep}shared${sep}evaluators${sep}` ) && v.endsWith( '.js' )
+};
+
+/**
+ * @typedef {object} File
+ * @property {string} path - The file path
+ * @property {string} url - The resolved url of the file, ready to be imported
+ */
+/**
+ * @typedef {object} Component
+ * @property {Function} fn - The loaded component function
+ * @property {object} metadata - Associated metadata with the component
+ * @property {string} path - Associated metadata with the component
+ */
+
+/**
+ * Recursive traverse directories collection files with paths that match one of the given matches.
+ *
+ * Follows symlinks to directories
+ *
+ * @param {string} parentPath - The path to scan
+ * @param {function[]} matchers - Boolean functions to match files to add to collection
+ * @returns {File[]} An array containing the collected files
+ */
+export const matchFiles = ( parentPath, matchers, ignoreDirNames = [ 'vendor', 'node_modules' ] ) => {
+  const collection = [];
+  for ( const entry of readdirSync( parentPath, { withFileTypes: true } ) ) {
+    if ( ignoreDirNames.includes( entry.name ) ) {
+      continue;
+    }
+    const path = resolve( parentPath, entry.name );
+    const realPath = entry.isSymbolicLink() ? resolveSymlink( path ) : path;
+    if ( !realPath ) {
+      continue;
+    }
+    const stat = lstatSync( realPath );
+    if ( stat.isDirectory() ) {
+      collection.push( ...matchFiles( realPath, matchers ) );
+    } else if ( stat.isFile() && matchers.some( m => m( realPath ) ) ) {
+      collection.push( { path, url: pathToFileURL( realPath ).href } );
+    }
+  }
+  return collection;
+};
+
+/**
+ * Returns true if given package.json indicates that its workflows are exposed for external usage.
+ *
+ * @param {string} pkgJsonPath
+ * @returns {boolean}
+ */
+export const packageExposesWorkflows = pkgJsonPath => {
+  if ( !existsSync( pkgJsonPath ) ) {
+    return false;
+  }
+  const pkgJsonRawContent = readFileSync( pkgJsonPath );
+  try {
+    const { output: outputConfig } = JSON.parse( pkgJsonRawContent );
+    return outputConfig?.workflows?.expose === true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Normalize path separators for cross-platform path matching.
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+const normalizeSlashes = path => path.replace( /\\/g, '/' );
+
+/**
+ * Returns true if the given path is inside a node_modules tree.
+ *
+ * @param {string} path
+ * @returns {boolean}
+ */
+export const isPathDescendentFromNodeModules = path =>
+  /(^|\/)node_modules(\/|$)/.test( normalizeSlashes( path ) );
+
+/**
+ * Returns true if the given path is an installed package root inside node_modules.
+ *
+ * Matches both unscoped packages and scoped packages.
+ *
+ * @param {string} path
+ * @returns {boolean}
+ */
+export const isPackageRoot = path =>
+  /\/node_modules\/(?:@[^/]+\/[^/]+|[^/@][^/]*)$/.test( normalizeSlashes( path ) );
+
+/**
+ * Walk upward from a file path to find the closest installed package root under node_modules.
+ *
+ * @param {string} path
+ * @returns {string|null}
+ */
+export const findPackageRoot = path => {
+  if ( isPackageRoot( path ) && existsSync( resolve( path, 'package.json' ) ) ) {
+    return path;
+  }
+  const parent = dirname( path );
+  return parent !== path ? findPackageRoot( parent ) : null;
+};
+
+/**
+ * Resolves the closest node_modules directory
+ *
+ * @param {string} targetPath - A reference path to start the search, can be a dir or a file path
+ * @returns {string|null} The closest node_modules/ or null
+ */
+export const resolveNodeModulesPath = targetPath => {
+  if ( !existsSync( targetPath ) ) {
+    return null;
+  }
+  const path = lstatSync( targetPath ).isDirectory() ? targetPath : dirname( targetPath );
+  const nodeModulesPath = resolve( path, 'node_modules' );
+  if ( existsSync( nodeModulesPath ) ) {
+    const stat = lstatSync( nodeModulesPath );
+    if ( stat.isDirectory() ) {
+      return nodeModulesPath;
+    }
+    if ( stat.isSymbolicLink() ) {
+      const symlinkTarget = resolveSymlink( nodeModulesPath );
+      if ( symlinkTarget && lstatSync( symlinkTarget ).isDirectory() ) {
+        return symlinkTarget;
+      }
+    }
+  }
+
+  const parentPath = resolve( path, '..' );
+  return parentPath !== path ? resolveNodeModulesPath( parentPath ) : null;
+};
+
+/**
+ * Scans a node_modules/ path and look for all projects that contain workflows.
+ *
+ * A project contains workflows when packageExposesWorkflows() resolves to true.
+ *
+ * For each of these projects, load workflows using matchFiles().
+ *
+ * @param {string} nodeModulesPath
+ * @returns {File[]} An array containing the collected files
+ *
+ */
+export const findWorkflowsInPackages = nodeModulesPath => {
+  const collection = [];
+  for ( const entry of readdirSync( nodeModulesPath, { withFileTypes: true } ) ) {
+    const path = resolve( nodeModulesPath, entry.name );
+    const realPath = entry.isSymbolicLink() ? resolveSymlink( path ) : path;
+
+    if ( realPath && lstatSync( realPath ).isDirectory() ) {
+      if ( entry.name.startsWith( '@' ) ) { // scoped package root
+        collection.push( ...findWorkflowsInPackages( realPath ) );
+      } else if ( packageExposesWorkflows( resolve( realPath, 'package.json' ) ) ) { // is a package folder
+        collection.push( ...matchFiles( realPath, [ staticMatchers.workflowFile ] ) );
+      }
+    }
+  }
+  return collection;
+};
+
+/**
+ * Recursive traverse the closest node_modules/ directory loading workflows.
+ *
+ * Deduplicates by file url.
+ *
+ * @param {string} parentPath - The starting path
+ * @returns {File[]} An array containing the collected files
+ */
+export const findWorkflowsInNodeModules = parentPath => {
+  const nodeModulesPath = resolveNodeModulesPath( parentPath );
+  if ( !nodeModulesPath ) {
+    return [];
+  }
+  const collection = findWorkflowsInPackages( nodeModulesPath );
+
+  // deduplicate collection by .url in case symlinked packages end up resolving the same dependencies more than once
+  return collection.reduce( ( map, value ) => map.set( value.url, value ), new Map() ).values().toArray();
+};
+
+/**
+ * Based on workflow urls, traverse those projects looking for shared activities (steps, evaluators).
+ *
+ * @param {Component[]} workflows
+ * @returns {File[]}
+ */
+export const findSharedActivitiesFromWorkflows = workflows => {
+  const paths = workflows.map( wf => findPackageRoot( wf.path ) );
+  const uniquePaths = new Set( paths.filter( p => !!p ) ).values().toArray();
+  const files = [];
+  for ( const path of uniquePaths ) {
+    files.push( ...matchFiles( path, [ staticMatchers.sharedStepsDir, staticMatchers.sharedEvaluatorsDir ] ) );
+  }
+  return files;
+};
+
+/**
+ * Receives an array of Files and import each one.
+ *
+ * For each exported function from that file that has metadata, yields the path, metadata and the function itself.
+ *
+ * metadata is accessible thru METADATA_ACCESS_SYMBOL.
+ *
+ * @generator
+ * @async
+ * @function importComponents
+ * @param {File} Files - Collected files to load
+ * @yields {Component}
+ */
+export async function *importComponents( files ) {
+  for ( const { url, path } of files ) {
+    const imported = await import( url );
+    for ( const fn of Object.values( imported ) ) {
+      const metadata = fn[METADATA_ACCESS_SYMBOL];
+      if ( !metadata ) {
+        continue;
+      }
+      yield { fn, metadata, path };
+    }
+  }
 };

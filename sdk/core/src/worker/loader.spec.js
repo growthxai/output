@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { staticMatchers } from './loader_tools.js';
 
 vi.mock( '#consts', () => ( {
   ACTIVITY_SEND_HTTP_REQUEST: '__internal#sendHttpRequest',
@@ -18,10 +19,22 @@ vi.mock( '#internal_activities', () => ( {
   getTraceDestinations: getTraceDestinationsMock
 } ) );
 
-const importComponentsMock = vi.fn();
+const { importComponentsMock, findSharedActivitiesFromWorkflowsMock, findWorkflowsInNodeModulesMock, matchFilesMock } = vi.hoisted( () => ( {
+  importComponentsMock: vi.fn(),
+  findSharedActivitiesFromWorkflowsMock: vi.fn(),
+  findWorkflowsInNodeModulesMock: vi.fn(),
+  matchFilesMock: vi.fn()
+} ) );
+
 vi.mock( './loader_tools.js', async importOriginal => {
   const actual = await importOriginal();
-  return { ...actual, importComponents: importComponentsMock };
+  return {
+    ...actual,
+    importComponents: importComponentsMock,
+    findSharedActivitiesFromWorkflows: findSharedActivitiesFromWorkflowsMock,
+    findWorkflowsInNodeModules: findWorkflowsInNodeModulesMock,
+    matchFiles: matchFilesMock
+  };
 } );
 
 const fsMocks = vi.hoisted( () => ( {
@@ -40,12 +53,17 @@ describe( 'worker/loader', () => {
     vi.clearAllMocks();
     importComponentsMock.mockReset();
     importComponentsMock.mockImplementation( async function *() {} );
+    findSharedActivitiesFromWorkflowsMock.mockReset();
+    findSharedActivitiesFromWorkflowsMock.mockReturnValue( [] );
+    findWorkflowsInNodeModulesMock.mockReset();
+    findWorkflowsInNodeModulesMock.mockReturnValue( [] );
+    matchFilesMock.mockReset();
+    matchFilesMock.mockReturnValue( [] );
   } );
 
   it( 'loadActivities returns map including system activity and writes options file', async () => {
     const { loadActivities } = await import( './loader.js' );
 
-    // First call: workflow directory scan (options.activityOptions propagated to activity options file)
     importComponentsMock.mockImplementationOnce( async function *() {
       yield {
         fn: () => {},
@@ -53,7 +71,6 @@ describe( 'worker/loader', () => {
         path: '/a/steps.js'
       };
     } );
-    // Second call: shared activities scan (no results)
     importComponentsMock.mockImplementationOnce( async function *() {} );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
@@ -61,7 +78,6 @@ describe( 'worker/loader', () => {
     expect( activities['A#Act1'] ).toBeTypeOf( 'function' );
     expect( activities['__internal#sendHttpRequest'] ).toBe( sendHttpRequestMock );
 
-    // options file written with the collected activityOptions map
     expect( fsMocks.writeFileSync ).toHaveBeenCalledTimes( 1 );
     const [ writtenPath, contents ] = fsMocks.writeFileSync.mock.calls[0];
     expect( writtenPath ).toMatch( /temp\/__activity_options\.js$/ );
@@ -88,62 +104,96 @@ describe( 'worker/loader', () => {
     expect( written['A#EmptyOptions'] ).toBeUndefined();
   } );
 
-  it( 'loadWorkflows returns array of workflows with metadata', async () => {
-    const { loadWorkflows } = await import( './loader.js' );
+  describe( 'loadWorkflows', () => {
+    it( 'returns local workflows from importComponents with metadata spread onto each entry', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      const localFiles = [ { path: '/b/workflow.js', url: 'file:///b/workflow.js' } ];
+      matchFilesMock.mockReturnValueOnce( localFiles );
 
-    importComponentsMock
-      .mockImplementationOnce( async function *() {
+      importComponentsMock.mockImplementationOnce( async function *() {
         yield { metadata: { name: 'Flow1', description: 'd' }, path: '/b/workflow.js' };
-      } )
-      .mockImplementationOnce( async function *() {} );
-
-    const workflows = await loadWorkflows( '/root' );
-    expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js' } ] );
-  } );
-
-  it( 'loadWorkflows scans project root then node_modules/@growthxlabs with the workflow file matcher', async () => {
-    const { loadWorkflows } = await import( './loader.js' );
-
-    importComponentsMock
-      .mockImplementationOnce( async function *() {} )
-      .mockImplementationOnce( async function *() {} );
-
-    await loadWorkflows( '/my/app' );
-
-    expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
-    expect( importComponentsMock.mock.calls[0][0] ).toBe( '/my/app' );
-    expect( importComponentsMock.mock.calls[1][0] ).toBe( join( '/my/app', 'node_modules', '@growthxlabs' ) );
-    const [ , matchersA ] = importComponentsMock.mock.calls[0];
-    const [ , matchersB ] = importComponentsMock.mock.calls[1];
-    expect( matchersA.length ).toBe( 1 );
-    expect( matchersB.length ).toBe( 1 );
-    expect( matchersB[0] ).toBe( matchersA[0] );
-  } );
-
-  it( 'loadWorkflows merges local workflows and installed @growthxlabs workflows with external flag', async () => {
-    const { loadWorkflows } = await import( './loader.js' );
-
-    importComponentsMock
-      .mockImplementationOnce( async function *() {
-        yield { metadata: { name: 'LocalFlow', description: 'local' }, path: '/my/app/workflows/wf/workflow.js' };
-      } )
-      .mockImplementationOnce( async function *() {
-        yield {
-          metadata: { name: '__sum_numbers', description: 'from catalog' },
-          path: '/my/app/node_modules/@growthxlabs/workflows_catalog/src/w/workflow.js'
-        };
       } );
 
-    const workflows = await loadWorkflows( '/my/app' );
-    expect( workflows ).toEqual( [
-      { name: 'LocalFlow', description: 'local', path: '/my/app/workflows/wf/workflow.js' },
-      {
-        name: '__sum_numbers',
-        description: 'from catalog',
-        path: '/my/app/node_modules/@growthxlabs/workflows_catalog/src/w/workflow.js',
-        external: true
-      }
-    ] );
+      const workflows = await loadWorkflows( '/root' );
+      expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js' } ] );
+      expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, localFiles );
+      expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
+      expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledWith( '/root' );
+    } );
+
+    it( 'calls matchFiles with rootDir and workflowFile matcher', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      const localFiles = [ { path: '/my/app/workflow.js', url: 'file:///my/app/workflow.js' } ];
+      const externalFiles = [ { path: '/my/app/node_modules/pkg/workflow.js', url: 'file:///my/app/node_modules/pkg/workflow.js' } ];
+      matchFilesMock.mockReturnValueOnce( localFiles );
+      findWorkflowsInNodeModulesMock.mockReturnValue( externalFiles );
+
+      await loadWorkflows( '/my/app' );
+
+      expect( matchFilesMock ).toHaveBeenCalledOnce();
+      expect( matchFilesMock ).toHaveBeenCalledWith( '/my/app', [ staticMatchers.workflowFile ] );
+      expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
+      expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, localFiles );
+      expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, externalFiles );
+      expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
+      expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledWith( '/my/app' );
+    } );
+
+    it( 'appends node_modules workflows after local ones and sets external: true', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'LocalFlow', description: 'local' }, path: '/my/app/workflows/wf/workflow.js' };
+      } );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield {
+          metadata: { name: '__sum_numbers', description: 'from catalog' },
+          path: '/my/app/node_modules/catalog_pkg/src/w/workflow.js'
+        };
+      } );
+      findWorkflowsInNodeModulesMock.mockReturnValue( [ { path: '/my/app/node_modules/catalog_pkg/src/w/workflow.js' } ] );
+
+      const workflows = await loadWorkflows( '/my/app' );
+      expect( workflows ).toEqual( [
+        { name: 'LocalFlow', description: 'local', path: '/my/app/workflows/wf/workflow.js' },
+        {
+          name: '__sum_numbers',
+          description: 'from catalog',
+          path: '/my/app/node_modules/catalog_pkg/src/w/workflow.js',
+          external: true
+        }
+      ] );
+    } );
+
+    it( 'returns only external workflows when the project root has none', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+
+      importComponentsMock.mockImplementationOnce( async function *() {} );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'PkgFlow', description: 'pkg' }, path: '/proj/node_modules/a/w/workflow.js' };
+      } );
+      findWorkflowsInNodeModulesMock.mockReturnValue( [ { path: '/proj/node_modules/a/w/workflow.js' } ] );
+
+      const workflows = await loadWorkflows( '/proj' );
+      expect( workflows ).toEqual( [
+        {
+          name: 'PkgFlow',
+          description: 'pkg',
+          path: '/proj/node_modules/a/w/workflow.js',
+          external: true
+        }
+      ] );
+    } );
+
+    it( 'throws when a local workflow path is under a shared directory', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'Invalid' }, path: '/root/shared/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow( 'Workflow directory can\'t be named "shared"' );
+      expect( findWorkflowsInNodeModulesMock ).not.toHaveBeenCalled();
+    } );
   } );
 
   it( 'createWorkflowsEntryPoint writes index and returns its path', async () => {
@@ -221,40 +271,69 @@ describe( 'worker/loader', () => {
 
   it( 'loadActivities uses folder-based matchers for steps/evaluators and shared', async () => {
     const { loadActivities } = await import( './loader.js' );
-    // First call (workflow dir): no results
+    const workflowFiles = [ { path: '/a/steps/foo.js' } ];
+    const sharedFiles = [ { path: '/root/shared/steps/baz.js' } ];
+    matchFilesMock.mockReturnValueOnce( workflowFiles );
+    matchFilesMock.mockReturnValueOnce( sharedFiles );
     importComponentsMock.mockImplementationOnce( async function *() {} );
-    // Second call (shared): no results
     importComponentsMock.mockImplementationOnce( async function *() {} );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
     await loadActivities( '/root', workflows );
 
-    // First invocation should target the workflow directory with folder/file matchers
-    expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
-    const [ firstDir, firstMatchers ] = importComponentsMock.mock.calls[0];
+    expect( matchFilesMock ).toHaveBeenCalledTimes( 2 );
+    const [ firstDir, firstMatchers ] = matchFilesMock.mock.calls[0];
     expect( firstDir ).toBe( '/a' );
     expect( Array.isArray( firstMatchers ) ).toBe( true );
-    // Should match folder-based steps and evaluators files
     expect( firstMatchers.some( fn => fn( '/a/steps/foo.js' ) ) ).toBe( true );
     expect( firstMatchers.some( fn => fn( '/a/evaluators/bar.js' ) ) ).toBe( true );
-    // And also direct file names
     expect( firstMatchers.some( fn => fn( '/a/steps.js' ) ) ).toBe( true );
     expect( firstMatchers.some( fn => fn( '/a/evaluators.js' ) ) ).toBe( true );
 
-    // Second invocation should target root with shared matchers
-    const [ secondDir, secondMatchers ] = importComponentsMock.mock.calls[1];
+    const [ secondDir, secondMatchers ] = matchFilesMock.mock.calls[1];
     expect( secondDir ).toBe( '/root' );
     expect( secondMatchers.some( fn => fn( '/root/shared/steps/baz.js' ) ) ).toBe( true );
     expect( secondMatchers.some( fn => fn( '/root/shared/evaluators/qux.js' ) ) ).toBe( true );
+
+    expect( importComponentsMock ).toHaveBeenCalledTimes( 3 );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, workflowFiles );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, sharedFiles );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 3, [] );
+  } );
+
+  it( 'loads shared activities from external workflow packages', async () => {
+    const { loadActivities } = await import( './loader.js' );
+    const externalSharedFiles = [ { path: '/root/node_modules/pkg/shared/steps/prepare.js' } ];
+    const localWorkflow = { name: 'Local', path: '/root/workflows/local/workflow.js' };
+    const externalWorkflow = { name: 'External', path: '/root/node_modules/pkg/workflows/a/workflow.js', external: true };
+    findSharedActivitiesFromWorkflowsMock.mockReturnValue( externalSharedFiles );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
+    importComponentsMock.mockImplementationOnce( async function *() {
+      yield {
+        fn: () => {},
+        metadata: { name: 'ExternalShared', options: { activityOptions: { retry: { maximumAttempts: 2 } } } },
+        path: '/root/node_modules/pkg/shared/steps/prepare.js'
+      };
+    } );
+
+    const activities = await loadActivities( '/root', [ localWorkflow, externalWorkflow ] );
+
+    expect( findSharedActivitiesFromWorkflowsMock ).toHaveBeenCalledWith( [ externalWorkflow ] );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 4, externalSharedFiles );
+    expect( activities['$shared#ExternalShared'] ).toBeTypeOf( 'function' );
+    const written = JSON.parse(
+      fsMocks.writeFileSync.mock.calls[0][1].replace( /^export default\s*/, '' ).replace( /;\s*$/, '' )
+    );
+    expect( written['$shared#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
   } );
 
   it( 'loadActivities includes nested workflow steps and shared evaluators', async () => {
     const { loadActivities } = await import( './loader.js' );
-    // Workflow dir scan returns a nested step
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'ActNested' }, path: '/a/steps/foo.js' };
     } );
-    // Shared scan returns a shared evaluator
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'SharedEval' }, path: '/root/shared/evaluators/bar.js' };
     } );
@@ -265,24 +344,14 @@ describe( 'worker/loader', () => {
     expect( activities['$shared#SharedEval'] ).toBeTypeOf( 'function' );
   } );
 
-  it( 'loadWorkflows throws when workflow is under shared directory', async () => {
-    const { loadWorkflows } = await import( './loader.js' );
-    importComponentsMock.mockImplementationOnce( async function *() {
-      yield { metadata: { name: 'Invalid' }, path: '/root/shared/workflow.js' };
-    } );
-    await expect( loadWorkflows( '/root' ) ).rejects.toThrow( 'Workflow directory can\'t be named \"shared\"' );
-  } );
-
   it( 'collects workflow nested steps and evaluators across multiple subfolders', async () => {
     const { loadActivities } = await import( './loader.js' );
-    // Workflow dir scan returns nested steps and evaluators
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'StepPrimary' }, path: '/a/steps/primary/foo.js' };
       yield { fn: () => {}, metadata: { name: 'StepSecondary' }, path: '/a/steps/secondary/bar.js' };
       yield { fn: () => {}, metadata: { name: 'EvalPrimary' }, path: '/a/evaluators/primary/baz.js' };
       yield { fn: () => {}, metadata: { name: 'EvalSecondary' }, path: '/a/evaluators/secondary/qux.js' };
     } );
-    // Shared scan returns nothing for this test
     importComponentsMock.mockImplementationOnce( async function *() {} );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
@@ -295,9 +364,7 @@ describe( 'worker/loader', () => {
 
   it( 'collects shared nested steps and evaluators across multiple subfolders', async () => {
     const { loadActivities } = await import( './loader.js' );
-    // Workflow dir scan returns nothing for this test
     importComponentsMock.mockImplementationOnce( async function *() {} );
-    // Shared scan returns nested steps and evaluators
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'SharedStepPrimary' }, path: '/root/shared/steps/primary/a.js' };
       yield { fn: () => {}, metadata: { name: 'SharedStepSecondary' }, path: '/root/shared/steps/secondary/b.js' };

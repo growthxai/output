@@ -1,21 +1,39 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isExternalWorkflowPackagePath } from './webpack_loaders/tools.js';
+import {
+  findPackageRoot,
+  isPathDescendentFromNodeModules,
+  packageExposesWorkflows
+} from './loader_tools.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const workerDir = __dirname; // sdk/core/src/worker
 const interfaceDir = join( __dirname, '..', 'interface' );
+const packagesWithWorkflowsMap = new Map();
 
-/** Skip loaders for most of node_modules; allow known external workflow packages (see tools.js list). */
-const excludeUnlessExternalWorkflowPackages = resource => {
+/**
+ * Skip loaders for most of `node_modules`, except packages that expose workflows.
+ */
+const excludeUnlessPackageExposeWorkflows = resource => {
+  // internal parts: exclude
   if ( resource.startsWith( workerDir ) || resource.startsWith( interfaceDir ) ) {
     return true;
   }
-  const inNodeModules = /[/\\]node_modules[/\\]/.test( resource );
-  if ( !inNodeModules ) {
+  // not node_modules/: include
+  if ( !isPathDescendentFromNodeModules( resource ) ) {
     return false;
   }
-  return !isExternalWorkflowPackagePath( resource );
+
+  const rootPath = findPackageRoot( resource );
+  if ( !rootPath ) {
+    return true;
+  }
+
+  if ( !packagesWithWorkflowsMap.has( rootPath ) ) {
+    packagesWithWorkflowsMap.set( rootPath, packageExposesWorkflows( join( rootPath, 'package.json' ) ) );
+  }
+
+  return !packagesWithWorkflowsMap.get( rootPath );
 };
 
 export const webpackConfigHook = config => {
@@ -36,7 +54,7 @@ export const webpackConfigHook = config => {
   // Validation loader (runs first)
   config.module.rules.push( {
     test: /\.js$/,
-    exclude: excludeUnlessExternalWorkflowPackages,
+    exclude: excludeUnlessPackageExposeWorkflows,
     enforce: 'pre',
     use: {
       loader: join( __dirname, './webpack_loaders/workflow_validator/index.mjs' )
@@ -45,7 +63,7 @@ export const webpackConfigHook = config => {
   // Use AST-based loader for rewriting steps/workflows
   config.module.rules.push( {
     test: /\.js$/,
-    exclude: excludeUnlessExternalWorkflowPackages,
+    exclude: excludeUnlessPackageExposeWorkflows,
     use: {
       loader: join( __dirname, './webpack_loaders/workflow_rewriter/index.mjs' )
     }

@@ -1,7 +1,5 @@
 import parser from '@babel/parser';
-import { createRequire } from 'node:module';
-import { dirname, resolve as resolvePath } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { resolve as resolvePath } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
   blockStatement,
@@ -13,7 +11,6 @@ import {
   isBlockStatement,
   isCallExpression,
   isExportNamedDeclaration,
-  isExportSpecifier,
   isFunctionExpression,
   isIdentifier,
   isVariableDeclarator,
@@ -36,57 +33,6 @@ const EVALUATORS_FILE_REGEX = /(^|\/)evaluators\.js$/;
 const EVALUATORS_FOLDER_REGEX = /\/evaluators\/[^/]+\.js$/;
 const PATH_TRAVERSAL_REGEX = /\.\.\//;
 const SHARED_PATH_REGEX = /\/shared\//;
-
-/**
- * npm package names (bare specifiers) for published workflow catalogs: their entry re-exports
- * `workflow()` modules. Imports of these packages are rewritten and validated like local `workflow.js`
- */
-export const EXTERNAL_WORKFLOW_PACKAGE_NAMES = Object.freeze( [
-  '@growthxlabs/workflows_catalog'
-] );
-
-const escapeForRegExp = s => s.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
-
-const EXTERNAL_WORKFLOW_PACKAGE_PATH_REGEX = new RegExp(
-  `[\\\\/]node_modules[\\\\/](?:${
-    EXTERNAL_WORKFLOW_PACKAGE_NAMES
-      .map( name => name.split( '/' ).map( escapeForRegExp ).join( '[\\\\/]' ) )
-      .join( '|' )
-  })[\\\\/]`
-);
-
-/**
- * True when `resource` is under `node_modules/<one of EXTERNAL_WORKFLOW_PACKAGE_NAMES>/`.
- * Used by webpack `exclude` so loaders run on these packages only.
- * @param {string} resource - Absolute or normalized module path (webpack `resource`).
- * @returns {boolean}
- */
-export const isExternalWorkflowPackagePath = resource =>
-  EXTERNAL_WORKFLOW_PACKAGE_PATH_REGEX.test( resource );
-
-/**
- * True when the import / `require()` string is a known external workflow package (exact specifier).
- * @param {string} value - ESM import source or `require` string.
- * @returns {boolean}
- */
-export const isExternalWorkflowPackageSpecifier = value =>
-  EXTERNAL_WORKFLOW_PACKAGE_NAMES.includes( value );
-
-/**
- * Resolve a known external workflow package entry (main module) from the consumer file.
- * @param {string} resourcePath - Absolute path to the file doing the import (e.g. webpack `resourcePath`).
- * @param {string} specifier - Bare package name; must be listed in {@link EXTERNAL_WORKFLOW_PACKAGE_NAMES}.
- * @returns {string} Absolute path to the package entry file.
- */
-export const resolveExternalWorkflowPackageEntryPath = ( resourcePath, specifier ) => {
-  if ( !EXTERNAL_WORKFLOW_PACKAGE_NAMES.includes( specifier ) ) {
-    throw new Error(
-      `resolveExternalWorkflowPackageEntryPath: unknown external workflow package '${specifier}'`
-    );
-  }
-  const req = createRequire( pathToFileURL( resourcePath ).href );
-  return req.resolve( specifier );
-};
 
 /**
  * Resolve a relative module specifier against a base directory.
@@ -248,6 +194,15 @@ export const isAnyEvaluatorsPath = value =>
  * @returns {boolean} True if it matches workflow.js.
  */
 export const isWorkflowPath = value => /(^|\/)workflow\.js$/.test( value );
+
+/**
+ * True when `resourcePath` is an absolute path to a `workflow.js` file (slashes normalized).
+ *
+ * @param {string|null|undefined} resourcePath - Webpack `resourcePath` or similar.
+ * @returns {boolean}
+ */
+export const isAbsoluteWorkflowJsResource = resourcePath =>
+  typeof resourcePath === 'string' && isWorkflowPath( resourcePath.replace( /\\/g, '/' ) );
 
 /**
  * Check if a path is a component file (steps, evaluators, or workflow).
@@ -509,56 +464,6 @@ export const buildWorkflowNameMap = ( path, cache ) => {
 
   cache.set( path, result );
   return result;
-};
-
-const externalWorkflowPackageExportNameCache = new Map();
-
-/**
- * Build map of package public export name → workflow runtime name by parsing the package index and
- * delegating to {@link buildWorkflowNameMap} for each re-export target.
- * @param {string} catalogIndexPath - Absolute path to the package entry (e.g. index.js).
- * @param {Map<string, {default: (string|null), named: Map<string,string>}>} workflowNameCache - Workflow file cache.
- * @returns {Map<string, string>} Exported symbol → workflow `name:` string.
- */
-export const buildWorkflowCatalogExportNameMap = ( catalogIndexPath, workflowNameCache ) => {
-  if ( externalWorkflowPackageExportNameCache.has( catalogIndexPath ) ) {
-    return externalWorkflowPackageExportNameCache.get( catalogIndexPath );
-  }
-  const text = readFileSync( catalogIndexPath, 'utf8' );
-  const ast = parse( text, catalogIndexPath );
-  const catalogDir = dirname( catalogIndexPath );
-  /** @type {Map<string, string>} */
-  const exportToWorkflowName = new Map();
-
-  for ( const node of ast.program.body ) {
-    if ( !isExportNamedDeclaration( node ) || !node.source ) {
-      continue;
-    }
-    const absTarget = resolvePath( catalogDir, node.source.value );
-    for ( const spec of node.specifiers ) {
-      if ( !isExportSpecifier( spec ) ) {
-        continue;
-      }
-      const exportedPublicName = isIdentifier( spec.exported ) ?
-        spec.exported.name :
-        spec.exported.value;
-      const importedFromTarget = spec.local.name;
-      const wfMap = buildWorkflowNameMap( absTarget, workflowNameCache );
-      const workflowName = importedFromTarget === 'default' ?
-        wfMap.default :
-        wfMap.named.get( importedFromTarget );
-      if ( !workflowName ) {
-        throw new Error(
-          `External workflow package '${catalogIndexPath}': cannot resolve re-export '${exportedPublicName}' ` +
-          `from '${absTarget}' (expected default or named workflow() export).`
-        );
-      }
-      exportToWorkflowName.set( exportedPublicName, workflowName );
-    }
-  }
-
-  externalWorkflowPackageExportNameCache.set( catalogIndexPath, exportToWorkflowName );
-  return exportToWorkflowName;
 };
 
 /**

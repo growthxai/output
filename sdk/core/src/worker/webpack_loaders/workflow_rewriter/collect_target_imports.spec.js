@@ -341,7 +341,8 @@ const obj = {};`;
     writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
       name: '@growthxlabs/workflows_catalog',
       type: 'module',
-      main: './src/index.js'
+      main: './src/index.js',
+      dependencies: { '@outputai/core': '1.0.0' }
     } ) );
     writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
     writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow\' });\n' );
@@ -375,7 +376,8 @@ const x = 1;`;
     writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
       name: '@growthxlabs/workflows_catalog',
       type: 'module',
-      main: './src/index.js'
+      main: './src/index.js',
+      dependencies: { '@outputai/core': '1.0.0' }
     } ) );
     writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
     writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow2\' });\n' );

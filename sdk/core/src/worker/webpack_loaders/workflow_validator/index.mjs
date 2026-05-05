@@ -7,8 +7,27 @@ import {
   isAnyStepsPath,
   isAnyEvaluatorsPath,
   isWorkflowPath,
-  isExternalWorkflowPackageSpecifier
+  isAbsoluteWorkflowJsResource
 } from '../tools.js';
+
+/**
+ * Files where a bare npm import may bind to child workflows (catalog packages, etc.).
+ * Matches {@link collectTargetImports} for `workflow.js`; steps/evaluators need the same
+ * binding knowledge for fn-body validation only.
+ * @param {string} filename - Absolute resource path.
+ * @returns {boolean}
+ */
+const fileMayBindBareNpmWorkflowImports = filename => {
+  const n = filename.replace( /\\/g, '/' );
+  return isAbsoluteWorkflowJsResource( filename ) ||
+    isAnyStepsPath( n ) || isAnyEvaluatorsPath( n );
+};
+import {
+  isBareNpmSpecifier,
+  resolveBareImportSpecifiersAsWorkflows,
+  resolveBareDestructuredRequireAsWorkflows,
+  resolveBareDefaultRequireAsWorkflow
+} from '../npm_workflow_export_resolve.js';
 import { ComponentFile } from '../consts.js';
 import {
   isCallExpression,
@@ -103,10 +122,16 @@ export default function workflowValidatorLoader( source, inputMap ) {
       ImportDeclaration: path => {
         const specifier = path.node.source.value;
 
-        if ( isExternalWorkflowPackageSpecifier( specifier ) ) {
-          for ( const s of path.node.specifiers ) {
-            if ( isImportSpecifier( s ) || isImportDefaultSpecifier( s ) ) {
-              importedWorkflowIds.add( s.local.name );
+        if ( isBareNpmSpecifier( specifier ) && fileMayBindBareNpmWorkflowImports( filename ) ) {
+          const outcome = resolveBareImportSpecifiersAsWorkflows( {
+            fromAbsoluteFile: filename,
+            specifier,
+            specifiers: path.node.specifiers,
+            workflowNameCache: new Map()
+          } );
+          if ( outcome.type === 'all' ) {
+            for ( const { localName } of outcome.bindings ) {
+              importedWorkflowIds.add( localName );
             }
           }
           return;
@@ -158,15 +183,26 @@ export default function workflowValidatorLoader( source, inputMap ) {
           }
           const req = firstArg.value;
 
-          if ( isExternalWorkflowPackageSpecifier( req ) ) {
+          if ( isBareNpmSpecifier( req ) && fileMayBindBareNpmWorkflowImports( filename ) ) {
             if ( isObjectPattern( path.node.id ) ) {
-              for ( const prop of path.node.id.properties ) {
-                if ( isObjectProperty( prop ) && isIdentifier( prop.value ) ) {
-                  importedWorkflowIds.add( prop.value.name );
+              const outcome = resolveBareDestructuredRequireAsWorkflows( {
+                fromAbsoluteFile: filename,
+                specifier: req,
+                properties: path.node.id.properties,
+                workflowNameCache: new Map()
+              } );
+              if ( outcome.type === 'all' ) {
+                for ( const { localName } of outcome.bindings ) {
+                  importedWorkflowIds.add( localName );
                 }
               }
             } else if ( isIdentifier( path.node.id ) ) {
-              importedWorkflowIds.add( path.node.id.name );
+              const outcome = resolveBareDefaultRequireAsWorkflow(
+                filename, req, path.node.id.name, new Map()
+              );
+              if ( outcome.type === 'binding' ) {
+                importedWorkflowIds.add( outcome.localName );
+              }
             }
           }
 
