@@ -3,20 +3,26 @@ import express from 'express';
 import request from 'supertest';
 import { createWorkflowHistoryStreamHandler } from './workflow_history_stream.js';
 
-const { mockIsGrpcCancelledError, MockWorkflowNotFoundError } = vi.hoisted( () => {
+const { mockIsGrpcCancelledError, MockWorkflowNotFoundError, mockLoggerError, mockLoggerInfo } = vi.hoisted( () => {
   const mockIsGrpcCancelledError = vi.fn( err => err?._cancelled === true );
+  const mockLoggerError = vi.fn();
+  const mockLoggerInfo = vi.fn();
   class MockWorkflowNotFoundError extends Error {
     constructor( message ) {
       super( message );
       this.name = 'WorkflowNotFoundError';
     }
   }
-  return { mockIsGrpcCancelledError, MockWorkflowNotFoundError };
+  return { mockIsGrpcCancelledError, MockWorkflowNotFoundError, mockLoggerError, mockLoggerInfo };
 } );
 
 vi.mock( '@temporalio/client', () => ( {
   isGrpcCancelledError: mockIsGrpcCancelledError,
   WorkflowNotFoundError: MockWorkflowNotFoundError
+} ) );
+
+vi.mock( '#logger', () => ( {
+  logger: { error: mockLoggerError, info: mockLoggerInfo, warn: vi.fn() }
 } ) );
 
 const RID = '11111111-2222-4333-8444-555555555555';

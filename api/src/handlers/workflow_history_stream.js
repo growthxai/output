@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isGrpcCancelledError } from '@temporalio/client';
+import { logger } from '#logger';
 import { readPinnedRunId } from './utils.js';
 
 export function createWorkflowHistoryStreamHandler( client ) {
@@ -23,6 +24,8 @@ export function createWorkflowHistoryStreamHandler( client ) {
     const lastEventId = queryLastEventId ?? headerLastEventId;
 
     const ctrl = new AbortController();
+    req.on( 'close', () => ctrl.abort() );
+
     const stream = client.streamWorkflowHistory( workflowId, {
       runId,
       includePayloads,
@@ -30,7 +33,10 @@ export function createWorkflowHistoryStreamHandler( client ) {
       abortSignal: ctrl.signal
     } );
 
-    const { value: firstChunk } = await stream.next();
+    const { value: firstChunk, done } = await stream.next();
+    if ( done || firstChunk?.type !== 'workflow' ) {
+      throw new Error( `streamWorkflowHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` );
+    }
 
     res.set( {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -39,10 +45,12 @@ export function createWorkflowHistoryStreamHandler( client ) {
       'X-Accel-Buffering': 'no'
     } );
     res.flushHeaders();
+    res.on( 'error', err => {
+      logger.info( 'SSE response stream error', { workflowId, runId, message: err.message } );
+      ctrl.abort();
+    } );
 
     res.write( `event: workflow\ndata: ${JSON.stringify( firstChunk.workflow )}\n\n` );
-
-    req.on( 'close', () => ctrl.abort() );
     const keepalive = setInterval( () => {
       if ( !res.writableEnded ) {
         res.write( ': keepalive\n\n' );
@@ -64,6 +72,9 @@ export function createWorkflowHistoryStreamHandler( client ) {
       }
     } catch ( error ) {
       if ( !isGrpcCancelledError( error ) ) {
+        logger.error( 'SSE stream error', {
+          workflowId, runId, error: error.constructor.name, message: error.message, stack: error.stack
+        } );
         res.write( `event: server_error\ndata: ${JSON.stringify( { error: error.constructor.name, message: error.message } )}\n\n` );
       }
     } finally {

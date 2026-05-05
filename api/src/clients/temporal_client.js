@@ -625,10 +625,14 @@ export default {
               `Workflow "${workflowId}" not found`
             );
           }
+          error.workflowId = workflowId;
           throw error;
         } );
 
         const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
         const workflowStatus = description.status.code;
         const historyLength = description.historyLength;
 
