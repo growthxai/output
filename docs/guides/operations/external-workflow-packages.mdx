@@ -16,7 +16,7 @@ In this guide, we'll create an npm package with a post-call follow-up workflow, 
 An external workflow package should:
 
 - Follow the standard Output file conventions: `workflow.js`, `steps.js`, `evaluators.js`, `shared/steps/*.js`, `shared/evaluators/*.js`, and so on.
-- Export the workflows from the package entry point. This can be a barrel export or named workflow exports.
+- Export workflows from the package entry point using static ESM re-exports.
 - Set `@outputai/config.workflows.expose` to `true` in `package.json`.
 - Publish JavaScript files. If the package is authored in TypeScript, build `.js` files and matching `.d.ts` files before publishing.
 - Declare `@outputai/core` as a peer dependency. If your declaration files import `zod`, declare `zod` too.
@@ -118,7 +118,7 @@ export const normalizeTranscript = step({
 
 ## Step 2: Export the workflow
 
-Export workflows from the package entry point:
+Export workflows from the package entry point with static ESM re-exports:
 
 ```typescript src/index.ts
 export { default as postCallFollowup } from './workflows/post_call_followup/workflow.js';
@@ -127,6 +127,16 @@ export { default as postCallFollowup } from './workflows/post_call_followup/work
 Consumers import from this package entry point:
 
 ```javascript
+import { postCallFollowup } from '@acme/sales-workflows';
+```
+
+Avoid namespace imports when calling workflows from a package:
+
+```javascript
+// Not supported
+import * as salesWorkflows from '@acme/sales-workflows';
+
+// Supported
 import { postCallFollowup } from '@acme/sales-workflows';
 ```
 
@@ -263,6 +273,25 @@ The worker only scans packages with:
 ```
 
 If a workflow import rewrites successfully but the package is not exposed, the workflow may fail at runtime with a "workflow does not exist" error because it was not discovered by the worker.
+
+### Use static ESM re-exports
+
+The worker resolves external workflow imports by statically following package entry point exports until it reaches `workflow.js` files. Use explicit ESM re-exports with relative paths:
+
+```javascript
+export { default as postCallFollowup } from './workflows/post_call_followup/workflow.js';
+export * from './workflows/renewal_reminder/workflow.js';
+```
+
+Dynamic exports, CommonJS re-exports, computed paths, and runtime export assembly are not supported for workflow discovery:
+
+```javascript
+// Not supported
+module.exports = { postCallFollowup };
+exports.postCallFollowup = require('./workflows/post_call_followup/workflow.js');
+```
+
+Namespace imports from workflow packages are also not supported. Import each workflow directly by name so the worker can map the local binding to the workflow runtime name.
 
 ### Keep workflow package code workflow-safe
 
