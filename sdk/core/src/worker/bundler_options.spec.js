@@ -41,7 +41,7 @@ describe( 'webpackConfigHook loader excludes', () => {
   it( 'keeps loaders enabled for packages that expose workflows', () => {
     const resource = writePackageResource(
       join( TEMP_BASE, 'node_modules', '@acme', 'catalog' ),
-      { name: '@acme/catalog', output: { workflows: { expose: true } } }
+      { name: '@acme/catalog', '@outputai/config': { workflows: { expose: true } } }
     );
 
     for ( const exclude of buildExcludes() ) {

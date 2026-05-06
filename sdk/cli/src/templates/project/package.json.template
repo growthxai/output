@@ -23,7 +23,7 @@
   "engines": {
     "node": ">=24.3.0"
   },
-  "output": {
+  "@outputai/config": {
     "hookFiles": ["node_modules/@outputai/credentials/dist/hooks.js"]
   }
 }

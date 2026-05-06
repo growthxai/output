@@ -17,7 +17,7 @@ An external workflow package should:
 
 - Follow the standard Output file conventions: `workflow.js`, `steps.js`, `evaluators.js`, `shared/steps/*.js`, `shared/evaluators/*.js`, and so on.
 - Export the workflows from the package entry point. This can be a barrel export or named workflow exports.
-- Set `output.workflows.expose` to `true` in `package.json`.
+- Set `@outputai/config.workflows.expose` to `true` in `package.json`.
 - Publish JavaScript files. If the package is authored in TypeScript, build `.js` files and matching `.d.ts` files before publishing.
 - Declare `@outputai/core` as a peer dependency. If your declaration files import `zod`, declare `zod` too.
 
@@ -132,7 +132,7 @@ import { postCallFollowup } from '@acme/sales-workflows';
 
 ## Step 3: Mark the package as exposing workflows
 
-Add `output.workflows.expose` to `package.json`:
+Add `@outputai/config.workflows.expose` to `package.json`:
 
 ```json package.json
 {
@@ -150,7 +150,7 @@ Add `output.workflows.expose` to `package.json`:
     "@outputai/llm": ">=0.2.0",
     "zod": "^4.3.0"
   },
-  "output": {
+  "@outputai/config": {
     "workflows": {
       "expose": true
     }
@@ -254,7 +254,7 @@ The worker only scans packages with:
 
 ```json
 {
-  "output": {
+  "@outputai/config": {
     "workflows": {
       "expose": true
     }

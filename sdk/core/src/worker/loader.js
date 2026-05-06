@@ -136,7 +136,7 @@ export async function loadWorkflows( rootDir ) {
 };
 
 /**
- * Loads the hook files from package.json's output config section.
+ * Loads the hook files from package.json's "@outputai/config" section.
  *
  * @param {string} rootDir
  * @returns {void}
@@ -145,7 +145,12 @@ export async function loadHooks( rootDir ) {
   const packageFile = join( rootDir, 'package.json' );
   if ( existsSync( packageFile ) ) {
     const pkg = await import( packageFile, { with: { type: 'json' } } );
-    for ( const path of pkg.default.output?.hookFiles ?? [] ) {
+    const content = pkg.default;
+    const hooks = [];
+    // @DEPRECATED: "output" is the legacy namespace for configs, can be removed after couple version (this is being added in 0.3.x)
+    hooks.push( ...( content.output?.hookFiles ?? [] ) );
+    hooks.push( ...( content['@outputai/config']?.hookFiles ?? [] ) );
+    for ( const path of hooks ) {
       const hookFile = join( rootDir, path );
       await import( hookFile );
       log.info( 'Hook file loaded', { path } );

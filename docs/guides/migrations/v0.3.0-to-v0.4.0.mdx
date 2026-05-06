@@ -1,0 +1,40 @@
+---
+title: "v0.3.0 → v0.4.0"
+description: "Upgrading Output.ai projects from v0.3.0 to v0.4.0: New package.json config section."
+---
+
+The dedicated `package.json` section for Output.ai settings changed from `output` to `@outputai/config`.
+
+Only the top level has changed.
+
+## Migration steps
+
+### Rename field
+
+Replace `output` with `@outputai/config`.
+
+#### Before
+_package.json_
+```json
+{
+  ...
+  "output": {
+    "hookFiles": [
+      "./src/hooks.js"
+    ]
+  }
+}
+```
+
+#### After
+_package.json_
+```json
+{
+  ...
+  "@outputai/config": {
+    "hookFiles": [
+      "./src/hooks.js"
+    ]
+  }
+}
+```

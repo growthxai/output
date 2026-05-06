@@ -136,8 +136,8 @@ export const packageExposesWorkflows = pkgJsonPath => {
   }
   const pkgJsonRawContent = readFileSync( pkgJsonPath );
   try {
-    const { output: outputConfig } = JSON.parse( pkgJsonRawContent );
-    return outputConfig?.workflows?.expose === true;
+    const packageContent = JSON.parse( pkgJsonRawContent );
+    return packageContent['@outputai/config']?.workflows?.expose === true;
   } catch {
     return false;
   }
