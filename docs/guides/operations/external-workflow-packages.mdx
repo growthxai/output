@@ -193,7 +193,29 @@ pnpm add @acme/sales-workflows
 
 Use your package manager of choice. The important part is that the package is installed in the workflow project's `node_modules`.
 
-## Step 6: Call the external workflow
+## Step 6: Call the workflow directly through the API
+
+When the worker starts, it discovers exposed workflow packages, registers their workflows, and loads package-level shared activities. You can call an external workflow by its `name` without writing a local wrapper workflow.
+
+For example, the package above registers `acmePostCallFollowup`:
+
+```bash
+curl -X POST http://localhost:3001/workflow/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowName": "acmePostCallFollowup",
+    "input": {
+      "transcript": "Customer asked for pricing and implementation timeline.",
+      "accountName": "Acme Corp"
+    }
+  }'
+```
+
+This is useful for shared internal automations and workflow catalogs where consumers should not need to write local workflow code just to run a packaged workflow.
+
+## Step 7: Call from another workflow
+
+You can also import an external workflow and call it from local workflow code. Use this when the packaged workflow is one part of a larger local orchestration.
 
 Import the workflow from the npm package and call it inside your local workflow:
 
@@ -228,7 +250,7 @@ export default workflow({
 });
 ```
 
-When the worker starts, it discovers exposed workflow packages, registers their workflows, and loads package-level shared activities. Calls to imported workflows run as child workflows.
+Calls to imported workflows run as child workflows.
 
 ## Caveats
 
