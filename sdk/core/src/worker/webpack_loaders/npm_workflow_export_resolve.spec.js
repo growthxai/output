@@ -119,18 +119,39 @@ describe( 'resolveBareImportSpecifiersAsWorkflows', () => {
     } );
   } );
 
-  it( 'returns none for namespace imports', () => {
+  it( 'throws for namespace imports from workflow packages', () => {
     withTempProjectDir( dir => {
       const wf = join( dir, 'workflow.js' );
       writeFileSync( wf, 'export default workflow({ name: \'local\' });\n' );
-      writeNodeModulesPackage( dir, '@test/ns', './workflow.js', {
+      writeNodeModulesPackage( dir, '@test/ns', './index.js', {
+        'index.js': 'export { default as nsWorkflow } from \'./workflow.js\';\n',
         'workflow.js': 'export default workflow({ name: \'ns.wf\' });\n'
+      } );
+
+      expect( () => resolveBareImportSpecifiersAsWorkflows( {
+        fromAbsoluteFile: wf,
+        specifier: '@test/ns',
+        specifiers: importSpecifiersFromSource( 'import * as ns from \'@test/ns\'' ),
+        workflowNameCache: new Map()
+      } ) ).toThrow(
+        'Namespace imports from workflow package "@test/ns" are not supported. ' +
+        'Use named imports instead, e.g. import { myWorkflow } from \'@test/ns\'.'
+      );
+    } );
+  } );
+
+  it( 'returns none for namespace imports from non-workflow packages', () => {
+    withTempProjectDir( dir => {
+      const wf = join( dir, 'workflow.js' );
+      writeFileSync( wf, 'export default workflow({ name: \'local\' });\n' );
+      writeNodeModulesPackage( dir, '@test/helper', './index.js', {
+        'index.js': 'export const helper = () => 1;\n'
       } );
 
       const out = resolveBareImportSpecifiersAsWorkflows( {
         fromAbsoluteFile: wf,
-        specifier: '@test/ns',
-        specifiers: importSpecifiersFromSource( 'import * as ns from \'@test/ns\'' ),
+        specifier: '@test/helper',
+        specifiers: importSpecifiersFromSource( 'import * as helper from \'@test/helper\'' ),
         workflowNameCache: new Map()
       } );
       expect( out ).toEqual( { type: 'none' } );

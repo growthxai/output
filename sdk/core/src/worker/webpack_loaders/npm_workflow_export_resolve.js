@@ -55,6 +55,11 @@ export const isBareNpmSpecifier = specifier => {
 const absolutePathIsWorkflowJsFile = absolutePath =>
   isWorkflowPath( absolutePath.replace( /\\/g, '/' ) );
 
+const unsupportedNamespaceWorkflowImportError = specifier => new Error(
+  `Namespace imports from workflow package "${specifier}" are not supported. ` +
+  `Use named imports instead, e.g. import { myWorkflow } from '${specifier}'.`
+);
+
 /**
  * Split a bare npm specifier into its package name and package export subpath.
  *
@@ -261,6 +266,47 @@ const resolveNamedExportThroughReexports = (
 };
 
 /**
+ * Returns true when a module is itself a workflow.js file or re-exports a module that is.
+ *
+ * @param {string} moduleAbsPath
+ * @param {Set<string>} [visited]
+ * @returns {boolean}
+ */
+const moduleMayExportWorkflows = ( moduleAbsPath, visited = new Set() ) => {
+  if ( visited.has( moduleAbsPath ) ) {
+    return false;
+  }
+  visited.add( moduleAbsPath );
+  if ( absolutePathIsWorkflowJsFile( moduleAbsPath ) ) {
+    return true;
+  }
+  const ast = ( () => {
+    try {
+      return parse( readFileSync( moduleAbsPath, 'utf8' ), moduleAbsPath );
+    } catch {
+      return null;
+    }
+  } )();
+  if ( !ast ) {
+    return false;
+  }
+  const moduleDir = dirname( moduleAbsPath );
+  for ( const node of ast.program.body ) {
+    if ( isExportAllDeclaration( node ) && isStringLiteral( node.source ) ) {
+      if ( moduleMayExportWorkflows( resolvePath( moduleDir, node.source.value ), visited ) ) {
+        return true;
+      }
+    }
+    if ( isExportNamedDeclaration( node ) && isStringLiteral( node.source ) ) {
+      if ( moduleMayExportWorkflows( resolvePath( moduleDir, node.source.value ), visited ) ) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+/**
  * Resolve the package entry (or subpath) for `specifier` from `fromAbsoluteFile`, then follow
  * re-exports until `workflow.js` is reached.
  *
@@ -293,6 +339,7 @@ const resolveBareSpecifierToFirstModule = ( fromAbsoluteFile, specifier ) => {
  * @param {Map<string, {default: (string|null), named: Map<string,string>}>} params.workflowNameCache
  * @returns {{ type: 'all', bindings: Array<{ localName: string, workflowName: string }> } |
  *   { type: 'none' } | { type: 'partial' }}
+ * @throws {Error} When a namespace import targets a workflow package.
  */
 export const resolveBareImportSpecifiersAsWorkflows = ( {
   fromAbsoluteFile,
@@ -306,6 +353,9 @@ export const resolveBareImportSpecifiersAsWorkflows = ( {
   }
 
   if ( specifiers.some( isImportNamespaceSpecifier ) ) {
+    if ( moduleMayExportWorkflows( entry ) ) {
+      throw unsupportedNamespaceWorkflowImportError( specifier );
+    }
     return { type: 'none' };
   }
 
