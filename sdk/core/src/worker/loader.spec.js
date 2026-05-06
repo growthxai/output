@@ -104,6 +104,32 @@ describe( 'worker/loader', () => {
     expect( written['A#EmptyOptions'] ).toBeUndefined();
   } );
 
+  it( 'loadActivities throws when two activities in the same workflow share a name', async () => {
+    const { loadActivities } = await import( './loader.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {
+      yield { fn: () => {}, metadata: { name: 'DuplicateActivity' }, path: '/a/steps.js' };
+      yield { fn: () => {}, metadata: { name: 'DuplicateActivity' }, path: '/a/evaluators.js' };
+    } );
+
+    await expect( loadActivities( '/root', [ { name: 'A', path: '/a/workflow.js' } ] ) ).rejects.toThrow(
+      'Activity "DuplicateActivity" in workflow "A" conflicts with another activity in the same workflow. \
+Activity names must be unique within a workflow.'
+    );
+  } );
+
+  it( 'loadActivities throws when two shared activities share a name', async () => {
+    const { loadActivities } = await import( './loader.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
+    importComponentsMock.mockImplementationOnce( async function *() {
+      yield { fn: () => {}, metadata: { name: 'DuplicateShared' }, path: '/root/shared/steps/a.js' };
+      yield { fn: () => {}, metadata: { name: 'DuplicateShared' }, path: '/root/shared/evaluators/a.js' };
+    } );
+
+    await expect( loadActivities( '/root', [ { name: 'A', path: '/a/workflow.js' } ] ) ).rejects.toThrow(
+      'Shared activity "DuplicateShared" conflicts with another shared activity. Shared activity names must be unique.'
+    );
+  } );
+
   describe( 'loadWorkflows', () => {
     it( 'returns local workflows from importComponents with metadata spread onto each entry', async () => {
       const { loadWorkflows } = await import( './loader.js' );
@@ -115,7 +141,7 @@ describe( 'worker/loader', () => {
       } );
 
       const workflows = await loadWorkflows( '/root' );
-      expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js' } ] );
+      expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js', external: false } ] );
       expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, localFiles );
       expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
       expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledWith( '/root' );
@@ -132,9 +158,8 @@ describe( 'worker/loader', () => {
 
       expect( matchFilesMock ).toHaveBeenCalledOnce();
       expect( matchFilesMock ).toHaveBeenCalledWith( '/my/app', [ staticMatchers.workflowFile ] );
-      expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
-      expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, localFiles );
-      expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, externalFiles );
+      expect( importComponentsMock ).toHaveBeenCalledTimes( 1 );
+      expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, [ ...localFiles, ...externalFiles ] );
       expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
       expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledWith( '/my/app' );
     } );
@@ -144,8 +169,6 @@ describe( 'worker/loader', () => {
 
       importComponentsMock.mockImplementationOnce( async function *() {
         yield { metadata: { name: 'LocalFlow', description: 'local' }, path: '/my/app/workflows/wf/workflow.js' };
-      } );
-      importComponentsMock.mockImplementationOnce( async function *() {
         yield {
           metadata: { name: '__sum_numbers', description: 'from catalog' },
           path: '/my/app/node_modules/catalog_pkg/src/w/workflow.js'
@@ -155,7 +178,7 @@ describe( 'worker/loader', () => {
 
       const workflows = await loadWorkflows( '/my/app' );
       expect( workflows ).toEqual( [
-        { name: 'LocalFlow', description: 'local', path: '/my/app/workflows/wf/workflow.js' },
+        { name: 'LocalFlow', description: 'local', path: '/my/app/workflows/wf/workflow.js', external: false },
         {
           name: '__sum_numbers',
           description: 'from catalog',
@@ -168,7 +191,6 @@ describe( 'worker/loader', () => {
     it( 'returns only external workflows when the project root has none', async () => {
       const { loadWorkflows } = await import( './loader.js' );
 
-      importComponentsMock.mockImplementationOnce( async function *() {} );
       importComponentsMock.mockImplementationOnce( async function *() {
         yield { metadata: { name: 'PkgFlow', description: 'pkg' }, path: '/proj/node_modules/a/w/workflow.js' };
       } );
@@ -192,7 +214,101 @@ describe( 'worker/loader', () => {
       } );
 
       await expect( loadWorkflows( '/root' ) ).rejects.toThrow( 'Workflow directory can\'t be named "shared"' );
-      expect( findWorkflowsInNodeModulesMock ).not.toHaveBeenCalled();
+      expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
+    } );
+
+    it( 'throws when a workflow name conflicts with an earlier workflow name', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'duplicate' }, path: '/root/a/workflow.js' };
+        yield { metadata: { name: 'duplicate' }, path: '/root/b/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow name "duplicate" conflicts with another workflow or alias. Workflow names and aliases must be unique.'
+      );
+    } );
+
+    it( 'throws when a workflow name conflicts with an earlier alias', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'alpha', aliases: [ 'legacy' ] }, path: '/root/a/workflow.js' };
+        yield { metadata: { name: 'legacy' }, path: '/root/b/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow name "legacy" conflicts with another workflow or alias. Workflow names and aliases must be unique.'
+      );
+    } );
+
+    it( 'throws when an alias conflicts with an earlier workflow name', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'alpha' }, path: '/root/a/workflow.js' };
+        yield { metadata: { name: 'beta', aliases: [ 'alpha' ] }, path: '/root/b/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow "beta" alias "alpha" conflicts with another workflow or alias. Workflow names and aliases must be unique.'
+      );
+    } );
+
+    it( 'throws when an alias conflicts with an earlier alias', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'alpha', aliases: [ 'shared_alias' ] }, path: '/root/a/workflow.js' };
+        yield { metadata: { name: 'beta', aliases: [ 'shared_alias' ] }, path: '/root/b/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow "beta" alias "shared_alias" conflicts with another workflow or alias. Workflow names and aliases must be unique.'
+      );
+    } );
+
+    it( 'throws when an alias is identical to its workflow name', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'alpha', aliases: [ 'alpha' ] }, path: '/root/a/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow "alpha" alias "alpha" conflicts with another workflow or alias. Workflow names and aliases must be unique.'
+      );
+    } );
+
+    it( 'allows workflow names and aliases that only differ by case', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'Alpha', aliases: [ 'Legacy' ] }, path: '/root/a/workflow.js' };
+        yield { metadata: { name: 'alpha', aliases: [ 'legacy' ] }, path: '/root/b/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).resolves.toEqual( [
+        { name: 'Alpha', aliases: [ 'Legacy' ], path: '/root/a/workflow.js', external: false },
+        { name: 'alpha', aliases: [ 'legacy' ], path: '/root/b/workflow.js', external: false }
+      ] );
+    } );
+
+    it( 'throws when a workflow name is reserved for the internal catalog', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'catalog' }, path: '/root/catalog/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow name "catalog" is reserved for the internal catalog workflow.'
+      );
+    } );
+
+    it( 'throws when a workflow alias is reserved for the internal catalog', async () => {
+      const { loadWorkflows } = await import( './loader.js' );
+      importComponentsMock.mockImplementationOnce( async function *() {
+        yield { metadata: { name: 'alpha', aliases: [ 'catalog' ] }, path: '/root/a/workflow.js' };
+      } );
+
+      await expect( loadWorkflows( '/root' ) ).rejects.toThrow(
+        'Workflow "alpha" alias "catalog" is reserved for the internal catalog workflow.'
+      );
     } );
   } );
 
@@ -222,53 +338,6 @@ describe( 'worker/loader', () => {
     expect( contents ).toContain( 'export { default as W_legacy } from \'/abs/wf.js\';' );
   } );
 
-  it( 'createWorkflowsEntryPoint throws on alias conflicting with primary name', async () => {
-    const { createWorkflowsEntryPoint } = await import( './loader.js' );
-
-    const workflows = [
-      { name: 'alpha', path: '/a.js', aliases: [] },
-      { name: 'beta', path: '/b.js', aliases: [ 'alpha' ] }
-    ];
-    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "alpha" on workflow "beta" conflicts with workflow "alpha"/ );
-  } );
-
-  it( 'createWorkflowsEntryPoint throws on alias conflicting with another alias', async () => {
-    const { createWorkflowsEntryPoint } = await import( './loader.js' );
-
-    const workflows = [
-      { name: 'alpha', path: '/a.js', aliases: [ 'shared_alias' ] },
-      { name: 'beta', path: '/b.js', aliases: [ 'shared_alias' ] }
-    ];
-    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "shared_alias" on workflow "beta" conflicts with/ );
-  } );
-
-  it( 'createWorkflowsEntryPoint throws on alias identical to own name', async () => {
-    const { createWorkflowsEntryPoint } = await import( './loader.js' );
-
-    const workflows = [ { name: 'alpha', path: '/a.js', aliases: [ 'alpha' ] } ];
-    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Workflow "alpha" has an alias identical to its own name/ );
-  } );
-
-  it( 'createWorkflowsEntryPoint catches case-insensitive alias collision with primary name', async () => {
-    const { createWorkflowsEntryPoint } = await import( './loader.js' );
-
-    const workflows = [
-      { name: 'Alpha', path: '/a.js', aliases: [] },
-      { name: 'beta', path: '/b.js', aliases: [ 'alpha' ] }
-    ];
-    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "alpha" on workflow "beta" conflicts with workflow "Alpha"/ );
-  } );
-
-  it( 'createWorkflowsEntryPoint catches case-insensitive alias-to-alias collision', async () => {
-    const { createWorkflowsEntryPoint } = await import( './loader.js' );
-
-    const workflows = [
-      { name: 'alpha', path: '/a.js', aliases: [ 'Legacy' ] },
-      { name: 'beta', path: '/b.js', aliases: [ 'legacy' ] }
-    ];
-    expect( () => createWorkflowsEntryPoint( workflows ) ).toThrow( /Alias "legacy" on workflow "beta" conflicts with/ );
-  } );
-
   it( 'loadActivities uses folder-based matchers for steps/evaluators and shared', async () => {
     const { loadActivities } = await import( './loader.js' );
     const workflowFiles = [ { path: '/a/steps/foo.js' } ];
@@ -295,10 +364,9 @@ describe( 'worker/loader', () => {
     expect( secondMatchers.some( fn => fn( '/root/shared/steps/baz.js' ) ) ).toBe( true );
     expect( secondMatchers.some( fn => fn( '/root/shared/evaluators/qux.js' ) ) ).toBe( true );
 
-    expect( importComponentsMock ).toHaveBeenCalledTimes( 3 );
+    expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
     expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, workflowFiles );
     expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, sharedFiles );
-    expect( importComponentsMock ).toHaveBeenNthCalledWith( 3, [] );
   } );
 
   it( 'loads shared activities from external workflow packages', async () => {
@@ -307,7 +375,6 @@ describe( 'worker/loader', () => {
     const localWorkflow = { name: 'Local', path: '/root/workflows/local/workflow.js' };
     const externalWorkflow = { name: 'External', path: '/root/node_modules/pkg/workflows/a/workflow.js', external: true };
     findSharedActivitiesFromWorkflowsMock.mockReturnValue( externalSharedFiles );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
@@ -321,7 +388,7 @@ describe( 'worker/loader', () => {
     const activities = await loadActivities( '/root', [ localWorkflow, externalWorkflow ] );
 
     expect( findSharedActivitiesFromWorkflowsMock ).toHaveBeenCalledWith( [ externalWorkflow ] );
-    expect( importComponentsMock ).toHaveBeenNthCalledWith( 4, externalSharedFiles );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 3, externalSharedFiles );
     expect( activities['$shared#ExternalShared'] ).toBeTypeOf( 'function' );
     const written = JSON.parse(
       fsMocks.writeFileSync.mock.calls[0][1].replace( /^export default\s*/, '' ).replace( /;\s*$/, '' )
