@@ -1,8 +1,8 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { workflowInfo, proxySinks, ApplicationFailure, ContinueAsNew } from '@temporalio/workflow';
+import { workflowInfo, proxySinks, ApplicationFailure, ContinueAsNew, isCancellation } from '@temporalio/workflow';
 import { memoToHeaders } from '../sandboxed_utils.js';
 import { deepMerge } from '#utils';
-import { METADATA_ACCESS_SYMBOL } from '#consts';
+import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 // this is a dynamic generated file with activity configs overwrites
 import stepOptions from '../temp/__activity_options.js';
 
@@ -44,7 +44,12 @@ class WorkflowExecutionInterceptor {
        * a new trace file will be generated
        */
       if ( error instanceof ContinueAsNew ) {
-        sinks.workflow.end( '<continued_as_new>' );
+        sinks.workflow.end( WorkflowSpecialOutput.CONTINUED_AS_NEW );
+        throw error;
+      }
+
+      if ( isCancellation( error ) ) {
+        sinks.workflow.error( error );
         throw error;
       }
 

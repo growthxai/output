@@ -204,7 +204,7 @@ Child workflows appear as `kind: "workflow"` children with their own nested tree
 
 ### Continue-as-New
 
-When a workflow calls [continueAsNew](/workflows/context#continueasnew), the trace records `"<continued_as_new>"` as the output for that run. The new run keeps the same workflow ID but gets a new start time — each run produces its own trace file. To see the full chain, list trace files for that workflow name and match by workflow ID; sort by timestamp for order.
+When a workflow calls [continueAsNew](/workflows/context#continueasnew), the trace records `"<<continued_as_new>>"` as the output for that run. The new run keeps the same workflow ID but gets a new start time — each run produces its own trace file. To see the full chain, list trace files for that workflow name and match by workflow ID; sort by timestamp for order.
 
 ## Accessing Traces
 

@@ -32,3 +32,7 @@ export const BusEventType = {
 
   RUNTIME_ERROR: 'runtime_error'
 };
+
+export const WorkflowSpecialOutput = {
+  CONTINUED_AS_NEW: '<<continued_as_new>>'
+};

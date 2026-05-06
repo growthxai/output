@@ -1,16 +1,18 @@
 import { onError, on, onBeforeWorkerStart, onWorkflowStart, onWorkflowEnd, onWorkflowError } from '@outputai/core/hooks';
 
+const colorize = message => `\x1b[45;30m[HOOK]\x1b[0;35;1m ${message}\x1b[0m`;
+
 // custom + sub modules
-on( 'custom_event', async payload => console.log( '>>> on(custom_event) >>>', payload ) );
-on( 'cost:llm:request', payload => console.log( '>>> on(cost:llm:request) >>>', payload ) );
+on( 'custom_event', async payload => console.log( colorize( 'on(custom_event)' ), payload ) );
+on( 'cost:llm:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
 
 // Generic on error
-onError( ( { source, error, workflowName, activityName } ) => console.log( '>>> onError() >>>', { source, error, workflowName, activityName } ) );
+onError( payload => console.log( colorize( 'onError()' ), payload ) );
 
 // Worker start
-onBeforeWorkerStart( payload => console.log( '>>> onBeforeWorkerStart() >>>', payload ) );
+onBeforeWorkerStart( () => console.log( colorize( 'onBeforeWorkerStart()' ) ) );
 
 // Workflow lifecycle
-onWorkflowStart( payload => console.log( '>>> onWorkflowStart() >>>', payload ) );
-onWorkflowEnd( payload => console.log( '>>> onWorkflowEnd() >>>', payload ) );
-onWorkflowError( payload => console.log( '>>> onWorkflowError() >>>', payload ) );
+onWorkflowStart( payload => console.log( colorize( 'onWorkflowStart()' ), payload ) );
+onWorkflowEnd( payload => console.log( colorize( 'onWorkflowEnd()' ), payload ) );
+onWorkflowError( payload => console.log( colorize( 'onWorkflowError()' ), payload ) );

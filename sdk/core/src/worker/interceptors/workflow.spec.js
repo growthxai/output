@@ -6,6 +6,7 @@ const workflowInfoMock = vi.fn();
 const workflowStartMock = vi.fn();
 const workflowEndMock = vi.fn();
 const workflowErrorMock = vi.fn();
+const isCancellationMock = vi.fn();
 vi.mock( '@temporalio/workflow', () => ( {
   workflowInfo: ( ...args ) => workflowInfoMock( ...args ),
   proxySinks: () => ( {
@@ -26,7 +27,8 @@ vi.mock( '@temporalio/workflow', () => ( {
       super( 'ContinueAsNew' );
       this.name = 'ContinueAsNew';
     }
-  }
+  },
+  isCancellation: ( ...args ) => isCancellationMock( ...args )
 } ) );
 
 const memoToHeadersMock = vi.fn( memo => ( memo ? { ...memo, __asHeaders: true } : {} ) );
@@ -50,6 +52,7 @@ vi.mock( '../temp/__activity_options.js', () => ( { default: stepOptionsDefault 
 describe( 'workflow interceptors', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    isCancellationMock.mockReturnValue( false );
     workflowInfoMock.mockReturnValue( { workflowType: 'MyWorkflow', memo: { executionContext: { id: 'ctx-1' } } } );
   } );
 
@@ -151,8 +154,25 @@ describe( 'workflow interceptors', () => {
       expect( error.details ).toEqual( [ meta ] );
     } );
 
+    it( 'calls sinks.workflow.error and rethrows cancellation errors without wrapping', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { ApplicationFailure } = await import( '@temporalio/workflow' );
+      const { inbound } = interceptors();
+      const interceptor = inbound[0];
+      const cancellation = new Error( 'Workflow cancelled' );
+      const next = vi.fn().mockRejectedValue( cancellation );
+      isCancellationMock.mockReturnValue( true );
+
+      await expect( interceptor.execute( { args: [ {} ] }, next ) ).rejects.toBe( cancellation );
+      expect( isCancellationMock ).toHaveBeenCalledWith( cancellation );
+      expect( cancellation ).not.toBeInstanceOf( ApplicationFailure );
+      expect( workflowErrorMock ).toHaveBeenCalledWith( cancellation );
+      expect( workflowEndMock ).not.toHaveBeenCalled();
+    } );
+
     it( 'on ContinueAsNew calls sinks.trace.addWorkflowEventEnd and rethrows', async () => {
       const { ContinueAsNew } = await import( '@temporalio/workflow' );
+      const { WorkflowSpecialOutput } = await import( '#consts' );
       const { interceptors } = await import( './workflow.js' );
       const { inbound } = interceptors();
       const interceptor = inbound[0];
@@ -160,7 +180,7 @@ describe( 'workflow interceptors', () => {
       const next = vi.fn().mockRejectedValue( continueErr );
 
       await expect( interceptor.execute( { args: [ {} ] }, next ) ).rejects.toThrow( ContinueAsNew );
-      expect( workflowEndMock ).toHaveBeenCalledWith( '<continued_as_new>' );
+      expect( workflowEndMock ).toHaveBeenCalledWith( WorkflowSpecialOutput.CONTINUED_AS_NEW );
       expect( workflowErrorMock ).not.toHaveBeenCalled();
     } );
   } );
