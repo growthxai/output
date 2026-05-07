@@ -323,6 +323,7 @@ importers:
       winston:
         specifier: 'catalog:'
         version: 3.19.0
+    devDependencies:
       zod:
         specifier: 'catalog:'
         version: 4.3.6
