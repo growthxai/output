@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { resolveScenarioPath, getScenarioNotFoundMessage, extractWorkflowRelativePath, listScenariosForWorkflow } from './scenario_resolver.js';
+import {
+  resolveScenarioPath,
+  getScenarioNotFoundMessage,
+  extractWorkflowRelativePath,
+  findWorkflowDirectoryFromPath,
+  listScenariosForWorkflow
+} from './scenario_resolver.js';
 import * as fs from 'node:fs';
 import * as api from '#api/generated/api.js';
 
@@ -38,6 +44,11 @@ describe( 'extractWorkflowRelativePath', () => {
   it( 'should handle workflow.ts extension', () => {
     expect( extractWorkflowRelativePath( '/src/workflows/my_flow/workflow.ts' ) )
       .toBe( 'my_flow' );
+  } );
+
+  it( 'should not match workflows inside a parent directory name', () => {
+    expect( extractWorkflowRelativePath( '/app/test_workflows/dist/workflows/simple_sleep/workflow.js' ) )
+      .toBe( 'simple_sleep' );
   } );
 
   it( 'should return null for non-matching paths', () => {
@@ -128,6 +139,23 @@ describe( 'resolveScenarioPath', () => {
       expect( result.found ).toBe( true );
       expect( result.path ).toContain( 'src/workflows/my_workflow/scenarios/test_scenario.json' );
     } );
+
+    it( 'should resolve using a provided workflow path without requiring a workflows segment', async () => {
+      mockCatalogFailure();
+      vi.mocked( fs.existsSync ).mockImplementation( path => {
+        return String( path ) === '/project/src/workflows/writing/editor/scenarios/basic.json';
+      } );
+
+      const result = await resolveScenarioPath(
+        'writing_editor',
+        'basic',
+        '/project',
+        '/app/build-output/writing/editor/workflow.js'
+      );
+
+      expect( result.found ).toBe( true );
+      expect( result.path ).toBe( '/project/src/workflows/writing/editor/scenarios/basic.json' );
+    } );
   } );
 
   describe( 'when workflow is not in catalog', () => {
@@ -207,6 +235,21 @@ describe( 'listScenariosForWorkflow', () => {
     expect( result ).toEqual( [ 'basic', 'advanced' ] );
   } );
 
+  it( 'should list scenarios from a workflow path without requiring a workflows segment', () => {
+    vi.mocked( fs.existsSync ).mockImplementation( path =>
+      String( path ) === '/project/src/workflows/writing/editor/scenarios'
+    );
+    vi.mocked( fs.readdirSync ).mockReturnValue( [ 'basic.json', 'README.md' ] as never );
+
+    const result = listScenariosForWorkflow(
+      'writing_editor',
+      '/app/build-output/writing/editor/workflow.js',
+      '/project'
+    );
+
+    expect( result ).toEqual( [ 'basic' ] );
+  } );
+
   it( 'should use workflowPath from catalog to derive directory', () => {
     vi.mocked( fs.existsSync ).mockImplementation( path =>
       String( path ).includes( 'src/workflows/viz_examples/01_simple_linear/scenarios' )
@@ -271,6 +314,25 @@ describe( 'listScenariosForWorkflow', () => {
     const result = listScenariosForWorkflow( 'my_workflow', undefined, '/project' );
 
     expect( result ).toEqual( [] );
+  } );
+} );
+
+describe( 'findWorkflowDirectoryFromPath', () => {
+  beforeEach( () => {
+    vi.resetAllMocks();
+  } );
+
+  it( 'should find the local workflow directory from a loaded workflow path suffix', () => {
+    vi.mocked( fs.existsSync ).mockImplementation( path =>
+      String( path ) === '/project/src/workflows/writing/editor'
+    );
+
+    const result = findWorkflowDirectoryFromPath(
+      '/app/build-output/writing/editor/workflow.js',
+      '/project'
+    );
+
+    expect( result ).toBe( '/project/src/workflows/writing/editor' );
   } );
 } );
 

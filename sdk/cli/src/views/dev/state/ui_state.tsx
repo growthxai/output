@@ -30,6 +30,7 @@ export interface SearchState {
 export interface RunModalState {
   open: boolean;
   workflowName: string;
+  workflowPath?: string;
 }
 
 export interface ExpandedJsonState {
@@ -63,7 +64,7 @@ export interface UiState {
   setSelection: ( selection: Selection ) => void;
   setRightPaneTab: ( tab: RightPaneTab ) => void;
   setRunsView: ( view: RunsView ) => void;
-  openRunModal: ( workflowName: string ) => void;
+  openRunModal: ( workflowName: string, workflowPath?: string ) => void;
   closeRunModal: () => void;
   openExpandedJson: ( value: unknown, title: string ) => void;
   closeExpandedJson: () => void;
@@ -109,7 +110,7 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     setSelection,
     setRightPaneTab,
     setRunsView,
-    openRunModal: ( workflowName: string ) => setRunModal( { open: true, workflowName } ),
+    openRunModal: ( workflowName: string, workflowPath?: string ) => setRunModal( { open: true, workflowName, workflowPath } ),
     closeRunModal: () => setRunModal( { open: false, workflowName: '' } ),
     openExpandedJson: ( value: unknown, title: string ) => setExpandedJson( { open: true, value, title } ),
     closeExpandedJson: () => setExpandedJson( { open: false, value: null, title: '' } ),

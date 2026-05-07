@@ -186,7 +186,7 @@ export const WorkflowsPanel: React.FC<{
       ui.setSearchQuery( selectedWorkflow.name );
       ui.setTab( 'runs' );
     } else if ( input === 'r' && selectedWorkflow?.name ) {
-      ui.openRunModal( selectedWorkflow.name );
+      ui.openRunModal( selectedWorkflow.name, selectedWorkflow.path );
     }
   }, { isActive } );
 

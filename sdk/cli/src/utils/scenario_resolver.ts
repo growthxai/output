@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { getWorkflowCatalog, type GetWorkflowCatalog200 } from '#api/generated/api.js';
 import { getWorkflowsBasePath } from '#utils/paths.js';
 
@@ -13,11 +13,44 @@ export interface ScenarioResolutionResult {
 }
 
 export function extractWorkflowRelativePath( path: string ): string | null {
-  const match = path.match( /workflows\/(.+)\/workflow\.[jt]s$/ );
+  const match = path.match( /(?:^|\/)workflows\/(.+)\/workflow\.[jt]s$/ );
   return match ? match[1] : null;
 }
 
-async function fetchWorkflowDirectory( workflowName: string ): Promise<string | null> {
+function unique( values: string[] ): string[] {
+  return [ ...new Set( values ) ];
+}
+
+function workflowPathSuffixes( workflowPath: string ): string[][] {
+  const parts = dirname( workflowPath ).split( /[/\\]+/ ).filter( Boolean );
+  return parts.map( ( _, index ) => parts.slice( index ) );
+}
+
+function candidateWorkflowDirsFromPath( workflowPath: string, basePath: string ): string[] {
+  return unique(
+    workflowPathSuffixes( workflowPath ).flatMap( suffix =>
+      WORKFLOWS_PATHS.map( workflowsDir => resolve( basePath, workflowsDir, ...suffix ) )
+    )
+  );
+}
+
+function candidateScenarioDirsFromPath( workflowPath: string, basePath: string ): string[] {
+  return candidateWorkflowDirsFromPath( workflowPath, basePath )
+    .map( workflowDir => resolve( workflowDir, SCENARIOS_DIR ) );
+}
+
+export function findWorkflowDirectoryFromPath(
+  workflowPath: string | undefined,
+  basePath: string = getWorkflowsBasePath()
+): string | null {
+  if ( !workflowPath ) {
+    return null;
+  }
+
+  return candidateWorkflowDirsFromPath( workflowPath, basePath ).find( existsSync ) ?? null;
+}
+
+async function fetchWorkflowPath( workflowName: string ): Promise<string | null> {
   try {
     const response = await getWorkflowCatalog();
     const data = response?.data as GetWorkflowCatalog200 | undefined;
@@ -31,12 +64,7 @@ async function fetchWorkflowDirectory( workflowName: string ): Promise<string | 
       return null;
     }
 
-    const workflowPath = workflow.path;
-    if ( !workflowPath ) {
-      return null;
-    }
-
-    return extractWorkflowRelativePath( workflowPath );
+    return workflow.path ?? null;
   } catch {
     return null;
   }
@@ -67,35 +95,54 @@ function resolveScenarioFromDirectory(
   return { found: false, searchedPaths };
 }
 
+function resolveScenarioFromScenarioDirs(
+  scenariosDirs: string[],
+  scenarioFileName: string
+): ScenarioResolutionResult {
+  const searchedPaths = scenariosDirs.map( dir => resolve( dir, scenarioFileName ) );
+  const path = searchedPaths.find( existsSync );
+  return path ?
+    { found: true, path, searchedPaths } :
+    { found: false, searchedPaths };
+}
+
 export async function resolveScenarioPath(
   workflowName: string,
   scenarioName: string,
-  basePath: string = getWorkflowsBasePath()
+  basePath: string = getWorkflowsBasePath(),
+  workflowPath?: string
 ): Promise<ScenarioResolutionResult> {
   const scenarioFileName = scenarioName.endsWith( '.json' ) ?
     scenarioName :
     `${scenarioName}.json`;
 
-  const catalogDir = await fetchWorkflowDirectory( workflowName );
+  if ( workflowPath ) {
+    const pathResult = resolveScenarioFromScenarioDirs(
+      candidateScenarioDirsFromPath( workflowPath, basePath ),
+      scenarioFileName
+    );
+    if ( pathResult.found ) {
+      return pathResult;
+    }
+  }
 
-  if ( catalogDir ) {
-    const result = resolveScenarioFromDirectory( catalogDir, scenarioFileName, basePath );
+  const catalogPath = workflowPath ? null : await fetchWorkflowPath( workflowName );
+
+  if ( catalogPath ) {
+    const result = resolveScenarioFromScenarioDirs(
+      candidateScenarioDirsFromPath( catalogPath, basePath ),
+      scenarioFileName
+    );
     if ( result.found ) {
       return result;
     }
 
-    // Catalog resolved but scenario not found at that path — still try convention fallback
-    // in case the catalog path differs from local source layout
-    if ( catalogDir !== workflowName ) {
-      const fallback = resolveScenarioFromDirectory( workflowName, scenarioFileName, basePath );
-      return {
-        found: fallback.found,
-        path: fallback.path,
-        searchedPaths: [ ...result.searchedPaths, ...fallback.searchedPaths ]
-      };
-    }
-
-    return result;
+    const fallback = resolveScenarioFromDirectory( workflowName, scenarioFileName, basePath );
+    return {
+      found: fallback.found,
+      path: fallback.path,
+      searchedPaths: [ ...result.searchedPaths, ...fallback.searchedPaths ]
+    };
   }
 
   // API unavailable or workflow not in catalog — fall back to convention
@@ -107,7 +154,15 @@ export function listScenariosForWorkflow(
   workflowPath?: string,
   basePath: string = getWorkflowsBasePath()
 ): string[] {
-  const relativeDir = ( workflowPath && extractWorkflowRelativePath( workflowPath ) ) || workflowName;
+  const scenariosDirs = workflowPath ? candidateScenarioDirsFromPath( workflowPath, basePath ) : [];
+  const scenariosDir = scenariosDirs.find( existsSync );
+  if ( scenariosDir ) {
+    return readdirSync( scenariosDir )
+      .filter( f => f.endsWith( '.json' ) )
+      .map( f => f.replace( /\.json$/, '' ) );
+  }
+
+  const relativeDir = workflowName;
 
   for ( const workflowsDir of WORKFLOWS_PATHS ) {
     const scenariosDir = resolve( basePath, workflowsDir, relativeDir, SCENARIOS_DIR );

@@ -3,7 +3,7 @@ import { workflowInputSchema, workflowOutputSchema } from './types.js';
 import { processUrl } from './steps.js';
 
 export default workflow( {
-  name: 'simple_sleep',
+  name: 'sleep',
   description: 'Demonstrates sleep-based throttling when processing URLs',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,

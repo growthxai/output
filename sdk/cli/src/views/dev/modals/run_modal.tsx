@@ -49,9 +49,9 @@ const TextPrompt: React.FC<{
   </Box>
 );
 
-export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } ) => {
+export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }> = ( { workflowName, workflowPath } ) => {
   const ui = useUiState();
-  const scenarios = useMemo( () => listScenariosForWorkflow( workflowName ), [ workflowName ] );
+  const scenarios = useMemo( () => listScenariosForWorkflow( workflowName, workflowPath ), [ workflowName, workflowPath ] );
   const entries = useMemo( () => buildEntries( scenarios ), [ scenarios ] );
 
   const [ mode, setMode ] = useState<Mode>( 'select' );
@@ -85,7 +85,7 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
 
   const runScenario = async ( scenarioName: string ): Promise<void> => {
     try {
-      const input = await readScenario( workflowName, scenarioName );
+      const input = await readScenario( workflowName, scenarioName, workflowPath );
       await submit( input, scenarioName );
     } catch ( err ) {
       setErrorMessage( err instanceof Error ? err.message : String( err ) );
@@ -95,7 +95,7 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
 
   const startDuplicate = async ( scenarioName: string ): Promise<void> => {
     try {
-      const sourceContent = await readScenario( workflowName, scenarioName );
+      const sourceContent = await readScenario( workflowName, scenarioName, workflowPath );
       setEditName( `${scenarioName}_copy` );
       setEditSeed( sourceContent );
       setEditFrameTitle( `Duplicate '${scenarioName}'` );
@@ -139,7 +139,7 @@ export const RunModal: React.FC<{ workflowName: string }> = ( { workflowName } )
     }
     setMode( 'submitting' );
     try {
-      const writtenPath = await writeScenario( workflowName, name, value );
+      const writtenPath = await writeScenario( workflowName, name, value, workflowPath );
       ui.pushToast( `Saved scenario at ${writtenPath}`, 'info' );
       await submit( value, name );
     } catch ( err ) {
