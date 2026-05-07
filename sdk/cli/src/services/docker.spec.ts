@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import {
   parseServiceStatus, getServiceStatus,
   startDockerCompose, startDockerComposeDetached, stopDockerCompose,
@@ -12,6 +12,8 @@ vi.mock( 'node:child_process', () => ( {
   spawn: vi.fn()
 } ) );
 
+const mockChildProcess = ( process: unknown ): ChildProcess => process as ChildProcess;
+
 vi.mock( 'log-update', () => {
   const fn = vi.fn() as ReturnType<typeof vi.fn> & { done: ReturnType<typeof vi.fn> };
   fn.done = vi.fn();
@@ -21,6 +23,11 @@ vi.mock( 'log-update', () => {
 describe( 'docker service', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    vi.mocked( spawn ).mockReturnValue( mockChildProcess( {
+      on: vi.fn(),
+      stdout: { on: vi.fn() },
+      stderr: { on: vi.fn() }
+    } ) );
   } );
 
   afterEach( () => {
@@ -106,7 +113,12 @@ describe( 'docker service', () => {
 
       expect( execFileSync ).toHaveBeenCalledWith(
         'docker',
-        [ 'compose', '-f', '/path/to/docker-compose.yml', '--project-name', 'output-sdk', 'ps', '--all', '--format', 'json' ],
+        [
+          'compose', '-f', '/path/to/docker-compose.yml',
+          '--project-directory', process.cwd(),
+          '--project-name', 'output-sdk',
+          'ps', '--all', '--format', 'json'
+        ],
         expect.objectContaining( { encoding: 'utf-8' } )
       );
     } );
@@ -132,7 +144,7 @@ describe( 'docker service', () => {
 
   describe( 'startDockerCompose', () => {
     it( 'should pass --project-name to docker compose up', async () => {
-      await startDockerCompose( '/path/to/docker-compose.yml' );
+      await startDockerCompose( { dockerComposePath: '/path/to/docker-compose.yml' } );
       expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
@@ -146,7 +158,7 @@ describe( 'docker service', () => {
     } );
 
     it( 'should append --pull when pullPolicy is provided', async () => {
-      await startDockerCompose( '/path/to/docker-compose.yml', 'always' );
+      await startDockerCompose( { dockerComposePath: '/path/to/docker-compose.yml', pullPolicy: 'always' } );
       expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
@@ -157,6 +169,63 @@ describe( 'docker service', () => {
         ],
         expect.objectContaining( { stdio: [ 'ignore', 'pipe', 'pipe' ], cwd: process.cwd() } )
       );
+    } );
+
+    it( 'should attach docker process handlers and pass captured output', async () => {
+      const onError = vi.fn();
+      const onExit = vi.fn();
+      const processHandlers: {
+        error?: ( error: Error ) => void;
+        exit?: ( code: number | null, signal: NodeJS.Signals | null ) => void;
+      } = {};
+      const streamHandlers: {
+        stdout?: ( chunk: Buffer ) => void;
+        stderr?: ( chunk: Buffer ) => void;
+      } = {};
+      const process = {
+        on: vi.fn( ( event: 'error' | 'exit',
+          handler: ( ( error: Error ) => void ) | ( ( code: number | null, signal: NodeJS.Signals | null ) => void ) ) => {
+          if ( event === 'error' ) {
+            processHandlers.error = handler as ( error: Error ) => void;
+          } else {
+            processHandlers.exit = handler as ( code: number | null, signal: NodeJS.Signals | null ) => void;
+          }
+          return process;
+        } ),
+        stdout: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            streamHandlers.stdout = handler;
+            return process.stdout;
+          } )
+        },
+        stderr: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            streamHandlers.stderr = handler;
+            return process.stderr;
+          } )
+        }
+      };
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( process ) );
+
+      const dockerProcess = await startDockerCompose( {
+        dockerComposePath: '/path/to/docker-compose.yml',
+        pullPolicy: 'always',
+        onError,
+        onExit
+      } );
+
+      expect( dockerProcess.on ).toHaveBeenCalledWith( 'error', expect.any( Function ) );
+      expect( dockerProcess.on ).toHaveBeenCalledWith( 'exit', expect.any( Function ) );
+
+      streamHandlers.stdout?.( Buffer.from( 'starting services\n' ) );
+      streamHandlers.stderr?.( Buffer.from( 'compose failed\n' ) );
+      const error = new Error( 'Docker failed' );
+
+      processHandlers.error?.( error );
+      processHandlers.exit?.( 1, null );
+
+      expect( onError ).toHaveBeenCalledWith( error, 'starting services\ncompose failed' );
+      expect( onExit ).toHaveBeenCalledWith( 1, null, 'starting services\ncompose failed' );
     } );
   } );
 
@@ -252,6 +321,10 @@ describe( 'docker service', () => {
 
     it( 'should return false for an exited service with health: unhealthy', () => {
       expect( isServiceHealthy( { name: 'worker', state: 'exited', health: 'unhealthy', ports: [] } ) ).toBe( false );
+    } );
+
+    it( 'should return false for a created service with no health check', () => {
+      expect( isServiceHealthy( { name: 'api', state: 'created', health: 'none', ports: [] } ) ).toBe( false );
     } );
 
     it( 'should return false for a service with health: starting', () => {

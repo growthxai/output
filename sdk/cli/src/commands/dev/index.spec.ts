@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs/promises';
+import type { ChildProcess } from 'node:child_process';
+import { render } from 'ink';
 import * as dockerService from '#services/docker.js';
 import * as codingAgentsService from '#services/coding_agents.js';
 import Dev from './index.js';
@@ -52,14 +55,43 @@ vi.mock( '#views/dev/dev_app.js', () => ( {
   DevApp: () => null
 } ) );
 
-const createMockDockerProcess = (): dockerService.DockerComposeProcess => ( {
-  process: {
-    on: vi.fn(),
-    kill: vi.fn(),
-    stdout: { on: vi.fn() },
-    stderr: { on: vi.fn() }
-  } as any
-} );
+const createMockDockerProcess = (): ChildProcess => ( {
+  on: vi.fn(),
+  kill: vi.fn(),
+  stdout: { on: vi.fn() },
+  stderr: { on: vi.fn() }
+} as any );
+
+const getStartDockerComposeOptions = (): dockerService.StartDockerComposeOptions => {
+  const options = vi.mocked( dockerService.startDockerCompose ).mock.calls.at( -1 )?.[0];
+  if ( !options ) {
+    throw new Error( 'Expected startDockerCompose to receive options' );
+  }
+  return options;
+};
+
+const createControllableInkInstance = () => {
+  const deferred: {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: ( reason?: unknown ) => void;
+  } = {} as any;
+  deferred.promise = new Promise<void>( ( resolve, reject ) => {
+    deferred.resolve = resolve;
+    deferred.reject = reject;
+  } );
+  const instance = {
+    waitUntilExit: vi.fn( () => deferred.promise ),
+    unmount: vi.fn( ( error?: Error ) => {
+      if ( error ) {
+        deferred.reject( error );
+        return;
+      }
+      deferred.resolve();
+    } )
+  };
+  return instance;
+};
 
 describe( 'dev command', () => {
   beforeEach( () => {
@@ -225,8 +257,12 @@ describe( 'dev command', () => {
       await new Promise( resolve => setImmediate( resolve ) );
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
-        '/path/to/docker-compose-dev.yml',
-        'always' // default pull policy
+        expect.objectContaining( {
+          dockerComposePath: '/path/to/docker-compose-dev.yml',
+          pullPolicy: 'always',
+          onError: expect.any( Function ),
+          onExit: expect.any( Function )
+        } )
       );
 
       // Cancel the promise (it will be rejected but we don't care)
@@ -260,6 +296,68 @@ describe( 'dev command', () => {
 
       expect( cmd.error ).toHaveBeenCalledWith( 'Docker error', { exit: 1 } );
     } );
+
+    it( 'should surface docker compose exit failures with recent output', async () => {
+      const dockerProcess = createMockDockerProcess();
+      vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( dockerProcess );
+      const inkInstance = createControllableInkInstance();
+      vi.mocked( render ).mockReturnValue( inkInstance as any );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      const runPromise = cmd.run();
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      getStartDockerComposeOptions().onExit?.( 1, null, 'failed to bind host port' );
+      await runPromise;
+
+      expect( inkInstance.unmount ).toHaveBeenCalledWith( expect.objectContaining( {
+        message: expect.stringContaining( 'Docker compose exited with code 1' )
+      } ) );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Recent Docker output:\nfailed to bind host port' ),
+        { exit: 1 }
+      );
+    } );
+
+    it( 'should ignore docker compose exits triggered by cleanup', async () => {
+      const dockerProcess = createMockDockerProcess();
+      vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( dockerProcess );
+      const inkInstance = createControllableInkInstance();
+      vi.mocked( render ).mockReturnValue( inkInstance as any );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      const runPromise = cmd.run();
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      const appElement = vi.mocked( render ).mock.calls[0]?.[0];
+      if ( !React.isValidElement<{ onCleanup: () => Promise<void> }>( appElement ) ) {
+        throw new Error( 'Expected render to receive a React element' );
+      }
+      const appProps = appElement.props;
+      await appProps.onCleanup();
+      getStartDockerComposeOptions().onExit?.( null, 'SIGTERM', 'compose stopped' );
+      inkInstance.unmount();
+      await runPromise;
+
+      expect( inkInstance.unmount ).not.toHaveBeenCalledWith( expect.any( Error ) );
+      expect( cmd.error ).not.toHaveBeenCalled();
+    } );
   } );
 
   describe( 'image pull policy', () => {
@@ -281,8 +379,12 @@ describe( 'dev command', () => {
       await new Promise( resolve => setImmediate( resolve ) );
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
-        '/path/to/docker-compose-dev.yml',
-        'missing'
+        expect.objectContaining( {
+          dockerComposePath: '/path/to/docker-compose-dev.yml',
+          pullPolicy: 'missing',
+          onError: expect.any( Function ),
+          onExit: expect.any( Function )
+        } )
       );
 
       // Cancel the promise (it will be rejected but we don't care)
@@ -307,8 +409,12 @@ describe( 'dev command', () => {
       await new Promise( resolve => setImmediate( resolve ) );
 
       expect( dockerService.startDockerCompose ).toHaveBeenCalledWith(
-        '/path/to/docker-compose-dev.yml',
-        'never'
+        expect.objectContaining( {
+          dockerComposePath: '/path/to/docker-compose-dev.yml',
+          pullPolicy: 'never',
+          onError: expect.any( Function ),
+          onExit: expect.any( Function )
+        } )
       );
 
       // Cancel the promise (it will be rejected but we don't care)
