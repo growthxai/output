@@ -16,6 +16,7 @@ export const SERVICE_HEALTH = {
 
 export const SERVICE_STATE = {
   RUNNING: 'running',
+  CREATED: 'created',
   EXITED: 'exited'
 } as const;
 
@@ -144,7 +145,13 @@ export function parseServiceStatus( jsonOutput: string ): ServiceStatus[] {
 export async function getServiceStatus( dockerComposePath: string ): Promise<ServiceStatus[]> {
   const result = execFileSync(
     'docker',
-    [ 'compose', '-f', dockerComposePath, '--project-name', config.dockerServiceName, 'ps', '--all', '--format', 'json' ],
+    [
+      'compose',
+      '-f', dockerComposePath,
+      '--project-directory', process.cwd(),
+      '--project-name', config.dockerServiceName,
+      'ps', '--all', '--format', 'json'
+    ],
     { encoding: 'utf-8', cwd: process.cwd() }
   );
 
@@ -152,7 +159,7 @@ export async function getServiceStatus( dockerComposePath: string ): Promise<Ser
 }
 
 export function isServiceHealthy( service: ServiceStatus ): boolean {
-  return service.state !== SERVICE_STATE.EXITED &&
+  return service.state === SERVICE_STATE.RUNNING &&
     ( service.health === SERVICE_HEALTH.HEALTHY || service.health === SERVICE_HEALTH.NONE );
 }
 
@@ -180,16 +187,24 @@ export async function waitForServicesHealthy(
   throw new Error( 'Timeout waiting for services to become healthy' );
 }
 
-export interface DockerComposeProcess {
-  process: ChildProcess;
+export interface DockerComposeHandlers {
+  onError?: ( error: Error, output: string ) => void;
+  onExit?: ( code: number | null, signal: NodeJS.Signals | null, output: string ) => void;
 }
 
 export type PullPolicy = 'always' | 'missing' | 'never';
 
-export async function startDockerCompose(
-  dockerComposePath: string,
-  pullPolicy?: PullPolicy
-): Promise<DockerComposeProcess> {
+export interface StartDockerComposeOptions extends DockerComposeHandlers {
+  dockerComposePath: string;
+  pullPolicy?: PullPolicy;
+}
+
+export async function startDockerCompose( {
+  dockerComposePath,
+  pullPolicy,
+  onError,
+  onExit
+}: StartDockerComposeOptions ): Promise<ChildProcess> {
   const args = [
     'compose',
     '-f', dockerComposePath,
@@ -202,12 +217,30 @@ export async function startDockerCompose(
     args.push( '--pull', pullPolicy );
   }
 
+  const output = {
+    value: ''
+  };
+  const appendOutput = ( chunk: Buffer ): void => {
+    output.value = `${output.value}${chunk.toString()}`.slice( -20000 ).trimStart();
+  };
+
   const dockerProcess = spawn( 'docker', args, {
     cwd: process.cwd(),
+    // The Ink dev UI owns the terminal. Drain compose output so Docker cannot
+    // block on a full pipe, while keeping recent output for startup failures.
     stdio: [ 'ignore', 'pipe', 'pipe' ]
   } );
 
-  return { process: dockerProcess };
+  dockerProcess.stdout?.on( 'data', appendOutput );
+  dockerProcess.stderr?.on( 'data', appendOutput );
+  if ( onError ) {
+    dockerProcess.on( 'error', error => onError( error, output.value.trimEnd() ) );
+  }
+  if ( onExit ) {
+    dockerProcess.on( 'exit', ( code, signal ) => onExit( code, signal, output.value.trimEnd() ) );
+  }
+
+  return dockerProcess;
 }
 
 export function startDockerComposeDetached(

@@ -85,7 +85,12 @@ export default class Dev extends Command {
       return;
     }
 
+    const state = {
+      cleaningUp: false
+    };
+
     const cleanup = async () => {
+      state.cleaningUp = true;
       this.log( '\n' );
       if ( this.dockerProcess ) {
         this.dockerProcess.kill( 'SIGTERM' );
@@ -142,13 +147,6 @@ export default class Dev extends Command {
     process.on( 'SIGTERM', handleSignal );
 
     try {
-      const { process: dockerProc } = await startDockerCompose(
-        dockerComposePath,
-        pullPolicy
-      );
-
-      this.dockerProcess = dockerProc;
-
       enterAltScreen();
 
       const instance = render(
@@ -157,13 +155,33 @@ export default class Dev extends Command {
       );
       instanceRef.current = instance;
 
-      dockerProc.on( 'error', error => {
-        instance.unmount( new Error( `Docker process error: ${getErrorMessage( error )}` ) );
+      const dockerProc = await startDockerCompose( {
+        dockerComposePath,
+        pullPolicy,
+        onError: error => {
+          instance.unmount( new Error( `Docker process error: ${getErrorMessage( error )}` ) );
+        },
+        onExit: ( code, signal, output ) => {
+          if ( state.cleaningUp ) {
+            return;
+          }
+          if ( code === 0 ) {
+            instance.unmount();
+            return;
+          }
+
+          const exitReason = signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`;
+          const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
+          instance.unmount( new Error( `Docker compose exited with ${exitReason}.${detail}` ) );
+        }
       } );
+
+      this.dockerProcess = dockerProc;
 
       await instance.waitUntilExit();
       exitAltScreenOnce();
     } catch ( error ) {
+      instanceRef.current?.unmount();
       exitAltScreenOnce();
       this.error( getErrorMessage( error ), { exit: 1 } );
     }
