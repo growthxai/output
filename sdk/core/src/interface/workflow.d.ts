@@ -139,9 +139,9 @@ export type WorkflowFunction<
  */
 export type WorkflowFunctionWrapper<WorkflowFunction> =
   [Parameters<WorkflowFunction>[0]] extends [undefined | null] ?
-    ( input?: undefined | null, config?: WorkflowInvocationConfiguration<Parameters<WorkflowFunction>[1]> ) =>
+    ( input?: undefined | null, config?: WorkflowInvocationConfiguration ) =>
     ReturnType<WorkflowFunction> :
-    ( input: Parameters<WorkflowFunction>[0], config?: WorkflowInvocationConfiguration<Parameters<WorkflowFunction>[1]> ) =>
+    ( input: Parameters<WorkflowFunction>[0], config?: WorkflowInvocationConfiguration ) =>
     ReturnType<WorkflowFunction>;
 
 /**
