@@ -196,7 +196,7 @@ const Shell: React.FC<{
         )}
         {ui.tab === 'help' && !ui.runModal.open && <HelpPanel />}
 
-        {ui.runModal.open && <RunModal workflowName={ui.runModal.workflowName} />}
+        {ui.runModal.open && <RunModal workflowName={ui.runModal.workflowName} workflowPath={ui.runModal.workflowPath} />}
       </Box>
     </Box>
   );
