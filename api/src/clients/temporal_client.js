@@ -1,4 +1,4 @@
-import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
+import { Client, Connection, defaultPayloadConverter, isGrpcCancelledError } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowId, extractTraceInfo, extractErrorMessage, takeFromAsyncIterable } from '#utils';
 import { logger } from '#logger';
@@ -12,7 +12,7 @@ import {
   StepNotCompletedError,
   InvalidPageTokenError
 } from './errors.js';
-import { EventType } from './event_types.js';
+import { EventType, EventTypeName } from './event_types.js';
 import { decodeEventPayloads, serializeEvent } from './event_serialization.js';
 
 const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
@@ -77,6 +77,22 @@ const TERMINAL_STATUS_CODES = new Set( Object.values( TemporalStatus ) );
 // Subset of gRPC status codes from @grpc/grpc-js (transitive through @temporalio/client).
 // See https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
 const GrpcStatus = { INVALID_ARGUMENT: 3, NOT_FOUND: 5 };
+
+export const TERMINAL_EVENT_TYPES = new Set( [
+  EventType.WORKFLOW_EXECUTION_COMPLETED,
+  EventType.WORKFLOW_EXECUTION_FAILED,
+  EventType.WORKFLOW_EXECUTION_TIMED_OUT,
+  EventType.WORKFLOW_EXECUTION_CANCELED,
+  EventType.WORKFLOW_EXECUTION_TERMINATED,
+  EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW
+] );
+
+const NEW_RUN_ID_ATTRS = {
+  [EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW]: 'workflowExecutionContinuedAsNewEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_COMPLETED]: 'workflowExecutionCompletedEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_FAILED]: 'workflowExecutionFailedEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_TIMED_OUT]: 'workflowExecutionTimedOutEventAttributes'
+};
 
 /**
  * Resolves a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
@@ -598,6 +614,147 @@ export default {
           runId: metadata.resolvedRunId,
           nextPageToken
         };
+      },
+
+      async *streamWorkflowHistory( workflowId, { runId, includePayloads = false, lastEventId, abortSignal } = {} ) {
+        const handle = client.workflow.getHandle( workflowId, runId );
+        const description = await connection.withAbortSignal( abortSignal, () => handle.describe() ).catch( error => {
+          if ( error?.code === GrpcStatus.NOT_FOUND ) {
+            throw new WorkflowNotFoundError( runId ?
+              `Run "${runId}" not found for workflow "${workflowId}"` :
+              `Workflow "${workflowId}" not found`
+            );
+          }
+          error.workflowId = workflowId;
+          throw error;
+        } );
+
+        const resolvedRunId = description.runId;
+        if ( !resolvedRunId ) {
+          throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+        }
+        const workflowStatus = description.status.code;
+        const historyLength = description.historyLength;
+
+        const workflow = {
+          workflowId,
+          runId: resolvedRunId,
+          status: mapWorkflowStatus( description.status.name ),
+          startTime: description.startTime?.toISOString() ?? null,
+          closeTime: description.closeTime?.toISOString() ?? null,
+          historyLength,
+          taskQueue: description.taskQueue
+        };
+        yield { type: 'workflow', workflow };
+
+        if ( lastEventId !== undefined && TERMINAL_STATUS_CODES.has( workflowStatus ) && lastEventId >= historyLength ) {
+          yield { type: 'done', reason: `WORKFLOW_EXECUTION_${description.status.name}` };
+          return;
+        }
+
+        const normalizeEventType = event => (
+          typeof event.eventType === 'object' ?
+            Number( event.eventType.toString() ) :
+            event.eventType
+        );
+        const processEvent = event => serializeEvent(
+          includePayloads ? decodeEventPayloads( event ) : event,
+          { includePayloads }
+        );
+
+        const state = {
+          nextPageToken: undefined,
+          filterEventId: lastEventId,
+          sawTerminalEvent: false,
+          sawTerminalReason: undefined,
+          sawTerminalNewRunId: undefined
+        };
+
+        while ( true ) {
+          const response = await connection.withAbortSignal( abortSignal, () =>
+            connection.workflowService.getWorkflowExecutionHistory( {
+              namespace,
+              execution: { workflowId, runId: resolvedRunId },
+              maximumPageSize: 50,
+              nextPageToken: state.nextPageToken,
+              waitNewEvent: true
+            } )
+          ).catch( error => {
+            if ( isGrpcCancelledError( error ) ) {
+              return null;
+            }
+            throw error;
+          } );
+
+          if ( response === null ) {
+            return;
+          }
+
+          state.nextPageToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
+          const rawEvents = response.history?.events || [];
+
+          const terminalEvent = rawEvents.find( event => TERMINAL_EVENT_TYPES.has( normalizeEventType( event ) ) );
+
+          if ( terminalEvent && !state.sawTerminalEvent ) {
+            const eventType = normalizeEventType( terminalEvent );
+            const attrKey = NEW_RUN_ID_ATTRS[eventType];
+            state.sawTerminalEvent = true;
+            state.sawTerminalReason = EventTypeName[eventType];
+            state.sawTerminalNewRunId = attrKey ? terminalEvent[attrKey]?.newExecutionRunId || undefined : undefined;
+          }
+
+          const batch = rawEvents
+            .filter( event => {
+              const eventId = Number( event.eventId?.toString() ?? 0 );
+              return state.filterEventId === undefined || eventId > state.filterEventId;
+            } )
+            .map( processEvent );
+
+          if ( batch.length > 0 ) {
+            const lastSerializedId = Number( batch[batch.length - 1].eventId );
+            yield { type: 'events', events: batch, lastEventId: lastSerializedId };
+            state.filterEventId = undefined;
+          }
+
+          // Replay complete: all pages drained, terminal event was filtered out
+          if ( !state.nextPageToken && state.filterEventId !== undefined && state.sawTerminalEvent ) {
+            yield { type: 'done', reason: state.sawTerminalReason, newRunId: state.sawTerminalNewRunId };
+            return;
+          }
+
+          if ( terminalEvent ) {
+            while ( state.nextPageToken ) {
+              const drainResponse = await connection.withAbortSignal( abortSignal, () =>
+                connection.workflowService.getWorkflowExecutionHistory( {
+                  namespace,
+                  execution: { workflowId, runId: resolvedRunId },
+                  maximumPageSize: 50,
+                  nextPageToken: state.nextPageToken
+                } )
+              ).catch( error => {
+                if ( isGrpcCancelledError( error ) ) {
+                  return null;
+                }
+                throw error;
+              } );
+
+              if ( drainResponse === null ) {
+                return;
+              }
+
+              state.nextPageToken = drainResponse.nextPageToken?.length ? drainResponse.nextPageToken : undefined;
+              const drainEvents = drainResponse.history?.events || [];
+              if ( drainEvents.length > 0 ) {
+                const drainBatch = drainEvents.map( processEvent );
+                const drainLastId = Number( drainBatch[drainBatch.length - 1].eventId );
+                yield { type: 'events', events: drainBatch, lastEventId: drainLastId };
+              }
+            }
+
+            yield { type: 'done', reason: state.sawTerminalReason, newRunId: state.sawTerminalNewRunId };
+            return;
+          }
+        }
       },
 
       /**

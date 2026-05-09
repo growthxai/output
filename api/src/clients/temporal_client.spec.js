@@ -8,7 +8,7 @@ import {
   InvalidPageTokenError
 }
   from './errors.js';
-import { resolveResetEventId, extractWorkflowInput } from './temporal_client.js';
+import { resolveResetEventId, extractWorkflowInput, TERMINAL_EVENT_TYPES } from './temporal_client.js';
 
 const {
   mockDescribe,
@@ -23,6 +23,8 @@ const {
   mockTerminate,
   mockResetWorkflowExecution,
   mockGetWorkflowExecutionHistory,
+  mockWithAbortSignal,
+  mockIsGrpcCancelledError,
   mockLoggerInfo,
   mockLoggerError,
   mockLoggerWarn,
@@ -40,6 +42,8 @@ const {
   const mockTerminate = vi.fn();
   const mockResetWorkflowExecution = vi.fn();
   const mockGetWorkflowExecutionHistory = vi.fn();
+  const mockWithAbortSignal = vi.fn( async ( _signal, fn ) => fn() );
+  const mockIsGrpcCancelledError = vi.fn( err => err?._cancelled === true );
   const mockLoggerInfo = vi.fn();
   const mockLoggerError = vi.fn();
   const mockLoggerWarn = vi.fn();
@@ -66,6 +70,8 @@ const {
     mockTerminate,
     mockResetWorkflowExecution,
     mockGetWorkflowExecutionHistory,
+    mockWithAbortSignal,
+    mockIsGrpcCancelledError,
     mockLoggerInfo,
     mockLoggerError,
     mockLoggerWarn,
@@ -95,7 +101,8 @@ vi.mock( '@temporalio/client', () => ( {
       this.name = 'WorkflowNotFoundError';
     }
   },
-  WorkflowFailedError: MockWorkflowFailedError
+  WorkflowFailedError: MockWorkflowFailedError,
+  isGrpcCancelledError: mockIsGrpcCancelledError
 } ) );
 
 vi.mock( '#configs', () => ( {
@@ -143,6 +150,7 @@ describe( 'temporal_client', () => {
         resetWorkflowExecution: mockResetWorkflowExecution,
         getWorkflowExecutionHistory: mockGetWorkflowExecutionHistory
       },
+      withAbortSignal: mockWithAbortSignal,
       close: vi.fn()
     } );
     mockFetchHistory.mockResolvedValue( { events: [] } );
@@ -1253,6 +1261,260 @@ describe( 'temporal_client', () => {
       await client.listWorkflowRuns();
 
       expect( mockList ).toHaveBeenCalledWith( { query: undefined } );
+    } );
+  } );
+
+  describe( 'streamWorkflowHistory', () => {
+    const baseDescription = {
+      runId: 'run-abc',
+      status: { code: 1, name: 'RUNNING' },
+      startTime: new Date( '2024-04-15T12:00:00.000Z' ),
+      closeTime: null,
+      historyLength: 10,
+      taskQueue: 'default'
+    };
+
+    const makeEvent = ( eventId, eventType, extra = {} ) => ( {
+      eventId,
+      eventType,
+      eventTime: { seconds: 1713182400, nanos: 0 },
+      ...extra
+    } );
+
+    const collectStream = async gen => {
+      const chunks = [];
+      for await ( const chunk of gen ) {
+        chunks.push( chunk );
+      }
+      return chunks;
+    };
+
+    it( 'yields workflow metadata from describe', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const gen = client.streamWorkflowHistory( 'wf-1' );
+
+      const first = await gen.next();
+      expect( first.value.type ).toBe( 'workflow' );
+      expect( first.value.workflow ).toMatchObject( {
+        workflowId: 'wf-1',
+        runId: 'run-abc',
+        status: 'running',
+        historyLength: 10,
+        taskQueue: 'default'
+      } );
+    } );
+
+    it( 'yields events in batches and ends with done on terminal event', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
+
+      expect( chunks[0].type ).toBe( 'workflow' );
+      expect( chunks[1].type ).toBe( 'events' );
+      expect( chunks[1].events ).toHaveLength( 2 );
+      expect( chunks[1].lastEventId ).toBe( 2 );
+      expect( chunks[2] ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED', newRunId: undefined } );
+    } );
+
+    it( 'filters events by lastEventId on reconnect', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 1 ), makeEvent( 3, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1', { lastEventId: 2 } ) );
+
+      const eventChunk = chunks.find( c => c.type === 'events' );
+      expect( eventChunk.events ).toHaveLength( 1 );
+      expect( Number( eventChunk.events[0].eventId ) ).toBe( 3 );
+    } );
+
+    it( 'skips empty batches when all events are filtered by lastEventId', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory
+        .mockResolvedValueOnce( {
+          history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 1 ) ] },
+          nextPageToken: Buffer.from( 'token' )
+        } )
+        .mockResolvedValueOnce( {
+          history: { events: [ makeEvent( 3, 2 ) ] },
+          nextPageToken: undefined
+        } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1', { lastEventId: 2 } ) );
+
+      const eventChunks = chunks.filter( c => c.type === 'events' );
+      expect( eventChunks ).toHaveLength( 1 );
+      expect( Number( eventChunks[0].events[0].eventId ) ).toBe( 3 );
+    } );
+
+    it( 'drains nextPageToken pages before yielding done', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory
+        .mockResolvedValueOnce( {
+          history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 2 ) ] },
+          nextPageToken: Buffer.from( 'token' )
+        } )
+        .mockResolvedValueOnce( {
+          history: { events: [ makeEvent( 3, 7 ) ] },
+          nextPageToken: undefined
+        } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
+
+      const eventChunks = chunks.filter( c => c.type === 'events' );
+      expect( eventChunks ).toHaveLength( 2 );
+      const done = chunks.find( c => c.type === 'done' );
+      expect( done.reason ).toBe( 'WORKFLOW_EXECUTION_COMPLETED' );
+    } );
+
+    it( 'extracts newRunId for CONTINUED_AS_NEW', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: {
+          events: [ makeEvent( 1, 28, {
+            workflowExecutionContinuedAsNewEventAttributes: { newExecutionRunId: 'new-run-xyz' }
+          } ) ]
+        },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
+
+      const done = chunks.find( c => c.type === 'done' );
+      expect( done ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW', newRunId: 'new-run-xyz' } );
+    } );
+
+    it( 'exits silently on abort (gRPC CANCELLED)', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      const cancelledError = Object.assign( new Error( 'Cancelled' ), { _cancelled: true } );
+      mockGetWorkflowExecutionHistory.mockRejectedValue( cancelledError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
+
+      expect( chunks ).toHaveLength( 1 );
+      expect( chunks[0].type ).toBe( 'workflow' );
+    } );
+
+    it( 'throws non-cancelled gRPC errors', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      const grpcError = new Error( 'Unavailable' );
+      mockGetWorkflowExecutionHistory.mockRejectedValue( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( collectStream( client.streamWorkflowHistory( 'wf-1' ) ) )
+        .rejects
+        .toThrow( 'Unavailable' );
+    } );
+
+    it( 're-issues waitNewEvent after empty response (timeout)', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory
+        .mockResolvedValueOnce( { history: { events: [] }, nextPageToken: undefined } )
+        .mockResolvedValueOnce( { history: { events: [ makeEvent( 1, 2 ) ] }, nextPageToken: undefined } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledTimes( 2 );
+      expect( chunks.find( c => c.type === 'done' ) ).toBeDefined();
+    } );
+
+    it( 'wraps gRPC calls with abortSignal via connection.withAbortSignal', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+      const ctrl = new AbortController();
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await collectStream( client.streamWorkflowHistory( 'wf-1', { abortSignal: ctrl.signal } ) );
+
+      expect( mockWithAbortSignal ).toHaveBeenCalledWith( ctrl.signal, expect.any( Function ) );
+    } );
+
+    it( 'translates gRPC NOT_FOUND on describe to WorkflowNotFoundError', async () => {
+      const notFoundError = Object.assign( new Error( 'Not found' ), { code: 5 } );
+      mockDescribe.mockRejectedValue( notFoundError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.streamWorkflowHistory( 'wf-missing' ).next() )
+        .rejects
+        .toMatchObject( { name: 'WorkflowNotFoundError' } );
+    } );
+
+    it( 'yields done when terminal event was filtered by lastEventId (replay complete)', async () => {
+      mockDescribe.mockResolvedValue( baseDescription );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      // lastEventId=2 filters out both events (including the terminal COMPLETED); should still get done
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1', { lastEventId: 2 } ) );
+
+      const done = chunks.find( c => c.type === 'done' );
+      expect( done ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED', newRunId: undefined } );
+    } );
+
+    it( 'fast-path: yields done immediately when status is terminal and lastEventId >= historyLength', async () => {
+      mockDescribe.mockResolvedValue( {
+        ...baseDescription,
+        status: { code: 2, name: 'COMPLETED' },
+        historyLength: 5
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1', { lastEventId: 5 } ) );
+
+      expect( mockGetWorkflowExecutionHistory ).not.toHaveBeenCalled();
+      expect( chunks ).toHaveLength( 2 );
+      expect( chunks[0].type ).toBe( 'workflow' );
+      expect( chunks[1] ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' } );
+    } );
+
+    it( 'TERMINAL_EVENT_TYPES contains the expected six event type values', () => {
+      expect( TERMINAL_EVENT_TYPES ).toBeInstanceOf( Set );
+      expect( TERMINAL_EVENT_TYPES.has( 2 ) ).toBe( true ); // COMPLETED
+      expect( TERMINAL_EVENT_TYPES.has( 3 ) ).toBe( true ); // FAILED
+      expect( TERMINAL_EVENT_TYPES.has( 4 ) ).toBe( true ); // TIMED_OUT
+      expect( TERMINAL_EVENT_TYPES.has( 21 ) ).toBe( true ); // CANCELED
+      expect( TERMINAL_EVENT_TYPES.has( 27 ) ).toBe( true ); // TERMINATED
+      expect( TERMINAL_EVENT_TYPES.has( 28 ) ).toBe( true ); // CONTINUED_AS_NEW
     } );
   } );
 } );
