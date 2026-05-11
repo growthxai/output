@@ -4,6 +4,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { load as parseYaml } from 'js-yaml';
 import { encrypt, decrypt, generateKey } from '@outputai/credentials';
+import {
+  initCredentials,
+  decryptCredentials,
+  writeEncrypted
+} from './credentials_service.js';
 
 describe( 'credentials service integration', () => {
   const tmpDir = fs.mkdtempSync( path.join( os.tmpdir(), 'output-creds-' ) );
@@ -82,5 +87,86 @@ describe( 'credentials service integration', () => {
       expect( parsed.anthropic.api_key ).toBe( 'sk-new-key-456' );
       expect( parsed.openai.api_key ).toBe( 'sk-openai-789' );
     } );
+  } );
+
+  // Reproduction: editing the dev credential must not touch the production
+  // credential. Reported as a partial bug report — these tests pin the
+  // cross-environment isolation invariant.
+  describe( 'multi-environment isolation', () => {
+    const withIsolatedProject = ( body: () => void ): void => {
+      const originalCwd = process.cwd();
+      const projectDir = fs.mkdtempSync( path.join( os.tmpdir(), 'output-creds-multi-env-' ) );
+      process.chdir( projectDir );
+      try {
+        body();
+      } finally {
+        process.chdir( originalCwd );
+        fs.rmSync( projectDir, { recursive: true, force: true } );
+      }
+    };
+
+    it( 'editing the development credential does not modify the production credential', () => withIsolatedProject( () => {
+      const prod = initCredentials( 'production' );
+      const dev = initCredentials( 'development' );
+
+      const prodKeyBefore = fs.readFileSync( prod.keyPath );
+      const prodCredBefore = fs.readFileSync( prod.credPath );
+      const devKeyBefore = fs.readFileSync( dev.keyPath );
+
+      writeEncrypted(
+        'development',
+        'anthropic:\n  api_key: sk-DEV-EDITED\nopenai:\n  api_key: sk-DEV-EDITED-2\n'
+      );
+
+      // Production must be byte-for-byte identical
+      expect( fs.readFileSync( prod.keyPath ).equals( prodKeyBefore ) ).toBe( true );
+      expect( fs.readFileSync( prod.credPath ).equals( prodCredBefore ) ).toBe( true );
+
+      // Dev key must not have been regenerated
+      expect( fs.readFileSync( dev.keyPath ).equals( devKeyBefore ) ).toBe( true );
+
+      // Dev credential should now contain the edited plaintext
+      expect( decryptCredentials( 'development' ) ).toContain( 'sk-DEV-EDITED' );
+
+      // Production credential should still be the original template (empty values)
+      const prodPlain = decryptCredentials( 'production' );
+      const prodParsed = parseYaml( prodPlain ) as Record<string, Record<string, string>>;
+      expect( prodParsed.anthropic.api_key ).toBe( '' );
+      expect( prodParsed.openai.api_key ).toBe( '' );
+    } ) );
+
+    it( 'editing production does not bleed into development', () => withIsolatedProject( () => {
+      const prod = initCredentials( 'production' );
+      const dev = initCredentials( 'development' );
+
+      const devKeyBefore = fs.readFileSync( dev.keyPath );
+      const devCredBefore = fs.readFileSync( dev.credPath );
+
+      writeEncrypted(
+        'production',
+        'anthropic:\n  api_key: sk-PROD-EDITED\nopenai:\n  api_key: sk-PROD-EDITED-2\n'
+      );
+
+      expect( fs.readFileSync( dev.keyPath ).equals( devKeyBefore ) ).toBe( true );
+      expect( fs.readFileSync( dev.credPath ).equals( devCredBefore ) ).toBe( true );
+
+      expect( decryptCredentials( 'production' ) ).toContain( 'sk-PROD-EDITED' );
+      expect( decryptCredentials( 'development' ) ).not.toContain( 'sk-PROD-EDITED' );
+
+      // Sanity: prod and dev still resolved to different paths/keys
+      expect( prod.keyPath ).not.toBe( dev.keyPath );
+      expect( prod.credPath ).not.toBe( dev.credPath );
+    } ) );
+
+    it( 'initializing a second environment does not mutate the first', () => withIsolatedProject( () => {
+      const prod = initCredentials( 'production' );
+      const prodKeyBytes = fs.readFileSync( prod.keyPath );
+      const prodCredBytes = fs.readFileSync( prod.credPath );
+
+      initCredentials( 'development' );
+
+      expect( fs.readFileSync( prod.keyPath ).equals( prodKeyBytes ) ).toBe( true );
+      expect( fs.readFileSync( prod.credPath ).equals( prodCredBytes ) ).toBe( true );
+    } ) );
   } );
 } );

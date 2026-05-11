@@ -69,6 +69,14 @@ export default class CredentialsEdit extends Command {
       // Validate YAML before saving
       parseYaml( edited );
 
+      // AES-GCM uses a fresh nonce per encrypt, so re-encrypting unchanged
+      // plaintext produces a new ciphertext. Skip the write when nothing
+      // changed to avoid leaving the file dirty in git.
+      if ( edited === plaintext ) {
+        this.log( 'No changes detected. Credentials unchanged.' );
+        return;
+      }
+
       writeEncrypted( environment, edited, workflow );
       this.log( 'Credentials saved successfully.' );
     } finally {
