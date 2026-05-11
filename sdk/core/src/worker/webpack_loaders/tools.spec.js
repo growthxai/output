@@ -16,6 +16,7 @@ import {
   isEvaluatorsPath,
   isSharedEvaluatorsPath,
   isWorkflowPath,
+  isAbsoluteWorkflowJsResource,
   createThisMethodCall,
   resolveNameFromArg,
   resolveNameFromOptions,
@@ -189,6 +190,12 @@ describe( 'workflow_rewriter tools', () => {
     expect( isWorkflowPath( '/a/b/workflow.js' ) ).toBe( true );
     expect( isWorkflowPath( 'workflow.ts' ) ).toBe( false );
     expect( isWorkflowPath( 'steps.js' ) ).toBe( false );
+  } );
+
+  it( 'isAbsoluteWorkflowJsResource: normalizes slashes', () => {
+    expect( isAbsoluteWorkflowJsResource( '/a/b/workflow.js' ) ).toBe( true );
+    expect( isAbsoluteWorkflowJsResource( 'C:\\\\a\\\\workflow.js' ) ).toBe( true );
+    expect( isAbsoluteWorkflowJsResource( '/a/b/steps.js' ) ).toBe( false );
   } );
 
   it( 'isEvaluatorsPath: matches local evaluators.js but excludes shared', () => {

@@ -3,7 +3,14 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { EOL } from 'node:os';
 import { fileURLToPath } from 'url';
 import { getTraceDestinations, sendHttpRequest } from '#internal_activities';
-import { importComponents, staticMatchers, activityMatchersBuilder } from './loader_tools.js';
+import {
+  activityMatchersBuilder,
+  findSharedActivitiesFromWorkflows,
+  findWorkflowsInNodeModules,
+  importComponents,
+  matchFiles,
+  staticMatchers
+} from './loader_tools.js';
 import {
   ACTIVITY_SEND_HTTP_REQUEST,
   ACTIVITY_OPTIONS_FILENAME,
@@ -13,6 +20,7 @@ import {
   ACTIVITY_GET_TRACE_DESTINATIONS
 } from '#consts';
 import { createChildLogger } from '#logger';
+import { ValidationError } from '#errors';
 
 const log = createChildLogger( 'Scanner' );
 
@@ -64,23 +72,34 @@ export async function loadActivities( rootDir, workflows ) {
   const activityOptionsMap = {};
 
   // Load workflow based activities
-  for ( const { path: workflowPath, name: workflowName } of workflows ) {
+  for ( const { path: workflowPath, name: workflowName, external } of workflows ) {
     const dir = dirname( workflowPath );
-    for await ( const { fn, metadata, path } of importComponents( dir, Object.values( activityMatchersBuilder( dir ) ) ) ) {
-      log.info( 'Component loaded', { type: metadata.type, name: metadata.name, path, workflow: workflowName } );
+    for await ( const { fn, metadata, path } of importComponents( matchFiles( dir, Object.values( activityMatchersBuilder( dir ) ) ) ) ) {
+      log.info( 'Component loaded', { type: metadata.type, name: metadata.name, path, workflow: workflowName, ...( external && { external } ) } );
       // Activities loaded from a workflow path will use the workflow name as a namespace, which is unique across the platform, avoiding collision
       const activityKey = generateActivityKey( { namespace: workflowName, activityName: metadata.name } );
+      if ( activities[activityKey] ) {
+        throw new ValidationError( `Activity "${metadata.name}" in workflow "${workflowName}" conflicts with another \
+activity in the same workflow. Activity names must be unique within a workflow.` );
+      }
       activities[activityKey] = fn;
       // propagate the custom options set on the step()/evaluator() constructor
       activityOptionsMap[activityKey] = metadata.options?.activityOptions ?? undefined;
     }
   }
 
-  // Load shared activities/evaluators
-  for await ( const { fn, metadata, path } of importComponents( rootDir, [ staticMatchers.sharedStepsDir, staticMatchers.sharedEvaluatorsDir ] ) ) {
-    log.info( 'Shared component loaded', { type: metadata.type, name: metadata.name, path } );
-    // The namespace for shared activities is fixed
+  // Load shared activities/evaluators from local and external npm modules
+  const localSharedActivities = matchFiles( rootDir, [ staticMatchers.sharedStepsDir, staticMatchers.sharedEvaluatorsDir ] );
+  const externalSharedActivities = findSharedActivitiesFromWorkflows( workflows.filter( w => w.external ) );
+  for await ( const { fn, metadata, path } of importComponents( [ ...localSharedActivities, ...externalSharedActivities ] ) ) {
+    const external = externalSharedActivities.some( a => a.path === path );
+    log.info( 'Shared component loaded', { type: metadata.type, name: metadata.name, path, ...( external && { external } ) } );
+    // Reuses the same global namespace for shared activities
     const activityKey = generateActivityKey( { namespace: SHARED_STEP_PREFIX, activityName: metadata.name } );
+    if ( activities[activityKey] ) {
+      throw new ValidationError( `Shared activity "${metadata.name}" conflicts with another shared activity. \
+Shared activity names must be unique.` );
+    }
     activities[activityKey] = fn;
     activityOptionsMap[activityKey] = metadata.options?.activityOptions ?? undefined;
   }
@@ -103,19 +122,43 @@ export async function loadActivities( rootDir, workflows ) {
  * @returns {object[]}
  */
 export async function loadWorkflows( rootDir ) {
+  const workflowNames = new Set();
   const workflows = [];
-  for await ( const { metadata, path } of importComponents( rootDir, [ staticMatchers.workflowFile ] ) ) {
+  const localWorkflows = matchFiles( rootDir, [ staticMatchers.workflowFile ] );
+  const externalWorkflows = findWorkflowsInNodeModules( rootDir );
+  for await ( const { metadata, path } of importComponents( [ ...localWorkflows, ...externalWorkflows ] ) ) {
+    const external = externalWorkflows.some( a => a.path === path );
     if ( staticMatchers.workflowPathHasShared( path ) ) {
-      throw new Error( 'Workflow directory can\'t be named "shared"' );
+      throw new ValidationError( 'Workflow directory can\'t be named "shared"' );
     }
-    log.info( 'Workflow loaded', { name: metadata.name, path } );
-    workflows.push( { ...metadata, path } );
+    const { name, aliases } = metadata;
+    if ( workflowNames.has( name ) ) {
+      throw new ValidationError( `Workflow name "${name}" conflicts with another workflow or alias. \
+Workflow names and aliases must be unique.` );
+    }
+    if ( WORKFLOW_CATALOG === name ) {
+      throw new ValidationError( `Workflow name "${name}" is reserved for the internal catalog workflow.` );
+    }
+    workflowNames.add( name );
+    for ( const alias of aliases ?? [] ) {
+      if ( workflowNames.has( alias ) ) {
+        throw new ValidationError( `Workflow "${name}" alias "${alias}" conflicts with another workflow or alias. \
+Workflow names and aliases must be unique.` );
+      }
+      if ( WORKFLOW_CATALOG === alias ) {
+        throw new ValidationError( `Workflow "${name}" alias "${alias}" is reserved for the internal catalog workflow.` );
+      }
+      workflowNames.add( alias );
+    }
+
+    log.info( 'Workflow loaded', { name, path, aliases, ...( external && { external } ) } );
+    workflows.push( { ...metadata, path, external } );
   }
   return workflows;
 };
 
 /**
- * Loads the hook files from package.json's output config section.
+ * Loads the hook files from package.json's "outputai" section.
  *
  * @param {string} rootDir
  * @returns {void}
@@ -124,7 +167,12 @@ export async function loadHooks( rootDir ) {
   const packageFile = join( rootDir, 'package.json' );
   if ( existsSync( packageFile ) ) {
     const pkg = await import( packageFile, { with: { type: 'json' } } );
-    for ( const path of pkg.default.output?.hookFiles ?? [] ) {
+    const content = pkg.default;
+    const hooks = [];
+    // @DEPRECATED: "output" is the legacy namespace for configs, can be removed after couple version (this is being added in 0.3.x)
+    hooks.push( ...( content['output']?.hookFiles ?? [] ) );
+    hooks.push( ...( content['outputai']?.hookFiles ?? [] ) );
+    for ( const path of hooks ) {
       const hookFile = join( rootDir, path );
       await import( hookFile );
       log.info( 'Hook file loaded', { path } );
@@ -133,48 +181,12 @@ export async function loadHooks( rootDir ) {
 };
 
 /**
- * Validates that all workflow names and aliases are unique across the project.
- *
- * @param {object[]} workflows
- * @throws {Error} If any alias conflicts with a workflow name or another alias
- */
-function validateWorkflowNames( workflows ) {
-  const allNames = new Map();
-
-  // Register primary names (case-insensitive to prevent confusing collisions)
-  for ( const { name } of workflows ) {
-    allNames.set( name.toLowerCase(), `workflow "${name}"` );
-  }
-
-  // Check the reserved catalog name
-  allNames.set( WORKFLOW_CATALOG.toLowerCase(), 'system workflow "$catalog"' );
-
-  // Check aliases against all names
-  for ( const { name, aliases = [] } of workflows ) {
-    const lowerCaseName = name.toLowerCase();
-    for ( const alias of aliases ) {
-      const lowerAliasName = alias.toLowerCase();
-      if ( lowerAliasName === lowerCaseName ) {
-        throw new Error( `Workflow "${name}" has an alias identical to its own name` );
-      }
-      const conflict = allNames.get( lowerAliasName );
-      if ( conflict ) {
-        throw new Error( `Alias "${alias}" on workflow "${name}" conflicts with ${conflict}` );
-      }
-      allNames.set( lowerAliasName, `alias "${alias}" on workflow "${name}"` );
-    }
-  }
-}
-
-/**
  * Creates a temporary index file importing all workflows for Temporal.
  *
  * @param {object[]} workflows
  * @returns
  */
 export function createWorkflowsEntryPoint( workflows ) {
-  validateWorkflowNames( workflows );
-
   const path = join( __dirname, 'temp', WORKFLOWS_INDEX_FILENAME );
 
   // default system catalog workflow

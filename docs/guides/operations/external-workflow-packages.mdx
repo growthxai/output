@@ -1,0 +1,328 @@
+---
+title: "External Workflow Packages"
+description: "Publish workflows as npm packages and call them from local Output workflows"
+---
+
+External workflow packages let you share reusable workflows across projects. Publish a normal npm package that exposes Output workflows, install it in another Output project, and call those workflows from your local workflow code.
+
+This is useful for workflow catalogs, shared internal automations, or reusable domain-specific workflows that multiple teams call as child workflows.
+
+## What you'll build
+
+In this guide, we'll create an npm package with a post-call follow-up workflow, mark it as discoverable by Output, publish it, then install and call it from another project.
+
+## Package requirements
+
+An external workflow package should:
+
+- Follow the standard Output file conventions: `workflow.js`, `steps.js`, `evaluators.js`, `shared/steps/*.js`, `shared/evaluators/*.js`, and so on.
+- Export workflows from the package entry point using static ESM re-exports.
+- Set `outputai.workflows.expose` to `true` in `package.json`.
+- Publish JavaScript files. If the package is authored in TypeScript, build `.js` files and matching `.d.ts` files before publishing.
+- Declare `@outputai/core` as a peer dependency. If your declaration files import `zod`, declare `zod` too.
+
+## Step 1: Create the workflow package
+
+Create a package with the same shape as a regular Output project:
+
+```text
+sales-workflows/
+├── package.json
+└── src/
+    ├── index.ts
+    ├── shared/
+    │   └── steps/
+    │       └── normalize_transcript.ts
+    └── workflows/
+        └── post_call_followup/
+            ├── prompts/
+            │   └── draft_followup_email@v1.prompt
+            ├── steps.ts
+            └── workflow.ts
+```
+
+The workflow can call local child workflows, local steps, or package-level shared steps:
+
+```typescript src/workflows/post_call_followup/workflow.ts
+import { workflow, z } from '@outputai/core';
+import { normalizeTranscript } from '../../shared/steps/normalize_transcript.js';
+import { draftFollowUpEmail } from './steps.js';
+
+export default workflow({
+  name: 'acmePostCallFollowup',
+  description: 'Draft a follow-up email from a sales call transcript',
+  inputSchema: z.object({
+    transcript: z.string(),
+    accountName: z.string().optional()
+  }),
+  outputSchema: z.object({
+    subject: z.string(),
+    body: z.string(),
+    actionItems: z.array(z.string())
+  }),
+  fn: async (input) => {
+    const transcript = await normalizeTranscript(input.transcript);
+    return draftFollowUpEmail({
+      transcript,
+      accountName: input.accountName
+    });
+  }
+});
+```
+
+Workflow-specific steps stay next to the workflow:
+
+```typescript src/workflows/post_call_followup/steps.ts
+import { step, z } from '@outputai/core';
+import { generateText, Output } from '@outputai/llm';
+
+const followUpSchema = z.object({
+  subject: z.string(),
+  body: z.string(),
+  actionItems: z.array(z.string())
+});
+
+export const draftFollowUpEmail = step({
+  name: 'acmeDraftFollowUpEmail',
+  description: 'Draft a concise follow-up email and action item list',
+  inputSchema: z.object({
+    transcript: z.string(),
+    accountName: z.string().optional()
+  }),
+  outputSchema: followUpSchema,
+  fn: async ({ transcript, accountName }) => {
+    const { output } = await generateText({
+      prompt: 'draft_followup_email@v1',
+      variables: { transcript, accountName },
+      output: Output.object({ schema: followUpSchema })
+    });
+
+    return output;
+  }
+});
+```
+
+Shared activities live under `shared/steps` or `shared/evaluators` when more than one workflow in the package can use them:
+
+```typescript src/shared/steps/normalize_transcript.ts
+import { step, z } from '@outputai/core';
+
+export const normalizeTranscript = step({
+  name: 'acmeNormalizeTranscript',
+  description: 'Normalize whitespace in a call transcript',
+  inputSchema: z.string(),
+  outputSchema: z.string(),
+  fn: async (transcript) => transcript.replace(/\s+/g, ' ').trim()
+});
+```
+
+## Step 2: Export the workflow
+
+Export workflows from the package entry point with static ESM re-exports:
+
+```typescript src/index.ts
+export { default as postCallFollowup } from './workflows/post_call_followup/workflow.js';
+```
+
+Consumers import from this package entry point:
+
+```javascript
+import { postCallFollowup } from '@acme/sales-workflows';
+```
+
+Avoid namespace imports when calling workflows from a package:
+
+```javascript
+// Not supported
+import * as salesWorkflows from '@acme/sales-workflows';
+
+// Supported
+import { postCallFollowup } from '@acme/sales-workflows';
+```
+
+## Step 3: Mark the package as exposing workflows
+
+Add `outputai.workflows.expose` to `package.json`:
+
+```json package.json
+{
+  "name": "@acme/sales-workflows",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "@outputai/core": ">=0.2.0",
+    "@outputai/llm": ">=0.2.0",
+    "zod": "^4.3.0"
+  },
+  "outputai": {
+    "workflows": {
+      "expose": true
+    }
+  }
+}
+```
+
+This flag tells the Output worker that the package is intended to expose workflows for external discovery. Without it, the worker skips the package during automatic discovery.
+
+## Step 4: Build and publish
+
+If the package is written directly in JavaScript, make sure the published files are included in npm.
+
+If the package is written in TypeScript, compile it before publishing:
+
+```bash
+pnpm build
+pnpm publish
+```
+
+Your published package should contain runnable `.js` files. `.d.ts` files are strongly recommended so consumer projects get correct types.
+
+## Step 5: Install the package
+
+In the project that will call the external workflow:
+
+```bash
+pnpm add @acme/sales-workflows
+```
+
+Use your package manager of choice. The important part is that the package is installed in the workflow project's `node_modules`.
+
+## Step 6: Call the workflow directly through the API
+
+When the worker starts, it discovers exposed workflow packages, registers their workflows, and loads package-level shared activities. You can call an external workflow by its `name` without writing a local wrapper workflow.
+
+For example, the package above registers `acmePostCallFollowup`:
+
+```bash
+curl -X POST http://localhost:3001/workflow/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowName": "acmePostCallFollowup",
+    "input": {
+      "transcript": "Customer asked for pricing and implementation timeline.",
+      "accountName": "Acme Corp"
+    }
+  }'
+```
+
+This is useful for shared internal automations and workflow catalogs where consumers should not need to write local workflow code just to run a packaged workflow.
+
+## Step 7: Call from another workflow
+
+You can also import an external workflow and call it from local workflow code. Use this when the packaged workflow is one part of a larger local orchestration.
+
+Import the workflow from the npm package and call it inside your local workflow:
+
+```typescript src/workflows/customer_call_review/workflow.ts
+import { workflow, z } from '@outputai/core';
+import { postCallFollowup } from '@acme/sales-workflows';
+
+export default workflow({
+  name: 'customerCallReview',
+  description: 'Review a customer call and prepare the next follow-up',
+  inputSchema: z.object({
+    transcript: z.string(),
+    accountName: z.string()
+  }),
+  outputSchema: z.object({
+    followUpSubject: z.string(),
+    followUpBody: z.string(),
+    nextSteps: z.array(z.string())
+  }),
+  fn: async (input) => {
+    const followUp = await postCallFollowup({
+      transcript: input.transcript,
+      accountName: input.accountName
+    });
+
+    return {
+      followUpSubject: followUp.subject,
+      followUpBody: followUp.body,
+      nextSteps: followUp.actionItems
+    };
+  }
+});
+```
+
+Calls to imported workflows run as child workflows.
+
+## Caveats
+
+### Workflow names must be unique
+
+External workflow names share the same catalog as local workflow names. If two workflows use the same `name`, they collide.
+
+Choose stable, package-specific workflow names when publishing reusable workflows:
+
+```javascript
+workflow({
+  name: 'acmePostCallFollowup',
+  // ...
+});
+```
+
+### Shared activity names can collide
+
+Package-level shared steps and evaluators are registered in the same shared namespace as local shared activities. If two shared activities use the same `name`, the later registration can overwrite the earlier one.
+
+Use descriptive shared activity names for published packages:
+
+```javascript
+step({
+  name: 'acmeNormalizeTranscript',
+  // ...
+});
+```
+
+### Only exposed packages are auto-discovered
+
+The worker only scans packages with:
+
+```json
+{
+  "outputai": {
+    "workflows": {
+      "expose": true
+    }
+  }
+}
+```
+
+If a workflow import rewrites successfully but the package is not exposed, the workflow may fail at runtime with a "workflow does not exist" error because it was not discovered by the worker.
+
+### Use static ESM re-exports
+
+The worker resolves external workflow imports by statically following package entry point exports until it reaches `workflow.js` files. Use explicit ESM re-exports with relative paths:
+
+```javascript
+export { default as postCallFollowup } from './workflows/post_call_followup/workflow.js';
+export * from './workflows/renewal_reminder/workflow.js';
+```
+
+Dynamic exports, CommonJS re-exports, computed paths, and runtime export assembly are not supported for workflow discovery:
+
+```javascript
+// Not supported
+module.exports = { postCallFollowup };
+exports.postCallFollowup = require('./workflows/post_call_followup/workflow.js');
+```
+
+Namespace imports from workflow packages are also not supported. Import each workflow directly by name so the worker can map the local binding to the workflow runtime name.
+
+### Keep workflow package code workflow-safe
+
+Workflow code runs in Temporal's workflow runtime. Avoid importing Node-only APIs or non-deterministic code from workflow files. If a package needs a workflow-safe entry point, it can provide an `output-workflow-bundle` export condition so the worker bundle resolves the safe version.
+
+## Next steps
+
+After installing an external workflow package:
+
+- Start the worker and verify the external workflows appear in the catalog.
+- Trigger a local workflow that calls the external workflow.
+- Check traces to confirm the external workflow runs as a child workflow.

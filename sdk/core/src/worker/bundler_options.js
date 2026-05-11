@@ -1,9 +1,40 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  findPackageRoot,
+  isPathDescendentFromNodeModules,
+  packageExposesWorkflows
+} from './loader_tools.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const workerDir = __dirname; // sdk/core/src/worker
 const interfaceDir = join( __dirname, '..', 'interface' );
+const packagesWithWorkflowsMap = new Map();
+
+/**
+ * Skip loaders for most of `node_modules`, except packages that expose workflows.
+ */
+const excludeUnlessPackageExposeWorkflows = resource => {
+  // internal parts: exclude
+  if ( resource.startsWith( workerDir ) || resource.startsWith( interfaceDir ) ) {
+    return true;
+  }
+  // not node_modules/: include
+  if ( !isPathDescendentFromNodeModules( resource ) ) {
+    return false;
+  }
+
+  const rootPath = findPackageRoot( resource );
+  if ( !rootPath ) {
+    return true;
+  }
+
+  if ( !packagesWithWorkflowsMap.has( rootPath ) ) {
+    packagesWithWorkflowsMap.set( rootPath, packageExposesWorkflows( join( rootPath, 'package.json' ) ) );
+  }
+
+  return !packagesWithWorkflowsMap.get( rootPath );
+};
 
 export const webpackConfigHook = config => {
   // Prefer the "output-workflow-bundle" export condition when resolving packages.
@@ -23,8 +54,7 @@ export const webpackConfigHook = config => {
   // Validation loader (runs first)
   config.module.rules.push( {
     test: /\.js$/,
-    // Exclude node_modules and internal core worker files
-    exclude: resource => /node_modules/.test( resource ) || resource.startsWith( workerDir ) || resource.startsWith( interfaceDir ),
+    exclude: excludeUnlessPackageExposeWorkflows,
     enforce: 'pre',
     use: {
       loader: join( __dirname, './webpack_loaders/workflow_validator/index.mjs' )
@@ -33,8 +63,7 @@ export const webpackConfigHook = config => {
   // Use AST-based loader for rewriting steps/workflows
   config.module.rules.push( {
     test: /\.js$/,
-    // Exclude node_modules and internal core worker files
-    exclude: resource => /node_modules/.test( resource ) || resource.startsWith( workerDir ) || resource.startsWith( interfaceDir ),
+    exclude: excludeUnlessPackageExposeWorkflows,
     use: {
       loader: join( __dirname, './webpack_loaders/workflow_rewriter/index.mjs' )
     }

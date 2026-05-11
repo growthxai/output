@@ -196,6 +196,15 @@ export const isAnyEvaluatorsPath = value =>
 export const isWorkflowPath = value => /(^|\/)workflow\.js$/.test( value );
 
 /**
+ * True when `resourcePath` is an absolute path to a `workflow.js` file (slashes normalized).
+ *
+ * @param {string|null|undefined} resourcePath - Webpack `resourcePath` or similar.
+ * @returns {boolean}
+ */
+export const isAbsoluteWorkflowJsResource = resourcePath =>
+  typeof resourcePath === 'string' && isWorkflowPath( resourcePath.replace( /\\/g, '/' ) );
+
+/**
  * Check if a path is a component file (steps, evaluators, or workflow).
  * @param {string} value - Module path or request string.
  * @returns {boolean} True if it matches any component file path.

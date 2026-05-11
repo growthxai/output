@@ -1,18 +1,27 @@
+import { join } from 'node:path';
 import traverseModule from '@babel/traverse';
 import {
   buildWorkflowNameMap,
+  buildEvaluatorsNameMap,
+  buildSharedEvaluatorsNameMap,
+  buildSharedStepsNameMap,
+  buildStepsNameMap,
   getLocalNameFromDestructuredProperty,
+  isAbsoluteWorkflowJsResource,
   isEvaluatorsPath,
   isSharedEvaluatorsPath,
   isSharedStepsPath,
   isStepsPath,
   isWorkflowPath,
-  buildStepsNameMap,
-  buildSharedStepsNameMap,
-  buildEvaluatorsNameMap,
-  buildSharedEvaluatorsNameMap,
   toAbsolutePath
 } from '../tools.js';
+import {
+  isBareNpmSpecifier,
+  resolveBareImportSpecifiersAsWorkflows,
+  resolveBareDestructuredRequireAsWorkflows,
+  resolveBareDefaultRequireAsWorkflow
+} from '../npm_workflow_export_resolve.js';
+
 import {
   isCallExpression,
   isIdentifier,
@@ -34,6 +43,12 @@ const unresolvedImportError = ( name, fileLabel, filePath ) =>
     'Use the matching factory function for the file ' +
     '(e.g. step() in steps files, evaluator() in evaluators files, workflow() in workflow files).'
   );
+
+const mixedBareWorkflowImportError = ( specifier, resourcePath ) => new Error(
+  `Workflow file '${resourcePath}': import from '${specifier}' mixes workflow exports with ` +
+  'non-workflow exports, or could not resolve every binding to a workflow.js module. ' +
+  'Split npm imports so each declaration only imports workflows, or only non-workflows.'
+);
 
 const removeRequireDeclarator = path => {
   if ( isVariableDeclaration( path.parent ) && path.parent.declarations.length === 1 ) {
@@ -77,13 +92,17 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
  * @param {string} fileDir - Absolute directory of the file represented by `ast`.
  * @param {{ stepsNameCache: Map<string,Map<string,string>>, workflowNameCache: Map<string,{default:(string|null),named:Map<string,string>}> }} caches
  *  Resolved-name caches to avoid re-reading same modules.
+ * @param {string} [resourcePath] - Absolute path of the file being transformed; used to resolve
+ *  npm package imports from `workflow.js` via Node resolution and export following.
  * @returns {{ stepImports: Array<{localName:string,stepName:string}>,
  *  flowImports: Array<{localName:string,workflowName:string}> }} Collected info mappings.
  */
 export default function collectTargetImports(
   ast, fileDir,
-  { stepsNameCache, workflowNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache }
+  { stepsNameCache, workflowNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache },
+  resourcePath
 ) {
+  const resolutionPath = resourcePath ?? join( fileDir, 'file.js' );
   const stepImports = [];
   const sharedStepImports = [];
   const flowImports = [];
@@ -93,9 +112,29 @@ export default function collectTargetImports(
   traverse( ast, {
     ImportDeclaration: path => {
       const src = path.node.source.value;
-      // Ignore other imports
+
+      if ( isBareNpmSpecifier( src ) && isAbsoluteWorkflowJsResource( resolutionPath ) ) {
+        const outcome = resolveBareImportSpecifiersAsWorkflows( {
+          fromAbsoluteFile: resolutionPath,
+          specifier: src,
+          specifiers: path.node.specifiers,
+          workflowNameCache
+        } );
+        if ( outcome.type === 'partial' ) {
+          throw mixedBareWorkflowImportError( src, resolutionPath );
+        }
+        if ( outcome.type === 'all' ) {
+          for ( const { localName, workflowName } of outcome.bindings ) {
+            flowImports.push( { localName, workflowName } );
+          }
+          path.remove();
+          return;
+        }
+      }
+
       const isTargetImport = isStepsPath( src ) || isSharedStepsPath( src ) ||
-        isWorkflowPath( src ) || isEvaluatorsPath( src ) || isSharedEvaluatorsPath( src );
+        isWorkflowPath( src ) ||
+        isEvaluatorsPath( src ) || isSharedEvaluatorsPath( src );
       if ( !isTargetImport ) {
         return;
       }
@@ -161,15 +200,46 @@ export default function collectTargetImports(
       }
 
       const req = firstArgument.value;
+
+      if ( isBareNpmSpecifier( req ) && isAbsoluteWorkflowJsResource( resolutionPath ) ) {
+        if ( isObjectPattern( path.node.id ) ) {
+          const outcome = resolveBareDestructuredRequireAsWorkflows( {
+            fromAbsoluteFile: resolutionPath,
+            specifier: req,
+            properties: path.node.id.properties,
+            workflowNameCache
+          } );
+          if ( outcome.type === 'partial' ) {
+            throw mixedBareWorkflowImportError( req, resolutionPath );
+          }
+          if ( outcome.type === 'all' ) {
+            for ( const { localName, workflowName } of outcome.bindings ) {
+              flowImports.push( { localName, workflowName } );
+            }
+            removeRequireDeclarator( path );
+            return;
+          }
+        } else if ( isIdentifier( path.node.id ) ) {
+          const outcome = resolveBareDefaultRequireAsWorkflow(
+            resolutionPath, req, path.node.id.name, workflowNameCache
+          );
+          if ( outcome.type === 'binding' ) {
+            flowImports.push( { localName: outcome.localName, workflowName: outcome.workflowName } );
+            removeRequireDeclarator( path );
+            return;
+          }
+        }
+      }
+
       const isTargetRequire = isStepsPath( req ) || isSharedStepsPath( req ) ||
-        isWorkflowPath( req ) || isEvaluatorsPath( req ) || isSharedEvaluatorsPath( req );
+        isWorkflowPath( req ) ||
+        isEvaluatorsPath( req ) || isSharedEvaluatorsPath( req );
       if ( !isTargetRequire ) {
         return;
       }
 
       const absolutePath = toAbsolutePath( fileDir, req );
 
-      // Destructured requires: const { X } = require('./steps.js')
       if ( isObjectPattern( path.node.id ) ) {
         const cjsDescriptors = [
           {
@@ -207,7 +277,6 @@ export default function collectTargetImports(
         return;
       }
 
-      // Default workflow require: const WF = require('./workflow.js')
       if ( isWorkflowPath( req ) && isIdentifier( path.node.id ) ) {
         const { default: defName } = buildWorkflowNameMap( absolutePath, workflowNameCache );
         const localName = path.node.id.name;
@@ -218,4 +287,4 @@ export default function collectTargetImports(
   } );
 
   return { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports };
-};
+}

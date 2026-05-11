@@ -1,6 +1,33 @@
 import traverseModule from '@babel/traverse';
 import { dirname } from 'node:path';
-import { parse, toAbsolutePath, getFileKind, isAnyStepsPath, isAnyEvaluatorsPath, isWorkflowPath } from '../tools.js';
+import {
+  parse,
+  toAbsolutePath,
+  getFileKind,
+  isAnyStepsPath,
+  isAnyEvaluatorsPath,
+  isWorkflowPath,
+  isAbsoluteWorkflowJsResource
+} from '../tools.js';
+
+/**
+ * Files where a bare npm import may bind to child workflows (catalog packages, etc.).
+ * Matches {@link collectTargetImports} for `workflow.js`; steps/evaluators need the same
+ * binding knowledge for fn-body validation only.
+ * @param {string} filename - Absolute resource path.
+ * @returns {boolean}
+ */
+const fileMayBindBareNpmWorkflowImports = filename => {
+  const n = filename.replace( /\\/g, '/' );
+  return isAbsoluteWorkflowJsResource( filename ) ||
+    isAnyStepsPath( n ) || isAnyEvaluatorsPath( n );
+};
+import {
+  isBareNpmSpecifier,
+  resolveBareImportSpecifiersAsWorkflows,
+  resolveBareDestructuredRequireAsWorkflows,
+  resolveBareDefaultRequireAsWorkflow
+} from '../npm_workflow_export_resolve.js';
 import { ComponentFile } from '../consts.js';
 import {
   isCallExpression,
@@ -95,6 +122,21 @@ export default function workflowValidatorLoader( source, inputMap ) {
       ImportDeclaration: path => {
         const specifier = path.node.source.value;
 
+        if ( isBareNpmSpecifier( specifier ) && fileMayBindBareNpmWorkflowImports( filename ) ) {
+          const outcome = resolveBareImportSpecifiersAsWorkflows( {
+            fromAbsoluteFile: filename,
+            specifier,
+            specifiers: path.node.specifiers,
+            workflowNameCache: new Map()
+          } );
+          if ( outcome.type === 'all' ) {
+            for ( const { localName } of outcome.bindings ) {
+              importedWorkflowIds.add( localName );
+            }
+          }
+          return;
+        }
+
         // Collect imported identifiers for later call checks
         const importedKind = getFileKind( specifier );
         const accumulator = ( {
@@ -140,6 +182,29 @@ export default function workflowValidatorLoader( source, inputMap ) {
             return;
           }
           const req = firstArg.value;
+
+          if ( isBareNpmSpecifier( req ) && fileMayBindBareNpmWorkflowImports( filename ) ) {
+            if ( isObjectPattern( path.node.id ) ) {
+              const outcome = resolveBareDestructuredRequireAsWorkflows( {
+                fromAbsoluteFile: filename,
+                specifier: req,
+                properties: path.node.id.properties,
+                workflowNameCache: new Map()
+              } );
+              if ( outcome.type === 'all' ) {
+                for ( const { localName } of outcome.bindings ) {
+                  importedWorkflowIds.add( localName );
+                }
+              }
+            } else if ( isIdentifier( path.node.id ) ) {
+              const outcome = resolveBareDefaultRequireAsWorkflow(
+                filename, req, path.node.id.name, new Map()
+              );
+              if ( outcome.type === 'binding' ) {
+                importedWorkflowIds.add( outcome.localName );
+              }
+            }
+          }
 
           // Collect imported identifiers from require patterns
           const reqType = getFileKind( toAbsolutePath( fileDir, req ) );
