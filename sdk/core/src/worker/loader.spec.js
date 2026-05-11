@@ -455,14 +455,14 @@ Activity names must be unique within a workflow.'
       expect( fsMocks.existsSync ).toHaveBeenCalledWith( join( '/root', 'package.json' ) );
     } );
 
-    it( 'imports hook files listed in package.json @outputai/config.hookFiles', async () => {
+    it( 'imports hook files listed in package.json outputai.hookFiles', async () => {
       vi.doUnmock( 'node:fs' );
       vi.resetModules();
       const fs = await import( 'node:fs' );
       const tmpDir = fs.mkdtempSync( join( tmpdir(), 'loader-spec-' ) );
       try {
         fs.writeFileSync( join( tmpDir, 'package.json' ), JSON.stringify( {
-          '@outputai/config': { hookFiles: [ 'hook.js' ] }
+          outputai: { hookFiles: [ 'hook.js' ] }
         } ) );
         fs.writeFileSync( join( tmpDir, 'hook.js' ), 'globalThis.__loadHooksTestLoaded = true;' );
 

@@ -21,7 +21,7 @@
     "@temporalio/workflow": "catalog:",
     "nodemon": "3.1.14"
   },
-  "@outputai/config": {
+  "outputai": {
     "hookFiles": [
       "./src/hooks.js"
     ]

@@ -22,12 +22,12 @@ onError(async (payload) => {
 
 ### 2. Register the file in package.json
 
-List your hook file(s) under `@outputai/config.hookFiles`. Paths are relative to the package root. The worker loads these files at startup.
+List your hook file(s) under `outputai.hookFiles`. Paths are relative to the package root. The worker loads these files at startup.
 
 ```json
 {
   "name": "my-workflows",
-  "@outputai/config": {
+  "outputai": {
     "hookFiles": ["./src/error_hooks.js"]
   }
 }

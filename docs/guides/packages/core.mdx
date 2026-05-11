@@ -92,7 +92,7 @@ When you call a step from a workflow, Output executes it as a durable activity w
 
 ## Hooks
 
-Register handlers in hook files that the worker loads at startup (list paths under `@outputai/config.hookFiles` in `package.json`). Import from `@outputai/core/hooks`. The framework wraps each handler in a try/catch: failures are logged and do not stop the worker or workflow runs.
+Register handlers in hook files that the worker loads at startup (list paths under `outputai.hookFiles` in `package.json`). Import from `@outputai/core/hooks`. The framework wraps each handler in a try/catch: failures are logged and do not stop the worker or workflow runs.
 
 | Function | When it runs | Payload |
 |----------|--------------|---------|

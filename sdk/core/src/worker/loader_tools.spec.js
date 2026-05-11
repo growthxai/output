@@ -230,7 +230,7 @@ describe( 'findWorkflowsInPackages', () => {
     mkdirSync( join( pkg, 'lib' ), { recursive: true } );
     writeFileSync( join( pkg, 'package.json' ), JSON.stringify( {
       name: 'wf_pkg',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     const wf = join( pkg, 'lib', 'workflow.js' );
     writeFileSync( wf, 'export default {};\n' );
@@ -249,7 +249,7 @@ describe( 'findWorkflowsInPackages', () => {
     const wf = join( realPkg, 'w', 'workflow.js' );
     writeFileSync( join( realPkg, 'package.json' ), JSON.stringify( {
       name: 'real_pkg',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     writeFileSync( wf, 'export default {};\n' );
     symlinkSync( 'real_pkg', linkPkg, 'dir' );
@@ -410,19 +410,19 @@ describe( 'importComponents', () => {
 } );
 
 describe( 'packageExposesWorkflows', () => {
-  it( 'returns true when @outputai/config.workflows.expose is true', () => {
+  it( 'returns true when outputai.workflows.expose is true', () => {
     const dir = join( TEMP_BASE, `wf-proj-expose-${Date.now()}` );
     mkdirSync( dir, { recursive: true } );
     const pkg = join( dir, 'package.json' );
-    writeFileSync( pkg, JSON.stringify( { '@outputai/config': { workflows: { expose: true } } } ) );
+    writeFileSync( pkg, JSON.stringify( { outputai: { workflows: { expose: true } } } ) );
     expect( packageExposesWorkflows( pkg ) ).toBe( true );
   } );
 
-  it( 'returns false when @outputai/config.workflows.expose is false', () => {
+  it( 'returns false when outputai.workflows.expose is false', () => {
     const dir = join( TEMP_BASE, `wf-proj-no-expose-${Date.now()}` );
     mkdirSync( dir, { recursive: true } );
     const pkg = join( dir, 'package.json' );
-    writeFileSync( pkg, JSON.stringify( { '@outputai/config': { workflows: { expose: false } } } ) );
+    writeFileSync( pkg, JSON.stringify( { outputai: { workflows: { expose: false } } } ) );
     expect( packageExposesWorkflows( pkg ) ).toBe( false );
   } );
 
@@ -463,7 +463,7 @@ describe( 'findWorkflowsInNodeModules', () => {
     mkdirSync( join( pkg, 'w' ), { recursive: true } );
     writeFileSync( join( pkg, 'package.json' ), JSON.stringify( {
       name: 'pkg_a',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     const wf = join( pkg, 'w', 'workflow.js' );
     writeFileSync( wf, 'export default {};\n' );
@@ -480,7 +480,7 @@ describe( 'findWorkflowsInNodeModules', () => {
     mkdirSync( join( pkg, 'workflows', 'a' ), { recursive: true } );
     writeFileSync( join( pkg, 'package.json' ), JSON.stringify( {
       name: 'catalog_pkg',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     writeFileSync( join( pkg, 'workflows', 'a', 'workflow.js' ), 'export default {};\n' );
 
@@ -497,7 +497,7 @@ describe( 'findWorkflowsInNodeModules', () => {
     mkdirSync( join( pkg, 'lib' ), { recursive: true } );
     writeFileSync( join( pkg, 'package.json' ), JSON.stringify( {
       name: '@acme/wf_pkg',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     writeFileSync( join( pkg, 'lib', 'workflow.js' ), 'export default {};\n' );
 
@@ -526,7 +526,7 @@ describe( 'findWorkflowsInNodeModules', () => {
     const wf = join( realPkg, 'w', 'workflow.js' );
     writeFileSync( join( realPkg, 'package.json' ), JSON.stringify( {
       name: 'real_pkg',
-      '@outputai/config': { workflows: { expose: true } }
+      outputai: { workflows: { expose: true } }
     } ) );
     writeFileSync( wf, 'export default {};\n' );
     symlinkSync( 'real_pkg', linkPkg, 'dir' );

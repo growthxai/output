@@ -158,7 +158,7 @@ Workflow names and aliases must be unique.` );
 };
 
 /**
- * Loads the hook files from package.json's "@outputai/config" section.
+ * Loads the hook files from package.json's "outputai" section.
  *
  * @param {string} rootDir
  * @returns {void}
@@ -170,8 +170,8 @@ export async function loadHooks( rootDir ) {
     const content = pkg.default;
     const hooks = [];
     // @DEPRECATED: "output" is the legacy namespace for configs, can be removed after couple version (this is being added in 0.3.x)
-    hooks.push( ...( content.output?.hookFiles ?? [] ) );
-    hooks.push( ...( content['@outputai/config']?.hookFiles ?? [] ) );
+    hooks.push( ...( content['output']?.hookFiles ?? [] ) );
+    hooks.push( ...( content['outputai']?.hookFiles ?? [] ) );
     for ( const path of hooks ) {
       const hookFile = join( rootDir, path );
       await import( hookFile );

@@ -16,7 +16,7 @@ Cost events use the same [hooks system](/operations/error-hooks) as error hooks:
 
 1. Create a hook file and import `on` from `@outputai/core/hooks`.
 2. Register a handler for `cost:llm:request`, `cost:http:request`, or both.
-3. Add the file path to `@outputai/config.hookFiles` in `package.json`.
+3. Add the file path to `outputai.hookFiles` in `package.json`.
 
 See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file registration pattern.
 
