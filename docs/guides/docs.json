@@ -207,5 +207,10 @@
       "website": "https://output.ai/",
       "github": "https://github.com/growthxai/output"
     }
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-NRX7GB4VG8"
+    }
   }
 }
