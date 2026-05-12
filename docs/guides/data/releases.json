@@ -1,6 +1,93 @@
 {
   "releases": [
     {
+      "version": "0.4.0",
+      "date": "2026-05-12",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "credentials-edit-noop",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original."
+        },
+        {
+          "id": "large-crews-tease",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Bump `entities` dependency from v6 to v8. The API surface used (`encodeXML` / `decodeXML`) is unchanged, and v8's ESM-only / Node ≥ 20.19 requirements are already satisfied by this package."
+        },
+        {
+          "id": "quiet-dragons-wait",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fixed `output dev` hanging until the health timeout when `docker compose up` exited before creating containers. The CLI now drains and captures recent Compose output, reports early Compose exits immediately, polls status with the same project directory used to start the stack, and only treats running containers as healthy."
+        },
+        {
+          "id": "spotty-humans-like",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Fix TypeScript declaration emit for exported workflows that use Zod schemas.\n- Allow TypeScript to generate `.d.ts` files for these workflows without non-portable Zod references.\n- Treat Zod as a peer dependency and avoid leaking schema-specific workflow context types through the invocation config."
+        },
+        {
+          "id": "sturdy-kites-glide",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Bumped scaffold prompt template default from `claude-haiku-4-5` to `claude-sonnet-4-6` and added a dated `current as of` comment pointing at the new `output-dev-model-selection` skill (workflow scaffold, blog_evaluator example, workflow README example).\n- No CLI behavior change beyond the new default model in generated `.prompt` files."
+        },
+        {
+          "id": "tame-banks-yawn",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fixed workflows having the status 'failed' when cancelled via the API/UI. Now they are correctly marked as 'cancelled'."
+        },
+        {
+          "id": "wobbly-maps-hiccup",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fix scenario loading in `output dev` for workflows whose name differs from their local folder path. For example, a workflow named `writing_editor` stored in `src/workflows/writing/editor` now shows and runs its scenarios correctly."
+        },
+        {
+          "id": "young-breads-drive",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add support for discovering and running workflows from installed npm packages.\n\nRename the Output.ai settings property in `package.json` from `output` to `outputai`."
+        }
+      ]
+    },
+    {
       "version": "0.3.2",
       "date": "2026-05-05",
       "level": "patch",

@@ -1,5 +1,15 @@
 # @outputai/llm
 
+## 0.4.0
+
+### Patch Changes
+
+- b23002f: Bump `entities` dependency from v6 to v8. The API surface used (`encodeXML` / `decodeXML`) is unchanged, and v8's ESM-only / Node ≥ 20.19 requirements are already satisfied by this package.
+- Updated dependencies [33928d3]
+- Updated dependencies [b4a190e]
+- Updated dependencies [7ccc4fe]
+  - @outputai/core@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes

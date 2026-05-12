@@ -1,5 +1,30 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.4.0" description="2026-05-12 · minor release">
+
+**`@outputai/cli`** — Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original.
+
+**`@outputai/llm`** — Bump `entities` dependency from v6 to v8. The API surface used (`encodeXML` / `decodeXML`) is unchanged, and v8's ESM-only / Node ≥ 20.19 requirements are already satisfied by this package.
+
+**`@outputai/cli`** — Fixed `output dev` hanging until the health timeout when `docker compose up` exited before creating containers. The CLI now drains and captures recent Compose output, reports early Compose exits immediately, polls status with the same project directory used to start the stack, and only treats running containers as healthy.
+
+**`@outputai/core`** — - Fix TypeScript declaration emit for exported workflows that use Zod schemas.
+- Allow TypeScript to generate `.d.ts` files for these workflows without non-portable Zod references.
+- Treat Zod as a peer dependency and avoid leaking schema-specific workflow context types through the invocation config.
+
+**`@outputai/cli`** — - Bumped scaffold prompt template default from `claude-haiku-4-5` to `claude-sonnet-4-6` and added a dated `current as of` comment pointing at the new `output-dev-model-selection` skill (workflow scaffold, blog_evaluator example, workflow README example).
+- No CLI behavior change beyond the new default model in generated `.prompt` files.
+
+**`@outputai/core`** — Fixed workflows having the status 'failed' when cancelled via the API/UI. Now they are correctly marked as 'cancelled'.
+
+**`@outputai/cli`** — Fix scenario loading in `output dev` for workflows whose name differs from their local folder path. For example, a workflow named `writing_editor` stored in `src/workflows/writing/editor` now shows and runs its scenarios correctly.
+
+**`@outputai/core`** — Add support for discovering and running workflows from installed npm packages.
+
+Rename the Output.ai settings property in `package.json` from `output` to `outputai`.
+
+</Update>
+
 <Update label="v0.3.2" description="2026-05-05 · patch release">
 
 **`@outputai/cli`** — Rebuild `output dev` as a full-featured INK TUI. Tabbed UI for Workflows, Recent Runs, Services, and Help with arrow-key navigation, an in-TUI scenario picker and JSON editor for running workflows, an expanded JSON modal for input/output, and a live `docker compose logs` tail with restart hotkeys.

@@ -1,5 +1,20 @@
 # @outputai/core
 
+## 0.4.0
+
+### Minor Changes
+
+- 7ccc4fe: Add support for discovering and running workflows from installed npm packages.
+
+  Rename the Output.ai settings property in `package.json` from `output` to `outputai`.
+
+### Patch Changes
+
+- 33928d3: - Fix TypeScript declaration emit for exported workflows that use Zod schemas.
+  - Allow TypeScript to generate `.d.ts` files for these workflows without non-portable Zod references.
+  - Treat Zod as a peer dependency and avoid leaking schema-specific workflow context types through the invocation config.
+- b4a190e: Fixed workflows having the status 'failed' when cancelled via the API/UI. Now they are correctly marked as 'cancelled'.
+
 ## 0.3.2
 
 ## 0.3.1

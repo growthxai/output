@@ -1,5 +1,19 @@
 # @outputai/cli
 
+## 0.4.0
+
+### Patch Changes
+
+- 6137ea6: Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original.
+- e8eff63: Fixed `output dev` hanging until the health timeout when `docker compose up` exited before creating containers. The CLI now drains and captures recent Compose output, reports early Compose exits immediately, polls status with the same project directory used to start the stack, and only treats running containers as healthy.
+- 32f4d87: - Bumped scaffold prompt template default from `claude-haiku-4-5` to `claude-sonnet-4-6` and added a dated `current as of` comment pointing at the new `output-dev-model-selection` skill (workflow scaffold, blog_evaluator example, workflow README example).
+  - No CLI behavior change beyond the new default model in generated `.prompt` files.
+- 2650161: Fix scenario loading in `output dev` for workflows whose name differs from their local folder path. For example, a workflow named `writing_editor` stored in `src/workflows/writing/editor` now shows and runs its scenarios correctly.
+- Updated dependencies [b23002f]
+  - @outputai/llm@0.4.0
+  - @outputai/credentials@0.4.0
+  - @outputai/evals@0.4.0
+
 ## 0.3.2
 
 ### Patch Changes
