@@ -11,6 +11,17 @@ export interface TokenUsage {
   outputTokens?: number;
   cachedInputTokens?: number;
   reasoningTokens?: number;
+  totalTokens?: number;
+}
+
+export interface TraceCostAttribute {
+  total: number;
+  components?: Array<{ name: string; value: number }>;
+}
+
+export interface TraceAttributes {
+  cost?: TraceCostAttribute;
+  token_usage?: TokenUsage;
 }
 
 export interface TraceNode {
@@ -21,7 +32,8 @@ export interface TraceNode {
   endedAt?: number;
   children?: TraceNode[];
   input?: Record<string, unknown>;
-  output?: Record<string, unknown> & { usage?: TokenUsage };
+  output?: Record<string, unknown>;
+  attributes?: TraceAttributes;
 }
 
 export interface LLMCall {
@@ -29,6 +41,7 @@ export interface LLMCall {
   llmName: string;
   model: string;
   usage: TokenUsage;
+  attributeCost?: number;
 }
 
 export interface HTTPCall {
@@ -38,6 +51,7 @@ export interface HTTPCall {
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   status?: number;
+  attributeCost?: number;
 }
 
 // Pricing Configuration Types

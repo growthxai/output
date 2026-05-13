@@ -22,6 +22,10 @@ function tokenCost( tokens: number, pricePerMillion: number ): number {
   return ( tokens / 1_000_000 ) * pricePerMillion;
 }
 
+function isFiniteNumber( value: unknown ): value is number {
+  return typeof value === 'number' && Number.isFinite( value );
+}
+
 export function extractValue( obj: unknown, path: string ): unknown {
   if ( !path || !obj ) {
     return obj;
@@ -104,6 +108,11 @@ function findCalls<T>(
   return calls;
 }
 
+function readAttributeCost( node: TraceNode ): number | undefined {
+  const total = node.attributes?.cost?.total;
+  return isFiniteNumber( total ) ? total : undefined;
+}
+
 export function findLLMCalls(
   node: TraceNode,
   parentStepName: string | null = null,
@@ -111,24 +120,25 @@ export function findLLMCalls(
 ): LLMCall[] {
   return findCalls<LLMCall>(
     node,
-    n => n.kind === 'llm' && !!n.output?.usage,
+    n => n.kind === 'llm' && !!n.attributes?.token_usage,
     ( n, stepName ) => {
       const loadedPrompt = n.input?.loadedPrompt as
         Record<string, Record<string, unknown>> | undefined;
-      const outputRecord = n.output as Record<string, unknown>;
-      const inputRecord = n.input as Record<string, unknown>;
+      const outputRecord = ( n.output ?? {} ) as Record<string, unknown>;
+      const inputRecord = ( n.input ?? {} ) as Record<string, unknown>;
 
       const model =
         ( loadedPrompt?.config?.model as string ) ||
-        ( outputRecord?.model as string ) ||
-        ( inputRecord?.model as string ) ||
+        ( outputRecord.model as string ) ||
+        ( inputRecord.model as string ) ||
         'unknown';
 
       return {
         stepName: stepName || n.name || 'unknown',
         llmName: n.name || 'llm',
         model,
-        usage: n.output!.usage!
+        usage: n.attributes!.token_usage!,
+        attributeCost: readAttributeCost( n )
       };
     },
     parentStepName,
@@ -150,7 +160,8 @@ export function findHTTPCalls(
       method: ( n.input?.method as string ) || 'GET',
       input: ( n.input as Record<string, unknown> ) || {},
       output: ( n.output as Record<string, unknown> ) || {},
-      status: n.output?.status as number | undefined
+      status: n.output?.status as number | undefined,
+      attributeCost: readAttributeCost( n )
     } ),
     parentStepName,
     seenIds
@@ -414,13 +425,17 @@ function aggregateLLMCosts(
 
   for ( const call of llmCalls ) {
     const { pricing, matchedKey } = findModelPricing( call.model, config.models ?? {} );
-    const { cost, warning } = calculateLLMCallCost( call.usage, pricing );
+    const { cost: yamlCost, warning } = calculateLLMCallCost( call.usage, pricing );
+
+    // Prefer the cost emitted by the LLM provider on the trace node; fall back to
+    // yaml pricing so unknown-model warnings still surface for breakdown display.
+    const cost = call.attributeCost ?? yamlCost;
 
     const prefixWarning = ( pricing && matchedKey !== call.model ) ?
       `priced as ${matchedKey}` :
       undefined;
 
-    if ( !pricing ) {
+    if ( !pricing && call.attributeCost === undefined ) {
       unknownModels.add( call.model );
     }
 
@@ -464,32 +479,56 @@ export function calculateCost( trace: TraceNode, config: PricingConfig, traceFil
     }
 
     const serviceInfo = identifyService( call, config.services );
-    if ( !serviceInfo ) {
+
+    if ( serviceInfo ) {
+      // attributes.cost on the HTTP node is authoritative when present —
+      // addRequestCost() writes the real billed amount there. Fall back to
+      // the yaml service classifier for legacy callers that don't emit it.
+      const result = call.attributeCost !== undefined ?
+        { step: call.stepName, cost: call.attributeCost, usage: '1 request' } :
+        ( () => {
+          if ( serviceInfo.config.type === 'response_cost' ) {
+            const hasCostData = extractValue( call, serviceInfo.config.cost_path! );
+            const isBillableMethod = serviceInfo.config.billable_method &&
+              call.method === serviceInfo.config.billable_method;
+            if ( !hasCostData && !isBillableMethod ) {
+              return null;
+            }
+          }
+          return calculateServiceCost( call, serviceInfo );
+        } )();
+
+      if ( !result ) {
+        continue;
+      }
+
+      if ( !serviceResults[serviceInfo.serviceName] ) {
+        serviceResults[serviceInfo.serviceName] = {
+          serviceName: serviceInfo.serviceName,
+          calls: [],
+          totalCost: 0
+        };
+      }
+
+      serviceResults[serviceInfo.serviceName].calls.push( result );
+      serviceResults[serviceInfo.serviceName].totalCost += result.cost;
       continue;
     }
 
-    if ( serviceInfo.config.type === 'response_cost' ) {
-      const hasCostData = extractValue( call, serviceInfo.config.cost_path! );
-      const isBillableMethod = serviceInfo.config.billable_method &&
-        call.method === serviceInfo.config.billable_method;
-
-      if ( !hasCostData && !isBillableMethod ) {
-        continue;
+    // Unclassified HTTP node — still surface its cost if addRequestCost was called.
+    if ( call.attributeCost !== undefined && call.attributeCost > 0 ) {
+      const bucket = 'http';
+      if ( !serviceResults[bucket] ) {
+        serviceResults[bucket] = { serviceName: bucket, calls: [], totalCost: 0 };
       }
+      serviceResults[bucket].calls.push( {
+        step: call.stepName,
+        cost: call.attributeCost,
+        usage: '1 request',
+        endpoint: call.url
+      } );
+      serviceResults[bucket].totalCost += call.attributeCost;
     }
-
-    const result = calculateServiceCost( call, serviceInfo );
-
-    if ( !serviceResults[serviceInfo.serviceName] ) {
-      serviceResults[serviceInfo.serviceName] = {
-        serviceName: serviceInfo.serviceName,
-        calls: [],
-        totalCost: 0
-      };
-    }
-
-    serviceResults[serviceInfo.serviceName].calls.push( result );
-    serviceResults[serviceInfo.serviceName].totalCost += result.cost;
   }
 
   const {

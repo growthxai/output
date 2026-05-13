@@ -41,7 +41,9 @@ const llmTrace: TraceNode = {
           kind: 'llm',
           name: 'generate_summary',
           input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: {
+            token_usage: { inputTokens: 1000, outputTokens: 500 }
+          }
         }
       ]
     },
@@ -55,7 +57,9 @@ const llmTrace: TraceNode = {
           kind: 'llm',
           name: 'analyze_data',
           input: { loadedPrompt: { config: { model: 'claude-haiku-4-5' } } },
-          output: { usage: { inputTokens: 2000, outputTokens: 1000, cachedInputTokens: 500 } }
+          attributes: {
+            token_usage: { inputTokens: 2000, outputTokens: 1000, cachedInputTokens: 500 }
+          }
         }
       ]
     }
@@ -123,7 +127,9 @@ const duplicateTrace: TraceNode = {
           kind: 'llm',
           name: 'generate',
           input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: {
+            token_usage: { inputTokens: 1000, outputTokens: 500 }
+          }
         }
       ]
     },
@@ -137,7 +143,9 @@ const duplicateTrace: TraceNode = {
           kind: 'llm',
           name: 'generate',
           input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: {
+            token_usage: { inputTokens: 1000, outputTokens: 500 }
+          }
         }
       ]
     }
@@ -206,11 +214,45 @@ describe( 'findLLMCalls', () => {
     expect( calls[1].model ).toBe( 'claude-haiku-4-5' );
   } );
 
-  it( 'extracts token usage', () => {
+  it( 'extracts token usage from attributes.token_usage', () => {
     const calls = findLLMCalls( llmTrace );
     expect( calls[0].usage.inputTokens ).toBe( 1000 );
     expect( calls[0].usage.outputTokens ).toBe( 500 );
     expect( calls[1].usage.cachedInputTokens ).toBe( 500 );
+  } );
+
+  it( 'ignores llm nodes that only have legacy output.usage (no attributes.token_usage)', () => {
+    const legacyOnlyTrace: TraceNode = {
+      kind: 'workflow',
+      name: 'wf',
+      children: [ {
+        id: 'llm-legacy',
+        kind: 'llm',
+        name: 'gen',
+        output: { usage: { inputTokens: 999, outputTokens: 999 } }
+      } ]
+    };
+    expect( findLLMCalls( legacyOnlyTrace ) ).toHaveLength( 0 );
+  } );
+
+  it( 'picks up attributeCost from attributes.cost.total', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'wf',
+      children: [ {
+        id: 'llm-1',
+        kind: 'llm',
+        name: 'gen',
+        input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
+        attributes: {
+          token_usage: { inputTokens: 100, outputTokens: 50 },
+          cost: { total: 0.0042 }
+        }
+      } ]
+    };
+
+    const calls = findLLMCalls( trace );
+    expect( calls[0].attributeCost ).toBeCloseTo( 0.0042, 10 );
   } );
 
   it( 'deduplicates by ID', () => {
@@ -235,6 +277,24 @@ describe( 'findHTTPCalls', () => {
     const calls = findHTTPCalls( httpTrace );
     expect( calls[0].stepName ).toBe( 'fetch_content' );
     expect( calls[1].stepName ).toBe( 'search' );
+  } );
+
+  it( 'reads attributeCost from attributes.cost.total', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'wf',
+      children: [ {
+        id: 'http-1',
+        kind: 'http',
+        name: 'scrape',
+        input: { url: 'https://api.gx-scraper.test/scrape', method: 'POST' },
+        output: { status: 200 },
+        attributes: { cost: { total: 0.5 } }
+      } ]
+    };
+
+    const calls = findHTTPCalls( trace );
+    expect( calls[0].attributeCost ).toBe( 0.5 );
   } );
 } );
 
@@ -482,7 +542,7 @@ describe( 'calculateCost', () => {
           kind: 'llm',
           name: 'gen',
           input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5-20250514' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: { token_usage: { inputTokens: 1000, outputTokens: 500 } }
         } ]
       } ]
     };
@@ -493,7 +553,7 @@ describe( 'calculateCost', () => {
     expect( report.llmCalls[0].warning ).toBe( 'priced as claude-sonnet-4-5' );
   } );
 
-  it( 'reports unknown model when no prefix match exists', () => {
+  it( 'reports unknown model when no prefix match exists and no attribute cost is present', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
@@ -506,7 +566,7 @@ describe( 'calculateCost', () => {
           kind: 'llm',
           name: 'gen',
           input: { loadedPrompt: { config: { model: 'totally-unknown-model' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: { token_usage: { inputTokens: 1000, outputTokens: 500 } }
         } ]
       } ]
     };
@@ -530,13 +590,170 @@ describe( 'calculateCost', () => {
           kind: 'llm',
           name: 'gen',
           input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
+          attributes: { token_usage: { inputTokens: 1000, outputTokens: 500 } }
         } ]
       } ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmCalls[0].warning ).toBeUndefined();
+  } );
+
+  it( 'prefers attributes.cost.total over yaml-computed LLM cost when present', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ {
+        id: 'step-1',
+        kind: 'step',
+        name: 'test#gen',
+        children: [ {
+          id: 'llm-1',
+          kind: 'llm',
+          name: 'gen',
+          input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
+          attributes: {
+            token_usage: { inputTokens: 1000, outputTokens: 500 },
+            // Authoritative: this is what the provider reported, not what yaml infers.
+            cost: { total: 0.99 }
+          }
+        } ]
+      } ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmCalls[0].cost ).toBe( 0.99 );
+    expect( report.llmTotalCost ).toBe( 0.99 );
+  } );
+
+  it( 'still surfaces an attribute LLM cost for unknown models without warning', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ {
+        id: 'step-1',
+        kind: 'step',
+        name: 'test#gen',
+        children: [ {
+          id: 'llm-1',
+          kind: 'llm',
+          name: 'gen',
+          input: { loadedPrompt: { config: { model: 'brand-new-model' } } },
+          attributes: {
+            token_usage: { inputTokens: 100, outputTokens: 20 },
+            cost: { total: 0.0123 }
+          }
+        } ]
+      } ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmTotalCost ).toBeCloseTo( 0.0123, 10 );
+    expect( report.unknownModels ).toEqual( [] );
+  } );
+
+  it( 'includes HTTP request cost from attributes.cost.total for unclassified hosts', () => {
+    // gx-scraper-style: not declared in yaml services, but addRequestCost ran
+    // and put $0.50 on the HTTP node's attributes.cost.total.
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'scraper_workflow',
+      startedAt: 1700000000000,
+      endedAt: 1700000100000,
+      children: [ {
+        id: 'step-1',
+        kind: 'step',
+        name: 'scraper_workflow#scrape',
+        children: [ {
+          id: 'http-1',
+          kind: 'http',
+          name: 'scrape_request',
+          input: { url: 'https://api.gx-scraper.test/v1/scrape', method: 'POST' },
+          output: { status: 200, body: {} },
+          attributes: { cost: { total: 0.5 } }
+        } ]
+      } ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.serviceTotalCost ).toBe( 0.5 );
+    expect( report.totalCost ).toBe( 0.5 );
+    expect( report.services ).toHaveLength( 1 );
+    expect( report.services[0].calls[0].cost ).toBe( 0.5 );
+  } );
+
+  it( 'prefers attributes.cost.total over yaml service classifier for classified HTTP nodes', () => {
+    // Exa with both a yaml `response_cost` rule AND an attribute cost — the
+    // attribute is authoritative.
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test_workflow',
+      children: [ {
+        id: 'step-exa',
+        kind: 'step',
+        name: 'test_workflow#search',
+        children: [ {
+          id: 'http-exa',
+          kind: 'http',
+          name: 'exa_request',
+          input: { url: 'https://api.exa.ai/research', method: 'POST' },
+          output: {
+            status: 200,
+            body: { model: 'exa-research', costDollars: { total: 0.15, numSearches: 1, numPages: 5 } }
+          },
+          attributes: { cost: { total: 0.22 } }
+        } ]
+      } ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.services ).toHaveLength( 1 );
+    expect( report.services[0].serviceName ).toBe( 'exa' );
+    expect( report.services[0].totalCost ).toBe( 0.22 );
+  } );
+
+  it( 'combines LLM and HTTP attribute costs into a single trace total', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'mixed_workflow',
+      startedAt: 1700000000000,
+      endedAt: 1700000100000,
+      children: [
+        {
+          id: 'step-llm',
+          kind: 'step',
+          name: 'mixed_workflow#draft',
+          children: [ {
+            id: 'llm-1',
+            kind: 'llm',
+            name: 'draft',
+            input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
+            attributes: {
+              token_usage: { inputTokens: 100, outputTokens: 50 },
+              cost: { total: 0.01 }
+            }
+          } ]
+        },
+        {
+          id: 'step-http',
+          kind: 'step',
+          name: 'mixed_workflow#scrape',
+          children: [ {
+            id: 'http-1',
+            kind: 'http',
+            name: 'scrape',
+            input: { url: 'https://api.gx-scraper.test/v1/scrape', method: 'POST' },
+            output: { status: 200, body: {} },
+            attributes: { cost: { total: 0.5 } }
+          } ]
+        }
+      ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmTotalCost ).toBeCloseTo( 0.01, 10 );
+    expect( report.serviceTotalCost ).toBeCloseTo( 0.5, 10 );
+    expect( report.totalCost ).toBeCloseTo( 0.51, 10 );
   } );
 } );
 
