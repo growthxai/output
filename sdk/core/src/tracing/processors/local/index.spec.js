@@ -32,9 +32,21 @@ const pipelineMock = vi.fn( async ( source, destination ) => {
 } );
 vi.mock( 'node:stream/promises', () => ( { pipeline: pipelineMock } ) );
 
-vi.mock( 'big-json', async () => {
+vi.mock( 'json-stream-stringify', async () => {
   const { Readable } = await import( 'node:stream' );
-  return { createStringifyStream: ( { body } ) => Readable.from( [ JSON.stringify( body ) ] ) };
+  return {
+    JsonStreamStringify: class extends Readable {
+      constructor( body ) {
+        super();
+        this.body = body;
+      }
+
+      _read() {
+        this.push( JSON.stringify( this.body ) );
+        this.push( null );
+      }
+    }
+  };
 } );
 
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );

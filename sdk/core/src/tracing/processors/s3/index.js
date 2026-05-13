@@ -3,7 +3,7 @@ import { getRedisClient } from './redis_client.js';
 import buildTraceTree from '../../tools/build_trace_tree.js';
 import { loadEnv, getVars } from './configs.js';
 import { createChildLogger } from '#logger';
-import { createStringifyStream } from 'big-json';
+import { JsonStreamStringify } from 'json-stream-stringify';
 
 const log = createChildLogger( 'S3 Processor' );
 
@@ -102,7 +102,7 @@ export const exec = async ( { entry, executionContext } ) => {
 
   await upload( {
     key: getS3Key( { workflowId, workflowName, startTime } ),
-    content: createStringifyStream( { body: content } )
+    content: new JsonStreamStringify( content )
   } );
   await bustEntries( cacheKey );
 };

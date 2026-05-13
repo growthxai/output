@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'url';
 import buildTraceTree from '../../tools/build_trace_tree.js';
 import { EOL } from 'node:os';
-import { createStringifyStream } from 'big-json';
+import { JsonStreamStringify } from 'json-stream-stringify';
 
 import { pipeline } from 'stream/promises';
 
@@ -130,7 +130,7 @@ export const exec = async ( { entry, executionContext } ) => {
   mkdirSync( dir, { recursive: true } );
 
   await pipeline(
-    createStringifyStream( { body: content } ),
+    new JsonStreamStringify( content ),
     createWriteStream( path )
   );
 };

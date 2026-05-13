@@ -27,9 +27,21 @@ vi.mock( './s3_client.js', () => ( { upload: uploadMock } ) );
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
 
-vi.mock( 'big-json', async () => {
+vi.mock( 'json-stream-stringify', async () => {
   const { Readable } = await import( 'node:stream' );
-  return { createStringifyStream: ( { body } ) => Readable.from( [ JSON.stringify( body ) ] ) };
+  return {
+    JsonStreamStringify: class extends Readable {
+      constructor( body ) {
+        super();
+        this.body = body;
+      }
+
+      _read() {
+        this.push( JSON.stringify( this.body ) );
+        this.push( null );
+      }
+    }
+  };
 } );
 
 const streamToString = async stream => {
