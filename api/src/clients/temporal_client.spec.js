@@ -8,7 +8,7 @@ import {
   InvalidPageTokenError
 }
   from './errors.js';
-import { resolveResetEventId, extractWorkflowInput, TERMINAL_EVENT_TYPES } from './temporal_client.js';
+import { resolveResetEventId, extractWorkflowInput } from './temporal_client.js';
 
 const {
   mockDescribe,
@@ -1388,14 +1388,18 @@ describe( 'temporal_client', () => {
       expect( done.reason ).toBe( 'WORKFLOW_EXECUTION_COMPLETED' );
     } );
 
-    it( 'extracts newRunId for CONTINUED_AS_NEW', async () => {
+    it.each( [
+      { reason: 'WORKFLOW_EXECUTION_COMPLETED', eventType: 2, attrKey: 'workflowExecutionCompletedEventAttributes' },
+      { reason: 'WORKFLOW_EXECUTION_FAILED', eventType: 3, attrKey: 'workflowExecutionFailedEventAttributes' },
+      { reason: 'WORKFLOW_EXECUTION_TIMED_OUT', eventType: 4, attrKey: 'workflowExecutionTimedOutEventAttributes' },
+      { reason: 'WORKFLOW_EXECUTION_CANCELED', eventType: 21, attrKey: null },
+      { reason: 'WORKFLOW_EXECUTION_TERMINATED', eventType: 27, attrKey: null },
+      { reason: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW', eventType: 28, attrKey: 'workflowExecutionContinuedAsNewEventAttributes' }
+    ] )( 'yields done with reason $reason from terminal event $eventType', async ( { reason, eventType, attrKey } ) => {
       mockDescribe.mockResolvedValue( baseDescription );
+      const extra = attrKey ? { [attrKey]: { newExecutionRunId: 'next-run-id' } } : {};
       mockGetWorkflowExecutionHistory.mockResolvedValue( {
-        history: {
-          events: [ makeEvent( 1, 28, {
-            workflowExecutionContinuedAsNewEventAttributes: { newExecutionRunId: 'new-run-xyz' }
-          } ) ]
-        },
+        history: { events: [ makeEvent( 1, eventType, extra ) ] },
         nextPageToken: undefined
       } );
 
@@ -1404,7 +1408,13 @@ describe( 'temporal_client', () => {
       const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1' ) );
 
       const done = chunks.find( c => c.type === 'done' );
-      expect( done ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW', newRunId: 'new-run-xyz' } );
+      expect( done.type ).toBe( 'done' );
+      expect( done.reason ).toBe( reason );
+      if ( attrKey ) {
+        expect( done.newRunId ).toBe( 'next-run-id' );
+      } else {
+        expect( done.newRunId ).toBeUndefined();
+      }
     } );
 
     it( 'exits silently on abort (gRPC CANCELLED)', async () => {
@@ -1490,10 +1500,13 @@ describe( 'temporal_client', () => {
       expect( done ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED', newRunId: undefined } );
     } );
 
-    it( 'fast-path: yields done immediately when status is terminal and lastEventId >= historyLength', async () => {
+    it.each( [
+      { statusCode: 4, statusName: 'CANCELLED', expectedReason: 'WORKFLOW_EXECUTION_CANCELED' },
+      { statusCode: 5, statusName: 'TERMINATED', expectedReason: 'WORKFLOW_EXECUTION_TERMINATED' }
+    ] )( 'fast-path: yields done immediately for $statusName status (no newRunId possible)', async ( { statusCode, statusName, expectedReason } ) => {
       mockDescribe.mockResolvedValue( {
         ...baseDescription,
-        status: { code: 2, name: 'COMPLETED' },
+        status: { code: statusCode, name: statusName },
         historyLength: 5
       } );
 
@@ -1504,17 +1517,32 @@ describe( 'temporal_client', () => {
       expect( mockGetWorkflowExecutionHistory ).not.toHaveBeenCalled();
       expect( chunks ).toHaveLength( 2 );
       expect( chunks[0].type ).toBe( 'workflow' );
-      expect( chunks[1] ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' } );
+      expect( chunks[1] ).toEqual( { type: 'done', reason: expectedReason } );
     } );
 
-    it( 'TERMINAL_EVENT_TYPES contains the expected six event type values', () => {
-      expect( TERMINAL_EVENT_TYPES ).toBeInstanceOf( Set );
-      expect( TERMINAL_EVENT_TYPES.has( 2 ) ).toBe( true ); // COMPLETED
-      expect( TERMINAL_EVENT_TYPES.has( 3 ) ).toBe( true ); // FAILED
-      expect( TERMINAL_EVENT_TYPES.has( 4 ) ).toBe( true ); // TIMED_OUT
-      expect( TERMINAL_EVENT_TYPES.has( 21 ) ).toBe( true ); // CANCELED
-      expect( TERMINAL_EVENT_TYPES.has( 27 ) ).toBe( true ); // TERMINATED
-      expect( TERMINAL_EVENT_TYPES.has( 28 ) ).toBe( true ); // CONTINUED_AS_NEW
+    it.each( [
+      { statusCode: 2, statusName: 'COMPLETED', eventType: 2, attrKey: 'workflowExecutionCompletedEventAttributes' },
+      { statusCode: 3, statusName: 'FAILED', eventType: 3, attrKey: 'workflowExecutionFailedEventAttributes' },
+      { statusCode: 7, statusName: 'TIMED_OUT', eventType: 4, attrKey: 'workflowExecutionTimedOutEventAttributes' },
+      { statusCode: 6, statusName: 'CONTINUED_AS_NEW', eventType: 28, attrKey: 'workflowExecutionContinuedAsNewEventAttributes' }
+    ] )( 'fast-path skipped for $statusName: fetches history to surface newRunId', async ( { statusCode, statusName, eventType, attrKey } ) => {
+      mockDescribe.mockResolvedValue( {
+        ...baseDescription,
+        status: { code: statusCode, name: statusName },
+        historyLength: 5
+      } );
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: { events: [ makeEvent( 1, eventType, { [attrKey]: { newExecutionRunId: 'chained-run' } } ) ] },
+        nextPageToken: undefined
+      } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const chunks = await collectStream( client.streamWorkflowHistory( 'wf-1', { lastEventId: 5 } ) );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalled();
+      const done = chunks.find( c => c.type === 'done' );
+      expect( done.newRunId ).toBe( 'chained-run' );
     } );
   } );
 } );

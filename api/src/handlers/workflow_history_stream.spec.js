@@ -224,6 +224,65 @@ describe( 'workflow_history_stream handler', () => {
 
       expect( res.text ).not.toContain( 'event: server_error' );
     } );
+
+    it( 'logs at info but writes no server_error when real error races with client disconnect', async () => {
+      const closeHandlers = [];
+      const fakeReq = {
+        params: { id: 'wf-1' },
+        query: {},
+        headers: {},
+        on: vi.fn( ( evt, cb ) => {
+          if ( evt === 'close' ) {
+            closeHandlers.push( cb );
+          }
+        } )
+      };
+      const writes = [];
+      const fakeRes = {
+        headersSent: false,
+        writableEnded: false,
+        set: vi.fn(),
+        flushHeaders: vi.fn( () => {
+          fakeRes.headersSent = true;
+        } ),
+        write: vi.fn( chunk => {
+          writes.push( chunk );
+        } ),
+        end: vi.fn( () => {
+          fakeRes.writableEnded = true;
+        } ),
+        on: vi.fn()
+      };
+
+      const gateRef = { resolve: null };
+      const realError = new Error( 'INTERNAL: server fault' );
+      const stream = ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow() };
+        await new Promise( resolve => {
+          gateRef.resolve = resolve;
+        } );
+        throw realError;
+      } )();
+
+      const mockClient = { streamWorkflowHistory: vi.fn( () => stream ) };
+      const handler = createWorkflowHistoryStreamHandler( mockClient );
+
+      const handlerPromise = handler( fakeReq, fakeRes );
+      await Promise.resolve();
+      await Promise.resolve();
+
+      closeHandlers[0]();
+
+      gateRef.resolve();
+      await handlerPromise;
+
+      expect( writes.some( c => typeof c === 'string' && c.includes( 'event: server_error' ) ) ).toBe( false );
+      expect( mockLoggerInfo ).toHaveBeenCalledWith(
+        'SSE stream error suppressed by client disconnect',
+        expect.objectContaining( { workflowId: 'wf-1', message: 'INTERNAL: server fault' } )
+      );
+      expect( mockLoggerError ).not.toHaveBeenCalled();
+    } );
   } );
 
   describe( 'query params and client call args', () => {
@@ -341,6 +400,67 @@ describe( 'workflow_history_stream handler', () => {
     } );
   } );
 
+  describe( 'client disconnect', () => {
+    it( 'aborts the stream signal when req emits close', async () => {
+      const closeHandlers = [];
+      const fakeReq = {
+        params: { id: 'wf-1' },
+        query: {},
+        headers: {},
+        on: vi.fn( ( evt, cb ) => {
+          if ( evt === 'close' ) {
+            closeHandlers.push( cb );
+          }
+        } )
+      };
+      const fakeRes = {
+        headersSent: false,
+        writableEnded: false,
+        set: vi.fn(),
+        flushHeaders: vi.fn( () => {
+          fakeRes.headersSent = true;
+        } ),
+        write: vi.fn(),
+        end: vi.fn( () => {
+          fakeRes.writableEnded = true;
+        } ),
+        on: vi.fn()
+      };
+
+      const resolverRef = { resolve: null };
+      const slowStream = ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow() };
+        await new Promise( resolve => {
+          resolverRef.resolve = resolve;
+        } );
+        yield { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' };
+      } )();
+
+      const capturedSignals = [];
+      const mockClient = {
+        streamWorkflowHistory: vi.fn( ( _id, opts ) => {
+          capturedSignals.push( opts.abortSignal );
+          return slowStream;
+        } )
+      };
+      const handler = createWorkflowHistoryStreamHandler( mockClient );
+
+      const handlerPromise = handler( fakeReq, fakeRes );
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect( closeHandlers ).toHaveLength( 1 );
+      expect( capturedSignals[0].aborted ).toBe( false );
+
+      closeHandlers[0]();
+
+      expect( capturedSignals[0].aborted ).toBe( true );
+
+      resolverRef.resolve();
+      await handlerPromise;
+    } );
+  } );
+
   describe( 'keepalive', () => {
     beforeEach( () => {
       vi.useFakeTimers();
@@ -397,6 +517,73 @@ describe( 'workflow_history_stream handler', () => {
 
       expect( written.some( chunk => chunk === ': keepalive\n\n' ) ).toBe( true );
       expect( vi.getTimerCount() ).toBe( 0 );
+    } );
+
+    it( 'aborts and logs info when keepalive write throws synchronously', async () => {
+      const closeHandlers = [];
+      const fakeReq = {
+        params: { id: 'wf-1' },
+        query: {},
+        headers: {},
+        on: vi.fn( ( evt, cb ) => {
+          if ( evt === 'close' ) {
+            closeHandlers.push( cb );
+          }
+        } )
+      };
+      const fakeRes = {
+        headersSent: false,
+        writableEnded: false,
+        set: vi.fn(),
+        flushHeaders: vi.fn( () => {
+          fakeRes.headersSent = true;
+        } ),
+        write: vi.fn( chunk => {
+          if ( chunk === ': keepalive\n\n' ) {
+            const err = new Error( 'ERR_STREAM_DESTROYED' );
+            err.code = 'ERR_STREAM_DESTROYED';
+            throw err;
+          }
+        } ),
+        end: vi.fn( () => {
+          fakeRes.writableEnded = true;
+        } ),
+        on: vi.fn()
+      };
+
+      const resolverRef = { resolve: null };
+      const slowStream = ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow() };
+        await new Promise( resolve => {
+          resolverRef.resolve = resolve;
+        } );
+        yield { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' };
+      } )();
+
+      const capturedSignals = [];
+      const mockClient = {
+        streamWorkflowHistory: vi.fn( ( _id, opts ) => {
+          capturedSignals.push( opts.abortSignal );
+          return slowStream;
+        } )
+      };
+      const handler = createWorkflowHistoryStreamHandler( mockClient );
+
+      const handlerPromise = handler( fakeReq, fakeRes );
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      vi.advanceTimersByTime( 15_000 );
+
+      expect( capturedSignals[0].aborted ).toBe( true );
+      expect( mockLoggerInfo ).toHaveBeenCalledWith(
+        'SSE keepalive write failed',
+        expect.objectContaining( { workflowId: 'wf-1', message: 'ERR_STREAM_DESTROYED' } )
+      );
+
+      resolverRef.resolve();
+      await handlerPromise;
     } );
   } );
 } );

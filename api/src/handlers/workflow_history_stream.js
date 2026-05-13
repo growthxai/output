@@ -54,8 +54,18 @@ export function createWorkflowHistoryStreamHandler( client ) {
 
     res.write( `event: workflow\ndata: ${JSON.stringify( firstChunk.workflow )}\n\n` );
     const keepalive = setInterval( () => {
-      if ( !res.writableEnded ) {
+      if ( res.writableEnded ) {
+        return;
+      }
+      try {
         res.write( ': keepalive\n\n' );
+      } catch ( err ) {
+        // res.write can throw synchronously (e.g. ERR_STREAM_DESTROYED) in the
+        // window between socket destruction and writableEnded being set. A throw
+        // from a setInterval callback would otherwise become uncaughtException.
+        logger.info( 'SSE keepalive write failed', { workflowId, runId, message: err.message } );
+        ctrl.abort();
+        clearInterval( keepalive );
       }
     }, 15_000 );
 
@@ -73,7 +83,14 @@ export function createWorkflowHistoryStreamHandler( client ) {
         }
       }
     } catch ( error ) {
-      if ( !isGrpcCancelledError( error ) && !ctrl.signal.aborted ) {
+      if ( isGrpcCancelledError( error ) ) {
+        // Pure cancellation from gRPC client teardown: nothing to log.
+      } else if ( ctrl.signal.aborted ) {
+        // Real error masked by client disconnect — log at info so it stays observable.
+        logger.info( 'SSE stream error suppressed by client disconnect', {
+          workflowId, runId, error: error.constructor.name, message: error.message
+        } );
+      } else {
         logger.error( 'SSE stream error', {
           workflowId, runId, error: error.constructor.name, message: error.message, stack: error.stack
         } );

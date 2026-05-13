@@ -94,6 +94,28 @@ const NEW_RUN_ID_ATTRS = {
   [EventType.WORKFLOW_EXECUTION_TIMED_OUT]: 'workflowExecutionTimedOutEventAttributes'
 };
 
+// Status codes are returned by `describe()`; event types are returned in history.
+// Temporal uses different spellings for the two (e.g. status name `CANCELLED` vs
+// event type `WORKFLOW_EXECUTION_CANCELED`), so map status code → event type explicitly.
+const STATUS_TO_TERMINAL_EVENT_TYPE = {
+  [TemporalStatus.COMPLETED]: EventType.WORKFLOW_EXECUTION_COMPLETED,
+  [TemporalStatus.FAILED]: EventType.WORKFLOW_EXECUTION_FAILED,
+  [TemporalStatus.CANCELED]: EventType.WORKFLOW_EXECUTION_CANCELED,
+  [TemporalStatus.TERMINATED]: EventType.WORKFLOW_EXECUTION_TERMINATED,
+  [TemporalStatus.CONTINUED_AS_NEW]: EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW,
+  [TemporalStatus.TIMED_OUT]: EventType.WORKFLOW_EXECUTION_TIMED_OUT
+};
+
+// Statuses whose terminal history event can carry `newExecutionRunId`. The fast-path
+// (skip history fetch when reconnect is past historyLength) cannot serve these because
+// `describe()` does not expose `newExecutionRunId` — only the terminal event does.
+const STATUS_HAS_NEW_RUN_ID = new Set( [
+  TemporalStatus.COMPLETED,
+  TemporalStatus.FAILED,
+  TemporalStatus.TIMED_OUT,
+  TemporalStatus.CONTINUED_AS_NEW
+] );
+
 /**
  * Resolves a step name to the WORKFLOW_TASK_COMPLETED event ID to reset to.
  * Scans the workflow history to find the activity matching the step, then locates
@@ -647,8 +669,13 @@ export default {
         };
         yield { type: 'workflow', workflow };
 
-        if ( lastEventId !== undefined && TERMINAL_STATUS_CODES.has( workflowStatus ) && lastEventId >= historyLength ) {
-          yield { type: 'done', reason: `WORKFLOW_EXECUTION_${description.status.name}` };
+        if (
+          lastEventId !== undefined &&
+          TERMINAL_STATUS_CODES.has( workflowStatus ) &&
+          lastEventId >= historyLength &&
+          !STATUS_HAS_NEW_RUN_ID.has( workflowStatus )
+        ) {
+          yield { type: 'done', reason: EventTypeName[STATUS_TO_TERMINAL_EVENT_TYPE[workflowStatus]] };
           return;
         }
 
