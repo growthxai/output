@@ -74,16 +74,36 @@ This starts:
 | Service | URL | Description |
 |---------|-----|-------------|
 | **Temporal UI** | [http://localhost:8080](http://localhost:8080) | Monitor and debug workflows |
-| **Temporal Server** | localhost:7233 | gRPC endpoint |
 | **API Server** | [http://localhost:3001](http://localhost:3001) | REST API for running workflows |
 | **Worker** | — | Processes workflows with auto-reload |
-| **PostgreSQL** | localhost:5432 | Temporal persistence |
-| **Redis** | localhost:6379 | Caching layer |
+| **PostgreSQL** | — | Temporal persistence (container-internal) |
+| **Redis** | — | Caching layer (container-internal) |
+| **Temporal Server** | — | gRPC endpoint (container-internal) |
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--compose-file, -f` | — | Path to custom docker-compose file |
 | `--no-watch` | false | Disable file watching |
+
+#### Running multiple dev stacks
+
+You can run multiple isolated Output stacks on the same machine — useful when working across several projects simultaneously or testing against different versions.
+
+Each stack needs a unique project name and non-conflicting host ports. Set these in the project's `.env`:
+
+```bash
+# Project A (.env) — defaults, no changes needed
+DOCKER_SERVICE_NAME=project-a
+
+# Project B (.env)
+DOCKER_SERVICE_NAME=project-b
+OUTPUT_API_HOST_PORT=3002
+OUTPUT_TEMPORAL_UI_HOST_PORT=8081
+```
+
+`DOCKER_SERVICE_NAME` isolates Docker networks, volumes, and container names so the stacks don't interfere with each other. `OUTPUT_API_HOST_PORT` and `OUTPUT_TEMPORAL_UI_HOST_PORT` control which ports are exposed on your machine — the container-internal ports are unchanged.
+
+Run `npx output dev` in each project directory. Project A's API is at `http://localhost:3001` and Project B's at `http://localhost:3002`.
 
 ### output dev eject
 
@@ -508,7 +528,9 @@ OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
 | `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands |
 | `OUTPUT_API_AUTH_TOKEN` | — | API auth token for requests (required in production) |
 | `OUTPUT_DEBUG` | — | Set to `true` to enable CLI debug mode |
-| `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` |
+| `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` — isolates containers, networks, and volumes |
+| `OUTPUT_API_HOST_PORT` | `3001` | Host port for the Output API server |
+| `OUTPUT_TEMPORAL_UI_HOST_PORT` | `8080` | Host port for the Temporal UI |
 | `OUTPUT_API_VERSION` | `1.9` | API Docker image tag. Set to `dev` for local builds |
 | `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |
