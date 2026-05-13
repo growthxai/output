@@ -15,11 +15,7 @@ const getS3Client = () => {
 
   const { awsRegion: region, awsSecretAccessKey: secretAccessKey, awsAccessKeyId: accessKeyId } = getVars();
 
-  return state.s3Client = new S3Client( {
-    region,
-    credentials: { accessKeyId, secretAccessKey }
-    // requestStreamBufferSize: 65_536
-  } );
+  return state.s3Client = new S3Client( { region, credentials: { accessKeyId, secretAccessKey } } );
 };
 
 /**
