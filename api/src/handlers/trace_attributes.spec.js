@@ -4,10 +4,16 @@ import request from 'supertest';
 
 const RID = '11111111-2222-4333-8444-555555555555';
 const REMOTE_URL = 'https://my-bucket.s3.amazonaws.com/traces/simple/2026-05-13/test-workflow-id.json';
+const LOCAL_PATH = '/Users/ben/Development/repos/growthx/os-workflows/logs/runs/simple/2026-05-13_test-workflow-id.json';
 
 const mockFetchTraceFromS3 = vi.fn();
 vi.mock( '../clients/s3_client.js', () => ( {
   fetchTraceFromS3: ( ...args ) => mockFetchTraceFromS3( ...args )
+} ) );
+
+const mockReadFile = vi.fn();
+vi.mock( 'node:fs/promises', () => ( {
+  readFile: ( ...args ) => mockReadFile( ...args )
 } ) );
 
 // errorHandler pulls in #logger -> #configs; stub both so this spec doesn't
@@ -37,6 +43,7 @@ describe( 'trace_attributes handler', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mockFetchTraceFromS3.mockReset();
+    mockReadFile.mockReset();
   } );
 
   // Realistic trace tree shape: a workflow node with two LLM children (one new
@@ -222,11 +229,11 @@ describe( 'trace_attributes handler', () => {
       .expect( 404 );
   } );
 
-  it( 'returns 404 with TraceNotAvailableError when the run completed but has no remote trace destination', async () => {
+  it( 'returns 404 with TraceNotAvailableError when the run completed but has no trace destinations at all', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
       workflowId: 'test-workflow-id',
       runId: 'r-no-trace',
-      trace: { destinations: { local: '/tmp/t.json', remote: null } }
+      trace: { destinations: { local: null, remote: null } }
     } );
 
     await request( createApp() )
@@ -238,6 +245,80 @@ describe( 'trace_attributes handler', () => {
       } );
 
     expect( mockFetchTraceFromS3 ).not.toHaveBeenCalled();
+    expect( mockReadFile ).not.toHaveBeenCalled();
+  } );
+
+  it( 'reads the local trace file and returns aggregated attributes when only the local destination is set', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      workflowId: 'test-workflow-id',
+      runId: 'r-local',
+      trace: { destinations: { local: LOCAL_PATH, remote: null } }
+    } );
+    mockReadFile.mockResolvedValue( JSON.stringify( fixtureTrace() ) );
+
+    const res = await request( createApp() )
+      .get( '/workflow/test-workflow-id/trace-attributes' )
+      .expect( 200 );
+
+    expect( res.body ).toMatchObject( {
+      workflowId: 'test-workflow-id',
+      runId: 'r-local',
+      startTime: 1715567000000,
+      finishTime: 1715567027341,
+      runtime: 27341,
+      traceUrl: LOCAL_PATH
+    } );
+
+    expect( res.body.attributes.tokenUsage ).toEqual( {
+      inputTokens: 1500,
+      outputTokens: 300,
+      cachedInputTokens: 50,
+      totalTokens: 1800
+    } );
+
+    const byName = Object.fromEntries(
+      res.body.attributes.cost.components.map( c => [ c.name, c.value ] )
+    );
+    expect( byName['cost:llm:request'] ).toBeCloseTo( 0.3829, 10 );
+    expect( byName['cost:http:request'] ).toBeCloseTo( 0.04, 10 );
+    expect( res.body.attributes.cost.total ).toBeCloseTo( 0.4229, 10 );
+
+    expect( mockReadFile ).toHaveBeenCalledWith( LOCAL_PATH, 'utf8' );
+    expect( mockFetchTraceFromS3 ).not.toHaveBeenCalled();
+  } );
+
+  it( 'prefers the remote destination over local when both are present', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      workflowId: 'test-workflow-id',
+      runId: 'r-both',
+      trace: { destinations: { local: LOCAL_PATH, remote: REMOTE_URL } }
+    } );
+    mockFetchTraceFromS3.mockResolvedValue( fixtureTrace() );
+
+    const res = await request( createApp() )
+      .get( '/workflow/test-workflow-id/trace-attributes' )
+      .expect( 200 );
+
+    expect( res.body.traceUrl ).toBe( REMOTE_URL );
+    expect( mockFetchTraceFromS3 ).toHaveBeenCalledWith( REMOTE_URL );
+    expect( mockReadFile ).not.toHaveBeenCalled();
+  } );
+
+  it( 'forwards local file read errors through the error handler', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      workflowId: 'test-workflow-id',
+      runId: 'r-local',
+      trace: { destinations: { local: LOCAL_PATH, remote: null } }
+    } );
+    mockReadFile.mockRejectedValue( new Error( 'ENOENT: no such file' ) );
+
+    const app = express();
+    app.get( '/workflow/:id/trace-attributes', createTraceAttributesHandler( mockClient ) );
+    app.use( ( err, _req, res, _next ) => res.status( 500 ).json( { error: err.message } ) );
+
+    await request( app )
+      .get( '/workflow/test-workflow-id/trace-attributes' )
+      .expect( 500, { error: 'ENOENT: no such file' } );
   } );
 
   it( 'returns 400 when the pinned rid is not a valid UUID', async () => {
