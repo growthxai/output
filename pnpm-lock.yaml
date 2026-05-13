@@ -156,6 +156,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 'catalog:'
         version: 3.1038.0
+      '@outputai/core':
+        specifier: 'workspace:'
+        version: link:../sdk/core
       '@temporalio/client':
         specifier: 'catalog:'
         version: 1.17.0
@@ -225,7 +228,7 @@ importers:
         version: 4.1.0
       debug:
         specifier: 4.4.3
-        version: 4.4.3(supports-color@8.1.1)
+        version: 4.4.3(supports-color@5.5.0)
       dotenv:
         specifier: 17.4.2
         version: 17.4.2

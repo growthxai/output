@@ -19,6 +19,9 @@
     "./sdk_utils": {
       "types": "./src/utils/index.d.ts",
       "import": "./src/utils/index.js"
+    },
+    "./sdk_tracing_tools": {
+      "import": "./src/tracing/tools/index.js"
     }
   },
   "files": [
