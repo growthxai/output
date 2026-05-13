@@ -49,5 +49,6 @@ export const addEventAttribute = ( { eventId, name, value } ) =>
  * Known attributes
  */
 export const Attribute = {
-  COST: 'cost'
+  COST: 'cost',
+  TOKEN_USAGE: 'token_usage'
 };

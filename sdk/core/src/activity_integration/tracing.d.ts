@@ -42,4 +42,5 @@ export declare function addEventAttribute( args: { eventId: string; name: string
  */
 export declare const Attribute: {
   COST: 'cost';
+  TOKEN_USAGE: 'token_usage';
 };
