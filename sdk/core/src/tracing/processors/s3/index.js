@@ -1,10 +1,9 @@
 import { upload } from './s3_client.js';
 import { getRedisClient } from './redis_client.js';
 import buildTraceTree from '../../tools/build_trace_tree.js';
-import { EOL } from 'node:os';
 import { loadEnv, getVars } from './configs.js';
 import { createChildLogger } from '#logger';
-import { safeFormatJSON } from '../../tools/utils.js';
+import { createStringifyStream } from 'big-json';
 
 const log = createChildLogger( 'S3 Processor' );
 
@@ -100,9 +99,10 @@ export const exec = async ( { entry, executionContext } ) => {
     log.warn( 'Incomplete trace file discarded', { workflowId, error: 'incomplete_trace_file' } );
     return;
   }
+
   await upload( {
     key: getS3Key( { workflowId, workflowName, startTime } ),
-    content: safeFormatJSON( content ) + EOL
+    content: createStringifyStream( { body: content } )
   } );
   await bustEntries( cacheKey );
 };

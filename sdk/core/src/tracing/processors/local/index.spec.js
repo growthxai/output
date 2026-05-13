@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EOL } from 'node:os';
 
 // In-memory fs mock store
 const store = { files: new Map() };
@@ -12,6 +11,7 @@ const appendFileSyncMock = vi.fn( ( path, data ) => {
 const readFileSyncMock = vi.fn( path => store.files.get( path ) ?? '' );
 const readdirSyncMock = vi.fn( () => [] );
 const rmSyncMock = vi.fn();
+const createWriteStreamMock = vi.fn( path => ( { path } ) );
 
 vi.mock( 'node:fs', () => ( {
   mkdirSync: mkdirSyncMock,
@@ -19,8 +19,23 @@ vi.mock( 'node:fs', () => ( {
   appendFileSync: appendFileSyncMock,
   readFileSync: readFileSyncMock,
   readdirSync: readdirSyncMock,
-  rmSync: rmSyncMock
+  rmSync: rmSyncMock,
+  createWriteStream: createWriteStreamMock
 } ) );
+
+const pipelineMock = vi.fn( async ( source, destination ) => {
+  const chunks = [];
+  for await ( const chunk of source ) {
+    chunks.push( Buffer.isBuffer( chunk ) ? chunk : Buffer.from( chunk ) );
+  }
+  store.files.set( destination.path, Buffer.concat( chunks ).toString( 'utf8' ) );
+} );
+vi.mock( 'node:stream/promises', () => ( { pipeline: pipelineMock } ) );
+
+vi.mock( 'big-json', async () => {
+  const { Readable } = await import( 'node:stream' );
+  return { createStringifyStream: ( { body } ) => Readable.from( [ JSON.stringify( body ) ] ) };
+} );
 
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
@@ -58,17 +73,18 @@ describe( 'tracing/processors/local', () => {
     const workflowId = 'id1';
     const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
-    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 2 ) } );
+    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    await exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
+    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 2 ) } );
 
     expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
     expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 3 );
 
-    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
-    const [ writtenPath, content ] = writeFileSyncMock.mock.calls[0];
+    expect( createWriteStreamMock ).toHaveBeenCalledTimes( 1 );
+    expect( pipelineMock ).toHaveBeenCalledTimes( 1 );
+    const [ writtenPath ] = createWriteStreamMock.mock.calls[0];
     expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/WF\// );
-    expect( JSON.parse( content.trim() ).count ).toBe( 3 );
+    expect( JSON.parse( store.files.get( writtenPath ) ).count ).toBe( 3 );
   } );
 
   it( 'exec(): does not build or write on non-flush entries', async () => {
@@ -79,11 +95,13 @@ describe( 'tracing/processors/local', () => {
     const workflowId = 'id1';
     const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
+    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    await exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
 
     expect( buildTraceTreeMock ).not.toHaveBeenCalled();
     expect( writeFileSyncMock ).not.toHaveBeenCalled();
+    expect( createWriteStreamMock ).not.toHaveBeenCalled();
+    expect( pipelineMock ).not.toHaveBeenCalled();
   } );
 
   it( 'exec(): flushes on error action before root end', async () => {
@@ -94,12 +112,13 @@ describe( 'tracing/processors/local', () => {
     const workflowId = 'id1';
     const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: { id: 'step-1', action: 'error', timestamp: startTime + 1 } } );
+    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    await exec( { ...ctx, entry: { id: 'step-1', action: 'error', timestamp: startTime + 1 } } );
 
     expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
     expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 2 );
-    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
+    expect( createWriteStreamMock ).toHaveBeenCalledTimes( 1 );
+    expect( pipelineMock ).toHaveBeenCalledTimes( 1 );
   } );
 
   it( 'getDestination(): returns absolute path under callerDir logs', async () => {
@@ -128,11 +147,11 @@ describe( 'tracing/processors/local', () => {
     const workflowId = 'id1';
     const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
 
-    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
+    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
 
-    expect( writeFileSyncMock ).toHaveBeenCalledTimes( 1 );
-    const [ writtenPath ] = writeFileSyncMock.mock.calls[0];
+    expect( createWriteStreamMock ).toHaveBeenCalledTimes( 1 );
+    const [ writtenPath ] = createWriteStreamMock.mock.calls[0];
 
     expect( writtenPath ).not.toContain( '/host/path/logs' );
     expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/WF\// );
@@ -164,15 +183,15 @@ describe( 'tracing/processors/local', () => {
     const workflowName = 'test-workflow';
     const ctx = { executionContext: { workflowId, workflowName, startTime } };
 
-    exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
+    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
+    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
 
     const destination = getDestination( { startTime, workflowId, workflowName } );
 
-    const [ writtenPath, payload ] = writeFileSyncMock.mock.calls[0];
+    const [ writtenPath ] = createWriteStreamMock.mock.calls[0];
     expect( writtenPath ).not.toContain( '/Users/ben/project' );
     expect( writtenPath ).toMatch( /\/tmp\/project\/logs\/runs\/test-workflow\// );
-    expect( payload.endsWith( EOL ) ).toBe( true );
+    expect( JSON.parse( store.files.get( writtenPath ) ).count ).toBe( 2 );
 
     expect( destination ).toBe( '/Users/ben/project/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json' );
   } );

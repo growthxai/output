@@ -27,6 +27,19 @@ vi.mock( './s3_client.js', () => ( { upload: uploadMock } ) );
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
 
+vi.mock( 'big-json', async () => {
+  const { Readable } = await import( 'node:stream' );
+  return { createStringifyStream: ( { body } ) => Readable.from( [ JSON.stringify( body ) ] ) };
+} );
+
+const streamToString = async stream => {
+  const chunks = [];
+  for await ( const chunk of stream ) {
+    chunks.push( Buffer.isBuffer( chunk ) ? chunk : Buffer.from( chunk ) );
+  }
+  return Buffer.concat( chunks ).toString( 'utf8' );
+};
+
 describe( 'tracing/processors/s3', () => {
   beforeEach( () => {
     vi.useFakeTimers();
@@ -74,7 +87,7 @@ describe( 'tracing/processors/s3', () => {
     expect( uploadMock ).toHaveBeenCalledTimes( 1 );
     const { key, content } = uploadMock.mock.calls[0][0];
     expect( key ).toMatch( /^WF\/2020\/01\/02\// );
-    expect( JSON.parse( content.trim() ).count ).toBe( 3 );
+    expect( JSON.parse( await streamToString( content ) ).count ).toBe( 3 );
     expect( delMock ).toHaveBeenCalledTimes( 1 );
     expect( delMock ).toHaveBeenCalledWith( 'traces/WF/id1' );
   } );
