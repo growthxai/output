@@ -13,6 +13,8 @@ export const endTraceWithError = ( { traceId, error } ) => {
 export const endTraceWithSuccess = ( { traceId, modelId, response, cost, ...extra } ) => {
   const { totalUsage: usage, text: result, providerMetadata } = response;
   Tracing.addEventAttribute( { eventId: traceId, name: Tracing.Attribute.COST, value: cost } );
-  Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, ...extra } } );
+  Tracing.addEventAttribute( { eventId: traceId, name: Tracing.Attribute.TOKEN_USAGE, value: usage } );
+  Tracing.addEventEnd( { id: traceId, details: { result, providerMetadata, ...extra } } );
   emitEvent( 'cost:llm:request', { modelId, cost, usage } );
+  emitEvent( 'token_usage:llm:request', { modelId, usage } );
 };
