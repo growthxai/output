@@ -8,6 +8,7 @@ import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
+import { createTraceAttributesHandler } from './handlers/trace_attributes.js';
 import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
 import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
 import { readPinnedRunId } from './handlers/utils.js';
@@ -51,6 +52,7 @@ const stopHandler = createStopHandler( client );
 const terminateHandler = createTerminateHandler( client );
 const resultHandler = createResultHandler( client );
 const traceLogHandler = createTraceLogHandler( client );
+const traceAttributesHandler = createTraceAttributesHandler( client );
 
 // Sets payload limit for POST in application/json format. Some workflow have very large payloads
 app.use( express.json( { limit: '2mb' } ) );
@@ -275,6 +277,73 @@ app.use( ( req, res, next ) => {
  *         localPath:
  *           type: string
  *           description: Absolute path to local trace file
+ *     TraceAttributesCostComponent:
+ *       type: object
+ *       required: [name, value]
+ *       properties:
+ *         name:
+ *           type: string
+ *           description: Canonical cost event name (e.g. `cost:llm:request`, `cost:http:request`, `other`).
+ *         value:
+ *           type: number
+ *           description: Summed USD cost for this component bucket.
+ *     TraceAttributesResponse:
+ *       type: object
+ *       description: |
+ *         Aggregated cost, token usage, and runtime computed by walking the trace tree of a completed workflow run.
+ *         Component breakdowns under `attributes.cost.components` are grouped by the canonical event name that
+ *         emitted them (inferred from node kind: llm/http/other). Values sum to `attributes.cost.total`.
+ *       required: [workflowId, runId, startTime, finishTime, runtime, attributes, traceUrl]
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *           description: The workflow execution id
+ *         runId:
+ *           type: string
+ *           description: The specific run id this aggregation belongs to
+ *         startTime:
+ *           type: integer
+ *           nullable: true
+ *           description: ms epoch of the root trace node's start
+ *         finishTime:
+ *           type: integer
+ *           nullable: true
+ *           description: ms epoch of the root trace node's end
+ *         runtime:
+ *           type: integer
+ *           nullable: true
+ *           description: ms between finishTime and startTime, null if either timestamp is missing
+ *         attributes:
+ *           type: object
+ *           required: [cost, tokenUsage]
+ *           properties:
+ *             cost:
+ *               type: object
+ *               required: [total, components]
+ *               properties:
+ *                 total:
+ *                   type: number
+ *                   description: USD; equal to the sum of `components[].value`
+ *                 components:
+ *                   type: array
+ *                   description: Cost contributions bucketed by canonical event name (llm / http / other).
+ *                   items:
+ *                     $ref: '#/components/schemas/TraceAttributesCostComponent'
+ *             tokenUsage:
+ *               type: object
+ *               required: [inputTokens, outputTokens, cachedInputTokens, totalTokens]
+ *               properties:
+ *                 inputTokens:
+ *                   type: integer
+ *                 outputTokens:
+ *                   type: integer
+ *                 cachedInputTokens:
+ *                   type: integer
+ *                 totalTokens:
+ *                   type: integer
+ *         traceUrl:
+ *           type: string
+ *           description: S3 URL of the underlying trace file (same value `/trace-log` returns under `data` for remote traces).
  *     WorkflowRunInfo:
  *       type: object
  *       properties:
@@ -1016,6 +1085,75 @@ app.get( '/workflow/:id/runs/:rid/result', resultHandler );
  */
 app.get( '/workflow/:id/trace-log', traceLogHandler );
 app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
+
+/**
+ * @swagger
+ * /workflow/{id}/trace-attributes:
+ *   get:
+ *     summary: Get aggregated trace attributes for a completed workflow (latest run)
+ *     description: |
+ *       Returns runtime, cost rolled up by event-name bucket, token-usage totals, and the trace S3 URL
+ *       for the latest run of the given workflow. Completion-only — returns 424 while the workflow is
+ *       still running, mirroring `/result` and `/trace-log`. To pin a specific run, use
+ *       `/workflow/{id}/runs/{rid}/trace-attributes`.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *        description: The id of the workflow to retrieve trace attributes for
+ *     responses:
+ *       200:
+ *         description: The aggregated trace attributes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TraceAttributesResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/runs/{rid}/trace-attributes:
+ *   get:
+ *     summary: Get aggregated trace attributes for a specific completed workflow run
+ *     description: |
+ *       Returns runtime, cost rolled up by event-name bucket, token-usage totals, and the trace S3 URL
+ *       for the pinned workflow run. Completion-only — returns 424 while the run is still in progress.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *      - in: path
+ *        name: rid
+ *        required: true
+ *        schema:
+ *          type: string
+ *          format: uuid
+ *        description: The specific run id to target
+ *     responses:
+ *       200:
+ *         description: The aggregated trace attributes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TraceAttributesResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+app.get( '/workflow/:id/trace-attributes', traceAttributesHandler );
+app.get( '/workflow/:id/runs/:rid/trace-attributes', traceAttributesHandler );
 
 /**
  * @swagger

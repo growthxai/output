@@ -160,6 +160,63 @@ export interface TraceLogLocalResponse {
   localPath: string;
 }
 
+export interface TraceAttributesCostComponent {
+  /** Canonical cost event name (e.g. `cost:llm:request`, `cost:http:request`, `other`). */
+  name: string;
+  /** Summed USD cost for this component bucket. */
+  value: number;
+}
+
+export type TraceAttributesResponseAttributesCost = {
+  /** USD; equal to the sum of `components[].value` */
+  total: number;
+  /** Cost contributions bucketed by canonical event name (llm / http / other). */
+  components: TraceAttributesCostComponent[];
+};
+
+export type TraceAttributesResponseAttributesTokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  totalTokens: number;
+};
+
+export type TraceAttributesResponseAttributes = {
+  cost: TraceAttributesResponseAttributesCost;
+  tokenUsage: TraceAttributesResponseAttributesTokenUsage;
+};
+
+/**
+ * Aggregated cost, token usage, and runtime computed by walking the trace tree of a completed workflow run.
+Component breakdowns under `attributes.cost.components` are grouped by the canonical event name that
+emitted them (inferred from node kind: llm/http/other). Values sum to `attributes.cost.total`.
+
+ */
+export interface TraceAttributesResponse {
+  /** The workflow execution id */
+  workflowId: string;
+  /** The specific run id this aggregation belongs to */
+  runId: string;
+  /**
+     * ms epoch of the root trace node's start
+     * @nullable
+     */
+  startTime: number | null;
+  /**
+     * ms epoch of the root trace node's end
+     * @nullable
+     */
+  finishTime: number | null;
+  /**
+     * ms between finishTime and startTime, null if either timestamp is missing
+     * @nullable
+     */
+  runtime: number | null;
+  attributes: TraceAttributesResponseAttributes;
+  /** S3 URL of the underlying trace file (same value `/trace-log` returns under `data` for remote traces). */
+  traceUrl: string;
+}
+
 /**
  * Current run status
  */
@@ -1393,6 +1450,127 @@ export const getWorkflowIdRunsRidTraceLog = async (id: string,
     rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidTraceLogResponse> => {
 
   return customFetchInstance<getWorkflowIdRunsRidTraceLogResponse>(getGetWorkflowIdRunsRidTraceLogUrl(id,rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Returns runtime, cost rolled up by event-name bucket, token-usage totals, and the trace S3 URL
+for the latest run of the given workflow. Completion-only — returns 424 while the workflow is
+still running, mirroring `/result` and `/trace-log`. To pin a specific run, use
+`/workflow/{id}/runs/{rid}/trace-attributes`.
+
+ * @summary Get aggregated trace attributes for a completed workflow (latest run)
+ */
+export type getWorkflowIdTraceAttributesResponse200 = {
+  data: TraceAttributesResponse
+  status: 200
+}
+
+export type getWorkflowIdTraceAttributesResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdTraceAttributesResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
+export type getWorkflowIdTraceAttributesResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdTraceAttributesResponseSuccess = (getWorkflowIdTraceAttributesResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdTraceAttributesResponseError = (getWorkflowIdTraceAttributesResponse404 | getWorkflowIdTraceAttributesResponse424 | getWorkflowIdTraceAttributesResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdTraceAttributesResponse = (getWorkflowIdTraceAttributesResponseSuccess | getWorkflowIdTraceAttributesResponseError)
+
+export const getGetWorkflowIdTraceAttributesUrl = (id: string,) => {
+
+
+
+
+  return `/workflow/${id}/trace-attributes`
+}
+
+export const getWorkflowIdTraceAttributes = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdTraceAttributesResponse> => {
+
+  return customFetchInstance<getWorkflowIdTraceAttributesResponse>(getGetWorkflowIdTraceAttributesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Returns runtime, cost rolled up by event-name bucket, token-usage totals, and the trace S3 URL
+for the pinned workflow run. Completion-only — returns 424 while the run is still in progress.
+
+ * @summary Get aggregated trace attributes for a specific completed workflow run
+ */
+export type getWorkflowIdRunsRidTraceAttributesResponse200 = {
+  data: TraceAttributesResponse
+  status: 200
+}
+
+export type getWorkflowIdRunsRidTraceAttributesResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidTraceAttributesResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidTraceAttributesResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
+export type getWorkflowIdRunsRidTraceAttributesResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidTraceAttributesResponseSuccess = (getWorkflowIdRunsRidTraceAttributesResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidTraceAttributesResponseError = (getWorkflowIdRunsRidTraceAttributesResponse400 | getWorkflowIdRunsRidTraceAttributesResponse404 | getWorkflowIdRunsRidTraceAttributesResponse424 | getWorkflowIdRunsRidTraceAttributesResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidTraceAttributesResponse = (getWorkflowIdRunsRidTraceAttributesResponseSuccess | getWorkflowIdRunsRidTraceAttributesResponseError)
+
+export const getGetWorkflowIdRunsRidTraceAttributesUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/trace-attributes`
+}
+
+export const getWorkflowIdRunsRidTraceAttributes = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidTraceAttributesResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidTraceAttributesResponse>(getGetWorkflowIdRunsRidTraceAttributesUrl(id,rid),
   {
     ...options,
     method: 'GET'

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
+    "@outputai/core": "workspace:",
     "@temporalio/client": "catalog:",
     "express": "5.2.1",
     "morgan": "1.10.1",
