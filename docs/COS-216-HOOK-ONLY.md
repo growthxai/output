@@ -2,7 +2,7 @@
 
 This branch is part of the cross-repo COS-216 effort. Canonical planning lives in atlas at:
 
-`docs/plans/os-v1/agents_hq_final_hook_only/tasks/overview.md`
+`docs/plans/os-v1/agents_hq_final/hook_only/tasks/overview.md`
 
 ## Tickets landing on this branch
 
