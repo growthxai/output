@@ -1,9 +1,11 @@
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync, createWriteStream } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'url';
 import buildTraceTree from '../../tools/build_trace_tree.js';
-import { safeFormatJSON } from '../../tools/utils.js';
 import { EOL } from 'node:os';
+import { JsonStreamStringify } from 'json-stream-stringify';
+
+import { pipeline } from 'stream/promises';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 
@@ -109,7 +111,7 @@ export const init = () => {
  * @param {object} args.executionContext - Execution info: workflowId, workflowName, startTime
  * @returns {void}
  */
-export const exec = ( { entry, executionContext } ) => {
+export const exec = async ( { entry, executionContext } ) => {
   const { workflowId, workflowName, startTime } = executionContext;
   const tempFilePath = createTempFilePath( executionContext );
   addEntry( entry, tempFilePath );
@@ -126,7 +128,11 @@ export const exec = ( { entry, executionContext } ) => {
   const path = join( dir, buildTraceFilename( { startTime, workflowId } ) );
 
   mkdirSync( dir, { recursive: true } );
-  writeFileSync( path, safeFormatJSON( content ) + EOL, 'utf-8' );
+
+  await pipeline(
+    new JsonStreamStringify( content ),
+    createWriteStream( path )
+  );
 };
 
 /**

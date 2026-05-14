@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/lib-storage": "3.1038.0",
     "@babel/generator": "7.29.1",
     "@babel/parser": "7.29.2",
     "@babel/traverse": "7.29.0",
@@ -45,6 +46,7 @@
     "@temporalio/common": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
+    "json-stream-stringify": "3.1.6",
     "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
     "undici": "catalog:",
