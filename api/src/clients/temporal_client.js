@@ -1,6 +1,6 @@
 import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
-import { buildWorkflowId, extractTraceInfo, extractErrorMessage, takeFromAsyncIterable } from '#utils';
+import { buildWorkflowId, extractErrorDetail, extractErrorMessage, takeFromAsyncIterable } from '#utils';
 import { logger } from '#logger';
 import {
   WorkflowNotFoundError,
@@ -182,14 +182,18 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
     ...( result ? {
       output: result.output,
       trace: result.trace,
-      cost: result.cost
+      attributes: result.attributes,
+      aggregations: result.aggregations
     } : {
       output: null,
       trace: null,
-      cost: null
+      attributes: null,
+      aggregations: null
     } ),
     ...( error ? {
-      trace: extractTraceInfo( error ),
+      trace: extractErrorDetail( error, 'trace' ),
+      attributes: extractErrorDetail( error, 'attributes' ),
+      aggregations: extractErrorDetail( error, 'aggregations' ),
       error: extractErrorMessage( error )
     } : {
       error: null
@@ -266,7 +270,7 @@ export default {
             logger.warn( 'Workflow execution failed', {
               workflowId,
               errorMessage: error.message,
-              hasTrace: Boolean( extractTraceInfo( error ) )
+              hasTrace: Boolean( extractErrorDetail( error, 'trace' ) )
             } );
             return buildWorkflowResult( { workflowId, status: 'failed', runId, input, error } );
           }

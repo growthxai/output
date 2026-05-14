@@ -1,22 +1,75 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const mockFetchModelsPricing = vi.fn();
+const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
+
 vi.mock( './fetch_models_pricing.js', () => ( {
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
+vi.mock( '@outputai/core/sdk_activity_integration', () => {
+  class LLMUsage {
+    static TYPE = 'llm:usage';
+    type = LLMUsage.TYPE;
+    modelId;
+    usage = [];
+
+    constructor( modelId ) {
+      this.modelId = modelId;
+    }
+
+    addUsage( { type, ppm, amount } ) {
+      this.usage.push( {
+        type,
+        ppm,
+        amount,
+        total: ( amount / 1_000_000 ) * ppm
+      } );
+    }
+
+    get total() {
+      return this.usage.reduce( ( total, current ) => total + current.total, 0 );
+    }
+
+    get tokensUsed() {
+      return this.usage.reduce( ( total, current ) => total + current.amount, 0 );
+    }
+  }
+
+  return {
+    Tracing: {
+      Attribute: {
+        LLMUsage
+      }
+    }
+  };
+} );
+
+import { Tracing } from '@outputai/core/sdk_activity_integration';
 import { calculateLLMCallCost } from './index.js';
 
-const expectCostInfo = ( result, modelId, tokens = undefined ) => {
-  expect( result.info ).toEqual( { modelId, tokens } );
+const expectLLMUsage = ( result, { modelId, usage, total, tokensUsed } ) => {
+  expect( result ).toBeInstanceOf( Tracing.Attribute.LLMUsage );
+  expect( result ).toEqual( expect.objectContaining( {
+    type: Tracing.Attribute.LLMUsage.TYPE,
+    modelId,
+    usage
+  } ) );
+  expect( result.total ).toBeCloseTo( total );
+  expect( result.tokensUsed ).toBe( tokensUsed );
 };
 
 describe( 'calculateLLMCallCost', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
+    vi.spyOn( console, 'error' ).mockImplementation( () => {} );
   } );
 
-  it( 'returns total null and message when fetchModelsPricing returns null', async () => {
+  afterEach( () => {
+    vi.restoreAllMocks();
+  } );
+
+  it( 'returns null when fetchModelsPricing returns null', async () => {
     mockFetchModelsPricing.mockResolvedValue( null );
 
     const result = await calculateLLMCallCost( {
@@ -24,10 +77,11 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
 
-    expect( result ).toEqual( { total: null, message: 'Failed to fetch models pricing' } );
+    expect( result ).toBeNull();
+    expect( console.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing' );
   } );
 
-  it( 'returns total null and message when model is missing from cost table', async () => {
+  it( 'returns null when model is missing from cost table', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map() );
 
     const result = await calculateLLMCallCost( {
@@ -35,49 +89,50 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
 
-    expect( result ).toEqual( {
-      total: null,
-      message: 'Missing cost reference for model'
-    } );
+    expect( result ).toBeNull();
+    expect( console.warn ).toHaveBeenCalledWith( 'Missing cost reference for model' );
   } );
 
-  it( 'calculates input and output cost from mock model', async () => {
-    const cost = { input: 2, output: 10, cache_read: 1 };
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'gpt-4o', cost ] ] ) );
+  it( 'calculates input and output usage from model pricing', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'gpt-4o', { input: 2, output: 10, cache_read: 1 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
       modelId: 'gpt-4o',
       usage: { inputTokens: 1_000_000, outputTokens: 500_000 }
     } );
 
-    expect( result.total ).toBe( 7 );
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 2, tokens: 1_000_000 },
-      { name: 'input_cached_tokens', value: 0, tokens: undefined },
-      { name: 'output_tokens', value: 5, tokens: 500_000 }
-    ] );
-    expectCostInfo( result, 'gpt-4o' );
+    expectLLMUsage( result, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 2, amount: 1_000_000, total: 2 },
+        { type: 'output', ppm: 10, amount: 500_000, total: 5 }
+      ],
+      total: 7,
+      tokensUsed: 1_500_000
+    } );
   } );
 
-  it( 'splits input into non-cached and cached at respective rates', async () => {
-    const cost = { input: 4, cache_read: 1, output: 10 };
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'cached-model', cost ] ] ) );
+  it( 'splits input into non-cached and cached usage at respective rates', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'cached-model', { input: 4, cache_read: 1, output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
       modelId: 'cached-model',
       usage: { inputTokens: 1_000_000, cachedInputTokens: 500_000, outputTokens: 100_000 }
     } );
 
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 2, tokens: 500_000 },
-      { name: 'input_cached_tokens', value: 0.5, tokens: 500_000 },
-      { name: 'output_tokens', value: 1, tokens: 100_000 }
-    ] );
-    expect( result.total ).toBeCloseTo( 3.5 );
-    expectCostInfo( result, 'cached-model' );
+    expectLLMUsage( result, {
+      modelId: 'cached-model',
+      usage: [
+        { type: 'input', ppm: 4, amount: 500_000, total: 2 },
+        { type: 'input_cached', ppm: 1, amount: 500_000, total: 0.5 },
+        { type: 'output', ppm: 10, amount: 100_000, total: 1 }
+      ],
+      total: 3.5,
+      tokensUsed: 1_100_000
+    } );
   } );
 
-  it( 'omits cached component when model has no cache_read (non-cached rate applies to full input minus cached)', async () => {
+  it( 'omits cached usage when model has no cache_read rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-cache', { input: 2, output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -85,15 +140,18 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 0 }
     } );
 
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 1.6, tokens: 800_000 },
-      { name: 'output_tokens', value: 0, tokens: 0 }
-    ] );
-    expect( result.total ).toBe( 1.6 );
-    expectCostInfo( result, 'no-cache' );
+    expectLLMUsage( result, {
+      modelId: 'no-cache',
+      usage: [
+        { type: 'input', ppm: 2, amount: 800_000, total: 1.6 },
+        { type: 'output', ppm: 10, amount: 0, total: 0 }
+      ],
+      total: 1.6,
+      tokensUsed: 800_000
+    } );
   } );
 
-  it( 'omits input component when pricing has no input rate', async () => {
+  it( 'omits input usage when pricing has no input rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'out-only', { output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -101,14 +159,17 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
 
-    expect( result.total ).toBe( 0.0005 );
-    expect( result.components ).toEqual( [
-      { name: 'output_tokens', value: 0.0005, tokens: 50 }
-    ] );
-    expectCostInfo( result, 'out-only' );
+    expectLLMUsage( result, {
+      modelId: 'out-only',
+      usage: [
+        { type: 'output', ppm: 10, amount: 50, total: 0.0005 }
+      ],
+      total: 0.0005,
+      tokensUsed: 50
+    } );
   } );
 
-  it( 'omits output component when pricing has no output rate', async () => {
+  it( 'omits output usage when pricing has no output rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'in-only', { input: 1 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -116,14 +177,17 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
 
-    expect( result.total ).toBe( 0.0001 );
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001, tokens: 100 }
-    ] );
-    expectCostInfo( result, 'in-only' );
+    expectLLMUsage( result, {
+      modelId: 'in-only',
+      usage: [
+        { type: 'input', ppm: 1, amount: 100, total: 0.0001 }
+      ],
+      total: 0.0001,
+      tokensUsed: 100
+    } );
   } );
 
-  it( 'uses reasoning cost when present', async () => {
+  it( 'includes reasoning usage when present', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [
       'with-reasoning',
       { input: 1, output: 10, reasoning: 60 }
@@ -134,16 +198,19 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 50 }
     } );
 
-    expect( result.total ).toBeCloseTo( 0.0033 );
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001, tokens: 100 },
-      { name: 'output_tokens', value: 0.0002, tokens: 20 },
-      { name: 'reasoning_tokens', value: 0.003, tokens: 50 }
-    ] );
-    expectCostInfo( result, 'with-reasoning' );
+    expectLLMUsage( result, {
+      modelId: 'with-reasoning',
+      usage: [
+        { type: 'input', ppm: 1, amount: 100, total: 0.0001 },
+        { type: 'output', ppm: 10, amount: 20, total: 0.0002 },
+        { type: 'reasoning', ppm: 60, amount: 50, total: 0.003 }
+      ],
+      total: 0.0033,
+      tokensUsed: 170
+    } );
   } );
 
-  it( 'omits reasoning component when reasoning cost missing (included in output)', async () => {
+  it( 'omits reasoning usage when reasoning cost is missing', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-reasoning', { input: 1, output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -151,15 +218,18 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 50 }
     } );
 
-    expect( result.total ).toBeCloseTo( 0.0003 );
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001, tokens: 100 },
-      { name: 'output_tokens', value: 0.0002, tokens: 20 }
-    ] );
-    expectCostInfo( result, 'no-reasoning' );
+    expectLLMUsage( result, {
+      modelId: 'no-reasoning',
+      usage: [
+        { type: 'input', ppm: 1, amount: 100, total: 0.0001 },
+        { type: 'output', ppm: 10, amount: 20, total: 0.0002 }
+      ],
+      total: 0.0003,
+      tokensUsed: 120
+    } );
   } );
 
-  it( 'includes reasoning component with zero when reasoningTokens is zero', async () => {
+  it( 'includes reasoning usage with zero amount when reasoningTokens is zero', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [
       'full',
       { input: 2, output: 8, reasoning: 60 }
@@ -170,16 +240,19 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 100, outputTokens: 50, reasoningTokens: 0 }
     } );
 
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0002, tokens: 100 },
-      { name: 'output_tokens', value: 0.0004, tokens: 50 },
-      { name: 'reasoning_tokens', value: 0, tokens: 0 }
-    ] );
-    expect( result.total ).toBeCloseTo( 0.0006 );
-    expectCostInfo( result, 'full' );
+    expectLLMUsage( result, {
+      modelId: 'full',
+      usage: [
+        { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
+        { type: 'output', ppm: 8, amount: 50, total: 0.0004 },
+        { type: 'reasoning', ppm: 60, amount: 0, total: 0 }
+      ],
+      total: 0.0006,
+      tokensUsed: 150
+    } );
   } );
 
-  it( 'treats null/undefined token counts as 0', async () => {
+  it( 'omits usage entries for non-finite token counts', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'm', { input: 1, output: 2 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -187,11 +260,26 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: null, outputTokens: undefined }
     } );
 
-    expect( result.total ).toBe( 0 );
-    expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0, tokens: 0 },
-      { name: 'output_tokens', value: 0, tokens: undefined }
-    ] );
-    expectCostInfo( result, 'm' );
+    expectLLMUsage( result, {
+      modelId: 'm',
+      usage: [
+        { type: 'input', ppm: 1, amount: 0, total: 0 }
+      ],
+      total: 0,
+      tokensUsed: 0
+    } );
+  } );
+
+  it( 'returns null when pricing lookup throws', async () => {
+    const error = new Error( 'boom' );
+    mockFetchModelsPricing.mockRejectedValue( error );
+
+    const result = await calculateLLMCallCost( {
+      modelId: 'gpt-4o',
+      usage: { inputTokens: 100, outputTokens: 50 }
+    } );
+
+    expect( result ).toBeNull();
+    expect( console.error ).toHaveBeenCalledWith( 'Error calculating LLM call costs', error );
   } );
 } );

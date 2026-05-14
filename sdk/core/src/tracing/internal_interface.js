@@ -1,5 +1,5 @@
 import { addEventAction, addEventActionWithContext, init, getDestinations } from './trace_engine.js';
-import { EventAction, Attribute } from './trace_consts.js';
+import { EventAction } from './trace_consts.js';
 
 /**
  * Init method, if not called, no processors are attached and trace functions are dummy
@@ -11,7 +11,7 @@ export { init, getDestinations };
  */
 export { addEventActionWithContext };
 
-export { EventAction, Attribute };
+export { EventAction };
 
 /**
  * Trace nomenclature

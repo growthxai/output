@@ -6,7 +6,8 @@ import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
 import { ComponentType } from '#consts';
 import { createChildLogger } from '#logger';
-import { EventAction, Attribute } from './trace_consts.js';
+import { EventAction } from './trace_consts.js';
+import { BaseAttribute } from './trace_attribute.js';
 
 const log = createChildLogger( 'Tracing' );
 
@@ -94,11 +95,12 @@ export function addEventActionWithContext( action, options ) {
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
     const { parentId, parentName, executionContext, workflowHandle } = storeContent;
     if ( action === EventAction.ADD_ATTR ) {
-      const { name, value } = options.details;
-      const date = Date.now();
-      if ( name === Attribute.COST ) {
-        workflowHandle.signal( 'add_event:cost', { activityId: parentId, activityName: parentName, ...value, date } );
+      const attribute = options.details;
+      if ( !( attribute instanceof BaseAttribute ) ) {
+        throw new Error( `${EventAction.ADD_ATTR} called argument that is not a BaseAttribute instance` );
       }
+      attribute.setActivity( parentId, parentName );
+      workflowHandle.signal( 'add_attribute', attribute );
     }
     addEventAction( action, { ...options, parentId, executionContext } );
   }

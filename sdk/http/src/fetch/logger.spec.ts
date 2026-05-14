@@ -1,14 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Response, Request } from 'undici';
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
-  Tracing: {
-    addEventStart: vi.fn(),
-    addEventEnd: vi.fn(),
-    addEventError: vi.fn(),
-    addEventAttribute: vi.fn()
+vi.mock( '@outputai/core/sdk_activity_integration', () => {
+  class HTTPRequestCount {
+    static TYPE = 'http:request:count';
+    type = HTTPRequestCount.TYPE;
+    url: string;
+    requestId: string;
+
+    constructor( url: string, requestId: string ) {
+      this.url = url;
+      this.requestId = requestId;
+    }
   }
-} ) );
+
+  return {
+    Tracing: {
+      addEventStart: vi.fn(),
+      addEventEnd: vi.fn(),
+      addEventError: vi.fn(),
+      addEventAttribute: vi.fn(),
+      Attribute: {
+        HTTPRequestCount
+      }
+    }
+  };
+} );
 
 import { Tracing } from '@outputai/core/sdk_activity_integration';
 
@@ -34,11 +51,14 @@ beforeEach( () => {
 
 describe( 'fetch/logger', () => {
   describe( 'logRequest', () => {
-    const expectRequestIdAttribute = ( requestId: string ) => {
+    const expectRequestCountAttribute = ( requestId: string, url: string ) => {
       expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
         eventId: requestId,
-        name: 'requestId',
-        value: requestId
+        attribute: expect.objectContaining( {
+          type: Tracing.Attribute.HTTPRequestCount.TYPE,
+          url,
+          requestId
+        } )
       } );
     };
 
@@ -57,7 +77,7 @@ describe( 'fetch/logger', () => {
           url: 'https://api.example.com/r'
         }
       } );
-      expectRequestIdAttribute( 'req-1' );
+      expectRequestCountAttribute( 'req-1', 'https://api.example.com/r' );
     } );
 
     it( 'defaults method to GET', async () => {
@@ -67,7 +87,7 @@ describe( 'fetch/logger', () => {
       await logRequest( { requestId: 'r2', request } );
 
       expect( ( tracing.addEventStart.mock.calls[0][0].details as { method: string } ).method ).toBe( 'GET' );
-      expectRequestIdAttribute( 'r2' );
+      expectRequestCountAttribute( 'r2', 'https://x.test/' );
     } );
 
     it( 'includes redacted headers and parsed body when verbose is on', async () => {
@@ -95,7 +115,7 @@ describe( 'fetch/logger', () => {
           body: { x: 1 }
         }
       } );
-      expectRequestIdAttribute( 'req-v' );
+      expectRequestCountAttribute( 'req-v', 'https://api.example.com/p' );
     } );
   } );
 

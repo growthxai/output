@@ -7,7 +7,7 @@ import { SHARED_STEP_PREFIX, ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SY
 import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
 import { FatalError, ValidationError } from '#errors';
 import { Context } from './workflow_context.js';
-import { formatCost } from './events.js';
+import { aggregateAttributes } from './aggregations.js';
 
 const defaultOptions = {
   activityOptions: {
@@ -23,6 +23,9 @@ const defaultOptions = {
   },
   disableTrace: false
 };
+
+export const extractErrorDetail = ( e, key ) =>
+  e ? ( e.details?.find?.( d => d[key] )?.[key] ?? extractErrorDetail( e.cause, key ) ) : null;
 
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   validateWorkflow( { name, description, inputSchema, outputSchema, fn, options, aliases } );
@@ -71,10 +74,9 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
 
     // Run the internal activity to retrieve the workflow trace destinations (only for root workflows, not nested)
     const traceDestinations = isRoot ? ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext ) ) : null;
-    const traceObject = { trace: { destinations: traceDestinations } };
 
-    const costEvents = [];
-    setHandler( defineSignal( 'add_event:cost' ), e => costEvents.push( e ) );
+    const attributes = [];
+    setHandler( defineSignal( 'add_attribute' ), e => attributes.push( e ) );
 
     try {
       // validation comes after setting memo to have that info already set for interceptor even if validations fail
@@ -96,17 +98,25 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
          * @param {import('@temporalio/workflow').ActivityOptions} extra.options
          * @returns {Promise<unknown>}
          */
-        startWorkflow: async ( childName, input, extra = {} ) =>
-          executeChild( childName, {
-            args: input ? [ input ] : [],
-            workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
-            parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
-            memo: {
-              executionContext,
-              parentId: workflowId,
-              ...( extra?.options?.activityOptions && { activityOptions: deepMerge( activityOptions, extra.options.activityOptions ) } )
-            }
-          } )
+        startWorkflow: async ( childName, input, extra = {} ) => {
+          try {
+            const result = await executeChild( childName, {
+              args: input ? [ input ] : [],
+              workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
+              parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
+              memo: {
+                executionContext,
+                parentId: workflowId,
+                ...( extra?.options?.activityOptions && { activityOptions: deepMerge( activityOptions, extra.options.activityOptions ) } )
+              }
+            } );
+            attributes.push( ...( result.attributes ?? [] ) );
+            return result.output;
+          } catch ( error ) {
+            attributes.push( ...( extractErrorDetail( error, 'attributes' ) ?? [] ) );
+            throw error;
+          }
+        }
       };
 
       const output = await fn.call( dispatchers, input, context );
@@ -115,14 +125,17 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
 
       if ( isRoot ) {
         // Append the trace info to the result of the workflow
-        return { output, ...traceObject, cost: formatCost( costEvents ) };
+        return { output, trace: { destinations: traceDestinations }, attributes, aggregations: aggregateAttributes( attributes ) };
       }
 
-      return output;
+      return { output, attributes };
     } catch ( e ) {
-      // Append the trace info as metadata of the error, so it can be read by the interceptor.
+      // Append the extra info as metadata of the error, so it can be read by the interceptor.
+      e[METADATA_ACCESS_SYMBOL] = { ...( e[METADATA_ACCESS_SYMBOL] ?? {} ), attributes };
+      // if it is roo also add trace/aggregations
       if ( isRoot ) {
-        e[METADATA_ACCESS_SYMBOL] = { ...( e[METADATA_ACCESS_SYMBOL] ?? {} ), ...traceObject, cost: formatCost( costEvents ) };
+        e[METADATA_ACCESS_SYMBOL].trace = { destinations: traceDestinations };
+        e[METADATA_ACCESS_SYMBOL].aggregations = aggregateAttributes( attributes );
       }
       throw e;
     }

@@ -49,14 +49,14 @@ export function parseS3Url( url ) {
 }
 
 /**
- * Walks the error chain (via error.cause) and returns the first error whose details contain a "trace" object.
- * Returns undefined when the argument is falsy; otherwise the first trace found or the result of recursing on cause.
- * "trace" is added to Temporal workflow errors by Core.
+ * Walks the error chain and returns the first matching detail value.
  *
  * @param {Error} e
+ * @param {string} key
  * @returns {unknown}
  */
-export const extractTraceInfo = e => e ? ( e.details?.find?.( d => d.trace )?.trace ?? extractTraceInfo( e.cause ) ) : undefined;
+export const extractErrorDetail = ( e, key ) =>
+  e ? ( e.details?.find?.( d => d[key] )?.[key] ?? extractErrorDetail( e.cause, key ) ) : null;
 
 /**
  * Walks the error chain (via error.cause) and returns the message from the deepest error.

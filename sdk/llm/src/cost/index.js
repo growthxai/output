@@ -1,8 +1,5 @@
 import { fetchModelsPricing } from './fetch_models_pricing.js';
-import Decimal from 'decimal.js';
-
-const M = 1_000_000;
-const calcCost = ( tokens, ppm ) => Decimal( tokens ?? 0 ).div( M ).mul( ppm ).toNumber();
+import { Tracing } from '@outputai/core/sdk_activity_integration';
 
 /**
  * Calculates the cost of an llm call based on the model and usage.
@@ -14,38 +11,41 @@ const calcCost = ( tokens, ppm ) => Decimal( tokens ?? 0 ).div( M ).mul( ppm ).t
 export const calculateLLMCallCost = async ( { modelId, usage } ) => {
   try {
     const models = await fetchModelsPricing();
+
     if ( !models ) {
-      return { total: null, message: 'Failed to fetch models pricing' };
+      console.warn( 'Failed to fetch models pricing' );
+      return null;
     }
 
-    const cost = models.get( modelId );
-    if ( !cost ) {
-      return { total: null, message: 'Missing cost reference for model' };
+    const pricing = models.get( modelId );
+    if ( !pricing ) {
+      console.warn( 'Missing cost reference for model' );
+      return null;
     }
 
-    const { inputTokens, cachedInputTokens, outputTokens, reasoningTokens, totalTokens } = usage;
+    const { inputTokens, cachedInputTokens, outputTokens, reasoningTokens } = usage;
 
     const nonCachedTokens = inputTokens - ( cachedInputTokens ?? 0 );
 
-    const components = [];
-    if ( Number.isFinite( cost.input ) ) {
-      components.push( { name: 'input_tokens', value: calcCost( nonCachedTokens, cost.input ), tokens: nonCachedTokens } );
+    const llmUsage = new Tracing.Attribute.LLMUsage( modelId );
+
+    if ( Number.isFinite( pricing.input ) && Number.isFinite( nonCachedTokens ) ) {
+      llmUsage.addUsage( { type: 'input', ppm: pricing.input, amount: nonCachedTokens } );
     }
-    if ( Number.isFinite( cost.cache_read ) ) {
-      components.push( { name: 'input_cached_tokens', value: calcCost( cachedInputTokens, cost.cache_read ), tokens: cachedInputTokens } );
+    if ( Number.isFinite( pricing.cache_read ) && Number.isFinite( cachedInputTokens ) ) {
+      llmUsage.addUsage( { type: 'input_cached', ppm: pricing.cache_read, amount: cachedInputTokens } );
     }
-    if ( Number.isFinite( cost.output ) ) {
-      components.push( { name: 'output_tokens', value: calcCost( outputTokens, cost.output ), tokens: outputTokens } );
+    if ( Number.isFinite( pricing.output ) && Number.isFinite( outputTokens ) ) {
+      llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: outputTokens } );
     }
     // When there aren't reasoning costs, the providers doesn't differentiate reasoning vs output, so the price is included in the output
-    if ( Number.isFinite( cost.reasoning ) ) {
-      components.push( { name: 'reasoning_tokens', value: calcCost( reasoningTokens, cost.reasoning ), tokens: reasoningTokens } );
+    if ( Number.isFinite( pricing.reasoning ) && Number.isFinite( reasoningTokens ) ) {
+      llmUsage.addUsage( { type: 'reasoning', ppm: pricing.reasoning, amount: reasoningTokens } );
     }
 
-    const total = components.reduce( ( v, e ) => v.plus( e.value ), Decimal( 0 ) ).toNumber();
-    return { total, components, info: { modelId, tokens: totalTokens } };
+    return llmUsage;
   } catch ( error ) {
     console.error( 'Error calculating LLM call costs', error );
-    return { total: null, message: `Error calculating LLM call costs: ${error.constructor.name} - ${error.message}` };
+    return null;
   }
 };

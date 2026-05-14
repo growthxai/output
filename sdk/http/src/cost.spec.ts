@@ -1,28 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { requestIdSymbol } from './consts.js';
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
-  Tracing: {
-    addEventAttribute: vi.fn(),
-    Attribute: {
-      COST: 'cost'
+vi.mock( '@outputai/core/sdk_activity_integration', () => {
+  class HTTPRequestCost {
+    static TYPE = 'http:request:cost';
+    type = HTTPRequestCost.TYPE;
+    url: string;
+    requestId: string;
+    total: number;
+
+    constructor( url: string, requestId: string, total: number ) {
+      this.url = url;
+      this.requestId = requestId;
+      this.total = total;
     }
-  },
-  emitEvent: vi.fn()
-} ) );
+  }
+
+  return {
+    Tracing: {
+      addEventAttribute: vi.fn(),
+      Attribute: {
+        HTTPRequestCost
+      }
+    },
+    emitEvent: vi.fn()
+  };
+} );
 
 import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { addRequestCost } from './cost.js';
 
 const tracing = vi.mocked( Tracing, true );
 const emit = vi.mocked( emitEvent, true );
-
-const costWithInfo = ( response: Response, cost: object ) => ( {
-  ...cost,
-  info: {
-    url: response.url
-  }
-} );
 
 describe( 'addRequestCost', () => {
   beforeEach( () => {
@@ -37,7 +46,7 @@ describe( 'addRequestCost', () => {
 
   it( 'shortcircuits when the response has no http request id', () => {
     const response = new Response();
-    const cost = { total: 1 };
+    const cost = 1;
 
     addRequestCost( response, cost );
 
@@ -51,64 +60,41 @@ describe( 'addRequestCost', () => {
   it( 'records cost on the trace event when the response carries the request id', () => {
     const response = new Response( undefined, { status: 200 } );
     Reflect.set( response, requestIdSymbol, 'evt-cost-1' );
-    const cost = { total: 2.5 };
+    const cost = 2.5;
 
     addRequestCost( response, cost );
 
     expect( console.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-1',
-      name: Tracing.Attribute.COST,
-      value: costWithInfo( response, cost )
+      attribute: expect.objectContaining( {
+        type: Tracing.Attribute.HTTPRequestCost.TYPE,
+        url: response.url,
+        requestId: 'evt-cost-1',
+        total: cost
+      } )
     } );
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
-      requestId: 'evt-cost-1',
-      url: response.url,
-      cost
-    } );
+    const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
   } );
 
-  it( 'forwards multiple components to tracing', () => {
+  it( 'records zero cost on the trace event', () => {
     const response = new Response();
     Reflect.set( response, requestIdSymbol, 'evt-cost-2' );
-    const cost = {
-      total: 10,
-      components: [
-        { name: 'input', value: 3 },
-        { name: 'output', value: 7 }
-      ]
-    };
+    const cost = 0;
 
     addRequestCost( response, cost );
 
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-2',
-      name: Tracing.Attribute.COST,
-      value: costWithInfo( response, cost )
+      attribute: expect.objectContaining( {
+        type: Tracing.Attribute.HTTPRequestCost.TYPE,
+        url: response.url,
+        requestId: 'evt-cost-2',
+        total: cost
+      } )
     } );
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
-      requestId: 'evt-cost-2',
-      url: response.url,
-      cost
-    } );
-  } );
-
-  it( 'forwards an empty components array to tracing', () => {
-    const response = new Response();
-    Reflect.set( response, requestIdSymbol, 'evt-cost-3' );
-    const cost = { total: 1, components: [] };
-
-    addRequestCost( response, cost );
-
-    expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
-      eventId: 'evt-cost-3',
-      name: Tracing.Attribute.COST,
-      value: costWithInfo( response, cost )
-    } );
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
-      requestId: 'evt-cost-3',
-      url: response.url,
-      cost
-    } );
+    const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
   } );
 } );
