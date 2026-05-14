@@ -4,51 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-catalogs:
-  default:
-    '@aws-sdk/client-s3':
-      specifier: 3.1038.0
-      version: 3.1038.0
-    '@temporalio/activity':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@temporalio/client':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@temporalio/common':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@temporalio/proto':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@temporalio/worker':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@temporalio/workflow':
-      specifier: 1.17.0
-      version: 1.17.0
-    '@types/js-yaml':
-      specifier: 4.0.9
-      version: 4.0.9
-    js-yaml:
-      specifier: 4.1.1
-      version: 4.1.1
-    ky:
-      specifier: 1.14.3
-      version: 1.14.3
-    semver:
-      specifier: 7.7.4
-      version: 7.7.4
-    undici:
-      specifier: 8.1.0
-      version: 8.1.0
-    winston:
-      specifier: 3.19.0
-      version: 3.19.0
-    zod:
-      specifier: 4.3.6
-      version: 4.3.6
-
 overrides:
   tar@<6.2.1: '>=6.2.1'
   zod@<=3.22.2: '>=3.22.3'
@@ -430,9 +385,6 @@ importers:
       ai:
         specifier: 6.0.168
         version: 6.0.168(zod@4.3.6)
-      decimal.js:
-        specifier: 10.6.0
-        version: 10.6.0
       entities:
         specifier: 8.0.0
         version: 8.0.0
