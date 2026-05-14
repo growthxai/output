@@ -75,12 +75,13 @@ describe( 'emitEvent', () => {
       url: 'https://example.com'
     } );
 
-    // The implementation spreads payload last, so currently it would override.
-    // We document the actual behavior: the destructured context values come
-    // FIRST, then payload spread overrides. So this test asserts payload wins.
-    expect( emitMock ).toHaveBeenCalledWith(
-      'external:cost:http:request',
-      expect.objectContaining( { url: 'https://example.com' } )
-    );
+    // Context fields are spread after the payload, so caller-supplied
+    // workflowId / runId / activityId cannot escape the executionContext.
+    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:http:request', {
+      workflowId: 'wf-3',
+      runId: 'run-3',
+      activityId: 'act-3',
+      url: 'https://example.com'
+    } );
   } );
 } );
