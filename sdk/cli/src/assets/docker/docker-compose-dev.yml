@@ -94,6 +94,12 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
     ports:
       - '${OUTPUT_API_HOST_PORT:-3001}:3001'
+    # Mount the worker's local trace directory at the same absolute path so
+    # `/workflow/{id}/trace-attributes` can read trace JSON files written by
+    # the worker. The worker stores the host absolute path in the trace
+    # destinations.local field; the API resolves that path on disk.
+    volumes:
+      - ${PWD}/logs:${PWD}/logs:ro
 
   worker:
     depends_on:
