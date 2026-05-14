@@ -97,6 +97,37 @@ export declare function onWorkflowEnd( handler: ( payload: WorkflowEndHookPayloa
 export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPayload ) => void ): void;
 
 /**
+ * Payload broadcast on the `http:request` event for every HTTP call issued
+ * through `@outputai/http`'s `fetch`. Fires for success, non-2xx, and network
+ * failure paths — `cost:http:request` continues to fire only when the consumer
+ * has attached a cost via `addRequestCost`.
+ *
+ * The framework auto-attaches `workflowId`, `runId`, and `activityId` onto the
+ * payload before broadcast, so consumers receive those identifiers in addition
+ * to the fields listed here.
+ */
+export interface HttpRequestHookPayload {
+  /** Workflow id (stable across retries / continue-as-new). */
+  workflowId: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
+  /** Activity / step id, when emitted from inside a step. */
+  activityId?: string;
+  /** UUID generated per request inside `@outputai/http`. */
+  requestId: string;
+  /** HTTP method (uppercase). */
+  method: string;
+  /** Absolute request URL. */
+  url: string;
+  /** HTTP status code; undefined on network failure. */
+  status?: number;
+  /** Elapsed time from request issuance to response (or failure), in milliseconds. */
+  durationMs: number;
+  /** Outcome bucket: `success` (2xx-3xx), `http_error` (>=400), `network_error` (DNS / timeout / abort). */
+  outcome: 'success' | 'http_error' | 'network_error';
+}
+
+/**
  * Register a handler to be invoked when a given event happens
  *
  * @param eventName - The name of the event to subscribe
