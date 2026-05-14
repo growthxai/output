@@ -199,6 +199,7 @@ describe( 'temporal_client', () => {
         status: 'failed',
         input: { input: 'data' },
         output: null,
+        cost: null,
         trace: tracePayload,
         error: 'step error message'
       } );
@@ -209,7 +210,7 @@ describe( 'temporal_client', () => {
     } );
 
     it( 'should return completed status with output on success', async () => {
-      const successResult = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
+      const successResult = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' }, cost: 'some-cost' };
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
@@ -230,6 +231,7 @@ describe( 'temporal_client', () => {
         status: 'completed',
         input: { input: 'data' },
         output: { data: 'result' },
+        cost: 'some-cost',
         trace: { local: '/tmp/trace.json' },
         error: null
       } );
@@ -346,7 +348,7 @@ describe( 'temporal_client', () => {
     } );
 
     it( 'should return completed workflow with output and trace', async () => {
-      const workflowOutput = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
+      const workflowOutput = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' }, cost: 'some-cost' };
 
       mockDescribe.mockResolvedValue( {
         status: { code: 2, name: 'COMPLETED' },
@@ -364,6 +366,7 @@ describe( 'temporal_client', () => {
         status: 'completed',
         input: null,
         output: { data: 'result' },
+        cost: 'some-cost',
         trace: { local: '/tmp/trace.json' },
         error: null
       } );
@@ -449,6 +452,7 @@ describe( 'temporal_client', () => {
         status: 'failed',
         input: null,
         output: null,
+        cost: null,
         trace: tracePayload,
         error: 'step error message'
       } );
@@ -496,6 +500,7 @@ describe( 'temporal_client', () => {
         status: 'continued',
         input: null,
         output: null,
+        cost: null,
         trace: null,
         error: null
       } );

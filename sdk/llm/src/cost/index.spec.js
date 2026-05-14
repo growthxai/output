@@ -7,6 +7,10 @@ vi.mock( './fetch_models_pricing.js', () => ( {
 
 import { calculateLLMCallCost } from './index.js';
 
+const expectCostInfo = ( result, modelId, tokens = undefined ) => {
+  expect( result.info ).toEqual( { modelId, tokens } );
+};
+
 describe( 'calculateLLMCallCost', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -48,10 +52,11 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBe( 7 );
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 2 },
-      { name: 'input_cached_tokens', value: 0 },
-      { name: 'output_tokens', value: 5 }
+      { name: 'input_tokens', value: 2, tokens: 1_000_000 },
+      { name: 'input_cached_tokens', value: 0, tokens: undefined },
+      { name: 'output_tokens', value: 5, tokens: 500_000 }
     ] );
+    expectCostInfo( result, 'gpt-4o' );
   } );
 
   it( 'splits input into non-cached and cached at respective rates', async () => {
@@ -64,11 +69,12 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 2 },
-      { name: 'input_cached_tokens', value: 0.5 },
-      { name: 'output_tokens', value: 1 }
+      { name: 'input_tokens', value: 2, tokens: 500_000 },
+      { name: 'input_cached_tokens', value: 0.5, tokens: 500_000 },
+      { name: 'output_tokens', value: 1, tokens: 100_000 }
     ] );
     expect( result.total ).toBeCloseTo( 3.5 );
+    expectCostInfo( result, 'cached-model' );
   } );
 
   it( 'omits cached component when model has no cache_read (non-cached rate applies to full input minus cached)', async () => {
@@ -80,10 +86,11 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 1.6 },
-      { name: 'output_tokens', value: 0 }
+      { name: 'input_tokens', value: 1.6, tokens: 800_000 },
+      { name: 'output_tokens', value: 0, tokens: 0 }
     ] );
     expect( result.total ).toBe( 1.6 );
+    expectCostInfo( result, 'no-cache' );
   } );
 
   it( 'omits input component when pricing has no input rate', async () => {
@@ -96,8 +103,9 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBe( 0.0005 );
     expect( result.components ).toEqual( [
-      { name: 'output_tokens', value: 0.0005 }
+      { name: 'output_tokens', value: 0.0005, tokens: 50 }
     ] );
+    expectCostInfo( result, 'out-only' );
   } );
 
   it( 'omits output component when pricing has no output rate', async () => {
@@ -110,8 +118,9 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBe( 0.0001 );
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001 }
+      { name: 'input_tokens', value: 0.0001, tokens: 100 }
     ] );
+    expectCostInfo( result, 'in-only' );
   } );
 
   it( 'uses reasoning cost when present', async () => {
@@ -127,10 +136,11 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBeCloseTo( 0.0033 );
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001 },
-      { name: 'output_tokens', value: 0.0002 },
-      { name: 'reasoning_tokens', value: 0.003 }
+      { name: 'input_tokens', value: 0.0001, tokens: 100 },
+      { name: 'output_tokens', value: 0.0002, tokens: 20 },
+      { name: 'reasoning_tokens', value: 0.003, tokens: 50 }
     ] );
+    expectCostInfo( result, 'with-reasoning' );
   } );
 
   it( 'omits reasoning component when reasoning cost missing (included in output)', async () => {
@@ -143,9 +153,10 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBeCloseTo( 0.0003 );
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0001 },
-      { name: 'output_tokens', value: 0.0002 }
+      { name: 'input_tokens', value: 0.0001, tokens: 100 },
+      { name: 'output_tokens', value: 0.0002, tokens: 20 }
     ] );
+    expectCostInfo( result, 'no-reasoning' );
   } );
 
   it( 'includes reasoning component with zero when reasoningTokens is zero', async () => {
@@ -160,11 +171,12 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0.0002 },
-      { name: 'output_tokens', value: 0.0004 },
-      { name: 'reasoning_tokens', value: 0 }
+      { name: 'input_tokens', value: 0.0002, tokens: 100 },
+      { name: 'output_tokens', value: 0.0004, tokens: 50 },
+      { name: 'reasoning_tokens', value: 0, tokens: 0 }
     ] );
     expect( result.total ).toBeCloseTo( 0.0006 );
+    expectCostInfo( result, 'full' );
   } );
 
   it( 'treats null/undefined token counts as 0', async () => {
@@ -177,8 +189,9 @@ describe( 'calculateLLMCallCost', () => {
 
     expect( result.total ).toBe( 0 );
     expect( result.components ).toEqual( [
-      { name: 'input_tokens', value: 0 },
-      { name: 'output_tokens', value: 0 }
+      { name: 'input_tokens', value: 0, tokens: 0 },
+      { name: 'output_tokens', value: 0, tokens: undefined }
     ] );
+    expectCostInfo( result, 'm' );
   } );
 } );

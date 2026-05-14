@@ -7,3 +7,10 @@ export const EventAction = {
   ERROR: 'error',
   ADD_ATTR: 'add_attr'
 };
+
+/**
+ * Types of ADD_ATTR attributes
+ */
+export const Attribute = {
+  COST: 'cost'
+};

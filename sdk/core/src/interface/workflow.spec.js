@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 
 const inWorkflowContextMock = vi.hoisted( () => vi.fn( () => true ) );
+const defineSignalMock = vi.hoisted( () => vi.fn( name => name ) );
+const setHandlerMock = vi.hoisted( () => vi.fn() );
 const traceDestinationsStepMock = vi.fn().mockResolvedValue( { local: '/tmp/trace' } );
 const executeChildMock = vi.fn().mockResolvedValue( undefined );
 const continueAsNewMock = vi.fn().mockResolvedValue( undefined );
@@ -41,7 +43,9 @@ vi.mock( '@temporalio/workflow', () => ( {
   workflowInfo: workflowInfoMock,
   uuid4: () => '550e8400e29b41d4a716446655440000',
   ParentClosePolicy: { TERMINATE: 'TERMINATE', ABANDON: 'ABANDON' },
-  continueAsNew: continueAsNewMock
+  continueAsNew: continueAsNewMock,
+  defineSignal: ( ...args ) => defineSignalMock( ...args ),
+  setHandler: ( ...args ) => setHandlerMock( ...args )
 } ) );
 
 vi.mock( '#consts', async importOriginal => {
@@ -57,6 +61,7 @@ describe( 'workflow()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     inWorkflowContextMock.mockReturnValue( true );
+    defineSignalMock.mockImplementation( name => name );
     workflowInfoMock.mockReturnValue( { ...workflowInfoReturn } );
     workflowInfoReturn.memo = {};
     proxyActivitiesMock.mockImplementation( () => {
@@ -217,7 +222,7 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'root workflow (in workflow context)', () => {
-    it( 'calls getTraceDestinations, returns { output, trace } and assigns executionContext to memo', async () => {
+    it( 'calls getTraceDestinations, returns { output, trace, cost } and assigns executionContext to memo', async () => {
       const { workflow } = await import( './workflow.js' );
 
       const wf = workflow( {
@@ -232,7 +237,8 @@ describe( 'workflow()', () => {
       expect( traceDestinationsStepMock ).toHaveBeenCalledTimes( 1 );
       expect( result ).toEqual( {
         output: { v: 42 },
-        trace: { destinations: { local: '/tmp/trace' } }
+        trace: { destinations: { local: '/tmp/trace' } },
+        cost: { events: [], total: 0 }
       } );
       const memo = workflowInfoMock().memo;
       expect( memo.executionContext ).toEqual( {
@@ -448,8 +454,10 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'error handling (root workflow)', () => {
-    it( 'rethrows error from fn and rejects with same message', async () => {
+    it( 'rethrows error from fn with trace and cost metadata', async () => {
       const { workflow } = await import( './workflow.js' );
+      const { METADATA_ACCESS_SYMBOL } = await import( '#consts' );
+      const error = new Error( 'workflow failed' );
 
       const wf = workflow( {
         name: 'err_wf',
@@ -457,11 +465,15 @@ describe( 'workflow()', () => {
         inputSchema: z.object( {} ),
         outputSchema: z.object( {} ),
         fn: async () => {
-          throw new Error( 'workflow failed' );
+          throw error;
         }
       } );
 
       await expect( wf( {} ) ).rejects.toThrow( 'workflow failed' );
+      expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( {
+        trace: { destinations: { local: '/tmp/trace' } },
+        cost: { events: [], total: 0 }
+      } );
     } );
   } );
 } );

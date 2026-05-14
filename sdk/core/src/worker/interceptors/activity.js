@@ -5,6 +5,7 @@ import { headersToObject } from '../sandboxed_utils.js';
 import { BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { messageBus } from '#bus';
+import { Client } from '@temporalio/client';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -23,7 +24,7 @@ import { messageBus } from '#bus';
   - Headers injected by the workflow interceptor (executionContext)
 */
 export class ActivityExecutionInterceptor {
-  constructor( { activities, workflows } ) {
+  constructor( { activities, workflows, connection } ) {
     this.activities = activities;
     this.workflowsMap = workflows.reduce( ( map, w ) => {
       map.set( w.name, w );
@@ -32,13 +33,18 @@ export class ActivityExecutionInterceptor {
       }
       return map;
     }, new Map() );
+    this.connection = connection;
   };
 
   async execute( input, next ) {
     const startDate = Date.now();
+    const client = new Client( { connection: this.connection } );
+
     const { workflowExecution: { workflowId }, activityId: id, activityType: name, workflowType: workflowName } = Context.current().info;
     const { executionContext } = headersToObject( input.headers );
     const { type: kind } = this.activities?.[name]?.[METADATA_ACCESS_SYMBOL];
+
+    const workflowHandle = client.workflow.getHandle( workflowId );
 
     messageBus.emit( BusEventType.ACTIVITY_START, { id, name, kind, workflowId, workflowName } );
     Tracing.addEventStart( { id, name, kind, parentId: workflowId, details: input.args[0], executionContext } );
@@ -56,7 +62,8 @@ export class ActivityExecutionInterceptor {
       intervals.heartbeat = activityHeartbeatEnabled && setInterval( () => Context.current().heartbeat(), activityHeartbeatIntervalMs );
 
       // Wraps the execution with accessible metadata for the activity
-      const output = await Storage.runWithContext( async _ => next( input ), { parentId: id, executionContext, workflowFilename } );
+      const ctx = { parentId: id, parentName: name, executionContext, workflowFilename, workflowHandle };
+      const output = await Storage.runWithContext( async _ => next( input ), ctx );
 
       messageBus.emit( BusEventType.ACTIVITY_END, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate } );
       Tracing.addEventEnd( { id, details: output, executionContext } );

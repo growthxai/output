@@ -17,6 +17,13 @@ import { addRequestCost } from './cost.js';
 const tracing = vi.mocked( Tracing, true );
 const emit = vi.mocked( emitEvent, true );
 
+const costWithInfo = ( response: Response, cost: object ) => ( {
+  ...cost,
+  info: {
+    url: response.url
+  }
+} );
+
 describe( 'addRequestCost', () => {
   beforeEach( () => {
     tracing.addEventAttribute.mockClear();
@@ -52,7 +59,7 @@ describe( 'addRequestCost', () => {
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-1',
       name: Tracing.Attribute.COST,
-      value: cost
+      value: costWithInfo( response, cost )
     } );
     expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-1',
@@ -77,7 +84,7 @@ describe( 'addRequestCost', () => {
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-2',
       name: Tracing.Attribute.COST,
-      value: cost
+      value: costWithInfo( response, cost )
     } );
     expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-2',
@@ -96,7 +103,7 @@ describe( 'addRequestCost', () => {
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-3',
       name: Tracing.Attribute.COST,
-      value: cost
+      value: costWithInfo( response, cost )
     } );
     expect( emit ).toHaveBeenCalledWith( 'cost:http:request', {
       requestId: 'evt-cost-3',

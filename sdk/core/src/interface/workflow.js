@@ -1,11 +1,13 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy, continueAsNew } from '@temporalio/workflow';
+import { defineSignal, setHandler } from '@temporalio/workflow';
 import { validateWorkflow } from './validations/static.js';
 import { validateWithSchema } from './validations/runtime.js';
 import { SHARED_STEP_PREFIX, ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL } from '#consts';
 import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
 import { FatalError, ValidationError } from '#errors';
 import { Context } from './workflow_context.js';
+import { formatCost } from './events.js';
 
 const defaultOptions = {
   activityOptions: {
@@ -71,6 +73,9 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     const traceDestinations = isRoot ? ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext ) ) : null;
     const traceObject = { trace: { destinations: traceDestinations } };
 
+    const costEvents = [];
+    setHandler( defineSignal( 'add_event:cost' ), e => costEvents.push( e ) );
+
     try {
       // validation comes after setting memo to have that info already set for interceptor even if validations fail
       validateWithSchema( inputSchema, input, `Workflow ${name} input` );
@@ -110,14 +115,14 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
 
       if ( isRoot ) {
         // Append the trace info to the result of the workflow
-        return { output, ...traceObject };
+        return { output, ...traceObject, cost: formatCost( costEvents ) };
       }
 
       return output;
     } catch ( e ) {
       // Append the trace info as metadata of the error, so it can be read by the interceptor.
       if ( isRoot ) {
-        e[METADATA_ACCESS_SYMBOL] = { ...( e[METADATA_ACCESS_SYMBOL] ?? {} ), ...traceObject };
+        e[METADATA_ACCESS_SYMBOL] = { ...( e[METADATA_ACCESS_SYMBOL] ?? {} ), ...traceObject, cost: formatCost( costEvents ) };
       }
       throw e;
     }

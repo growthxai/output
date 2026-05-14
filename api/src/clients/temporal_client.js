@@ -169,13 +169,32 @@ export const extractWorkflowInput = history => {
  * @param {WorkflowExecutionStatus} args.status - The workflow status
  * @param {string} args.runId - The specific run id for this execution
  * @param {string|number|boolean|object|array|undefined|null} args.input - The original workflow input
- * @param {string|number|boolean|object|array|undefined|null} args.output - The workflow output
- * @param {object|undefined} args.trace - Trace information
- * @param {string|undefined} args.error - Error message if failed
+ * @param {object} args.result - The workflow result from @outputai/core
+ * @param {Error} args.error - Error
  * @returns {WorkflowResult}
  */
-const buildWorkflowResult = ( { workflowId, status, runId, input, output, trace, error } ) =>
-  ( { workflowId, runId, status, input, output: output ?? null, trace: trace ?? null, error: error ?? null } );
+const buildWorkflowResult = ( { workflowId, status, runId, input, result, error } ) =>
+  ( {
+    workflowId,
+    runId,
+    status,
+    input,
+    ...( result ? {
+      output: result.output,
+      trace: result.trace,
+      cost: result.cost
+    } : {
+      output: null,
+      trace: null,
+      cost: null
+    } ),
+    ...( error ? {
+      trace: extractTraceInfo( error ),
+      error: extractErrorMessage( error )
+    } : {
+      error: null
+    } )
+  } );
 
 export default {
   async init() {
@@ -240,7 +259,7 @@ export default {
             handle.result(),
             new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
           ] );
-          return buildWorkflowResult( { workflowId, status: 'completed', runId, input, output: result.output, trace: result.trace } );
+          return buildWorkflowResult( { workflowId, status: 'completed', runId, input, result } );
         } catch ( error ) {
           // Workflow failures are returned as data, not thrown
           if ( error instanceof WorkflowFailedError ) {
@@ -249,11 +268,7 @@ export default {
               errorMessage: error.message,
               hasTrace: Boolean( extractTraceInfo( error ) )
             } );
-            return buildWorkflowResult( {
-              workflowId, status: 'failed', runId, input,
-              trace: extractTraceInfo( error ),
-              error: extractErrorMessage( error )
-            } );
+            return buildWorkflowResult( { workflowId, status: 'failed', runId, input, error } );
           }
           // Other errors (timeout, not found, etc.) are still thrown
           error.workflowId = workflowId;
@@ -395,7 +410,7 @@ export default {
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
           const result = await pinnedHandle.result();
-          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, output: result.output, trace: result.trace } );
+          return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, result } );
         }
 
         // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
@@ -421,13 +436,7 @@ export default {
             throw e;
           } );
 
-        return buildWorkflowResult( {
-          workflowId, status, runId: resolvedRunId, input,
-          ...( workflowError && {
-            trace: extractTraceInfo( workflowError ),
-            error: extractErrorMessage( workflowError )
-          } )
-        } );
+        return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, error: workflowError } );
       },
 
       /**

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BusEventType } from '#consts';
 
 const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
+const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
+const getHandleMock = vi.hoisted( () => vi.fn( () => workflowHandleMock ) );
 
 const heartbeatMock = vi.fn();
 const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async fn => fn() ) );
@@ -18,6 +20,14 @@ vi.mock( '@temporalio/activity', () => ( {
       info: contextInfoMock,
       heartbeat: heartbeatMock
     } )
+  }
+} ) );
+
+vi.mock( '@temporalio/client', () => ( {
+  Client: class Client {
+    workflow = {
+      getHandle: getHandleMock
+    };
   }
 } ) );
 
@@ -108,12 +118,15 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( addEventErrorMock ).not.toHaveBeenCalled();
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
-      {
+      expect.objectContaining( {
         parentId: 'act-1',
+        parentName: 'myWorkflow#myStep',
         executionContext: { workflowId: 'wf-1' },
-        workflowFilename: '/workflows/myWorkflow.js'
-      }
+        workflowFilename: '/workflows/myWorkflow.js',
+        workflowHandle: workflowHandleMock
+      } )
     );
+    expect( getHandleMock ).toHaveBeenCalledWith( 'wf-1' );
   } );
 
   it( 'records trace error event on failed execution', async () => {

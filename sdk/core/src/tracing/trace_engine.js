@@ -6,6 +6,7 @@ import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
 import { ComponentType } from '#consts';
 import { createChildLogger } from '#logger';
+import { EventAction, Attribute } from './trace_consts.js';
 
 const log = createChildLogger( 'Tracing' );
 
@@ -91,7 +92,14 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, exe
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, executionContext } = storeContent;
+    const { parentId, parentName, executionContext, workflowHandle } = storeContent;
+    if ( action === EventAction.ADD_ATTR ) {
+      const { name, value } = options.details;
+      const date = Date.now();
+      if ( name === Attribute.COST ) {
+        workflowHandle.signal( 'add_event:cost', { activityId: parentId, activityName: parentName, ...value, date } );
+      }
+    }
     addEventAction( action, { ...options, parentId, executionContext } );
   }
 };

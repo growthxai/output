@@ -23,6 +23,12 @@ export const addRequestCost = ( response: KyResponse | Response, cost: RequestCo
     console.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.' );
     return;
   }
-  Tracing.addEventAttribute( { eventId, name: Tracing.Attribute.COST, value: cost } );
+  const costWithDescription = {
+    ...cost,
+    info: {
+      url: response.url
+    }
+  };
+  Tracing.addEventAttribute( { eventId, name: Tracing.Attribute.COST, value: costWithDescription } );
   emitEvent( 'cost:http:request', { requestId: eventId, url: response.url, cost } );
 };

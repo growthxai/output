@@ -23,18 +23,27 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
       return { total: null, message: 'Missing cost reference for model' };
     }
 
-    const { inputTokens, cachedInputTokens, outputTokens, reasoningTokens } = usage;
+    const { inputTokens, cachedInputTokens, outputTokens, reasoningTokens, totalTokens } = usage;
 
     const nonCachedTokens = inputTokens - ( cachedInputTokens ?? 0 );
 
-    const components = [
-      Number.isFinite( cost.input ) ? { name: 'input_tokens', value: calcCost( nonCachedTokens, cost.input ) } : false,
-      Number.isFinite( cost.cache_read ) ? { name: 'input_cached_tokens', value: calcCost( cachedInputTokens, cost.cache_read ) } : false,
-      Number.isFinite( cost.output ) ? { name: 'output_tokens', value: calcCost( outputTokens, cost.output ) } : false,
-      /* When there aren't reasoning costs, the providers doesn't differentiate reasoning vs output, so the price is included in the output */
-      Number.isFinite( cost.reasoning ) ? { name: 'reasoning_tokens', value: calcCost( reasoningTokens, cost.reasoning ) } : false
-    ].filter( v => !!v );
-    return { total: components.reduce( ( v, e ) => v.plus( e.value ), Decimal( 0 ) ).toNumber(), components };
+    const components = [];
+    if ( Number.isFinite( cost.input ) ) {
+      components.push( { name: 'input_tokens', value: calcCost( nonCachedTokens, cost.input ), tokens: nonCachedTokens } );
+    }
+    if ( Number.isFinite( cost.cache_read ) ) {
+      components.push( { name: 'input_cached_tokens', value: calcCost( cachedInputTokens, cost.cache_read ), tokens: cachedInputTokens } );
+    }
+    if ( Number.isFinite( cost.output ) ) {
+      components.push( { name: 'output_tokens', value: calcCost( outputTokens, cost.output ), tokens: outputTokens } );
+    }
+    // When there aren't reasoning costs, the providers doesn't differentiate reasoning vs output, so the price is included in the output
+    if ( Number.isFinite( cost.reasoning ) ) {
+      components.push( { name: 'reasoning_tokens', value: calcCost( reasoningTokens, cost.reasoning ), tokens: reasoningTokens } );
+    }
+
+    const total = components.reduce( ( v, e ) => v.plus( e.value ), Decimal( 0 ) ).toNumber();
+    return { total, components, info: { modelId, tokens: totalTokens } };
   } catch ( error ) {
     console.error( 'Error calculating LLM call costs', error );
     return { total: null, message: `Error calculating LLM call costs: ${error.constructor.name} - ${error.message}` };
