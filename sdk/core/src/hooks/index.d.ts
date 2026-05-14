@@ -16,8 +16,10 @@ export interface ErrorHookPayload {
  * Payload passed to the onWorkflowStart handler when a workflow run begins.
  */
 export interface WorkflowStartHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
 }
@@ -26,8 +28,10 @@ export interface WorkflowStartHookPayload {
  * Payload passed to the onWorkflowEnd handler when a workflow run completes successfully.
  */
 export interface WorkflowEndHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
   /** Duration of the workflow run in milliseconds. */
@@ -38,8 +42,10 @@ export interface WorkflowEndHookPayload {
  * Payload passed to the onWorkflowError handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
   /** Elapsed time before failure in milliseconds. */

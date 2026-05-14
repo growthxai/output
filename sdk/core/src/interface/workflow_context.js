@@ -7,11 +7,12 @@ export class Context {
    * Builds a new context instance
    * @param {object} options - Arguments to build a new context instance
    * @param {string} workflowId
+   * @param {string} runId
    * @param {function} continueAsNew
    * @param {function} isContinueAsNewSuggested
    * @returns {object} context
    */
-  static build( { workflowId, continueAsNew, isContinueAsNewSuggested } ) {
+  static build( { workflowId, runId, continueAsNew, isContinueAsNewSuggested } ) {
     return {
       /**
        * Control namespace: This object adds functions to interact with Temporal flow mechanisms
@@ -24,7 +25,8 @@ export class Context {
        * Info namespace: abstracts workflowInfo()
        */
       info: {
-        workflowId
+        workflowId,
+        runId
       }
     };
   }
