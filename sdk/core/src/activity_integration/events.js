@@ -6,7 +6,5 @@ export const emitEvent = ( eventName, payload ) => {
 
   const { executionContext, parentId: activityId } = ctx ?? {};
   const { workflowId, runId } = executionContext ?? {};
-  // Context fields go after the payload spread so callers can't accidentally
-  // override workflowId / runId / activityId with their own payload keys.
   messageBus.emit( `external:${eventName}`, { ...payload ?? {}, workflowId, runId, activityId } );
 };
