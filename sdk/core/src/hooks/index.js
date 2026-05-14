@@ -34,16 +34,16 @@ export const onBeforeWorkerStart = handler => messageBus.on( BusEventType.WORKER
   safeInvoke( handler, undefined, 'onBeforeWorkerStart' ) );
 
 /** Listen to workflow start events, excludes catalog workflow */
-export const onWorkflowStart = handler => messageBus.on( BusEventType.WORKFLOW_START, ( { id, name } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, name }, 'onWorkflowStart' ) : null );
+export const onWorkflowStart = handler => messageBus.on( BusEventType.WORKFLOW_START, ( { id, runId, name } ) =>
+  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, runId, name }, 'onWorkflowStart' ) : null );
 
 /** Listen to workflow end events, excludes catalog workflow */
-export const onWorkflowEnd = handler => messageBus.on( BusEventType.WORKFLOW_END, ( { id, name, duration } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, name, duration }, 'onWorkflowEnd' ) : null );
+export const onWorkflowEnd = handler => messageBus.on( BusEventType.WORKFLOW_END, ( { id, runId, name, duration } ) =>
+  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, runId, name, duration }, 'onWorkflowEnd' ) : null );
 
 /** Listen to workflow error events, excludes catalog workflow */
-export const onWorkflowError = handler => messageBus.on( BusEventType.WORKFLOW_ERROR, ( { id, name, duration, error } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, name, duration, error }, 'onWorkflowError' ) : null );
+export const onWorkflowError = handler => messageBus.on( BusEventType.WORKFLOW_ERROR, ( { id, runId, name, duration, error } ) =>
+  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { id, runId, name, duration, error }, 'onWorkflowError' ) : null );
 
 /** Generic listener for events emitted elsewhere (outside core) */
 export const on = ( eventName, handler ) => messageBus.on( `external:${eventName}`, payload =>

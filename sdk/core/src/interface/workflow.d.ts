@@ -63,7 +63,18 @@ export type WorkflowContext<
      *
      * @see {@link https://docs.temporal.io/workflow-execution/workflowid-runid#workflow-id}
      */
-    workflowId: string
+    workflowId: string,
+
+    /**
+     * Internal Temporal run id for the current execution attempt.
+     *
+     * A single `workflowId` can map to multiple `runId`s when a workflow is
+     * retried, reset, or continued-as-new. The current run can be pinned in
+     * downstream `/workflow/{id}/runs/{rid}/...` API calls.
+     *
+     * @see {@link https://docs.temporal.io/workflow-execution/workflowid-runid#run-id}
+     */
+    runId: string
   }
 };
 
