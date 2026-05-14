@@ -3,6 +3,20 @@ import { config } from '../config.js';
 import type { Request, Response } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';
 
+type HttpRequestOutcome = 'success' | 'http_error' | 'network_error';
+
+/** Single source of truth for the `http:request` event shape. */
+const emitHttpRequestEvent = ( payload: {
+  requestId: string,
+  method: string,
+  url: string,
+  status: number | undefined,
+  durationMs: number,
+  outcome: HttpRequestOutcome
+} ) : void => {
+  emitEvent( 'http:request', payload );
+};
+
 /**
  * Sends the trace start event for an http request
  *
@@ -45,13 +59,8 @@ export const logError = async ( {
       body: await parseBody( response )
     }
   } );
-  emitEvent( 'http:request', {
-    requestId,
-    method,
-    url,
-    status: response.status,
-    durationMs,
-    outcome: 'http_error'
+  emitHttpRequestEvent( {
+    requestId, method, url, status: response.status, durationMs, outcome: 'http_error'
   } );
 };
 
@@ -78,13 +87,8 @@ export const logResponse = async ( {
       ...( config.logVerbose && { headers: redactHeaders( response.headers ), body: await parseBody( response ) } )
     }
   } );
-  emitEvent( 'http:request', {
-    requestId,
-    method,
-    url,
-    status: response.status,
-    durationMs,
-    outcome: 'success'
+  emitHttpRequestEvent( {
+    requestId, method, url, status: response.status, durationMs, outcome: 'success'
   } );
 };
 
@@ -105,12 +109,7 @@ export const logFailure = ( {
   requestId: string, error: Error, method: string, url: string, durationMs: number
 } ) : void => {
   Tracing.addEventError( { id: requestId, details: serializeError( error ) } );
-  emitEvent( 'http:request', {
-    requestId,
-    method,
-    url,
-    status: undefined,
-    durationMs,
-    outcome: 'network_error'
+  emitHttpRequestEvent( {
+    requestId, method, url, status: undefined, durationMs, outcome: 'network_error'
   } );
 };
