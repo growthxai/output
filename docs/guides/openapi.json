@@ -355,12 +355,12 @@
           },
           "attributes": {
             "type": "array",
+            "nullable": true,
+            "description": "Durable workflow attributes collected during execution",
             "items": {
               "type": "object",
               "additionalProperties": true
-            },
-            "nullable": true,
-            "description": "Durable workflow attributes collected during execution"
+            }
           },
           "aggregations": {
             "type": "object",
