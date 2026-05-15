@@ -412,6 +412,24 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `response` | Raw provider response metadata |
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
+| `cost` | LLM usage attribute with `modelId`, `usage`, `total`, and `tokensUsed`; `null` when pricing could not be computed |
+
+The `cost` property is an LLM usage attribute:
+
+```json
+{
+  "type": "llm:usage",
+  "modelId": "gpt-4o",
+  "usage": [
+    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
+    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
+  ],
+  "total": 0.00122,
+  "tokensUsed": 226
+}
+```
+
+Only available, finite usage dimensions are included in `usage`. For example, `reasoning` is omitted when the model does not define separate reasoning pricing.
 
 **Streaming response shape.** `streamText` returns a different result type. Stream iterables (`textStream`, `fullStream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
@@ -646,7 +664,7 @@ Built-in providers are initialized with a custom fetch that extends Undici's `he
 
 ## LLM call cost event
 
-Each `generateText` and `streamText` call emits a `cost:llm:request` event after the LLM responds. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The payload includes token usage, computed cost, workflow/activity context, and model id. For payload details, setup, and cost structure, see [Cost Events](/costs/cost-events).
+Each `generateText` and `streamText` call emits a `cost:llm:request` event after the LLM responds and cost can be computed. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The payload is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
 
 ## loadPrompt
 

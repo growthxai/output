@@ -255,6 +255,10 @@ export interface WorkflowResultResponse {
   /** The result of workflow, null if workflow failed */
   output?: unknown;
   trace?: TraceInfo;
+  /** Durable workflow attributes collected during execution */
+  attributes?: { [key: string]: unknown }[] | null;
+  /** Convenience totals derived from attributes */
+  aggregations?: { [key: string]: unknown } | null;
   /** The workflow execution status */
   status?: WorkflowResultResponseStatus;
   /**
@@ -356,9 +360,17 @@ export const PostWorkflowRun200Status = {
 export type PostWorkflowRun200 = {
   /** The workflow execution id */
   workflowId?: string;
+  /** The specific run id for this execution */
+  runId?: string;
+  /** The original input passed to the workflow, null if unavailable */
+  input?: unknown;
   /** The output of the workflow, null if workflow failed */
   output?: unknown;
   trace?: TraceInfo;
+  /** Durable workflow attributes collected during execution */
+  attributes?: { [key: string]: unknown }[] | null;
+  /** Convenience totals derived from attributes */
+  aggregations?: { [key: string]: unknown } | null;
   /** The workflow execution status */
   status?: PostWorkflowRun200Status;
   /**
