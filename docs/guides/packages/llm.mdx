@@ -453,7 +453,7 @@ Company size: {{ size }} employees
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | `string` | `anthropic`, `openai`, `azure`, `vertex`, or `bedrock` |
+| `provider` | `string` | `anthropic`, `openai`, `azure`, `vertex`, `bedrock`, `perplexity`, or a provider registered with `registerProvider` |
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
@@ -590,7 +590,7 @@ All generate functions accept additional [AI SDK options](https://sdk.vercel.ai/
 |--------|------|-------------|
 | `tools` | `ToolSet` | Tools the model can call (generateText and streamText) |
 | `toolChoice` | `'auto' \| 'none' \| 'required'` | Tool selection strategy |
-| `maxRetries` | `number` | Max retry attempts (default: 2) |
+| `maxRetries` | `number` | Max retry attempts (default: 0) |
 | `seed` | `number` | Seed for deterministic output |
 | `abortSignal` | `AbortSignal` | Cancel the request |
 | `topP` | `number` | Nucleus sampling (0-1) |
@@ -601,6 +601,23 @@ All generate functions accept additional [AI SDK options](https://sdk.vercel.ai/
 | `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streamText only) |
 
 Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
+
+### Retries and Network Timeouts
+
+`generateText` and `streamText` set `maxRetries: 0` by default. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error is allowed to fail the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+
+AI SDK retries are still available, but they happen inside one activity attempt. Use them when you want quick provider-level retries before the step fails. Keep the default when you want Temporal to be the single place that controls retries.
+
+Pass `maxRetries` in the function call when you want the AI SDK to retry provider requests:
+
+```typescript
+const result = await generateText({
+  prompt: 'summarize@v1',
+  maxRetries: 2
+});
+```
+
+Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
 ## LLM call cost event
 
