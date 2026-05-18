@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.4.1
+
+### Patch Changes
+
+- ae3ab85: Stream trace JSON when writing local files and uploading to S3, avoiding Node.js string length limits for large trace outputs.
+
 ## 0.4.0
 
 ### Minor Changes
