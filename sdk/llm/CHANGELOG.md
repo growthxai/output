@@ -1,5 +1,16 @@
 # @outputai/llm
 
+## 0.4.1
+
+### Patch Changes
+
+- 6bc541c: Increase built-in LLM provider fetch timeouts for long-running responses.
+
+  Default AI SDK `maxRetries` to 0 so workflow retries are handled by Temporal.
+
+- Updated dependencies [ae3ab85]
+  - @outputai/core@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes

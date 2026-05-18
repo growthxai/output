@@ -1,5 +1,14 @@
 # @outputai/cli
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [6bc541c]
+  - @outputai/llm@0.4.1
+  - @outputai/credentials@0.4.1
+  - @outputai/evals@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes
