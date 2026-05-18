@@ -5,8 +5,8 @@ description: "Monitor LLM and HTTP request costs in real time — cost:llm:reque
 
 The [cost estimation CLI](/costs) shows you costs after a workflow finishes. **Cost events** expose similar data while a workflow runs:
 
-- **`cost:llm:request`** — emitted when an LLM call finishes (`generateText` / `streamText`), with model id, token usage, and estimated dollar cost.
-- **`cost:http:request`** — emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/http#attaching-request-cost) from `@outputai/http`, with the request id, URL, and cost you supplied.
+- **`cost:llm:request`** — emitted when an LLM call finishes (`generateText` / `streamText`), with an LLM usage attribute.
+- **`cost:http:request`** — emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/http#attaching-request-cost) from `@outputai/http`, with an HTTP request cost attribute.
 
 Use either or both to log spend to your observability stack, trigger alerts, or aggregate cost per workflow over time.
 
@@ -23,13 +23,15 @@ See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file reg
 ```javascript src/llm_cost_hooks.js
 import { on } from '@outputai/core/hooks';
 
-on( 'cost:llm:request', async ( { workflowId, activityId, modelId, usage, cost } ) => {
+on( 'cost:llm:request', async ( { workflowId, activityId, activityName, modelId, total, tokensUsed, usage } ) => {
   console.log( 'LLM call', {
     workflowId,
     activityId,
+    activityName,
     modelId,
-    tokens: usage?.totalTokens,
-    cost: cost?.total
+    tokens: tokensUsed,
+    cost: total,
+    usage
   } );
 } );
 ```
@@ -37,8 +39,8 @@ on( 'cost:llm:request', async ( { workflowId, activityId, modelId, usage, cost }
 ```javascript src/http_cost_hooks.js
 import { on } from '@outputai/core/hooks';
 
-on( 'cost:http:request', async ( { workflowId, activityId, requestId, url, cost } ) => {
-  console.log( 'HTTP request', { workflowId, activityId, requestId, url, total: cost?.total } );
+on( 'cost:http:request', async ( { workflowId, activityId, activityName, requestId, url, total } ) => {
+  console.log( 'HTTP request', { workflowId, activityId, activityName, requestId, url, total } );
 } );
 ```
 
@@ -52,106 +54,83 @@ An `cost:llm:request` event is emitted after every `generateText` and `streamTex
 
 ### Payload
 
-The handler receives a single object:
+The handler receives a single LLM usage attribute object:
+
+```json
+{
+  "workflowId": "workflow-123",
+  "type": "llm:usage",
+  "activityId": "activity-1",
+  "activityName": "generateSummary",
+  "modelId": "gpt-4o",
+  "usage": [
+    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
+    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
+  ],
+  "total": 0.00122,
+  "tokensUsed": 226
+}
+```
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the call runs inside a workflow. |
+| `type` | `"llm:usage"` | Attribute type. |
 | `activityId` | `string \| undefined` | Temporal activity ID of the step that made the LLM call. Present when the call runs inside a workflow activity. |
+| `activityName` | `string \| undefined` | Temporal activity name of the step that made the LLM call. Present when the call runs inside a workflow activity. |
 | `modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
-| `usage` | `object` | Token usage for this call. See [Usage shape](#usage-shape). |
-| `cost` | `object` | Computed dollar cost for this call. See [Cost structure](#cost-structure). |
+| `usage` | `array` | Priced usage entries for this call. See [Usage entries](#usage-entries). |
+| `total` | `number` | Total estimated cost in dollars. |
+| `tokensUsed` | `number` | Total number of tokens represented by `usage`. |
 
-### Usage shape
-
-`usage` follows the AI SDK's [totalUsage](https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-text#total-usage) shape, aggregated across all steps for that call:
-
-```json
-{
-  "inputTokens": 217,
-  "inputTokenDetails": { "noCacheTokens": 217, "cacheReadTokens": 0, "cacheWriteTokens": 0 },
-  "outputTokens": 9,
-  "outputTokenDetails": { "textTokens": null, "reasoningTokens": null },
-  "totalTokens": 226,
-  "reasoningTokens": null,
-  "cachedInputTokens": 0
-}
-```
-
-When the model uses extended thinking, `reasoningTokens` and `outputTokenDetails.reasoningTokens` are set. Cached prompt tokens are reported in `cachedInputTokens` and `inputTokenDetails.cacheReadTokens`.
-
-### Cost structure
+### Usage entries
 
 Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(tokens / 1_000_000) * pricePerMillion`. Non-cached input tokens use `inputTokens - (cachedInputTokens ?? 0)`.
 
-The payload matches `LLMCallCost` from `@outputai/llm`: on success you get a numeric **`total`** plus a **`components`** array; on failure **`total`** is `null` and **`message`** explains why.
-
 | Field | Type | Description |
 |-------|------|-------------|
-| `total` | `number \| null` | Total estimated cost in dollars. `null` if pricing could not be computed. |
-| `message` | `string` | Present when `total` is `null` (e.g. unknown model, pricing fetch failed, or unexpected error). |
-| `components` | `array` | Present when `total` is a number. Each entry is `{ name: string, value: number }`. Only dimensions that have pricing for the model are included. |
+| `type` | `string` | Usage dimension. |
+| `ppm` | `number` | Price per million tokens for this dimension. |
+| `amount` | `number` | Token count for this dimension. |
+| `total` | `number` | Cost for this dimension. |
 
-**`components[].name` values**
+`usage[].type` values:
 
-| `name` | Description |
+| `type` | Description |
 |--------|-------------|
-| `input_tokens` | Non-cached prompt tokens. |
-| `input_cached_tokens` | Cached prompt read tokens (`cachedInputTokens`). |
-| `output_tokens` | Completion tokens. |
-| `reasoning_tokens` | Reasoning tokens, only when the model defines separate reasoning pricing; omitted otherwise. |
+| `input` | Non-cached prompt tokens. |
+| `input_cached` | Cached prompt read tokens (`cachedInputTokens`). |
+| `output` | Completion tokens. |
+| `reasoning` | Reasoning tokens, only when the model defines separate reasoning pricing. |
 
-**Successful calculation:**
-
-```json
-{
-  "total": 0.002341,
-  "components": [
-    { "name": "input_tokens", "value": 0.001302 },
-    { "name": "input_cached_tokens", "value": 0 },
-    { "name": "output_tokens", "value": 0.001039 },
-    { "name": "reasoning_tokens", "value": 0.00027 }
-  ]
-}
-```
-
-A given response may list only a subset of these — for example no `reasoning_tokens` row if that price is not configured for the model.
-
-**Unknown model or pricing unavailable:**
-
-```json
-{
-  "total": null,
-  "message": "Missing cost reference for model"
-}
-```
+Only available, finite usage dimensions are included. For example, `reasoning` is omitted when the model does not define separate reasoning pricing, and `input_cached` is omitted when there are no cached input tokens.
 
 ## HTTP request cost
 
-Events fire only when your code calls [`addRequestCost( response, cost )`](/packages/http#attaching-request-cost) with a **response object created by `@outputai/http`** (or its exported `fetch`). The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
+Events fire only when your code calls [`addRequestCost( response, total )`](/packages/http#attaching-request-cost) with a **response object created by `@outputai/http`** (or its exported `fetch`). The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
 
 ### Payload
 
-The handler receives a single object. As with `cost:llm:request`, `workflowId` and `activityId` are filled when the hook runs inside a Temporal workflow activity.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the handler runs inside a workflow. |
-| `activityId` | `string \| undefined` | Temporal activity ID. Present when the handler runs inside a workflow activity. |
-| `requestId` | `string` | Internal id linking this payload to the HTTP trace event for that request. |
-| `url` | `string` | Final response URL (same as `response.url`). |
-| `cost` | `object` | Dollar cost you passed to `addRequestCost`. See [HTTP cost shape](#http-cost-shape). |
-
-### HTTP cost shape
-
-Same top-level shape as LLM costs: a numeric **`total`** and an optional **`components`** array of `{ name, value }`. For HTTP, **`name` and `value` are entirely yours** — they mirror what you pass to `addRequestCost` (for example labels derived from vendor billing headers).
+The handler receives a single HTTP request cost attribute object:
 
 ```json
 {
-  "total": 0.42,
-  "components": [
-    { "name": "input", "value": 0.12 },
-    { "name": "output", "value": 0.3 }
-  ]
+  "workflowId": "workflow-123",
+  "type": "http:request:cost",
+  "activityId": "activity-1",
+  "activityName": "searchVendors",
+  "requestId": "req-123",
+  "url": "https://api.vendor.com/search",
+  "total": 0.42
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the request runs inside a workflow. |
+| `type` | `"http:request:cost"` | Attribute type. |
+| `activityId` | `string \| undefined` | Temporal activity ID of the step that made the HTTP request. Present when the request runs inside a workflow activity. |
+| `activityName` | `string \| undefined` | Temporal activity name of the step that made the HTTP request. Present when the request runs inside a workflow activity. |
+| `requestId` | `string` | Internal id linking this payload to the HTTP trace event for that request. |
+| `url` | `string` | Final response URL (same as `response.url`). |
+| `total` | `number` | Dollar cost passed to `addRequestCost`. |

@@ -18,7 +18,7 @@ export const logRequest = async ( { requestId, request } : { requestId: string, 
       ...( config.logVerbose && { headers: redactHeaders( request.headers ), body: await parseBody( request ) } )
     }
   } );
-  Tracing.addEventAttribute( { eventId: requestId, name: 'requestId', value: requestId } );
+  Tracing.addEventAttribute( { eventId: requestId, attribute: new Tracing.Attribute.HTTPRequestCount( request.url, requestId ) } );
 };
 
 /**

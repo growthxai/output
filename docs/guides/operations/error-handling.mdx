@@ -65,6 +65,40 @@ export default workflow({
 
 If you don't catch the error, the workflow fails.
 
+### Error metadata
+
+When a root workflow fails, Output attaches execution metadata to the Temporal error returned by the runtime. This metadata includes:
+
+- `trace` — Trace metadata for the run, when available.
+- `attributes` — Durable attributes collected before the failure, such as LLM usage and HTTP cost/count attributes.
+- `aggregations` — Convenience totals derived from those attributes.
+
+The CLI and API expose these attachments on failed workflow results alongside the error message. This lets you inspect partial cost, token, and HTTP request data for failed runs without changing your workflow code.
+
+If you inspect raw errors directly, remember that workflow failures are native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. The metadata is stored in a Temporal failure's `details`, which may be on a nested error in the `.cause` chain rather than on the top-level error object. Walk the `.cause` chain and look for `details` containing `trace`, `attributes`, or `aggregations`.
+
+```typescript
+function getWorkflowErrorMetadata(error: unknown) {
+  let current = error as { cause?: unknown; details?: unknown[] } | null;
+
+  while (current) {
+    const metadata = current.details?.find((detail) =>
+      detail &&
+      typeof detail === 'object' &&
+      ('trace' in detail || 'attributes' in detail || 'aggregations' in detail)
+    );
+
+    if (metadata) {
+      return metadata;
+    }
+
+    current = current.cause as typeof current;
+  }
+
+  return null;
+}
+```
+
 ## FatalError and ValidationError
 
 Sometimes retrying won't help — the API key is invalid, the resource doesn't exist, or the data is fundamentally wrong. For these cases, throw `FatalError` or `ValidationError` to fail immediately without retries.

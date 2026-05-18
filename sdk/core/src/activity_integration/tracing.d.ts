@@ -1,3 +1,6 @@
+import type { Attribute } from '#trace_attribute';
+
+export { Attribute } from '#trace_attribute';
 /**
  * Creates a new event.
  *
@@ -32,14 +35,6 @@ export declare function addEventError( args: { id: string; details: unknown } ):
  *
  * @param args
  * @param args.eventId - The id of the event to attach the attribute to.
- * @param args.name - The attribute name
- * @param args.value - The attribute value
+ * @param args.attribute - The attribute to attach to the event.
  */
-export declare function addEventAttribute( args: { eventId: string; name: string, value: unknown } ): void;
-
-/**
- * Known attributes.
- */
-export declare const Attribute: {
-  COST: 'cost';
-};
+export declare function addEventAttribute( args: { eventId: string; attribute: Attribute.Instance } ): void;

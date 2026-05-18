@@ -3,7 +3,7 @@ import { InvalidTraceFileUrl } from './clients/errors.js';
 import {
   buildWorkflowId,
   parseS3Url,
-  extractTraceInfo,
+  extractErrorDetail,
   extractErrorMessage,
   takeFromAsyncIterable
 } from './utils.js';
@@ -101,12 +101,12 @@ describe( 'utils spec', () => {
     } );
   } );
 
-  describe( 'extractTraceInfo', () => {
+  describe( 'extractErrorDetail', () => {
     it( 'returns trace from error.details when present', () => {
       const tracePayload = { destinations: { local: 'xxx', remote: 'yyy' } };
       const error = { details: [ { trace: tracePayload } ] };
 
-      expect( extractTraceInfo( error ) ).toEqual( tracePayload );
+      expect( extractErrorDetail( error, 'trace' ) ).toEqual( tracePayload );
     } );
 
     it( 'returns trace from nested cause chain', () => {
@@ -114,7 +114,7 @@ describe( 'utils spec', () => {
       const inner = { details: [ { trace: tracePayload } ] };
       const outer = { cause: inner };
 
-      expect( extractTraceInfo( outer ) ).toEqual( tracePayload );
+      expect( extractErrorDetail( outer, 'trace' ) ).toEqual( tracePayload );
     } );
 
     it( 'returns trace from deeply nested cause chain', () => {
@@ -123,27 +123,27 @@ describe( 'utils spec', () => {
       const middle = { cause: deepest };
       const outer = { cause: middle };
 
-      expect( extractTraceInfo( outer ) ).toEqual( tracePayload );
+      expect( extractErrorDetail( outer, 'trace' ) ).toEqual( tracePayload );
     } );
 
-    it( 'returns undefined for null input', () => {
-      expect( extractTraceInfo( null ) ).toBeUndefined();
+    it( 'returns null for null input', () => {
+      expect( extractErrorDetail( null, 'trace' ) ).toBeNull();
     } );
 
-    it( 'returns undefined for undefined input', () => {
-      expect( extractTraceInfo( undefined ) ).toBeUndefined();
+    it( 'returns null for undefined input', () => {
+      expect( extractErrorDetail( undefined, 'trace' ) ).toBeNull();
     } );
 
-    it( 'returns undefined when no trace exists in chain', () => {
+    it( 'returns null when no trace exists in chain', () => {
       const error = { details: [ { other: 'data' } ], cause: { details: [] } };
 
-      expect( extractTraceInfo( error ) ).toBeUndefined();
+      expect( extractErrorDetail( error, 'trace' ) ).toBeNull();
     } );
 
     it( 'handles errors without details array', () => {
       const error = { message: 'error without details' };
 
-      expect( extractTraceInfo( error ) ).toBeUndefined();
+      expect( extractErrorDetail( error, 'trace' ) ).toBeNull();
     } );
 
     it( 'returns first trace found when multiple exist in chain', () => {
@@ -152,26 +152,46 @@ describe( 'utils spec', () => {
       const inner = { details: [ { trace: innerTrace } ] };
       const outer = { details: [ { trace: outerTrace } ], cause: inner };
 
-      expect( extractTraceInfo( outer ) ).toEqual( outerTrace );
+      expect( extractErrorDetail( outer, 'trace' ) ).toEqual( outerTrace );
     } );
 
     it( 'handles error with empty details array', () => {
       const error = { details: [] };
 
-      expect( extractTraceInfo( error ) ).toBeUndefined();
+      expect( extractErrorDetail( error, 'trace' ) ).toBeNull();
     } );
 
     it( 'handles details without trace property', () => {
       const error = { details: [ { foo: 'bar' }, { baz: 'qux' } ] };
 
-      expect( extractTraceInfo( error ) ).toBeUndefined();
+      expect( extractErrorDetail( error, 'trace' ) ).toBeNull();
     } );
 
     it( 'uses details.find when details is array-like with find', () => {
       const tracePayload = { id: 't1' };
       const error = { details: [ { trace: tracePayload } ] };
 
-      expect( extractTraceInfo( error ) ).toEqual( tracePayload );
+      expect( extractErrorDetail( error, 'trace' ) ).toEqual( tracePayload );
+    } );
+
+    it( 'returns the requested detail from error.details', () => {
+      const attributes = [ { type: 'llm:usage' } ];
+      const error = { details: [ { attributes } ] };
+
+      expect( extractErrorDetail( error, 'attributes' ) ).toBe( attributes );
+    } );
+
+    it( 'returns the requested detail from a nested cause chain', () => {
+      const aggregations = { cost: { total: 1 } };
+      const error = { cause: { details: [ { aggregations } ] } };
+
+      expect( extractErrorDetail( error, 'aggregations' ) ).toBe( aggregations );
+    } );
+
+    it( 'returns null when the requested detail is missing', () => {
+      const error = { details: [ { trace: {} } ], cause: { details: [] } };
+
+      expect( extractErrorDetail( error, 'attributes' ) ).toBeNull();
     } );
   } );
 

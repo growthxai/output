@@ -1,5 +1,7 @@
 import { addEventActionWithContext, EventAction } from '#tracing';
 
+export { Attribute } from '#trace_attribute';
+
 /**
  * Creates a new event.
  *
@@ -42,12 +44,5 @@ export const addEventError = ( { id, details } ) => addEventActionWithContext( E
  * @param {unknown} args.value - The attribute value
  * @returns {void}
  */
-export const addEventAttribute = ( { eventId, name, value } ) =>
-  addEventActionWithContext( EventAction.ADD_ATTR, { id: eventId, details: { name, value } } );
-
-/**
- * Known attributes
- */
-export const Attribute = {
-  COST: 'cost'
-};
+export const addEventAttribute = ( { eventId, attribute } ) =>
+  addEventActionWithContext( EventAction.ADD_ATTR, { id: eventId, details: attribute } );

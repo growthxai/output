@@ -46,6 +46,7 @@
     "@temporalio/common": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
+    "decimal.js": "10.6.0",
     "json-stream-stringify": "3.1.6",
     "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
@@ -69,6 +70,7 @@
     "#logger": "./src/logger.js",
     "#utils": "./src/utils/index.js",
     "#tracing": "./src/tracing/internal_interface.js",
+    "#trace_attribute": "./src/tracing/trace_attribute.js",
     "#async_storage": "./src/async_storage.js",
     "#internal_activities": "./src/internal_activities/index.js"
   }

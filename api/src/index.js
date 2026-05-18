@@ -344,6 +344,18 @@ app.use( ( req, res, next ) => {
  *           description: The result of workflow, null if workflow failed
  *         trace:
  *           $ref: '#/components/schemas/TraceInfo'
+ *         attributes:
+ *           type: array
+ *           nullable: true
+ *           description: Durable workflow attributes collected during execution
+ *           items:
+ *             type: object
+ *             additionalProperties: true
+ *         aggregations:
+ *           type: object
+ *           nullable: true
+ *           additionalProperties: true
+ *           description: Convenience totals derived from attributes
  *         status:
  *           type: string
  *           enum: [completed, failed, canceled, terminated, timed_out, continued]
@@ -474,23 +486,7 @@ app.use( ( req, res, next ) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 workflowId:
- *                   type: string
- *                   description: The workflow execution id
- *                 output:
- *                   description: The output of the workflow, null if workflow failed
- *                 trace:
- *                   $ref: '#/components/schemas/TraceInfo'
- *                 status:
- *                   type: string
- *                   enum: [completed, failed]
- *                   description: The workflow execution status
- *                 error:
- *                   type: string
- *                   nullable: true
- *                   description: Error message if workflow failed, null otherwise
+ *               $ref: '#/components/schemas/WorkflowResultResponse'
  *       400:
  *         $ref: '#/components/responses/BadRequest'
  *       404:

@@ -230,6 +230,14 @@ export interface WorkflowStatusResponse {
   completedAt?: number;
 }
 
+export type WorkflowResultResponseAttributesItem = { [key: string]: unknown };
+
+/**
+ * Convenience totals derived from attributes
+ * @nullable
+ */
+export type WorkflowResultResponseAggregations = { [key: string]: unknown } | null;
+
 /**
  * The workflow execution status
  */
@@ -255,6 +263,16 @@ export interface WorkflowResultResponse {
   /** The result of workflow, null if workflow failed */
   output?: unknown;
   trace?: TraceInfo;
+  /**
+     * Durable workflow attributes collected during execution
+     * @nullable
+     */
+  attributes?: WorkflowResultResponseAttributesItem[] | null;
+  /**
+     * Convenience totals derived from attributes
+     * @nullable
+     */
+  aggregations?: WorkflowResultResponseAggregations;
   /** The workflow execution status */
   status?: WorkflowResultResponseStatus;
   /**
@@ -340,32 +358,6 @@ export type PostWorkflowRunBody = {
   taskQueue?: string;
   /** (Optional) The max time to wait for the execution, defaults to 30s */
   timeout?: number;
-};
-
-/**
- * The workflow execution status
- */
-export type PostWorkflowRun200Status = typeof PostWorkflowRun200Status[keyof typeof PostWorkflowRun200Status];
-
-
-export const PostWorkflowRun200Status = {
-  completed: 'completed',
-  failed: 'failed',
-} as const;
-
-export type PostWorkflowRun200 = {
-  /** The workflow execution id */
-  workflowId?: string;
-  /** The output of the workflow, null if workflow failed */
-  output?: unknown;
-  trace?: TraceInfo;
-  /** The workflow execution status */
-  status?: PostWorkflowRun200Status;
-  /**
-     * Error message if workflow failed, null otherwise
-     * @nullable
-     */
-  error?: string | null;
 };
 
 export type PostWorkflowStartBody = {
@@ -591,7 +583,7 @@ export const getHealth = async ( options?: ApiRequestOptions): Promise<getHealth
  * @summary Execute a workflow synchronously
  */
 export type postWorkflowRunResponse200 = {
-  data: PostWorkflowRun200
+  data: WorkflowResultResponse
   status: 200
 }
 

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
-import type { PostWorkflowRun200 } from '#api/generated/api.js';
+import type { WorkflowResultResponse } from '#api/generated/api.js';
 import { readAllDatasets, writeDataset } from '#services/datasets.js';
 import { handleApiError } from '#utils/error_handler.js';
 import {
@@ -83,7 +83,7 @@ export default class WorkflowTest extends Command {
       config: { timeout: 600000 }
     } );
 
-    const evalData = response?.data as PostWorkflowRun200 | undefined;
+    const evalData = response?.data as WorkflowResultResponse | undefined;
     if ( !evalData?.output ) {
       this.error( 'Eval workflow returned no output', { exit: 1 } );
     }
@@ -148,7 +148,7 @@ export default class WorkflowTest extends Command {
       const updated: Dataset = {
         ...dataset,
         last_output: {
-          output: ( response.data as PostWorkflowRun200 ).output,
+          output: ( response.data as WorkflowResultResponse ).output,
           executionTimeMs,
           date: new Date().toISOString()
         }

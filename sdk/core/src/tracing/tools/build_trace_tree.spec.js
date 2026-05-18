@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EventAction } from '../trace_consts.js';
+import { Attribute } from '#trace_attribute';
 import buildTraceTree from './build_trace_tree.js';
 
 describe( 'build_trace_tree', () => {
@@ -26,34 +27,66 @@ this can indicate it timed out or was interrupted.>>' );
     expect( buildTraceTree( entries ) ).toBeNull();
   } );
 
-  it( 'add_attr action merges details.name and details.value into node.attributes', () => {
+  it( 'add_attr action stores attribute details by type on node.attributes', () => {
+    const requestCount = {
+      type: Attribute.HTTPRequestCount.TYPE,
+      url: 'https://api.example.test',
+      requestId: 'req-1'
+    };
+    const requestCost = {
+      type: Attribute.HTTPRequestCost.TYPE,
+      url: 'https://api.example.test',
+      requestId: 'req-1',
+      total: 0.2
+    };
     const entries = [
       { kind: 'workflow', id: 'wf', parentId: undefined, action: EventAction.START, name: 'wf', details: {}, timestamp: 100 },
       { kind: 'step', id: 's', parentId: 'wf', action: EventAction.START, name: 'step', details: {}, timestamp: 200 },
-      { id: 's', action: EventAction.ADD_ATTR, details: { name: 'latency_ms', value: 42 }, timestamp: 250 },
-      { id: 's', action: EventAction.ADD_ATTR, details: { name: 'retries', value: 1 }, timestamp: 260 },
+      { id: 's', action: EventAction.ADD_ATTR, details: requestCount, timestamp: 250 },
+      { id: 's', action: EventAction.ADD_ATTR, details: requestCost, timestamp: 260 },
       { id: 'wf', action: EventAction.END, details: {}, timestamp: 300 }
     ];
     const result = buildTraceTree( entries );
     expect( result ).not.toBeNull();
-    expect( result.children[0].attributes ).toEqual( { latency_ms: 42, retries: 1 } );
+    expect( result.children[0].attributes ).toEqual( {
+      [Attribute.HTTPRequestCount.TYPE]: requestCount,
+      [Attribute.HTTPRequestCost.TYPE]: requestCost
+    } );
   } );
 
-  it( 'add_attr action overwrites prior value for the same attribute name', () => {
+  it( 'add_attr action overwrites prior value for the same attribute type', () => {
+    const firstCost = {
+      type: Attribute.HTTPRequestCost.TYPE,
+      url: 'https://api.example.test',
+      requestId: 'req-1',
+      total: 1
+    };
+    const secondCost = {
+      type: Attribute.HTTPRequestCost.TYPE,
+      url: 'https://api.example.test',
+      requestId: 'req-1',
+      total: 2
+    };
     const entries = [
       { kind: 'workflow', id: 'wf', parentId: undefined, action: EventAction.START, name: 'wf', details: {}, timestamp: 1 },
-      { id: 'wf', action: EventAction.ADD_ATTR, details: { name: 'x', value: 1 }, timestamp: 2 },
-      { id: 'wf', action: EventAction.ADD_ATTR, details: { name: 'x', value: 2 }, timestamp: 3 },
+      { id: 'wf', action: EventAction.ADD_ATTR, details: firstCost, timestamp: 2 },
+      { id: 'wf', action: EventAction.ADD_ATTR, details: secondCost, timestamp: 3 },
       { id: 'wf', action: EventAction.END, details: {}, timestamp: 4 }
     ];
     const result = buildTraceTree( entries );
-    expect( result.attributes ).toEqual( { x: 2 } );
+    expect( result.attributes ).toEqual( { [Attribute.HTTPRequestCost.TYPE]: secondCost } );
   } );
 
   it( 'add_attr does not attach nodes as children (only start does)', () => {
     const entries = [
       { kind: 'workflow', id: 'wf', parentId: undefined, action: EventAction.START, name: 'wf', details: {}, timestamp: 1 },
-      { id: 'orphan', parentId: 'wf', action: EventAction.ADD_ATTR, details: { name: 'k', value: 'v' }, timestamp: 2 },
+      {
+        id: 'orphan',
+        parentId: 'wf',
+        action: EventAction.ADD_ATTR,
+        details: { type: Attribute.HTTPRequestCount.TYPE, url: 'https://api.example.test', requestId: 'req-1' },
+        timestamp: 2
+      },
       { id: 'wf', action: EventAction.END, details: {}, timestamp: 3 }
     ];
     const result = buildTraceTree( entries );
@@ -75,6 +108,11 @@ this can indicate it timed out or was interrupted.>>' );
   } );
 
   it( 'builds a tree from workflow/step/IO entries with grouping and sorting', () => {
+    const stepAttribute = {
+      type: Attribute.HTTPRequestCount.TYPE,
+      url: 'https://api.example.test/step-1',
+      requestId: 'req-step-1'
+    };
     const entries = [
       // workflow start
       { kind: 'workflow', action: EventAction.START, name: 'wf', id: 'wf', parentId: undefined, details: { a: 1 }, timestamp: 1000 },
@@ -83,7 +121,7 @@ this can indicate it timed out or was interrupted.>>' );
       { id: 'eval', action: EventAction.END, details: { z: 1 }, timestamp: 1600 },
       // step1 start
       { kind: 'step', action: EventAction.START, name: 'step-1', id: 's1', parentId: 'wf', details: { x: 1 }, timestamp: 2000 },
-      { id: 's1', action: EventAction.ADD_ATTR, details: { name: 'step_tag', value: 'alpha' }, timestamp: 2050 },
+      { id: 's1', action: EventAction.ADD_ATTR, details: stepAttribute, timestamp: 2050 },
       // IO under step1
       { kind: 'IO', action: EventAction.START, name: 'test-1', id: 'io1', parentId: 's1', details: { y: 2 }, timestamp: 2300 },
       // step2 start
@@ -132,7 +170,7 @@ this can indicate it timed out or was interrupted.>>' );
           endedAt: 2800,
           input: { x: 1 },
           output: { done: true },
-          attributes: { step_tag: 'alpha' },
+          attributes: { [Attribute.HTTPRequestCount.TYPE]: stepAttribute },
           children: [
             {
               id: 'io1',
