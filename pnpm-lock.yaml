@@ -18,12 +18,27 @@ catalogs:
     '@temporalio/common':
       specifier: 1.17.0
       version: 1.17.0
+    '@temporalio/proto':
+      specifier: 1.17.0
+      version: 1.17.0
     '@temporalio/worker':
       specifier: 1.17.0
       version: 1.17.0
     '@temporalio/workflow':
       specifier: 1.17.0
       version: 1.17.0
+    '@types/js-yaml':
+      specifier: 4.0.9
+      version: 4.0.9
+    js-yaml:
+      specifier: 4.1.1
+      version: 4.1.1
+    ky:
+      specifier: 1.14.3
+      version: 1.14.3
+    semver:
+      specifier: 7.7.4
+      version: 7.7.4
     undici:
       specifier: 8.1.0
       version: 8.1.0
@@ -424,6 +439,9 @@ importers:
       liquidjs:
         specifier: 10.25.7
         version: 10.25.7
+      undici:
+        specifier: 'catalog:'
+        version: 8.1.0
 
   test_workflows:
     dependencies:
@@ -13558,7 +13576,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 24.10.15
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -14928,7 +14946,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.6.0
+      '@types/node': 24.10.15
       long: 5.3.2
 
   protobufjs@7.5.6:
@@ -14943,7 +14961,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.6.0
+      '@types/node': 24.10.15
       long: 5.3.2
 
   protobufjs@8.0.3:

@@ -64,10 +64,10 @@ export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkill
   return { loadedPrompt: meta, allVariables: variables, tools };
 };
 
-export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...extraAiSdkOptions } ) {
+export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
   const callerSkills = typeof skills === 'function' ? await skills( variables ) : skills;
   const { loadedPrompt, allVariables, tools } =
-    hydratePromptTemplate( prompt, variables, promptDir, callerSkills, extraAiSdkOptions.tools );
+    hydratePromptTemplate( prompt, variables, promptDir, callerSkills, aiSdkArgs.tools );
   const hasTools = Object.keys( tools ).length > 0;
 
   validateGenerateTextArgs( { prompt, variables: allVariables } );
@@ -78,9 +78,10 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   try {
     const response = await AI.generateText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
-      ...extraAiSdkOptions,
+      maxRetries: 0,
+      ...aiSdkArgs,
       ...( hasTools ? { tools } : {} ),
-      ...( hasTools && !extraAiSdkOptions.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
+      ...( hasTools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
     return wrapTextResponse( { traceId, modelId, response } );
   } catch ( error ) {
@@ -89,7 +90,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   }
 }
 
-export function streamText( { prompt, variables, onFinish, onError, ...restOptions } ) {
+export function streamText( { prompt, variables, onFinish, onError, ...aiSdkArgs } ) {
   validateStreamTextArgs( { prompt, variables } );
   const loadedPrompt = loadPrompt( prompt, variables );
   const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
@@ -98,7 +99,8 @@ export function streamText( { prompt, variables, onFinish, onError, ...restOptio
   try {
     return AI.streamText( {
       ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
-      ...restOptions,
+      maxRetries: 0,
+      ...aiSdkArgs,
       ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
       onError( event ) {
         endTraceWithError( { traceId, error: event.error } );

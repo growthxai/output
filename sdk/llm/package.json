@@ -23,7 +23,8 @@
     "decimal.js": "10.6.0",
     "entities": "8.0.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.25.7"
+    "liquidjs": "10.25.7",
+    "undici": "catalog:"
   },
   "license": "Apache-2.0",
   "publishConfig": {

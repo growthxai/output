@@ -149,6 +149,7 @@ describe( 'ai_sdk', () => {
       model: 'MODEL',
       messages: basePrompt.messages,
       temperature: 0.3,
+      maxRetries: 0,
       providerOptions: basePrompt.config.providerOptions
     } );
     expect( result ).toBe( generateTextAiFixture.response );
@@ -182,6 +183,7 @@ describe( 'ai_sdk', () => {
     expect( aiFns.generateText ).toHaveBeenCalledWith( {
       model: 'MODEL',
       messages: promptWithProviderOptions.messages,
+      maxRetries: 0,
       providerOptions: {
         thinking: {
           type: 'enabled',
@@ -362,6 +364,7 @@ describe( 'ai_sdk', () => {
         model: 'MODEL',
         messages: basePrompt.messages,
         temperature: 0.3,
+        maxRetries: 0,
         providerOptions: basePrompt.config.providerOptions,
         onFinish: expect.any( Function ),
         onError: expect.any( Function )

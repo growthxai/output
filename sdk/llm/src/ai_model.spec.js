@@ -1,10 +1,12 @@
 import { it, expect, vi, afterEach, describe } from 'vitest';
 
-const openaiImpl = vi.fn( model => `openai:${model}` );
-const azureImpl = vi.fn( model => `azure:${model}` );
-const anthropicImpl = vi.fn( model => `anthropic:${model}` );
-const bedrockImpl = vi.fn( model => `bedrock:${model}` );
-const perplexityImpl = vi.fn( model => `perplexity:${model}` );
+const providerFactoryOptions = vi.hoisted( () => ( {} ) );
+const openaiImpl = vi.hoisted( () => vi.fn( model => `openai:${model}` ) );
+const azureImpl = vi.hoisted( () => vi.fn( model => `azure:${model}` ) );
+const anthropicImpl = vi.hoisted( () => vi.fn( model => `anthropic:${model}` ) );
+const bedrockImpl = vi.hoisted( () => vi.fn( model => `bedrock:${model}` ) );
+const perplexityImpl = vi.hoisted( () => vi.fn( model => `perplexity:${model}` ) );
+const vertexImpl = vi.hoisted( () => vi.fn( model => `vertex:${model}` ) );
 
 // OpenAI mock with tools support
 vi.mock( '@ai-sdk/openai', () => {
@@ -12,12 +14,20 @@ vi.mock( '@ai-sdk/openai', () => {
   openaiMock.tools = {
     webSearch: ( config = {} ) => ( { type: 'webSearch', config } )
   };
-  return { openai: openaiMock };
+  return {
+    createOpenAI: options => {
+      providerFactoryOptions.openai = options;
+      return openaiMock;
+    }
+  };
 } );
 
 // Azure mock without tools support
 vi.mock( '@ai-sdk/azure', () => ( {
-  azure: ( ...values ) => azureImpl( ...values )
+  createAzure: options => {
+    providerFactoryOptions.azure = options;
+    return ( ...values ) => azureImpl( ...values );
+  }
 } ) );
 
 // Anthropic mock with tools support
@@ -30,7 +40,12 @@ vi.mock( '@ai-sdk/anthropic', () => {
     codeExecution_20250522: ( config = {} ) => ( { type: 'codeExecution_20250522', config } ),
     codeExecution_20250825: ( config = {} ) => ( { type: 'codeExecution_20250825', config } )
   };
-  return { anthropic: anthropicMock };
+  return {
+    createAnthropic: options => {
+      providerFactoryOptions.anthropic = options;
+      return anthropicMock;
+    }
+  };
 } );
 
 // Bedrock mock with tools support
@@ -42,17 +57,25 @@ vi.mock( '@ai-sdk/amazon-bedrock', () => {
     textEditor_20250429: ( config = {} ) => ( { type: 'textEditor_20250429', config } ),
     computer_20241022: ( config = {} ) => ( { type: 'computer_20241022', config } )
   };
-  return { bedrock: bedrockMock };
+  return {
+    createAmazonBedrock: options => {
+      providerFactoryOptions.bedrock = options;
+      return bedrockMock;
+    }
+  };
 } );
 
 // Perplexity mock
 vi.mock( '@ai-sdk/perplexity', () => ( {
-  perplexity: ( ...values ) => perplexityImpl( ...values )
+  createPerplexity: options => {
+    providerFactoryOptions.perplexity = options;
+    return ( ...values ) => perplexityImpl( ...values );
+  }
 } ) );
 
 // Vertex mock with tools support
 vi.mock( '@ai-sdk/google-vertex', () => {
-  const vertexFn = model => `vertex:${model}`;
+  const vertexFn = ( ...values ) => vertexImpl( ...values );
   vertexFn.tools = {
     googleSearch: ( config = {} ) => ( { type: 'googleSearch', config } ),
     fileSearch: ( config = {} ) => ( { type: 'fileSearch', config } ),
@@ -62,7 +85,12 @@ vi.mock( '@ai-sdk/google-vertex', () => {
     codeExecution: ( config = {} ) => ( { type: 'codeExecution', config } ),
     vertexRagStore: ( config = {} ) => ( { type: 'vertexRagStore', config } )
   };
-  return { vertex: vertexFn };
+  return {
+    createVertex: options => {
+      providerFactoryOptions.vertex = options;
+      return vertexFn;
+    }
+  };
 } );
 
 import { loadModel, loadTools, registerProvider, getRegisteredProviders, providers, builtInProviders } from './ai_model.js';
@@ -73,6 +101,17 @@ afterEach( async () => {
 } );
 
 describe( 'loadModel', () => {
+  it( 'initializes built-in providers with custom fetch', () => {
+    expect( providerFactoryOptions ).toMatchObject( {
+      azure: { fetch: expect.any( Function ) },
+      anthropic: { fetch: expect.any( Function ) },
+      openai: { fetch: expect.any( Function ) },
+      vertex: { fetch: expect.any( Function ) },
+      bedrock: { fetch: expect.any( Function ) },
+      perplexity: { fetch: expect.any( Function ) }
+    } );
+  } );
+
   it( 'loads model using selected provider', () => {
     const result = loadModel( { config: { provider: 'openai', model: 'gpt-4o-mini' } } );
 
@@ -617,7 +656,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: { googleSearch: null }
         }
-      } ) ).toThrow( 'Configuration for tool "googleSearch" must be an object' );
+      } ) ).toThrow( /Invalid config for tool "googleSearch".*expected record, received null/s );
     } );
 
     it( 'throws error when tool config is a string', () => {
@@ -626,7 +665,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: { googleSearch: 'MODE_DYNAMIC' }
         }
-      } ) ).toThrow( 'Configuration for tool "googleSearch" must be an object' );
+      } ) ).toThrow( /Invalid config for tool "googleSearch".*expected record, received string/s );
     } );
 
     it( 'throws error for unknown tool on Bedrock with dynamic tool listing', () => {
