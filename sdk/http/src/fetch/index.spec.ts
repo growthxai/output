@@ -8,9 +8,15 @@ const randomUUIDMock = vi.hoisted( () => vi.fn( () => FIXED_REQUEST_ID ) );
 
 const loggerMock = vi.hoisted( () => ( {
   logRequest: vi.fn( async ( _args: { requestId: string; request: UndiciRequest } ): Promise<void> => {} ),
-  logResponse: vi.fn( async ( _args: { requestId: string; response: UndiciResponse } ): Promise<void> => {} ),
-  logError: vi.fn( ( _args: { requestId: string; response: UndiciResponse } ): void => {} ),
-  logFailure: vi.fn( ( _args: { requestId: string; error: Error } ): void => {} )
+  logResponse: vi.fn( async ( _args: {
+    requestId: string; response: UndiciResponse; method: string; url: string; durationMs: number;
+  } ): Promise<void> => {} ),
+  logError: vi.fn( ( _args: {
+    requestId: string; response: UndiciResponse; method: string; url: string; durationMs: number;
+  } ): void => {} ),
+  logFailure: vi.fn( ( _args: {
+    requestId: string; error: Error; method: string; url: string; durationMs: number;
+  } ): void => {} )
 } ) );
 const utilsMock = vi.hoisted( () => ( {
   addRequestIdToResponse: vi.fn()
@@ -85,8 +91,13 @@ describe( 'fetch/index', () => {
       expect( loggerMock.logRequest.mock.calls[0][0].request.url ).toBe( `${MOCK_ORIGIN}/ok` );
 
       expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
-      expect( loggerMock.logResponse.mock.calls[0][0].requestId ).toBe( FIXED_REQUEST_ID );
-      expect( loggerMock.logResponse.mock.calls[0][0].response ).toBe( response );
+      const responseCall = loggerMock.logResponse.mock.calls[0][0];
+      expect( responseCall.requestId ).toBe( FIXED_REQUEST_ID );
+      expect( responseCall.response ).toBe( response );
+      expect( responseCall.method ).toBe( 'GET' );
+      expect( responseCall.url ).toBe( `${MOCK_ORIGIN}/ok` );
+      expect( typeof responseCall.durationMs ).toBe( 'number' );
+      expect( responseCall.durationMs ).toBeGreaterThanOrEqual( 0 );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledTimes( 1 );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledWith( response, FIXED_REQUEST_ID );
 

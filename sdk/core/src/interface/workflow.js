@@ -39,15 +39,20 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     // this returns a plain function, for example, in unit tests
     if ( !inWorkflowContext() ) {
       validateWithSchema( inputSchema, input, `Workflow ${name} input` );
-      const context = Context.build( { workflowId: 'test-workflow', continueAsNew: async () => {}, isContinueAsNewSuggested: () => false } );
+      const context = Context.build( {
+        workflowId: 'test-workflow',
+        runId: 'test-run',
+        continueAsNew: async () => {},
+        isContinueAsNewSuggested: () => false
+      } );
       const output = await fn( input, deepMerge( context, extra.context ) );
       validateWithSchema( outputSchema, output, `Workflow ${name} output` );
       return output;
     }
 
-    const { workflowId, memo, startTime } = workflowInfo();
+    const { workflowId, runId, memo, startTime } = workflowInfo();
 
-    const context = Context.build( { workflowId, continueAsNew, isContinueAsNewSuggested: () => workflowInfo().continueAsNewSuggested } );
+    const context = Context.build( { workflowId, runId, continueAsNew, isContinueAsNewSuggested: () => workflowInfo().continueAsNewSuggested } );
 
     // Root workflows will not have the execution context yet, since it is set here.
     const isRoot = !memo.executionContext;
@@ -57,6 +62,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
        It will be used to as context for tracing (connecting events) */
     const executionContext = memo.executionContext ?? {
       workflowId,
+      runId,
       workflowName: name,
       disableTrace,
       startTime: startTime.getTime()
