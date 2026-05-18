@@ -531,6 +531,31 @@ providerOptions:
       guardrailVersion: "1"
 ```
 
+### Custom Providers
+
+Use `registerProvider` when you want prompt files to reference an AI SDK provider that is not built in, or when you need a custom provider instance:
+
+```typescript
+import { createVertexAnthropic } from '@ai-sdk/google-vertex/anthropic';
+import { registerProvider } from '@outputai/llm';
+
+registerProvider('vertex-anthropic', createVertexAnthropic({
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION
+}));
+```
+
+Then use the registered provider name in prompt front matter:
+
+```yaml
+---
+provider: vertex-anthropic
+model: claude-haiku-4-5
+---
+```
+
+Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
+
 ## Provider Tools
 
 Many providers offer built-in tools like web search. Configure them in YAML front matter:
