@@ -54,6 +54,14 @@ describe( 'extractSteps', () => {
     expect( steps[1].status ).toBe( 'failed' );
   } );
 
+  it( 'maps buildTraceTree-style ended nodes to status=completed', () => {
+    const t = trace( [
+      { name: 'done', kind: 'step', startedAt: 1000, endedAt: 1500, output: { ok: true } }
+    ] );
+    const steps = extractSteps( t );
+    expect( steps[0].status ).toBe( 'completed' );
+  } );
+
   it( 'falls back to startTime/endTime for duration', () => {
     const t = trace( [
       { phase: 'end', name: 'with-times', startTime: 1000, endTime: 1500 }

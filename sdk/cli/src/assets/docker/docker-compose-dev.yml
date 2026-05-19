@@ -88,9 +88,6 @@ services:
       - NODE_ENV=development
       - OUTPUT_API_PORT=3001
       - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
-      - OUTPUT_AWS_REGION=${AWS_REGION:-us-west-1}
-      - OUTPUT_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - OUTPUT_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
       - TEMPORAL_ADDRESS=temporal:7233
     ports:
       - '${OUTPUT_API_HOST_PORT:-3001}:3001'

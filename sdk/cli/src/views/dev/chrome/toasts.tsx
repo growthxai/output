@@ -4,6 +4,11 @@ import { useUiState, type Toast } from '#views/dev/state/ui_state.js';
 
 const TOAST_TTL_MS = 4000;
 
+export const useHeight = (): number => {
+  const ui = useUiState();
+  return ui.toasts.length > 0 ? ui.toasts.length + 1 : 0;
+};
+
 const toneColor = ( tone: Toast['tone'] ): string => {
   if ( tone === 'success' ) {
     return 'green';
@@ -43,11 +48,10 @@ export const Toasts: React.FC = () => {
   }
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column" flexGrow={1}>
       {toasts.map( toast => (
         <Box key={toast.id}>
-          <Text color={toneColor( toast.tone )} bold>{tonePrefix( toast.tone )} </Text>
-          <Text>{toast.message}</Text>
+          <Text color={toneColor( toast.tone )}>{tonePrefix( toast.tone )} {toast.message}</Text>
         </Box>
       ) )}
     </Box>

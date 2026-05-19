@@ -126,7 +126,7 @@ export const JsonEditor: React.FC<{
   return (
     <Box flexDirection="column">
       <Box justifyContent="space-between">
-        <Text bold>✏  {title}</Text>
+        <Text>File: {title}</Text>
         <Text bold color={status.ok ? 'green' : 'red'}>{status.ok ? '✓ valid JSON' : '✗ invalid JSON'}</Text>
       </Box>
 
@@ -134,13 +134,13 @@ export const JsonEditor: React.FC<{
         {visibleLines.map( ( line, i ) => {
           const lineIdx = startLine + i;
           if ( lineIdx !== cursorPos.line ) {
-            return <Text key={lineIdx}>{line.length === 0 ? ' ' : line}</Text>;
+            return <Text dimColor key={lineIdx}>{line.length === 0 ? ' ' : line}</Text>;
           }
           const before = line.slice( 0, cursorPos.col );
           const at = line[cursorPos.col] ?? ' ';
           const after = line.slice( cursorPos.col + 1 );
           return (
-            <Text key={lineIdx}>
+            <Text bold key={lineIdx}>
               <Text>{before}</Text>
               <Text inverse>{at}</Text>
               <Text>{after}</Text>

@@ -44,16 +44,13 @@ const stepNameOf = ( node: DebugNode ): string => {
 };
 
 const stepStatusOf = ( node: DebugNode ): string => {
-  if ( node.status ) {
-    return node.status;
-  }
-  if ( node.phase === 'error' || node.error ) {
+  if ( node.phase === 'error' || node.error || node.status === 'failed' ) {
     return 'failed';
   }
-  if ( node.phase === 'end' ) {
+  if ( node.phase === 'end' || node.status === 'completed' || node.endedAt !== undefined ) {
     return 'completed';
   }
-  return 'running';
+  return node.status ?? 'running';
 };
 
 const numericTimestamp = ( ...candidates: Array<unknown> ): number | null => {

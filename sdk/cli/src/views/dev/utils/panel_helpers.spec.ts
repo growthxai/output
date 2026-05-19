@@ -1,5 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { truncate, formatStartedShort, computeWindowStart } from './panel_helpers.js';
+import {
+  capitalize,
+  clampIndex,
+  computeWindowStart,
+  cycleValue,
+  formatContentTitle,
+  formatStartedShort,
+  hasJsonValue,
+  truncate
+} from './panel_helpers.js';
+
+describe( 'capitalize', () => {
+  it( 'uppercases the first character only', () => {
+    expect( capitalize( 'output' ) ).toBe( 'Output' );
+    expect( capitalize( 'oUTPUT' ) ).toBe( 'OUTPUT' );
+  } );
+
+  it( 'returns empty strings unchanged', () => {
+    expect( capitalize( '' ) ).toBe( '' );
+  } );
+} );
+
+describe( 'formatContentTitle', () => {
+  it( 'joins title segments with the shared separator', () => {
+    expect( formatContentTitle( [ 'Workflow "demo"', 'Steps' ] ) ).toBe( 'Workflow "demo" › Steps' );
+  } );
+} );
+
+describe( 'hasJsonValue', () => {
+  it( 'rejects nullish and empty collection values', () => {
+    expect( hasJsonValue( null ) ).toBe( false );
+    expect( hasJsonValue( undefined ) ).toBe( false );
+    expect( hasJsonValue( [] ) ).toBe( false );
+    expect( hasJsonValue( {} ) ).toBe( false );
+  } );
+
+  it( 'accepts scalar and non-empty collection values', () => {
+    expect( hasJsonValue( false ) ).toBe( true );
+    expect( hasJsonValue( 0 ) ).toBe( true );
+    expect( hasJsonValue( '' ) ).toBe( true );
+    expect( hasJsonValue( [ 'x' ] ) ).toBe( true );
+    expect( hasJsonValue( { x: 1 } ) ).toBe( true );
+  } );
+} );
 
 describe( 'truncate', () => {
   it( 'returns the input unchanged when shorter than max', () => {
@@ -56,5 +99,24 @@ describe( 'computeWindowStart', () => {
 
   it( 'returns 0 for an empty list', () => {
     expect( computeWindowStart( 0, 0, 8 ) ).toBe( 0 );
+  } );
+} );
+
+describe( 'cycleValue', () => {
+  it( 'cycles forward and backward through an ordered list', () => {
+    expect( cycleValue( [ 'a', 'b', 'c' ], 'a', 1 ) ).toBe( 'b' );
+    expect( cycleValue( [ 'a', 'b', 'c' ], 'a', -1 ) ).toBe( 'c' );
+  } );
+} );
+
+describe( 'clampIndex', () => {
+  it( 'clamps indexes to the available range', () => {
+    expect( clampIndex( -1, 3 ) ).toBe( 0 );
+    expect( clampIndex( 0, 3 ) ).toBe( 0 );
+    expect( clampIndex( 5, 3 ) ).toBe( 2 );
+  } );
+
+  it( 'returns 0 for empty lists', () => {
+    expect( clampIndex( 5, 0 ) ).toBe( 0 );
   } );
 } );

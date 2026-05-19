@@ -11,53 +11,25 @@ export interface WorkflowSummary {
 }
 
 const LOGO_PIXELS = [
-  ' ██████  ██    ██ ████████ ██████  ██    ██ ████████',
-  '██    ██ ██    ██    ██    ██   ██ ██    ██    ██   ',
-  '██    ██ ██    ██    ██    ██████  ██    ██    ██   ',
-  '██    ██ ██    ██    ██    ██      ██    ██    ██   ',
-  ' ██████   ██████     ██    ██       ██████     ██   '
+  '▟▀▀▙▐▌ ▐▌▀▜▛▀▐▛▀▙▐▌ ▐▌▀▜▛▀',
+  '█  █▐▌ ▐▌ ▐▌ ▐▛▀▘▐▌ ▐▌ ▐▌ ',
+  '▝▀▀▘ ▀▀▀  ▝▘ ▝▘   ▀▀▀  ▝▘ '
 ];
 
-const QUADRANT_CHARS = [
-  ' ', '▗', '▖', '▄',
-  '▝', '▐', '▞', '▟',
-  '▘', '▚', '▌', '▙',
-  '▀', '▜', '▛', '█'
-];
+const HEADER_MARGIN = 1;
+const COMPACT_HEIGHT_THRESHOLD = 50;
+const COMPACT_HEADER_ROWS = 1;
+const FULL_HEADER_ROWS = 3;
 
-export const compressPixels = ( rows: string[] ): string[] => {
-  const maxCol = Math.max( ...rows.map( r => r.length ) );
-  const evenCol = maxCol + ( maxCol % 2 );
-  const padded = rows.map( r => r.padEnd( evenCol, ' ' ) );
-  const fullPadded = padded.length % 2 === 1 ?
-    [ ...padded, ' '.repeat( evenCol ) ] :
-    padded;
+const getLogoHeight = ( terminalRows: number ): number =>
+  terminalRows < COMPACT_HEIGHT_THRESHOLD ? COMPACT_HEADER_ROWS : FULL_HEADER_ROWS;
 
-  const rowPairs = fullPadded.reduce<Array<[string, string]>>( ( acc, row, i ) => {
-    if ( i % 2 === 0 ) {
-      acc.push( [ row, fullPadded[i + 1] ] );
-    }
-    return acc;
-  }, [] );
+export const getHeight = ( terminalRows: number ): number => getLogoHeight( terminalRows ) + HEADER_MARGIN;
 
-  const colCount = Math.floor( evenCol / 2 );
-
-  return rowPairs.map( ( [ top, bot ] ) => {
-    const chars = Array.from( { length: colCount }, ( _, k ) => {
-      const j = k * 2;
-      const tl = top[j] === '█' ? 8 : 0;
-      const tr = top[j + 1] === '█' ? 4 : 0;
-      const bl = bot[j] === '█' ? 2 : 0;
-      const br = bot[j + 1] === '█' ? 1 : 0;
-      return QUADRANT_CHARS[tl + tr + bl + br];
-    } );
-    return chars.join( '' );
-  } );
+export const useHeaderRows = (): number => {
+  const { stdout } = useStdout();
+  return getLogoHeight( stdout?.rows ?? 60 );
 };
-
-const LOGO_COMPRESSED = compressPixels( LOGO_PIXELS );
-
-const FULL_WIDTH_THRESHOLD = 60;
 
 export type ServiceBadge = 'healthy' | 'starting' | 'failed';
 
@@ -119,18 +91,15 @@ const Counters: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => (
   </Box>
 );
 
-const Logo: React.FC<{ cols: number }> = ( { cols } ) => {
-  if ( cols < FULL_WIDTH_THRESHOLD ) {
-    return <Text color={PURPLE_100} bold>OUTPUT</Text>;
-  }
-  return (
-    <Box flexDirection="column">
-      {LOGO_COMPRESSED.map( ( line, i ) => (
+const Logo: React.FC<{ compact: boolean }> = ( { compact } ) => (
+  <Box flexDirection="column">
+    {compact ?
+      <Text color={PURPLE_100} bold>OUTPUT</Text> :
+      LOGO_PIXELS.map( ( line, i ) => (
         <Text key={i} color={LOGO_GRADIENT[i] ?? PURPLE_100} bold>{line}</Text>
       ) )}
-    </Box>
-  );
-};
+  </Box>
+);
 
 export const buildSummaryCounters = (
   summary: WorkflowSummary | null,
@@ -147,12 +116,12 @@ export const buildSummaryCounters = (
 } );
 
 export const Header: React.FC<{ counters: HeaderCounters }> = ( { counters } ) => {
-  const { stdout } = useStdout();
-  const cols = stdout?.columns ?? 120;
+  const headerRows = useHeaderRows();
+  const compact = headerRows === COMPACT_HEADER_ROWS;
   return (
-    <Box flexDirection="row" justifyContent="space-between" alignItems="flex-start">
-      <Logo cols={cols} />
-      <Box flexDirection="column" paddingTop={1}>
+    <Box flexDirection="row" justifyContent="space-between" alignItems="center" marginBottom={HEADER_MARGIN}>
+      <Logo compact={compact} />
+      <Box flexDirection="column">
         <Counters counters={counters} />
       </Box>
     </Box>

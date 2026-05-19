@@ -1,210 +1,168 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { config } from '#config.js';
 import { openUrl } from '#utils/open_url.js';
-import { Footer } from '#views/dev/chrome/footer.js';
 import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
+import { useListSelection } from '#views/dev/utils/panel_helpers.js';
+import { InlineSnippet } from '../components/inline_snippet.js';
 
 const DOCS_URL = 'https://docs.output.ai';
 
-interface Section {
+interface HelpSection {
   id: string;
   title: string;
   body: React.ComponentType;
 }
 
+export const Section: React.FC<{ children: React.ReactNode; title: string, direction?: string }> = ( { children, title, direction = 'v' } ) => (
+  <Box flexDirection="column" gap={1}>
+    <Text bold>{title}</Text>
+    <Box flexDirection={direction === 'v' ? 'column' : 'row'} gap={1} flexWrap='wrap'>
+      {children}
+    </Box>
+  </Box>
+);
+
+export const SubSection: React.FC<{ children: React.ReactNode, title: string }> = ( { children, title } ) => (
+  <Box flexDirection="column" gap={1} borderStyle="single" borderColor="blackBright" paddingLeft={1} paddingRight={1}>
+    <Text italic dimColor>{title}</Text>
+    <Box flexDirection="column">
+      {children}
+    </Box>
+  </Box>
+);
+
 const KV: React.FC<{ label: string; value: string }> = ( { label, value } ) => (
-  <Box>
+  <Box flexDirection="row">
     <Box width={26}><Text>{label}</Text></Box>
-    <Text bold wrap="truncate-end">{value}</Text>
+    <Text bold>{value}</Text>
   </Box>
 );
 
 const RunFromCli: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Run a workflow from the CLI</Text>
-    <Box marginTop={1}><Text bold>npx output workflow run blog_evaluator paulgraham_hwh</Text></Box>
-    <Box><Text bold>npx output workflow run simple --input {'\'{"values":[1,2,3]}\''}</Text></Box>
-    <Box><Text bold>npx output workflow run simple --input scenario.json</Text></Box>
-    <Box marginTop={1}>
-      <Text dimColor>From the TUI: open Workflows tab, hover a workflow, press </Text>
-      <Text bold>r</Text>
-      <Text dimColor>.</Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text dimColor>Custom input from the TUI uses an in-tui editor with live JSON validation.</Text>
-    </Box>
-  </Box>
-);
-
-const Hotkeys: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Hotkeys</Text>
-
-    <Box marginTop={1}><Text dimColor bold>Global</Text></Box>
-    <KV label="Switch tab" value="tab / shift+tab / 1-4" />
-    <KV label="Search / filter" value="/  (esc clears, enter applies)" />
-    <KV label="Open this help" value="?" />
-    <KV label="Open docs.output.ai" value="d" />
-    <KV label="Stop services & quit" value="ctrl+c" />
-
-    <Box marginTop={1}><Text dimColor bold>Workflows tab</Text></Box>
-    <KV label="Navigate" value="↑/↓" />
-    <KV label="Show runs (filtered)" value="enter" />
-    <KV label="Run workflow" value="r  (scenario · custom input · duplicate)" />
-
-    <Box marginTop={1}><Text dimColor bold>Recent Runs tab</Text></Box>
-    <KV label="Navigate" value="↑/↓" />
-    <KV label="Open run detail" value="enter  (esc to go back)" />
-    <KV label="Open in Temporal UI" value="o" />
-    <KV label="Switch input/output" value="←/→" />
-    <KV label="Expand JSON pane" value="e  (↑/↓ scroll, pgup/pgdn page)" />
-
-    <Box marginTop={1}><Text dimColor bold>Services tab</Text></Box>
-    <KV label="Navigate" value="↑/↓" />
-    <KV label="Restart one / all" value="r / R" />
-    <KV label="Pause / resume tail" value="p" />
-    <KV label="Clear log buffer" value="c" />
-    <KV label="Open service URL" value="o" />
-
-    <Box marginTop={1}><Text dimColor bold>Run modal</Text></Box>
-    <KV label="Navigate" value="↑/↓" />
-    <KV label="Run scenario" value="enter" />
-    <KV label="Duplicate scenario" value="d" />
-    <KV label="Cancel" value="esc" />
-  </Box>
+  <Section title="Running a workflow">
+    <SubSection title="From the CLI">
+      <InlineSnippet content="npx output workflow run blog_evaluator paulgraham_hwh" />
+      <InlineSnippet content='npx output workflow run simple --input {"values":[1,2,3]}' />
+      <InlineSnippet content="npx output workflow run simple --input scenario.json" />
+    </SubSection>
+    <SubSection title="From the TUI">
+      <Text>Open Workflows tab, hover a workflow, press <Text bold>r</Text>.</Text>
+      <Text>Create a custom input from the TUI using the editor with live JSON validation or select an existing scenario.</Text>
+    </SubSection>
+  </Section>
 );
 
 const ServiceUrls: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Service URLs</Text>
-    <Box marginTop={1} flexDirection="column">
+  <Section title="Service URLs">
+    <SubSection title="Where the services are available">
       <KV label="Temporal gRPC" value="localhost:7233" />
       <KV label="Temporal UI" value="http://localhost:8080" />
       <KV label="API server" value="localhost:3001" />
       <KV label="Redis" value="localhost:6379" />
-    </Box>
-  </Box>
+    </SubSection>
+  </Section>
 );
 
 const UpdatingMigrating: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Updating / Migrating</Text>
-    <Box marginTop={1}>
-      <Text dimColor>Update the CLI to the latest published version:</Text>
-    </Box>
-    <Box><Text bold>output update</Text></Box>
-    <Box marginTop={1}>
-      <Text dimColor>Migrate a workflow project to the SDK version this CLI ships with:</Text>
-    </Box>
-    <Box><Text bold>output migrate</Text></Box>
-    <Box marginTop={1}>
-      <Text dimColor wrap="wrap">
-        The migration walks `package.json` and project files, updates `@outputai/*` deps,
-        and applies any code-mod steps the SDK ships with the new version.
+  <Section title="Updating / Migrating">
+    <SubSection title="Update">
+      <Text wrap="wrap">Update the CLI to the latest published version:</Text>
+      <InlineSnippet content="output update" />
+    </SubSection>
+    <SubSection title="Migrate">
+      <Text wrap="wrap">Migrate a workflow project to the SDK version this CLI ships with:</Text>
+      <InlineSnippet content="output migrate" />
+      <Text wrap="wrap">
+        The migration walks `package.json` and project files, updates `@outputai/*` deps, and applies any code-mod steps the SDK ships
+        with the new version.
       </Text>
-    </Box>
-  </Box>
+    </SubSection>
+  </Section>
 );
 
 const ClaudePlugins: React.FC = () => (
-  <Box flexDirection="column">
-    <Text bold>Claude Plugins</Text>
-    <Box marginTop={1}>
-      <Text dimColor wrap="wrap">
-        `output init` installs the Claude Code plugins (skills, commands, agents) into
-        your project automatically when scaffolding a new workflow.
+  <Section title="Claude Plugins">
+    <SubSection title="Reinstall">
+      <Text wrap="wrap">
+        Command `output init` already installs the Claude Code plugins (skills, commands, agents) into your project during scaffolding.
       </Text>
-    </Box>
-    <Box marginTop={1}>
-      <Text dimColor>To re-install or refresh the plugins after a CLI update:</Text>
-    </Box>
-    <Box><Text bold>output update --agents</Text></Box>
-    <Box marginTop={1}>
-      <Text dimColor>This pulls the latest plugin bundle that ships with the installed CLI version.</Text>
-    </Box>
-  </Box>
+      <Text wrap="wrap">But if it is necessary to reinstall it, use the update command:</Text>
+      <InlineSnippet content="output update --agents" />
+      <Text>This pulls the latest plugin bundle that ships with the installed CLI version.</Text>
+    </SubSection>
+  </Section>
 );
 
 const Troubleshooting: React.FC = () => {
   const logsCommand = `docker compose -p ${config.dockerServiceName} logs -f <service>`;
   return (
-    <Box flexDirection="column">
-      <Text bold>Troubleshooting</Text>
-      <Box marginTop={1}><Text>Worker won&apos;t start? <Text bold>output fix</Text> rebuilds the local image.</Text></Box>
-      <Box><Text>Tail a service log from the shell: <Text bold>{logsCommand}</Text></Text></Box>
-      <Box><Text>Force-pull images: <Text bold>output dev --image-pull-policy always</Text></Text></Box>
-    </Box>
+    <Section title="Troubleshooting">
+      <SubSection title="Worker won't start">
+        <Text>If the worker won't start, rebuild the local image:</Text>
+        <InlineSnippet content="output fix" />
+      </SubSection>
+      <SubSection title="I need to see more logs">
+        <Text>Tail a service log from the shell:</Text>
+        <InlineSnippet content={logsCommand} />
+      </SubSection>
+      <SubSection title="Force pull-images">
+        <Text>If the images get stale and a fresh start is necessary, force pull with:</Text>
+        <InlineSnippet content="output dev --image-pull-policy always" />
+      </SubSection>
+    </Section>
   );
 };
 
-const SECTIONS: Section[] = [
+const SECTIONS: HelpSection[] = [
   { id: 'cli', title: 'Run from CLI', body: RunFromCli },
-  { id: 'hotkeys', title: 'Hotkeys', body: Hotkeys },
   { id: 'urls', title: 'Service URLs', body: ServiceUrls },
   { id: 'updating', title: 'Updating / Migrating', body: UpdatingMigrating },
   { id: 'claude-plugins', title: 'Claude Plugins', body: ClaudePlugins },
   { id: 'troubleshooting', title: 'Troubleshooting', body: Troubleshooting }
 ];
 
-const HINTS = [
+export const HELP_HINTS = [
   { key: '↑/↓', label: 'navigate' },
-  { key: 'd', label: 'docs' },
-  { key: 'tab', label: 'next tab' },
-  { key: 'ctrl+c', label: 'quit' }
+  { key: 'd', label: 'docs' }
 ];
+
+export const HELP_SECTION_COUNT = SECTIONS.length;
 
 export const HelpPanel: React.FC = () => {
   const ui = useUiState();
-  const [ index, setIndex ] = useState( 0 );
-  const isActive = ui.tab === 'help' && !ui.search.open && !ui.runModal.open;
+  const { selectedIndex: index, selectPrevious, selectNext } = useListSelection( SECTIONS.length );
 
   useInput( ( input, key ) => {
     if ( key.upArrow ) {
-      setIndex( i => Math.max( 0, i - 1 ) );
+      selectPrevious();
       return;
     }
     if ( key.downArrow ) {
-      setIndex( i => Math.min( SECTIONS.length - 1, i + 1 ) );
+      selectNext();
       return;
     }
     if ( input === 'd' ) {
       openUrl( DOCS_URL );
     }
-  }, { isActive } );
+  }, { isActive: ui.tab === 'help' && !ui.search.open } );
 
-  const Section = SECTIONS[index].body;
+  const ActiveSection = SECTIONS[index].body;
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Box flexDirection="row">
-        <Box flexDirection="column" width={28}>
-          <Text bold>Help</Text>
-          <Box flexDirection="column" marginTop={1}>
-            {SECTIONS.map( ( section, i ) => (
-              <Box key={section.id}>
-                <SelectionIndicator selected={i === index} />
-                <Text bold={i === index} dimColor={i !== index}>
-                  {' '}{section.title}
-                </Text>
-              </Box>
-            ) )}
+    <Box flexDirection="row">
+      <Box flexDirection="column" flexShrink={0} paddingRight={2}>
+        {SECTIONS.map( ( section, i ) => (
+          <Box key={section.id}>
+            <SelectionIndicator selected={i === index} />
+            <Text bold={i === index} dimColor={i !== index}>
+              {' '}{section.title}
+            </Text>
           </Box>
-        </Box>
-        <Box
-          flexDirection="column"
-          flexGrow={1}
-          borderStyle="single"
-          borderTop={false}
-          borderBottom={false}
-          borderRight={false}
-          paddingLeft={2}
-        >
-          <Section />
-        </Box>
+        ) )}
       </Box>
-      <Footer hints={HINTS} itemCount={SECTIONS.length} itemLabel="sections" />
+      <ActiveSection />
     </Box>
   );
 };

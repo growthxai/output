@@ -39,7 +39,19 @@ const classifyRaw = ( text: string ): RawToken => {
 };
 
 export const tokenizeLine = ( line: string ): ColoredToken[] => {
-  const raws: RawToken[] = Array.from( line.matchAll( RAW_TOKEN_RE ), m => classifyRaw( m[0] ) );
+  const matches = Array.from( line.matchAll( RAW_TOKEN_RE ) );
+  const matchedRaws = matches.flatMap<RawToken>( ( match, idx ) => {
+    const index = match.index ?? 0;
+    const previous = matches[idx - 1];
+    const previousEnd = previous ? ( previous.index ?? 0 ) + previous[0].length : 0;
+    const gap = index > previousEnd ? [ { kind: 'string' as const, text: line.slice( previousEnd, index ) } ] : [];
+    return [ ...gap, classifyRaw( match[0] ) ];
+  } );
+  const lastMatch = matches[matches.length - 1];
+  const lastIndex = lastMatch ? ( lastMatch.index ?? 0 ) + lastMatch[0].length : 0;
+  const raws = lastIndex < line.length ?
+    [ ...matchedRaws, { kind: 'string' as const, text: line.slice( lastIndex ) } ] :
+    matchedRaws;
 
   return raws.map( ( raw, idx ) => {
     if ( raw.kind === 'ws' ) {
@@ -78,9 +90,46 @@ const renderTokens = ( tokens: ColoredToken[] ): React.ReactNode =>
       <Text key={i}>{token.text}</Text>
   );
 
+const tokenLength = ( tokens: ColoredToken[] ): number =>
+  tokens.reduce( ( total, token ) => total + token.text.length, 0 );
+
 export const countJsonLines = ( value: unknown ): number => {
   const text = formatJsonText( value );
   return text ? text.split( '\n' ).length : 0;
+};
+
+export const wrapTokens = ( tokens: ColoredToken[], maxWidth: number | undefined ): ColoredToken[][] => {
+  if ( maxWidth === undefined || maxWidth <= 0 || tokenLength( tokens ) <= maxWidth ) {
+    return [ tokens ];
+  }
+
+  const state = tokens.reduce<{
+    lines: ColoredToken[][];
+    current: ColoredToken[];
+    width: number;
+  }>( ( acc, token ) => {
+    const chunks = Array.from(
+      { length: Math.ceil( token.text.length / maxWidth ) },
+      ( _, i ) => token.text.slice( i * maxWidth, ( i + 1 ) * maxWidth )
+    );
+
+    return chunks.reduce( ( chunkAcc, chunk ) => {
+      if ( chunkAcc.width > 0 && chunkAcc.width + chunk.length > maxWidth ) {
+        return {
+          lines: [ ...chunkAcc.lines, chunkAcc.current ],
+          current: [ { ...token, text: chunk } ],
+          width: chunk.length
+        };
+      }
+      return {
+        ...chunkAcc,
+        current: [ ...chunkAcc.current, { ...token, text: chunk } ],
+        width: chunkAcc.width + chunk.length
+      };
+    }, acc );
+  }, { lines: [], current: [], width: 0 } );
+
+  return state.current.length > 0 ? [ ...state.lines, state.current ] : state.lines;
 };
 
 export const JsonView: React.FC<{
@@ -89,7 +138,8 @@ export const JsonView: React.FC<{
   offset?: number;
   truncateLine?: boolean;
   showOverflowFooter?: boolean;
-}> = ( { value, maxLines, offset = 0, truncateLine = true, showOverflowFooter = true } ) => {
+  maxWidth?: number;
+}> = ( { value, maxLines, offset = 0, truncateLine = true, showOverflowFooter = true, maxWidth } ) => {
   if ( value === undefined || value === null ) {
     return <Text dimColor>—</Text>;
   }
@@ -101,19 +151,25 @@ export const JsonView: React.FC<{
 
   const allLines = text.split( '\n' );
   const start = Math.max( 0, offset );
-  const end = typeof maxLines === 'number' ? start + maxLines : undefined;
-  const visible = allLines.slice( start, end );
-  const overflowBelow = end !== undefined ? Math.max( 0, allLines.length - end ) : 0;
+  const displayLines = allLines
+    .slice( start )
+    .flatMap( line => truncateLine ? [ tokenizeLine( line ) ] : wrapTokens( tokenizeLine( line ), maxWidth ) );
+  const hasLineLimit = typeof maxLines === 'number';
+  const overflowBelow = hasLineLimit ? Math.max( 0, displayLines.length - maxLines ) : 0;
+  const footerRows = showOverflowFooter && overflowBelow > 0 ? 1 : 0;
+  const end = hasLineLimit ? Math.max( 0, maxLines - footerRows ) : undefined;
+  const visible = displayLines.slice( 0, end );
+  const omittedLines = hasLineLimit ? Math.max( 0, displayLines.length - visible.length ) : 0;
 
   return (
     <Box flexDirection="column">
-      {visible.map( ( line, i ) => (
+      {visible.map( ( tokens, i ) => (
         <Text key={i} wrap={truncateLine ? 'truncate-end' : 'wrap'}>
-          {renderTokens( tokenizeLine( line ) )}
+          {renderTokens( tokens )}
         </Text>
       ) )}
-      {showOverflowFooter && overflowBelow > 0 && (
-        <Text dimColor>… {overflowBelow} more line{overflowBelow === 1 ? '' : 's'}</Text>
+      {showOverflowFooter && omittedLines > 0 && (
+        <Text dimColor>… {omittedLines} more line{omittedLines === 1 ? '' : 's'}</Text>
       )}
     </Box>
   );

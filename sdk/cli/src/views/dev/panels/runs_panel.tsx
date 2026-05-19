@@ -1,20 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { WorkflowRun } from '#services/workflow_runs.js';
-import { StatusIcon, statusColor } from '#components/status_icon.js';
-import { elapsedMs, formatDurationCompact, formatDate } from '#utils/date_formatter.js';
+import { WorkflowStatusIcon, workflowStatusColor } from '#views/dev/components/workflow_status.js';
+import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
 import { openUrl } from '#utils/open_url.js';
-import { Footer } from '#views/dev/chrome/footer.js';
+import { TabBar, getHeight as getTabBarHeight, type TabBarItem } from '#views/dev/chrome/tab_bar.js';
+import { ContentTitle, getHeight as getContentTitleHeight } from '#views/dev/components/content_title.js';
 import { LoadingSpinner } from '#views/dev/chrome/loading_spinner.js';
 import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
-import { useUiState } from '#views/dev/state/ui_state.js';
-import { RunDetailView } from '#views/dev/panels/run_detail_view.js';
+import { useUiState, type RunListPaneTab } from '#views/dev/state/ui_state.js';
 import { useRunDetail } from '#views/dev/hooks/use_run_detail.js';
 import { JsonView } from '#views/dev/utils/json_render.js';
+import { RunInfoSidebar } from '#views/dev/components/run_info_sidebar.js';
 import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
-import { truncate, formatStartedShort } from '#views/dev/utils/panel_helpers.js';
-import { CATALOG_WORKFLOW_NAME, RUNS_VISIBLE_ROWS, RUNS_PREVIEW_LINES } from '#views/dev/utils/constants.js';
-import type { TraceData, DebugNode } from '#types/trace.js';
+import {
+  capitalize,
+  cycleValue,
+  formatContentTitle,
+  formatStartedShort,
+  hasJsonValue,
+  truncate,
+  useListSelection
+} from '#views/dev/utils/panel_helpers.js';
+import { CATALOG_WORKFLOW_NAME, RUNS_VISIBLE_ROWS } from '#views/dev/utils/constants.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
 
@@ -55,20 +63,6 @@ export const buildVisibleRuns = ( runs: WorkflowRun[], query: string ): Workflow
   return sortRuns( filtered );
 };
 
-export const extractRunInput = ( trace: TraceData | null ): unknown => {
-  if ( !trace?.children ) {
-    return null;
-  }
-  const firstChild = trace.children[0] as DebugNode | undefined;
-  if ( !firstChild ) {
-    return null;
-  }
-  if ( firstChild.input !== undefined ) {
-    return firstChild.input;
-  }
-  return firstChild.details?.input ?? null;
-};
-
 const COL = {
   indicator: 3,
   icon: 3,
@@ -79,10 +73,20 @@ const COL = {
   started: 14
 };
 
+const RUN_INFO_TABS: TabBarItem[] = [
+  { id: 'status', label: 'Status' },
+  { id: 'input', label: 'Input' },
+  { id: 'output', label: 'Output' },
+  { id: 'attributes', label: 'Attributes' },
+  { id: 'aggregations', label: 'Aggregations' }
+];
+
+const RUN_INFO_TAB_ORDER: RunListPaneTab[] = [ 'status', 'input', 'output', 'attributes', 'aggregations' ];
+
 const HeaderRow: React.FC = () => (
   <Box>
-    <Box width={COL.indicator}><Text> </Text></Box>
-    <Box width={COL.icon}><Text> </Text></Box>
+    <Box width={COL.indicator}><Text>&nbsp;</Text></Box>
+    <Box width={COL.icon}><Text>&nbsp;</Text></Box>
     <Box width={COL.status}><Text dimColor bold>STATUS</Text></Box>
     <Box width={COL.type}><Text dimColor bold>TYPE</Text></Box>
     <Box width={COL.id}><Text dimColor bold>ID</Text></Box>
@@ -93,7 +97,7 @@ const HeaderRow: React.FC = () => (
 
 const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selected } ) => {
   const status = run.status ?? 'running';
-  const color = statusColor( status );
+  const color = workflowStatusColor( status );
   const duration = run.startedAt ? formatDurationCompact( elapsedMs( run.startedAt, run.completedAt ) ) : '-';
 
   return (
@@ -101,7 +105,7 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
       <Box width={COL.indicator}>
         <SelectionIndicator selected={selected} />
       </Box>
-      <Box width={COL.icon}><StatusIcon status={status} /></Box>
+      <Box width={COL.icon}><WorkflowStatusIcon status={status} /></Box>
       <Box width={COL.status}><Text color={color}>{status}</Text></Box>
       <Box width={COL.type}><Text bold={selected}>{truncate( run.workflowType ?? '-', COL.type - 1 )}</Text></Box>
       <Box width={COL.id}><Text dimColor={!selected}>{truncate( run.workflowId ?? '-', COL.id - 1 )}</Text></Box>
@@ -111,36 +115,46 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
   );
 };
 
-const PaneTabs: React.FC<{ active: 'input' | 'output' }> = ( { active } ) => (
-  <Box>
-    {( [ 'input', 'output' ] as const ).map( ( tab, i ) => (
-      <Box key={tab} marginRight={i === 0 ? 1 : 0}>
-        {tab === active ? (
-          <Text inverse bold>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
-        ) : (
-          <Text dimColor>{` ${tab[0].toUpperCase()}${tab.slice( 1 )} `}</Text>
-        )}
-      </Box>
-    ) )}
-  </Box>
-);
-
 interface RunPaneData {
   input: unknown;
   output: unknown;
   error: unknown;
+  attributes: unknown;
+  aggregations: unknown;
   status: string;
   loading: boolean;
 }
 
-const InlineKV: React.FC<{ label: string; value: string }> = ( { label, value } ) => (
-  <Box>
-    <Text dimColor>{label}: </Text>
-    <Text>{value}</Text>
-  </Box>
-);
+const statusPaneValue = ( run: WorkflowRun, pane: RunPaneData ): unknown => ( {
+  status: pane.status,
+  runId: run.runId,
+  workflowId: run.workflowId,
+  workflowType: run.workflowType,
+  startedAt: run.startedAt,
+  completedAt: run.completedAt
+} );
 
-const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | null }> = ( { run, pane } ) => {
+const runPaneValue = ( run: WorkflowRun, pane: RunPaneData, activePane: RunListPaneTab ): unknown => {
+  if ( activePane === 'status' ) {
+    return statusPaneValue( run, pane );
+  }
+  if ( activePane === 'input' ) {
+    return pane.input;
+  }
+  if ( activePane === 'output' ) {
+    return pane.error ?? pane.output;
+  }
+  if ( activePane === 'attributes' ) {
+    return pane.attributes;
+  }
+  return pane.aggregations;
+};
+
+const DetailPane: React.FC<{
+  run: WorkflowRun | undefined;
+  pane: RunPaneData | null;
+  rows: number;
+}> = ( { run, pane, rows } ) => {
   const ui = useUiState();
 
   if ( !run || !pane ) {
@@ -150,73 +164,57 @@ const DetailPane: React.FC<{ run: WorkflowRun | undefined; pane: RunPaneData | n
       </Box>
     );
   }
-  const { input: runInput, output: runOutput, error: runError, status, loading } = pane;
-  const duration = run.startedAt ? formatDurationCompact( elapsedMs( run.startedAt, run.completedAt ) ) : '-';
-  const activePane: 'input' | 'output' = ui.rightPaneTab === 'input' ? 'input' : 'output';
+  const { loading } = pane;
+  const activePane = ui.runListPaneTab;
+  const tabContentRows = Math.max( 1, rows - getContentTitleHeight() - getTabBarHeight() );
+  const tabs = hasJsonValue( pane.error ) ?
+    RUN_INFO_TABS.map( tab => tab.id === 'output' ? { ...tab, label: 'Error' } : tab ) :
+    RUN_INFO_TABS;
 
   const renderPane = (): React.ReactNode => {
-    if ( activePane === 'input' ) {
-      if ( loading && runInput === null ) {
-        return <LoadingSpinner />;
-      }
-      return <JsonView value={runInput} maxLines={RUNS_PREVIEW_LINES} />;
+    if ( activePane === 'status' ) {
+      return <RunInfoSidebar run={run} resultStatus={pane.status} maxRows={tabContentRows} />;
     }
-    if ( runError ) {
-      return (
-        <Box flexDirection="column">
-          <Text color="red" bold>ERROR</Text>
-          <Text color="red" wrap="wrap">{truncate( String( runError ), 400 )}</Text>
-        </Box>
-      );
-    }
-    if ( runOutput === undefined || runOutput === null ) {
+    const value = runPaneValue( run, pane, activePane );
+    if ( value === undefined || value === null ) {
       if ( loading ) {
         return <LoadingSpinner />;
       }
-      return <Text dimColor>No output yet.</Text>;
+      return <Text dimColor>—</Text>;
     }
-    return <JsonView value={runOutput} maxLines={RUNS_PREVIEW_LINES} />;
+    if ( activePane === 'output' && hasJsonValue( pane.error ) ) {
+      const lines = String( pane.error ).split( '\n' ).slice( 0, tabContentRows );
+      return (
+        <Box flexDirection="column">
+          {lines.map( ( line, i ) => (
+            <Text key={i} color="red" wrap="truncate-end">{line}</Text>
+          ) )}
+        </Box>
+      );
+    }
+    return <JsonView value={value} maxLines={tabContentRows} truncateLine />;
   };
 
-  const heading = `${run.workflowType ?? 'run'} : ${run.runId ?? run.workflowId ?? '-'}`;
-
   return (
-    <Box flexDirection="column">
-      <Box>
-        <Text bold>{heading}</Text>
-      </Box>
-      <Box marginTop={1}>
-        <StatusIcon status={status} />
-        <Text> </Text>
-        <Text bold color={statusColor( status )}>{status.toUpperCase()}</Text>
-        <Text dimColor>     </Text>
-        <InlineKV label="DURATION" value={duration} />
-        <Text dimColor>     </Text>
-        <InlineKV label="STARTED" value={formatDate( run.startedAt )} />
-        <Text dimColor>     </Text>
-        <InlineKV label="COMPLETED" value={run.completedAt ? formatDate( run.completedAt ) : '—'} />
-      </Box>
-      <Box marginTop={1}>
-        <PaneTabs active={activePane} />
-      </Box>
-      <Box flexDirection="column" marginTop={1}>
-        {renderPane()}
-      </Box>
+    <Box flexDirection="column" flexGrow={1}>
+      <ContentTitle title={formatContentTitle( [ `Workflow "${run.workflowType}"`, 'Result' ] )} />
+      <TabBar active={activePane} items={tabs} />
+      {renderPane()}
     </Box>
   );
 };
 
-const HINTS = [
+export const RUNS_HINTS = [
   { key: '↑/↓', label: 'navigate' },
   { key: 'enter', label: 'open' },
   { key: '←/→', label: 'switch pane' },
   { key: 'e', label: 'expand' },
-  { key: 'o', label: 'temporal' },
-  { key: '/', label: 'filter' },
-  { key: 'tab', label: 'next tab' }
+  { key: 'o', label: 'temporal' }
 ];
 
-export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
+export const RUNS_EMPTY_HINTS = [];
+
+export const RunsPanel: React.FC<{ runs: WorkflowRun[]; height: number }> = ( { runs, height } ) => {
   const ui = useUiState();
 
   const filteredRuns = useMemo(
@@ -224,9 +222,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
     [ runs, ui.search.query ]
   );
 
-  // Lazy initializer — runs once on mount. Restores the previously selected
-  // run after the expanded-JSON modal unmounts and remounts the panel.
-  const [ selectedIndex, setSelectedIndex ] = useState( () => {
+  const initialIndex = (): number => {
     const previousRunId = ui.selection.runId;
     if ( !previousRunId ) {
       return 0;
@@ -234,27 +230,21 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
     const initial = buildVisibleRuns( runs, ui.search.query );
     const i = initial.findIndex( r => r.runId === previousRunId );
     return i >= 0 ? i : 0;
-  } );
+  };
 
-  const isActive = ui.tab === 'runs' && ui.runsView === 'list' && !ui.search.open && !ui.runModal.open && !ui.expandedJson.open;
-
-  const clampedIndex = Math.min( selectedIndex, Math.max( 0, filteredRuns.length - 1 ) );
+  const { selectedIndex: clampedIndex, selectPrevious, selectNext } = useListSelection( filteredRuns.length, initialIndex );
   const selectedRun = filteredRuns[clampedIndex];
-  const { result, trace, loading } = useRunDetail( selectedRun?.workflowId, selectedRun?.runId, selectedRun?.status );
+  const { result, loading } = useRunDetail( selectedRun?.workflowId, selectedRun?.runId, selectedRun?.status );
 
   const pane: RunPaneData | null = selectedRun ? {
-    input: extractRunInput( trace ),
+    input: result?.input,
     output: result?.output,
     error: result?.error,
+    attributes: result?.attributes,
+    aggregations: result?.aggregations,
     status: result?.status ?? selectedRun.status ?? 'unknown',
     loading
   } : null;
-
-  useEffect( () => {
-    if ( clampedIndex !== selectedIndex ) {
-      setSelectedIndex( clampedIndex );
-    }
-  }, [ clampedIndex, selectedIndex ] );
 
   const setSelection = ui.setSelection;
   useEffect( () => {
@@ -267,11 +257,11 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
 
   useInput( ( input, key ) => {
     if ( key.upArrow ) {
-      setSelectedIndex( i => Math.max( 0, i - 1 ) );
+      selectPrevious();
       return;
     }
     if ( key.downArrow ) {
-      setSelectedIndex( i => Math.min( filteredRuns.length - 1, i + 1 ) );
+      selectNext();
       return;
     }
     if ( input === 'o' && selectedRun?.workflowId ) {
@@ -283,54 +273,29 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
       return;
     }
     if ( key.leftArrow || key.rightArrow ) {
-      ui.setRightPaneTab( ui.rightPaneTab === 'input' ? 'output' : 'input' );
+      ui.setRunListPaneTab( cycleValue( RUN_INFO_TAB_ORDER, ui.runListPaneTab, key.rightArrow ? 1 : -1 ) );
       return;
     }
     if ( input === 'e' && pane ) {
-      const content = ui.rightPaneTab === 'input' ?
-        pane.input :
-        ( pane.error ?? pane.output );
-      const label = `${selectedRun?.workflowType ?? 'run'} → ${ui.rightPaneTab}`;
-      ui.openExpandedJson( content, label );
+      const activePane = ui.runListPaneTab;
+      const content = selectedRun ? runPaneValue( selectedRun, pane, activePane ) : null;
+      const title = formatContentTitle( [ 'Recent Runs', `Workflow "${selectedRun?.workflowType ?? ''}"`, capitalize( activePane ) ] );
+      ui.openExpandedJson( content, title );
     }
-  }, { isActive } );
-
-  const detailRun = ui.runsView === 'detail' ?
-    ( runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) ?? selectedRun ) :
-    undefined;
-
-  useEffect( () => {
-    if ( ui.runsView === 'detail' && !detailRun ) {
-      ui.setRunsView( 'list' );
-    }
-  }, [ ui, detailRun ] );
-
-  if ( ui.runsView === 'detail' && detailRun ) {
-    return <RunDetailView run={detailRun} />;
-  }
+  }, { isActive: ui.tab === 'runs' && ui.runsView === 'list' && !ui.search.open } );
 
   if ( runs.length === 0 ) {
     return (
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>Recent Runs</Text>
-        <Box marginTop={1}>
-          <Text dimColor>No runs yet. Trigger one from the Workflows tab or with `output workflow run …`.</Text>
-        </Box>
-        <Footer hints={[ { key: 'tab', label: 'next tab' }, { key: '?', label: 'help' } ]} />
+      <Box flexDirection="column">
+        <Text dimColor>No runs yet. Trigger one from the Workflows tab or with `output workflow run …`.</Text>
       </Box>
     );
   }
 
   if ( filteredRuns.length === 0 ) {
     return (
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>Recent Runs</Text>
-        <Box marginTop={1}>
-          <Text dimColor>No runs match `{ui.search.query}`. Press </Text>
-          <Text bold>esc</Text>
-          <Text dimColor> to clear the filter.</Text>
-        </Box>
-        <Footer hints={HINTS} itemCount={0} itemLabel="runs" />
+      <Box flexDirection="column">
+        <Text dimColor>No runs match `{ui.search.query}`. Press <Text bold>esc</Text> to clear the filter.</Text>
       </Box>
     );
   }
@@ -339,13 +304,12 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[] }> = ( { runs } ) => {
     <MasterDetailPanel
       items={filteredRuns}
       selectedIndex={clampedIndex}
+      height={height}
       visibleRows={RUNS_VISIBLE_ROWS}
       renderHeader={() => <HeaderRow />}
       renderRow={( run, selected ) => <RunRow run={run} selected={selected} />}
       rowKey={( run, i ) => `${run.workflowId}-${run.runId ?? run.startedAt}-${i}`}
-      detail={<DetailPane run={selectedRun} pane={pane} />}
-      hints={HINTS}
-      itemLabel="runs"
+      detail={( { detailRows } ) => <DetailPane run={selectedRun} pane={pane} rows={detailRows} />}
     />
   );
 };

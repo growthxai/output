@@ -7,6 +7,7 @@ import { useUiState } from '#views/dev/state/ui_state.js';
 import { startWorkflow } from '#views/dev/services/run_workflow.js';
 import { readScenario, writeScenario } from '#views/dev/services/scenario_io.js';
 import { JsonEditor } from '#views/dev/utils/json_editor.js';
+import { ModalFrame, type ModalShortcut } from '#views/dev/modals/modal_frame.js';
 
 type Mode = 'select' | 'edit_name' | 'edit_content' | 'submitting' | 'error';
 
@@ -27,23 +28,33 @@ const buildEntries = ( scenarios: string[] ): Entry[] => {
     label: s,
     scenarioName: s
   } ) );
-  list.push( { kind: 'custom', label: 'Custom input' } );
+  list.push( { kind: 'custom', label: '[Create new scenario]' } );
   return list;
 };
 
-const Frame: React.FC<{ title: string; children: React.ReactNode }> = ( { title, children } ) => (
-  <Box flexDirection="column" marginTop={1} borderStyle="round" paddingX={1} paddingY={0}>
-    <Text bold>{title}</Text>
-    {children}
-  </Box>
-);
+const SELECT_SHORTCUTS: ModalShortcut[] = [
+  [ '↑/↓', 'navigate' ],
+  [ 'enter', 'run' ],
+  [ 'd', 'duplicate' ],
+  [ 'esc', 'cancel' ]
+];
+
+const NAME_SHORTCUTS: ModalShortcut[] = [
+  [ 'enter', 'next' ],
+  [ 'esc', 'back' ]
+];
+
+const ERROR_SHORTCUTS: ModalShortcut[] = [
+  { key: 'enter', label: 'return' },
+  { key: 'esc', label: 'return' }
+];
 
 const TextPrompt: React.FC<{
   label: string;
   value: string;
 }> = ( { label, value } ) => (
-  <Box marginTop={1}>
-    <Text>{label} </Text>
+  <Box>
+    <Text>{label}</Text>
     <Text>{value}</Text>
     <Text inverse>{' '}</Text>
   </Box>
@@ -227,7 +238,7 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
 
   if ( mode === 'edit_content' ) {
     return (
-      <Frame title={`${editFrameTitle} → ${editName}.json`}>
+      <ModalFrame title={editFrameTitle}>
         <JsonEditor
           seed={editSeed}
           title={`${editName}.json`}
@@ -237,88 +248,53 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
           }}
           onCancel={handleEditorCancel}
         />
-      </Frame>
+      </ModalFrame>
     );
   }
 
   if ( mode === 'edit_name' ) {
     return (
-      <Frame title={editFrameTitle}>
+      <ModalFrame title={editFrameTitle} shortcuts={NAME_SHORTCUTS}>
         <TextPrompt label="Scenario name:" value={editName} />
         {nameError ? (
           <Box marginTop={1}>
             <Text color="red">{nameError}</Text>
           </Box>
         ) : null}
-        <Box marginTop={1}>
-          <Text dimColor>enter</Text>
-          <Text> next   </Text>
-          <Text dimColor>esc</Text>
-          <Text> back</Text>
-        </Box>
-      </Frame>
+      </ModalFrame>
     );
   }
 
   if ( mode === 'submitting' ) {
     return (
-      <Frame title={`Run ${workflowName}`}>
-        <Box marginTop={1}>
-          <Text color="yellow"><Spinner type="dots" /></Text>
-          <Text> Starting workflow…</Text>
-        </Box>
-      </Frame>
+      <ModalFrame title={`Run ${workflowName}`}>
+        <Text color="yellow"><Spinner type="dots" /></Text>
+        <Text>&nbsp;Starting workflow…</Text>
+      </ModalFrame>
     );
   }
 
   if ( mode === 'error' ) {
     return (
-      <Frame title={`Run ${workflowName}`}>
-        <Box marginTop={1} flexDirection="column">
-          <Text color="red" bold>✗ {errorMessage ?? 'Something went wrong.'}</Text>
-          <Box marginTop={1}><Text dimColor>Press enter or esc to return.</Text></Box>
-        </Box>
-      </Frame>
+      <ModalFrame title={`Run workflow "${workflowName}"`} shortcuts={ERROR_SHORTCUTS}>
+        <Text color="red" bold>✗ {errorMessage ?? 'Something went wrong.'}</Text>
+      </ModalFrame>
     );
   }
 
   return (
-    <Frame title={`Run ${workflowName}`}>
-      {entries.length === 0 ? (
-        <Box marginTop={1}>
-          <Text dimColor>No scenarios on disk. Choose Custom input.</Text>
+    <ModalFrame title={`Run ${workflowName}`} shortcuts={SELECT_SHORTCUTS}>
+      <Box flexDirection="column" gap={1}>
+        <Text dimColor>{scenarios.length === 0 ? 'No scenarios found. Create a new one:' : 'Select scenarios:'}</Text>
+        <Box flexDirection="column">
+          {entries.map( ( entry, i ) => (
+            <Box key={`${entry.kind}-${entry.scenarioName ?? i}`}>
+              <SelectionIndicator selected={i === index} />
+              <Text bold={i === index}>&nbsp;{entry.label}</Text>
+            </Box>
+          ) )}
         </Box>
-      ) : (
-        <Box flexDirection="column" marginTop={1}>
-          {entries.map( ( entry, i ) => {
-            const prev = i > 0 ? entries[i - 1] : undefined;
-            const showSeparator = prev?.kind === 'scenario' && entry.kind !== 'scenario';
-            return (
-              <React.Fragment key={`${entry.kind}-${entry.scenarioName ?? i}`}>
-                {showSeparator && (
-                  <Box marginY={0}>
-                    <Text dimColor>{'─'.repeat( 40 )}</Text>
-                  </Box>
-                )}
-                <Box>
-                  <SelectionIndicator selected={i === index} />
-                  <Text bold={i === index}>{' '}{entry.label}</Text>
-                </Box>
-              </React.Fragment>
-            );
-          } )}
-        </Box>
-      )}
-      <Box marginTop={1}>
-        <Text dimColor>↑/↓</Text>
-        <Text> navigate   </Text>
-        <Text dimColor>enter</Text>
-        <Text> run   </Text>
-        <Text dimColor>d</Text>
-        <Text> duplicate   </Text>
-        <Text dimColor>esc</Text>
-        <Text> cancel</Text>
       </Box>
-    </Frame>
+    </ModalFrame>
   );
 };

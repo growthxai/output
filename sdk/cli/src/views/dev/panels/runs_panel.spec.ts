@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildVisibleRuns, extractRunInput } from './runs_panel.js';
+import { buildVisibleRuns } from './runs_panel.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
-import type { TraceData } from '#types/trace.js';
 
 const run = ( overrides: Partial<WorkflowRun> ): WorkflowRun => ( {
   workflowId: 'wf',
@@ -59,36 +58,5 @@ describe( 'buildVisibleRuns', () => {
     expect( buildVisibleRuns( runs, 'wf-2' ) ).toHaveLength( 1 );
     expect( buildVisibleRuns( runs, 'completed' ) ).toHaveLength( 2 );
     expect( buildVisibleRuns( runs, 'no-match' ) ).toHaveLength( 0 );
-  } );
-} );
-
-describe( 'extractRunInput', () => {
-  it( 'returns null when the trace has no children', () => {
-    expect( extractRunInput( null ) ).toBeNull();
-    expect( extractRunInput( { root: { workflowName: 'x', workflowId: 'y', startTime: 0 }, children: [] } ) ).toBeNull();
-  } );
-
-  it( 'reads from the first child input field directly', () => {
-    const trace: TraceData = {
-      root: { workflowName: 'x', workflowId: 'y', startTime: 0 },
-      children: [ { input: { foo: 1 } } ]
-    };
-    expect( extractRunInput( trace ) ).toEqual( { foo: 1 } );
-  } );
-
-  it( 'falls back to details.input when the top-level input is missing', () => {
-    const trace: TraceData = {
-      root: { workflowName: 'x', workflowId: 'y', startTime: 0 },
-      children: [ { details: { input: { bar: 2 } } } ]
-    };
-    expect( extractRunInput( trace ) ).toEqual( { bar: 2 } );
-  } );
-
-  it( 'returns null when neither input source is set', () => {
-    const trace: TraceData = {
-      root: { workflowName: 'x', workflowId: 'y', startTime: 0 },
-      children: [ { name: 'first-step' } ]
-    };
-    expect( extractRunInput( trace ) ).toBeNull();
   } );
 } );
