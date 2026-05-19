@@ -3,7 +3,7 @@ import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, 
 import { defineSignal, setHandler } from '@temporalio/workflow';
 import { validateWorkflow } from './validations/static.js';
 import { validateWithSchema } from './validations/runtime.js';
-import { SHARED_STEP_PREFIX, ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL } from '#consts';
+import { SHARED_STEP_PREFIX, ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
 import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
 import { FatalError, ValidationError } from '#errors';
 import { Context } from './workflow_context.js';
@@ -76,7 +76,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     const traceDestinations = isRoot ? ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext ) ) : null;
 
     const attributes = [];
-    setHandler( defineSignal( 'add_attribute' ), e => attributes.push( e ) );
+    setHandler( defineSignal( Signal.ADD_ATTRIBUTE ), e => attributes.push( e ) );
 
     try {
       // validation comes after setting memo to have that info already set for interceptor even if validations fail

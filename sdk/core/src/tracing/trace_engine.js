@@ -4,7 +4,7 @@ import { serializeError } from './tools/utils.js';
 import { isStringboolTrue } from '#utils';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
-import { ComponentType } from '#consts';
+import { ComponentType, Signal } from '#consts';
 import { createChildLogger } from '#logger';
 import { EventAction } from './trace_consts.js';
 import { BaseAttribute } from './trace_attribute.js';
@@ -100,7 +100,7 @@ export function addEventActionWithContext( action, options ) {
         throw new Error( `${EventAction.ADD_ATTR} called argument that is not a BaseAttribute instance` );
       }
       attribute.setActivity( parentId, parentName );
-      workflowHandle.signal( 'add_attribute', attribute );
+      workflowHandle.signal( Signal.ADD_ATTRIBUTE, attribute );
     }
     addEventAction( action, { ...options, parentId, executionContext } );
   }

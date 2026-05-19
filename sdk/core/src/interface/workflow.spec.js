@@ -1,3 +1,4 @@
+import { Signal } from '#consts';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 
@@ -268,7 +269,7 @@ describe( 'workflow()', () => {
       const { Attribute } = await import( '#trace_attribute' );
       const handlers = { addAttribute: () => {} };
       setHandlerMock.mockImplementation( ( signalName, handler ) => {
-        if ( signalName === 'add_attribute' ) {
+        if ( signalName === Signal.ADD_ATTRIBUTE ) {
           handlers.addAttribute = handler;
         }
       } );
