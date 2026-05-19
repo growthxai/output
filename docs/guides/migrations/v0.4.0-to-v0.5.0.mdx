@@ -12,6 +12,7 @@ This guide covers the `@outputai/http` and `@outputai/llm` cost tracking changes
 - The `cost:http:request` event now receives an HTTP request cost attribute instead of `{ requestId, url, cost }`.
 - LLM response `.cost` is now an LLM usage attribute instead of `{ total, components }`.
 - LLM usage entries only include available, finite dimensions; missing dimensions are omitted.
+- Missing LLM costs are returned as `null`, not as cost objects with `total: null` and `message`.
 - The `cost:llm:request` event now receives the LLM usage attribute instead of `{ modelId, cost, usage }`.
 
 ## Migration steps
@@ -118,6 +119,34 @@ for ( const usage of response.cost?.usage ?? [] ) {
   console.log( usage.type, usage.amount, usage.total );
 }
 ```
+
+When pricing cannot be computed, `response.cost` is `null`.
+
+### Handle missing LLM costs
+
+When LLM pricing cannot be loaded or the model is missing from the pricing table, Output no longer returns a cost object with `total: null` and `message`.
+
+#### Before
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+if ( response.cost.total === null ) {
+  console.warn( response.cost.message );
+}
+```
+
+#### After
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+if ( response.cost === null ) {
+  console.warn( 'LLM cost was not available for this response.' );
+}
+```
+
+No `cost:llm:request` event or LLM usage trace attribute is emitted when cost is missing.
 
 ### Handle omitted LLM usage fields
 
@@ -236,5 +265,5 @@ Each `usage` entry includes `type`, `ppm`, `amount`, and `total`. Only available
 - Update `cost:http:request` hook handlers to read `total` directly from the payload.
 - Remove any logic that expected HTTP cost `components`; HTTP request costs are now a single total value.
 - Replace LLM `response.cost.components` reads with `response.cost?.usage`.
-- Handle `response.cost === null` when pricing cannot be computed.
+- Handle `response.cost === null` when pricing cannot be computed; do not expect a cost object with `total: null` and `message`.
 - Update `cost:llm:request` hook handlers to read the LLM usage attribute payload directly.
