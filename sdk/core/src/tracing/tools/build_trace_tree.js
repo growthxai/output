@@ -62,7 +62,7 @@ export default entries => {
     if ( action === EventAction.START ) {
       Object.assign( node, { input: details, startedAt: timestamp, kind, name } );
     } else if ( action === EventAction.ADD_ATTR ) {
-      node.attributes[details.name] = details.value;
+      node.attributes[details.type] = details;
     } else if ( action === EventAction.END ) {
       Object.assign( node, { output: details, endedAt: timestamp } );
     } else if ( action === EventAction.ERROR ) {

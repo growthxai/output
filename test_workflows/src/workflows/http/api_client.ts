@@ -57,9 +57,7 @@ export async function exportClients(): Promise<HttpBinResponse> {
  */
 export async function getContracts(): Promise<HttpBinResponse> {
   const response = await contractsClient.get( '' );
-  await addRequestCost( response, {
-    total: 120
-  } );
+  await addRequestCost( response, 120 );
   return response.json() as Promise<HttpBinResponse>;
 }
 

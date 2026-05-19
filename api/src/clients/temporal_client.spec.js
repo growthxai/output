@@ -121,7 +121,7 @@ const walkCause = e => e?.cause ? walkCause( e.cause ) : ( e?.message ?? null );
 
 vi.mock( '#utils', () => ( {
   buildWorkflowId: vi.fn( () => 'test-uuid' ),
-  extractTraceInfo: vi.fn( e => e?.details?.find?.( d => d.trace )?.trace ),
+  extractErrorDetail: vi.fn( ( e, key ) => e?.details?.find?.( d => Object.prototype.hasOwnProperty.call( d, key ) )?.[key] ?? null ),
   extractErrorMessage: vi.fn( e => walkCause( e ) ),
   takeFromAsyncIterable: async ( iterable, count ) => {
     const items = [];
@@ -175,8 +175,10 @@ describe( 'temporal_client', () => {
   describe( 'runWorkflow', () => {
     it( 'should return failed status with trace and deepest error message from cause chain', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
+      const attributes = [ { type: 'llm:usage', total: 0.4, tokensUsed: 20 } ];
+      const aggregations = { cost: { total: 0.4 }, tokens: { total: 20 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload } ],
+        details: [ { trace: tracePayload, attributes, aggregations } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -200,6 +202,8 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: null,
         trace: tracePayload,
+        attributes,
+        aggregations,
         error: 'step error message'
       } );
       expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Workflow execution failed', expect.objectContaining( {
@@ -209,7 +213,12 @@ describe( 'temporal_client', () => {
     } );
 
     it( 'should return completed status with output on success', async () => {
-      const successResult = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
+      const successResult = {
+        output: { data: 'result' },
+        trace: { local: '/tmp/trace.json' },
+        attributes: [ { type: 'llm:usage' } ],
+        aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } }
+      };
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
@@ -231,6 +240,8 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
+        attributes: [ { type: 'llm:usage' } ],
+        aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } },
         error: null
       } );
     } );
@@ -346,7 +357,12 @@ describe( 'temporal_client', () => {
     } );
 
     it( 'should return completed workflow with output and trace', async () => {
-      const workflowOutput = { output: { data: 'result' }, trace: { local: '/tmp/trace.json' } };
+      const workflowOutput = {
+        output: { data: 'result' },
+        trace: { local: '/tmp/trace.json' },
+        attributes: [ { type: 'http:request:count' } ],
+        aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } }
+      };
 
       mockDescribe.mockResolvedValue( {
         status: { code: 2, name: 'COMPLETED' },
@@ -365,6 +381,8 @@ describe( 'temporal_client', () => {
         input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
+        attributes: [ { type: 'http:request:count' } ],
+        aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
         error: null
       } );
     } );
@@ -428,8 +446,10 @@ describe( 'temporal_client', () => {
 
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
+      const attributes = [ { type: 'http:request:cost', total: 1.5 } ];
+      const aggregations = { cost: { total: 1.5 }, tokens: { total: 0 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload } ],
+        details: [ { trace: tracePayload, attributes, aggregations } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -450,6 +470,8 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: tracePayload,
+        attributes,
+        aggregations,
         error: 'step error message'
       } );
     } );
@@ -497,6 +519,8 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: null,
+        attributes: null,
+        aggregations: null,
         error: null
       } );
     } );

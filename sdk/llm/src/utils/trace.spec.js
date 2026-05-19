@@ -5,10 +5,7 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
     addEventStart: vi.fn(),
     addEventError: vi.fn(),
     addEventAttribute: vi.fn(),
-    addEventEnd: vi.fn(),
-    Attribute: {
-      COST: 'cost'
-    }
+    addEventEnd: vi.fn()
   },
   emitEvent: vi.fn()
 } ) );
@@ -54,8 +51,8 @@ describe( 'trace utils', () => {
   } );
 
   describe( 'endTraceWithSuccess', () => {
-    it( 'adds cost attribute, ends the trace with response fields and extra details, and emits cost:llm:request', () => {
-      const cost = { total: 0.01, components: [] };
+    it( 'adds cost attribute, emits cost attribute, and ends the trace with response fields and extra details', () => {
+      const cost = { type: 'llm:usage', modelId: 'my-model', total: 0.01, usage: [] };
       const usage = { inputTokens: 2, outputTokens: 3 };
       const response = {
         text: 'hello',
@@ -73,9 +70,9 @@ describe( 'trace utils', () => {
 
       expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
         eventId: 'trace-a',
-        name: 'cost',
-        value: cost
+        attribute: cost
       } );
+      expect( emitEvent ).toHaveBeenCalledWith( 'cost:llm:request', cost );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'trace-a',
         details: {
@@ -85,10 +82,31 @@ describe( 'trace utils', () => {
           sourcesFromTools: [ { url: 'https://u.test', title: '' } ]
         }
       } );
-      expect( emitEvent ).toHaveBeenCalledWith( 'cost:llm:request', {
+    } );
+
+    it( 'does not emit or add an attribute when cost is missing', () => {
+      const usage = { inputTokens: 2, outputTokens: 3 };
+      const response = {
+        text: 'hello',
+        totalUsage: usage,
+        providerMetadata: { provider: 'x' }
+      };
+
+      endTraceWithSuccess( {
+        traceId: 'trace-no-cost',
         modelId: 'my-model',
-        cost,
-        usage
+        response
+      } );
+
+      expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
+      expect( emitEvent ).not.toHaveBeenCalled();
+      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
+        id: 'trace-no-cost',
+        details: {
+          result: 'hello',
+          usage,
+          providerMetadata: { provider: 'x' }
+        }
       } );
     } );
   } );

@@ -123,7 +123,7 @@ describe( 'worker/index', () => {
       maxConcurrentActivityTaskPolls: configValues.maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls: configValues.maxConcurrentWorkflowTaskPolls
     } ) );
-    expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [] } );
+    expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [], connection: mockConnection } );
     expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
     expect( startCatalogMock ).toHaveBeenCalledWith( {
       connection: mockConnection,

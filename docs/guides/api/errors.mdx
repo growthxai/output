@@ -12,6 +12,8 @@ Error responses are JSON. The body includes:
 
 For `503`, the server may send a `Retry-After` header suggesting when to retry.
 
+Workflow execution failures are different from API request errors. `POST /workflow/run` and `GET /workflow/:id/result` return the standard workflow result payload with `status: "failed"`, `output: null`, and an `error` message. When available, that failed result also includes `trace`, `attributes`, and `aggregations` collected before the failure.
+
 | Code | Error | Cause |
 |------|-------|-------|
 | 400 | ValidationError | Invalid request body or query. |

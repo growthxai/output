@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Args, Command, Flags, ux } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
-import type { PostWorkflowRun200 } from '#api/generated/api.js';
+import type { WorkflowResultResponse } from '#api/generated/api.js';
 import {
   writeDataset,
   resolveDefaultDatasetsDir,
@@ -115,7 +115,7 @@ export default class DatasetGenerate extends Command {
       this.error( 'API returned invalid response', { exit: 1 } );
     }
 
-    const { workflowId, output } = response.data as PostWorkflowRun200;
+    const { workflowId, output } = response.data as WorkflowResultResponse;
     const executionTimeMs = await getExecutionTime( workflowId );
 
     const dataset = buildDataset(

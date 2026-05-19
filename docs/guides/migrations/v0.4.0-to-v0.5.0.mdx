@@ -1,0 +1,269 @@
+---
+title: "v0.4.0 → v0.5.0"
+description: "Upgrading Output.ai projects from v0.4.0 to v0.5.0: HTTP and LLM cost API and cost event payload changes."
+---
+
+This guide covers the `@outputai/http` and `@outputai/llm` cost tracking changes in v0.5.0.
+
+## What changed
+
+- `addRequestCost` now accepts a numeric total instead of a `RequestCost` object.
+- The `RequestCost` type is removed.
+- The `cost:http:request` event now receives an HTTP request cost attribute instead of `{ requestId, url, cost }`.
+- LLM response `.cost` is now an LLM usage attribute instead of `{ total, components }`.
+- LLM usage entries only include available, finite dimensions; missing dimensions are omitted.
+- Missing LLM costs are returned as `null`, not as cost objects with `total: null` and `message`.
+- The `cost:llm:request` event now receives the LLM usage attribute instead of `{ modelId, cost, usage }`.
+
+## Migration steps
+
+### Update `addRequestCost`
+
+Pass the total request cost directly.
+
+#### Before
+
+```ts
+import { addRequestCost } from '@outputai/http';
+
+addRequestCost( response, {
+  total: inputCost + outputCost,
+  components: [
+    { name: 'input', value: inputCost },
+    { name: 'output', value: outputCost }
+  ]
+} );
+```
+
+#### After
+
+```ts
+import { addRequestCost } from '@outputai/http';
+
+addRequestCost( response, inputCost + outputCost );
+```
+
+### Remove `RequestCost` imports
+
+The `RequestCost` object shape is no longer part of the public API.
+
+#### Before
+
+```ts
+import { addRequestCost, type RequestCost } from '@outputai/http';
+
+const cost: RequestCost = {
+  total: 0.42
+};
+
+addRequestCost( response, cost );
+```
+
+#### After
+
+```ts
+import { addRequestCost } from '@outputai/http';
+
+const cost = 0.42;
+
+addRequestCost( response, cost );
+```
+
+### Update `cost:http:request` hooks
+
+The event payload is now the HTTP request cost attribute.
+
+#### Before
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:http:request', async ( { requestId, url, cost } ) => {
+  console.log( requestId, url, cost.total );
+} );
+```
+
+#### After
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:http:request', async ( { workflowId, requestId, url, total, activityId, activityName } ) => {
+  console.log( workflowId, requestId, url, total, activityId, activityName );
+} );
+```
+
+### Update LLM response cost handling
+
+The `.cost` property on `generateText()` responses and `streamText()` `onFinish` responses is now an LLM usage attribute.
+
+#### Before
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+console.log( response.cost.total );
+for ( const component of response.cost.components ) {
+  console.log( component.name, component.value );
+}
+```
+
+#### After
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+console.log( response.cost?.total );
+console.log( response.cost?.tokensUsed );
+for ( const usage of response.cost?.usage ?? [] ) {
+  console.log( usage.type, usage.amount, usage.total );
+}
+```
+
+When pricing cannot be computed, `response.cost` is `null`.
+
+### Handle missing LLM costs
+
+When LLM pricing cannot be loaded or the model is missing from the pricing table, Output no longer returns a cost object with `total: null` and `message`.
+
+#### Before
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+if ( response.cost.total === null ) {
+  console.warn( response.cost.message );
+}
+```
+
+#### After
+
+```js
+const response = await generateText( { prompt: 'summarize@v1' } );
+
+if ( response.cost === null ) {
+  console.warn( 'LLM cost was not available for this response.' );
+}
+```
+
+No `cost:llm:request` event or LLM usage trace attribute is emitted when cost is missing.
+
+### Handle omitted LLM usage fields
+
+Cost usage entries now include only the dimensions that are available and priced.
+
+#### Before
+
+```js
+const cached = response.cost.components.find( c => c.name === 'input_cached_tokens' );
+console.log( cached?.value ?? 0 );
+```
+
+#### After
+
+```js
+const cached = response.cost?.usage.find( u => u.type === 'input_cached' );
+console.log( cached?.total ?? 0 );
+```
+
+Use these `usage[].type` values:
+
+| `type` | Description |
+|--------|-------------|
+| `input` | Non-cached prompt tokens. |
+| `input_cached` | Cached prompt read tokens. |
+| `output` | Completion tokens. |
+| `reasoning` | Reasoning tokens, when separately priced. |
+
+### Update `cost:llm:request` hooks
+
+The event payload is now the LLM usage attribute.
+
+#### Before
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:llm:request', async ( { modelId, cost, usage } ) => {
+  console.log( modelId, usage.totalTokens, cost.total );
+} );
+```
+
+#### After
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:llm:request', async ( { workflowId, modelId, tokensUsed, total, usage, activityId, activityName } ) => {
+  console.log( workflowId, modelId, tokensUsed, total, usage, activityId, activityName );
+} );
+```
+
+## Cost attribute reference
+
+HTTP and LLM cost payloads are now trace attributes. Hook payloads include `workflowId`; workflow result attributes are nested under a result that already has `workflowId` and `runId`, so they do not repeat the workflow ID.
+
+### HTTP request cost hook payload
+
+```json
+{
+  "type": "http:request:cost",
+  "workflowId": "workflow-123",
+  "activityId": "activity-456",
+  "activityName": "lookupCompany",
+  "requestId": "request-789",
+  "url": "https://api.example.com/companies",
+  "total": 0.42
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Always `"http:request:cost"`. |
+| `workflowId` | Workflow execution ID. Present on hook payloads. |
+| `activityId` | Activity ID of the step that made the request, when available. |
+| `activityName` | Activity name of the step that made the request, when available. |
+| `requestId` | Internal ID linking the cost to the traced HTTP request. |
+| `url` | Final response URL. |
+| `total` | Dollar cost passed to `addRequestCost`. |
+
+### LLM usage cost hook payload
+
+```json
+{
+  "type": "llm:usage",
+  "workflowId": "workflow-123",
+  "activityId": "activity-456",
+  "activityName": "generateSummary",
+  "modelId": "anthropic/claude-3-5-sonnet",
+  "total": 0.0084,
+  "tokensUsed": 1200,
+  "usage": [
+    { "type": "input", "ppm": 3, "amount": 800, "total": 0.0024 },
+    { "type": "output", "ppm": 15, "amount": 400, "total": 0.006 }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Always `"llm:usage"`. |
+| `workflowId` | Workflow execution ID. Present on hook payloads. |
+| `activityId` | Activity ID of the step that made the LLM request, when available. |
+| `activityName` | Activity name of the step that made the LLM request, when available. |
+| `modelId` | Model identifier used for the request. |
+| `total` | Total computed dollar cost. |
+| `tokensUsed` | Sum of token amounts included in `usage`. |
+| `usage` | Per-dimension token usage and cost entries. |
+
+Each `usage` entry includes `type`, `ppm`, `amount`, and `total`. Only available, finite usage dimensions are included.
+
+## Checklist
+
+- Replace every `addRequestCost(response, { total, components })` call with `addRequestCost(response, total)`.
+- Remove `RequestCost` imports and annotations.
+- Update `cost:http:request` hook handlers to read `total` directly from the payload.
+- Remove any logic that expected HTTP cost `components`; HTTP request costs are now a single total value.
+- Replace LLM `response.cost.components` reads with `response.cost?.usage`.
+- Handle `response.cost === null` when pricing cannot be computed; do not expect a cost object with `total: null` and `message`.
+- Update `cost:llm:request` hook handlers to read the LLM usage attribute payload directly.

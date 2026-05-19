@@ -1,5 +1,5 @@
 import { Args, Command, Flags } from '@oclif/core';
-import { postWorkflowRun, type PostWorkflowRun200 } from '#api/generated/api.js';
+import { postWorkflowRun, type WorkflowResultResponse } from '#api/generated/api.js';
 import { OUTPUT_FORMAT, OutputFormat } from '#utils/constants.js';
 import { formatOutput } from '#utils/output_formatter.js';
 import { formatWorkflowResult, ERROR_STATUSES } from '#utils/format_workflow_result.js';
@@ -105,7 +105,7 @@ export default class WorkflowRun extends Command {
       this.error( 'API returned invalid response', { exit: 1 } );
     }
 
-    const data = response.data as PostWorkflowRun200;
+    const data = response.data as WorkflowResultResponse;
     const output = formatOutput(
       data,
       flags.format as OutputFormat,

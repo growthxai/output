@@ -123,14 +123,10 @@ const response = await client.post( 'search', {
 const inputCost = Number( response.headers.get( 'x-cost-input-usd' ) ?? 0 );
 const outputCost = Number( response.headers.get( 'x-cost-output-usd' ) ?? 0 );
 
-addRequestCost( response, {
-  total: inputCost + outputCost,
-  components: [
-    { name: 'input', value: inputCost },
-    { name: 'output', value: outputCost }
-  ]
-} );
+addRequestCost( response, inputCost + outputCost );
 ```
+
+`addRequestCost` accepts the total request cost as a number.
 
 `addRequestCost` only works with responses created by `@outputai/http` (or its exported `fetch`). If the response did not come from this package, the function safely no-ops and logs a warning.
 
