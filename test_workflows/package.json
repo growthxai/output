@@ -19,7 +19,8 @@
     "@outputai/http": "workspace:^",
     "@outputai/llm": "workspace:^",
     "@temporalio/workflow": "catalog:",
-    "nodemon": "3.1.14"
+    "nodemon": "3.1.14",
+    "zod": "catalog:"
   },
   "outputai": {
     "hookFiles": [
