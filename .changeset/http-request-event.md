@@ -11,7 +11,7 @@ Emit a new `http:request` event on every HTTP call made via `@outputai/http`'s `
   url: string,
   status: number | undefined,
   durationMs: number,
-  outcome: 'success' | 'http_error' | 'network_error'
+  outcome: 'success' | 'error' | 'failure'
 }
 ```
 
