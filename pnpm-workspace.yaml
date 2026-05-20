@@ -19,6 +19,12 @@ catalog:
   winston: 3.19.0
   zod: 4.3.6
 
-minimumReleaseAge: 4320
+minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
-  - "@growthxlabs/workflows_catalog"
+  - "@growthxlabs/gx-workflows"
+
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+strictDepBuilds: true
+ignoreScripts: true
+auditLevel: moderate
