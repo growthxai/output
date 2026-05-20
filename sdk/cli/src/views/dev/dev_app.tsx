@@ -93,6 +93,7 @@ const TerminalTooSmall: React.FC<{ rows: number; cols: number }> = ( { rows, col
 
 const useGlobalInput = ( opts: {
   onCleanup: () => Promise<void>;
+  runDetailOpen: boolean;
 } ): void => {
   const ui = useUiState();
   const { exit } = useApp();
@@ -109,7 +110,7 @@ const useGlobalInput = ( opts: {
       return;
     }
 
-    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || ui.runsView === 'detail' ) {
+    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || opts.runDetailOpen ) {
       return;
     }
 
@@ -118,7 +119,7 @@ const useGlobalInput = ( opts: {
     // to the list and the filter should still apply when we land
     // there. The search bar's esc (close + clear) returns above, so
     // it never reaches this branch.
-    if ( key.escape && ui.search.query && ui.runsView === 'list' ) {
+    if ( key.escape && ui.search.query && !opts.runDetailOpen ) {
       ui.clearSearch();
       return;
     }
@@ -192,6 +193,7 @@ const footerFor = ( opts: {
 const overlayFor = ( opts: {
   ui: UiState;
   detailRun: WorkflowRun | undefined;
+  runDetailOpen: boolean;
   rows: number;
 } ): React.ReactNode => {
   if ( opts.ui.expandedJson.open ) {
@@ -200,7 +202,7 @@ const overlayFor = ( opts: {
   if ( opts.ui.runModal.open ) {
     return <RunModal workflowName={opts.ui.runModal.workflowName} workflowPath={opts.ui.runModal.workflowPath} />;
   }
-  if ( opts.ui.tab === 'runs' && opts.ui.runsView === 'detail' && opts.detailRun ) {
+  if ( opts.ui.tab === 'runs' && opts.runDetailOpen && opts.detailRun ) {
     return <StepsModal run={opts.detailRun} height={opts.rows} />;
   }
   return null;
@@ -229,7 +231,6 @@ const Shell: React.FC<{
 
   const autoSwitchedRef = useRef( false );
   const setTab = ui.setTab;
-  const setRunsView = ui.setRunsView;
   useEffect( () => {
     if (
       phase === 'running' &&
@@ -242,8 +243,6 @@ const Shell: React.FC<{
     }
   }, [ phase, workflows.length, ui.tab, setTab ] );
 
-  useGlobalInput( { onCleanup } );
-
   const summary = useMemo( () => computeWorkflowSummary( runs ), [ runs ] );
   const visibleWorkflows = useMemo(
     () => buildVisibleWorkflows( workflows, ui.search.query ),
@@ -254,8 +253,11 @@ const Shell: React.FC<{
     [ runs, ui.search.query ]
   );
   const detailRun = ui.runsView === 'detail' ?
-    ( runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) ?? visibleRuns[0] ) :
+    runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) :
     undefined;
+  const runDetailOpen = ui.runsView === 'detail' && detailRun !== undefined;
+
+  useGlobalInput( { onCleanup, runDetailOpen } );
   const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
   const serviceBadge: ServiceBadge = useMemo( () => {
     if ( failingServices > 0 ) {
@@ -289,13 +291,7 @@ const Shell: React.FC<{
     serviceCount: services.length,
     phase
   } );
-  const overlay = overlayFor( { ui, detailRun, rows } );
-
-  useEffect( () => {
-    if ( ui.runsView === 'detail' && !detailRun ) {
-      setRunsView( 'list' );
-    }
-  }, [ detailRun, setRunsView, ui.runsView ] );
+  const overlay = overlayFor( { ui, detailRun, runDetailOpen, rows } );
 
   if ( terminalTooSmall ) {
     return <TerminalTooSmall rows={rows} cols={cols} />;
