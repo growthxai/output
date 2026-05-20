@@ -1,5 +1,60 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.5.0" description="2026-05-20 · minor release">
+
+**`@outputai/core`, `@outputai/http`, `@outputai/llm`, `output-api`** — Workflow runs now return durable usage and cost metadata alongside the workflow output. Each completed or failed run can include raw `attributes` plus convenient `aggregations` for total cost, token usage, and HTTP request counts.
+
+For example, API and CLI JSON results can now include:
+
+```json
+{
+  "attributes": [
+    { "type": "llm:usage", "modelId": "gpt-4o", "total": 0.00122, "tokensUsed": 226 },
+    { "type": "http:request:cost", "url": "https://api.vendor.com/search", "total": 0.42 }
+  ],
+  "aggregations": {
+    "cost": { "total": 0.42122 },
+    "tokens": { "total": 226 },
+    "httpRequests": { "total": 1 }
+  }
+}
+```
+
+Cost events now emit the same attribute-shaped payloads used in workflow results, making hook handlers and saved run metadata easier to reconcile. This also updates `@outputai/http` request cost tracking and `@outputai/llm` response cost data to use the new attribute format.
+
+Learn more in the [workflow result docs](https://docs.output.ai/api), [CLI result format](https://docs.output.ai/packages/cli#workflow-result-json-format), [cost events guide](https://docs.output.ai/costs/cost-events), and [v0.4.0 to v0.5.0 migration guide](https://docs.output.ai/migrations/v0.4.0-to-v0.5.0).
+
+**`@outputai/cli`** — Improved the dev TUI experience with clearer workflow run views, expanded full-screen modals, and more consistent layout and interaction patterns across screens.
+
+Workflow run details now show result attributes and aggregations alongside input/output data.
+
+For scaffolded projects running `output dev`, the local Docker Compose API service now uses the documented `OUTPUT_AWS_*` variables for remote S3 trace access. If you use remote trace storage locally, set `OUTPUT_AWS_REGION`, `OUTPUT_AWS_ACCESS_KEY_ID`, and `OUTPUT_AWS_SECRET_ACCESS_KEY` in your project environment; the accidental `AWS_*` passthrough is no longer used.
+
+**`@outputai/http`** — Emit a new `http:request` event on every HTTP call made via `@outputai/http`'s `fetch`. The event fires on success, non-2xx responses, and network failures, with payload:
+
+```
+{
+  requestId: string,
+  method: string,
+  url: string,
+  status: number | undefined,
+  durationMs: number,
+  outcome: 'success' | 'error' | 'failure'
+}
+```
+
+Subscribers (`on('http:request', handler)`) also receive `workflowId`, `runId`, and `activityId` auto-attached by `emitEvent`. The existing `cost:http:request` event is unchanged — it continues to fire only when a consumer attaches a cost via `addRequestCost()`. Additive — no existing consumer breaks.
+
+**`@outputai/core`** — Stream trace JSON when writing local files and uploading to S3, avoiding Node.js string length limits for large trace outputs.
+
+**`@outputai/llm`** — Increase built-in LLM provider fetch timeouts for long-running responses.
+
+Default AI SDK `maxRetries` to 0 so workflow retries are handled by Temporal.
+
+**`@outputai/core`** — Added `runId` to the workflow context and the workflow-lifecycle hook payloads. `context.info.runId` exposes the Temporal run id for the current execution attempt; `onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` payloads now include `runId` alongside `id` (workflow id). `executionContext` also carries `runId`, so any consumer subscribed via `on(...)` to an `emitEvent`-emitted event (e.g., `cost:llm:request`) receives `runId` automatically. Additive — existing consumers ignoring the field continue to work.
+
+</Update>
+
 <Update label="v0.4.0" description="2026-05-12 · minor release">
 
 **`@outputai/cli`** — Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original.
