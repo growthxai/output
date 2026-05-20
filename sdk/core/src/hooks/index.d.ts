@@ -123,8 +123,8 @@ export interface HttpRequestHookPayload {
   status?: number;
   /** Elapsed time from request issuance to response (or failure), in milliseconds. */
   durationMs: number;
-  /** Outcome bucket: `success` (2xx-3xx), `http_error` (>=400), `network_error` (DNS / timeout / abort). */
-  outcome: 'success' | 'http_error' | 'network_error';
+  /** Outcome bucket: `success` (2xx-3xx), `error` (status >= 400), `failure` (DNS / timeout / abort). */
+  outcome: 'success' | 'error' | 'failure';
 }
 
 /**

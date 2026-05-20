@@ -275,7 +275,7 @@ describe( 'fetch/logger', () => {
       } );
     } );
 
-    it( 'emits http:request with outcome=http_error on logError', async () => {
+    it( 'emits http:request with outcome=error on logError', async () => {
       const { logError } = await logLogger( false );
       const response = new Response( 'boom', { status: 500 } );
 
@@ -293,11 +293,11 @@ describe( 'fetch/logger', () => {
         url: 'https://api.example.com/err',
         status: 500,
         durationMs: 15,
-        outcome: 'http_error'
+        outcome: 'error'
       } );
     } );
 
-    it( 'emits http:request with outcome=network_error on logFailure (status undefined)', async () => {
+    it( 'emits http:request with outcome=failure on logFailure (status undefined)', async () => {
       const { logFailure } = await logLogger( false );
       const err = new TypeError( 'network' );
 
@@ -315,7 +315,7 @@ describe( 'fetch/logger', () => {
         url: 'https://api.example.com/net',
         status: undefined,
         durationMs: 9,
-        outcome: 'network_error'
+        outcome: 'failure'
       } );
     } );
   } );

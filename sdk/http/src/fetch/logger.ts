@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import type { Request, Response } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';
 
-type HttpRequestOutcome = 'success' | 'http_error' | 'network_error';
+type HttpRequestOutcome = 'success' | 'error' | 'failure';
 
 /** Single source of truth for the `http:request` event shape. */
 const emitHttpRequestEvent = ( payload: {
@@ -37,7 +37,7 @@ export const logRequest = async ( { requestId, request } : { requestId: string, 
 
 /**
  * Sends the trace error event for an http response with error status
- * and emits a `http:request` event with `outcome: 'http_error'`.
+ * and emits a `http:request` event with `outcome: 'error'`.
  *
  * @param options
  * @param options.requestId - id of the request
@@ -60,7 +60,7 @@ export const logError = async ( {
     }
   } );
   emitHttpRequestEvent( {
-    requestId, method, url, status: response.status, durationMs, outcome: 'http_error'
+    requestId, method, url, status: response.status, durationMs, outcome: 'error'
   } );
 };
 
@@ -94,7 +94,7 @@ export const logResponse = async ( {
 
 /**
  * Creates the trace error event for a network/connection failure
- * and emits a `http:request` event with `outcome: 'network_error'`.
+ * and emits a `http:request` event with `outcome: 'failure'`.
  *
  * @param options
  * @param options.requestId - id of the request
@@ -110,6 +110,6 @@ export const logFailure = ( {
 } ) : void => {
   Tracing.addEventError( { id: requestId, details: serializeError( error ) } );
   emitHttpRequestEvent( {
-    requestId, method, url, status: undefined, durationMs, outcome: 'network_error'
+    requestId, method, url, status: undefined, durationMs, outcome: 'failure'
   } );
 };
