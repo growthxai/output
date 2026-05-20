@@ -1,7 +1,21 @@
-import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { config } from '../config.js';
 import type { Request, Response } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';
+
+type HttpRequestOutcome = 'success' | 'error' | 'failure';
+
+/** Single source of truth for the `http:request` event shape. */
+const emitHttpRequestEvent = ( payload: {
+  requestId: string,
+  method: string,
+  url: string,
+  status: number | undefined,
+  durationMs: number,
+  outcome: HttpRequestOutcome
+} ) : void => {
+  emitEvent( 'http:request', payload );
+};
 
 /**
  * Sends the trace start event for an http request
@@ -23,13 +37,21 @@ export const logRequest = async ( { requestId, request } : { requestId: string, 
 
 /**
  * Sends the trace error event for an http response with error status
+ * and emits a `http:request` event with `outcome: 'error'`.
  *
  * @param options
  * @param options.requestId - id of the request
  * @param options.response - The HTTP Response object
+ * @param options.method - HTTP method of the request
+ * @param options.url - URL of the request
+ * @param options.durationMs - elapsed time from request issuance to response, in milliseconds
  */
-export const logError = async ( { requestId, response } : { requestId: string, response: Response } ) : Promise<void> =>
-  Tracing.addEventError( {
+export const logError = async ( {
+  requestId, response, method, url, durationMs
+} : {
+  requestId: string, response: Response, method: string, url: string, durationMs: number
+} ) : Promise<void> => {
+  await Tracing.addEventError( {
     id: requestId, details: {
       status: response.status,
       statusText: response.statusText,
@@ -37,29 +59,57 @@ export const logError = async ( { requestId, response } : { requestId: string, r
       body: await parseBody( response )
     }
   } );
+  emitHttpRequestEvent( {
+    requestId, method, url, status: response.status, durationMs, outcome: 'error'
+  } );
+};
 
 /**
  * Sends the trace end event for an http response
+ * and emits a `http:request` event with `outcome: 'success'`.
  *
  * @param {object} options
  * @param options.requestId - id of the request
  * @param {Response} options.response - The HTTP Response object
+ * @param options.method - HTTP method of the request
+ * @param options.url - URL of the request
+ * @param options.durationMs - elapsed time from request issuance to response, in milliseconds
  */
-export const logResponse = async ( { requestId, response } : { requestId: string, response: Response } ) : Promise<void> =>
-  Tracing.addEventEnd( {
+export const logResponse = async ( {
+  requestId, response, method, url, durationMs
+} : {
+  requestId: string, response: Response, method: string, url: string, durationMs: number
+} ) : Promise<void> => {
+  await Tracing.addEventEnd( {
     id: requestId, details: {
       status: response.status,
       statusText: response.statusText,
       ...( config.logVerbose && { headers: redactHeaders( response.headers ), body: await parseBody( response ) } )
     }
   } );
+  emitHttpRequestEvent( {
+    requestId, method, url, status: response.status, durationMs, outcome: 'success'
+  } );
+};
 
 /**
  * Creates the trace error event for a network/connection failure
+ * and emits a `http:request` event with `outcome: 'failure'`.
  *
  * @param options
  * @param options.requestId - id of the request
  * @param options.error - The error thrown
+ * @param options.method - HTTP method of the request
+ * @param options.url - URL of the request
+ * @param options.durationMs - elapsed time from request issuance to failure, in milliseconds
  */
-export const logFailure = ( { requestId, error } : { requestId: string, error: Error } ) : void =>
+export const logFailure = ( {
+  requestId, error, method, url, durationMs
+} : {
+  requestId: string, error: Error, method: string, url: string, durationMs: number
+} ) : void => {
   Tracing.addEventError( { id: requestId, details: serializeError( error ) } );
+  emitHttpRequestEvent( {
+    requestId, method, url, status: undefined, durationMs, outcome: 'failure'
+  } );
+};

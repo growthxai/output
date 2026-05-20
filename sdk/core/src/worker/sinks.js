@@ -11,8 +11,8 @@ export const sinks = {
   workflow: {
     start: {
       fn: ( workflowInfo, input ) => {
-        const { workflowId: id, workflowType: name, memo: { parentId, executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_START, { id, name } );
+        const { workflowId: id, runId, workflowType: name, memo: { parentId, executionContext } } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_START, { id, runId, name } );
         if ( executionContext ) { // filters out internal workflows
           Tracing.addEventStart( { id, kind: ComponentType.WORKFLOW, name, details: input, parentId, executionContext } );
         }
@@ -22,8 +22,8 @@ export const sinks = {
 
     end: {
       fn: ( workflowInfo, output ) => {
-        const { workflowId: id, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_END, { id, name, duration: Date.now() - startTime.getTime() } );
+        const { workflowId: id, runId, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_END, { id, runId, name, duration: Date.now() - startTime.getTime() } );
         if ( executionContext ) { // filters out internal workflows
           Tracing.addEventEnd( { id, details: output, executionContext } );
         }
@@ -33,8 +33,8 @@ export const sinks = {
 
     error: {
       fn: ( workflowInfo, error ) => {
-        const { workflowId: id, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_ERROR, { id, name, error, duration: Date.now() - startTime.getTime() } );
+        const { workflowId: id, runId, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_ERROR, { id, runId, name, error, duration: Date.now() - startTime.getTime() } );
         if ( executionContext ) { // filters out internal workflows
           Tracing.addEventError( { id, details: error, executionContext } );
         }

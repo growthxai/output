@@ -5,6 +5,6 @@ export const emitEvent = ( eventName, payload ) => {
   const ctx = Storage.load();
 
   const { executionContext, parentId: activityId } = ctx ?? {};
-  const { workflowId } = executionContext ?? {};
-  messageBus.emit( `external:${eventName}`, { workflowId, activityId, ...payload ?? {} } );
+  const { workflowId, runId } = executionContext ?? {};
+  messageBus.emit( `external:${eventName}`, { ...payload ?? {}, workflowId, runId, activityId } );
 };

@@ -16,8 +16,10 @@ export interface ErrorHookPayload {
  * Payload passed to the onWorkflowStart handler when a workflow run begins.
  */
 export interface WorkflowStartHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
 }
@@ -26,8 +28,10 @@ export interface WorkflowStartHookPayload {
  * Payload passed to the onWorkflowEnd handler when a workflow run completes successfully.
  */
 export interface WorkflowEndHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
   /** Duration of the workflow run in milliseconds. */
@@ -38,8 +42,10 @@ export interface WorkflowEndHookPayload {
  * Payload passed to the onWorkflowError handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload {
-  /** Identifier of the workflow run. */
+  /** Workflow id (stable across retries / continue-as-new). */
   id: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
   /** Name of the workflow. */
   name: string;
   /** Elapsed time before failure in milliseconds. */
@@ -89,6 +95,37 @@ export declare function onWorkflowEnd( handler: ( payload: WorkflowEndHookPayloa
  * @param handler - Function called with the workflow error payload.
  */
 export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPayload ) => void ): void;
+
+/**
+ * Payload broadcast on the `http:request` event for every HTTP call issued
+ * through `@outputai/http`'s `fetch`. Fires for success, non-2xx, and network
+ * failure paths — `cost:http:request` continues to fire only when the consumer
+ * has attached a cost via `addRequestCost`.
+ *
+ * The framework auto-attaches `workflowId`, `runId`, and `activityId` onto the
+ * payload before broadcast, so consumers receive those identifiers in addition
+ * to the fields listed here.
+ */
+export interface HttpRequestHookPayload {
+  /** Workflow id (stable across retries / continue-as-new). */
+  workflowId: string;
+  /** Temporal run id for the current execution attempt. */
+  runId: string;
+  /** Activity / step id, when emitted from inside a step. */
+  activityId?: string;
+  /** UUID generated per request inside `@outputai/http`. */
+  requestId: string;
+  /** HTTP method (uppercase). */
+  method: string;
+  /** Absolute request URL. */
+  url: string;
+  /** HTTP status code; undefined on network failure. */
+  status?: number;
+  /** Elapsed time from request issuance to response (or failure), in milliseconds. */
+  durationMs: number;
+  /** Outcome bucket: `success` (2xx-3xx), `error` (status >= 400), `failure` (DNS / timeout / abort). */
+  outcome: 'success' | 'error' | 'failure';
+}
 
 /**
  * Register a handler to be invoked when a given event happens

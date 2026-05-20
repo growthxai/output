@@ -23,13 +23,15 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
       Attribute: {
         HTTPRequestCount
       }
-    }
+    },
+    emitEvent: vi.fn()
   };
 } );
 
-import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 
 const tracing = vi.mocked( Tracing, true );
+const emit = vi.mocked( emitEvent, true );
 
 /** Loads logger with optional verbose tracing env so `config.js` is evaluated fresh. */
 async function logLogger( verbose: boolean ): Promise<typeof import( './logger.js' )> {
@@ -47,6 +49,7 @@ beforeEach( () => {
   tracing.addEventEnd.mockClear();
   tracing.addEventError.mockClear();
   tracing.addEventAttribute.mockClear();
+  emit.mockClear();
 } );
 
 describe( 'fetch/logger', () => {
@@ -133,7 +136,9 @@ describe( 'fetch/logger', () => {
         }
       } );
 
-      await logError( { requestId: 'e1', response } );
+      await logError( {
+        requestId: 'e1', response, method: 'GET', url: 'https://upstream.test/x', durationMs: 1
+      } );
 
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'e1',
@@ -159,7 +164,9 @@ describe( 'fetch/logger', () => {
         headers: { 'content-type': 'text/plain' }
       } );
 
-      await logError( { requestId: 'e2', response } );
+      await logError( {
+        requestId: 'e2', response, method: 'GET', url: 'https://upstream.test/y', durationMs: 1
+      } );
 
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'e2',
@@ -182,7 +189,9 @@ describe( 'fetch/logger', () => {
         headers: { 'content-type': 'application/json', Authorization: 'x' }
       } );
 
-      await logResponse( { requestId: 'lr1', response } );
+      await logResponse( {
+        requestId: 'lr1', response, method: 'GET', url: 'https://x.test/a', durationMs: 1
+      } );
 
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'lr1',
@@ -204,7 +213,9 @@ describe( 'fetch/logger', () => {
         }
       } );
 
-      await logResponse( { requestId: 'lr-v', response } );
+      await logResponse( {
+        requestId: 'lr-v', response, method: 'POST', url: 'https://x.test/b', durationMs: 1
+      } );
 
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'lr-v',
@@ -226,7 +237,7 @@ describe( 'fetch/logger', () => {
       const { logFailure } = await logLogger( false );
       const err = new TypeError( 'network' );
 
-      logFailure( { requestId: 'f1', error: err } );
+      logFailure( { requestId: 'f1', error: err, method: 'GET', url: 'https://example.test/x', durationMs: 12 } );
 
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'f1',
@@ -237,6 +248,74 @@ describe( 'fetch/logger', () => {
           code: undefined,
           stack: expect.stringMatching( /TypeError:\s*network[\s\S]+at\s+/ )
         }
+      } );
+    } );
+  } );
+
+  describe( 'http:request event emission', () => {
+    it( 'emits http:request with outcome=success on logResponse', async () => {
+      const { logResponse } = await logLogger( false );
+      const response = new Response( '', { status: 200 } );
+
+      await logResponse( {
+        requestId: 'r-ok',
+        response,
+        method: 'GET',
+        url: 'https://api.example.com/ok',
+        durationMs: 42
+      } );
+
+      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+        requestId: 'r-ok',
+        method: 'GET',
+        url: 'https://api.example.com/ok',
+        status: 200,
+        durationMs: 42,
+        outcome: 'success'
+      } );
+    } );
+
+    it( 'emits http:request with outcome=error on logError', async () => {
+      const { logError } = await logLogger( false );
+      const response = new Response( 'boom', { status: 500 } );
+
+      await logError( {
+        requestId: 'r-err',
+        response,
+        method: 'POST',
+        url: 'https://api.example.com/err',
+        durationMs: 15
+      } );
+
+      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+        requestId: 'r-err',
+        method: 'POST',
+        url: 'https://api.example.com/err',
+        status: 500,
+        durationMs: 15,
+        outcome: 'error'
+      } );
+    } );
+
+    it( 'emits http:request with outcome=failure on logFailure (status undefined)', async () => {
+      const { logFailure } = await logLogger( false );
+      const err = new TypeError( 'network' );
+
+      logFailure( {
+        requestId: 'r-net',
+        error: err,
+        method: 'GET',
+        url: 'https://api.example.com/net',
+        durationMs: 9
+      } );
+
+      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+        requestId: 'r-net',
+        method: 'GET',
+        url: 'https://api.example.com/net',
+        status: undefined,
+        durationMs: 9,
+        outcome: 'failure'
       } );
     } );
   } );
