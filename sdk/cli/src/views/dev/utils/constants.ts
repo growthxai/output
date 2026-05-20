@@ -13,9 +13,10 @@ export const WORKFLOWS_VISIBLE_ROWS = 8;
 export const WORKFLOWS_RECENT_RUNS_LIMIT = 5;
 
 export const RUNS_VISIBLE_ROWS = 8;
-export const RUNS_PREVIEW_LINES = 12;
 
 export const RUN_DETAIL_VISIBLE_STEPS = 12;
-export const RUN_DETAIL_PREVIEW_LINES = 18;
+
+export const MIN_TERMINAL_COLUMNS = 100;
+export const MIN_TERMINAL_ROWS = 40;
 
 export const HELP_DOCS_URL = 'https://docs.output.ai';

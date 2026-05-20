@@ -1,12 +1,20 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useUiState } from '#views/dev/state/ui_state.js';
 
+const SEARCH_CONTENT_ROWS = 1;
+const SEARCH_BORDER_ROWS = 2;
+
+export const useHeight = (): number => {
+  const ui = useUiState();
+  return ui.search.open || Boolean( ui.search.query ) ? SEARCH_CONTENT_ROWS + SEARCH_BORDER_ROWS : 0;
+};
+
 export const SearchBar: React.FC<{
   active: boolean;
-  onSubmit?: ( query: string ) => void;
-}> = ( { active, onSubmit } ) => {
+}> = ( { active } ) => {
   const ui = useUiState();
+  const visible = useHeight() > 0;
 
   useInput( ( input, key ) => {
     if ( key.escape ) {
@@ -14,7 +22,6 @@ export const SearchBar: React.FC<{
       return;
     }
     if ( key.return ) {
-      onSubmit?.( ui.search.query );
       ui.closeSearch();
       return;
     }
@@ -27,22 +34,15 @@ export const SearchBar: React.FC<{
     }
   }, { isActive: active } );
 
-  useEffect( () => {
-    if ( !active ) {
-      return;
-    }
-    onSubmit?.( ui.search.query );
-  }, [ active, ui.search.query, onSubmit ] );
-
-  if ( !active ) {
+  if ( !visible ) {
     return null;
   }
 
   return (
-    <Box marginTop={1}>
-      <Text bold>/ </Text>
+    <Box borderColor="white" borderStyle="double" flexGrow={1}>
+      <Text dimColor>FILTER WORKFLOWS:&nbsp;</Text>
       <Text>{ui.search.query}</Text>
-      <Text inverse>{' '}</Text>
+      {active && <Text inverse>{' '}</Text>}
     </Box>
   );
 };

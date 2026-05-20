@@ -33,6 +33,7 @@ const EMPTY_DETAIL: RunDetail = {
   steps: [],
   loading: false
 };
+const runDetailCache = new Map<string, RunDetail>();
 
 const stepNameOf = ( node: DebugNode ): string => {
   if ( node.name ) {
@@ -44,16 +45,13 @@ const stepNameOf = ( node: DebugNode ): string => {
 };
 
 const stepStatusOf = ( node: DebugNode ): string => {
-  if ( node.status ) {
-    return node.status;
-  }
-  if ( node.phase === 'error' || node.error ) {
+  if ( node.phase === 'error' || node.error || node.status === 'failed' ) {
     return 'failed';
   }
-  if ( node.phase === 'end' ) {
+  if ( node.phase === 'end' || node.status === 'completed' || node.endedAt !== undefined ) {
     return 'completed';
   }
-  return 'running';
+  return node.status ?? 'running';
 };
 
 const numericTimestamp = ( ...candidates: Array<unknown> ): number | null => {
@@ -148,7 +146,6 @@ export const useRunDetail = (
   status?: string
 ): RunDetail => {
   const [ detail, setDetail ] = useState<RunDetail>( EMPTY_DETAIL );
-  const cacheRef = useRef( new Map<string, RunDetail>() );
   const fetchIdRef = useRef( 0 );
 
   useEffect( () => {
@@ -160,7 +157,7 @@ export const useRunDetail = (
     // The cache only ever holds terminal-status entries (see below), so
     // a hit here is always safe to reuse without a network roundtrip.
     const key = `${workflowId}:${runId ?? 'latest'}`;
-    const cached = cacheRef.current.get( key );
+    const cached = runDetailCache.get( key );
     if ( cached ) {
       setDetail( cached );
       return;
@@ -186,7 +183,7 @@ export const useRunDetail = (
       // still running the API returns partial data; a follow-up status
       // change re-fires this effect and we re-fetch fresh.
       if ( isTerminalRunStatus( result?.status ) ) {
-        cacheRef.current.set( key, next );
+        runDetailCache.set( key, next );
       }
       setDetail( next );
     } );

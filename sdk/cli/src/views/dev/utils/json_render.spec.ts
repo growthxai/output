@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tokenizeLine, formatJsonText, countJsonLines } from './json_render.js';
+import { tokenizeLine, formatJsonText, countJsonLines, wrapTokens } from './json_render.js';
 
 describe( 'tokenizeLine', () => {
   it( 'classifies an object key (followed by colon) as a key', () => {
@@ -74,5 +74,15 @@ describe( 'countJsonLines', () => {
 
   it( 'counts lines in pretty-printed output', () => {
     expect( countJsonLines( { a: 1, b: 2 } ) ).toBe( 4 );
+  } );
+} );
+
+describe( 'wrapped token rendering', () => {
+  it( 'preserves string color across wrapped chunks', () => {
+    const tokens = tokenizeLine( '  "text": "NASCAR Cup Series: racing"' );
+    const wrapped = wrapTokens( tokens, 18 );
+    const value = wrapped.flat().find( t => t.text.includes( 'Series' ) );
+
+    expect( value?.color ).toBe( 'green' );
   } );
 } );

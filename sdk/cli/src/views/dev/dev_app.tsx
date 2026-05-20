@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, useApp, useInput, useStdout } from 'ink';
+import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { isServiceFailed, isServiceHealthy, type ServiceStatus } from '#services/docker.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
-import { openUrl } from '#utils/open_url.js';
 import {
   useHealthPolling,
   useStatusRefresh,
@@ -12,20 +11,29 @@ import { useWorkflowCatalog } from '#views/dev/hooks/use_workflow_catalog.js';
 import {
   Header,
   buildSummaryCounters,
+  getHeight as getHeaderHeight,
   type ServiceBadge,
   type WorkflowSummary
 } from '#views/dev/chrome/header.js';
-import { TabBar } from '#views/dev/chrome/tab_bar.js';
-import { SearchBar } from '#views/dev/chrome/search_bar.js';
-import { Toasts } from '#views/dev/chrome/toasts.js';
-import { HorizontalRule } from '#views/dev/chrome/divider.js';
-import { UiStateProvider, useUiState, type Tab } from '#views/dev/state/ui_state.js';
-import { WorkflowsPanel } from '#views/dev/panels/workflows_panel.js';
-import { RunsPanel } from '#views/dev/panels/runs_panel.js';
-import { ServicesPanel } from '#views/dev/panels/services_panel.js';
-import { HelpPanel } from '#views/dev/panels/help_panel.js';
+import { TabBar, getHeight as getTabBarHeight } from '#views/dev/chrome/tab_bar.js';
+import { SearchBar, useHeight as useSearchBarHeight } from '#views/dev/chrome/search_bar.js';
+import { Toasts, useHeight as useToastsHeight } from '#views/dev/chrome/toasts.js';
+import { Footer, getHeight as getFooterHeight, type FooterState } from '#views/dev/chrome/footer.js';
+import { RULE_PURPLE } from '#views/dev/chrome/palette.js';
+import { UiStateProvider, useUiState, type Tab, type UiState } from '#views/dev/state/ui_state.js';
+import {
+  WorkflowsPanel,
+  WORKFLOWS_HINTS,
+  WORKFLOWS_LOADING_HINTS,
+  buildVisibleWorkflows
+} from '#views/dev/panels/workflows_panel.js';
+import { RunsPanel, RUNS_EMPTY_HINTS, RUNS_HINTS, buildVisibleRuns } from '#views/dev/panels/runs_panel.js';
+import { ServicesPanel, SERVICES_BOOT_HINTS, SERVICES_HINTS } from '#views/dev/panels/services_panel.js';
+import { HELP_HINTS, HELP_SECTION_COUNT, HelpPanel } from '#views/dev/panels/help_panel.js';
 import { RunModal } from '#views/dev/modals/run_modal.js';
 import { ExpandedJsonModal } from '#views/dev/modals/expanded_json_modal.js';
+import { StepsModal } from '#views/dev/modals/steps_modal.js';
+import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/constants.js';
 
 export type Phase = 'waiting' | 'running' | 'failed';
 
@@ -36,8 +44,56 @@ const TAB_NUMBER_KEYS: Record<string, Tab> = {
   4: 'help'
 };
 
+const getContentRows = ( opts: {
+  rows: number;
+  searchHeight: number;
+  toastsHeight: number;
+} ): number => {
+  return Math.max(
+    1,
+    opts.rows -
+      getHeaderHeight( opts.rows ) -
+      getTabBarHeight() -
+      opts.searchHeight -
+      opts.toastsHeight -
+      getFooterHeight()
+  );
+};
+
+const useTerminalSize = (): { rows: number; cols: number } => {
+  const { stdout } = useStdout();
+  const readSize = (): { rows: number; cols: number } => ( {
+    rows: stdout?.rows ?? 60,
+    cols: stdout?.columns ?? 80
+  } );
+  const [ size, setSize ] = useState( readSize );
+
+  useEffect( () => {
+    const update = (): void => setSize( readSize() );
+
+    update();
+    stdout?.on( 'resize', update );
+    return () => {
+      stdout?.off( 'resize', update );
+    };
+  }, [ stdout ] );
+
+  return size;
+};
+
+const TerminalTooSmall: React.FC<{ rows: number; cols: number }> = ( { rows, cols } ) => (
+  <Box flexDirection="column" paddingX={1} paddingTop={1}>
+    <Text bold>Terminal too small for Output dev UI.</Text>
+    <Text dimColor>
+      Resize to at least {MIN_TERMINAL_COLUMNS}x{MIN_TERMINAL_ROWS} characters.
+      Current size: {cols}x{rows}.
+    </Text>
+  </Box>
+);
+
 const useGlobalInput = ( opts: {
   onCleanup: () => Promise<void>;
+  runDetailOpen: boolean;
 } ): void => {
   const ui = useUiState();
   const { exit } = useApp();
@@ -54,7 +110,7 @@ const useGlobalInput = ( opts: {
       return;
     }
 
-    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open ) {
+    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || opts.runDetailOpen ) {
       return;
     }
 
@@ -63,19 +119,9 @@ const useGlobalInput = ( opts: {
     // to the list and the filter should still apply when we land
     // there. The search bar's esc (close + clear) returns above, so
     // it never reaches this branch.
-    if ( key.escape && ui.search.query && ui.runsView === 'list' ) {
+    if ( key.escape && ui.search.query && !opts.runDetailOpen ) {
       ui.clearSearch();
       return;
-    }
-
-    // Switching tabs is treated as leaving the current view, so any
-    // active filter goes with it. App-driven setTab calls (e.g. the
-    // run modal pre-filtering Recent Runs to a workflow) bypass this
-    // path on purpose.
-    if ( key.tab || ( input && TAB_NUMBER_KEYS[input] ) ) {
-      if ( ui.search.query ) {
-        ui.clearSearch();
-      }
     }
 
     if ( key.tab && key.shift ) {
@@ -98,9 +144,6 @@ const useGlobalInput = ( opts: {
       ui.setTab( TAB_NUMBER_KEYS[input] );
       return;
     }
-    if ( input === 'o' && ui.tab === 'services' ) {
-      openUrl( 'http://localhost:8080' );
-    }
   } );
 };
 
@@ -114,6 +157,55 @@ const computeWorkflowSummary = ( runs: WorkflowRun[] ): WorkflowSummary | null =
     failed: runs.filter( r => r.status === 'failed' ).length,
     total: runs.length
   };
+};
+
+const footerFor = ( opts: {
+  ui: UiState;
+  workflowCount: number;
+  visibleWorkflowCount: number;
+  runCount: number;
+  visibleRunCount: number;
+  serviceCount: number;
+  phase: Phase;
+} ): FooterState => {
+  if ( opts.ui.tab === 'workflows' ) {
+    if ( opts.workflowCount === 0 ) {
+      return { hints: WORKFLOWS_LOADING_HINTS };
+    }
+    return { hints: WORKFLOWS_HINTS, itemCount: opts.visibleWorkflowCount, itemLabel: 'workflows' };
+  }
+  if ( opts.ui.tab === 'runs' ) {
+    if ( opts.runCount === 0 ) {
+      return { hints: RUNS_EMPTY_HINTS };
+    }
+    return { hints: RUNS_HINTS, itemCount: opts.visibleRunCount, itemLabel: 'runs' };
+  }
+  if ( opts.ui.tab === 'services' ) {
+    return {
+      hints: opts.phase === 'waiting' && opts.serviceCount === 0 ? SERVICES_BOOT_HINTS : SERVICES_HINTS,
+      itemCount: opts.serviceCount,
+      itemLabel: 'services'
+    };
+  }
+  return { hints: HELP_HINTS, itemCount: HELP_SECTION_COUNT, itemLabel: 'sections' };
+};
+
+const overlayFor = ( opts: {
+  ui: UiState;
+  detailRun: WorkflowRun | undefined;
+  runDetailOpen: boolean;
+  rows: number;
+} ): React.ReactNode => {
+  if ( opts.ui.expandedJson.open ) {
+    return <ExpandedJsonModal />;
+  }
+  if ( opts.ui.runModal.open ) {
+    return <RunModal workflowName={opts.ui.runModal.workflowName} workflowPath={opts.ui.runModal.workflowPath} />;
+  }
+  if ( opts.ui.tab === 'runs' && opts.runDetailOpen && opts.detailRun ) {
+    return <StepsModal run={opts.detailRun} height={opts.rows} />;
+  }
+  return null;
 };
 
 const Shell: React.FC<{
@@ -151,9 +243,21 @@ const Shell: React.FC<{
     }
   }, [ phase, workflows.length, ui.tab, setTab ] );
 
-  useGlobalInput( { onCleanup } );
-
   const summary = useMemo( () => computeWorkflowSummary( runs ), [ runs ] );
+  const visibleWorkflows = useMemo(
+    () => buildVisibleWorkflows( workflows, ui.search.query ),
+    [ workflows, ui.search.query ]
+  );
+  const visibleRuns = useMemo(
+    () => buildVisibleRuns( runs, ui.search.query ),
+    [ runs, ui.search.query ]
+  );
+  const detailRun = ui.runsView === 'detail' ?
+    runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) :
+    undefined;
+  const runDetailOpen = ui.runsView === 'detail' && detailRun !== undefined;
+
+  useGlobalInput( { onCleanup, runDetailOpen } );
   const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
   const serviceBadge: ServiceBadge = useMemo( () => {
     if ( failingServices > 0 ) {
@@ -169,35 +273,54 @@ const Shell: React.FC<{
   // `stdout.rows` is undefined on a small set of TTYs (mostly piped envs).
   // 60 is a generous default — chrome alone is ~10 rows, and run-detail
   // wants ~25 of content, so anything below 40 starts to clip step rows.
-  const { stdout } = useStdout();
-  const rows = stdout?.rows ?? 60;
+  const { rows, cols } = useTerminalSize();
+  const searchHeight = useSearchBarHeight();
+  const toastsHeight = useToastsHeight();
+  const terminalTooSmall = cols < MIN_TERMINAL_COLUMNS || rows < MIN_TERMINAL_ROWS;
+  const contentRows = getContentRows( {
+    rows,
+    searchHeight,
+    toastsHeight
+  } );
+  const footer = footerFor( {
+    ui,
+    workflowCount: workflows.length,
+    visibleWorkflowCount: visibleWorkflows.length,
+    runCount: runs.length,
+    visibleRunCount: visibleRuns.length,
+    serviceCount: services.length,
+    phase
+  } );
+  const overlay = overlayFor( { ui, detailRun, runDetailOpen, rows } );
 
-  if ( ui.expandedJson.open ) {
+  if ( terminalTooSmall ) {
+    return <TerminalTooSmall rows={rows} cols={cols} />;
+  }
+
+  if ( overlay ) {
     return (
-      <Box flexDirection="column" height={rows} paddingX={2} paddingTop={1}>
-        <ExpandedJsonModal />
+      <Box flexDirection="column" height={rows} paddingX={1}>
+        {overlay}
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" height={rows} paddingX={2} paddingTop={1}>
+    <Box flexDirection="column" height={rows} paddingX={1}>
       <Header counters={counters} />
-      <TabBar active={ui.tab} />
-      <HorizontalRule />
+      <TabBar active={ui.tab} borderColor={RULE_PURPLE} />
       <SearchBar active={ui.search.open} />
-      <Toasts />
 
-      <Box flexDirection="column" flexGrow={1} overflow="hidden">
-        {ui.tab === 'workflows' && !ui.runModal.open && <WorkflowsPanel workflows={workflows} runs={runs} />}
-        {ui.tab === 'runs' && !ui.runModal.open && <RunsPanel runs={runs} />}
-        {ui.tab === 'services' && !ui.runModal.open && (
-          <ServicesPanel phase={phase} services={services} dockerComposePath={dockerComposePath} />
+      <Box flexDirection="column" flexGrow={1} height={contentRows} overflow="hidden">
+        {ui.tab === 'workflows' && <WorkflowsPanel workflows={workflows} runs={runs} />}
+        {ui.tab === 'runs' && <RunsPanel runs={runs} height={contentRows} />}
+        {ui.tab === 'services' && (
+          <ServicesPanel height={contentRows} phase={phase} services={services} dockerComposePath={dockerComposePath} />
         )}
-        {ui.tab === 'help' && !ui.runModal.open && <HelpPanel />}
-
-        {ui.runModal.open && <RunModal workflowName={ui.runModal.workflowName} workflowPath={ui.runModal.workflowPath} />}
+        {ui.tab === 'help' && <HelpPanel />}
       </Box>
+      <Toasts />
+      <Footer hints={footer.hints} itemCount={footer.itemCount} itemLabel={footer.itemLabel} />
     </Box>
   );
 };

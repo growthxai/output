@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Workflow } from '#api/generated/api.js';
 import type { WorkflowRun } from '#services/workflow_runs.js';
-import { StatusIcon, statusColor } from '#components/status_icon.js';
+import { WorkflowStatusIcon, workflowStatusColor } from '#views/dev/components/workflow_status.js';
+import { ContentTitle } from '#views/dev/components/content_title.js';
 import { elapsedMs, formatDurationCompact } from '#utils/date_formatter.js';
-import { Footer } from '#views/dev/chrome/footer.js';
 import { SelectionIndicator } from '#views/dev/chrome/selection_indicator.js';
 import { useUiState } from '#views/dev/state/ui_state.js';
 import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
-import { formatStartedShort } from '#views/dev/utils/panel_helpers.js';
+import { formatStartedShort, useListSelection } from '#views/dev/utils/panel_helpers.js';
 import {
   WORKFLOWS_VISIBLE_ROWS,
   WORKFLOWS_RECENT_RUNS_LIMIT
@@ -36,7 +36,7 @@ const matchesQuery = ( workflow: Workflow, query: string ): boolean => {
 const sortByName = ( workflows: Workflow[] ): Workflow[] =>
   [ ...workflows ].sort( ( a, b ) => ( a.name ?? '' ).localeCompare( b.name ?? '' ) );
 
-const buildVisibleWorkflows = ( workflows: Workflow[], query: string ): Workflow[] => {
+export const buildVisibleWorkflows = ( workflows: Workflow[], query: string ): Workflow[] => {
   const list = query ? workflows.filter( w => matchesQuery( w, query ) ) : workflows;
   return sortByName( list );
 };
@@ -66,11 +66,10 @@ const SidebarRunRow: React.FC<{ run: WorkflowRun }> = ( { run } ) => {
   const duration = run.startedAt ? formatDurationCompact( elapsedMs( run.startedAt, run.completedAt ) ) : '-';
   return (
     <Box>
-      <StatusIcon status={status} />
-      <Text> </Text>
-      <Box width={10}><Text color={statusColor( status )}>{status}</Text></Box>
+      <WorkflowStatusIcon status={status} />
+      <Box width={11} paddingLeft={1}><Text color={workflowStatusColor( status )}>{status}</Text></Box>
       <Box width={9} justifyContent="flex-end"><Text dimColor>{duration}</Text></Box>
-      <Box marginLeft={2}><Text dimColor>{formatStartedShort( run.startedAt )}</Text></Box>
+      <Box width={14} justifyContent="flex-end"><Text dimColor>{formatStartedShort( run.startedAt )}</Text></Box>
     </Box>
   );
 };
@@ -93,50 +92,48 @@ const DetailPane: React.FC<{ workflow: Workflow | undefined; runs: WorkflowRun[]
   const recent = wfRuns.slice( 0, WORKFLOWS_RECENT_RUNS_LIMIT );
 
   return (
-    <Box flexDirection="column">
-      <Box>
-        <Text bold color="white">{workflow.name}</Text>
-      </Box>
-      <Box marginTop={1}>
-        <Text dimColor>{stats.total} runs</Text>
-        {stats.running > 0 && <><Text dimColor>   </Text><Text color="blue">● {stats.running} running</Text></>}
-        {stats.failed > 0 && <><Text dimColor>   </Text><Text color="red">✗ {stats.failed} failed</Text></>}
-        {stats.completed > 0 && <><Text dimColor>   </Text><Text color="green">● {stats.completed} ok</Text></>}
-      </Box>
-      <Box flexDirection="row" marginTop={1}>
-        <Box flexDirection="column" flexGrow={1} paddingRight={2}>
+    <Box flexDirection="row" flexGrow={1}>
+      <Box flexDirection="column" flexGrow={1}>
+        <ContentTitle title={`Workflow "${workflow.name}"`} />
+        <Box flexDirection="column" gap={1}>
+          <Box>
+            <Text dimColor>{stats.total} runs</Text>
+            {stats.running > 0 && <><Text>&emsp;&emsp;</Text><Text color="blue">● {stats.running} running</Text></>}
+            {stats.failed > 0 && <><Text>&emsp;&emsp;</Text><Text color="red">✗ {stats.failed} failed</Text></>}
+            {stats.completed > 0 && <><Text>&emsp;&emsp;</Text><Text color="green">● {stats.completed} ok</Text></>}
+          </Box>
           <Text wrap="wrap">{workflow.description ?? 'No description'}</Text>
         </Box>
+      </Box>
+      {recent.length > 0 ?
         <Box
           flexDirection="column"
-          width={42}
+          flexShrink={0}
           borderStyle="single"
+          borderColor="blackBright"
           borderTop={false}
           borderBottom={false}
           borderRight={false}
-          paddingLeft={2}
-        >
+          paddingY={1}
+          paddingLeft={1}
+          gap={1}>
           <Text dimColor bold>RECENT RUNS</Text>
-          <Box flexDirection="column" marginTop={1}>
-            {recent.length === 0 ? (
-              <Text dimColor>No runs yet</Text>
-            ) : (
-              recent.map( ( run, i ) => <SidebarRunRow key={`${run.runId ?? i}`} run={run} /> )
-            )}
+          <Box flexDirection="column">
+            {recent.map( ( run, i ) => <SidebarRunRow key={`${run.runId ?? i}`} run={run} /> )}
           </Box>
-        </Box>
-      </Box>
+        </Box> :
+        <></>}
     </Box>
   );
 };
 
-const HINTS = [
+export const WORKFLOWS_HINTS = [
   { key: '↑/↓', label: 'navigate' },
   { key: 'enter', label: 'show runs' },
-  { key: 'r', label: 'run' },
-  { key: '/', label: 'search' },
-  { key: 'tab', label: 'next tab' }
+  { key: 'r', label: 'run' }
 ];
+
+export const WORKFLOWS_LOADING_HINTS = [];
 
 export const WorkflowsPanel: React.FC<{
   workflows: Workflow[];
@@ -148,11 +145,7 @@ export const WorkflowsPanel: React.FC<{
     () => buildVisibleWorkflows( workflows, ui.search.query ),
     [ workflows, ui.search.query ]
   );
-
-  // Lazy initializer — runs once on mount. Restores the previously
-  // highlighted workflow after the run modal unmounts and remounts the
-  // panel.
-  const [ selectedIndex, setSelectedIndex ] = useState( () => {
+  const initialIndex = (): number => {
     const previousName = ui.selection.workflowName;
     if ( !previousName ) {
       return 0;
@@ -160,17 +153,10 @@ export const WorkflowsPanel: React.FC<{
     const initial = buildVisibleWorkflows( workflows, ui.search.query );
     const i = initial.findIndex( w => w.name === previousName );
     return i >= 0 ? i : 0;
-  } );
+  };
 
-  const isActive = ui.tab === 'workflows' && !ui.search.open && !ui.runModal.open;
-  const clamped = Math.min( selectedIndex, Math.max( 0, filtered.length - 1 ) );
+  const { selectedIndex: clamped, selectPrevious, selectNext } = useListSelection( filtered.length, initialIndex );
   const selectedWorkflow = filtered[clamped];
-
-  useEffect( () => {
-    if ( clamped !== selectedIndex ) {
-      setSelectedIndex( clamped );
-    }
-  }, [ clamped, selectedIndex ] );
 
   const setSelection = ui.setSelection;
   useEffect( () => {
@@ -179,39 +165,29 @@ export const WorkflowsPanel: React.FC<{
 
   useInput( ( input, key ) => {
     if ( key.upArrow ) {
-      setSelectedIndex( i => Math.max( 0, i - 1 ) );
+      selectPrevious();
     } else if ( key.downArrow ) {
-      setSelectedIndex( i => Math.min( filtered.length - 1, i + 1 ) );
+      selectNext();
     } else if ( key.return && selectedWorkflow?.name ) {
       ui.setSearchQuery( selectedWorkflow.name );
       ui.setTab( 'runs' );
     } else if ( input === 'r' && selectedWorkflow?.name ) {
       ui.openRunModal( selectedWorkflow.name, selectedWorkflow.path );
     }
-  }, { isActive } );
+  }, { isActive: ui.tab === 'workflows' && !ui.search.open } );
 
   if ( workflows.length === 0 ) {
     return (
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>Workflows</Text>
-        <Box marginTop={1}>
-          <Text dimColor>Loading catalog… (waiting for the API to come up)</Text>
-        </Box>
-        <Footer hints={[ { key: 'tab', label: 'next tab' }, { key: '?', label: 'help' } ]} />
+      <Box flexDirection="column">
+        <Text dimColor>Loading catalog… (waiting for the API to come up)</Text>
       </Box>
     );
   }
 
   if ( filtered.length === 0 ) {
     return (
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>Workflows</Text>
-        <Box marginTop={1}>
-          <Text dimColor>No workflows match `{ui.search.query}`. Press </Text>
-          <Text bold>esc</Text>
-          <Text dimColor> to clear.</Text>
-        </Box>
-        <Footer hints={HINTS} itemCount={0} itemLabel="workflows" />
+      <Box flexDirection="column">
+        <Text dimColor>No workflows match `{ui.search.query}`. Press <Text bold>esc</Text> to clear the filter.</Text>
       </Box>
     );
   }
@@ -225,8 +201,6 @@ export const WorkflowsPanel: React.FC<{
       renderRow={( wf, selected ) => <WorkflowRow workflow={wf} selected={selected} />}
       rowKey={( wf, i ) => wf.name ?? `row-${i}`}
       detail={<DetailPane workflow={selectedWorkflow} runs={runs} />}
-      hints={HINTS}
-      itemLabel="workflows"
     />
   );
 };

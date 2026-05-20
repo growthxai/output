@@ -11,7 +11,8 @@ export const TAB_LABELS: Record<Tab, string> = {
   help: 'Help'
 };
 
-export type RightPaneTab = 'input' | 'output' | 'meta';
+export type RunListPaneTab = 'status' | 'input' | 'output' | 'attributes' | 'aggregations';
+export type RunStepPaneTab = 'input' | 'output' | 'meta';
 
 export type RunsView = 'list' | 'detail';
 
@@ -45,11 +46,14 @@ export interface Toast {
   tone: 'info' | 'success' | 'error';
 }
 
+export const MAX_VISIBLE_TOASTS = 3;
+
 export interface UiState {
   tab: Tab;
   search: SearchState;
   selection: Selection;
-  rightPaneTab: RightPaneTab;
+  runListPaneTab: RunListPaneTab;
+  runStepPaneTab: RunStepPaneTab;
   runsView: RunsView;
   runModal: RunModalState;
   expandedJson: ExpandedJsonState;
@@ -62,7 +66,8 @@ export interface UiState {
   clearSearch: () => void;
   setSearchQuery: ( query: string ) => void;
   setSelection: ( selection: Selection ) => void;
-  setRightPaneTab: ( tab: RightPaneTab ) => void;
+  setRunListPaneTab: ( tab: RunListPaneTab ) => void;
+  setRunStepPaneTab: ( tab: RunStepPaneTab ) => void;
   setRunsView: ( view: RunsView ) => void;
   openRunModal: ( workflowName: string, workflowPath?: string ) => void;
   closeRunModal: () => void;
@@ -78,7 +83,8 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
   const [ tab, setTab ] = useState<Tab>( 'services' );
   const [ search, setSearch ] = useState<SearchState>( { open: false, query: '' } );
   const [ selection, setSelection ] = useState<Selection>( {} );
-  const [ rightPaneTab, setRightPaneTab ] = useState<RightPaneTab>( 'output' );
+  const [ runListPaneTab, setRunListPaneTab ] = useState<RunListPaneTab>( 'status' );
+  const [ runStepPaneTab, setRunStepPaneTab ] = useState<RunStepPaneTab>( 'output' );
   const [ runsView, setRunsView ] = useState<RunsView>( 'list' );
   const [ runModal, setRunModal ] = useState<RunModalState>( { open: false, workflowName: '' } );
   const [ expandedJson, setExpandedJson ] = useState<ExpandedJsonState>( { open: false, value: null, title: '' } );
@@ -89,18 +95,32 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     tab,
     search,
     selection,
-    rightPaneTab,
+    runListPaneTab,
+    runStepPaneTab,
     runsView,
     runModal,
     expandedJson,
     toasts,
-    setTab,
+    setTab: next => {
+      setTab( current => {
+        if ( current === 'runs' && next !== 'runs' ) {
+          setRunsView( 'list' );
+        }
+        return next;
+      } );
+    },
     nextTab: () => setTab( current => {
       const idx = TAB_ORDER.indexOf( current );
+      if ( current === 'runs' ) {
+        setRunsView( 'list' );
+      }
       return TAB_ORDER[( idx + 1 ) % TAB_ORDER.length];
     } ),
     prevTab: () => setTab( current => {
       const idx = TAB_ORDER.indexOf( current );
+      if ( current === 'runs' ) {
+        setRunsView( 'list' );
+      }
       return TAB_ORDER[( idx - 1 + TAB_ORDER.length ) % TAB_ORDER.length];
     } ),
     openSearch: () => setSearch( prev => ( { open: true, query: prev.query } ) ),
@@ -108,7 +128,8 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     clearSearch: () => setSearch( { open: false, query: '' } ),
     setSearchQuery: ( query: string ) => setSearch( prev => ( { open: prev.open, query } ) ),
     setSelection,
-    setRightPaneTab,
+    setRunListPaneTab,
+    setRunStepPaneTab,
     setRunsView,
     openRunModal: ( workflowName: string, workflowPath?: string ) => setRunModal( { open: true, workflowName, workflowPath } ),
     closeRunModal: () => setRunModal( { open: false, workflowName: '' } ),
@@ -116,10 +137,10 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     closeExpandedJson: () => setExpandedJson( { open: false, value: null, title: '' } ),
     pushToast: ( message: string, tone: Toast['tone'] = 'info' ) => {
       const id = ++toastIdRef.current;
-      setToasts( prev => [ ...prev, { id, message, tone } ] );
+      setToasts( prev => [ ...prev, { id, message, tone } ].slice( -MAX_VISIBLE_TOASTS ) );
     },
     dismissToast: ( id: number ) => setToasts( prev => prev.filter( t => t.id !== id ) )
-  } ), [ tab, search, selection, rightPaneTab, runsView, runModal, expandedJson, toasts ] );
+  } ), [ tab, search, selection, runListPaneTab, runStepPaneTab, runsView, runModal, expandedJson, toasts ] );
 
   return <UiStateContext.Provider value={value}>{children}</UiStateContext.Provider>;
 };
