@@ -46,6 +46,8 @@ export interface Toast {
   tone: 'info' | 'success' | 'error';
 }
 
+export const MAX_VISIBLE_TOASTS = 3;
+
 export interface UiState {
   tab: Tab;
   search: SearchState;
@@ -135,7 +137,7 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     closeExpandedJson: () => setExpandedJson( { open: false, value: null, title: '' } ),
     pushToast: ( message: string, tone: Toast['tone'] = 'info' ) => {
       const id = ++toastIdRef.current;
-      setToasts( prev => [ ...prev, { id, message, tone } ] );
+      setToasts( prev => [ ...prev, { id, message, tone } ].slice( -MAX_VISIBLE_TOASTS ) );
     },
     dismissToast: ( id: number ) => setToasts( prev => prev.filter( t => t.id !== id ) )
   } ), [ tab, search, selection, runListPaneTab, runStepPaneTab, runsView, runModal, expandedJson, toasts ] );

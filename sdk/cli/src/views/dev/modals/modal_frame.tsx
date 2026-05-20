@@ -2,7 +2,13 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { RULE_PURPLE } from '#views/dev/chrome/palette.js';
 
-export const getHeight = (): number => 6;
+const FRAME_BORDER_ROWS = 2;
+const FRAME_TITLE_ROWS = 1;
+const FRAME_FOOTER_ROWS = 1;
+const FRAME_GAP_ROWS = 2;
+
+export const getHeight = (): number =>
+  FRAME_BORDER_ROWS + FRAME_TITLE_ROWS + FRAME_FOOTER_ROWS + FRAME_GAP_ROWS;
 
 export type ModalShortcut = readonly [ key: string, label: string ] | {
   key: string;

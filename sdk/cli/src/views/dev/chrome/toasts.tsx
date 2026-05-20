@@ -6,7 +6,7 @@ const TOAST_TTL_MS = 4000;
 
 export const useHeight = (): number => {
   const ui = useUiState();
-  return ui.toasts.length > 0 ? ui.toasts.length + 1 : 0;
+  return ui.toasts.length > 0 ? ui.toasts.length : 0;
 };
 
 const toneColor = ( tone: Toast['tone'] ): string => {
@@ -21,12 +21,12 @@ const toneColor = ( tone: Toast['tone'] ): string => {
 
 const tonePrefix = ( tone: Toast['tone'] ): string => {
   if ( tone === 'success' ) {
-    return '✓';
+    return '[+]';
   }
   if ( tone === 'error' ) {
-    return '✗';
+    return '[!]';
   }
-  return 'ℹ';
+  return '[i]';
 };
 
 export const Toasts: React.FC = () => {
@@ -50,8 +50,8 @@ export const Toasts: React.FC = () => {
   return (
     <Box flexDirection="column" flexGrow={1}>
       {toasts.map( toast => (
-        <Box key={toast.id}>
-          <Text color={toneColor( toast.tone )}>{tonePrefix( toast.tone )} {toast.message}</Text>
+        <Box key={toast.id} backgroundColor={toneColor( toast.tone )} flexGrow={1}>
+          <Text color="black" wrap="truncate-end">&nbsp;{tonePrefix( toast.tone )}&nbsp;{toast.message}&nbsp;</Text>
         </Box>
       ) )}
     </Box>

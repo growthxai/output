@@ -2,9 +2,12 @@ import React from 'react';
 import { Box, Text, useInput } from 'ink';
 import { useUiState } from '#views/dev/state/ui_state.js';
 
+const SEARCH_CONTENT_ROWS = 1;
+const SEARCH_BORDER_ROWS = 2;
+
 export const useHeight = (): number => {
   const ui = useUiState();
-  return ui.search.open || Boolean( ui.search.query ) ? 3 : 0;
+  return ui.search.open || Boolean( ui.search.query ) ? SEARCH_CONTENT_ROWS + SEARCH_BORDER_ROWS : 0;
 };
 
 export const SearchBar: React.FC<{

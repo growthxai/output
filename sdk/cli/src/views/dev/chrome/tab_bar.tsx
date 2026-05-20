@@ -2,7 +2,10 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { TAB_LABELS, TAB_ORDER, type Tab } from '#views/dev/state/ui_state.js';
 
-export const getHeight = (): number => 2;
+const TAB_LABEL_ROWS = 1;
+const TAB_BORDER_BOTTOM_ROWS = 1;
+
+export const getHeight = (): number => TAB_LABEL_ROWS + TAB_BORDER_BOTTOM_ROWS;
 
 export interface TabBarItem {
   id: string;
@@ -31,19 +34,20 @@ export const TabBar: React.FC<{
     borderRight={false}
     borderBottom={true}
     borderColor={borderColor ?? 'blackBright'}
+    gap={3}
   >
     {items.map( tab => {
       const activeTab = tab.id === active;
       const content = <>&nbsp;{tab.label}&nbsp;</>;
       if ( activeTab ) {
         return (
-          <Box key={tab.id} marginRight={3}>
+          <Box key={tab.id}>
             <Text inverse bold>{content}</Text>
           </Box>
         );
       }
       return (
-        <Box key={tab.id} marginRight={3}>
+        <Box key={tab.id}>
           <Text dimColor>{content}</Text>
         </Box>
       );

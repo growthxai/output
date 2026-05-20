@@ -2,7 +2,10 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import packageJson from '../../../../package.json' with { type: 'json' };
 
-export const getHeight = (): number => 2;
+const GLOBAL_HINT_ROWS = 1;
+const LOCAL_HINT_ROWS = 1;
+
+export const getHeight = (): number => GLOBAL_HINT_ROWS + LOCAL_HINT_ROWS;
 
 export interface CommandHint {
   key: string;
