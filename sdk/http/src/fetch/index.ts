@@ -27,7 +27,7 @@ export type {
  * Behaves the same as any fetch function except:
  * - Sets a request header called `x-request--trace-id` with a random UUID;
  * - Sends the request, response, error and/or failure to the Trace system;
- * - Emits a `http:request` event on every call (success, http_error, network_error).
+ * - Emits a `http:request` event on every call (success, error, failure).
  *
  * @see {@link https://fetch.spec.whatwg.org/}
  * @param input - URL string, URL object or Request object (undici's or Node's)
@@ -52,7 +52,7 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   try {
     const response = await undici.fetch( request );
-    const durationMs = Math.round( performance.now() - startedAt );
+    const durationMs = performance.now() - startedAt;
 
     // This enriches the response of the request id, so it is identifiable later.
     addRequestIdToResponse( response, requestId );
@@ -64,7 +64,7 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
     await logResponse( { requestId, response, method, url, durationMs } );
     return response;
   } catch ( error ) {
-    const durationMs = Math.round( performance.now() - startedAt );
+    const durationMs = performance.now() - startedAt;
     logFailure( { requestId, error: error as Error, method, url, durationMs } );
     throw error;
   }
