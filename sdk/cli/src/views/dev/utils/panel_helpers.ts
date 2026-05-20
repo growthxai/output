@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { format, parseISO } from 'date-fns';
 
 /**
@@ -75,12 +75,6 @@ export const useListSelection = (
 } => {
   const [ rawIndex, setSelectedIndex ] = useState( initialIndex );
   const selectedIndex = clampIndex( rawIndex, count );
-
-  useEffect( () => {
-    if ( selectedIndex !== rawIndex ) {
-      setSelectedIndex( selectedIndex );
-    }
-  }, [ rawIndex, selectedIndex ] );
 
   return {
     selectedIndex,
