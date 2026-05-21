@@ -4,6 +4,7 @@ import { BusEventType } from '#consts';
 const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
 const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
 const getHandleMock = vi.hoisted( () => vi.fn( () => workflowHandleMock ) );
+const clientConstructorMock = vi.hoisted( () => vi.fn() );
 
 const heartbeatMock = vi.fn();
 const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async fn => fn() ) );
@@ -25,6 +26,10 @@ vi.mock( '@temporalio/activity', () => ( {
 
 vi.mock( '@temporalio/client', () => ( {
   Client: class Client {
+    constructor( options ) {
+      clientConstructorMock( options );
+    }
+
     workflow = {
       getHandle: getHandleMock
     };
@@ -68,6 +73,9 @@ vi.mock( '../configs.js', () => ( {
   },
   get activityHeartbeatIntervalMs() {
     return parseInt( process.env.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS || '120000', 10 );
+  },
+  get namespace() {
+    return process.env.TEMPORAL_NAMESPACE || 'default';
   }
 } ) );
 
@@ -116,6 +124,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( addEventStartMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).toHaveBeenCalledOnce();
     expect( addEventErrorMock ).not.toHaveBeenCalled();
+    expect( clientConstructorMock ).toHaveBeenCalledWith( { connection: undefined, namespace: 'default' } );
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
       expect.objectContaining( {
