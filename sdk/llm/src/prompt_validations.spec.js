@@ -325,65 +325,6 @@ describe( 'validatePrompt', () => {
     warnSpy.mockRestore();
   } );
 
-  describe( 'message content shapes', () => {
-    it( 'accepts a message with structured content parts and per-part providerOptions', () => {
-      const structured = {
-        name: 'structured-content',
-        config: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
-        messages: [ {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: 'Static',
-              providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
-            },
-            { type: 'text', text: 'Dynamic' }
-          ]
-        } ]
-      };
-
-      expect( () => validatePrompt( structured ) ).not.toThrow();
-    } );
-
-    it( 'accepts a message with message-level providerOptions (tag-attribute shorthand)', () => {
-      const tagAttr = {
-        name: 'tag-attr-cache',
-        config: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
-        messages: [ {
-          role: 'system',
-          content: 'Cached system prompt.',
-          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
-        } ]
-      };
-
-      expect( () => validatePrompt( tagAttr ) ).not.toThrow();
-    } );
-
-    it( 'rejects an empty content parts array', () => {
-      const emptyParts = {
-        name: 'empty-parts',
-        config: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
-        messages: [ { role: 'user', content: [] } ]
-      };
-
-      expect( () => validatePrompt( emptyParts ) ).toThrow( ValidationError );
-    } );
-
-    it( 'rejects a content part with an unsupported type', () => {
-      const wrongType = {
-        name: 'wrong-type',
-        config: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
-        messages: [ {
-          role: 'user',
-          content: [ { type: 'image', text: 'no images yet' } ]
-        } ]
-      };
-
-      expect( () => validatePrompt( wrongType ) ).toThrow( ValidationError );
-    } );
-  } );
-
   it( 'should allow snake_case fields in config via passthrough (no longer strict)', () => {
     const maxTokensSnakeCase = {
       name: 'test-prompt',

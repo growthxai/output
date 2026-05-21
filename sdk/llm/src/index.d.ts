@@ -17,46 +17,21 @@ import type {
 import type { Output as AIOutput } from 'ai';
 
 /**
- * A single content part within a structured message. The parser emits structured
- * content when a message contains `<cache />` markers; otherwise `content` is a
- * plain string.
- */
-export type PromptMessageContentPart = {
-  type: 'text';
-  text: string;
-  /** Provider-specific options applied to this content part (e.g. Anthropic `cacheControl`). */
-  providerOptions?: Record<string, Record<string, unknown>>;
-};
-
-/**
  * Represents a single message in a prompt conversation.
  *
- * @example Flat content
- * ```ts
- * const msg: PromptMessage = { role: 'user', content: 'Hello, Claude!' };
- * ```
- *
- * @example Structured content with a cache breakpoint (produced by `<cache />` markers)
+ * @example
  * ```ts
  * const msg: PromptMessage = {
  *   role: 'user',
- *   content: [
- *     { type: 'text', text: 'Static prefix', providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } },
- *     { type: 'text', text: 'Dynamic suffix' }
- *   ]
+ *   content: 'Hello, Claude!'
  * };
  * ```
  */
 export type PromptMessage = {
   /** The role of the message. Examples include 'system', 'user', and 'assistant'. */
   role: string;
-  /**
-   * Either a flat string or an array of content parts (when the message contains
-   * cache directives). AI SDK accepts either shape.
-   */
-  content: string | PromptMessageContentPart[];
-  /** Message-level provider options (e.g. produced by `<system cache>` shorthand). */
-  providerOptions?: Record<string, Record<string, unknown>>;
+  /** The content of the message */
+  content: string;
 };
 
 /**
@@ -95,9 +70,7 @@ export type Prompt = {
     maxTokens?: number;
 
     /**
-     * Provider-specific tools with configuration. A `providerOptions` key inside
-     * a tool's config is split off and attached to the AI SDK tool definition
-     * (used e.g. for Anthropic tool-level cache control).
+     * Provider-specific tools with configuration.
      *
      * @example Vertex googleSearch with config
      * ```yaml
@@ -114,15 +87,6 @@ export type Prompt = {
      *     searchContextSize: high
      *     filters:
      *       allowedDomains: [wikipedia.org]
-     * ```
-     *
-     * @example Anthropic tool with cache_control
-     * ```yaml
-     * tools:
-     *   my_tool:
-     *     providerOptions:
-     *       anthropic:
-     *         cacheControl: { type: ephemeral }
      * ```
      */
     tools?: Record<string, Record<string, unknown>>;

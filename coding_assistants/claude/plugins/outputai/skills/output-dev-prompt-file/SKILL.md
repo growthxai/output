@@ -300,84 +300,55 @@ Focus on the most important concepts that would benefit from visual explanation.
 
 ## Prompt Caching
 
-Output `.prompt` files can express provider-side prompt caching to keep large static prefixes (system prompts, document context, tool schemas) cheap and fast on repeated calls.
+Output `.prompt` files express prompt caching through top-level `providerOptions` in frontmatter. The intent is set once at the call level; the provider decides where the cache breakpoint lands and bills cache reads / writes accordingly.
 
-### Inline `<cache />` markers — Anthropic cache breakpoints
+> Granular caching (per-message-part, per-tool, inline breakpoints) is not expressible in `.prompt` files today — those workflows still need to drop into TypeScript and call `generateText` with structured messages directly.
 
-Drop a self-closing `<cache />` marker inside any message block to mark a cache breakpoint. The parser splits the message at each marker; the content **immediately preceding** the marker gets `providerOptions.anthropic.cacheControl: { type: 'ephemeral' }`. Add a TTL via `<cache ttl="1h" />`.
+### Anthropic
 
-```
+```yaml
 ---
 provider: anthropic
 model: claude-sonnet-4-6
+providerOptions:
+  anthropic:
+    cacheControl:
+      type: ephemeral       # ephemeral cache (default 5m TTL)
+      # ttl: 1h             # optional — extended 1-hour TTL
 ---
-
-<system>
-You are an expert. Long static instructions here…
-<cache />
-</system>
-
-<user>
-Document context:
-{{ document }}
-<cache ttl="1h" />
-Question: {{ question }}
-</user>
 ```
 
-Use this when you have a stable prefix (system prompt, reference document) followed by variable user input — Anthropic caches the prefix on the first call and reads it back on subsequent calls at ~10% of input cost.
+When the rendered prompt exceeds the model's minimum cacheable token count (1024 for Sonnet, 2048 for Haiku), Anthropic caches the prefix on the first call and serves subsequent calls from cache at ~10% of input cost.
 
-### Whole-message shorthand — `<system cache>`
+### OpenAI
 
-When you want to cache the entire message (no internal breakpoint), use an attribute on the role tag instead of a trailing marker:
-
-```
-<system cache>
-Long static system prompt.
-</system>
-
-<user cache="1h">
-Cached user content with extended TTL.
-</user>
-```
-
-Both `<role cache>` and `<role cache="1h">` are accepted. Equivalent to setting `providerOptions.anthropic.cacheControl` at the message level.
-
-### Per-tool cache control
-
-For Anthropic tool-definition caching, add a `providerOptions` key inside a tool's frontmatter config — it's split off and attached to the tool definition rather than being forwarded to the provider tool factory:
+OpenAI applies prefix caching automatically for prompts ≥1024 tokens. To pin the cache to a stable key (so unrelated traffic doesn't evict it):
 
 ```yaml
-tools:
-  search_docs:
-    maxResults: 5
-    providerOptions:
-      anthropic:
-        cacheControl: { type: ephemeral }
+providerOptions:
+  openai:
+    promptCacheKey: my-stable-key
+    # promptCacheRetention: 24h   # GPT-5.1 family only
 ```
 
-### Other providers
+### Vertex / Gemini
 
-- **OpenAI**: prefix caching is automatic for prompts ≥1024 tokens. Inline `<cache />` markers are ignored. Set a custom cache key via top-level frontmatter:
-  ```yaml
-  providerOptions:
-    openai:
-      promptCacheKey: my-stable-key
-  ```
-- **Vertex / Gemini**: references named cached resources created via the Google GenAI SDK. Inline markers are ignored — pass the resource name at top level:
-  ```yaml
-  providerOptions:
-    vertex:
-      cachedContent: projects/my-project/locations/us-central1/cachedContents/abc123
-  ```
+Gemini reuses a named cached resource that you create out-of-band via the Google GenAI SDK. Reference the resource name in frontmatter:
+
+```yaml
+providerOptions:
+  vertex:
+    cachedContent: projects/my-project/locations/us-central1/cachedContents/abc123
+```
 
 ### Cache hits and writes in traces
 
-The AI SDK surfaces cache reads (`cachedInputTokens` in usage) and Anthropic-specific cache writes (`providerMetadata.anthropic.cacheCreationInputTokens`). Output's cost calculation bills both:
-- `input_cached` — read tokens at `cache_read` rate
-- `input_cache_write` — write tokens at `cache_write` rate (falls back to `input` rate)
+Cache token counts flow into workflow traces under the LLM usage attribute:
 
-Both appear in workflow traces under the LLM usage attribute.
+- `input_cached` — cache reads, billed at the `cache_read` rate
+- `input_cache_write` — cache writes (Anthropic `cacheCreationInputTokens`), billed at the `cache_write` rate (falls back to the `input` rate when pricing data lacks a `cache_write` column)
+
+`cachedInputTokens` is also passed through on `usage`, and the raw `providerMetadata` (with `cacheReadInputTokens` / `cacheCreationInputTokens`) is available on every `generateText` / `streamText` response.
 
 ## CRITICAL: Variable Type Constraint
 

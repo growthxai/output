@@ -3,19 +3,23 @@ provider: anthropic
 model: claude-haiku-4-5-20251001
 temperature: 0
 maxTokens: 1024
+providerOptions:
+  anthropic:
+    cacheControl:
+      type: ephemeral
 ---
 
-<system cache>
+<system>
 You are a careful Q&A assistant. Answer strictly from the document context the
 user provides. If the document does not contain the answer, reply exactly with
 "I don't know". Cite the section heading you used in brackets at the end of
 each sentence.
-</system>
 
-<user>
 <document>
 {{ document }}
 </document>
-<cache />
-Question: {{ question }}
+</system>
+
+<user>
+{{ question }}
 </user>

@@ -131,11 +131,7 @@ export function loadTools( prompt ) {
       throw new ValidationError( `Invalid config for tool "${toolName}": ${z.prettifyError( result.error )}` );
     }
 
-    const { providerOptions: toolProviderOptions, ...factoryConfig } = toolConfig ?? {};
-    const tool = toolFactory( factoryConfig );
-    tools[toolName] = toolProviderOptions ?
-      { ...tool, providerOptions: toolProviderOptions } :
-      tool;
+    tools[toolName] = toolFactory( toolConfig );
   }
 
   return tools;

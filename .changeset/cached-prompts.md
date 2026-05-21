@@ -1,11 +1,7 @@
 ---
-"@outputai/llm": minor
+"@outputai/llm": patch
 ---
 
-`.prompt` files can now declare prompt-caching intent across Anthropic, OpenAI, and Gemini without dropping into TypeScript.
+Surface Anthropic prompt-cache write tokens (`cacheCreationInputTokens` from `providerMetadata.anthropic`) in the cost calculation, billed as `input_cache_write` at the `cache_write` rate. Falls back to the `input` rate when pricing data lacks a `cache_write` column. Cache reads (`cachedInputTokens`) continue to be billed as `input_cached`.
 
-- Inline `<cache />` and `<cache ttl="1h" />` markers split a message into cached/dynamic parts (Anthropic `cache_control`).
-- `<system cache>` / `<user cache="1h">` tag-attribute shorthand marks the whole message for caching.
-- A `providerOptions` key inside a tool's frontmatter config attaches to the AI SDK tool definition (Anthropic tool-level caching).
-- Anthropic `cacheCreationInputTokens` is now billed as `input_cache_write` at the `cache_write` rate (falls back to `input`).
-- Top-level frontmatter `providerOptions.vertex.cachedContent` and `providerOptions.openai.promptCacheKey` continue to flow through unchanged for Gemini and OpenAI caching.
+`.prompt` files can express prompt-caching intent via top-level `providerOptions` (`anthropic.cacheControl`, `openai.promptCacheKey`, `vertex.cachedContent`) — the existing passthrough is now documented in the `output-dev-prompt-file` skill.

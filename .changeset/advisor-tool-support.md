@@ -1,5 +1,5 @@
 ---
-"@outputai/llm": minor
+"@outputai/llm": patch
 ---
 
 Bump `@ai-sdk/anthropic` from `3.0.71` to `3.0.78` to expose Anthropic's new server-side `advisor_20260301` tool factory. Prompts can now configure it directly:
