@@ -3,7 +3,7 @@ import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from '../sandboxed_utils.js';
 import { BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
-import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
+import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, namespace } from '../configs.js';
 import { messageBus } from '#bus';
 import { Client } from '@temporalio/client';
 
@@ -38,7 +38,7 @@ export class ActivityExecutionInterceptor {
 
   async execute( input, next ) {
     const startDate = Date.now();
-    const client = new Client( { connection: this.connection } );
+    const client = new Client( { connection: this.connection, namespace } );
 
     const { workflowExecution: { workflowId }, activityId: id, activityType: name, workflowType: workflowName } = Context.current().info;
     const { executionContext } = headersToObject( input.headers );
