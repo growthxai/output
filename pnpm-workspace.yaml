@@ -22,6 +22,7 @@ catalog:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - "@growthxlabs/gx-workflows"
+  - "@ai-sdk/anthropic"
 
 trustPolicy: no-downgrade
 blockExoticSubdeps: true
