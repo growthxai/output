@@ -1,0 +1,7 @@
+{
+  "document": "# Output.ai Cache TTL\n\nOutput SDK supports two ephemeral cache TTL settings for Anthropic models: the default 5-minute window and an extended 1-hour window. Both are billed at the cache-write rate on first write and the cache-read rate on subsequent reads. The 1-hour window costs roughly 2x the 5-minute write rate but amortizes across many more calls.\n\n# Minimum Token Threshold\n\nAnthropic requires at least 1024 input tokens for Sonnet models and 2048 for Haiku models before a cache breakpoint will be honoured. Smaller prefixes are sent uncached.\n\n# Billing\n\nCache reads are billed at approximately 10% of the standard input rate. Cache writes are billed at approximately 125% of the standard input rate. The break-even point is roughly 2 reads of the same cached prefix.",
+  "questions": [
+    "What is the minimum token threshold for Haiku models?",
+    "What is the break-even point for cache writes?"
+  ]
+}

@@ -270,6 +270,74 @@ describe( 'calculateLLMCallCost', () => {
     } );
   } );
 
+  it( 'bills cache-write tokens at cache_write rate when present in providerMetadata', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [
+      'cache-write-model',
+      { input: 4, cache_read: 1, cache_write: 5, output: 10 }
+    ] ] ) );
+
+    const result = await calculateLLMCallCost( {
+      modelId: 'cache-write-model',
+      usage: { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 100_000 },
+      providerMetadata: { anthropic: { cacheCreationInputTokens: 300_000 } }
+    } );
+
+    expectLLMUsage( result, {
+      modelId: 'cache-write-model',
+      usage: [
+        { type: 'input', ppm: 4, amount: 500_000, total: 2 },
+        { type: 'input_cached', ppm: 1, amount: 200_000, total: 0.2 },
+        { type: 'input_cache_write', ppm: 5, amount: 300_000, total: 1.5 },
+        { type: 'output', ppm: 10, amount: 100_000, total: 1 }
+      ],
+      total: 4.7,
+      tokensUsed: 1_100_000
+    } );
+  } );
+
+  it( 'falls back to input rate when cache_write pricing is missing', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [
+      'no-cache-write-rate',
+      { input: 4, cache_read: 1, output: 10 }
+    ] ] ) );
+
+    const result = await calculateLLMCallCost( {
+      modelId: 'no-cache-write-rate',
+      usage: { inputTokens: 500_000, outputTokens: 0 },
+      providerMetadata: { anthropic: { cacheCreationInputTokens: 100_000 } }
+    } );
+
+    expectLLMUsage( result, {
+      modelId: 'no-cache-write-rate',
+      usage: [
+        { type: 'input', ppm: 4, amount: 400_000, total: 1.6 },
+        { type: 'input_cache_write', ppm: 4, amount: 100_000, total: 0.4 },
+        { type: 'output', ppm: 10, amount: 0, total: 0 }
+      ],
+      total: 2,
+      tokensUsed: 500_000
+    } );
+  } );
+
+  it( 'omits cache-write usage when providerMetadata is missing', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'gpt-4o', { input: 2, output: 10 } ] ] ) );
+
+    const result = await calculateLLMCallCost( {
+      modelId: 'gpt-4o',
+      usage: { inputTokens: 100, outputTokens: 50 }
+    } );
+
+    expectLLMUsage( result, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
+        { type: 'output', ppm: 10, amount: 50, total: 0.0005 }
+      ],
+      total: 0.0007,
+      tokensUsed: 150
+    } );
+  } );
+
   it( 'returns null when pricing lookup throws', async () => {
     const error = new Error( 'boom' );
     mockFetchModelsPricing.mockRejectedValue( error );

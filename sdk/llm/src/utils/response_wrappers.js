@@ -17,7 +17,11 @@ import { endTraceWithSuccess } from './trace.js';
  */
 export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
   const sourcesFromTools = extractSourcesFromSteps( response.steps );
-  const cost = await calculateLLMCallCost( { usage: response.totalUsage, modelId } );
+  const cost = await calculateLLMCallCost( {
+    usage: response.totalUsage,
+    modelId,
+    providerMetadata: response.providerMetadata
+  } );
 
   endTraceWithSuccess( { traceId, modelId, response, cost, sourcesFromTools } );
 
@@ -51,7 +55,11 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
  */
 export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFinish } ) => ( {
   async onFinish( response ) {
-    const cost = await calculateLLMCallCost( { modelId, usage: response.totalUsage } );
+    const cost = await calculateLLMCallCost( {
+      modelId,
+      usage: response.totalUsage,
+      providerMetadata: response.providerMetadata
+    } );
 
     endTraceWithSuccess( { traceId, modelId, response, cost } );
 

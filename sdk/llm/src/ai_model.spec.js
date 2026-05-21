@@ -716,6 +716,38 @@ describe( 'loadTools', () => {
       expect( result.googleSearch.config ).toEqual( customConfig );
     } );
 
+    it( 'splits providerOptions off the tool config and attaches them to the tool definition', () => {
+      const result = loadTools( {
+        config: {
+          provider: 'vertex',
+          tools: {
+            googleSearch: {
+              mode: 'MODE_DYNAMIC',
+              providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+            }
+          }
+        }
+      } );
+
+      // providerOptions is removed from the factory's config (it shouldn't be forwarded to the provider tool factory)…
+      expect( result.googleSearch.config ).toEqual( { mode: 'MODE_DYNAMIC' } );
+      // …and surfaced on the AI SDK tool definition itself.
+      expect( result.googleSearch.providerOptions ).toEqual( {
+        anthropic: { cacheControl: { type: 'ephemeral' } }
+      } );
+    } );
+
+    it( 'omits the providerOptions key entirely when not provided', () => {
+      const result = loadTools( {
+        config: {
+          provider: 'vertex',
+          tools: { googleSearch: { mode: 'MODE_DYNAMIC' } }
+        }
+      } );
+
+      expect( result.googleSearch ).not.toHaveProperty( 'providerOptions' );
+    } );
+
     it( 'handles nested configuration objects', () => {
       const result = loadTools( {
         config: {

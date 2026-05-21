@@ -298,6 +298,87 @@ Focus on the most important concepts that would benefit from visual explanation.
 </user>
 ```
 
+## Prompt Caching
+
+Output `.prompt` files can express provider-side prompt caching to keep large static prefixes (system prompts, document context, tool schemas) cheap and fast on repeated calls.
+
+### Inline `<cache />` markers — Anthropic cache breakpoints
+
+Drop a self-closing `<cache />` marker inside any message block to mark a cache breakpoint. The parser splits the message at each marker; the content **immediately preceding** the marker gets `providerOptions.anthropic.cacheControl: { type: 'ephemeral' }`. Add a TTL via `<cache ttl="1h" />`.
+
+```
+---
+provider: anthropic
+model: claude-sonnet-4-6
+---
+
+<system>
+You are an expert. Long static instructions here…
+<cache />
+</system>
+
+<user>
+Document context:
+{{ document }}
+<cache ttl="1h" />
+Question: {{ question }}
+</user>
+```
+
+Use this when you have a stable prefix (system prompt, reference document) followed by variable user input — Anthropic caches the prefix on the first call and reads it back on subsequent calls at ~10% of input cost.
+
+### Whole-message shorthand — `<system cache>`
+
+When you want to cache the entire message (no internal breakpoint), use an attribute on the role tag instead of a trailing marker:
+
+```
+<system cache>
+Long static system prompt.
+</system>
+
+<user cache="1h">
+Cached user content with extended TTL.
+</user>
+```
+
+Both `<role cache>` and `<role cache="1h">` are accepted. Equivalent to setting `providerOptions.anthropic.cacheControl` at the message level.
+
+### Per-tool cache control
+
+For Anthropic tool-definition caching, add a `providerOptions` key inside a tool's frontmatter config — it's split off and attached to the tool definition rather than being forwarded to the provider tool factory:
+
+```yaml
+tools:
+  search_docs:
+    maxResults: 5
+    providerOptions:
+      anthropic:
+        cacheControl: { type: ephemeral }
+```
+
+### Other providers
+
+- **OpenAI**: prefix caching is automatic for prompts ≥1024 tokens. Inline `<cache />` markers are ignored. Set a custom cache key via top-level frontmatter:
+  ```yaml
+  providerOptions:
+    openai:
+      promptCacheKey: my-stable-key
+  ```
+- **Vertex / Gemini**: references named cached resources created via the Google GenAI SDK. Inline markers are ignored — pass the resource name at top level:
+  ```yaml
+  providerOptions:
+    vertex:
+      cachedContent: projects/my-project/locations/us-central1/cachedContents/abc123
+  ```
+
+### Cache hits and writes in traces
+
+The AI SDK surfaces cache reads (`cachedInputTokens` in usage) and Anthropic-specific cache writes (`providerMetadata.anthropic.cacheCreationInputTokens`). Output's cost calculation bills both:
+- `input_cached` — read tokens at `cache_read` rate
+- `input_cache_write` — write tokens at `cache_write` rate (falls back to `input` rate)
+
+Both appear in workflow traces under the LLM usage attribute.
+
 ## CRITICAL: Variable Type Constraint
 
 The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects as variables -- TypeScript will reject them.

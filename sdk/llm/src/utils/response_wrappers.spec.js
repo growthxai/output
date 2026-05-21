@@ -40,7 +40,8 @@ describe( 'wrapTextResponse', () => {
       text: 'hello',
       totalUsage: { inputTokens: 10, outputTokens: 5 },
       steps: [],
-      sources: []
+      sources: [],
+      providerMetadata: { anthropic: { cacheCreationInputTokens: 1024 } }
     };
 
     const wrapped = await wrapTextResponse( { traceId, modelId, response } );
@@ -50,7 +51,8 @@ describe( 'wrapTextResponse', () => {
     expect( wrapped.cost ).toEqual( mockCost );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.totalUsage,
-      modelId
+      modelId,
+      providerMetadata: response.providerMetadata
     } );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
       traceId,
@@ -146,7 +148,8 @@ describe( 'wrapStreamOnFinishResponse', () => {
     const response = {
       text: 'done',
       totalUsage: { inputTokens: 1 },
-      finishReason: 'stop'
+      finishReason: 'stop',
+      providerMetadata: { anthropic: { cacheReadInputTokens: 256 } }
     };
 
     const callbacks = wrapStreamOnFinishResponse( {
@@ -157,6 +160,11 @@ describe( 'wrapStreamOnFinishResponse', () => {
 
     await callbacks.onFinish( response );
 
+    expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
+      modelId,
+      usage: response.totalUsage,
+      providerMetadata: response.providerMetadata
+    } );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
       traceId,
       modelId,

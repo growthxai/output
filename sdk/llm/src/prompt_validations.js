@@ -1,5 +1,20 @@
 import { ValidationError, z } from '@outputai/core';
 
+const messageContentPartSchema = z.object( {
+  type: z.literal( 'text' ),
+  text: z.string(),
+  providerOptions: z.record( z.string(), z.unknown() ).optional()
+} ).strict();
+
+const messageSchema = z.object( {
+  role: z.string(),
+  content: z.union( [
+    z.string(),
+    z.array( messageContentPartSchema ).min( 1 )
+  ] ),
+  providerOptions: z.record( z.string(), z.unknown() ).optional()
+} ).strict();
+
 export const promptSchema = z.object( {
   name: z.string(),
   config: z.object( {
@@ -15,12 +30,7 @@ export const promptSchema = z.object( {
       } ).passthrough().optional()
     } ).passthrough().optional()
   } ).passthrough(),
-  messages: z.array(
-    z.object( {
-      role: z.string(),
-      content: z.string()
-    } ).strict()
-  )
+  messages: z.array( messageSchema )
 } ).strict();
 
 const SNAKE_CASE_WARNINGS = {
