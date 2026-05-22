@@ -97,7 +97,7 @@ export function addEventActionWithContext( action, options ) {
     if ( action === EventAction.ADD_ATTR ) {
       const attribute = options.details;
       if ( !( attribute instanceof BaseAttribute ) ) {
-        throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance, ignoring` );
+        throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
       } else {
         sendAttributeSignal( options.details );
       }
