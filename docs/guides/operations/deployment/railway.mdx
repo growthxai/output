@@ -105,10 +105,11 @@ RUN npm run output:worker:install
 
 # Build the worker
 COPY src/ ./src/
+COPY config/ ./config/
 COPY tsconfig.json ./
 RUN npm run output:worker:build
 
-# Clean up source files after build
+# Clean up source files after build (config stays — credentials are needed at runtime)
 RUN rm -rf ./src tsconfig.json
 
 # Create non-root user for security
@@ -324,6 +325,12 @@ Workers scale independently from the API. If workflows are queuing up in Tempora
 1. Increase `NODE_OPTIONS` memory allocation
 2. Upgrade Railway plan for more resources
 3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+
+### Credentials not found
+
+1. Verify `config/credentials.yml.enc` (or the environment-scoped equivalent) exists in your repo and is committed
+2. Verify `OUTPUT_CREDENTIALS_KEY` (or the environment-scoped variant) is set in Railway with the correct master key
+3. Verify the Dockerfile includes `COPY config/ ./config/` — without it, the encrypted file never reaches the container
 
 ### Build failures
 
