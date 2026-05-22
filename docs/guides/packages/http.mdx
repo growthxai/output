@@ -115,7 +115,7 @@ Every HTTP call made through `@outputai/http`'s `fetch` (and the higher-level `h
 import { on } from '@outputai/core/hooks';
 
 on( 'http:request', async ( payload ) => {
-  // payload: { workflowId, runId, activityId?, requestId, method, url, status?, durationMs, outcome }
+  // payload: { eventId, workflowId, runId, activityId?, requestId, method, url, status?, durationMs, outcome }
   console.log( `[${payload.outcome}] ${payload.method} ${payload.url} ${payload.status ?? '-'} ${payload.durationMs}ms` );
 } );
 ```
@@ -124,10 +124,11 @@ The payload includes:
 
 | Field | Description |
 |-------|-------------|
+| `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key — `http:request` and `cost:http:request` for the same fetch get distinct `eventId`s, so dedup keyed on `eventId` won't collapse the two. |
 | `workflowId` | Workflow id (stable across retries / continue-as-new). Auto-attached. |
 | `runId` | Temporal run id for the current execution attempt. Auto-attached. |
 | `activityId` | Activity / step id, when emitted from inside a step. Auto-attached. |
-| `requestId` | UUID generated per request inside `@outputai/http`. |
+| `requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
 | `method` | HTTP method (uppercase). |
 | `url` | Absolute request URL. |
 | `status` | HTTP status code; `undefined` on network failure. |
