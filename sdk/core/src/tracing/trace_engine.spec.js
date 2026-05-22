@@ -157,7 +157,7 @@ describe( 'tracing/trace_engine', () => {
     } );
   } );
 
-  it( 'addEventActionWithContext() ignores invalid ADD_ATTR signal payloads', async () => {
+  it( 'addEventActionWithContext() throws on invalid ADD_ATTR signal payloads', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
     const sendAttributeSignalMock = vi.fn();
     storageLoadMock.mockReturnValue( {
@@ -173,12 +173,10 @@ describe( 'tracing/trace_engine', () => {
     expect( () => addEventActionWithContext(
       EventAction.ADD_ATTR,
       { kind: 'http', name: 'request', id: 'req-1', details: invalidAttribute }
-    ) ).not.toThrow();
+    ) ).toThrow( /not a BaseAttribute instance/ );
 
     expect( sendAttributeSignalMock ).not.toHaveBeenCalled();
-    expect( logWarnMock ).toHaveBeenCalledWith( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance, ignoring` );
-    expect( localExecMock ).toHaveBeenCalledTimes( 1 );
-    expect( localExecMock.mock.calls[0][0].entry.details ).toBe( invalidAttribute );
+    expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
   it( 'addEventActionWithContext() does not emit when storage executionContext.disableTrace is true', async () => {

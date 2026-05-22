@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BusEventType } from '#consts';
+import { BusEventType, Signal } from '#consts';
 
 const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
 const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
@@ -174,7 +174,8 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
     expect( logWarnMock ).toHaveBeenCalledWith(
-      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow'
+      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow',
+      { workflowId: 'wf-1', workflowName: 'myWorkflow', activityId: 'act-1', activityName: 'myWorkflow#myStep' }
     );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
     expect( addEventEndMock ).toHaveBeenCalledOnce();
@@ -193,7 +194,8 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
     expect( logWarnMock ).toHaveBeenCalledWith(
-      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow'
+      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow',
+      { workflowId: 'wf-1', workflowName: 'myWorkflow', activityId: 'act-1', activityName: 'myWorkflow#myStep' }
     );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.objectContaining( { error } ) );
     expect( addEventErrorMock ).toHaveBeenCalledOnce();
@@ -213,7 +215,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
 
     expect( attribute.setActivity ).toHaveBeenCalledWith( 'act-1', 'myWorkflow#myStep' );
-    expect( workflowHandleMock.signal ).toHaveBeenCalledWith( 'add_attribute', attribute );
+    expect( workflowHandleMock.signal ).toHaveBeenCalledWith( Signal.ADD_ATTRIBUTE, attribute );
     expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [ expect.any( Promise ) ], 30_000 );
   } );
 

@@ -221,12 +221,7 @@ export const toUrlSafeBase64 = uuid => {
  * @returns {Promise<PromiseSettledResult<Awaited<T>>[]>}
  * @throws {Error & { isTimeout: true }}
  */
-export const allSettledWithTimeout = async ( promises, timeoutMs ) => {
-  if ( promises.length === 0 ) {
-    return [];
-  }
-
-  const state = { timeoutMonitor: null };
+export const allSettledWithTimeout = ( () => {
   class TimeoutError extends Error {
     isTimeout = true;
     constructor() {
@@ -234,14 +229,22 @@ export const allSettledWithTimeout = async ( promises, timeoutMs ) => {
     }
   }
 
-  try {
-    return await Promise.race( [
-      Promise.allSettled( promises ),
-      new Promise( ( _, reject ) => {
-        state.timeoutMonitor = setTimeout( () => reject( new TimeoutError() ), timeoutMs );
-      } )
-    ] );
-  } finally {
-    clearTimeout( state.timeoutMonitor );
-  }
-};
+  return async ( promises, timeoutMs ) => {
+    if ( promises.length === 0 ) {
+      return [];
+    }
+
+    const state = { timeoutMonitor: null };
+
+    try {
+      return await Promise.race( [
+        Promise.allSettled( promises ),
+        new Promise( ( _, reject ) => {
+          state.timeoutMonitor = setTimeout( () => reject( new TimeoutError() ), timeoutMs );
+        } )
+      ] );
+    } finally {
+      clearTimeout( state.timeoutMonitor );
+    }
+  };
+} )();

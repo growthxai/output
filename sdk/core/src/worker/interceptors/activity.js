@@ -13,18 +13,6 @@ const log = createChildLogger( 'ActivityInterceptor' );
 
 const IN_FLIGHT_SIGNALS_TIMEOUT_MS = 30_000;
 
-const flushSignals = async signals => {
-  try {
-    await allSettledWithTimeout( signals, IN_FLIGHT_SIGNALS_TIMEOUT_MS );
-  } catch ( error ) {
-    if ( error.isTimeout ) {
-      log.warn( 'Some usage/cost attributes were missed because not all activity signals were sent to the workflow' );
-    } else {
-      throw error;
-    }
-  }
-};
-
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
 
@@ -85,13 +73,34 @@ export class ActivityExecutionInterceptor {
       signals: []
     };
 
+    const errorContext = {
+      workflowId,
+      workflowName,
+      activityId: id,
+      activityName: name
+    };
+
     const sendAttributeSignal = attribute => {
       attribute.setActivity( id, name );
       state.signals.push(
         workflowHandle
           .signal( Signal.ADD_ATTRIBUTE, attribute )
-          .catch( e => log.warn( `Signal "${Signal.ADD_ATTRIBUTE}" failed`, { message: e.message, stack: e.stack } ) )
+          .catch( e =>
+            log.warn( `Signal "${Signal.ADD_ATTRIBUTE}" failed`, { message: e.message, stack: e.stack, activityId: id, ...errorContext } )
+          )
       );
+    };
+
+    const flushSignals = async signals => {
+      try {
+        await allSettledWithTimeout( signals, IN_FLIGHT_SIGNALS_TIMEOUT_MS );
+      } catch ( error ) {
+        if ( error.isTimeout ) {
+          log.warn( 'Some usage/cost attributes were missed because not all activity signals were sent to the workflow', errorContext );
+        } else {
+          throw error;
+        }
+      }
     };
 
     // Wraps the execution with accessible metadata for the activity
