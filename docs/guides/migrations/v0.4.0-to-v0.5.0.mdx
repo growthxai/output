@@ -207,7 +207,6 @@ HTTP and LLM cost payloads are now trace attributes. Hook payloads include `work
 
 ```json
 {
-  "eventId": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
   "type": "http:request:cost",
   "workflowId": "workflow-123",
   "activityId": "activity-456",
@@ -220,7 +219,6 @@ HTTP and LLM cost payloads are now trace attributes. Hook payloads include `work
 
 | Field | Description |
 |-------|-------------|
-| `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key. |
 | `type` | Always `"http:request:cost"`. |
 | `workflowId` | Workflow execution ID. Present on hook payloads. |
 | `activityId` | Activity ID of the step that made the request, when available. |
@@ -233,7 +231,6 @@ HTTP and LLM cost payloads are now trace attributes. Hook payloads include `work
 
 ```json
 {
-  "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "type": "llm:usage",
   "workflowId": "workflow-123",
   "activityId": "activity-456",
@@ -250,7 +247,6 @@ HTTP and LLM cost payloads are now trace attributes. Hook payloads include `work
 
 | Field | Description |
 |-------|-------------|
-| `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key. |
 | `type` | Always `"llm:usage"`. |
 | `workflowId` | Workflow execution ID. Present on hook payloads. |
 | `activityId` | Activity ID of the step that made the LLM request, when available. |
