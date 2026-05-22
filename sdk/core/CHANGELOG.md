@@ -1,5 +1,12 @@
 # @outputai/core
 
+## 0.5.1
+
+### Patch Changes
+
+- 93f660c: Fix worker activity Temporal client to use the configured namespace when signaling workflows. This resolves unauthorized signal errors in Temporal Cloud production namespaces.
+- 8e45051: Improve reliability of workflow usage and cost metadata collection. Transient Temporal signal failures while recording activity attributes are now handled gracefully, reducing the chance of worker interruptions during workflow runs.
+
 ## 0.5.0
 
 ### Minor Changes

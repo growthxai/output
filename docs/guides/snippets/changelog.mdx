@@ -1,5 +1,13 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.5.1" description="2026-05-22 · patch release">
+
+**`@outputai/core`** — Fix worker activity Temporal client to use the configured namespace when signaling workflows. This resolves unauthorized signal errors in Temporal Cloud production namespaces.
+
+**`@outputai/core`** — Improve reliability of workflow usage and cost metadata collection. Transient Temporal signal failures while recording activity attributes are now handled gracefully, reducing the chance of worker interruptions during workflow runs.
+
+</Update>
+
 <Update label="v0.5.0" description="2026-05-20 · minor release">
 
 **`@outputai/core`, `@outputai/http`, `@outputai/llm`, `output-api`** — Workflow runs now return durable usage and cost metadata alongside the workflow output. Each completed or failed run can include raw `attributes` plus convenient `aggregations` for total cost, token usage, and HTTP request counts.

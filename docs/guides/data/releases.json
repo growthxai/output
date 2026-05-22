@@ -1,6 +1,33 @@
 {
   "releases": [
     {
+      "version": "0.5.1",
+      "date": "2026-05-22",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "every-queens-return",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fix worker activity Temporal client to use the configured namespace when signaling workflows. This resolves unauthorized signal errors in Temporal Cloud production namespaces."
+        },
+        {
+          "id": "soft-candies-jog",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Improve reliability of workflow usage and cost metadata collection. Transient Temporal signal failures while recording activity attributes are now handled gracefully, reducing the chance of worker interruptions during workflow runs."
+        }
+      ]
+    },
+    {
       "version": "0.5.0",
       "date": "2026-05-20",
       "level": "minor",
