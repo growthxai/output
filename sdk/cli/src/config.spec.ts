@@ -7,6 +7,7 @@ describe( 'config', () => {
     'OUTPUT_API_URL',
     'OUTPUT_API_HOST_PORT',
     'OUTPUT_TEMPORAL_UI_HOST_PORT',
+    'OUTPUT_TEMPORAL_HOST_PORT',
     'OUTPUT_API_AUTH_TOKEN',
     'DOCKER_SERVICE_NAME',
     'OUTPUT_DEBUG',
@@ -47,12 +48,13 @@ describe( 'config', () => {
     delete process.env.OUTPUT_API_URL;
     delete process.env.OUTPUT_API_HOST_PORT;
     delete process.env.OUTPUT_TEMPORAL_UI_HOST_PORT;
+    delete process.env.OUTPUT_TEMPORAL_HOST_PORT;
     delete process.env.DOCKER_SERVICE_NAME;
     delete process.env.OUTPUT_DEBUG;
     delete process.env.OUTPUT_CLI_ENV;
 
     expect( config.apiUrl ).toBe( 'http://localhost:3001' );
-    expect( config.ports ).toEqual( { temporalUi: 8080, api: 3001 } );
+    expect( config.ports ).toEqual( { temporalUi: 8080, temporal: 7233, api: 3001 } );
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8080' );
     expect( config.dockerServiceName ).toBe( 'output-sdk' );
     expect( config.debugMode ).toBe( false );
@@ -79,9 +81,10 @@ describe( 'config', () => {
 
   it( 'reads port overrides from env vars', () => {
     process.env.OUTPUT_TEMPORAL_UI_HOST_PORT = '8081';
+    process.env.OUTPUT_TEMPORAL_HOST_PORT = '7234';
     process.env.OUTPUT_API_HOST_PORT = '3002';
 
-    expect( config.ports ).toEqual( { temporalUi: 8081, api: 3002 } );
+    expect( config.ports ).toEqual( { temporalUi: 8081, temporal: 7234, api: 3002 } );
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8081' );
   } );
 
@@ -89,10 +92,16 @@ describe( 'config', () => {
     delete process.env.OUTPUT_API_URL;
     process.env.OUTPUT_API_HOST_PORT = '';
     process.env.OUTPUT_TEMPORAL_UI_HOST_PORT = '';
+    process.env.OUTPUT_TEMPORAL_HOST_PORT = '';
 
     expect( config.apiUrl ).toBe( 'http://localhost:3001' );
-    expect( config.ports ).toEqual( { temporalUi: 8080, api: 3001 } );
+    expect( config.ports ).toEqual( { temporalUi: 8080, temporal: 7233, api: 3001 } );
     expect( config.temporalUiUrl ).toBe( 'http://localhost:8080' );
+  } );
+
+  it( 'throws InvalidPortError on invalid OUTPUT_TEMPORAL_HOST_PORT', () => {
+    process.env.OUTPUT_TEMPORAL_HOST_PORT = 'not-a-port';
+    expect( () => config.ports ).toThrow( InvalidPortError );
   } );
 
   it( 'throws InvalidPortError on non-numeric port values', () => {
