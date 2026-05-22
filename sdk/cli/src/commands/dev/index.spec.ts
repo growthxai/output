@@ -315,14 +315,22 @@ describe( 'dev command', () => {
       const runPromise = cmd.run();
       await new Promise( resolve => setImmediate( resolve ) );
 
-      getStartDockerComposeOptions().onExit?.( 1, null, 'failed to bind host port' );
+      getStartDockerComposeOptions().onExit?.( 1, null, 'Bind for 0.0.0.0:3001 failed: port is already allocated' );
       await runPromise;
 
       expect( inkInstance.unmount ).toHaveBeenCalledWith( expect.objectContaining( {
         message: expect.stringContaining( 'Docker compose exited with code 1' )
       } ) );
       expect( cmd.error ).toHaveBeenCalledWith(
-        expect.stringContaining( 'Recent Docker output:\nfailed to bind host port' ),
+        expect.stringContaining( 'Recent Docker output:\nBind for 0.0.0.0:3001 failed' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Port 3001 is already in use.' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'OUTPUT_API_HOST_PORT=<other port>' ),
         { exit: 1 }
       );
     } );
