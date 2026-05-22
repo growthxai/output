@@ -1,5 +1,13 @@
 # @outputai/http
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [93f660c]
+- Updated dependencies [8e45051]
+  - @outputai/core@0.5.1
+
 ## 0.5.0
 
 ### Minor Changes
