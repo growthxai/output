@@ -4,6 +4,10 @@ import { randomUUID } from 'node:crypto';
 const emitter = new EventEmitter();
 const originalEmit = emitter.emit.bind( emitter );
 
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray( value );
+
+const attachEventId = payload => ( { ...payload, eventId: payload.eventId ?? randomUUID() } );
+
 /**
  * Every object payload emitted through `messageBus` is stamped with a UUID v4
  * `eventId` — a stable per-emit idempotency key for downstream consumers
@@ -20,11 +24,13 @@ emitter.emit = ( event, ...args ) => {
   if ( args.length === 0 ) {
     return originalEmit( event );
   }
+
   const [ payload, ...rest ] = args;
-  if ( payload && typeof payload === 'object' && !Array.isArray( payload ) ) {
-    return originalEmit( event, { ...payload, eventId: payload.eventId ?? randomUUID() }, ...rest );
+  if ( !isObject( payload ) ) {
+    return originalEmit( event, payload, ...rest );
   }
-  return originalEmit( event, payload, ...rest );
+
+  return originalEmit( event, attachEventId( payload ), ...rest );
 };
 
 export const messageBus = emitter;
