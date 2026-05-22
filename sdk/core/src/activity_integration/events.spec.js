@@ -13,6 +13,9 @@ vi.mock( '#bus', () => ( {
 
 import { emitEvent } from './events.js';
 
+// `eventId` stamping is the bus layer's responsibility (see bus.spec.js + the
+// integration tests in event_id_integration.spec.js). Assertions here use
+// `objectContaining` so they don't have to know about that enrichment.
 describe( 'emitEvent', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -26,12 +29,12 @@ describe( 'emitEvent', () => {
 
     emitEvent( 'cost:llm:request', { modelId: 'gpt-4o' } );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:llm:request', {
+    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:llm:request', expect.objectContaining( {
       workflowId: 'wf-1',
       runId: 'run-1',
       activityId: 'act-1',
       modelId: 'gpt-4o'
-    } );
+    } ) );
   } );
 
   it( 'handles missing executionContext gracefully', () => {
@@ -39,12 +42,12 @@ describe( 'emitEvent', () => {
 
     emitEvent( 'foo:bar', { x: 1 } );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:foo:bar', {
+    expect( emitMock ).toHaveBeenCalledWith( 'external:foo:bar', expect.objectContaining( {
       workflowId: undefined,
       runId: undefined,
       activityId: undefined,
       x: 1
-    } );
+    } ) );
   } );
 
   it( 'handles missing payload', () => {
@@ -55,11 +58,11 @@ describe( 'emitEvent', () => {
 
     emitEvent( 'lifecycle:start' );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:lifecycle:start', {
+    expect( emitMock ).toHaveBeenCalledWith( 'external:lifecycle:start', expect.objectContaining( {
       workflowId: 'wf-2',
       runId: 'run-2',
       activityId: 'act-2'
-    } );
+    } ) );
   } );
 
   it( 'does not let payload override workflowId / runId / activityId', () => {
@@ -77,11 +80,11 @@ describe( 'emitEvent', () => {
 
     // Context fields are spread after the payload, so caller-supplied
     // workflowId / runId / activityId cannot escape the executionContext.
-    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:http:request', {
+    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:http:request', expect.objectContaining( {
       workflowId: 'wf-3',
       runId: 'run-3',
       activityId: 'act-3',
       url: 'https://example.com'
-    } );
+    } ) );
   } );
 } );

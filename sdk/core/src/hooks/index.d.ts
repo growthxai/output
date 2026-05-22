@@ -2,6 +2,8 @@
  * Payload passed to the onError handler when a workflow, activity or runtime error occurs.
  */
 export interface ErrorHookPayload {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
   /** Origin of the error: workflow execution, activity execution, or runtime. */
   source: 'workflow' | 'activity' | 'runtime';
   /** Name of the workflow, when the error is scoped to a workflow or activity. */
@@ -16,6 +18,8 @@ export interface ErrorHookPayload {
  * Payload passed to the onWorkflowStart handler when a workflow run begins.
  */
 export interface WorkflowStartHookPayload {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
   /** Workflow id (stable across retries / continue-as-new). */
   id: string;
   /** Temporal run id for the current execution attempt. */
@@ -28,6 +32,8 @@ export interface WorkflowStartHookPayload {
  * Payload passed to the onWorkflowEnd handler when a workflow run completes successfully.
  */
 export interface WorkflowEndHookPayload {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
   /** Workflow id (stable across retries / continue-as-new). */
   id: string;
   /** Temporal run id for the current execution attempt. */
@@ -42,6 +48,8 @@ export interface WorkflowEndHookPayload {
  * Payload passed to the onWorkflowError handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
   /** Workflow id (stable across retries / continue-as-new). */
   id: string;
   /** Temporal run id for the current execution attempt. */
@@ -107,6 +115,8 @@ export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPa
  * to the fields listed here.
  */
 export interface HttpRequestHookPayload {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
   /** Workflow id (stable across retries / continue-as-new). */
   workflowId: string;
   /** Temporal run id for the current execution attempt. */

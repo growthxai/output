@@ -37,9 +37,9 @@ You can register multiple files: `"hookFiles": ["./src/error_hooks.js", "./src/o
 
 ## The three sources
 
-Errors are emitted from three origins. Every payload includes `source` and `error`. Activity- and workflow-scoped errors also include stable ids and names for the run and workflow.
+Errors are emitted from three origins. Every payload includes `eventId`, `source`, and `error`. Activity- and workflow-scoped errors also include stable ids and names for the run and workflow.
 
-| Source | When it fires | Fields besides `source` and `error` |
+| Source | When it fires | Fields besides `eventId`, `source`, and `error` |
 |--------|----------------|----------------------------------------|
 | `activity` | A step or evaluator fails (after retries are exhausted). | `activityId`, `activityName`, `workflowId`, `workflowName` |
 | `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | `workflowId`, `workflowName` |
@@ -47,11 +47,11 @@ Errors are emitted from three origins. Every payload includes `source` and `erro
 
 So:
 
-- **Activity** — `source: 'activity'`, `activityId`, `activityName`, `workflowId`, `workflowName`, `error`.
-- **Workflow** — `source: 'workflow'`, `workflowId`, `workflowName`, `error` (no activity fields).
-- **Runtime** — `source: 'runtime'` and `error` only.
+- **Activity** — `eventId`, `source: 'activity'`, `activityId`, `activityName`, `workflowId`, `workflowName`, `error`.
+- **Workflow** — `eventId`, `source: 'workflow'`, `workflowId`, `workflowName`, `error` (no activity fields).
+- **Runtime** — `eventId`, `source: 'runtime'`, and `error` only.
 
-Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
+`eventId` is a UUID v4 stamped per emit — use it as a stable idempotency key when forwarding errors to external systems (Sentry, PagerDuty, your own incident pipeline). Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
 
 ## Handler safety: no throws
 

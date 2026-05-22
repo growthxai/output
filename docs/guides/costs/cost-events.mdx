@@ -23,8 +23,9 @@ See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file reg
 ```javascript src/llm_cost_hooks.js
 import { on } from '@outputai/core/hooks';
 
-on( 'cost:llm:request', async ( { workflowId, activityId, activityName, modelId, total, tokensUsed, usage } ) => {
+on( 'cost:llm:request', async ( { eventId, workflowId, activityId, activityName, modelId, total, tokensUsed, usage } ) => {
   console.log( 'LLM call', {
+    eventId,
     workflowId,
     activityId,
     activityName,
@@ -39,8 +40,8 @@ on( 'cost:llm:request', async ( { workflowId, activityId, activityName, modelId,
 ```javascript src/http_cost_hooks.js
 import { on } from '@outputai/core/hooks';
 
-on( 'cost:http:request', async ( { workflowId, activityId, activityName, requestId, url, total } ) => {
-  console.log( 'HTTP request', { workflowId, activityId, activityName, requestId, url, total } );
+on( 'cost:http:request', async ( { eventId, workflowId, activityId, activityName, requestId, url, total } ) => {
+  console.log( 'HTTP request', { eventId, workflowId, activityId, activityName, requestId, url, total } );
 } );
 ```
 
@@ -58,6 +59,7 @@ The handler receives a single LLM usage attribute object:
 
 ```json
 {
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "workflowId": "workflow-123",
   "type": "llm:usage",
   "activityId": "activity-1",
@@ -74,6 +76,7 @@ The handler receives a single LLM usage attribute object:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:llm:request` and `http:request` for the same fetch get distinct `eventId`s. |
 | `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the call runs inside a workflow. |
 | `type` | `"llm:usage"` | Attribute type. |
 | `activityId` | `string \| undefined` | Temporal activity ID of the step that made the LLM call. Present when the call runs inside a workflow activity. |
@@ -115,6 +118,7 @@ The handler receives a single HTTP request cost attribute object:
 
 ```json
 {
+  "eventId": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
   "workflowId": "workflow-123",
   "type": "http:request:cost",
   "activityId": "activity-1",
@@ -127,6 +131,7 @@ The handler receives a single HTTP request cost attribute object:
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:http:request` and `http:request` for the same fetch get distinct `eventId`s, so consumers keying by `eventId` won't collapse the two. |
 | `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the request runs inside a workflow. |
 | `type` | `"http:request:cost"` | Attribute type. |
 | `activityId` | `string \| undefined` | Temporal activity ID of the step that made the HTTP request. Present when the request runs inside a workflow activity. |
