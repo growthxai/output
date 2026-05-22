@@ -132,3 +132,16 @@ export function deepMerge( a: object, b: object ): object;
  * @returns Short string using A–Z, a–z, 0–9, `_`, `-` (typically 21–22 chars).
  */
 export function toUrlSafeBase64( uuid: string ): string;
+
+/**
+ * Similar to native Promise.allSettled, but rejects with `{ isTimeout: true }`
+ * if the execution exceeds the given timeout.
+ *
+ * @param promises - Values or promises to wait for.
+ * @param timeoutMs - Maximum wait time in milliseconds.
+ * @returns Native Promise.allSettled-style results.
+ */
+export function allSettledWithTimeout<T>(
+  promises: Array<T | PromiseLike<T>>,
+  timeoutMs: number
+): Promise<PromiseSettledResult<Awaited<T>>[]>;

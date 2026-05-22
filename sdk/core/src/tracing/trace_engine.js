@@ -4,7 +4,7 @@ import { serializeError } from './tools/utils.js';
 import { isStringboolTrue } from '#utils';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
-import { ComponentType, Signal } from '#consts';
+import { ComponentType } from '#consts';
 import { createChildLogger } from '#logger';
 import { EventAction } from './trace_consts.js';
 import { BaseAttribute } from './trace_attribute.js';
@@ -93,14 +93,14 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, exe
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, parentName, executionContext, workflowHandle } = storeContent;
+    const { parentId, executionContext, sendAttributeSignal } = storeContent;
     if ( action === EventAction.ADD_ATTR ) {
       const attribute = options.details;
       if ( !( attribute instanceof BaseAttribute ) ) {
-        throw new Error( `${EventAction.ADD_ATTR} called argument that is not a BaseAttribute instance` );
+        log.warn( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance, ignoring` );
+      } else {
+        sendAttributeSignal( options.details );
       }
-      attribute.setActivity( parentId, parentName );
-      workflowHandle.signal( Signal.ADD_ATTRIBUTE, attribute );
     }
     addEventAction( action, { ...options, parentId, executionContext } );
   }

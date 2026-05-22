@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Readable } from 'node:stream';
 import {
   clone,
@@ -6,7 +6,8 @@ import {
   serializeFetchResponse,
   deepMerge,
   isPlainObject,
-  toUrlSafeBase64
+  toUrlSafeBase64,
+  allSettledWithTimeout
 } from './utils.js';
 
 describe( 'clone', () => {
@@ -19,6 +20,44 @@ describe( 'clone', () => {
     expect( original.nested.b ).toBe( 2 );
     expect( copied.nested.b ).toBe( 3 );
     expect( copied ).not.toBe( original );
+  } );
+} );
+
+describe( 'allSettledWithTimeout', () => {
+  it( 'returns an empty array when no promises are provided', async () => {
+    await expect( allSettledWithTimeout( [], 100 ) ).resolves.toEqual( [] );
+  } );
+
+  it( 'returns native allSettled results when all promises settle before timeout', async () => {
+    const error = new Error( 'boom' );
+    const result = await allSettledWithTimeout( [
+      Promise.resolve( 'ok' ),
+      Promise.reject( error ),
+      42
+    ], 100 );
+
+    expect( result ).toEqual( [
+      { status: 'fulfilled', value: 'ok' },
+      { status: 'rejected', reason: error },
+      { status: 'fulfilled', value: 42 }
+    ] );
+  } );
+
+  it( 'rejects with a timeout-shaped error when promises do not settle in time', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = new Promise( () => {} );
+      const result = allSettledWithTimeout( [ pending ], 1000 );
+      const assertion = expect( result ).rejects.toMatchObject( {
+        isTimeout: true,
+        message: 'Timed out before completing all promises'
+      } );
+
+      await vi.advanceTimersByTimeAsync( 1000 );
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   } );
 } );
 
