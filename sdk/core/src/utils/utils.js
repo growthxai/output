@@ -209,3 +209,42 @@ export const toUrlSafeBase64 = uuid => {
   const toDigits = n => n <= 0n ? [] : toDigits( n / base ).concat( alphabet[Number( n % base )] );
   return toDigits( BigInt( '0x' + hex ) ).join( '' );
 };
+
+/**
+ * Similar to native Promise.allSettled but throws an Error if the execution exceeds a given time.
+ *
+ * The error thrown will have attribute `.isTimeout` as `true`.
+ *
+ * @template T
+ * @param {Array<T | PromiseLike<T>>} promises
+ * @param {number} timeoutMs
+ * @returns {Promise<PromiseSettledResult<Awaited<T>>[]>}
+ * @throws {Error & { isTimeout: true }}
+ */
+export const allSettledWithTimeout = ( () => {
+  class TimeoutError extends Error {
+    isTimeout = true;
+    constructor() {
+      super( 'Timed out before completing all promises' );
+    }
+  }
+
+  return async ( promises, timeoutMs ) => {
+    if ( promises.length === 0 ) {
+      return [];
+    }
+
+    const state = { timeoutMonitor: null };
+
+    try {
+      return await Promise.race( [
+        Promise.allSettled( promises ),
+        new Promise( ( _, reject ) => {
+          state.timeoutMonitor = setTimeout( () => reject( new TimeoutError() ), timeoutMs );
+        } )
+      ] );
+    } finally {
+      clearTimeout( state.timeoutMonitor );
+    }
+  };
+} )();
