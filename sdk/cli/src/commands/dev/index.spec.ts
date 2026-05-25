@@ -14,7 +14,7 @@ vi.mock( '#services/coding_agents.js', () => ( {
 } ) );
 
 vi.mock( '#utils/port_availability.js', () => ( {
-  findUnavailablePort: vi.fn().mockResolvedValue( null )
+  findUnavailablePorts: vi.fn().mockResolvedValue( [] )
 } ) );
 
 vi.mock( '#services/docker.js', () => ( {
@@ -104,7 +104,7 @@ describe( 'dev command', () => {
     // By default, docker validation succeeds
     vi.mocked( dockerService.validateDockerEnvironment ).mockResolvedValue( undefined );
     // By default, no host port is taken — individual tests opt in.
-    vi.mocked( portAvailability.findUnavailablePort ).mockResolvedValue( null );
+    vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [] );
     // By default, startDockerCompose returns a mock process
     vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( createMockDockerProcess() );
     // By default, fs.access succeeds (file exists)
@@ -287,7 +287,7 @@ describe( 'dev command', () => {
     } );
 
     it( 'aborts with an actionable hint before docker runs when a host port is already taken', async () => {
-      vi.mocked( portAvailability.findUnavailablePort ).mockResolvedValue( 3001 );
+      vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [ 3001 ] );
 
       const cmd = new Dev( [], {} as any );
       cmd.log = vi.fn() as any;
@@ -310,6 +310,30 @@ describe( 'dev command', () => {
         expect.stringContaining( 'OUTPUT_API_HOST_PORT=<other port>' ),
         { exit: 1 }
       );
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( render ).not.toHaveBeenCalled();
+    } );
+
+    it( 'lists every taken port when multiple collide, not just the first', async () => {
+      vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [ 3001, 7233 ] );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn( () => {
+        throw new Error( 'oclif-error-thrown' );
+      } ) as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      await expect( cmd.run() ).rejects.toThrow();
+
+      const [ message ] = vi.mocked( cmd.error ).mock.calls[0] as [ string, unknown ];
+      expect( message ).toContain( 'Multiple host ports are already in use:' );
+      expect( message ).toContain( '• Port 3001 — override with OUTPUT_API_HOST_PORT=<other port>' );
+      expect( message ).toContain( '• Port 7233 — override with OUTPUT_TEMPORAL_HOST_PORT=<other port>' );
       expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
       expect( render ).not.toHaveBeenCalled();
     } );

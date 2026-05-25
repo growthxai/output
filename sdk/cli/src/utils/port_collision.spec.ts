@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractCollidedPort, formatPortCollisionHint } from './port_collision.js';
+import { extractCollidedPort, formatPortCollisionHint, formatPortCollisionsHint } from './port_collision.js';
 
 const DEFAULT_PORTS = { api: 3001, temporalUi: 8080, temporal: 7233 };
 
@@ -76,5 +76,40 @@ describe( 'formatPortCollisionHint', () => {
 
   it( 'returns null for empty stderr', () => {
     expect( formatPortCollisionHint( '', DEFAULT_PORTS ) ).toBeNull();
+  } );
+} );
+
+describe( 'formatPortCollisionsHint', () => {
+  it( 'returns an empty string when no ports collide', () => {
+    expect( formatPortCollisionsHint( [], DEFAULT_PORTS ) ).toBe( '' );
+  } );
+
+  it( 'matches the single-port hint when exactly one port collides', () => {
+    const list = formatPortCollisionsHint( [ 3001 ], DEFAULT_PORTS );
+    const single = formatPortCollisionHint(
+      'Bind for 0.0.0.0:3001 failed: port is already allocated',
+      DEFAULT_PORTS
+    );
+    expect( list ).toBe( single );
+  } );
+
+  it( 'renders a bulleted list with one line per port when multiple collide', () => {
+    const hint = formatPortCollisionsHint( [ 3001, 7233 ], DEFAULT_PORTS );
+    expect( hint ).toContain( 'Multiple host ports are already in use:' );
+    expect( hint ).toContain( '• Port 3001 — override with OUTPUT_API_HOST_PORT=<other port>' );
+    expect( hint ).toContain( '• Port 7233 — override with OUTPUT_TEMPORAL_HOST_PORT=<other port>' );
+  } );
+
+  it( 'preserves the order of ports as supplied', () => {
+    const hint = formatPortCollisionsHint( [ 7233, 3001 ], DEFAULT_PORTS );
+    const lines = hint.split( '\n' );
+    expect( lines[1] ).toContain( 'Port 7233' );
+    expect( lines[2] ).toContain( 'Port 3001' );
+  } );
+
+  it( 'falls back to a generic suggestion for unknown ports inside a list', () => {
+    const hint = formatPortCollisionsHint( [ 3001, 5432 ], DEFAULT_PORTS );
+    expect( hint ).toContain( '• Port 3001 — override with OUTPUT_API_HOST_PORT=<other port>' );
+    expect( hint ).toContain( '• Port 5432 — stop the process holding it' );
   } );
 } );

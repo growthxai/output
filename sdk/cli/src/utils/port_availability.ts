@@ -33,12 +33,9 @@ function isPortTaken( port: number ): Promise<boolean> {
   } );
 }
 
-export async function findUnavailablePort( ports: number[] ): Promise<number | null> {
-  for ( const port of ports ) {
-    const taken = await isPortTaken( port );
-    if ( taken ) {
-      return port;
-    }
-  }
-  return null;
+export async function findUnavailablePorts( ports: number[] ): Promise<number[]> {
+  const results = await Promise.all(
+    ports.map( async port => ( { port, taken: await isPortTaken( port ) } ) )
+  );
+  return results.filter( r => r.taken ).map( r => r.port );
 }

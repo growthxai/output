@@ -66,6 +66,28 @@ function envVarForPort(
 }
 
 /**
+ * Render a single port collision as two lines: the "Port N is already in use"
+ * statement and either an env-var override suggestion or a generic "stop the
+ * process" fallback.
+ */
+function formatSingleCollision(
+  port: number,
+  resolvedPorts: Record<string, number>
+): string {
+  const envVar = envVarForPort( port, resolvedPorts );
+  if ( envVar ) {
+    return [
+      `Port ${port} is already in use.`,
+      `Override it in your .env file:  ${envVar}=<other port>`
+    ].join( '\n' );
+  }
+  return [
+    `Port ${port} is already in use.`,
+    'Stop the process holding it, or change the host port in your compose file.'
+  ].join( '\n' );
+}
+
+/**
  * Build an actionable, multi-line hint for the first port collision found in
  * stderr. Returns null when no collision is detected. When the colliding port
  * is one we own (api / temporalUi / temporal), the hint names the env var
@@ -79,15 +101,34 @@ export function formatPortCollisionHint(
   if ( port === null ) {
     return null;
   }
-  const envVar = envVarForPort( port, resolvedPorts );
-  if ( envVar ) {
-    return [
-      `Port ${port} is already in use.`,
-      `Override it in your .env file:  ${envVar}=<other port>`
-    ].join( '\n' );
+  return formatSingleCollision( port, resolvedPorts );
+}
+
+/**
+ * Build a hint from a known list of colliding ports. For a single collision
+ * the output matches `formatPortCollisionHint` exactly so callers stay
+ * symmetric. For multiple collisions a bulleted list is rendered, each line
+ * naming the env var that overrides that specific port (or a generic
+ * suggestion when the port isn't one we own).
+ */
+export function formatPortCollisionsHint(
+  ports: number[],
+  resolvedPorts: Record<string, number>
+): string {
+  if ( ports.length === 0 ) {
+    return '';
   }
-  return [
-    `Port ${port} is already in use.`,
-    'Stop the process holding it, or change the host port in your compose file.'
-  ].join( '\n' );
+  if ( ports.length === 1 ) {
+    return formatSingleCollision( ports[0], resolvedPorts );
+  }
+  const lines = [ 'Multiple host ports are already in use:' ];
+  for ( const port of ports ) {
+    const envVar = envVarForPort( port, resolvedPorts );
+    lines.push(
+      envVar ?
+        `  • Port ${port} — override with ${envVar}=<other port>` :
+        `  • Port ${port} — stop the process holding it`
+    );
+  }
+  return lines.join( '\n' );
 }
