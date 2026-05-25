@@ -45,6 +45,7 @@ services:
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=postgresql
+      - DEFAULT_NAMESPACE_RETENTION=720h
     image: temporalio/auto-setup:latest
     networks:
       - main
