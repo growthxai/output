@@ -15,6 +15,7 @@ import {
 import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { formatPortCollisionHint } from '#utils/port_collision.js';
+import { findUnavailablePort } from '#utils/port_availability.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev/dev_app.js';
 import { config } from '#config.js';
@@ -68,6 +69,16 @@ export default class Dev extends Command {
 
     // Eagerly resolve ports so InvalidPortError surfaces before Ink mounts.
     void config.ports;
+
+    // Probe each published host port before docker runs. docker compose up
+    // doesn't exit on partial container failure, so a bind collision would
+    // otherwise leave the Ink TUI in limbo with no actionable feedback.
+    const takenPort = await findUnavailablePort( Object.values( config.ports ) );
+    if ( takenPort !== null ) {
+      const syntheticStderr = `Bind for 0.0.0.0:${takenPort} failed: port is already allocated`;
+      const hint = formatPortCollisionHint( syntheticStderr, config.ports );
+      this.error( hint ?? `Port ${takenPort} is already in use.`, { exit: 1 } );
+    }
 
     const dockerComposePath = flags['compose-file'] ?
       path.resolve( process.cwd(), flags['compose-file'] ) :

@@ -6,10 +6,15 @@ import type { ChildProcess } from 'node:child_process';
 import { render } from 'ink';
 import * as dockerService from '#services/docker.js';
 import * as codingAgentsService from '#services/coding_agents.js';
+import * as portAvailability from '#utils/port_availability.js';
 import Dev from './index.js';
 
 vi.mock( '#services/coding_agents.js', () => ( {
   ensureClaudePlugin: vi.fn().mockResolvedValue( undefined )
+} ) );
+
+vi.mock( '#utils/port_availability.js', () => ( {
+  findUnavailablePort: vi.fn().mockResolvedValue( null )
 } ) );
 
 vi.mock( '#services/docker.js', () => ( {
@@ -98,6 +103,8 @@ describe( 'dev command', () => {
     vi.clearAllMocks();
     // By default, docker validation succeeds
     vi.mocked( dockerService.validateDockerEnvironment ).mockResolvedValue( undefined );
+    // By default, no host port is taken — individual tests opt in.
+    vi.mocked( portAvailability.findUnavailablePort ).mockResolvedValue( null );
     // By default, startDockerCompose returns a mock process
     vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( createMockDockerProcess() );
     // By default, fs.access succeeds (file exists)
@@ -277,6 +284,34 @@ describe( 'dev command', () => {
       cmd.error = vi.fn() as any;
 
       await expect( cmd.run() ).rejects.toThrow();
+    } );
+
+    it( 'aborts with an actionable hint before docker runs when a host port is already taken', async () => {
+      vi.mocked( portAvailability.findUnavailablePort ).mockResolvedValue( 3001 );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn( () => {
+        throw new Error( 'oclif-error-thrown' );
+      } ) as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      await expect( cmd.run() ).rejects.toThrow();
+
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Port 3001 is already in use.' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'OUTPUT_API_HOST_PORT=<other port>' ),
+        { exit: 1 }
+      );
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( render ).not.toHaveBeenCalled();
     } );
 
     it( 'should handle startDockerCompose errors', async () => {
