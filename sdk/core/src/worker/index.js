@@ -26,6 +26,7 @@ const callerDir = process.argv[2];
     namespace,
     taskQueue,
     grpcProxy,
+    grpcMaxMessageSizeBytes,
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
     maxCachedWorkflows,
@@ -54,12 +55,23 @@ const callerDir = process.argv[2];
   log.info( 'Creating workflows catalog...' );
   const catalog = createCatalog( { workflows, activities } );
 
-  log.info( 'Connecting Temporal...' );
+  log.info( 'Connecting Temporal...', { grpcMaxMessageSizeBytes } );
   const proxy = grpcProxy ? { type: 'http-connect', targetHost: grpcProxy } : undefined;
   if ( proxy ) {
     log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
   }
-  const connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
+  // channelArgs raises gRPC's 4 MiB default cap so the worker's Client (catalog + interceptor) can
+  // exchange larger payloads with Temporal (see COS-370).
+  const connection = await NativeConnection.connect( {
+    address,
+    tls: Boolean( apiKey ),
+    apiKey,
+    proxy,
+    channelArgs: {
+      'grpc.max_receive_message_length': grpcMaxMessageSizeBytes,
+      'grpc.max_send_message_length': grpcMaxMessageSizeBytes
+    }
+  } );
 
   log.info( 'Creating worker...' );
   const worker = await Worker.create( {

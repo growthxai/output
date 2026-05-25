@@ -33,7 +33,10 @@ const envVarSchema = z.object( {
   TEMPORAL_GRPC_PROXY: z.string().optional().refine(
     v => !v || !v.includes( '://' ),
     'TEMPORAL_GRPC_PROXY must be host:port without a scheme (e.g. "proxy:8080", not "http://proxy:8080")'
-  )
+  ),
+  // gRPC max message size (send + receive) for the worker's Temporal connection.
+  // gRPC's default receive cap is 4 MiB; raise it to accommodate larger result envelopes.
+  TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 32 * 1024 * 1024 ) )
 } );
 
 const { data: envVars, error } = envVarSchema.safeParse( process.env );
@@ -55,3 +58,4 @@ export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INT
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
 export const processFailureShutdownDelay = envVars.OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY;
 export const grpcProxy = envVars.TEMPORAL_GRPC_PROXY;
+export const grpcMaxMessageSizeBytes = envVars.TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES;
