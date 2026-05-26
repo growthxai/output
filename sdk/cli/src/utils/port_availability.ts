@@ -2,7 +2,7 @@ import net from 'node:net';
 
 /**
  * Check if a specific port is taken by attempting to bind a TCP server.
- * 
+ *
  * Binds on `0.0.0.0` (not loopback) to match the publish address docker
  * compose uses for `${PORT}:${TARGET}` mappings. Errors other than `EADDRINUSE`
  * are treated as "free" so we don't abort on conditions docker would accept.
