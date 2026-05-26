@@ -47,6 +47,8 @@ services:
     image: temporalio/auto-setup:latest
     networks:
       - main
+    ports:
+      - '${OUTPUT_TEMPORAL_HOST_PORT:-7233}:7233'
     healthcheck:
       test:
         [

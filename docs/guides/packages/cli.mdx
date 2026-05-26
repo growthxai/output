@@ -97,13 +97,15 @@ DOCKER_SERVICE_NAME=project-a
 
 # Project B (.env)
 DOCKER_SERVICE_NAME=project-b
+OUTPUT_CATALOG_ID=project-b
 OUTPUT_API_HOST_PORT=3002
 OUTPUT_TEMPORAL_UI_HOST_PORT=8081
+OUTPUT_TEMPORAL_HOST_PORT=7234
 ```
 
-`DOCKER_SERVICE_NAME` isolates Docker networks, volumes, and container names so the stacks don't interfere with each other. `OUTPUT_API_HOST_PORT` and `OUTPUT_TEMPORAL_UI_HOST_PORT` control which ports are exposed on your machine — the container-internal ports are unchanged.
+`DOCKER_SERVICE_NAME` isolates Docker networks, volumes, and container names so the stacks don't interfere with each other. `OUTPUT_CATALOG_ID` keeps each stack's workflow catalog separate. The three `OUTPUT_*_HOST_PORT` vars control which ports are exposed on your machine — the container-internal ports are unchanged, so workers in either stack still reach Temporal at `temporal:7233`.
 
-Run `npx output dev` in each project directory. Project A's API is at `http://localhost:3001` and Project B's at `http://localhost:3002`.
+Run `npx output dev` in each project directory. Project A's API is at `http://localhost:3001` and Project B's at `http://localhost:3002`. If a port is already in use, `output dev` names the conflicting port and the env var to override.
 
 ### output dev eject
 
@@ -581,6 +583,7 @@ OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
 | `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` — isolates containers, networks, and volumes |
 | `OUTPUT_API_HOST_PORT` | `3001` | Host port for the Output API server |
 | `OUTPUT_TEMPORAL_UI_HOST_PORT` | `8080` | Host port for the Temporal UI |
+| `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side |
 | `OUTPUT_API_VERSION` | `1.9` | API Docker image tag. Set to `dev` for local builds |
 | `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |

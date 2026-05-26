@@ -6,10 +6,15 @@ import type { ChildProcess } from 'node:child_process';
 import { render } from 'ink';
 import * as dockerService from '#services/docker.js';
 import * as codingAgentsService from '#services/coding_agents.js';
+import * as portAvailability from '#utils/port_availability.js';
 import Dev from './index.js';
 
 vi.mock( '#services/coding_agents.js', () => ( {
   ensureClaudePlugin: vi.fn().mockResolvedValue( undefined )
+} ) );
+
+vi.mock( '#utils/port_availability.js', () => ( {
+  findUnavailablePorts: vi.fn().mockResolvedValue( [] )
 } ) );
 
 vi.mock( '#services/docker.js', () => ( {
@@ -98,6 +103,8 @@ describe( 'dev command', () => {
     vi.clearAllMocks();
     // By default, docker validation succeeds
     vi.mocked( dockerService.validateDockerEnvironment ).mockResolvedValue( undefined );
+    // By default, no host port is taken — individual tests opt in.
+    vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [] );
     // By default, startDockerCompose returns a mock process
     vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( createMockDockerProcess() );
     // By default, fs.access succeeds (file exists)
@@ -279,6 +286,58 @@ describe( 'dev command', () => {
       await expect( cmd.run() ).rejects.toThrow();
     } );
 
+    it( 'aborts with an actionable hint before docker runs when a host port is already taken', async () => {
+      vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [ 3001 ] );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn( () => {
+        throw new Error( 'oclif-error-thrown' );
+      } ) as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      await expect( cmd.run() ).rejects.toThrow();
+
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Port 3001 is already in use.' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'OUTPUT_API_HOST_PORT=<other port>' ),
+        { exit: 1 }
+      );
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( render ).not.toHaveBeenCalled();
+    } );
+
+    it( 'lists every taken port when multiple collide, not just the first', async () => {
+      vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [ 3001, 7233 ] );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn( () => {
+        throw new Error( 'oclif-error-thrown' );
+      } ) as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      await expect( cmd.run() ).rejects.toThrow();
+
+      const [ message ] = vi.mocked( cmd.error ).mock.calls[0] as [ string, unknown ];
+      expect( message ).toContain( 'Multiple host ports are already in use:' );
+      expect( message ).toContain( '• Port 3001 — override with OUTPUT_API_HOST_PORT=<other port>' );
+      expect( message ).toContain( '• Port 7233 — override with OUTPUT_TEMPORAL_HOST_PORT=<other port>' );
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( render ).not.toHaveBeenCalled();
+    } );
+
     it( 'should handle startDockerCompose errors', async () => {
       vi.mocked( dockerService.startDockerCompose ).mockRejectedValue( new Error( 'Docker error' ) );
 
@@ -315,14 +374,22 @@ describe( 'dev command', () => {
       const runPromise = cmd.run();
       await new Promise( resolve => setImmediate( resolve ) );
 
-      getStartDockerComposeOptions().onExit?.( 1, null, 'failed to bind host port' );
+      getStartDockerComposeOptions().onExit?.( 1, null, 'Bind for 0.0.0.0:3001 failed: port is already allocated' );
       await runPromise;
 
       expect( inkInstance.unmount ).toHaveBeenCalledWith( expect.objectContaining( {
         message: expect.stringContaining( 'Docker compose exited with code 1' )
       } ) );
       expect( cmd.error ).toHaveBeenCalledWith(
-        expect.stringContaining( 'Recent Docker output:\nfailed to bind host port' ),
+        expect.stringContaining( 'Recent Docker output:\nBind for 0.0.0.0:3001 failed' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Port 3001 is already in use.' ),
+        { exit: 1 }
+      );
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'OUTPUT_API_HOST_PORT=<other port>' ),
         { exit: 1 }
       );
     } );

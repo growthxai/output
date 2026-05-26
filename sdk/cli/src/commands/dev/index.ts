@@ -14,6 +14,8 @@ import {
 } from '#services/docker.js';
 import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
+import { formatPortCollisionHint, formatPortCollisionsHint } from '#utils/port_collision.js';
+import { findUnavailablePorts } from '#utils/port_availability.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev/dev_app.js';
 import { config } from '#config.js';
@@ -25,7 +27,8 @@ export default class Dev extends Command {
     'To run a second dev stack concurrently, override host ports in .env:',
     '',
     '  OUTPUT_API_HOST_PORT=3002',
-    '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081'
+    '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081',
+    '  OUTPUT_TEMPORAL_HOST_PORT=7234'
   ].join( '\n' );
 
   static examples = [
@@ -66,6 +69,14 @@ export default class Dev extends Command {
 
     // Eagerly resolve ports so InvalidPortError surfaces before Ink mounts.
     void config.ports;
+
+    // Probe each published host port before docker runs. docker compose up
+    // doesn't exit on partial container failure, so a bind collision would
+    // otherwise leave the Ink TUI in limbo with no actionable feedback.
+    const takenPorts = await findUnavailablePorts( Object.values( config.ports ) );
+    if ( takenPorts.length > 0 ) {
+      this.error( formatPortCollisionsHint( takenPorts, config.ports ), { exit: 1 } );
+    }
 
     const dockerComposePath = flags['compose-file'] ?
       path.resolve( process.cwd(), flags['compose-file'] ) :
@@ -171,8 +182,10 @@ export default class Dev extends Command {
           }
 
           const exitReason = signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`;
+          const hint = formatPortCollisionHint( output, config.ports );
+          const prefix = hint ? `${hint}\n\n` : '';
           const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
-          instance.unmount( new Error( `Docker compose exited with ${exitReason}.${detail}` ) );
+          instance.unmount( new Error( `${prefix}Docker compose exited with ${exitReason}.${detail}` ) );
         }
       } );
 
