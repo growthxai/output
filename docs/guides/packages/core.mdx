@@ -197,7 +197,6 @@ The worker reads these environment variables:
 | `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal backend address |
 | `TEMPORAL_NAMESPACE` | `default` | Temporal namespace |
 | `TEMPORAL_API_KEY` | — | API key for remote Temporal (blank for local) |
-| `TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES` | `33554432` (32 MiB) | Max gRPC message size (send + receive) for the worker's Temporal connection. Raise if large payloads hit `RESOURCE_EXHAUSTED`. |
 
 ### Worker concurrency and polling
 

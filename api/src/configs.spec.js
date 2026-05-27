@@ -120,6 +120,13 @@ describe( 'configs', () => {
     expect( configs.temporal.grpcMaxMessageSizeBytes ).toBe( 64 * 1024 * 1024 );
   } );
 
+  it( 'falls back to default when TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES is an empty string', async () => {
+    setEnv( { TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: '' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporal.grpcMaxMessageSizeBytes ).toBe( 32 * 1024 * 1024 );
+  } );
+
   it( 'throws in production when OUTPUT_API_AUTH_TOKEN is missing', async () => {
     setEnv( { NODE_ENV: 'production' } );
     vi.resetModules();

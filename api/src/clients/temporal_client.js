@@ -213,7 +213,7 @@ export default {
     logger.info( 'Temporal client connecting', { address, namespace, grpcMaxMessageSizeBytes } );
 
     // enable TLS only when connecting to remote (api key is present)
-    // channelArgs raises gRPC's 4 MiB default cap so large result envelopes flow through (see COS-370).
+    // channelArgs raises gRPC's 4 MiB default cap so large result envelopes flow through.
     const connection = await Connection.connect( {
       address,
       tls: Boolean( apiKey ),

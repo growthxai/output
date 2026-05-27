@@ -17,7 +17,6 @@ const configValues = {
   taskQueue: 'test-queue',
   catalogId: 'test-catalog',
   grpcProxy: undefined,
-  grpcMaxMessageSizeBytes: 32 * 1024 * 1024,
   maxConcurrentWorkflowTaskExecutions: 200,
   maxConcurrentActivityTaskExecutions: 40,
   maxCachedWorkflows: 1000,
@@ -111,11 +110,7 @@ describe( 'worker/index', () => {
       address: configValues.address,
       tls: false,
       apiKey: undefined,
-      proxy: undefined,
-      channelArgs: {
-        'grpc.max_receive_message_length': configValues.grpcMaxMessageSizeBytes,
-        'grpc.max_send_message_length': configValues.grpcMaxMessageSizeBytes
-      }
+      proxy: undefined
     } );
     expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
       namespace: configValues.namespace,
