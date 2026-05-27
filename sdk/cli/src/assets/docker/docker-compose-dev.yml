@@ -120,6 +120,7 @@ services:
       - OUTPUT_TRACE_LOCAL_ON=${OUTPUT_TRACE_LOCAL_ON:-true}
       - OUTPUT_TRACE_HOST_PATH=${PWD}/logs
       - OUTPUT_TRACE_HTTP_VERBOSE=${OUTPUT_TRACE_HTTP_VERBOSE:-true}
+      - OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=${OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION:-false}
       - TEMPORAL_ADDRESS=temporal:7233
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
     command: sh -c "corepack enable && npm run output:worker:install && npm run output:worker:watch"

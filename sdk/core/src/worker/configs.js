@@ -25,6 +25,11 @@ const envVarSchema = z.object( {
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
   // Whether to send activity heartbeats (enabled by default)
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
+  // When true, activities fire Temporal signals carrying attribute/event data (LLM usage,
+  // HTTP request count/cost) back to the workflow for aggregation in the result.
+  // Defaulted OFF: the current emission architecture bloats Temporal history.
+  // Set to "true" to opt in to per-event attribute collection and aggregations.
+  OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: z.transform( v => v === undefined ? false : isStringboolTrue( v ) ),
   // Time to allow for hooks to flush before shutdown
   OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 3000 ) ),
   // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080").
@@ -53,5 +58,6 @@ export const taskQueue = envVars.OUTPUT_CATALOG_ID;
 export const catalogId = envVars.OUTPUT_CATALOG_ID;
 export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS;
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
+export const enableAttributeSignalEmission = envVars.OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION;
 export const processFailureShutdownDelay = envVars.OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY;
 export const grpcProxy = envVars.TEMPORAL_GRPC_PROXY;

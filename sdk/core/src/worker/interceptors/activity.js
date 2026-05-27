@@ -3,7 +3,7 @@ import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from '../sandboxed_utils.js';
 import { BusEventType, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
-import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, namespace } from '../configs.js';
+import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, enableAttributeSignalEmission, namespace } from '../configs.js';
 import { messageBus } from '#bus';
 import { Client } from '@temporalio/client';
 import { createChildLogger } from '#logger';
@@ -81,6 +81,9 @@ export class ActivityExecutionInterceptor {
     };
 
     const sendAttributeSignal = attribute => {
+      if ( !enableAttributeSignalEmission ) {
+        return;
+      }
       attribute.setActivity( id, name );
       state.signals.push(
         workflowHandle
