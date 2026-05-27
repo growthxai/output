@@ -315,5 +315,17 @@ describe( 'fetch/utils', () => {
         value: 'req-456'
       } );
     } );
+
+    it( 'propagates the request id to clones (ky afterResponse passes the clone)', () => {
+      const response = new Response( 'ok' );
+      addRequestIdToResponse( response, 'req-789' );
+
+      const cloned = response.clone();
+      expect( ( cloned as unknown as Record<symbol, unknown> )[requestIdSymbol] ).toBe( 'req-789' );
+
+      // recursion: clones of clones inherit too
+      const grandchild = cloned.clone();
+      expect( ( grandchild as unknown as Record<symbol, unknown> )[requestIdSymbol] ).toBe( 'req-789' );
+    } );
   } );
 } );

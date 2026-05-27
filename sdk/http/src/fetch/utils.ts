@@ -104,19 +104,19 @@ export const parseBody = async ( r : Request | Response ) : Promise<string | obj
  * can correlate. Stores the id under a private symbol AND patches `clone()` so
  * the tag propagates to clones — ky clones the response before invoking
  * `afterResponse` hooks, and undici headers are immutable on received
- * responses, so the symbol on the clone is the only path that survives.
+ * responses, so a symbol re-attached inside `clone()` is the only path that
+ * survives.
  */
-export const addRequestIdToResponse = ( response: Response, requestId: string ) : void => {
-  Object.defineProperty( response, requestIdSymbol, { value: requestId, enumerable: false, configurable: true, writable: false } );
+export const addRequestIdToResponse = ( response: Response, requestId: string ) : Response => {
+  Object.defineProperty( response, requestIdSymbol, { value: requestId, enumerable: false, configurable: false, writable: false } );
   const originalClone = response.clone.bind( response );
   Object.defineProperty( response, 'clone', {
     value: function clone() {
-      const cloned = originalClone();
-      addRequestIdToResponse( cloned, requestId );
-      return cloned;
+      return addRequestIdToResponse( originalClone(), requestId );
     },
     enumerable: false,
     configurable: true,
     writable: true
   } );
+  return response;
 };
