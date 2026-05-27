@@ -15,7 +15,15 @@ import {
 import { EventType } from './event_types.js';
 import { decodeEventPayloads, serializeEvent } from './event_serialization.js';
 
-const { address, apiKey, namespace, defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
+const {
+  address,
+  apiKey,
+  namespace,
+  defaultTaskQueue,
+  workflowExecutionTimeout,
+  workflowExecutionMaxWaiting,
+  grpcMaxMessageSizeBytes
+} = temporalConfig;
 
 /**
  * Returns the catalog object from the catalog workflow
@@ -202,10 +210,19 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
 
 export default {
   async init() {
-    logger.info( 'Temporal client connecting', { address, namespace } );
+    logger.info( 'Temporal client connecting', { address, namespace, grpcMaxMessageSizeBytes } );
 
     // enable TLS only when connecting to remote (api key is present)
-    const connection = await Connection.connect( { address, tls: Boolean( apiKey ), apiKey } );
+    // channelArgs raises gRPC's 4 MiB default cap so large result envelopes flow through.
+    const connection = await Connection.connect( {
+      address,
+      tls: Boolean( apiKey ),
+      apiKey,
+      channelArgs: {
+        'grpc.max_receive_message_length': grpcMaxMessageSizeBytes,
+        'grpc.max_send_message_length': grpcMaxMessageSizeBytes
+      }
+    } );
     const client = new Client( { connection, namespace } );
 
     logger.info( 'Temporal client connected', { address, namespace } );

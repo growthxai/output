@@ -105,7 +105,8 @@ vi.mock( '#configs', () => ( {
     namespace: 'default',
     defaultTaskQueue: 'test-queue',
     workflowExecutionTimeout: 60000,
-    workflowExecutionMaxWaiting: 30000
+    workflowExecutionMaxWaiting: 30000,
+    grpcMaxMessageSizeBytes: 32 * 1024 * 1024
   }
 } ) );
 
@@ -153,6 +154,21 @@ describe( 'temporal_client', () => {
       fetchHistory: mockFetchHistory,
       cancel: mockCancel,
       terminate: mockTerminate
+    } );
+  } );
+
+  describe( 'init', () => {
+    it( 'passes gRPC channelArgs so result envelopes larger than 4 MiB can flow through (COS-370)', async () => {
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      await temporalClient.init();
+
+      expect( mockConnect ).toHaveBeenCalledWith( expect.objectContaining( {
+        address: 'localhost:7233',
+        channelArgs: {
+          'grpc.max_receive_message_length': 32 * 1024 * 1024,
+          'grpc.max_send_message_length': 32 * 1024 * 1024
+        }
+      } ) );
     } );
   } );
 

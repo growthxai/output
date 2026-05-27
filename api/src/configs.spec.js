@@ -7,6 +7,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT',
   'TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING',
   'TEMPORAL_API_KEY',
+  'TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES',
   'OUTPUT_API_PORT',
   'OUTPUT_API_SERVICE_NAME',
   'OUTPUT_CATALOG_ID',
@@ -62,7 +63,8 @@ describe( 'configs', () => {
       apiKey: undefined,
       namespace: 'default',
       workflowExecutionTimeout: '24h',
-      workflowExecutionMaxWaiting: 300_000
+      workflowExecutionMaxWaiting: 300_000,
+      grpcMaxMessageSizeBytes: 32 * 1024 * 1024
     } );
     expect( configs.api ).toEqual( {
       authToken: undefined,
@@ -109,6 +111,20 @@ describe( 'configs', () => {
     const configs = await loadConfigs();
 
     expect( configs.temporal.workflowExecutionMaxWaiting ).toBe( 600_000 );
+  } );
+
+  it( 'coerces TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES from string', async () => {
+    setEnv( { TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: '67108864' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporal.grpcMaxMessageSizeBytes ).toBe( 64 * 1024 * 1024 );
+  } );
+
+  it( 'falls back to default when TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES is an empty string', async () => {
+    setEnv( { TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: '' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporal.grpcMaxMessageSizeBytes ).toBe( 32 * 1024 * 1024 );
   } );
 
   it( 'throws in production when OUTPUT_API_AUTH_TOKEN is missing', async () => {

@@ -4,6 +4,8 @@ class InvalidEnvVarsErrors extends Error { }
 
 export const isProduction = process.env.NODE_ENV === 'production';
 
+const coalesceEmptyString = v => v === '' ? undefined : v;
+
 const envSchema = z.object( {
   NODE_ENV: z.string().optional().default( 'development' ),
   TEMPORAL_ADDRESS: z.string().optional().default( 'localhost:7233' ),
@@ -11,6 +13,9 @@ const envSchema = z.object( {
   TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT: z.string().optional().default( '24h' ),
   TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING: z.coerce.number().optional().default( 300_000 ), // 5minutes
   TEMPORAL_API_KEY: z.string().optional(),
+  // gRPC max message size for the Temporal client connection (send + receive).
+  // gRPC's default receive cap is 4 MiB; some workflow result envelopes exceed it.
+  TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 32 * 1024 * 1024 ) ),
   OUTPUT_API_PORT: z.coerce.number().optional().default( 3000 ),
   OUTPUT_API_SERVICE_NAME: z.string().optional().default( 'output-api' ),
   OUTPUT_CATALOG_ID: z.string().regex( /^[a-z0-9_.@-]+$/i ),
@@ -34,7 +39,8 @@ export const temporal = {
   apiKey: safeEnvVar.TEMPORAL_API_KEY,
   namespace: safeEnvVar.TEMPORAL_NAMESPACE,
   workflowExecutionTimeout: safeEnvVar.TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT,
-  workflowExecutionMaxWaiting: safeEnvVar.TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING
+  workflowExecutionMaxWaiting: safeEnvVar.TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING,
+  grpcMaxMessageSizeBytes: safeEnvVar.TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES
 };
 
 export const api = {
