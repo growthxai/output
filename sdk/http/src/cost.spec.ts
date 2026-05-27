@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Response } from 'undici';
 import { requestIdSymbol } from './consts.js';
 
 vi.mock( '@outputai/core/sdk_activity_integration', () => {
