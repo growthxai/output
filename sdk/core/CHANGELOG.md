@@ -1,5 +1,17 @@
 # @outputai/core
 
+## 0.5.2
+
+### Patch Changes
+
+- 17d8711: Every payload emitted through the framework's `messageBus` now carries a UUID v4 `eventId` — stamped at the bus layer, so events emitted via `emitEvent` _and_ lifecycle hook payloads (`onWorkflowStart`, `onWorkflowEnd`, `onWorkflowError`, `onError`) both receive it. Consumers can rely on `eventId` as a stable per-emit idempotency key — e.g., for webhook retry handling, ClickHouse `ReplacingMergeTree` dedup, audit logs. The previously emitted `requestId` is not safe for this purpose because `cost:http:request` and `http:request` for the same fetch share a `requestId`.
+
+  Callers may pre-set `eventId` on the payload to override the generated one (intended for deterministic retry scenarios). Additive — existing consumers ignoring the field continue to work.
+
+- cc8a372: Attribute signal emission is now opt-in via `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true`. Each LLM call and HTTP request previously fired a Temporal signal back to the workflow, bloating workflow history on runs with many calls. With emission off (the new default), workflow results still expose `attributes` and `aggregations` keys but they are empty/zeroed, and the `cost:llm:request` / `cost:http:request` hooks do not fire. Set the env var on the worker process to opt back in.
+
+  The CLI's dev docker-compose forwards the flag from the host shell, so `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true output dev` opts in without editing compose.
+
 ## 0.5.1
 
 ### Patch Changes

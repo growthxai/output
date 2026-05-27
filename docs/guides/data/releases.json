@@ -1,6 +1,77 @@
 {
   "releases": [
     {
+      "version": "0.5.2",
+      "date": "2026-05-27",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "cost-survives-clone",
+          "packages": [
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Propagate the per-request id across `Response.clone()` so cost emission works from inside ky `afterResponse` hooks. ky clones the response before invoking the hook, which stripped the symbol property `addRequestCost` reads to correlate the request — every hook calling `addRequestCost(response, value)` silently dropped its cost. Patches `clone()` on the original response so each clone re-runs `addRequestIdToResponse`, propagating the tag through any depth of clones. Header-based fallback isn't viable — undici responses are immutable on the received side.\n\nAlso tightens the `addRequestIdToResponse` signature to `: void` (was `: Response`). The function mutates in place; the return-the-input pattern was misleading. The one external call site already discarded the return, so no consumer code needs to change."
+        },
+        {
+          "id": "event-id-on-framework-emit",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Every payload emitted through the framework's `messageBus` now carries a UUID v4 `eventId` — stamped at the bus layer, so events emitted via `emitEvent` *and* lifecycle hook payloads (`onWorkflowStart`, `onWorkflowEnd`, `onWorkflowError`, `onError`) both receive it. Consumers can rely on `eventId` as a stable per-emit idempotency key — e.g., for webhook retry handling, ClickHouse `ReplacingMergeTree` dedup, audit logs. The previously emitted `requestId` is not safe for this purpose because `cost:http:request` and `http:request` for the same fetch share a `requestId`.\n\nCallers may pre-set `eventId` on the payload to override the generated one (intended for deterministic retry scenarios). Additive — existing consumers ignoring the field continue to work."
+        },
+        {
+          "id": "extend-local-temporal-retention",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Bump default local Temporal namespace retention from 24h to 720h (30 days) so workflow runs aren't garbage-collected within a day during local development."
+        },
+        {
+          "id": "support-side-by-side-dev-stacks",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Support multiple `npx output dev` stacks side-by-side:\n\n- Expose `OUTPUT_TEMPORAL_HOST_PORT` (default 7233) so dev Temporal can be relocated off 7233.\n- Document the multi-stack recipe (`DOCKER_SERVICE_NAME`, `OUTPUT_CATALOG_ID`, and the three `OUTPUT_*_HOST_PORT` knobs) in `cli.mdx`.\n- Surface an actionable hint when docker compose fails to bind a host port, naming the conflicting port and the env var that overrides it."
+        },
+        {
+          "id": "tasty-doors-like",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Attribute signal emission is now opt-in via `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true`. Each LLM call and HTTP request previously fired a Temporal signal back to the workflow, bloating workflow history on runs with many calls. With emission off (the new default), workflow results still expose `attributes` and `aggregations` keys but they are empty/zeroed, and the `cost:llm:request` / `cost:http:request` hooks do not fire. Set the env var on the worker process to opt back in.\n\nThe CLI's dev docker-compose forwards the flag from the host shell, so `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true output dev` opts in without editing compose."
+        },
+        {
+          "id": "temporal-grpc-max-message-size",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Raise gRPC's default 4 MiB message-size cap on the API server's Temporal connection so workflow result envelopes larger than 4 MiB no longer fail with `RESOURCE_EXHAUSTED`. Configurable via the new `TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES` env var (default 32 MiB)."
+        }
+      ]
+    },
+    {
       "version": "0.5.1",
       "date": "2026-05-22",
       "level": "patch",

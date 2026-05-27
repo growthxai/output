@@ -1,5 +1,24 @@
 # @outputai/cli
 
+## 0.5.2
+
+### Patch Changes
+
+- 8738f60: Bump default local Temporal namespace retention from 24h to 720h (30 days) so workflow runs aren't garbage-collected within a day during local development.
+- 93dd22e: Support multiple `npx output dev` stacks side-by-side:
+
+  - Expose `OUTPUT_TEMPORAL_HOST_PORT` (default 7233) so dev Temporal can be relocated off 7233.
+  - Document the multi-stack recipe (`DOCKER_SERVICE_NAME`, `OUTPUT_CATALOG_ID`, and the three `OUTPUT_*_HOST_PORT` knobs) in `cli.mdx`.
+  - Surface an actionable hint when docker compose fails to bind a host port, naming the conflicting port and the env var that overrides it.
+
+- cc8a372: Attribute signal emission is now opt-in via `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true`. Each LLM call and HTTP request previously fired a Temporal signal back to the workflow, bloating workflow history on runs with many calls. With emission off (the new default), workflow results still expose `attributes` and `aggregations` keys but they are empty/zeroed, and the `cost:llm:request` / `cost:http:request` hooks do not fire. Set the env var on the worker process to opt back in.
+
+  The CLI's dev docker-compose forwards the flag from the host shell, so `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true output dev` opts in without editing compose.
+
+  - @outputai/credentials@0.5.2
+  - @outputai/evals@0.5.2
+  - @outputai/llm@0.5.2
+
 ## 0.5.1
 
 ### Patch Changes
