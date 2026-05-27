@@ -85,6 +85,9 @@ vi.mock( '../configs.js', () => ( {
   get activityHeartbeatIntervalMs() {
     return parseInt( process.env.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS || '120000', 10 );
   },
+  get enableAttributeSignalEmission() {
+    return process.env.OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION === 'true';
+  },
   get namespace() {
     return process.env.TEMPORAL_NAMESPACE || 'default';
   }
@@ -111,6 +114,8 @@ describe( 'ActivityExecutionInterceptor', () => {
     // Default: heartbeat enabled with 50ms interval for fast tests
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED', 'true' );
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS', '50' );
+    // Default: attribute signal emission enabled so existing tests can verify signal-sending behaviour
+    vi.stubEnv( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION', 'true' );
   } );
 
   afterEach( () => {
@@ -217,6 +222,24 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( attribute.setActivity ).toHaveBeenCalledWith( 'act-1', 'myWorkflow#myStep' );
     expect( workflowHandleMock.signal ).toHaveBeenCalledWith( Signal.ADD_ATTRIBUTE, attribute );
     expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [ expect.any( Promise ) ], 30_000 );
+  } );
+
+  it( 'does not signal when OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION is false', async () => {
+    vi.stubEnv( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION', 'false' );
+    const attribute = { setActivity: vi.fn() };
+    runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
+      ctx.sendAttributeSignal( attribute );
+      return fn();
+    } );
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+
+    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
+
+    expect( attribute.setActivity ).not.toHaveBeenCalled();
+    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
+    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
   } );
 
   it( 'records trace error event on failed execution', async () => {

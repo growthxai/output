@@ -11,7 +11,8 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS',
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
-  'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED'
+  'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED',
+  'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION'
 ];
 
 const setEnv = ( overrides = {} ) => {
@@ -63,6 +64,7 @@ describe( 'worker/configs', () => {
     expect( configs.maxConcurrentWorkflowTaskPolls ).toBe( 5 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
+    expect( configs.enableAttributeSignalEmission ).toBe( false );
     expect( configs.taskQueue ).toBe( 'test-catalog' );
     expect( configs.catalogId ).toBe( 'test-catalog' );
   } );
@@ -118,6 +120,30 @@ describe( 'worker/configs', () => {
     setEnv(); // only OUTPUT_CATALOG_ID; OUTPUT_ACTIVITY_HEARTBEAT_ENABLED absent → default true
     const configsDefault = await loadConfigs();
     expect( configsDefault.activityHeartbeatEnabled ).toBe( true );
+  } );
+
+  it( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: "true"|"1"|"on" → true', async () => {
+    for ( const val of [ 'true', '1', 'on' ] ) {
+      setEnv( { OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: val } );
+      const configs = await loadConfigs();
+      expect( configs.enableAttributeSignalEmission ).toBe( true );
+      clearEnv();
+    }
+  } );
+
+  it( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: "false"|other → false, undefined → false (default off)', async () => {
+    setEnv( { OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: 'false' } );
+    const configsFalse = await loadConfigs();
+    expect( configsFalse.enableAttributeSignalEmission ).toBe( false );
+
+    setEnv( { OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION: '0' } );
+    const configsZero = await loadConfigs();
+    expect( configsZero.enableAttributeSignalEmission ).toBe( false );
+
+    clearEnv();
+    setEnv(); // only OUTPUT_CATALOG_ID; OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION absent → default false
+    const configsDefault = await loadConfigs();
+    expect( configsDefault.enableAttributeSignalEmission ).toBe( false );
   } );
 
   it( 'parses TEMPORAL_ADDRESS and TEMPORAL_NAMESPACE', async () => {
