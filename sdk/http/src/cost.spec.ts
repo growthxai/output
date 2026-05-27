@@ -29,6 +29,7 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
 
 import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { addRequestCost } from './cost.js';
+import { addRequestIdToResponse } from './fetch/utils.js';
 
 const tracing = vi.mocked( Tracing, true );
 const emit = vi.mocked( emitEvent, true );
@@ -92,6 +93,30 @@ describe( 'addRequestCost', () => {
         url: response.url,
         requestId: 'evt-cost-2',
         total: cost
+      } )
+    } );
+    const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
+    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
+  } );
+
+  // ky clones the response before passing it to afterResponse hooks. Without
+  // the clone-propagation patch in addRequestIdToResponse, this path silently
+  // dropped cost (warned "did not originate from @outputai/http") for every
+  // service client that emits cost from inside a ky hook.
+  it( 'records cost on a cloned response (regression: ky afterResponse hooks)', () => {
+    const response = new Response( undefined, { status: 200 } );
+    addRequestIdToResponse( response, 'evt-clone-1' );
+
+    const cloned = response.clone();
+    addRequestCost( cloned, 4.2 );
+
+    expect( console.warn ).not.toHaveBeenCalled();
+    expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
+      eventId: 'evt-clone-1',
+      attribute: expect.objectContaining( {
+        type: Tracing.Attribute.HTTPRequestCost.TYPE,
+        requestId: 'evt-clone-1',
+        total: 4.2
       } )
     } );
     const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;

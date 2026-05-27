@@ -293,12 +293,11 @@ describe( 'fetch/utils', () => {
   } );
 
   describe( 'addRequestIdToResponse', () => {
-    it( 'stores request id under requestIdSymbol and returns the same response', () => {
+    it( 'stores request id under requestIdSymbol on the response', () => {
       const response = new Response( 'ok' );
 
-      const enriched = addRequestIdToResponse( response, 'req-123' );
+      addRequestIdToResponse( response, 'req-123' );
 
-      expect( enriched ).toBe( response );
       expect( ( response as unknown as Record<symbol, unknown> )[requestIdSymbol] ).toBe( 'req-123' );
     } );
 
