@@ -1,6 +1,6 @@
 {
   "name": "@outputai/cli",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "CLI for Output.ai workflow generation",
   "type": "module",
   "main": "dist/index.js",
