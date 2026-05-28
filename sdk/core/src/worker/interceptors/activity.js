@@ -2,16 +2,14 @@ import { Context } from '@temporalio/activity';
 import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from '../sandboxed_utils.js';
-import { BusEventType, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
-import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, enableAttributeSignalEmission, namespace } from '../configs.js';
+import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
+import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, namespace } from '../configs.js';
 import { messageBus } from '#bus';
 import { Client } from '@temporalio/client';
 import { createChildLogger } from '#logger';
-import { allSettledWithTimeout } from '#utils';
+import { aggregateAttributes } from '#internal_utils/aggregations';
 
 const log = createChildLogger( 'ActivityInterceptor' );
-
-const IN_FLIGHT_SIGNALS_TIMEOUT_MS = 30_000;
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -58,56 +56,40 @@ export class ActivityExecutionInterceptor {
 
   async execute( input, next ) {
     const startDate = Date.now();
-    const client = new Client( { connection: this.connection, namespace } );
 
     const { workflowExecution: { workflowId }, activityId: id, activityType: name, workflowType: workflowName } = Context.current().info;
     const { executionContext } = headersToObject( input.headers );
     const { type: kind } = this.activities?.[name]?.[METADATA_ACCESS_SYMBOL];
     const { path: workflowFilename } = this.getWorkflowEntry( workflowName );
 
-    const workflowHandle = client.workflow.getHandle( workflowId );
-
     const state = {
       heartbeat: null,
-      activityOutput: undefined,
-      signals: []
+      attributes: []
     };
 
-    const errorContext = {
-      workflowId,
-      workflowName,
-      activityId: id,
-      activityName: name
-    };
+    const addAttribute = attribute => state.attributes.push( attribute );
 
-    const sendAttributeSignal = attribute => {
-      if ( !enableAttributeSignalEmission ) {
-        return;
-      }
-      attribute.setActivity( id, name );
-      state.signals.push(
-        workflowHandle
-          .signal( Signal.ADD_ATTRIBUTE, attribute )
-          .catch( e =>
-            log.warn( `Signal "${Signal.ADD_ATTRIBUTE}" failed`, { message: e.message, stack: e.stack, activityId: id, ...errorContext } )
-          )
-      );
-    };
-
-    const flushSignals = async signals => {
-      try {
-        await allSettledWithTimeout( signals, IN_FLIGHT_SIGNALS_TIMEOUT_MS );
-      } catch ( error ) {
-        if ( error.isTimeout ) {
-          log.warn( 'Some usage/cost attributes were missed because not all activity signals were sent to the workflow', errorContext );
-        } else {
-          throw error;
+    const sendAggregationsViaSignal = async () => {
+      if ( state.attributes.length > 0 ) {
+        try {
+          const client = new Client( { connection: this.connection, namespace } );
+          const workflowHandle = client.workflow.getHandle( workflowId );
+          await workflowHandle.signal( Signal.SEND_AGGREGATIONS, aggregateAttributes( state.attributes ) );
+        } catch ( error ) {
+          log.warn( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, {
+            message: error.message,
+            stack: error.stack,
+            activityId: id,
+            activityName: name,
+            workflowId,
+            workflowName
+          } );
         }
       }
     };
 
     // Wraps the execution with accessible metadata for the activity
-    const ctx = { parentId: id, executionContext, workflowFilename, sendAttributeSignal };
+    const ctx = { parentId: id, executionContext, workflowFilename, addAttribute };
 
     messageBus.emit( BusEventType.ACTIVITY_START, { id, name, kind, workflowId, workflowName } );
     Tracing.addEventStart( { id, name, kind, parentId: workflowId, details: input.args[0], executionContext } );
@@ -116,20 +98,17 @@ export class ActivityExecutionInterceptor {
       // Sends heartbeat to communicate that activity is still alive
       state.heartbeat = activityHeartbeatEnabled && setInterval( () => Context.current().heartbeat(), activityHeartbeatIntervalMs );
 
-      try {
-        state.activityOutput = await Storage.runWithContext( async _ => next( input ), ctx );
-      } finally {
-        // Ensure in-flight signals are delivered (up to a reasonable time) before handling errors
-        await flushSignals( state.signals );
-      }
+      const output = await Storage.runWithContext( async _ => next( input ), ctx );
 
       messageBus.emit( BusEventType.ACTIVITY_END, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate } );
-      Tracing.addEventEnd( { id, details: state.activityOutput, executionContext } );
-      return state.activityOutput;
+      Tracing.addEventEnd( { id, details: output, executionContext } );
+      return { output, aggregations: aggregateAttributes( state.attributes ), [ACTIVITY_WRAPPER_VERSION_FIELD]: 1 };
 
     } catch ( error ) {
       messageBus.emit( BusEventType.ACTIVITY_ERROR, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate, error } );
       Tracing.addEventError( { id, details: error, executionContext } );
+
+      await sendAggregationsViaSignal();
 
       throw error;
     } finally {

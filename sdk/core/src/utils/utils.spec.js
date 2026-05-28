@@ -5,6 +5,7 @@ import {
   serializeBodyAndInferContentType,
   serializeFetchResponse,
   deepMerge,
+  deepMergeWithResolver,
   isPlainObject,
   toUrlSafeBase64,
   allSettledWithTimeout
@@ -350,6 +351,57 @@ describe( 'deepMerge', () => {
     expect( () => deepMerge( class Foo {}, class Foo {} ) ).toThrow( Error );
     expect( () => deepMerge( Number.constructor, Number.constructor ) ).toThrow( Error );
     expect( () => deepMerge( Number.constructor.prototype, Number.constructor.prototype ) ).toThrow( Error );
+  } );
+} );
+
+describe( 'deepMergeWithResolver', () => {
+  it( 'uses resolver for existing leaf values, including nested leaves', () => {
+    const a = {
+      cost: { total: 1 },
+      tokens: { total: 2, input: 3 }
+    };
+    const b = {
+      cost: { total: 4 },
+      tokens: { total: 5, input: 6, output: 7 }
+    };
+
+    expect( deepMergeWithResolver( a, b, ( x, y ) => x + y ) ).toEqual( {
+      cost: { total: 5 },
+      tokens: { total: 7, input: 9, output: 7 }
+    } );
+  } );
+
+  it( 'copies values from "b" when they do not exist in "a"', () => {
+    const resolver = vi.fn( ( x, y ) => x + y );
+
+    expect( deepMergeWithResolver( { a: 1 }, { b: 2, nested: { c: 3 } }, resolver ) ).toEqual( {
+      a: 1,
+      b: 2,
+      nested: { c: 3 }
+    } );
+    expect( resolver ).not.toHaveBeenCalled();
+  } );
+
+  it( 'keeps extra values from "a" when absent from "b"', () => {
+    expect( deepMergeWithResolver( { a: 1, nested: { kept: 2 } }, { b: 3 }, ( x, y ) => x + y ) ).toEqual( {
+      a: 1,
+      nested: { kept: 2 },
+      b: 3
+    } );
+  } );
+
+  it( 'returns a clone of "a" when "b" is not an object', () => {
+    const a = { nested: { value: 1 } };
+    const result = deepMergeWithResolver( a, null, ( x, y ) => x + y );
+
+    a.nested.value = 2;
+    expect( result ).toEqual( { nested: { value: 1 } } );
+  } );
+
+  it( 'throws when first argument is not a plain object', () => {
+    expect( () => deepMergeWithResolver( null, {}, ( x, y ) => x + y ) ).toThrow( Error );
+    expect( () => deepMergeWithResolver( [], {}, ( x, y ) => x + y ) ).toThrow( Error );
+    expect( () => deepMergeWithResolver( 'a', {}, ( x, y ) => x + y ) ).toThrow( Error );
   } );
 } );
 

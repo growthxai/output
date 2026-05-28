@@ -344,18 +344,11 @@ app.use( ( req, res, next ) => {
  *           description: The result of workflow, null if workflow failed
  *         trace:
  *           $ref: '#/components/schemas/TraceInfo'
- *         attributes:
- *           type: array
- *           nullable: true
- *           description: Durable workflow attributes collected during execution
- *           items:
- *             type: object
- *             additionalProperties: true
  *         aggregations:
  *           type: object
  *           nullable: true
  *           additionalProperties: true
- *           description: Convenience totals derived from attributes
+ *           description: Convenience totals aggregated from LLM and http usage and cost
  *         status:
  *           type: string
  *           enum: [completed, failed, canceled, terminated, timed_out, continued]

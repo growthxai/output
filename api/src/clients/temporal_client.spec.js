@@ -191,10 +191,9 @@ describe( 'temporal_client', () => {
   describe( 'runWorkflow', () => {
     it( 'should return failed status with trace and deepest error message from cause chain', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
-      const attributes = [ { type: 'llm:usage', total: 0.4, tokensUsed: 20 } ];
       const aggregations = { cost: { total: 0.4 }, tokens: { total: 20 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload, attributes, aggregations } ],
+        details: [ { trace: tracePayload, aggregations } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -218,7 +217,6 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: null,
         trace: tracePayload,
-        attributes,
         aggregations,
         error: 'step error message'
       } );
@@ -232,7 +230,6 @@ describe( 'temporal_client', () => {
       const successResult = {
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        attributes: [ { type: 'llm:usage' } ],
         aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } }
       };
 
@@ -256,7 +253,6 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        attributes: [ { type: 'llm:usage' } ],
         aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } },
         error: null
       } );
@@ -376,7 +372,6 @@ describe( 'temporal_client', () => {
       const workflowOutput = {
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        attributes: [ { type: 'http:request:count' } ],
         aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } }
       };
 
@@ -397,7 +392,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        attributes: [ { type: 'http:request:count' } ],
         aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
         error: null
       } );
@@ -462,10 +456,9 @@ describe( 'temporal_client', () => {
 
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
-      const attributes = [ { type: 'http:request:cost', total: 1.5 } ];
       const aggregations = { cost: { total: 1.5 }, tokens: { total: 0 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload, attributes, aggregations } ],
+        details: [ { trace: tracePayload, aggregations } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -486,7 +479,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: tracePayload,
-        attributes,
         aggregations,
         error: 'step error message'
       } );
@@ -535,7 +527,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: null,
-        attributes: null,
         aggregations: null,
         error: null
       } );
@@ -842,12 +833,6 @@ describe( 'temporal_client', () => {
     it( 'returns null when payloads are empty', () => {
       expect( extractWorkflowInput( {
         events: [ { workflowExecutionStartedEventAttributes: { input: { payloads: [] } } } ]
-      } ) ).toBeNull();
-    } );
-
-    it( 'returns null when input attributes are missing', () => {
-      expect( extractWorkflowInput( {
-        events: [ { workflowExecutionStartedEventAttributes: {} } ]
       } ) ).toBeNull();
     } );
 

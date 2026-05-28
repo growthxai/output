@@ -93,13 +93,13 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, exe
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, executionContext, sendAttributeSignal } = storeContent;
+    const { parentId, executionContext, addAttribute } = storeContent;
     if ( action === EventAction.ADD_ATTR ) {
       const attribute = options.details;
       if ( !( attribute instanceof BaseAttribute ) ) {
         throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
       } else {
-        sendAttributeSignal( options.details );
+        addAttribute( options.details );
       }
     }
     addEventAction( action, { ...options, parentId, executionContext } );

@@ -4,18 +4,11 @@ import Decimal from 'decimal.js';
  * All attributes inherit from this
  */
 export class BaseAttribute {
-  activityId;
-  activityName;
   date = Date.now();
   type;
 
   constructor( type ) {
     this.type = type;
-  }
-
-  setActivity( id, name ) {
-    this.activityId = id;
-    this.activityName = name;
   }
 }
 

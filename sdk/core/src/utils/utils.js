@@ -172,8 +172,8 @@ export const shuffleArray = arr => arr
 /**
  * Creates a new object merging object "b" onto object "a" biased to "b":
  * - Object "b" will overwrite fields on object "a";
- * - Object "b" fields that don't exist on object "a" will be created;
- * - Object "a" fields that don't exist on object "b" will not be touched;
+ * - Object "b" fields that don't exist on object "a" will be added;
+ * - Object "a" fields that don't exist on object "b" will be preserved;
  *
  * If "b" isn't an object, a new object equal to "a" is returned
  *
@@ -190,6 +190,41 @@ export const deepMerge = ( a, b ) => {
   }
   return Object.entries( b ).reduce( ( obj, [ k, v ] ) =>
     Object.assign( obj, { [k]: isPlainObject( v ) && isPlainObject( a[k] ) ? deepMerge( a[k], v ) : v } )
+  , clone( a ) );
+};
+
+/**
+ * Creates a new object merging object "b" onto object "a", using a resolver function to define the value to keep.
+ * - Object "b" fields that also exists on "a" will have their value defined by the "resolver" function
+ * - Object "b" fields that don't exist on object "a" will be added;
+ * - Object "a" fields that don't exist on object "b" will be preserved;
+ *
+ * If "b" isn't an object, a new object equal to "a" is returned
+ *
+ * @param {object} a - The base object
+ * @param {object} b - The target object
+ * @param {function} resolver - A function that return the value to be kept. First argument is value a, second is value b
+ * @returns {object} A new object
+ */
+export const deepMergeWithResolver = ( a, b, resolver ) => {
+  if ( !isPlainObject( a ) ) {
+    throw new Error( 'Parameter "a" is not an object.' );
+  }
+  if ( !isPlainObject( b ) ) {
+    return clone( a );
+  }
+  return Object.entries( b ).reduce( ( obj, [ k, v ] ) =>
+    Object.assign( obj, {
+      [k]: ( () => {
+        if ( isPlainObject( v ) && isPlainObject( a[k] ) ) {
+          return deepMergeWithResolver( a[k], v, resolver );
+        }
+        if ( Object.hasOwn( a, k ) ) {
+          return resolver( a[k], v );
+        }
+        return v;
+      } )()
+    } )
   , clone( a ) );
 };
 

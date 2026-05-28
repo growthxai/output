@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BusEventType, Signal } from '#consts';
+import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, Signal } from '#consts';
+import { Attribute } from '#trace_attribute';
 
 const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
 const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
 const getHandleMock = vi.hoisted( () => vi.fn( () => workflowHandleMock ) );
 const clientConstructorMock = vi.hoisted( () => vi.fn() );
-const allSettledWithTimeoutMock = vi.hoisted( () => vi.fn().mockResolvedValue( [] ) );
 const logWarnMock = vi.hoisted( () => vi.fn() );
 
 const heartbeatMock = vi.fn();
@@ -44,11 +44,6 @@ vi.mock( '#async_storage', () => ( {
   }
 } ) );
 
-vi.mock( '#utils', async importOriginal => {
-  const actual = await importOriginal();
-  return { ...actual, allSettledWithTimeout: allSettledWithTimeoutMock };
-} );
-
 vi.mock( '#logger', () => ( {
   createChildLogger: () => ( { warn: logWarnMock } )
 } ) );
@@ -85,9 +80,6 @@ vi.mock( '../configs.js', () => ( {
   get activityHeartbeatIntervalMs() {
     return parseInt( process.env.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS || '120000', 10 );
   },
-  get enableAttributeSignalEmission() {
-    return process.env.OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION === 'true';
-  },
   get namespace() {
     return process.env.TEMPORAL_NAMESPACE || 'default';
   }
@@ -104,18 +96,27 @@ const makeInput = () => ( {
   headers: {}
 } );
 
+const emptyAggregations = {
+  cost: { total: 0 },
+  tokens: { total: 0 },
+  httpRequests: { total: 0 }
+};
+
+const httpRequestAttribute = {
+  type: Attribute.HTTPRequestCount.TYPE,
+  url: 'https://api.example.test/items',
+  requestId: 'req-1'
+};
+
 describe( 'ActivityExecutionInterceptor', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    allSettledWithTimeoutMock.mockResolvedValue( [] );
     workflowHandleMock.signal.mockResolvedValue( undefined );
     vi.useFakeTimers();
     vi.resetModules();
     // Default: heartbeat enabled with 50ms interval for fast tests
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED', 'true' );
     vi.stubEnv( 'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS', '50' );
-    // Default: attribute signal emission enabled so existing tests can verify signal-sending behaviour
-    vi.stubEnv( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION', 'true' );
   } );
 
   afterEach( () => {
@@ -132,7 +133,11 @@ describe( 'ActivityExecutionInterceptor', () => {
     vi.advanceTimersByTime( 0 );
     const output = await promise;
 
-    expect( output ).toEqual( { result: 'ok' } );
+    expect( output ).toEqual( {
+      output: { result: 'ok' },
+      aggregations: emptyAggregations,
+      [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
+    } );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.objectContaining( {
       id: 'act-1', name: 'myWorkflow#myStep', kind: 'step', workflowId: 'wf-1', workflowName: 'myWorkflow'
     } ) );
@@ -142,17 +147,17 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( addEventStartMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).toHaveBeenCalledOnce();
     expect( addEventErrorMock ).not.toHaveBeenCalled();
-    expect( clientConstructorMock ).toHaveBeenCalledWith( { connection: undefined, namespace: 'default' } );
+    expect( clientConstructorMock ).not.toHaveBeenCalled();
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
       expect.objectContaining( {
         parentId: 'act-1',
         executionContext: { workflowId: 'wf-1' },
         workflowFilename: '/workflows/myWorkflow.js',
-        sendAttributeSignal: expect.any( Function )
+        addAttribute: expect.any( Function )
       } )
     );
-    expect( getHandleMock ).toHaveBeenCalledWith( 'wf-1' );
+    expect( getHandleMock ).not.toHaveBeenCalled();
   } );
 
   it( 'handles next returning a non-Promise value', async () => {
@@ -160,36 +165,45 @@ describe( 'ActivityExecutionInterceptor', () => {
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const next = vi.fn( () => ( { result: 'sync' } ) );
 
-    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'sync' } );
+    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( {
+      output: { result: 'sync' },
+      aggregations: emptyAggregations,
+      [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
+    } );
 
-    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
     expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'sync' }, executionContext: { workflowId: 'wf-1' } } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'handles signal flush timeout after successful execution', async () => {
-    const timeoutError = Object.assign( new Error( 'timeout' ), { isTimeout: true } );
-    allSettledWithTimeoutMock.mockRejectedValueOnce( timeoutError );
+  it( 'does not signal collected attributes after successful execution', async () => {
+    runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
+      ctx.addAttribute( httpRequestAttribute );
+      return fn();
+    } );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const next = vi.fn().mockResolvedValue( { result: 'ok' } );
 
-    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
+    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( {
+      output: { result: 'ok' },
+      aggregations: {
+        cost: { total: 0 },
+        tokens: { total: 0 },
+        httpRequests: { total: 1 }
+      },
+      [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
+    } );
 
-    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
-    expect( logWarnMock ).toHaveBeenCalledWith(
-      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow',
-      { workflowId: 'wf-1', workflowName: 'myWorkflow', activityId: 'act-1', activityName: 'myWorkflow#myStep' }
-    );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
-    expect( addEventEndMock ).toHaveBeenCalledOnce();
-    expect( addEventErrorMock ).not.toHaveBeenCalled();
+    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
+    expect( clientConstructorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'handles signal flush timeout after failed execution', async () => {
-    const timeoutError = Object.assign( new Error( 'timeout' ), { isTimeout: true } );
-    allSettledWithTimeoutMock.mockRejectedValueOnce( timeoutError );
+  it( 'signals collected aggregations after failed execution', async () => {
+    runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
+      ctx.addAttribute( httpRequestAttribute );
+      return fn();
+    } );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const error = new Error( 'step failed' );
@@ -197,49 +211,49 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
 
-    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
-    expect( logWarnMock ).toHaveBeenCalledWith(
-      'Some usage/cost attributes were missed because not all activity signals were sent to the workflow',
-      { workflowId: 'wf-1', workflowName: 'myWorkflow', activityId: 'act-1', activityName: 'myWorkflow#myStep' }
-    );
+    expect( clientConstructorMock ).toHaveBeenCalledWith( { connection: undefined, namespace: 'default' } );
+    expect( getHandleMock ).toHaveBeenCalledWith( 'wf-1' );
+    expect( workflowHandleMock.signal ).toHaveBeenCalledWith( Signal.SEND_AGGREGATIONS, {
+      cost: { total: 0 },
+      tokens: { total: 0 },
+      httpRequests: { total: 1 }
+    } );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.objectContaining( { error } ) );
     expect( addEventErrorMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'exposes sendAttributeSignal in activity context', async () => {
-    const attribute = { setActivity: vi.fn() };
-    runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
-      ctx.sendAttributeSignal( attribute );
-      return fn();
-    } );
+  it( 'does not send fallback signal when failed execution collected no attributes', async () => {
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
-    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+    const next = vi.fn().mockRejectedValue( new Error( 'step failed' ) );
 
-    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
+    await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
 
-    expect( attribute.setActivity ).toHaveBeenCalledWith( 'act-1', 'myWorkflow#myStep' );
-    expect( workflowHandleMock.signal ).toHaveBeenCalledWith( Signal.ADD_ATTRIBUTE, attribute );
-    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [ expect.any( Promise ) ], 30_000 );
+    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
+    expect( clientConstructorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'does not signal when OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION is false', async () => {
-    vi.stubEnv( 'OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION', 'false' );
-    const attribute = { setActivity: vi.fn() };
+  it( 'logs when fallback attribute signal fails', async () => {
+    const signalError = new Error( 'signal failed' );
+    workflowHandleMock.signal.mockRejectedValueOnce( signalError );
     runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
-      ctx.sendAttributeSignal( attribute );
+      ctx.addAttribute( httpRequestAttribute );
       return fn();
     } );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
-    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+    const next = vi.fn().mockRejectedValue( new Error( 'step failed' ) );
 
-    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
+    await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
 
-    expect( attribute.setActivity ).not.toHaveBeenCalled();
-    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
-    expect( allSettledWithTimeoutMock ).toHaveBeenCalledWith( [], 30_000 );
+    expect( logWarnMock ).toHaveBeenCalledWith( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, expect.objectContaining( {
+      message: 'signal failed',
+      activityId: 'act-1',
+      activityName: 'myWorkflow#myStep',
+      workflowId: 'wf-1',
+      workflowName: 'myWorkflow'
+    } ) );
   } );
 
   it( 'records trace error event on failed execution', async () => {

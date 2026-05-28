@@ -69,6 +69,7 @@
     "#errors": "./src/errors.js",
     "#logger": "./src/logger.js",
     "#utils": "./src/utils/index.js",
+    "#internal_utils/*": "./src/internal_utils/*.js",
     "#tracing": "./src/tracing/internal_interface.js",
     "#trace_attribute": "./src/tracing/trace_attribute.js",
     "#async_storage": "./src/async_storage.js",

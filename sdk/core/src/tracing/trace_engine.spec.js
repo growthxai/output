@@ -123,14 +123,14 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.action ).toBe( 'tick' );
   } );
 
-  it( 'addEventActionWithContext() sends ADD_ATTR attributes through storage context', async () => {
+  it( 'addEventActionWithContext() records ADD_ATTR attributes through storage context', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
-    const sendAttributeSignalMock = vi.fn();
+    const addAttributeMock = vi.fn();
     const executionContext = { runId: 'r1', disableTrace: false };
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
       executionContext,
-      sendAttributeSignal: sendAttributeSignalMock
+      addAttribute: addAttributeMock
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     const { EventAction } = await import( './trace_consts.js' );
@@ -140,8 +140,8 @@ describe( 'tracing/trace_engine', () => {
     const attribute = new Attribute.HTTPRequestCount( 'https://example.test', 'req-1' );
     addEventActionWithContext( EventAction.ADD_ATTR, { kind: 'http', name: 'request', id: 'req-1', details: attribute } );
 
-    expect( sendAttributeSignalMock ).toHaveBeenCalledTimes( 1 );
-    expect( sendAttributeSignalMock ).toHaveBeenCalledWith( attribute );
+    expect( addAttributeMock ).toHaveBeenCalledTimes( 1 );
+    expect( addAttributeMock ).toHaveBeenCalledWith( attribute );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     expect( localExecMock.mock.calls[0][0] ).toEqual( {
       executionContext,
@@ -159,11 +159,11 @@ describe( 'tracing/trace_engine', () => {
 
   it( 'addEventActionWithContext() throws on invalid ADD_ATTR signal payloads', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
-    const sendAttributeSignalMock = vi.fn();
+    const addAttributeMock = vi.fn();
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
       executionContext: { runId: 'r1', disableTrace: false },
-      sendAttributeSignal: sendAttributeSignalMock
+      addAttribute: addAttributeMock
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     const { EventAction } = await import( './trace_consts.js' );
@@ -175,7 +175,7 @@ describe( 'tracing/trace_engine', () => {
       { kind: 'http', name: 'request', id: 'req-1', details: invalidAttribute }
     ) ).toThrow( /not a BaseAttribute instance/ );
 
-    expect( sendAttributeSignalMock ).not.toHaveBeenCalled();
+    expect( addAttributeMock ).not.toHaveBeenCalled();
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
