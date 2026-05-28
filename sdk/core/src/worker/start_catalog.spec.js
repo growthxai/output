@@ -28,7 +28,7 @@ vi.mock( '@temporalio/client', async importOriginal => {
   };
 } );
 
-vi.mock( '@temporalio/common', () => ( { WorkflowIdConflictPolicy: { FAIL: 'FAIL' } } ) );
+vi.mock( '@temporalio/common', () => ( { WorkflowIdConflictPolicy: { USE_EXISTING: 'USE_EXISTING' } } ) );
 
 describe( 'worker/start_catalog', () => {
   const mockConnection = {};
@@ -54,7 +54,7 @@ describe( 'worker/start_catalog', () => {
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
       taskQueue,
       workflowId: catalogId,
-      workflowIdConflictPolicy: 'FAIL',
+      workflowIdConflictPolicy: 'USE_EXISTING',
       args: [ catalog ]
     } );
   } );
@@ -72,7 +72,7 @@ describe( 'worker/start_catalog', () => {
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
       taskQueue,
       workflowId: catalogId,
-      workflowIdConflictPolicy: 'FAIL',
+      workflowIdConflictPolicy: 'USE_EXISTING',
       args: [ catalog ]
     } );
   } );
@@ -90,7 +90,7 @@ describe( 'worker/start_catalog', () => {
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
       taskQueue,
       workflowId: catalogId,
-      workflowIdConflictPolicy: 'FAIL',
+      workflowIdConflictPolicy: 'USE_EXISTING',
       args: [ catalog ]
     } );
   } );
@@ -111,7 +111,7 @@ describe( 'worker/start_catalog', () => {
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
       taskQueue,
       workflowId: catalogId,
-      workflowIdConflictPolicy: 'FAIL',
+      workflowIdConflictPolicy: 'USE_EXISTING',
       args: [ catalog ]
     } );
   } );

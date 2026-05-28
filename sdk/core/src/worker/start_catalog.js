@@ -30,7 +30,7 @@ export const startCatalog = async ( { connection, namespace, catalog } ) => {
   await client.workflow.start( WORKFLOW_CATALOG, {
     taskQueue,
     workflowId: catalogId, // use the name of the task queue as the catalog name, ensuring uniqueness
-    workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
+    workflowIdConflictPolicy: WorkflowIdConflictPolicy.USE_EXISTING,
     args: [ catalog ]
   } );
 };
