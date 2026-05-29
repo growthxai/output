@@ -6,5 +6,9 @@ const __dirname = dirname( fileURLToPath( import.meta.url ) );
 
 export const initInterceptors = ( { activities, workflows, connection } ) => ( {
   workflowModules: [ join( __dirname, './interceptors/workflow.js' ) ],
-  activityInbound: [ () => new ActivityExecutionInterceptor( { activities, workflows, connection } ) ]
+  activity: [
+    () => ( {
+      inbound: new ActivityExecutionInterceptor( { activities, workflows, connection } )
+    } )
+  ]
 } );

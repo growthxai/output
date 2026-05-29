@@ -13,6 +13,7 @@ import { bootstrapFetchProxy } from './proxy.js';
 import { messageBus } from '#bus';
 import './log_hooks.js';
 import { BusEventType } from '#consts';
+import { hashSourceCode } from './loader_tools.js';
 
 const log = createChildLogger( 'Worker' );
 
@@ -54,6 +55,9 @@ const callerDir = process.argv[2];
   log.info( 'Creating workflows catalog...' );
   const catalog = createCatalog( { workflows, activities } );
 
+  log.info( 'Computing catalog source code hash...' );
+  const catalogHash = await hashSourceCode( callerDir );
+
   log.info( 'Connecting Temporal...' );
   const proxy = grpcProxy ? { type: 'http-connect', targetHost: grpcProxy } : undefined;
   if ( proxy ) {
@@ -81,7 +85,7 @@ const callerDir = process.argv[2];
   registerShutdown( { worker, log } );
 
   log.info( 'Running worker...' );
-  await Promise.all( [ worker.run(), startCatalog( { connection, namespace, catalog } ) ] );
+  await Promise.all( [ worker.run(), startCatalog( { connection, namespace, catalog, catalogHash } ) ] );
 
   log.info( 'Closing connection...' );
   await connection.close();

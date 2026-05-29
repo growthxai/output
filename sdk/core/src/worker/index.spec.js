@@ -40,6 +40,9 @@ vi.mock( './loader.js', () => ( {
   createWorkflowsEntryPoint: createWorkflowsEntryPointMock
 } ) );
 
+const hashSourceCodeMock = vi.fn().mockResolvedValue( 'catalog-hash' );
+vi.mock( './loader_tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
+
 vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 
 const createCatalogMock = vi.fn().mockReturnValue( { workflows: [], activities: {} } );
@@ -105,6 +108,7 @@ describe( 'worker/index', () => {
     expect( createWorkflowsEntryPointMock ).toHaveBeenCalledWith( [] );
     expect( initTracing ).toHaveBeenCalled();
     expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
+    expect( hashSourceCodeMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( bootstrapFetchProxyMock ).toHaveBeenCalled();
     expect( NativeConnection.connect ).toHaveBeenCalledWith( {
       address: configValues.address,
@@ -128,7 +132,8 @@ describe( 'worker/index', () => {
     expect( startCatalogMock ).toHaveBeenCalledWith( {
       connection: mockConnection,
       namespace: configValues.namespace,
-      catalog: { workflows: [], activities: {} }
+      catalog: { workflows: [], activities: {} },
+      catalogHash: 'catalog-hash'
     } );
 
     runState.resolve();
