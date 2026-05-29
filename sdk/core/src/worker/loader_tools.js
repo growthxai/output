@@ -311,9 +311,19 @@ export async function *importComponents( files ) {
  * @returns {string} Hash value
  */
 export const hashSourceCode = async rootDir => {
-  const { hash } = await hashElement( rootDir, {
-    folders: { exclude: [ '.*', 'node_modules', 'test_coverage', 'vendor', 'test' ] },
-    files: { include: [ '*.js', '*.cjs', '*.mjs', '*.ts', '*.yaml', '*.yml', '*.json', '*.prompt' ] }
-  } );
-  return hash;
+  try {
+    const { hash } = await hashElement( rootDir, {
+      folders: {
+        exclude: [ '.*', 'node_modules', 'test_coverage', 'vendor', 'test' ],
+        ignoreRootName: true
+      },
+      files: {
+        include: [ '*.js', '*.cjs', '*.mjs', '*.ts', '*.yaml', '*.yml', '*.json', '*.prompt' ],
+        ignoreRootName: true
+      }
+    } );
+    return hash;
+  } catch ( error ) {
+    throw new Error( `Error calculating hash from "${error}": ${error.message}`, { cause: error } );
+  }
 };
