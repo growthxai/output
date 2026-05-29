@@ -174,13 +174,6 @@ describe( 'utils spec', () => {
       expect( extractErrorDetail( error, 'trace' ) ).toEqual( tracePayload );
     } );
 
-    it( 'returns the requested detail from error.details', () => {
-      const attributes = [ { type: 'llm:usage' } ];
-      const error = { details: [ { attributes } ] };
-
-      expect( extractErrorDetail( error, 'attributes' ) ).toBe( attributes );
-    } );
-
     it( 'returns the requested detail from a nested cause chain', () => {
       const aggregations = { cost: { total: 1 } };
       const error = { cause: { details: [ { aggregations } ] } };
@@ -191,7 +184,7 @@ describe( 'utils spec', () => {
     it( 'returns null when the requested detail is missing', () => {
       const error = { details: [ { trace: {} } ], cause: { details: [] } };
 
-      expect( extractErrorDetail( error, 'attributes' ) ).toBeNull();
+      expect( extractErrorDetail( error, 'aggregations' ) ).toBeNull();
     } );
   } );
 

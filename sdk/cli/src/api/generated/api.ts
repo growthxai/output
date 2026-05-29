@@ -230,10 +230,8 @@ export interface WorkflowStatusResponse {
   completedAt?: number;
 }
 
-export type WorkflowResultResponseAttributesItem = { [key: string]: unknown };
-
 /**
- * Convenience totals derived from attributes
+ * Convenience totals aggregated from LLM and http usage and cost
  * @nullable
  */
 export type WorkflowResultResponseAggregations = { [key: string]: unknown } | null;
@@ -264,12 +262,7 @@ export interface WorkflowResultResponse {
   output?: unknown;
   trace?: TraceInfo;
   /**
-     * Durable workflow attributes collected during execution
-     * @nullable
-     */
-  attributes?: WorkflowResultResponseAttributesItem[] | null;
-  /**
-     * Convenience totals derived from attributes
+     * Convenience totals aggregated from LLM and http usage and cost
      * @nullable
      */
   aggregations?: WorkflowResultResponseAggregations;

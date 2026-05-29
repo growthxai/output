@@ -84,7 +84,6 @@ describe( 'formatWorkflowResult', () => {
       workflowId: 'wf-456',
       status: 'failed' as const,
       output: null,
-      attributes: [ { type: 'llm:usage', total: 0.4 } ],
       aggregations: { cost: { total: 0.4 }, tokens: { total: 20 }, httpRequests: { total: 0 } },
       error: 'Activity task failed'
     };
@@ -92,7 +91,6 @@ describe( 'formatWorkflowResult', () => {
     const output = formatOutput( data, 'json', formatWorkflowResult );
     const parsed = JSON.parse( output );
     expect( parsed.status ).toBe( 'failed' );
-    expect( parsed.attributes ).toEqual( [ { type: 'llm:usage', total: 0.4 } ] );
     expect( parsed.aggregations ).toEqual( { cost: { total: 0.4 }, tokens: { total: 20 }, httpRequests: { total: 0 } } );
     expect( parsed.error ).toBe( 'Activity task failed' );
   } );

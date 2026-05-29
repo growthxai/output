@@ -77,11 +77,10 @@ const RUN_INFO_TABS: TabBarItem[] = [
   { id: 'status', label: 'Status' },
   { id: 'input', label: 'Input' },
   { id: 'output', label: 'Output' },
-  { id: 'attributes', label: 'Attributes' },
   { id: 'aggregations', label: 'Aggregations' }
 ];
 
-const RUN_INFO_TAB_ORDER: RunListPaneTab[] = [ 'status', 'input', 'output', 'attributes', 'aggregations' ];
+const RUN_INFO_TAB_ORDER: RunListPaneTab[] = [ 'status', 'input', 'output', 'aggregations' ];
 
 const HeaderRow: React.FC = () => (
   <Box>
@@ -119,7 +118,6 @@ interface RunPaneData {
   input: unknown;
   output: unknown;
   error: unknown;
-  attributes: unknown;
   aggregations: unknown;
   status: string;
   loading: boolean;
@@ -143,9 +141,6 @@ const runPaneValue = ( run: WorkflowRun, pane: RunPaneData, activePane: RunListP
   }
   if ( activePane === 'output' ) {
     return pane.error ?? pane.output;
-  }
-  if ( activePane === 'attributes' ) {
-    return pane.attributes;
   }
   return pane.aggregations;
 };
@@ -240,7 +235,6 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[]; height: number }> = ( { 
     input: result?.input,
     output: result?.output,
     error: result?.error,
-    attributes: result?.attributes,
     aggregations: result?.aggregations,
     status: result?.status ?? selectedRun.status ?? 'unknown',
     loading

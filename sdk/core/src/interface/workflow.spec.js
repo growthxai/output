@@ -1,4 +1,4 @@
-import { Signal } from '#consts';
+import { ACTIVITY_WRAPPER_VERSION_FIELD, Signal, WORKFLOW_WRAPPER_VERSION_FIELD } from '#consts';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 
@@ -64,12 +64,6 @@ vi.mock( '#consts', async importOriginal => {
     ACTIVITY_GET_TRACE_DESTINATIONS: '__internal#getTraceDestinations'
   };
 } );
-
-const emptyAggregations = {
-  cost: { total: 0 },
-  tokens: { total: 0 },
-  httpRequests: { total: 0 }
-};
 
 describe( 'workflow()', () => {
   beforeEach( () => {
@@ -236,94 +230,64 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'root workflow (in workflow context)', () => {
-    it( 'calls getTraceDestinations, returns root trace data and assigns executionContext to memo', async () => {
+    it( 'unwraps wrapped trace destinations and assigns executionContext to memo', async () => {
+      traceDestinationsStepMock.mockResolvedValueOnce( {
+        output: { local: '/tmp/wrapped-trace' },
+        aggregations: null,
+        [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
+      } );
       const { workflow } = await import( './workflow.js' );
 
       const wf = workflow( {
-        name: 'root_wf',
-        description: 'Root',
+        name: 'wrapped_trace_wf',
+        description: 'Wrapped trace',
         inputSchema: z.object( {} ),
-        outputSchema: z.object( { v: z.number() } ),
-        fn: async () => ( { v: 42 } )
+        outputSchema: z.object( { ok: z.boolean() } ),
+        fn: async () => ( { ok: true } )
       } );
 
       const result = await wf( {} );
       expect( traceDestinationsStepMock ).toHaveBeenCalledTimes( 1 );
       expect( result ).toEqual( {
-        output: { v: 42 },
-        trace: { destinations: { local: '/tmp/trace' } },
-        attributes: [],
-        aggregations: emptyAggregations
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
+        output: { ok: true },
+        trace: { destinations: { local: '/tmp/wrapped-trace' } },
+        aggregations: null
       } );
       const memo = workflowInfoMock().memo;
       expect( memo.executionContext ).toEqual( {
         workflowId: 'wf-test-123',
-        workflowName: 'root_wf',
+        workflowName: 'wrapped_trace_wf',
         disableTrace: false,
         startTime: new Date( '2025-01-01T00:00:00Z' ).getTime()
       } );
     } );
 
-    it( 'collects attribute signals and returns aggregated attributes', async () => {
+    it( 'collects batched aggregation signals from failed activities', async () => {
       const { workflow } = await import( './workflow.js' );
-      const { Attribute } = await import( '#trace_attribute' );
-      const handlers = { addAttribute: () => {} };
+      const handlers = { sendAggregations: () => {} };
       setHandlerMock.mockImplementation( ( signalName, handler ) => {
-        if ( signalName === Signal.ADD_ATTRIBUTE ) {
-          handlers.addAttribute = handler;
+        if ( signalName === Signal.SEND_AGGREGATIONS ) {
+          handlers.sendAggregations = handler;
         }
       } );
 
-      const httpRequest = {
-        type: Attribute.HTTPRequestCount.TYPE,
-        url: 'https://api.example.test/items',
-        requestId: 'req-1'
-      };
-      const httpCost = {
-        type: Attribute.HTTPRequestCost.TYPE,
-        url: 'https://api.example.test/items',
-        requestId: 'req-1',
-        total: 2.5
-      };
-      const llmUsage = {
-        type: Attribute.LLMUsage.TYPE,
-        modelId: 'gpt-4o',
-        total: 0.25,
-        usage: [
-          { type: 'input', ppm: 5, amount: 20_000, total: 0.1 },
-          { type: 'output', ppm: 30, amount: 5_000, total: 0.15 }
-        ],
-        tokensUsed: 25_000
-      };
-
       const wf = workflow( {
-        name: 'attr_wf',
-        description: 'Attributes',
+        name: 'batched_attr_wf',
+        description: 'Batched aggregations',
         inputSchema: z.object( {} ),
         outputSchema: z.object( { ok: z.boolean() } ),
         fn: async () => {
-          handlers.addAttribute( httpRequest );
-          handlers.addAttribute( httpCost );
-          handlers.addAttribute( llmUsage );
+          handlers.sendAggregations( { cost: { total: 3 }, tokens: { total: 0 }, httpRequests: { total: 1 } } );
           return { ok: true };
         }
       } );
 
       const result = await wf( {} );
-      expect( result ).toEqual( {
-        output: { ok: true },
-        trace: { destinations: { local: '/tmp/trace' } },
-        attributes: [ httpRequest, httpCost, llmUsage ],
-        aggregations: {
-          cost: { total: 2.75 },
-          tokens: {
-            total: 25_000,
-            input: 20_000,
-            output: 5_000
-          },
-          httpRequests: { total: 1 }
-        }
-      } );
+      expect( result.cost ).toBeUndefined();
+      expect( result ).not.toHaveProperty( 'attributes' );
+      expect( result.aggregations.cost ).toEqual( { total: 3 } );
+      expect( result.aggregations.httpRequests ).toEqual( { total: 1 } );
     } );
 
     it( 'sets executionContext.disableTrace when options.disableTrace is true', async () => {
@@ -361,41 +325,39 @@ describe( 'workflow()', () => {
 
       const result = await wf( {} );
       expect( traceDestinationsStepMock ).not.toHaveBeenCalled();
-      expect( result ).toEqual( { output: { x: 'child' }, attributes: [] } );
+      expect( result ).toEqual( {
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
+        output: { x: 'child' },
+        aggregations: null
+      } );
     } );
   } );
 
   describe( 'bound this: invokeStep, invokeSharedStep, invokeEvaluator', () => {
-    it( 'invokeStep calls steps with workflowName#stepName', async () => {
-      const getCalls = [];
-      proxyActivitiesMock.mockImplementation( () => new Proxy( {}, {
-        get: ( _, prop ) => {
-          if ( prop === '__internal#getTraceDestinations' ) {
-            return traceDestinationsStepMock;
-          }
-          if ( typeof prop === 'string' && prop.includes( '#' ) ) {
-            getCalls.push( prop );
-            return vi.fn().mockResolvedValue( {} );
-          }
-          return vi.fn();
-        }
-      } ) );
+    it( 'invokeStep unwraps step output and merges step aggregations', async () => {
+      const stepSpy = vi.fn().mockResolvedValue( {
+        output: { value: 'wrapped' },
+        aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
+        [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
+      } );
+      proxyActivitiesMock.mockImplementation( () => createStepsProxy( stepSpy ) );
 
       const { workflow } = await import( './workflow.js' );
 
       const wf = workflow( {
-        name: 'invoke_wf',
-        description: 'Invoke',
+        name: 'unwrap_step_wf',
+        description: 'Unwrap step',
         inputSchema: z.object( {} ),
-        outputSchema: z.object( {} ),
+        outputSchema: z.object( { value: z.string() } ),
         async fn() {
-          await this.invokeStep( 'myStep', { foo: 1 } );
-          return {};
+          return this.invokeStep( 'myStep', { foo: 1 } );
         }
       } );
 
-      await wf( {} );
-      expect( getCalls ).toContain( 'invoke_wf#myStep' );
+      const result = await wf( {} );
+      expect( result.output ).toEqual( { value: 'wrapped' } );
+      expect( result ).not.toHaveProperty( 'attributes' );
+      expect( result.aggregations.httpRequests ).toEqual( { total: 1 } );
     } );
 
     it( 'invokeSharedStep calls steps with SHARED_STEP_PREFIX#stepName', async () => {
@@ -464,7 +426,7 @@ describe( 'workflow()', () => {
     it( 'calls executeChild with correct args and TERMINATE when not detached', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, attributes: [] } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'parent_wf',
@@ -492,7 +454,7 @@ describe( 'workflow()', () => {
     it( 'uses ABANDON when extra.detached is true', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, attributes: [] } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'detach_wf',
@@ -513,7 +475,7 @@ describe( 'workflow()', () => {
 
     it( 'passes empty args when input is null/omitted', async () => {
       const { workflow } = await import( './workflow.js' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, attributes: [] } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'no_input_wf',
@@ -532,26 +494,20 @@ describe( 'workflow()', () => {
       } ) );
     } );
 
-    it( 'returns child output and merges child attributes into the root result', async () => {
+    it( 'returns child output and merges child workflow aggregations into the root aggregations', async () => {
       const { workflow } = await import( './workflow.js' );
-      const { Attribute } = await import( '#trace_attribute' );
-      const childAttribute = {
-        type: Attribute.LLMUsage.TYPE,
-        modelId: 'gpt-4o',
-        total: 0.4,
-        tokensUsed: 20,
-        usage: [
-          { type: 'input', ppm: 10, amount: 20, total: 0.4 }
-        ]
-      };
       executeChildMock.mockResolvedValueOnce( {
         output: { child: 'ok' },
-        attributes: [ childAttribute ]
+        aggregations: {
+          cost: { total: 1.5 },
+          tokens: { total: 4, input: 4 },
+          httpRequests: { total: 2 }
+        }
       } );
 
       const wf = workflow( {
-        name: 'merge_child_wf',
-        description: 'Merge child attributes',
+        name: 'merge_child_aggregations_wf',
+        description: 'Merge child aggregations',
         inputSchema: z.object( {} ),
         outputSchema: z.object( { child: z.string() } ),
         async fn() {
@@ -561,40 +517,36 @@ describe( 'workflow()', () => {
 
       const result = await wf( {} );
       expect( result ).toEqual( {
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { child: 'ok' },
         trace: { destinations: { local: '/tmp/trace' } },
-        attributes: [ childAttribute ],
         aggregations: {
-          cost: { total: 0.4 },
-          tokens: {
-            total: 20,
-            input: 20
-          },
-          httpRequests: { total: 0 }
+          cost: { total: 1.5 },
+          tokens: { total: 4, input: 4 },
+          httpRequests: { total: 2 }
         }
       } );
     } );
 
-    it( 'merges child error attributes before rethrowing to root metadata', async () => {
+    it( 'merges child error aggregations before rethrowing to root metadata', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ChildWorkflowFailure } = await import( '@temporalio/workflow' );
       const { METADATA_ACCESS_SYMBOL } = await import( '#consts' );
-      const { Attribute } = await import( '#trace_attribute' );
-      const childAttribute = {
-        type: Attribute.HTTPRequestCost.TYPE,
-        url: 'https://api.example.test',
-        requestId: 'req-child',
-        total: 2
-      };
       const childError = new ChildWorkflowFailure( 'child failed', {
         message: 'Child workflow execution failed',
-        details: [ { attributes: [ childAttribute ] } ]
+        details: [ {
+          aggregations: {
+            cost: { total: 3 },
+            tokens: { total: 8, output: 8 },
+            httpRequests: { total: 0 }
+          }
+        } ]
       } );
       executeChildMock.mockRejectedValueOnce( childError );
 
       const wf = workflow( {
-        name: 'child_error_wf',
-        description: 'Child error attributes',
+        name: 'child_error_aggregations_wf',
+        description: 'Child error aggregations',
         inputSchema: z.object( {} ),
         outputSchema: z.object( {} ),
         async fn() {
@@ -605,11 +557,11 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).rejects.toThrow( 'child failed' );
       expect( childError[METADATA_ACCESS_SYMBOL] ).toEqual( {
-        attributes: [ childAttribute ],
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         trace: { destinations: { local: '/tmp/trace' } },
         aggregations: {
-          cost: { total: 2 },
-          tokens: { total: 0 },
+          cost: { total: 3 },
+          tokens: { total: 8, output: 8 },
           httpRequests: { total: 0 }
         }
       } );
@@ -617,7 +569,7 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'error handling (root workflow)', () => {
-    it( 'rethrows error from fn with trace attributes and aggregation metadata', async () => {
+    it( 'rethrows error from fn with trace and aggregation metadata', async () => {
       const { workflow } = await import( './workflow.js' );
       const { METADATA_ACCESS_SYMBOL } = await import( '#consts' );
       const error = new Error( 'workflow failed' );
@@ -634,9 +586,9 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).rejects.toThrow( 'workflow failed' );
       expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( {
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         trace: { destinations: { local: '/tmp/trace' } },
-        attributes: [],
-        aggregations: emptyAggregations
+        aggregations: null
       } );
     } );
   } );

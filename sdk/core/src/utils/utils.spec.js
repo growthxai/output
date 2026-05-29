@@ -5,6 +5,7 @@ import {
   serializeBodyAndInferContentType,
   serializeFetchResponse,
   deepMerge,
+  deepMergeWithResolver,
   isPlainObject,
   toUrlSafeBase64,
   allSettledWithTimeout
@@ -20,6 +21,86 @@ describe( 'clone', () => {
     expect( original.nested.b ).toBe( 2 );
     expect( copied.nested.b ).toBe( 3 );
     expect( copied ).not.toBe( original );
+  } );
+
+  it( 'deep copies JSON-compatible arrays and objects', () => {
+    const original = {
+      arr: [ 1, { nested: true } ],
+      str: 'value',
+      bool: false,
+      nil: null
+    };
+    const copied = clone( original );
+
+    copied.arr[1].nested = false;
+
+    expect( copied ).toEqual( {
+      arr: [ 1, { nested: false } ],
+      str: 'value',
+      bool: false,
+      nil: null
+    } );
+    expect( original.arr[1].nested ).toBe( true );
+    expect( copied ).not.toBe( original );
+    expect( copied.arr ).not.toBe( original.arr );
+  } );
+
+  it( 'returns primitive JSON values when they can be parsed', () => {
+    expect( clone( null ) ).toBeNull();
+    expect( clone( true ) ).toBe( true );
+    expect( clone( false ) ).toBe( false );
+    expect( clone( 123 ) ).toBe( 123 );
+    expect( clone( 'hello' ) ).toBe( 'hello' );
+  } );
+
+  it( 'returns original values when JSON serialization produces no parseable payload', () => {
+    const sym = Symbol( 'x' );
+    const fn = () => {};
+    class Foo {}
+
+    expect( clone( undefined ) ).toBeUndefined();
+    expect( clone( sym ) ).toBe( sym );
+    expect( clone( fn ) ).toBe( fn );
+    expect( clone( Foo ) ).toBe( Foo );
+    expect( clone( Date ) ).toBe( Date );
+    expect( clone( Object ) ).toBe( Object );
+    expect( clone( Number ) ).toBe( Number );
+  } );
+
+  it( 'returns original values when JSON serialization throws', () => {
+    const circular = { name: 'circular' };
+    circular.self = circular;
+    const bigint = 1n;
+
+    expect( clone( circular ) ).toBe( circular );
+    expect( clone( bigint ) ).toBe( bigint );
+  } );
+
+  it( 'keeps JSON.stringify semantics for special numeric values', () => {
+    expect( clone( NaN ) ).toBeNull();
+    expect( clone( Infinity ) ).toBeNull();
+    expect( clone( -Infinity ) ).toBeNull();
+  } );
+
+  it( 'keeps JSON.stringify semantics for non-plain object instances', () => {
+    const date = new Date( '2025-01-01T00:00:00.000Z' );
+
+    expect( clone( date ) ).toBe( '2025-01-01T00:00:00.000Z' );
+    expect( clone( /abc/ ) ).toEqual( {} );
+    expect( clone( new Map( [ [ 'a', 1 ] ] ) ) ).toEqual( {} );
+    expect( clone( new Set( [ 1, 2 ] ) ) ).toEqual( {} );
+  } );
+
+  it( 'drops object properties that JSON.stringify omits', () => {
+    const sym = Symbol( 'x' );
+    const original = {
+      kept: 'yes',
+      missing: undefined,
+      fn: () => {},
+      sym
+    };
+
+    expect( clone( original ) ).toEqual( { kept: 'yes' } );
   } );
 } );
 
@@ -350,6 +431,57 @@ describe( 'deepMerge', () => {
     expect( () => deepMerge( class Foo {}, class Foo {} ) ).toThrow( Error );
     expect( () => deepMerge( Number.constructor, Number.constructor ) ).toThrow( Error );
     expect( () => deepMerge( Number.constructor.prototype, Number.constructor.prototype ) ).toThrow( Error );
+  } );
+} );
+
+describe( 'deepMergeWithResolver', () => {
+  it( 'uses resolver for existing leaf values, including nested leaves', () => {
+    const a = {
+      cost: { total: 1 },
+      tokens: { total: 2, input: 3 }
+    };
+    const b = {
+      cost: { total: 4 },
+      tokens: { total: 5, input: 6, output: 7 }
+    };
+
+    expect( deepMergeWithResolver( a, b, ( x, y ) => x + y ) ).toEqual( {
+      cost: { total: 5 },
+      tokens: { total: 7, input: 9, output: 7 }
+    } );
+  } );
+
+  it( 'copies values from "b" when they do not exist in "a"', () => {
+    const resolver = vi.fn( ( x, y ) => x + y );
+
+    expect( deepMergeWithResolver( { a: 1 }, { b: 2, nested: { c: 3 } }, resolver ) ).toEqual( {
+      a: 1,
+      b: 2,
+      nested: { c: 3 }
+    } );
+    expect( resolver ).not.toHaveBeenCalled();
+  } );
+
+  it( 'keeps extra values from "a" when absent from "b"', () => {
+    expect( deepMergeWithResolver( { a: 1, nested: { kept: 2 } }, { b: 3 }, ( x, y ) => x + y ) ).toEqual( {
+      a: 1,
+      nested: { kept: 2 },
+      b: 3
+    } );
+  } );
+
+  it( 'returns a clone of "a" when "b" is not an object', () => {
+    const a = { nested: { value: 1 } };
+    const result = deepMergeWithResolver( a, null, ( x, y ) => x + y );
+
+    a.nested.value = 2;
+    expect( result ).toEqual( { nested: { value: 1 } } );
+  } );
+
+  it( 'throws when first argument is not a plain object', () => {
+    expect( () => deepMergeWithResolver( null, {}, ( x, y ) => x + y ) ).toThrow( Error );
+    expect( () => deepMergeWithResolver( [], {}, ( x, y ) => x + y ) ).toThrow( Error );
+    expect( () => deepMergeWithResolver( 'a', {}, ( x, y ) => x + y ) ).toThrow( Error );
   } );
 } );
 

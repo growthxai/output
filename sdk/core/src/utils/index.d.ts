@@ -122,7 +122,21 @@ export function shuffleArray( arr: unknown[] ): unknown[];
  * @throws {Error} If either `a` or `b` is not a plain object.
  * @returns A new merged object.
  */
-export function deepMerge( a: object, b: object ): object;
+export function deepMerge( a: object, b: object | null | undefined ): object;
+
+/**
+ * Creates a new object by merging object `b` onto object `a`, biased toward `b`:
+ * - Fields in `b` that don't exist in `a` are created.
+ * - Fields in `a` that don't exist in `b` are left unchanged.
+ * - Fields in `a` and `b` are passed as arguments to the resolve function (a,b) and its return assigns the new value.
+ *
+ * @param a - The base object.
+ * @param b - The overriding object.
+ * @param resolver - The resolver function.
+ * @throws {Error} If either `a` or `b` is not a plain object.
+ * @returns A new merged object.
+ */
+export function deepMergeWithResolver( a: object, b: object | null | undefined, resolver: function ): object;
 
 /**
  * Shortens a UUID to a url-safe base64-like string (custom 64-char alphabet).

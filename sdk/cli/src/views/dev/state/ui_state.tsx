@@ -11,7 +11,7 @@ export const TAB_LABELS: Record<Tab, string> = {
   help: 'Help'
 };
 
-export type RunListPaneTab = 'status' | 'input' | 'output' | 'attributes' | 'aggregations';
+export type RunListPaneTab = 'status' | 'input' | 'output' | 'aggregations';
 export type RunStepPaneTab = 'input' | 'output' | 'meta';
 
 export type RunsView = 'list' | 'detail';

@@ -190,17 +190,14 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
     ...( result ? {
       output: result.output,
       trace: result.trace,
-      attributes: result.attributes,
       aggregations: result.aggregations
     } : {
       output: null,
       trace: null,
-      attributes: null,
       aggregations: null
     } ),
     ...( error ? {
       trace: extractErrorDetail( error, 'trace' ),
-      attributes: extractErrorDetail( error, 'attributes' ),
       aggregations: extractErrorDetail( error, 'aggregations' ),
       error: extractErrorMessage( error )
     } : {

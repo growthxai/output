@@ -15,6 +15,9 @@ export const explainTopic = step( {
       variables: { topic }
     } );
 
+    if ( true ) {
+      throw new Error( 'broken' );
+    }
     return response.result;
   }
 } );
