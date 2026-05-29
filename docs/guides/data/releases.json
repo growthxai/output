@@ -1,6 +1,53 @@
 {
   "releases": [
     {
+      "version": "0.6.0",
+      "date": "2026-05-29",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "better-socks-burn",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Removed `.attributes` field from workflow results (both `/run` and `/results` endpoints)"
+        },
+        {
+          "id": "four-eagles-camp",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Rewriting the catalog workflow startup logic to better handle multiple instances of the worker and avoiding restarting the workflow unnecessarily."
+        },
+        {
+          "id": "heavy-tools-pay",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Removed \"Attributes\" tab from Recent Runs > [Workflow view]."
+        },
+        {
+          "id": "soft-dragons-wink",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Removed property `.attributes` from workflow result wrapper object: Workflows will no longer accumulate or expose attributes;\n- Added `__output_workflow_wrapper_version=1` field on workflow wrapper object to better version it;\n- Removed Signals-based communication between Activities and Workflows to share individual attributes:\n  - Each activity now aggregates all attributes of the events that happened within it. This is returned in a new wrapper around the activity:\n  ```js\n  {\n    __output_activity_wrapper_version: 1, // internal flag to indicate this wrapper's version\n    output: ..., // the raw output from the activity\n    aggregations: {  // aggregation object with total llm/http usage and cost from all requests of this activity\n      cost: {\n        total: 1 // total cost from all http and llm requests\n      },\n      tokens: { // breakdown of all llm tokens used\n        total: 10,\n        input: 3,\n        cached_input: 1,\n        output: 4,\n        reasoning: 2\n      },\n      httpRequests: { // total number of http calls made\n        total: 3\n      }\n    }\n  }\n  ```\n  - Workflows now read these aggregations and merge them to create the final `.aggregations` object returned in its result, which is unchanged;\n  - When Activities fail, a fallback Signal is sent with the aggregations so workflows can still compute them, avoiding data loss."
+        }
+      ]
+    },
+    {
       "version": "0.5.2",
       "date": "2026-05-27",
       "level": "patch",

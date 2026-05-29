@@ -1,5 +1,19 @@
 # @outputai/output
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [bdf47aa]
+- Updated dependencies [69060d7]
+- Updated dependencies [69060d7]
+  - @outputai/core@0.6.0
+  - @outputai/cli@0.6.0
+  - @outputai/credentials@0.6.0
+  - @outputai/evals@0.6.0
+  - @outputai/http@0.6.0
+  - @outputai/llm@0.6.0
+
 ## 0.5.2
 
 ### Patch Changes

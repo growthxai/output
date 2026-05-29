@@ -1,5 +1,11 @@
 # output-api
 
+## 0.6.0
+
+### Minor Changes
+
+- 69060d7: Removed `.attributes` field from workflow results (both `/run` and `/results` endpoints)
+
 ## 0.5.2
 
 ### Patch Changes
