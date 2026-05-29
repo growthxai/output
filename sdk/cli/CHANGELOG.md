@@ -1,5 +1,14 @@
 # @outputai/cli
 
+## 0.6.0
+
+### Patch Changes
+
+- 69060d7: Removed "Attributes" tab from Recent Runs > [Workflow view].
+  - @outputai/credentials@0.6.0
+  - @outputai/evals@0.6.0
+  - @outputai/llm@0.6.0
+
 ## 0.5.2
 
 ### Patch Changes
