@@ -2,6 +2,7 @@ import { dirname, resolve, sep } from 'path';
 import { pathToFileURL } from 'url';
 import { METADATA_ACCESS_SYMBOL } from '#consts';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'fs';
+import { hashElement } from 'folder-hash';
 
 /**
  * Returns the real path for symlink
@@ -300,5 +301,29 @@ export async function *importComponents( files ) {
       }
       yield { fn, metadata, path };
     }
+  }
+};
+
+/**
+ * Creates a hash of all source code in a given dir
+ *
+ * @param {string} rootDir
+ * @returns {string} Hash value
+ */
+export const hashSourceCode = async rootDir => {
+  try {
+    const { hash } = await hashElement( rootDir, {
+      folders: {
+        exclude: [ '.*', 'node_modules', 'test_coverage', 'vendor', 'test' ],
+        ignoreRootName: true
+      },
+      files: {
+        include: [ '*.js', '*.cjs', '*.mjs', '*.ts', '*.yaml', '*.yml', '*.json', '*.prompt' ],
+        ignoreRootName: true
+      }
+    } );
+    return hash;
+  } catch ( error ) {
+    throw new Error( `Error calculating hash from "${error}": ${error.message}`, { cause: error } );
   }
 };

@@ -14,10 +14,6 @@ export const explainTopic = step( {
       prompt: 'prompt@v1',
       variables: { topic }
     } );
-
-    if ( true ) {
-      throw new Error( 'broken' );
-    }
     return response.result;
   }
 } );
