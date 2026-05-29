@@ -22,6 +22,86 @@ describe( 'clone', () => {
     expect( copied.nested.b ).toBe( 3 );
     expect( copied ).not.toBe( original );
   } );
+
+  it( 'deep copies JSON-compatible arrays and objects', () => {
+    const original = {
+      arr: [ 1, { nested: true } ],
+      str: 'value',
+      bool: false,
+      nil: null
+    };
+    const copied = clone( original );
+
+    copied.arr[1].nested = false;
+
+    expect( copied ).toEqual( {
+      arr: [ 1, { nested: false } ],
+      str: 'value',
+      bool: false,
+      nil: null
+    } );
+    expect( original.arr[1].nested ).toBe( true );
+    expect( copied ).not.toBe( original );
+    expect( copied.arr ).not.toBe( original.arr );
+  } );
+
+  it( 'returns primitive JSON values when they can be parsed', () => {
+    expect( clone( null ) ).toBeNull();
+    expect( clone( true ) ).toBe( true );
+    expect( clone( false ) ).toBe( false );
+    expect( clone( 123 ) ).toBe( 123 );
+    expect( clone( 'hello' ) ).toBe( 'hello' );
+  } );
+
+  it( 'returns original values when JSON serialization produces no parseable payload', () => {
+    const sym = Symbol( 'x' );
+    const fn = () => {};
+    class Foo {}
+
+    expect( clone( undefined ) ).toBeUndefined();
+    expect( clone( sym ) ).toBe( sym );
+    expect( clone( fn ) ).toBe( fn );
+    expect( clone( Foo ) ).toBe( Foo );
+    expect( clone( Date ) ).toBe( Date );
+    expect( clone( Object ) ).toBe( Object );
+    expect( clone( Number ) ).toBe( Number );
+  } );
+
+  it( 'returns original values when JSON serialization throws', () => {
+    const circular = { name: 'circular' };
+    circular.self = circular;
+    const bigint = 1n;
+
+    expect( clone( circular ) ).toBe( circular );
+    expect( clone( bigint ) ).toBe( bigint );
+  } );
+
+  it( 'keeps JSON.stringify semantics for special numeric values', () => {
+    expect( clone( NaN ) ).toBeNull();
+    expect( clone( Infinity ) ).toBeNull();
+    expect( clone( -Infinity ) ).toBeNull();
+  } );
+
+  it( 'keeps JSON.stringify semantics for non-plain object instances', () => {
+    const date = new Date( '2025-01-01T00:00:00.000Z' );
+
+    expect( clone( date ) ).toBe( '2025-01-01T00:00:00.000Z' );
+    expect( clone( /abc/ ) ).toEqual( {} );
+    expect( clone( new Map( [ [ 'a', 1 ] ] ) ) ).toEqual( {} );
+    expect( clone( new Set( [ 1, 2 ] ) ) ).toEqual( {} );
+  } );
+
+  it( 'drops object properties that JSON.stringify omits', () => {
+    const sym = Symbol( 'x' );
+    const original = {
+      kept: 'yes',
+      missing: undefined,
+      fn: () => {},
+      sym
+    };
+
+    expect( clone( original ) ).toEqual( { kept: 'yes' } );
+  } );
 } );
 
 describe( 'allSettledWithTimeout', () => {

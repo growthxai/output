@@ -2,6 +2,26 @@ import { deepMergeWithResolver } from '#utils';
 import { Attribute } from '#trace_attribute';
 import Decimal from 'decimal.js';
 
+/**
+ * @typedef {object} Aggregation
+ *
+ * @property {object} cost
+ * @property {object} cost.total - Total cost
+ * @property {object} tokens
+ * @property {object} tokens.total - Total tokens used
+ * @property {object} tokens.input  - Total input tokens used
+ * @property {object} tokens.input_cached - Total cached input tokens used
+ * @property {object} tokens.output - Total output tokens used
+ * @property {object} tokens.reasoning - Total reasoning tokens used
+ * @property {object} httpRequests
+ * @property {object} httpRequests.total - Total number of http requests made
+ */
+/**
+ * Aggregates a collection of Attributes into a object with totals
+ *
+ * @param {Attribute} attributes
+ * @returns {Aggregation} aggregation object
+ */
 export const aggregateAttributes = attributes => ( {
   cost: {
     total: attributes
@@ -24,5 +44,11 @@ export const aggregateAttributes = attributes => ( {
   }
 } );
 
+/**
+ * Combine two or more aggregation objects into a single Aggregation, adding up the totals and merging keys.
+ *
+ * @param {Aggregation} aggregations
+ * @returns {Aggregation}
+ */
 export const mergeAggregations = ( ...aggregations ) =>
   aggregations.reduce( ( final, item ) => deepMergeWithResolver( final, item, ( a, b ) => Decimal( a ?? 0 ).add( b ?? 0 ).toNumber() ), {} );

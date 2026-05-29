@@ -65,12 +65,6 @@ vi.mock( '#consts', async importOriginal => {
   };
 } );
 
-const emptyAggregations = {
-  cost: { total: 0 },
-  tokens: { total: 0 },
-  httpRequests: { total: 0 }
-};
-
 describe( 'workflow()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -239,7 +233,7 @@ describe( 'workflow()', () => {
     it( 'unwraps wrapped trace destinations and assigns executionContext to memo', async () => {
       traceDestinationsStepMock.mockResolvedValueOnce( {
         output: { local: '/tmp/wrapped-trace' },
-        aggregations: emptyAggregations,
+        aggregations: null,
         [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
       } );
       const { workflow } = await import( './workflow.js' );
@@ -258,7 +252,7 @@ describe( 'workflow()', () => {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { ok: true },
         trace: { destinations: { local: '/tmp/wrapped-trace' } },
-        aggregations: emptyAggregations
+        aggregations: null
       } );
       const memo = workflowInfoMock().memo;
       expect( memo.executionContext ).toEqual( {
@@ -334,7 +328,7 @@ describe( 'workflow()', () => {
       expect( result ).toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { x: 'child' },
-        aggregations: emptyAggregations
+        aggregations: null
       } );
     } );
   } );
@@ -432,7 +426,7 @@ describe( 'workflow()', () => {
     it( 'calls executeChild with correct args and TERMINATE when not detached', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: emptyAggregations } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'parent_wf',
@@ -460,7 +454,7 @@ describe( 'workflow()', () => {
     it( 'uses ABANDON when extra.detached is true', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: emptyAggregations } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'detach_wf',
@@ -481,7 +475,7 @@ describe( 'workflow()', () => {
 
     it( 'passes empty args when input is null/omitted', async () => {
       const { workflow } = await import( './workflow.js' );
-      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: emptyAggregations } );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
       const wf = workflow( {
         name: 'no_input_wf',
@@ -594,7 +588,7 @@ describe( 'workflow()', () => {
       expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         trace: { destinations: { local: '/tmp/trace' } },
-        aggregations: emptyAggregations
+        aggregations: null
       } );
     } );
   } );

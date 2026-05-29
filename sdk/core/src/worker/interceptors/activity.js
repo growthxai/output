@@ -102,7 +102,11 @@ export class ActivityExecutionInterceptor {
 
       messageBus.emit( BusEventType.ACTIVITY_END, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate } );
       Tracing.addEventEnd( { id, details: output, executionContext } );
-      return { output, aggregations: aggregateAttributes( state.attributes ), [ACTIVITY_WRAPPER_VERSION_FIELD]: 1 };
+      return {
+        [ACTIVITY_WRAPPER_VERSION_FIELD]: 1,
+        output,
+        aggregations: state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null
+      };
 
     } catch ( error ) {
       messageBus.emit( BusEventType.ACTIVITY_ERROR, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate, error } );

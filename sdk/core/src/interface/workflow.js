@@ -15,6 +15,7 @@ import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
 import { FatalError, ValidationError } from '#errors';
 import { Context } from './workflow_context.js';
 import { aggregateAttributes, mergeAggregations } from '#internal_utils/aggregations';
+import { extractErrorDetail } from '#internal_utils/errors';
 
 const defaultOptions = {
   activityOptions: {
@@ -35,9 +36,6 @@ const defaultOptions = {
  * Checks if the activity result uses the internal wrapper
  */
 const isActivityResultWrapped = result => result?.[ACTIVITY_WRAPPER_VERSION_FIELD] > 0;
-
-export const extractErrorDetail = ( e, key ) =>
-  e ? ( e.details?.find?.( d => d[key] )?.[key] ?? extractErrorDetail( e.cause, key ) ) : null;
 
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   validateWorkflow( { name, description, inputSchema, outputSchema, fn, options, aliases } );
@@ -89,28 +87,35 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       activityOptions: memo.activityOptions ?? activityOptions // Also preserve the original activity options
     } );
 
+    /**
+     * Run the internal activity to retrieve the workflow trace destinations
+     * This only happens at the root workflow because nested share the same trace file
+     * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
+     * @TODO [OUT-468]
+    */
+    const getTraceDestinations = async () => {
+      const result = await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext );
+      return isActivityResultWrapped( result ) ? result.output : result;
+    };
+
     // Creates the result wrapper with information about the workflow
     const workflowResult = {
       [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-      aggregations: aggregateAttributes( [] ),
-      ...( isRoot && await ( async () => {
-        /* Run the internal activity to retrieve the workflow trace destinations
-          This only happens at the root workflow because nested share the same trace file */
-        const result = await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext );
-        /**
-         * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
-         * @TODO This can be removed 30days after this release
-         */
-        return {
-          trace: {
-            destinations: isActivityResultWrapped( result ) ? result.output : result
-          }
-        };
-      } )() )
+      aggregations: null,
+      ...( isRoot && {
+        trace: {
+          destinations: await getTraceDestinations()
+        }
+      } )
     };
 
-    setHandler( defineSignal( Signal.SEND_AGGREGATIONS ), a => {
-      workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, a );
+    // Combine aggregations in the workflow result aggregations, mutating it
+    const mergeAggregationsInWorkflowResult = aggregations => {
+      workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregations );
+    };
+
+    setHandler( defineSignal( Signal.SEND_AGGREGATIONS ), aggregations => {
+      mergeAggregationsInWorkflowResult( aggregations );
     } );
 
     /**
@@ -118,27 +123,28 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
      * @TODO This can be removed 30days after this release
      */
     setHandler( defineSignal( 'add_attribute' ), attribute => {
-      workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregateAttributes( [ attribute ] ) );
+      mergeAggregationsInWorkflowResult( aggregateAttributes( [ attribute ] ) );
     } );
 
     /**
-     * unwraps step result to extract "aggregations" and return plain result.
+     * Invoke a step and unwraps the result to extract and merge "aggregations" and return only the output.
+     *
+     * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
+     * @TODO [OUT-468]
      * @param {Function} step
      * @param  {...any} args
      * @returns {any} The step "output"
      */
-    const callStepFn = async ( step, ...args ) => {
+    const callStepAndUnwrapResult = async ( step, ...args ) => {
       const result = await step( ...args );
-      /**
-       * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
-       * @TODO This can be removed 30days after this release
-       */
-      if ( isActivityResultWrapped( result ) ) {
-        const { output, aggregations } = result;
-        workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregations );
-        return output;
+      if ( !isActivityResultWrapped( result ) ) {
+        return result;
       }
-      return result;
+      const { output, aggregations } = result;
+      if ( aggregations ) {
+        mergeAggregationsInWorkflowResult( aggregations );
+      }
+      return output;
     };
 
     try {
@@ -146,25 +152,17 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       validateWithSchema( inputSchema, input, `Workflow ${name} input` );
 
       const dispatchers = {
+        /* This are shortcuts to invoke activities as steps/evaluators both shared and non shared */
         invokeStep: async ( stepName, input, options ) =>
-          callStepFn( steps[`${name}#${stepName}`], input, options ),
+          callStepAndUnwrapResult( steps[`${name}#${stepName}`], input, options ),
         invokeSharedStep: async ( stepName, input, options ) =>
-          callStepFn( steps[`${SHARED_STEP_PREFIX}#${stepName}`], input, options ),
+          callStepAndUnwrapResult( steps[`${SHARED_STEP_PREFIX}#${stepName}`], input, options ),
         invokeEvaluator: async ( evaluatorName, input, options ) =>
-          callStepFn( steps[`${name}#${evaluatorName}`], input, options ),
+          callStepAndUnwrapResult( steps[`${name}#${evaluatorName}`], input, options ),
         invokeSharedEvaluator: async ( evaluatorName, input, options ) =>
-          callStepFn( steps[`${SHARED_STEP_PREFIX}#${evaluatorName}`], input, options ),
+          callStepAndUnwrapResult( steps[`${SHARED_STEP_PREFIX}#${evaluatorName}`], input, options ),
 
-        /**
-         * Start a child workflow
-         *
-         * @param {string} childName
-         * @param {unknown} input
-         * @param {object} extra
-         * @param {boolean} extra.detached
-         * @param {import('@temporalio/workflow').ActivityOptions} extra.options
-         * @returns {Promise<unknown>}
-         */
+        // Start a new child workflow
         startWorkflow: async ( childName, input, extra = {} ) => {
           try {
             const result = await executeChild( childName, {
@@ -179,27 +177,27 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
             } );
             /**
              * @IMPORTANT Keep support for deprecated ".attributes" from workflow results to allow for Temporal replays.
-             * @TODO This can be removed 30days after this release
+             * @TODO [OUT-468]
              */
             if ( result?.attributes ) {
-              workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregateAttributes( result.attributes ) );
+              mergeAggregationsInWorkflowResult( aggregateAttributes( result.attributes ) );
             }
             if ( result?.aggregations ) {
-              workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, result.aggregations );
+              mergeAggregationsInWorkflowResult( result.aggregations );
             }
             return result.output;
           } catch ( error ) {
             /**
              * @IMPORTANT Keep support for deprecated ".attributes" from workflow errors to allow for Temporal replays.
-             * @TODO This can be removed 30days after this release
+             * @TODO [OUT-468]
              */
             const attributesFromError = extractErrorDetail( error, 'attributes' );
             if ( attributesFromError ) {
-              workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregateAttributes( attributesFromError ) );
+              mergeAggregationsInWorkflowResult( aggregateAttributes( attributesFromError ) );
             }
             const aggregationsFromError = extractErrorDetail( error, 'aggregations' );
             if ( aggregationsFromError ) {
-              workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregationsFromError );
+              mergeAggregationsInWorkflowResult( aggregationsFromError );
             }
             throw error;
           }

@@ -96,12 +96,6 @@ const makeInput = () => ( {
   headers: {}
 } );
 
-const emptyAggregations = {
-  cost: { total: 0 },
-  tokens: { total: 0 },
-  httpRequests: { total: 0 }
-};
-
 const httpRequestAttribute = {
   type: Attribute.HTTPRequestCount.TYPE,
   url: 'https://api.example.test/items',
@@ -135,7 +129,7 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     expect( output ).toEqual( {
       output: { result: 'ok' },
-      aggregations: emptyAggregations,
+      aggregations: null,
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.objectContaining( {
@@ -167,7 +161,7 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( {
       output: { result: 'sync' },
-      aggregations: emptyAggregations,
+      aggregations: null,
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
 

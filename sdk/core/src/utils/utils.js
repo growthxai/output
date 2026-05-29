@@ -5,7 +5,13 @@ import { METADATA_ACCESS_SYMBOL } from '#consts';
  * @param {object} v
  * @returns {object}
  */
-export const clone = v => JSON.parse( JSON.stringify( v ) );
+export const clone = v => {
+  try {
+    return JSON.parse( JSON.stringify( v ) );
+  } catch {
+    return v;
+  }
+};
 
 /**
  * Detect a JS plain object.
@@ -170,30 +176,6 @@ export const shuffleArray = arr => arr
   .map( ( { v } ) => v );
 
 /**
- * Creates a new object merging object "b" onto object "a" biased to "b":
- * - Object "b" will overwrite fields on object "a";
- * - Object "b" fields that don't exist on object "a" will be added;
- * - Object "a" fields that don't exist on object "b" will be preserved;
- *
- * If "b" isn't an object, a new object equal to "a" is returned
- *
- * @param {object} a - The base object
- * @param {object} b - The target object
- * @returns {object} A new object
- */
-export const deepMerge = ( a, b ) => {
-  if ( !isPlainObject( a ) ) {
-    throw new Error( 'Parameter "a" is not an object.' );
-  }
-  if ( !isPlainObject( b ) ) {
-    return clone( a );
-  }
-  return Object.entries( b ).reduce( ( obj, [ k, v ] ) =>
-    Object.assign( obj, { [k]: isPlainObject( v ) && isPlainObject( a[k] ) ? deepMerge( a[k], v ) : v } )
-  , clone( a ) );
-};
-
-/**
  * Creates a new object merging object "b" onto object "a", using a resolver function to define the value to keep.
  * - Object "b" fields that also exists on "a" will have their value defined by the "resolver" function
  * - Object "b" fields that don't exist on object "a" will be added;
@@ -227,6 +209,20 @@ export const deepMergeWithResolver = ( a, b, resolver ) => {
     } )
   , clone( a ) );
 };
+
+/**
+ * Creates a new object merging object "b" onto object "a" biased to "b":
+ * - Object "b" will overwrite fields on object "a";
+ * - Object "b" fields that don't exist on object "a" will be added;
+ * - Object "a" fields that don't exist on object "b" will be preserved;
+ *
+ * If "b" isn't an object, a new object equal to "a" is returned
+ *
+ * @param {object} a - The base object
+ * @param {object} b - The target object
+ * @returns {object} A new object
+ */
+export const deepMerge = ( a, b ) => deepMergeWithResolver( a, b, ( _, b ) => b );
 
 /**
  * Shortens a UUID by re-encoding it to base62.

@@ -61,12 +61,6 @@ vi.mock( '#consts', async importOriginal => {
   };
 } );
 
-const emptyAggregations = {
-  cost: { total: 0 },
-  tokens: { total: 0 },
-  httpRequests: { total: 0 }
-};
-
 describe( 'workflow() replay compatibility', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -94,7 +88,7 @@ describe( 'workflow() replay compatibility', () => {
       [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
       output: { v: 42 },
       trace: { destinations: { local: '/tmp/trace' } },
-      aggregations: emptyAggregations
+      aggregations: null
     } );
   } );
 
@@ -173,7 +167,7 @@ describe( 'workflow() replay compatibility', () => {
 
     const result = await wf( {} );
     expect( result.output ).toEqual( { legacy: true } );
-    expect( result.aggregations ).toEqual( emptyAggregations );
+    expect( result.aggregations ).toEqual( null );
   } );
 
   it( 'converts old child workflow attributes into parent aggregations', async () => {
