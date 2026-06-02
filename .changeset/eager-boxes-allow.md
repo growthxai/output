@@ -16,12 +16,12 @@ Where `workflowDetails` is an abstraction over [Temporal's `workflowInfo()`](htt
   continuedFromExecutionRunId?: string | undefined,
   firstExecutionRunId: string,
   parent?: {
-    runId: string
-    workflowId: string
+    runId: string,
+    workflowId: string,
     namespace: string
   } | undefined,
   root?: {
-    runId: string
+    runId: string,
     workflowId: string
   } | undefined,
   runId: string,
@@ -72,7 +72,7 @@ Besides the envelope fields, each event also has its own fields, their types are
 - `on<LLMUsageEvent>( 'cost:llm:request', handler )` from `@outputai/llm`
 
 ## Execution Context
-Updated `getExecutionContext()` from core/sdk_activity_integration to return:
+Updated `getExecutionContext()` from `core/sdk_activity_integration` to return:
 ```js
 { activityInfo, workflowFilename }
 ```
