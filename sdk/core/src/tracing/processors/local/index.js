@@ -19,10 +19,10 @@ const tempTraceFilesDir = join( __dirname, 'temp', 'traces' );
 /**
  * Builds the temp file path to accumulate trace entries
  *
- * @param {object} executionContext - The execution context around a given trace entry
+ * @param {object} traceInfo - Trace information object
  * @returns {string}
  */
-const createTempFilePath = ( { workflowId, startTime } ) => join( tempTraceFilesDir, `${startTime}_${workflowId}.trace` );
+const createTempFilePath = ( { startTime, runId } ) => join( tempTraceFilesDir, `${startTime}_${runId}.trace` );
 
 /**
  * Adds a trace entry to the accumulation file.
@@ -49,18 +49,18 @@ const cleanupOldTempFiles = ( threshold = Date.now() - tempFilesTTL ) =>
 
 /**
  * Resolves the deep folder structure that stores a workflow trace.
- * @param {string} workflowName - Name of the workflow
+ * @param {string} workflowType
  * @returns {string}
  */
-const resolveTraceFolder = workflowName => join( 'runs', workflowName );
+const resolveTraceFolder = workflowType => join( 'runs', workflowType );
 
 /**
  * Resolves the local file system path for ALL file I/O operations (read/write)
  * Uses the project root path
- * @param {string} workflowName - The name of the workflow
+ * @param {string} workflowType
  * @returns {string} The local filesystem path for file operations
  */
-const resolveIOPath = workflowName => join( callerDir, 'logs', resolveTraceFolder( workflowName ) );
+const resolveIOPath = workflowType => join( callerDir, 'logs', resolveTraceFolder( workflowType ) );
 
 /**
  * Resolves the file path to be reported as the trace destination.
@@ -71,19 +71,17 @@ const resolveIOPath = workflowName => join( callerDir, 'logs', resolveTraceFolde
  *
  * If the env variable is not present, it falls back to the same value used to write files locally.
  *
- * @param {string} workflowName - The name of the workflow
+ * @param {string} workflowType - The name of the workflow
  * @returns {string} The path to report, reflecting the actual filesystem
  */
-const resolveReportPath = workflowName => process.env.OUTPUT_TRACE_HOST_PATH ?
-  join( process.env.OUTPUT_TRACE_HOST_PATH, resolveTraceFolder( workflowName ) ) :
-  resolveIOPath( workflowName );
+const resolveReportPath = workflowType => process.env.OUTPUT_TRACE_HOST_PATH ?
+  join( process.env.OUTPUT_TRACE_HOST_PATH, resolveTraceFolder( workflowType ) ) :
+  resolveIOPath( workflowType );
 
 /**
  * Builds the actual trace filename
  *
- * @param {object} options
- * @param {number} options.startTime
- * @param {string} options.workflowId
+ * @param {object} traceInfo - The trace information object
  * @returns {string}
  */
 const buildTraceFilename = ( { startTime, workflowId } ) => {
@@ -108,15 +106,15 @@ export const init = () => {
  *
  * @param {object} args
  * @param {object} args.entry - The trace entry to append.
- * @param {object} args.executionContext - Execution info: workflowId, workflowName, startTime
+ * @param {object} args.traceInfo - Trace information object
  * @returns {void}
  */
-export const exec = async ( { entry, executionContext } ) => {
-  const { workflowId, workflowName, startTime } = executionContext;
-  const tempFilePath = createTempFilePath( executionContext );
+export const exec = async ( { entry, traceInfo } ) => {
+  const { runId, workflowType } = traceInfo;
+  const tempFilePath = createTempFilePath( traceInfo );
   addEntry( entry, tempFilePath );
 
-  const isRootWorkflowEnd = entry.id === workflowId && entry.action !== 'start';
+  const isRootWorkflowEnd = entry.id === runId && entry.action !== 'start';
   const isError = entry.action === 'error';
 
   if ( !isRootWorkflowEnd && !isError ) {
@@ -124,8 +122,8 @@ export const exec = async ( { entry, executionContext } ) => {
   }
 
   const content = buildTraceTree( getEntries( tempFilePath ) );
-  const dir = resolveIOPath( workflowName );
-  const path = join( dir, buildTraceFilename( { startTime, workflowId } ) );
+  const dir = resolveIOPath( workflowType );
+  const path = join( dir, buildTraceFilename( traceInfo ) );
 
   mkdirSync( dir, { recursive: true } );
 
@@ -140,11 +138,8 @@ export const exec = async ( { entry, executionContext } ) => {
  *
  * This uses the optional OUTPUT_TRACE_HOST_PATH to return values relative to the host OS, not the container, if applicable.
  *
- * @param {object} executionContext
- * @param {string} executionContext.startTime - The start time of the workflow
- * @param {string} executionContext.workflowId - The id of the workflow execution
- * @param {string} executionContext.workflowName - The name of the workflow
+ * @param {object} info
  * @returns {string} The absolute path where the trace will be saved
  */
-export const getDestination = ( { startTime, workflowId, workflowName } ) =>
-  join( resolveReportPath( workflowName ), buildTraceFilename( { workflowId, startTime } ) );
+export const getDestination = traceInfo =>
+  join( resolveReportPath( traceInfo.workflowType ), buildTraceFilename( traceInfo ) );

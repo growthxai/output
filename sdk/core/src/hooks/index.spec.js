@@ -25,6 +25,30 @@ import {
   onWorkflowStart
 } from './index.js';
 
+const workflowDetails = {
+  workflowId: 'wf-1',
+  runId: 'run-1',
+  workflowType: 'myWorkflow',
+  firstExecutionRunId: 'run-1',
+  startTime: 1710000000000,
+  runStartTime: 1710000000000,
+  attempt: 1
+};
+
+const catalogWorkflowDetails = {
+  ...workflowDetails,
+  workflowType: WORKFLOW_CATALOG
+};
+
+const activityInfo = {
+  activityId: 'act-1',
+  activityType: 'wf#step',
+  workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
+  workflowType: 'myWorkflow'
+};
+
+const eventDate = 1710000001234;
+
 describe( 'hooks/index', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -43,49 +67,53 @@ describe( 'hooks/index', () => {
       expect( messageBusMock.on ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.any( Function ) );
     } );
 
-    it( 'invokes handler with activity-shaped payload, forwarding eventId', async () => {
+    it( 'invokes handler with activity-shaped payload, forwarding bus fields', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onError( handler );
 
       const err = new Error( 'act-fail' );
       await onHandlers[BusEventType.ACTIVITY_ERROR]( {
         eventId: 'evt-act-1',
-        id: 'act-1',
-        name: 'wf#step',
-        workflowId: 'wf-run-1',
-        workflowName: 'wf',
-        error: err
+        eventDate,
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: 'step',
+        error: err,
+        extra: 'passthrough'
       } );
 
       expect( handler ).toHaveBeenCalledWith( {
         eventId: 'evt-act-1',
+        eventDate,
         source: 'activity',
-        activityId: 'act-1',
-        activityName: 'wf#step',
-        workflowId: 'wf-run-1',
-        workflowName: 'wf',
-        error: err
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: 'step',
+        error: err,
+        extra: 'passthrough'
       } );
     } );
 
-    it( 'invokes handler with workflow-shaped payload, forwarding eventId', async () => {
+    it( 'invokes handler with workflow-shaped payload, forwarding bus fields', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onError( handler );
 
       const err = new Error( 'wf-fail' );
       await onHandlers[BusEventType.WORKFLOW_ERROR]( {
         eventId: 'evt-wf-1',
-        id: 'wf-run-2',
-        name: 'myWorkflow',
-        error: err
+        eventDate,
+        workflowDetails,
+        error: err,
+        extra: 'passthrough'
       } );
 
       expect( handler ).toHaveBeenCalledWith( {
         eventId: 'evt-wf-1',
+        eventDate,
         source: 'workflow',
-        workflowId: 'wf-run-2',
-        workflowName: 'myWorkflow',
-        error: err
+        workflowDetails,
+        error: err,
+        extra: 'passthrough'
       } );
     } );
 
@@ -94,9 +122,9 @@ describe( 'hooks/index', () => {
       onError( handler );
 
       const error = new Error( 'rt' );
-      await onHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', error } );
+      await onHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
 
-      expect( handler ).toHaveBeenCalledWith( { eventId: 'evt-rt-1', source: 'runtime', error } );
+      expect( handler ).toHaveBeenCalledWith( { eventId: 'evt-rt-1', eventDate, source: 'runtime', error } );
     } );
   } );
 
@@ -113,59 +141,59 @@ describe( 'hooks/index', () => {
   } );
 
   describe( 'onWorkflowStart', () => {
-    it( 'skips catalog workflow and forwards eventId for real workflows', async () => {
+    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onWorkflowStart( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG
+        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-start-1', id: '2', runId: 'run-2', name: 'myWorkflow'
+        eventId: 'evt-start-1', eventDate, workflowDetails, extra: 'passthrough'
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-start-1', id: '2', runId: 'run-2', name: 'myWorkflow'
+        eventId: 'evt-start-1', eventDate, workflowDetails, extra: 'passthrough'
       } );
     } );
   } );
 
   describe( 'onWorkflowEnd', () => {
-    it( 'skips catalog workflow and forwards eventId for real workflows', async () => {
+    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onWorkflowEnd( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG, duration: 10
+        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-end-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 5
+        eventId: 'evt-end-1', eventDate, workflowDetails, extra: 'passthrough'
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-end-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 5
+        eventId: 'evt-end-1', eventDate, workflowDetails, extra: 'passthrough'
       } );
     } );
   } );
 
   describe( 'onWorkflowError', () => {
-    it( 'skips catalog workflow and forwards eventId for real workflows', async () => {
+    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       const err = new Error( 'wf' );
       onWorkflowError( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG, duration: 1, error: err
+        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails, error: err
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-err-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 2, error: err
+        eventId: 'evt-err-1', eventDate, workflowDetails, error: err, extra: 'passthrough'
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-err-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 2, error: err
+        eventId: 'evt-err-1', eventDate, workflowDetails, error: err, extra: 'passthrough'
       } );
     } );
   } );

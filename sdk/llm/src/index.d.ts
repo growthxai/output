@@ -233,6 +233,19 @@ export type LLMCallCost = {
   message?: string;
 };
 
+export type LLMUsageEvent = {
+  type: 'llm:usage';
+  modelId: string;
+  usage: Array<{
+    type: string;
+    ppm: number;
+    amount: number;
+    total: number;
+  }>;
+  total: number;
+  tokensUsed: number;
+};
+
 /**
  * `streamText` and agent `stream` `onFinish` event after the stream response wrapper: same as the AI SDK
  * finish payload plus optional `cost` from pricing.

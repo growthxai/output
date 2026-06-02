@@ -7,20 +7,36 @@ const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
 const getHandleMock = vi.hoisted( () => vi.fn( () => workflowHandleMock ) );
 const clientConstructorMock = vi.hoisted( () => vi.fn() );
 const logWarnMock = vi.hoisted( () => vi.fn() );
-
-const heartbeatMock = vi.fn();
+const heartbeatMock = vi.hoisted( () => vi.fn() );
 const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async fn => fn() ) );
-const contextInfoMock = {
-  workflowExecution: { workflowId: 'wf-1' },
+const activityInfoMock = vi.hoisted( () => ( {
+  workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
   activityId: 'act-1',
   activityType: 'myWorkflow#myStep',
   workflowType: 'myWorkflow'
-};
+} ) );
+const traceInfoMock = vi.hoisted( () => ( {
+  workflowId: 'wf-1',
+  runId: 'run-1',
+  workflowType: 'myWorkflow',
+  startTime: 1710000000000,
+  disableTrace: false
+} ) );
+const workflowDetailsMock = vi.hoisted( () => ( {
+  workflowId: 'wf-1',
+  runId: 'run-1',
+  workflowType: 'myWorkflow',
+  firstExecutionRunId: 'run-1',
+  startTime: 1710000000000,
+  runStartTime: 1710000000000,
+  attempt: 1
+} ) );
 
 vi.mock( '@temporalio/activity', () => ( {
+  activityInfo: () => activityInfoMock,
   Context: {
     current: () => ( {
-      info: contextInfoMock,
+      info: activityInfoMock,
       heartbeat: heartbeatMock
     } )
   }
@@ -58,7 +74,7 @@ vi.mock( '#tracing', () => ( {
 } ) );
 
 vi.mock( '../sandboxed_utils.js', () => ( {
-  headersToObject: () => ( { executionContext: { workflowId: 'wf-1' } } )
+  headersToObject: () => ( { traceInfo: traceInfoMock, workflowDetails: workflowDetailsMock } )
 } ) );
 
 const messageBusEmitMock = vi.fn();
@@ -105,6 +121,7 @@ const httpRequestAttribute = {
 describe( 'ActivityExecutionInterceptor', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    activityInfoMock.workflowType = 'myWorkflow';
     workflowHandleMock.signal.mockResolvedValue( undefined );
     vi.useFakeTimers();
     vi.resetModules();
@@ -132,22 +149,34 @@ describe( 'ActivityExecutionInterceptor', () => {
       aggregations: null,
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.objectContaining( {
-      id: 'act-1', name: 'myWorkflow#myStep', kind: 'step', workflowId: 'wf-1', workflowName: 'myWorkflow'
-    } ) );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.objectContaining( {
-      id: 'act-1', name: 'myWorkflow#myStep', kind: 'step', workflowId: 'wf-1', workflowName: 'myWorkflow', duration: expect.any( Number )
-    } ) );
-    expect( addEventStartMock ).toHaveBeenCalledOnce();
-    expect( addEventEndMock ).toHaveBeenCalledOnce();
+    expect( messageBusEmitMock ).toHaveBeenCalledWith(
+      BusEventType.ACTIVITY_START,
+      { activityInfo: activityInfoMock, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
+    );
+    expect( messageBusEmitMock ).toHaveBeenCalledWith(
+      BusEventType.ACTIVITY_END,
+      { activityInfo: activityInfoMock, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
+    );
+    expect( addEventStartMock ).toHaveBeenCalledWith( {
+      id: 'act-1',
+      name: 'myWorkflow#myStep',
+      kind: 'step',
+      parentId: 'run-1',
+      details: { someInput: 'data' },
+      traceInfo: traceInfoMock
+    } );
+    expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'ok' }, traceInfo: traceInfoMock } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
     expect( clientConstructorMock ).not.toHaveBeenCalled();
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
       expect.objectContaining( {
         parentId: 'act-1',
-        executionContext: { workflowId: 'wf-1' },
+        activityInfo: activityInfoMock,
+        workflowDetails: workflowDetailsMock,
+        outputActivityKind: 'step',
         workflowFilename: '/workflows/myWorkflow.js',
+        traceInfo: traceInfoMock,
         addAttribute: expect.any( Function )
       } )
     );
@@ -166,7 +195,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     } );
 
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
-    expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'sync' }, executionContext: { workflowId: 'wf-1' } } );
+    expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'sync' }, traceInfo: traceInfoMock } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 
@@ -244,9 +273,10 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( logWarnMock ).toHaveBeenCalledWith( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, expect.objectContaining( {
       message: 'signal failed',
       activityId: 'act-1',
-      activityName: 'myWorkflow#myStep',
+      activityType: 'myWorkflow#myStep',
       workflowId: 'wf-1',
-      workflowName: 'myWorkflow'
+      workflowType: 'myWorkflow',
+      runId: 'run-1'
     } ) );
   } );
 
@@ -261,12 +291,14 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     await expect( promise ).rejects.toThrow( 'step failed' );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.any( Object ) );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.objectContaining( {
-      id: 'act-1', name: 'myWorkflow#myStep', kind: 'step', workflowId: 'wf-1', workflowName: 'myWorkflow',
-      duration: expect.any( Number ), error: expect.any( Error )
-    } ) );
+    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
+      activityInfo: activityInfoMock,
+      workflowDetails: workflowDetailsMock,
+      outputActivityKind: 'step',
+      error
+    } );
     expect( addEventStartMock ).toHaveBeenCalledOnce();
-    expect( addEventErrorMock ).toHaveBeenCalledOnce();
+    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1', details: error, traceInfo: traceInfoMock } );
     expect( addEventEndMock ).not.toHaveBeenCalled();
   } );
 
@@ -331,7 +363,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows } );
 
     // Override context to use alias as workflowType
-    contextInfoMock.workflowType = 'myWorkflowOld';
+    activityInfoMock.workflowType = 'myWorkflowOld';
     const next = vi.fn().mockResolvedValue( { result: 'ok' } );
 
     const promise = interceptor.execute( makeInput(), next );
@@ -345,7 +377,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     );
 
     // Restore for other tests
-    contextInfoMock.workflowType = 'myWorkflow';
+    activityInfoMock.workflowType = 'myWorkflow';
   } );
 
   it( 'does not heartbeat when OUTPUT_ACTIVITY_HEARTBEAT_ENABLED is false', async () => {

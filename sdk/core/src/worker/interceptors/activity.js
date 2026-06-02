@@ -1,4 +1,4 @@
-import { Context } from '@temporalio/activity';
+import { Context, activityInfo as activityInfoFn } from '@temporalio/activity';
 import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from '../sandboxed_utils.js';
@@ -25,7 +25,7 @@ const log = createChildLogger( 'ActivityInterceptor' );
 
   Context information comes from two sources:
   - Temporal's Activity Context (workflowId, activityId, activityType)
-  - Headers injected by the workflow interceptor (executionContext)
+  - Headers injected by the workflow interceptor
 */
 export class ActivityExecutionInterceptor {
   constructor( { activities, workflows, connection } ) {
@@ -42,25 +42,24 @@ export class ActivityExecutionInterceptor {
 
   /**
    * Returns a workflow entry by its name or throws error
-   * @param {string} workflowName
+   * @param {string} workflowType
    * @returns {object} Workflow entry
    * @throws {Error}
    */
-  getWorkflowEntry( workflowName ) {
-    const workflowEntry = this.workflowsMap.get( workflowName );
+  getWorkflowEntry( workflowType ) {
+    const workflowEntry = this.workflowsMap.get( workflowType );
     if ( !workflowEntry ) {
-      throw new Error( `Activity interceptor: workflow "${workflowName}" not found in workflowsMap.` );
+      throw new Error( `Activity interceptor: workflow "${workflowType}" not found in workflowsMap.` );
     }
     return workflowEntry;
   }
 
   async execute( input, next ) {
-    const startDate = Date.now();
-
-    const { workflowExecution: { workflowId }, activityId: id, activityType: name, workflowType: workflowName } = Context.current().info;
-    const { executionContext } = headersToObject( input.headers );
-    const { type: kind } = this.activities?.[name]?.[METADATA_ACCESS_SYMBOL];
-    const { path: workflowFilename } = this.getWorkflowEntry( workflowName );
+    const activityInfo = activityInfoFn();
+    const { workflowExecution: { workflowId, runId }, activityId, activityType, workflowType } = activityInfo;
+    const { traceInfo, workflowDetails } = headersToObject( input.headers );
+    const { type: outputActivityKind } = this.activities?.[activityType]?.[METADATA_ACCESS_SYMBOL];
+    const { path: workflowFilename } = this.getWorkflowEntry( workflowType );
 
     const state = {
       heartbeat: null,
@@ -76,32 +75,35 @@ export class ActivityExecutionInterceptor {
           const workflowHandle = client.workflow.getHandle( workflowId );
           await workflowHandle.signal( Signal.SEND_AGGREGATIONS, aggregateAttributes( state.attributes ) );
         } catch ( error ) {
-          log.warn( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, {
-            message: error.message,
-            stack: error.stack,
-            activityId: id,
-            activityName: name,
-            workflowId,
-            workflowName
-          } );
+          const errorContext = { message: error.message, stack: error.stack, activityId, activityType, workflowId, workflowType, runId };
+          log.warn( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, errorContext );
         }
       }
     };
 
-    // Wraps the execution with accessible metadata for the activity
-    const ctx = { parentId: id, executionContext, workflowFilename, addAttribute };
+    // Adds context accessible information
+    const storageContext = {
+      parentId: activityId,
+      outputActivityKind,
+      activityInfo,
+      workflowDetails,
+      workflowFilename,
+      traceInfo,
+      addAttribute
+    };
 
-    messageBus.emit( BusEventType.ACTIVITY_START, { id, name, kind, workflowId, workflowName } );
-    Tracing.addEventStart( { id, name, kind, parentId: workflowId, details: input.args[0], executionContext } );
+    messageBus.emit( BusEventType.ACTIVITY_START, { activityInfo, workflowDetails, outputActivityKind } );
+    Tracing.addEventStart( { id: activityId, name: activityType, kind: outputActivityKind, parentId: runId, details: input.args[0], traceInfo } );
 
     try {
       // Sends heartbeat to communicate that activity is still alive
       state.heartbeat = activityHeartbeatEnabled && setInterval( () => Context.current().heartbeat(), activityHeartbeatIntervalMs );
 
-      const output = await Storage.runWithContext( async _ => next( input ), ctx );
+      const output = await Storage.runWithContext( async _ => next( input ), storageContext );
 
-      messageBus.emit( BusEventType.ACTIVITY_END, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate } );
-      Tracing.addEventEnd( { id, details: output, executionContext } );
+      messageBus.emit( BusEventType.ACTIVITY_END, { activityInfo, workflowDetails, outputActivityKind } );
+      Tracing.addEventEnd( { id: activityId, details: output, traceInfo } );
+
       return {
         [ACTIVITY_WRAPPER_VERSION_FIELD]: 1,
         output,
@@ -109,8 +111,8 @@ export class ActivityExecutionInterceptor {
       };
 
     } catch ( error ) {
-      messageBus.emit( BusEventType.ACTIVITY_ERROR, { id, name, kind, workflowId, workflowName, duration: Date.now() - startDate, error } );
-      Tracing.addEventError( { id, details: error, executionContext } );
+      messageBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error } );
+      Tracing.addEventError( { id: activityId, details: error, traceInfo } );
 
       await sendAggregationsViaSignal();
 

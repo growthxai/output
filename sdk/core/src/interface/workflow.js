@@ -1,8 +1,14 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy, continueAsNew } from '@temporalio/workflow';
+import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
 import { defineSignal, setHandler } from '@temporalio/workflow';
 import { validateWorkflow } from './validations/static.js';
 import { validateWithSchema } from './validations/runtime.js';
+import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
+import { FatalError, ValidationError } from '#errors';
+import { WorkflowContext } from '#internal_utils/workflow_context';
+import { aggregateAttributes, mergeAggregations } from '#internal_utils/aggregations';
+import { extractErrorDetail } from '#internal_utils/errors';
+import { TraceInfo } from '#internal_utils/trace_info';
 import {
   ACTIVITY_GET_TRACE_DESTINATIONS,
   ACTIVITY_WRAPPER_VERSION_FIELD,
@@ -11,11 +17,6 @@ import {
   Signal,
   WORKFLOW_WRAPPER_VERSION_FIELD
 } from '#consts';
-import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
-import { FatalError, ValidationError } from '#errors';
-import { Context } from './workflow_context.js';
-import { aggregateAttributes, mergeAggregations } from '#internal_utils/aggregations';
-import { extractErrorDetail } from '#internal_utils/errors';
 
 const defaultOptions = {
   activityOptions: {
@@ -54,37 +55,21 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     // this returns a plain function, for example, in unit tests
     if ( !inWorkflowContext() ) {
       validateWithSchema( inputSchema, input, `Workflow ${name} input` );
-      const context = Context.build( {
-        workflowId: 'test-workflow',
-        runId: 'test-run',
-        continueAsNew: async () => {},
-        isContinueAsNewSuggested: () => false
-      } );
-      const output = await fn( input, deepMerge( context, extra.context ) );
+      const output = await fn( input, deepMerge( WorkflowContext.build(), extra.context ) );
       validateWithSchema( outputSchema, output, `Workflow ${name} output` );
       return output;
     }
 
-    const { workflowId, runId, memo, startTime } = workflowInfo();
-    const context = Context.build( { workflowId, runId, continueAsNew, isContinueAsNewSuggested: () => workflowInfo().continueAsNewSuggested } );
+    const { workflowId, memo, root } = workflowInfo();
+    const context = WorkflowContext.build();
 
-    // Root workflows will not have the execution context yet, since it is set here.
-    const isRoot = !memo.executionContext;
+    const isRoot = !root;
 
-    /* Creates the execution context object or preserve if it already exists:
-       It will always contain the information about the root workflow
-       It will be used to as context for tracing (connecting events) */
-    const executionContext = memo.executionContext ?? {
-      workflowId,
-      runId,
-      workflowName: name,
-      disableTrace,
-      startTime: startTime.getTime()
-    };
-
+    // Creates the immutable memo that will be used by all nested workflows/activities
+    // Preserves all info that already exists in the memo object, so new child workflows inherit this
     Object.assign( memo, {
-      executionContext,
-      activityOptions: memo.activityOptions ?? activityOptions // Also preserve the original activity options
+      traceInfo: memo.traceInfo ?? TraceInfo.build( { disableTrace } ),
+      activityOptions: memo.activityOptions ?? activityOptions
     } );
 
     /**
@@ -94,7 +79,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
      * @TODO [OUT-468]
     */
     const getTraceDestinations = async () => {
-      const result = await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( executionContext );
+      const result = await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo );
       return isActivityResultWrapped( result ) ? result.output : result;
     };
 
@@ -166,12 +151,11 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
         startWorkflow: async ( childName, input, extra = {} ) => {
           try {
             const result = await executeChild( childName, {
-              args: input ? [ input ] : [],
+              args: undefined === input ? [] : [ input ],
               workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
               parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
               memo: {
-                executionContext,
-                parentId: workflowId,
+                ...memo,
                 ...( extra?.options?.activityOptions && { activityOptions: deepMerge( activityOptions, extra.options.activityOptions ) } )
               }
             } );

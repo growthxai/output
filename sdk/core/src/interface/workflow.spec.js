@@ -5,6 +5,8 @@ import { z } from 'zod';
 const inWorkflowContextMock = vi.hoisted( () => vi.fn( () => true ) );
 const defineSignalMock = vi.hoisted( () => vi.fn( name => name ) );
 const setHandlerMock = vi.hoisted( () => vi.fn() );
+const workflowContextBuildMock = vi.hoisted( () => vi.fn() );
+const traceInfoBuildMock = vi.hoisted( () => vi.fn() );
 const traceDestinationsStepMock = vi.fn().mockResolvedValue( { local: '/tmp/trace' } );
 const executeChildMock = vi.fn().mockResolvedValue( undefined );
 const continueAsNewMock = vi.fn().mockResolvedValue( undefined );
@@ -31,6 +33,7 @@ const proxyActivitiesMock = vi.fn( () => {
 const workflowInfoReturn = {
   workflowId: 'wf-test-123',
   workflowType: 'test_wf',
+  runId: 'run-test-123',
   memo: {},
   startTime: new Date( '2025-01-01T00:00:00Z' ),
   continueAsNewSuggested: false
@@ -56,6 +59,14 @@ vi.mock( '@temporalio/workflow', () => ( {
   setHandler: ( ...args ) => setHandlerMock( ...args )
 } ) );
 
+vi.mock( '#internal_utils/workflow_context', () => ( {
+  WorkflowContext: { build: workflowContextBuildMock }
+} ) );
+
+vi.mock( '#internal_utils/trace_info', () => ( {
+  TraceInfo: { build: traceInfoBuildMock }
+} ) );
+
 vi.mock( '#consts', async importOriginal => {
   const actual = await importOriginal();
   return {
@@ -70,8 +81,20 @@ describe( 'workflow()', () => {
     vi.clearAllMocks();
     inWorkflowContextMock.mockReturnValue( true );
     defineSignalMock.mockImplementation( name => name );
-    workflowInfoMock.mockReturnValue( { ...workflowInfoReturn } );
     workflowInfoReturn.memo = {};
+    delete workflowInfoReturn.root;
+    workflowInfoMock.mockReturnValue( { ...workflowInfoReturn } );
+    workflowContextBuildMock.mockReturnValue( {
+      control: {},
+      info: { workflowId: 'test-workflow', runId: 'test-run' }
+    } );
+    traceInfoBuildMock.mockImplementation( ( { disableTrace } ) => ( {
+      workflowId: 'trace-workflow-id',
+      workflowType: 'trace-workflow-type',
+      runId: 'trace-run-id',
+      startTime: 12345,
+      disableTrace
+    } ) );
     proxyActivitiesMock.mockImplementation( () => {
       stepSpyRef.current = vi.fn().mockResolvedValue( {} );
       return createStepsProxy( stepSpyRef.current );
@@ -230,7 +253,7 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'root workflow (in workflow context)', () => {
-    it( 'unwraps wrapped trace destinations and assigns executionContext to memo', async () => {
+    it( 'unwraps wrapped trace destinations and assigns traceInfo to memo', async () => {
       traceDestinationsStepMock.mockResolvedValueOnce( {
         output: { local: '/tmp/wrapped-trace' },
         aggregations: null,
@@ -255,12 +278,15 @@ describe( 'workflow()', () => {
         aggregations: null
       } );
       const memo = workflowInfoMock().memo;
-      expect( memo.executionContext ).toEqual( {
-        workflowId: 'wf-test-123',
-        workflowName: 'wrapped_trace_wf',
-        disableTrace: false,
-        startTime: new Date( '2025-01-01T00:00:00Z' ).getTime()
+      expect( memo.traceInfo ).toEqual( {
+        workflowId: 'trace-workflow-id',
+        workflowType: 'trace-workflow-type',
+        runId: 'trace-run-id',
+        startTime: 12345,
+        disableTrace: false
       } );
+      expect( traceInfoBuildMock ).toHaveBeenCalledWith( { disableTrace: false } );
+      expect( traceDestinationsStepMock ).toHaveBeenCalledWith( memo.traceInfo );
     } );
 
     it( 'collects batched aggregation signals from failed activities', async () => {
@@ -290,7 +316,7 @@ describe( 'workflow()', () => {
       expect( result.aggregations.httpRequests ).toEqual( { total: 1 } );
     } );
 
-    it( 'sets executionContext.disableTrace when options.disableTrace is true', async () => {
+    it( 'sets traceInfo.disableTrace when options.disableTrace is true', async () => {
       const { workflow } = await import( './workflow.js' );
 
       const wf = workflow( {
@@ -303,15 +329,23 @@ describe( 'workflow()', () => {
       } );
 
       await wf( {} );
-      expect( workflowInfoMock().memo.executionContext.disableTrace ).toBe( true );
+      expect( workflowInfoMock().memo.traceInfo ).toEqual( expect.objectContaining( {
+        workflowId: 'trace-workflow-id',
+        workflowType: 'trace-workflow-type',
+        runId: 'trace-run-id',
+        disableTrace: true
+      } ) );
+      expect( traceInfoBuildMock ).toHaveBeenCalledWith( { disableTrace: true } );
     } );
   } );
 
-  describe( 'child workflow (memo.executionContext already set)', () => {
+  describe( 'child workflow (memo.traceInfo already set)', () => {
     it( 'does not call getTraceDestinations and returns an internal output envelope', async () => {
+      const traceInfo = { workflowId: 'parent-1', workflowType: 'parent_wf', runId: 'parent-run' };
       workflowInfoMock.mockReturnValue( {
         ...workflowInfoReturn,
-        memo: { executionContext: { workflowId: 'parent-1', workflowName: 'parent_wf' } }
+        root: { workflowId: 'root-wf', runId: 'root-run' },
+        memo: { traceInfo }
       } );
       const { workflow } = await import( './workflow.js' );
 
@@ -325,6 +359,7 @@ describe( 'workflow()', () => {
 
       const result = await wf( {} );
       expect( traceDestinationsStepMock ).not.toHaveBeenCalled();
+      expect( workflowInfoMock().memo.traceInfo ).toBe( traceInfo );
       expect( result ).toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { x: 'child' },
@@ -445,10 +480,22 @@ describe( 'workflow()', () => {
         workflowId: expect.stringMatching( /^wf-test-123-/ ),
         parentClosePolicy: ParentClosePolicy.TERMINATE,
         memo: expect.objectContaining( {
-          executionContext: expect.any( Object ),
-          parentId: 'wf-test-123'
+          traceInfo: {
+            workflowId: 'trace-workflow-id',
+            workflowType: 'trace-workflow-type',
+            runId: 'trace-run-id',
+            startTime: 12345,
+            disableTrace: false
+          },
+          activityOptions: expect.objectContaining( {
+            startToCloseTimeout: '20m',
+            heartbeatTimeout: '5m'
+          } )
         } )
       } );
+      const [ , childOptions ] = executeChildMock.mock.calls[0];
+      expect( childOptions.memo ).not.toHaveProperty( 'executionContext' );
+      expect( childOptions.memo ).not.toHaveProperty( 'parentId' );
     } );
 
     it( 'uses ABANDON when extra.detached is true', async () => {
@@ -469,11 +516,12 @@ describe( 'workflow()', () => {
 
       await wf( {} );
       expect( executeChildMock ).toHaveBeenCalledWith( 'child_wf', expect.objectContaining( {
+        args: [ null ],
         parentClosePolicy: ParentClosePolicy.ABANDON
       } ) );
     } );
 
-    it( 'passes empty args when input is null/omitted', async () => {
+    it( 'passes empty args when input is omitted', async () => {
       const { workflow } = await import( './workflow.js' );
       executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
 
@@ -491,6 +539,47 @@ describe( 'workflow()', () => {
       await wf( {} );
       expect( executeChildMock ).toHaveBeenCalledWith( 'child_wf', expect.objectContaining( {
         args: []
+      } ) );
+    } );
+
+    it( 'merges per-child activity options into the propagated memo', async () => {
+      const { workflow } = await import( './workflow.js' );
+      executeChildMock.mockResolvedValueOnce( { output: {}, aggregations: null } );
+
+      const wf = workflow( {
+        name: 'child_options_wf',
+        description: 'Child options',
+        inputSchema: z.object( {} ),
+        outputSchema: z.object( {} ),
+        async fn() {
+          await this.startWorkflow( 'child_wf', { id: 1 }, {
+            options: {
+              activityOptions: {
+                startToCloseTimeout: '2m',
+                retry: { maximumAttempts: 7 }
+              }
+            }
+          } );
+          return {};
+        }
+      } );
+
+      await wf( {} );
+      expect( executeChildMock ).toHaveBeenCalledWith( 'child_wf', expect.objectContaining( {
+        memo: expect.objectContaining( {
+          traceInfo: expect.objectContaining( {
+            workflowId: 'trace-workflow-id',
+            runId: 'trace-run-id'
+          } ),
+          activityOptions: expect.objectContaining( {
+            startToCloseTimeout: '2m',
+            heartbeatTimeout: '5m',
+            retry: expect.objectContaining( {
+              initialInterval: '10s',
+              maximumAttempts: 7
+            } )
+          } )
+        } )
       } ) );
     } );
 

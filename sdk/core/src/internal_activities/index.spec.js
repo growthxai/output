@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { FatalError } from '#errors';
 import { serializeBodyAndInferContentType, serializeFetchResponse } from '#utils';
-import { sendHttpRequest } from './index.js';
+import { getTraceDestinations, sendHttpRequest } from './index.js';
+
+const getDestinationsMock = vi.hoisted( () => vi.fn() );
+
+vi.mock( '#tracing', () => ( {
+  getDestinations: getDestinationsMock
+} ) );
 
 vi.mock( '#logger', () => {
   const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -98,5 +104,29 @@ describe( 'internal_activities/sendHttpRequest', () => {
       .toThrow( new FatalError( 'GET https://growthx.ai Error: connect ECONNREFUSED 127.0.0.1:65500' ) );
     expect( serializeFetchResponse ).not.toHaveBeenCalled();
     expect( serializeBodyAndInferContentType ).not.toHaveBeenCalled();
+  } );
+} );
+
+describe( 'internal_activities/getTraceDestinations', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
+
+  it( 'returns trace destinations for the given traceInfo', () => {
+    const traceInfo = {
+      workflowId: 'workflow-id',
+      runId: 'run-id',
+      workflowType: 'workflow',
+      startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
+      disableTrace: false
+    };
+    const destinations = {
+      local: '/tmp/project/logs/runs/workflow/trace.json',
+      remote: null
+    };
+    getDestinationsMock.mockReturnValueOnce( destinations );
+
+    expect( getTraceDestinations( traceInfo ) ).toBe( destinations );
+    expect( getDestinationsMock ).toHaveBeenCalledWith( traceInfo );
   } );
 } );

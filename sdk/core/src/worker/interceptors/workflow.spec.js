@@ -7,6 +7,35 @@ const workflowStartMock = vi.fn();
 const workflowEndMock = vi.fn();
 const workflowErrorMock = vi.fn();
 const isCancellationMock = vi.fn();
+const startTime = new Date( '2026-06-02T09:00:00.000Z' );
+const runStartTime = new Date( '2026-06-02T09:05:00.000Z' );
+const workflowDetails = {
+  attempt: 1,
+  continuedFromExecutionRunId: undefined,
+  firstExecutionRunId: 'first-run',
+  parent: undefined,
+  root: undefined,
+  runId: 'run-1',
+  runStartTime: runStartTime.getTime(),
+  startTime: startTime.getTime(),
+  workflowId: 'workflow-1',
+  workflowType: 'MyWorkflow'
+};
+
+const workflowInfo = {
+  attempt: 1,
+  continuedFromExecutionRunId: undefined,
+  firstExecutionRunId: 'first-run',
+  parent: undefined,
+  root: undefined,
+  runId: 'run-1',
+  runStartTime,
+  startTime,
+  workflowId: 'workflow-1',
+  workflowType: 'MyWorkflow',
+  memo: { traceInfo: { runId: 'root-run' } }
+};
+
 vi.mock( '@temporalio/workflow', () => ( {
   workflowInfo: ( ...args ) => workflowInfoMock( ...args ),
   proxySinks: () => ( {
@@ -53,7 +82,7 @@ describe( 'workflow interceptors', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     isCancellationMock.mockReturnValue( false );
-    workflowInfoMock.mockReturnValue( { workflowType: 'MyWorkflow', memo: { executionContext: { id: 'ctx-1' } } } );
+    workflowInfoMock.mockReturnValue( workflowInfo );
   } );
 
   describe( 'HeadersInjectionInterceptor', () => {
@@ -64,12 +93,19 @@ describe( 'workflow interceptors', () => {
       const input = { headers: { existing: 'header' }, activityType: 'MyWorkflow#step1' };
       const next = vi.fn().mockResolvedValue( 'result' );
 
-      memoToHeadersMock.mockReturnValue( { executionContext: { id: 'ctx-1' } } );
+      memoToHeadersMock.mockReturnValue( { traceInfo: workflowInfo.memo.traceInfo, workflowDetails } );
 
       const out = await interceptor.scheduleActivity( input, next );
 
-      expect( memoToHeadersMock ).toHaveBeenCalledWith( { executionContext: { id: 'ctx-1' } } );
-      expect( input.headers ).toEqual( { existing: 'header', executionContext: { id: 'ctx-1' } } );
+      expect( memoToHeadersMock ).toHaveBeenCalledWith( {
+        traceInfo: workflowInfo.memo.traceInfo,
+        workflowDetails
+      } );
+      expect( input.headers ).toEqual( {
+        existing: 'header',
+        traceInfo: workflowInfo.memo.traceInfo,
+        workflowDetails
+      } );
       expect( next ).toHaveBeenCalledWith( input );
       expect( out ).toBe( 'result' );
     } );
@@ -77,8 +113,8 @@ describe( 'workflow interceptors', () => {
     it( 'merges stepOptions with memo.activityOptions when stepOptions exist for activityType', async () => {
       stepOptionsDefault['MyWorkflow#step1'] = { scheduleToCloseTimeout: 60 };
       workflowInfoMock.mockReturnValue( {
-        workflowType: 'MyWorkflow',
-        memo: { executionContext: {}, activityOptions: { heartbeatTimeout: 10 } }
+        ...workflowInfo,
+        memo: { traceInfo: workflowInfo.memo.traceInfo, activityOptions: { heartbeatTimeout: 10 } }
       } );
       memoToHeadersMock.mockReturnValue( {} );
       deepMergeMock.mockReturnValue( { heartbeatTimeout: 10, scheduleToCloseTimeout: 60 } );

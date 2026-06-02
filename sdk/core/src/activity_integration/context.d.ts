@@ -1,16 +1,12 @@
+import type { Info } from '@temporalio/activity';
 /**
  * Context returned by {@link getContext} when running inside a Temporal Activity (step or evaluator).
  */
 export type Context = {
-  /** Information about the current workflow execution */
-  workflow: {
-    /** Temporal's workflow execution id */
-    id: string;
-    /** Workflow name (Temporal's workflow "type" value) */
-    name: string;
-    /** Path of the workflow file */
-    filename: string;
-  }
+  /** Temporal info about the current activity */
+  activityInfo: Info,
+  /** Path of the workflow file */
+  workflowFilename: string
 };
 
 /**

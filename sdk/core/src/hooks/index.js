@@ -21,29 +21,32 @@ const safeInvoke = async ( fn, args, hookName ) => {
 
 /** Triggers on any errors: workflow, activity and runtime */
 export const onError = handler => {
-  messageBus.on( BusEventType.ACTIVITY_ERROR, async ( { eventId, id, name, workflowId, workflowName, error } ) =>
-    safeInvoke( handler, { eventId, source: 'activity', activityId: id, activityName: name, workflowId, workflowName, error }, 'onError' ) );
-  messageBus.on( BusEventType.WORKFLOW_ERROR, async ( { eventId, id, name, error } ) =>
-    safeInvoke( handler, { eventId, source: 'workflow', workflowId: id, workflowName: name, error }, 'onError' ) );
-  messageBus.on( BusEventType.RUNTIME_ERROR, async ( { eventId, error } ) =>
-    safeInvoke( handler, { eventId, source: 'runtime', error }, 'onError' ) );
+  messageBus.on( BusEventType.ACTIVITY_ERROR, async payload =>
+    safeInvoke( handler, { source: 'activity', ...payload }, 'onError' ) );
+  messageBus.on( BusEventType.WORKFLOW_ERROR, async payload =>
+    safeInvoke( handler, { source: 'workflow', ...payload }, 'onError' ) );
+  messageBus.on( BusEventType.RUNTIME_ERROR, async payload =>
+    safeInvoke( handler, { source: 'runtime', ...payload }, 'onError' ) );
 };
 
 /** Listen to worker before start events */
 export const onBeforeWorkerStart = handler => messageBus.on( BusEventType.WORKER_BEFORE_START, () =>
   safeInvoke( handler, undefined, 'onBeforeWorkerStart' ) );
 
+/** Catalog workflow events should not be emitted */
+const shouldEmitWorkflowEvent = workflowDetails => WORKFLOW_CATALOG !== workflowDetails.workflowType;
+
 /** Listen to workflow start events, excludes catalog workflow */
-export const onWorkflowStart = handler => messageBus.on( BusEventType.WORKFLOW_START, ( { eventId, id, runId, name } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { eventId, id, runId, name }, 'onWorkflowStart' ) : null );
+export const onWorkflowStart = handler => messageBus.on( BusEventType.WORKFLOW_START, ( { workflowDetails, ...eventFields } ) =>
+  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowStart' ) : null );
 
 /** Listen to workflow end events, excludes catalog workflow */
-export const onWorkflowEnd = handler => messageBus.on( BusEventType.WORKFLOW_END, ( { eventId, id, runId, name, duration } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { eventId, id, runId, name, duration }, 'onWorkflowEnd' ) : null );
+export const onWorkflowEnd = handler => messageBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails, ...eventFields } ) =>
+  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowEnd' ) : null );
 
 /** Listen to workflow error events, excludes catalog workflow */
-export const onWorkflowError = handler => messageBus.on( BusEventType.WORKFLOW_ERROR, ( { eventId, id, runId, name, duration, error } ) =>
-  WORKFLOW_CATALOG !== name ? safeInvoke( handler, { eventId, id, runId, name, duration, error }, 'onWorkflowError' ) : null );
+export const onWorkflowError = handler => messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, ...eventFields } ) =>
+  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowError' ) : null );
 
 /** Generic listener for events emitted elsewhere (outside core) */
 export const on = ( eventName, handler ) => messageBus.on( `external:${eventName}`, payload =>

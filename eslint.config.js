@@ -203,6 +203,16 @@ export default [
     }
   },
 
+  // Keep sdk/core TS specs linted without requiring a tsconfig for test-only files
+  {
+    files: [ 'sdk/core/**/*.spec.ts' ],
+    languageOptions: {
+      parserOptions: {
+        project: false
+      }
+    }
+  },
+
   // Don't require tsconfig for .d.ts files
   {
     files: [ '**/*.d.ts' ],

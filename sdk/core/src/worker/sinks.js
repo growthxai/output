@@ -1,6 +1,7 @@
 import { BusEventType, ComponentType } from '#consts';
 import * as Tracing from '#tracing';
 import { messageBus } from '#bus';
+import { createWorkflowDetails } from '#internal_utils/temporal_context';
 
 // This sink allow for sandbox Temporal environment to send trace logs back to the main thread.
 export const sinks = {
@@ -11,10 +12,17 @@ export const sinks = {
   workflow: {
     start: {
       fn: ( workflowInfo, input ) => {
-        const { workflowId: id, runId, workflowType: name, memo: { parentId, executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_START, { id, runId, name } );
-        if ( executionContext ) { // filters out internal workflows
-          Tracing.addEventStart( { id, kind: ComponentType.WORKFLOW, name, details: input, parentId, executionContext } );
+        const { runId, workflowType, memo: { traceInfo }, parent } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_START, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
+        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+          Tracing.addEventStart( {
+            id: runId,
+            kind: ComponentType.WORKFLOW,
+            name: workflowType,
+            details: input,
+            parentId: parent?.runId,
+            traceInfo
+          } );
         }
       },
       callDuringReplay: false
@@ -22,10 +30,10 @@ export const sinks = {
 
     end: {
       fn: ( workflowInfo, output ) => {
-        const { workflowId: id, runId, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_END, { id, runId, name, duration: Date.now() - startTime.getTime() } );
-        if ( executionContext ) { // filters out internal workflows
-          Tracing.addEventEnd( { id, details: output, executionContext } );
+        const { runId, memo: { traceInfo } } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_END, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
+        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+          Tracing.addEventEnd( { id: runId, details: output, traceInfo } );
         }
       },
       callDuringReplay: false
@@ -33,10 +41,10 @@ export const sinks = {
 
     error: {
       fn: ( workflowInfo, error ) => {
-        const { workflowId: id, runId, workflowType: name, startTime, memo: { executionContext } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_ERROR, { id, runId, name, error, duration: Date.now() - startTime.getTime() } );
-        if ( executionContext ) { // filters out internal workflows
-          Tracing.addEventError( { id, details: error, executionContext } );
+        const { runId, memo: { traceInfo } } = workflowInfo;
+        messageBus.emit( BusEventType.WORKFLOW_ERROR, { workflowDetails: createWorkflowDetails( workflowInfo ), error } );
+        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+          Tracing.addEventError( { id: runId, details: error, traceInfo } );
         }
       },
       callDuringReplay: false
@@ -48,26 +56,18 @@ export const sinks = {
    */
   trace: {
     start: {
-      fn: ( workflowInfo, { id, name, kind, details } ) => {
-        const { memo: { executionContext, parentId } } = workflowInfo;
-        Tracing.addEventStart( { id, kind, name, details, parentId, executionContext } );
-      },
+      fn: ( workflowInfo, { id, name, kind, details } ) =>
+        Tracing.addEventStart( { id, kind, name, details, parentId: workflowInfo.parent?.runId, traceInfo: workflowInfo.memo.traceInfo } ),
       callDuringReplay: false
     },
 
     end: {
-      fn: ( workflowInfo, { id, details } ) => {
-        const { memo: { executionContext } } = workflowInfo;
-        Tracing.addEventEnd( { id, details, executionContext } );
-      },
+      fn: ( workflowInfo, { id, details } ) => Tracing.addEventEnd( { id, details, traceInfo: workflowInfo.memo.traceInfo } ),
       callDuringReplay: false
     },
 
     error: {
-      fn: ( workflowInfo, { id, details } ) => {
-        const { memo: { executionContext } } = workflowInfo;
-        Tracing.addEventError( { id, details, executionContext } );
-      },
+      fn: ( workflowInfo, { id, details } ) => Tracing.addEventError( { id, details, traceInfo: workflowInfo.memo.traceInfo } ),
       callDuringReplay: false
     }
   }

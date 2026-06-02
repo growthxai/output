@@ -20,15 +20,16 @@ Cost events use the same [hooks system](/operations/error-hooks) as error hooks:
 
 See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file registration pattern.
 
-```javascript src/llm_cost_hooks.js
+```typescript src/llm_cost_hooks.ts
 import { on } from '@outputai/core/hooks';
+import type { LLMUsageEvent } from '@outputai/llm';
 
-on( 'cost:llm:request', async ( { eventId, workflowId, activityId, activityName, modelId, total, tokensUsed, usage } ) => {
+on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, eventDate, workflowDetails, activityInfo, modelId, total, tokensUsed, usage } ) => {
   console.log( 'LLM call', {
     eventId,
-    workflowId,
-    activityId,
-    activityName,
+    eventDate,
+    workflowId: workflowDetails.workflowId,
+    activityId: activityInfo.activityId,
     modelId,
     tokens: tokensUsed,
     cost: total,
@@ -37,11 +38,12 @@ on( 'cost:llm:request', async ( { eventId, workflowId, activityId, activityName,
 } );
 ```
 
-```javascript src/http_cost_hooks.js
+```typescript src/http_cost_hooks.ts
 import { on } from '@outputai/core/hooks';
+import type { HttpRequestCostEvent } from '@outputai/http';
 
-on( 'cost:http:request', async ( { eventId, workflowId, activityId, activityName, requestId, url, total } ) => {
-  console.log( 'HTTP request', { eventId, workflowId, activityId, activityName, requestId, url, total } );
+on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, eventDate, workflowDetails, activityInfo, requestId, url, total } ) => {
+  console.log( 'HTTP request', { eventId, eventDate, workflowId: workflowDetails.workflowId, activityId: activityInfo.activityId, requestId, url, total } );
 } );
 ```
 
@@ -60,10 +62,18 @@ The handler receives a single LLM usage attribute object:
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
-  "workflowId": "workflow-123",
+  "eventDate": 1780401600000,
   "type": "llm:usage",
-  "activityId": "activity-1",
-  "activityName": "generateSummary",
+  "activityInfo": {
+    "activityId": "activity-1",
+    "activityType": "generateSummary"
+  },
+  "workflowDetails": {
+    "workflowId": "workflow-123",
+    "runId": "run-123",
+    "workflowType": "lead_enrichment"
+  },
+  "outputActivityKind": "step",
   "modelId": "gpt-4o",
   "usage": [
     { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
@@ -77,10 +87,11 @@ The handler receives a single LLM usage attribute object:
 | Field | Type | Description |
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:llm:request` and `http:request` for the same fetch get distinct `eventId`s. |
-| `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the call runs inside a workflow. |
+| `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
 | `type` | `"llm:usage"` | Attribute type. |
-| `activityId` | `string \| undefined` | Temporal activity ID of the step that made the LLM call. Present when the call runs inside a workflow activity. |
-| `activityName` | `string \| undefined` | Temporal activity name of the step that made the LLM call. Present when the call runs inside a workflow activity. |
+| `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the call. |
+| `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
+| `outputActivityKind` | `string` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
 | `usage` | `array` | Priced usage entries for this call. See [Usage entries](#usage-entries). |
 | `total` | `number` | Total estimated cost in dollars. |
@@ -119,10 +130,18 @@ The handler receives a single HTTP request cost attribute object:
 ```json
 {
   "eventId": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-  "workflowId": "workflow-123",
+  "eventDate": 1780401600000,
   "type": "http:request:cost",
-  "activityId": "activity-1",
-  "activityName": "searchVendors",
+  "activityInfo": {
+    "activityId": "activity-1",
+    "activityType": "searchVendors"
+  },
+  "workflowDetails": {
+    "workflowId": "workflow-123",
+    "runId": "run-123",
+    "workflowType": "lead_enrichment"
+  },
+  "outputActivityKind": "step",
   "requestId": "req-123",
   "url": "https://api.vendor.com/search",
   "total": 0.42
@@ -132,10 +151,11 @@ The handler receives a single HTTP request cost attribute object:
 | Field | Type | Description |
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:http:request` and `http:request` for the same fetch get distinct `eventId`s, so consumers keying by `eventId` won't collapse the two. |
-| `workflowId` | `string \| undefined` | Temporal workflow execution ID. Present when the request runs inside a workflow. |
+| `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
 | `type` | `"http:request:cost"` | Attribute type. |
-| `activityId` | `string \| undefined` | Temporal activity ID of the step that made the HTTP request. Present when the request runs inside a workflow activity. |
-| `activityName` | `string \| undefined` | Temporal activity name of the step that made the HTTP request. Present when the request runs inside a workflow activity. |
+| `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
+| `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
+| `outputActivityKind` | `string` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `requestId` | `string` | Internal id linking this payload to the HTTP trace event for that request. |
 | `url` | `string` | Final response URL (same as `response.url`). |
 | `total` | `number` | Dollar cost passed to `addRequestCost`. |

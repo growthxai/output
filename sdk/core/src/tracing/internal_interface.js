@@ -32,7 +32,7 @@ export { EventAction };
  * @param {string} args.name - The human-friendly name of the Event: query, request, create.
  * @param {any} args.details - Arbitrary data to add to this event, it will be used as the "input" field.
  * @param {string} args.parentId - The parent Event, used to build a tree.
- * @param {object} args.executionContext - The original execution context from the workflow
+ * @param {object} args.traceInfo - The trace information object, propagated from the root-most workflow.
  * @returns {void}
  */
 export const addEventStart = options => addEventAction( EventAction.START, options );
@@ -45,7 +45,7 @@ export const addEventStart = options => addEventAction( EventAction.START, optio
  * @param {object} args
  * @param {string} args.id - The id of the event to conclude.
  * @param {any} args.details - Arbitrary data to add to the event; it is used as the "output" field.
- * @param {object} args.executionContext - The original execution context from the workflow
+ * @param {object} args.traceInfo - The trace information object, propagated from the root-most workflow.
  * @returns {void}
  */
 export const addEventEnd = options => addEventAction( EventAction.END, options );
@@ -58,7 +58,7 @@ export const addEventEnd = options => addEventAction( EventAction.END, options )
  * @param {object} args
  * @param {string} args.id - The id of the event to conclude.
  * @param {any} args.details - Arbitrary data to add to the event; it is used as the "error" field.
- * @param {object} args.executionContext - The original execution context from the workflow
+ * @param {object} args.traceInfo - The trace information object, propagated from the root-most workflow.
  * @returns {void}
  */
 export const addEventError = options => addEventAction( EventAction.ERROR, options );
@@ -71,7 +71,7 @@ export const addEventError = options => addEventAction( EventAction.ERROR, optio
  * @param {object} args
  * @param {string} args.id - The id of the event to attach the attribute to.
  * @param {object} args.details - The attribute to add to this event, must be in `{ name: string, value: any }` format.
- * @param {object} args.executionContext - The original execution context from the workflow
+ * @param {object} args.traceInfo - The trace information object, propagated from the root-most workflow.
  * @returns {void}
  */
 export const addEventAttribute = options => addEventAction( EventAction.ADD_ATTR, options );
