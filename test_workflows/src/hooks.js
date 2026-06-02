@@ -3,7 +3,7 @@ import { onError, on, onBeforeWorkerStart, onWorkflowStart, onWorkflowEnd, onWor
 const colorize = message => `\x1b[45;30m[HOOK]\x1b[0;35;1m ${message}\x1b[0m`;
 
 // custom + sub modules
-on( 'custom_event', async payload => console.log( colorize( 'on(custom_event)' ), payload ) );
+on( 'http:request', async payload => console.log( colorize( 'on(http:request)' ), payload ) );
 on( 'cost:llm:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
 on( 'cost:http:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
 

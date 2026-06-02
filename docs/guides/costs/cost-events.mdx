@@ -24,9 +24,10 @@ See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file reg
 import { on } from '@outputai/core/hooks';
 import type { LLMUsageEvent } from '@outputai/llm';
 
-on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, workflowDetails, activityInfo, modelId, total, tokensUsed, usage } ) => {
+on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, eventDate, workflowDetails, activityInfo, modelId, total, tokensUsed, usage } ) => {
   console.log( 'LLM call', {
     eventId,
+    eventDate,
     workflowId: workflowDetails.workflowId,
     activityId: activityInfo.activityId,
     modelId,
@@ -41,8 +42,8 @@ on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, workflowDetails, activ
 import { on } from '@outputai/core/hooks';
 import type { HttpRequestCostEvent } from '@outputai/http';
 
-on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, workflowDetails, activityInfo, requestId, url, total } ) => {
-  console.log( 'HTTP request', { eventId, workflowId: workflowDetails.workflowId, activityId: activityInfo.activityId, requestId, url, total } );
+on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, eventDate, workflowDetails, activityInfo, requestId, url, total } ) => {
+  console.log( 'HTTP request', { eventId, eventDate, workflowId: workflowDetails.workflowId, activityId: activityInfo.activityId, requestId, url, total } );
 } );
 ```
 
@@ -61,6 +62,7 @@ The handler receives a single LLM usage attribute object:
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "eventDate": 1780401600000,
   "type": "llm:usage",
   "activityInfo": {
     "activityId": "activity-1",
@@ -85,6 +87,7 @@ The handler receives a single LLM usage attribute object:
 | Field | Type | Description |
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:llm:request` and `http:request` for the same fetch get distinct `eventId`s. |
+| `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
 | `type` | `"llm:usage"` | Attribute type. |
 | `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the call. |
 | `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
@@ -127,6 +130,7 @@ The handler receives a single HTTP request cost attribute object:
 ```json
 {
   "eventId": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+  "eventDate": 1780401600000,
   "type": "http:request:cost",
   "activityInfo": {
     "activityId": "activity-1",
@@ -147,6 +151,7 @@ The handler receives a single HTTP request cost attribute object:
 | Field | Type | Description |
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:http:request` and `http:request` for the same fetch get distinct `eventId`s, so consumers keying by `eventId` won't collapse the two. |
+| `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
 | `type` | `"http:request:cost"` | Attribute type. |
 | `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
 | `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |

@@ -6,8 +6,10 @@
 Updated `onWorkflowStart()`, `onWorkflowEnd()`, `onWorkflowError()` hooks payload:
 
 ```js
-{ eventId, workflowDetails, error? }
+{ eventId, eventDate, workflowDetails, error? }
 ```
+
+Where `eventDate` is the event timestamp in milliseconds.
 
 Where `workflowDetails` is an abstraction over [Temporal's `workflowInfo()`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo):
 ```ts
@@ -37,13 +39,13 @@ Updated `onError()` hooks payload. The fields change according to the `source`:
 
 ### Source is "workflow"
 ```js
-{ eventId, source, workflowDetails, error }
+{ eventId, eventDate, source, workflowDetails, error }
 ```
 Where `workflowDetails` is the same as in workflow hooks.
 
 ### Source is "activity"
 ```js
-{ eventId, source, workflowDetails, activityInfo, outputActivityKind, error }
+{ eventId, eventDate, source, workflowDetails, activityInfo, outputActivityKind, error }
 ```
 
 Where `activityInfo` is Temporal's `activityInfo()` [function return](https://typescript.temporal.io/api/interfaces/activity.Info).
@@ -52,7 +54,7 @@ And `outputActivityKind` is the framework flavor of the Temporal Activity: `step
 
 ### Source is "runtime"
 ```js
-{ eventId, source, error }
+{ eventId, eventDate, source, error }
 ```
 
 ## "on()" hook
@@ -61,6 +63,7 @@ Updated `on()` hooks with better typing and a new envelope.
 ### Envelope
 All events have these fields:
 - `eventId`
+- `eventDate`
 - `workflowDetails`: Same from other hooks
 - `activityInfo`: From Temporal
 - `outputActivityKind`

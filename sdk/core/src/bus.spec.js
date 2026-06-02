@@ -47,6 +47,35 @@ describe( 'messageBus', () => {
       } ) );
     } );
 
+    it( 'stamps eventDate on every object payload', () => {
+      const handler = vi.fn();
+      const now = new Date( '2026-06-02T12:00:00.000Z' );
+      vi.useFakeTimers();
+      vi.setSystemTime( now );
+      messageBus.on( 'test:event', handler );
+
+      messageBus.emit( 'test:event', { foo: 'bar' } );
+
+      expect( handler ).toHaveBeenCalledWith( expect.objectContaining( {
+        eventDate: now.getTime(),
+        foo: 'bar'
+      } ) );
+
+      vi.useRealTimers();
+    } );
+
+    it( 'preserves a caller-supplied eventDate', () => {
+      const handler = vi.fn();
+      messageBus.on( 'test:event', handler );
+
+      messageBus.emit( 'test:event', { eventDate: 1234, foo: 'bar' } );
+
+      expect( handler ).toHaveBeenCalledWith( expect.objectContaining( {
+        eventDate: 1234,
+        foo: 'bar'
+      } ) );
+    } );
+
     it( 'does not mutate the caller-supplied payload object', () => {
       const handler = vi.fn();
       messageBus.on( 'test:event', handler );
@@ -55,6 +84,7 @@ describe( 'messageBus', () => {
       messageBus.emit( 'test:event', payload );
 
       expect( payload ).not.toHaveProperty( 'eventId' );
+      expect( payload ).not.toHaveProperty( 'eventDate' );
     } );
   } );
 

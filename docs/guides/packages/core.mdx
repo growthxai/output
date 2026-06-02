@@ -94,16 +94,16 @@ When you call a step from a workflow, Output executes it as a durable activity w
 
 Register handlers in hook files that the worker loads at startup (list paths under `outputai.hookFiles` in `package.json`). Import from `@outputai/core/hooks`. The framework wraps each handler in a try/catch: failures are logged and do not stop the worker or workflow runs.
 
-Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit. Use it as a stable per-emit idempotency key for downstream dedup (webhook retry handling, ClickHouse `ReplacingMergeTree`, audit logs, etc.). Distinct emits — including `http:request` and `cost:http:request` for the same fetch — receive distinct `eventId`s.
+Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — and an **`eventDate`**, the millisecond epoch timestamp for when the event was emitted. Use `eventId` as a stable per-emit idempotency key for downstream dedup (webhook retry handling, ClickHouse `ReplacingMergeTree`, audit logs, etc.). Distinct emits — including `http:request` and `cost:http:request` for the same fetch — receive distinct `eventId`s.
 
 | Function | When it runs | Payload |
 |----------|--------------|---------|
-| `onError` | Activity, workflow, or runtime error | Object always includes `eventId`, `source`, and `error`. Other fields depend on `source` — see below and [Error Hooks](/operations/error-hooks) |
+| `onError` | Activity, workflow, or runtime error | Object always includes `eventId`, `eventDate`, `source`, and `error`. Other fields depend on `source` — see below and [Error Hooks](/operations/error-hooks) |
 | `onBeforeWorkerStart` | Once after hooks, workflows, and activities are loaded; before the Temporal worker is created | None |
-| `onWorkflowStart` | A user workflow execution starts | `eventId`, `workflowDetails` |
-| `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `workflowDetails` |
-| `onWorkflowError` | A user workflow execution fails | `eventId`, `workflowDetails`, `error` |
-| `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Your event payload plus `eventId`. When emitted from an Output activity, the framework also attaches `activityInfo`, `workflowDetails`, and `outputActivityKind`. |
+| `onWorkflowStart` | A user workflow execution starts | `eventId`, `eventDate`, `workflowDetails` |
+| `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `eventDate`, `workflowDetails` |
+| `onWorkflowError` | A user workflow execution fails | `eventId`, `eventDate`, `workflowDetails`, `error` |
+| `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Your event payload plus `eventId` and `eventDate`. When emitted from an Output activity, the framework also attaches `activityInfo`, `workflowDetails`, and `outputActivityKind`. |
 
 **Context objects on hook payloads**
 
@@ -128,9 +128,9 @@ type WorkflowDetails = {
 
 **`onError` payload by `source`**
 
-- **`activity`** — `eventId`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`
-- **`workflow`** — `eventId`, `source`, `workflowDetails`, `error`
-- **`runtime`** — `eventId`, `source`, `error`
+- **`activity`** — `eventId`, `eventDate`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`
+- **`workflow`** — `eventId`, `eventDate`, `source`, `workflowDetails`, `error`
+- **`runtime`** — `eventId`, `eventDate`, `source`, `error`
 
 `onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onError` can still report failures from any workflow, including catalog, if you need them.
 

@@ -116,7 +116,7 @@ import { on } from '@outputai/core/hooks';
 import type { HttpRequestEvent } from '@outputai/http';
 
 on<HttpRequestEvent>( 'http:request', async ( payload ) => {
-  // payload: { eventId, requestId, method, url, status?, durationMs, outcome, activityInfo, workflowDetails, outputActivityKind }
+  // payload: { eventId, eventDate, requestId, method, url, status?, durationMs, outcome, activityInfo, workflowDetails, outputActivityKind }
   console.log( `[${payload.outcome}] ${payload.method} ${payload.url} ${payload.status ?? '-'} ${payload.durationMs}ms` );
 } );
 ```
@@ -126,6 +126,7 @@ The payload includes:
 | Field | Description |
 |-------|-------------|
 | `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key — `http:request` and `cost:http:request` for the same fetch get distinct `eventId`s, so dedup keyed on `eventId` won't collapse the two. |
+| `eventDate` | Millisecond epoch timestamp for when the event was emitted. |
 | `requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
 | `method` | HTTP method (uppercase). |
 | `url` | Absolute request URL. |

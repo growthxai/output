@@ -10,7 +10,7 @@ This guide covers the `@outputai/core` hook payload and activity context changes
 - Hook payloads no longer expose flat `workflowId`, `runId`, `workflowName`, `activityId`, or `activityName` context fields.
 - Workflow lifecycle hooks now receive `workflowDetails` instead of `id`, `runId`, `name`, and `duration`.
 - Activity-scoped hooks and custom events now receive Temporal's `activityInfo`, Output's `workflowDetails`, and `outputActivityKind`.
-- The `on()` hook envelope now contains `eventId`, `workflowDetails`, `activityInfo`, and `outputActivityKind`.
+- The `on()` hook envelope now contains `eventId`, `eventDate`, `workflowDetails`, `activityInfo`, and `outputActivityKind`.
 - `getExecutionContext()` now returns `{ activityInfo, workflowFilename }` when activity context is available.
 - `HttpRequestHookPayload` was removed. Pass event attributes directly to `on<TAttributes>()` instead.
 - Trace workflow node ids now use Temporal `runId`, improving traces for child workflows that continue as new.
@@ -83,7 +83,7 @@ onError( ( payload ) => {
 
 ### Update custom event hooks
 
-Events emitted with `emitEvent()` still include your custom payload and `eventId`. When emitted from an Output activity, the contextual fields are now `activityInfo`, `workflowDetails`, and `outputActivityKind`.
+Events emitted with `emitEvent()` still include your custom payload, `eventId`, and `eventDate`. When emitted from an Output activity, the contextual fields are now `activityInfo`, `workflowDetails`, and `outputActivityKind`.
 
 `outputActivityKind` is one of `step`, `evaluator`, or `internal_step`.
 
@@ -116,7 +116,7 @@ This affects built-in custom events such as `http:request`, `cost:http:request`,
 
 ### Update TypeScript hook payload types
 
-The `on()` hook now lets you type event-specific attributes directly through its generic. Core still owns the common envelope (`eventId`, `workflowDetails`, `activityInfo`, and `outputActivityKind`); event-emitting packages own their event attribute types.
+The `on()` hook now lets you type event-specific attributes directly through its generic. Core still owns the common envelope (`eventId`, `eventDate`, `workflowDetails`, `activityInfo`, and `outputActivityKind`); event-emitting packages own their event attribute types.
 
 ```ts
 import { on } from '@outputai/core/hooks';

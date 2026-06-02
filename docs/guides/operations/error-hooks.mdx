@@ -37,9 +37,9 @@ You can register multiple files: `"hookFiles": ["./src/error_hooks.js", "./src/o
 
 ## The three sources
 
-Errors are emitted from three origins. Every payload includes `eventId`, `source`, and `error`. Activity- and workflow-scoped errors also include Temporal execution details.
+Errors are emitted from three origins. Every payload includes `eventId`, `eventDate`, `source`, and `error`. Activity- and workflow-scoped errors also include Temporal execution details.
 
-| Source | When it fires | Fields besides `eventId`, `source`, and `error` |
+| Source | When it fires | Fields besides `eventId`, `eventDate`, `source`, and `error` |
 |--------|----------------|----------------------------------------|
 | `activity` | A step or evaluator fails (after retries are exhausted). | `activityInfo`, `workflowDetails`, `outputActivityKind` |
 | `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | `workflowDetails` |
@@ -47,15 +47,15 @@ Errors are emitted from three origins. Every payload includes `eventId`, `source
 
 So:
 
-- **Activity** — `eventId`, `source: 'activity'`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`.
-- **Workflow** — `eventId`, `source: 'workflow'`, `workflowDetails`, `error` (no activity fields).
-- **Runtime** — `eventId`, `source: 'runtime'`, and `error` only.
+- **Activity** — `eventId`, `eventDate`, `source: 'activity'`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`.
+- **Workflow** — `eventId`, `eventDate`, `source: 'workflow'`, `workflowDetails`, `error` (no activity fields).
+- **Runtime** — `eventId`, `eventDate`, `source: 'runtime'`, and `error` only.
 
 `activityInfo` is Temporal's Activity execution info object; see Temporal's [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) reference. `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), with fields such as `workflowId`, `runId`, `workflowType`, `parent`, and `root`.
 
 `outputActivityKind` identifies the Output activity type. Possible values are `step`, `evaluator`, and `internal_step`.
 
-`eventId` is a UUID v4 stamped per emit — use it as a stable idempotency key when forwarding errors to external systems (Sentry, PagerDuty, your own incident pipeline). Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
+`eventId` is a UUID v4 stamped per emit — use it as a stable idempotency key when forwarding errors to external systems (Sentry, PagerDuty, your own incident pipeline). `eventDate` is the millisecond epoch timestamp for when the event was emitted. Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
 
 ## Handler safety: no throws
 

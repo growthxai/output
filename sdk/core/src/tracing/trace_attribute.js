@@ -4,7 +4,6 @@ import Decimal from 'decimal.js';
  * All attributes inherit from this
  */
 export class BaseAttribute {
-  date = Date.now();
   type;
 
   constructor( type ) {
