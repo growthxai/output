@@ -38,6 +38,11 @@ const loadCredentials = async () => {
   return mod.credentials;
 };
 
+const activityContext = ( workflowType: string, workflowFilename: string ) => ( {
+  activityInfo: { workflowType },
+  workflowFilename
+} );
+
 describe( 'credentials module', () => {
   const key = generateKey();
   const ciphertext = encrypt( YAML_CONTENT, key );
@@ -298,7 +303,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'my_workflow', filename: '/app/src/workflows/my_workflow/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();
@@ -318,7 +323,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'simple', filename: '/app/src/workflows/simple/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'simple', '/app/src/workflows/simple/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();
@@ -345,7 +350,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'my_workflow', filename: '/app/src/workflows/my_workflow/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();
@@ -367,7 +372,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'my_workflow', filename: '/app/src/workflows/my_workflow/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();
@@ -393,20 +398,23 @@ describe( 'credentials module', () => {
         existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
       } ) );
 
-      const ctx: { name: string | undefined; filename: string | undefined } = { name: undefined, filename: undefined };
+      const ctx: { workflowType: string | undefined; workflowFilename: string | undefined } = {
+        workflowType: undefined,
+        workflowFilename: undefined
+      };
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ctx.name ? { workflow: { id: 'test-id', name: ctx.name, filename: ctx.filename } } : null
+        getExecutionContext: () => ctx.workflowType && ctx.workflowFilename ? activityContext( ctx.workflowType, ctx.workflowFilename ) : null
       } ) );
 
       const credentials = await loadCredentials();
 
-      ctx.name = 'workflow_a';
-      ctx.filename = '/app/src/workflows/workflow_a/workflow.ts';
+      ctx.workflowType = 'workflow_a';
+      ctx.workflowFilename = '/app/src/workflows/workflow_a/workflow.ts';
       expect( credentials.get( 'custom.value' ) ).toBe( 'wf-a' );
 
-      ctx.name = 'workflow_b';
-      ctx.filename = '/app/src/workflows/workflow_b/workflow.ts';
+      ctx.workflowType = 'workflow_b';
+      ctx.workflowFilename = '/app/src/workflows/workflow_b/workflow.ts';
       expect( credentials.get( 'custom.value' ) ).toBe( 'other-wf' );
     } );
 
@@ -437,7 +445,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'test_wf', filename: '/app/src/workflows/test_wf/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'test_wf', '/app/src/workflows/test_wf/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();
@@ -558,7 +566,7 @@ describe( 'credentials module', () => {
       } ) );
 
       vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ( { workflow: { id: 'test-id', name: 'test', filename: '/app/workflows/test/workflow.ts' } } )
+        getExecutionContext: () => activityContext( 'test', '/app/workflows/test/workflow.ts' )
       } ) );
 
       const credentials = await loadCredentials();

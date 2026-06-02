@@ -1,0 +1,175 @@
+---
+title: "v0.5.2 → v0.6.0"
+description: "Upgrading Output.ai projects from v0.5.2 to v0.6.0: hook payload context objects and trace run ids."
+---
+
+This guide covers the `@outputai/core` hook payload and activity context changes in v0.6.0.
+
+## What changed
+
+- Hook payloads no longer expose flat `workflowId`, `runId`, `workflowName`, `activityId`, or `activityName` context fields.
+- Workflow lifecycle hooks now receive `workflowDetails` instead of `id`, `runId`, `name`, and `duration`.
+- Activity-scoped hooks and custom events now receive Temporal's `activityInfo`, Output's `workflowDetails`, and `outputActivityKind`.
+- The `on()` hook envelope now contains `eventId`, `workflowDetails`, `activityInfo`, and `outputActivityKind`.
+- `getExecutionContext()` now returns `{ activityInfo, workflowFilename }` when activity context is available.
+- `HttpRequestHookPayload` was removed. Pass event attributes directly to `on<TAttributes>()` instead.
+- Trace workflow node ids now use Temporal `runId`, improving traces for child workflows that continue as new.
+
+## Migration steps
+
+### Update workflow lifecycle hooks
+
+Use `workflowDetails` for workflow ids and type.
+
+#### Before
+
+```js
+import { onWorkflowStart } from '@outputai/core/hooks';
+
+onWorkflowStart( ( { id, runId, name } ) => {
+  console.log( 'Workflow started', { id, runId, name } );
+} );
+```
+
+#### After
+
+```js
+import { onWorkflowStart } from '@outputai/core/hooks';
+
+onWorkflowStart( ( { workflowDetails } ) => {
+  console.log( 'Workflow started', {
+    workflowId: workflowDetails.workflowId,
+    runId: workflowDetails.runId,
+    workflowType: workflowDetails.workflowType
+  } );
+} );
+```
+
+`onWorkflowEnd()` and `onWorkflowError()` use the same `workflowDetails` shape. The old lifecycle `duration` field is no longer part of the hook payload.
+
+### Update error hooks
+
+Activity errors now expose Temporal activity info and workflow details instead of flat ids and names.
+
+#### Before
+
+```js
+import { onError } from '@outputai/core/hooks';
+
+onError( ( payload ) => {
+  if ( payload.source === 'activity' ) {
+    console.error( payload.workflowName, payload.activityName, payload.error );
+  }
+} );
+```
+
+#### After
+
+```js
+import { onError } from '@outputai/core/hooks';
+
+onError( ( payload ) => {
+  if ( payload.source === 'activity' ) {
+    console.error(
+      payload.workflowDetails.workflowType,
+      payload.activityInfo.activityType,
+      payload.error
+    );
+  }
+} );
+```
+
+`activityInfo` is Temporal's Activity execution info object. See Temporal's [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) reference. `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo).
+
+### Update custom event hooks
+
+Events emitted with `emitEvent()` still include your custom payload and `eventId`. When emitted from an Output activity, the contextual fields are now `activityInfo`, `workflowDetails`, and `outputActivityKind`.
+
+`outputActivityKind` is one of `step`, `evaluator`, or `internal_step`.
+
+#### Before
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'http:request', ( { workflowId, runId, activityId, requestId } ) => {
+  console.log( workflowId, runId, activityId, requestId );
+} );
+```
+
+#### After
+
+```js
+import { on } from '@outputai/core/hooks';
+
+on( 'http:request', ( { workflowDetails, activityInfo, requestId } ) => {
+  console.log(
+    workflowDetails.workflowId,
+    workflowDetails.runId,
+    activityInfo.activityId,
+    requestId
+  );
+} );
+```
+
+This affects built-in custom events such as `http:request`, `cost:http:request`, and `cost:llm:request`.
+
+### Update TypeScript hook payload types
+
+The `on()` hook now lets you type event-specific attributes directly through its generic. Core still owns the common envelope (`eventId`, `workflowDetails`, `activityInfo`, and `outputActivityKind`); event-emitting packages own their event attribute types.
+
+```ts
+import { on } from '@outputai/core/hooks';
+import type { HttpRequestEvent } from '@outputai/http';
+
+on<HttpRequestEvent>( 'http:request', payload => {
+  console.log( payload.workflowDetails.workflowId, payload.requestId );
+} );
+```
+
+Use `HttpRequestEvent` and `HttpRequestCostEvent` from `@outputai/http`, and `LLMUsageEvent` from `@outputai/llm`.
+
+| Event name | Import type from | Use with `on<T>()` |
+|------------|------------------|--------------------|
+| `http:request` | `@outputai/http` | `on<HttpRequestEvent>( 'http:request', handler )` |
+| `cost:http:request` | `@outputai/http` | `on<HttpRequestCostEvent>( 'cost:http:request', handler )` |
+| `cost:llm:request` | `@outputai/llm` | `on<LLMUsageEvent>( 'cost:llm:request', handler )` |
+
+For advanced type composition, the framework-managed envelope type is exported as `OnHookEnvelope`, and the full merged payload type is `OnHookPayload<TAttributes>`.
+
+### Update activity integration context usage
+
+If you use the internal `@outputai/core/sdk_activity_integration` helpers, `getExecutionContext()` now returns Temporal's activity info plus the workflow file path.
+
+#### Before
+
+```js
+const context = getExecutionContext();
+console.log( context.workflowId, context.runId, context.activityId );
+```
+
+#### After
+
+```js
+const context = getExecutionContext();
+console.log(
+  context?.activityInfo.workflowExecution?.workflowId,
+  context?.activityInfo.workflowExecution?.runId,
+  context?.activityInfo.activityId
+);
+```
+
+### Check trace consumers
+
+Trace file names still use `workflowId`, but workflow node ids inside trace entries now use `runId`. If you parse trace JSON directly, update code that assumed a workflow trace node id was the workflow id.
+
+This makes traces more accurate for child workflows that continue as new, because each Temporal run has a distinct node id.
+
+## Checklist
+
+- Replace workflow lifecycle hook destructuring of `id`, `runId`, `name`, or `duration` with `workflowDetails`.
+- Replace activity hook destructuring of `activityId`, `activityName`, `workflowId`, or `workflowName` with `activityInfo` and `workflowDetails`.
+- Update `on('http:request')`, `on('cost:http:request')`, and `on('cost:llm:request')` handlers to read context from `activityInfo` and `workflowDetails`.
+- Replace `HttpRequestHookPayload` with package-owned event attribute types passed to `on<TAttributes>()`.
+- Update any `getExecutionContext()` usage to read from `activityInfo`.
+- Update direct trace JSON consumers to use `runId` for workflow node ids.

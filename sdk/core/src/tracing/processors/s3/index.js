@@ -7,7 +7,7 @@ import { JsonStreamStringify } from 'json-stream-stringify';
 
 const log = createChildLogger( 'S3 Processor' );
 
-const createRedisKey = ( { workflowId, workflowName } ) => `traces/${workflowName}/${workflowId}`;
+const createRedisKey = runId => `traces/${runId}`;
 
 /**
  * Add new entry to list of entries
@@ -44,17 +44,14 @@ const bustEntries = async key => {
 
 /**
  * Return the S3 key for the trace file
- * @param {object} args
- * @param {number} args.startTime
- * @param {string} args.workflowId
- * @param {string} args.workflowName
+ * @param {object} traceInfo
  * @returns
  */
-const getS3Key = ( { startTime, workflowId, workflowName } ) => {
+const getS3Key = ( { startTime, workflowId, workflowType } ) => {
   const isoDate = new Date( startTime ).toISOString();
   const [ year, month, day ] = isoDate.split( /\D/, 3 );
   const timeStamp = isoDate.replace( /[:T.]/g, '-' );
-  return `${workflowName}/${year}/${month}/${day}/${timeStamp}_${workflowId}.json`;
+  return `${workflowType}/${year}/${month}/${day}/${timeStamp}_${workflowId}.json`;
 };
 
 /**
@@ -70,19 +67,19 @@ export const init = async () => {
  *
  * Appends each trace entry to Redis.
  *
- * When the root workflow ends or the entry is an error action, it builds the trace tree and uploads it to S3.
+ * When the root workflow finishes or errors, builds the trace tree and uploads it to S3.
  *
  * @param {object} args
  * @param {object} args.entry - The trace entry to append
- * @param {object} args.executionContext - Execution info: workflowId, workflowName, startTime
+ * @param {object} args.traceInfo - Trace information object
  */
-export const exec = async ( { entry, executionContext } ) => {
-  const { workflowName, workflowId, startTime } = executionContext;
-  const cacheKey = createRedisKey( { workflowId, workflowName } );
+export const exec = async ( { entry, traceInfo } ) => {
+  const { workflowId, runId } = traceInfo;
+  const cacheKey = createRedisKey( runId );
 
   await addEntry( entry, cacheKey );
 
-  const isRootWorkflowEnd = entry.id === workflowId && entry.action !== 'start';
+  const isRootWorkflowEnd = entry.id === runId && entry.action !== 'start';
   if ( !isRootWorkflowEnd ) {
     return;
   }
@@ -100,20 +97,13 @@ export const exec = async ( { entry, executionContext } ) => {
     return;
   }
 
-  await upload( {
-    key: getS3Key( { workflowId, workflowName, startTime } ),
-    content: new JsonStreamStringify( content )
-  } );
+  await upload( { key: getS3Key( traceInfo ), content: new JsonStreamStringify( content ) } );
   await bustEntries( cacheKey );
 };
 
 /**
  * Returns where the trace is saved
- * @param {object} executionContext
- * @param {string} executionContext.startTime - The start time of the workflow
- * @param {string} executionContext.workflowId - The id of the workflow execution
- * @param {string} executionContext.workflowName - The name of the workflow
+ * @param {object} traceInfo - Trace information object
  * @returns {string} The S3 url of the trace file
  */
-export const getDestination = ( { startTime, workflowId, workflowName } ) =>
-  `https://${getVars().remoteS3Bucket}.s3.amazonaws.com/${getS3Key( { workflowId, workflowName, startTime } )}`;
+export const getDestination = traceInfo => `https://${getVars().remoteS3Bucket}.s3.amazonaws.com/${getS3Key( traceInfo )}`;

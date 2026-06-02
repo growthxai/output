@@ -1,63 +1,130 @@
+import type { Info } from '@temporalio/activity';
+
+export interface WorkflowDetails {
+  /**
+   * ID of the Workflow, this can be set by the client during Workflow creation.
+   * A single Workflow may run multiple times e.g. when scheduled with cron.
+   */
+  workflowId: string;
+  /**
+   * ID of a single Workflow run
+   */
+  runId: string;
+  /**
+   * Workflow function's name
+   */
+  workflowType: string;
+  /**
+   * Parent Workflow info (present if this is a Child Workflow)
+   */
+  parent?: {
+    /**
+     * ID of the Workflow, this can be set by the client during Workflow creation.
+     * A single Workflow may run multiple times e.g. when scheduled with cron.
+     */
+    workflowId: string;
+    /**
+     * ID of a single Workflow run
+     */
+    runId: string;
+    /**
+     * Namespace this Workflow is executing in
+     */
+    namespace: string;
+  };
+  /**
+   * The root workflow execution, defined as follows:
+   * 1. A workflow without a parent workflow is its own root workflow.
+   * 2. A workflow with a parent workflow has the same root workflow as
+   * its parent.
+   *
+   * When there is no parent workflow, i.e., the workflow is its own root workflow,
+   * this field is `undefined`.
+   *
+   * Note that Continue-as-New (or reset) propagates the workflow parentage relationship,
+   * and therefore, whether the new workflow has the same root workflow as the original one
+   * depends on whether it had a parent.
+   *
+   */
+  root?: {
+    /**
+     * ID of the Workflow, this can be set by the client during Workflow creation.
+     * A single Workflow may run multiple times e.g. when scheduled with cron.
+     */
+    workflowId: string;
+    /**
+     * ID of a single Workflow run
+     */
+    runId: string;
+  };
+  /**
+   * Run Id of the first Run in this Execution Chain
+   */
+  firstExecutionRunId: string;
+  /**
+   * The last Run Id in this Execution Chain
+   */
+  continuedFromExecutionRunId?: string;
+  /**
+   * Time at which this [Workflow Execution Chain](https://docs.temporal.io/workflows#workflow-execution-chain) was started
+   */
+  startTime: number;
+  /**
+   * Time at which the current Workflow Run started
+   */
+  runStartTime: number;
+  /**
+   * Starts at 1 and increments for every retry if there is a `retryPolicy`
+   */
+  attempt: number;
+}
+
 /**
- * Payload passed to the onError handler when a workflow, activity or runtime error occurs.
+ * Payload passed to the onError() handler when a workflow, activity or runtime error occurs.
  */
 export interface ErrorHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
   /** Origin of the error: workflow execution, activity execution, or runtime. */
   source: 'workflow' | 'activity' | 'runtime';
-  /** Name of the workflow, when the error is scoped to a workflow or activity. */
-  workflowName?: string;
-  /** Name of the activity, when the error is from an activity. */
-  activityName?: string;
+  /** Information about the current workflow execution */
+  workflowDetails?: WorkflowDetails;
+  /** Temporal's activityInfo(). If source is activity */
+  activityInfo?: Info;
+  /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
+  outputActivityKind?: string;
   /** The error thrown. */
   error: Error;
 }
 
 /**
- * Payload passed to the onWorkflowStart handler when a workflow run begins.
+ * Payload passed to the onWorkflowStart() handler when a workflow run begins.
  */
 export interface WorkflowStartHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
-  /** Workflow id (stable across retries / continue-as-new). */
-  id: string;
-  /** Temporal run id for the current execution attempt. */
-  runId: string;
-  /** Name of the workflow. */
-  name: string;
+  /** Information about the current workflow execution */
+  workflowDetails: WorkflowDetails;
 }
 
 /**
- * Payload passed to the onWorkflowEnd handler when a workflow run completes successfully.
+ * Payload passed to the onWorkflowEnd() handler when a workflow run completes successfully.
  */
 export interface WorkflowEndHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
-  /** Workflow id (stable across retries / continue-as-new). */
-  id: string;
-  /** Temporal run id for the current execution attempt. */
-  runId: string;
-  /** Name of the workflow. */
-  name: string;
-  /** Duration of the workflow run in milliseconds. */
-  duration: number;
+  /** Information about the current workflow execution */
+  workflowDetails: WorkflowDetails;
 }
 
 /**
- * Payload passed to the onWorkflowError handler when a workflow run fails.
+ * Payload passed to the onWorkflowError() handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
-  /** Workflow id (stable across retries / continue-as-new). */
-  id: string;
-  /** Temporal run id for the current execution attempt. */
-  runId: string;
-  /** Name of the workflow. */
-  name: string;
-  /** Elapsed time before failure in milliseconds. */
-  duration: number;
+  /** Information about the current workflow execution */
+  workflowDetails: WorkflowDetails;
   /** The error thrown. */
   error: Error;
 }
@@ -105,37 +172,21 @@ export declare function onWorkflowEnd( handler: ( payload: WorkflowEndHookPayloa
 export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPayload ) => void ): void;
 
 /**
- * Payload broadcast on the `http:request` event for every HTTP call issued
- * through `@outputai/http`'s `fetch`. Fires for success, non-2xx, and network
- * failure paths — `cost:http:request` continues to fire only when the consumer
- * has attached a cost via `addRequestCost`.
- *
- * The framework auto-attaches `workflowId`, `runId`, and `activityId` onto the
- * payload before broadcast, so consumers receive those identifiers in addition
- * to the fields listed here.
+ * Framework-managed envelope added to payloads passed to on() handlers.
  */
-export interface HttpRequestHookPayload {
+export interface OnHookEnvelope {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
-  /** Workflow id (stable across retries / continue-as-new). */
-  workflowId: string;
-  /** Temporal run id for the current execution attempt. */
-  runId: string;
-  /** Activity / step id, when emitted from inside a step. */
-  activityId?: string;
-  /** UUID generated per request inside `@outputai/http`. */
-  requestId: string;
-  /** HTTP method (uppercase). */
-  method: string;
-  /** Absolute request URL. */
-  url: string;
-  /** HTTP status code; undefined on network failure. */
-  status?: number;
-  /** Elapsed time from request issuance to response (or failure), in milliseconds. */
-  durationMs: number;
-  /** Outcome bucket: `success` (2xx-3xx), `error` (status >= 400), `failure` (DNS / timeout / abort). */
-  outcome: 'success' | 'error' | 'failure';
+  /** Information about the current workflow execution */
+  workflowDetails: WorkflowDetails;
+  /** Temporal's activityInfo(). */
+  activityInfo: Info;
+  /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
+  outputActivityKind?: string;
 }
+
+export type OnHookPayload<TAttributes extends Record<string, unknown> = Record<string, unknown>> =
+  OnHookEnvelope & TAttributes;
 
 /**
  * Register a handler to be invoked when a given event happens
@@ -143,4 +194,7 @@ export interface HttpRequestHookPayload {
  * @param eventName - The name of the event to subscribe
  * @param handler - Function called with the event payload
  */
-export declare function on( eventName: string, handler: ( payload?: object ) => void ): void;
+export declare function on<TAttributes extends Record<string, unknown> = Record<string, unknown>>(
+  eventName: string,
+  handler: ( payload: OnHookPayload<TAttributes> ) => void
+): void;

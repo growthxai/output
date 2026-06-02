@@ -7,11 +7,12 @@ import { Storage } from '#async_storage';
  */
 export const getExecutionContext = () => {
   const ctx = Storage.load();
-
-  if ( !ctx?.executionContext || !ctx?.workflowFilename ) {
+  if ( !ctx ) {
     return null;
   }
 
-  const { workflowId: id, workflowName: name } = ctx.executionContext;
-  return { workflow: { id, name, filename: ctx.workflowFilename } };
+  return {
+    workflowFilename: ctx.workflowFilename,
+    activityInfo: ctx.activityInfo
+  };
 };

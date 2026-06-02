@@ -17,26 +17,21 @@ describe( 'getExecutionContext', () => {
     expect( getExecutionContext() ).toBeNull();
   } );
 
-  it( 'returns null when executionContext is missing', async () => {
-    loadMock.mockReturnValue( { workflowFilename: '/workflows/foo.js' } );
-    const { getExecutionContext } = await import( './index.js' );
-    expect( getExecutionContext() ).toBeNull();
-  } );
-
-  it( 'returns null when workflowFilename is missing', async () => {
-    loadMock.mockReturnValue( { executionContext: { workflowId: 'wf-1', workflowName: 'myWorkflow' } } );
-    const { getExecutionContext } = await import( './index.js' );
-    expect( getExecutionContext() ).toBeNull();
-  } );
-
-  it( 'returns workflow context when storage has full context', async () => {
+  it( 'returns activity execution context from storage', async () => {
+    const activityInfo = {
+      activityId: 'activity-1',
+      activityType: 'myActivity',
+      workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
+      workflowType: 'myWorkflow'
+    };
     loadMock.mockReturnValue( {
-      executionContext: { workflowId: 'wf-1', workflowName: 'myWorkflow' },
+      activityInfo,
       workflowFilename: '/workflows/myWorkflow.js'
     } );
     const { getExecutionContext } = await import( './index.js' );
     expect( getExecutionContext() ).toEqual( {
-      workflow: { id: 'wf-1', name: 'myWorkflow', filename: '/workflows/myWorkflow.js' }
+      activityInfo,
+      workflowFilename: '/workflows/myWorkflow.js'
     } );
   } );
 } );

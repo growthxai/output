@@ -48,8 +48,8 @@ const getWorkflowContext = () => {
     return { workflowName: undefined, workflowDir: undefined };
   }
   return {
-    workflowName: ctx.workflow.name,
-    workflowDir: dirname( ctx.workflow.filename )
+    workflowName: ctx.activityInfo.workflowType,
+    workflowDir: dirname( ctx.workflowFilename )
   };
 };
 

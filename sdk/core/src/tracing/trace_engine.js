@@ -32,16 +32,12 @@ const processors = [
 /**
  * Returns the destinations for a given execution context
  *
- * @param {object} executionContext
- * @param {string} executionContext.startTime
- * @param {string} executionContext.workflowId
- * @param {string} executionContext.workflowName
- * @param {boolean} executionContext.disableTrace
+ * @param {object} traceInfo - The trace information object
  * @returns {object} A trace destinations object: { [dest-name]: 'path' }
  */
-export const getDestinations = executionContext =>
+export const getDestinations = traceInfo =>
   processors.reduce( ( o, p ) =>
-    Object.assign( o, { [p.name.toLowerCase()]: p.enabled && !executionContext.disableTrace ? p.getDestination( executionContext ) : null } )
+    Object.assign( o, { [p.name.toLowerCase()]: p.enabled && !traceInfo.disableTrace ? p.getDestination( traceInfo ) : null } )
   , {} );
 
 /**
@@ -72,11 +68,11 @@ const serializeDetails = details => details instanceof Error ? serializeError( d
  * @param {object} fields - All the trace fields
  * @returns {void}
  */
-export const addEventAction = ( action, { kind, name, id, parentId, details, executionContext } ) => {
+export const addEventAction = ( action, { kind, name, id, parentId, details, traceInfo } ) => {
   // Ignores internal steps in the actual trace files, ignore trace if the flag is true
-  if ( kind !== ComponentType.INTERNAL_STEP && !executionContext.disableTrace ) {
+  if ( kind !== ComponentType.INTERNAL_STEP && !traceInfo.disableTrace ) {
     traceBus.emit( 'entry', {
-      executionContext,
+      traceInfo,
       entry: { kind, action, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) }
     } );
   }
@@ -93,7 +89,7 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, exe
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, executionContext, addAttribute } = storeContent;
+    const { parentId, traceInfo, addAttribute } = storeContent;
     if ( action === EventAction.ADD_ATTR ) {
       const attribute = options.details;
       if ( !( attribute instanceof BaseAttribute ) ) {
@@ -102,6 +98,6 @@ export function addEventActionWithContext( action, options ) {
         addAttribute( options.details );
       }
     }
-    addEventAction( action, { ...options, parentId, executionContext } );
+    addEventAction( action, { ...options, parentId, traceInfo } );
   }
 };

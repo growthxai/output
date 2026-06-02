@@ -53,6 +53,14 @@ const streamToString = async stream => {
 };
 
 describe( 'tracing/processors/s3', () => {
+  const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
+  const traceInfo = {
+    workflowId: 'id1',
+    runId: 'run-1',
+    workflowType: 'WF',
+    startTime
+  };
+
   beforeEach( () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
@@ -72,24 +80,30 @@ describe( 'tracing/processors/s3', () => {
 
   it( 'exec(): accumulates via redis, uploads only on root workflow end', async () => {
     const { exec } = await import( './index.js' );
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
 
     redisMulti.exec.mockResolvedValue( [] );
 
-    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
-    const activityStart = { id: 'act-1', name: 'DoSomething', kind: 'step', parentId: 'id1', action: 'start', details: {}, timestamp: startTime + 1 };
-    const workflowEnd = { id: 'id1', action: 'end', details: { ok: true }, timestamp: startTime + 2 };
+    const workflowStart = { id: 'run-1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
+    const activityStart = {
+      id: 'act-1',
+      name: 'DoSomething',
+      kind: 'step',
+      parentId: 'run-1',
+      action: 'start',
+      details: {},
+      timestamp: startTime + 1
+    };
+    const workflowEnd = { id: 'run-1', action: 'end', details: { ok: true }, timestamp: startTime + 2 };
     zRangeMock.mockResolvedValue( [
       JSON.stringify( workflowStart ),
       JSON.stringify( activityStart ),
       JSON.stringify( workflowEnd )
     ] );
 
-    await exec( { ...ctx, entry: workflowStart } );
-    await exec( { ...ctx, entry: activityStart } );
-    // Root end: id matches workflowId and not start — triggers the 10s delay before upload
-    const endPromise = exec( { ...ctx, entry: workflowEnd } );
+    await exec( { traceInfo, entry: workflowStart } );
+    await exec( { traceInfo, entry: activityStart } );
+    // Root end: id matches runId and not start — triggers the 10s delay before upload
+    const endPromise = exec( { traceInfo, entry: workflowEnd } );
     await vi.advanceTimersByTimeAsync( 10_000 );
     await endPromise;
 
@@ -101,14 +115,13 @@ describe( 'tracing/processors/s3', () => {
     expect( key ).toMatch( /^WF\/2020\/01\/02\// );
     expect( JSON.parse( await streamToString( content ) ).count ).toBe( 3 );
     expect( delMock ).toHaveBeenCalledTimes( 1 );
-    expect( delMock ).toHaveBeenCalledWith( 'traces/WF/id1' );
+    expect( delMock ).toHaveBeenCalledWith( 'traces/run-1' );
   } );
 
   it( 'getDestination(): returns S3 URL using bucket and key from getVars', async () => {
     getVarsMock.mockReturnValue( { remoteS3Bucket: 'my-bucket', redisIncompleteWorkflowsTTL: 3600, traceUploadDelayMs: 10_000 } );
     const { getDestination } = await import( './index.js' );
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const url = getDestination( { workflowId: 'id1', workflowName: 'WF', startTime } );
+    const url = getDestination( traceInfo );
     expect( getVarsMock ).toHaveBeenCalled();
     expect( url ).toBe(
       'https://my-bucket.s3.amazonaws.com/WF/2020/01/02/2020-01-02-03-04-05-678Z_id1.json'
@@ -117,36 +130,32 @@ describe( 'tracing/processors/s3', () => {
 
   it( 'exec(): sets expiry on the redis key for each entry', async () => {
     const { exec } = await import( './index.js' );
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
 
     redisMulti.exec.mockResolvedValue( [] );
     const workflowStart = {
-      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, action: 'start', details: {}, timestamp: startTime
+      kind: 'workflow', id: 'run-1', name: 'WF', parentId: undefined, action: 'start', details: {}, timestamp: startTime
     };
     zRangeMock.mockResolvedValue( [ JSON.stringify( workflowStart ) ] );
 
-    await exec( { ...ctx, entry: workflowStart } );
+    await exec( { traceInfo, entry: workflowStart } );
 
     expect( redisMulti.expire ).toHaveBeenCalledTimes( 1 );
-    expect( redisMulti.expire ).toHaveBeenCalledWith( 'traces/WF/id1', 3600 );
+    expect( redisMulti.expire ).toHaveBeenCalledWith( 'traces/run-1', 3600 );
   } );
 
   it( 'exec(): does not treat a non-root end (e.g. step without parentId) as root workflow end — regression for wrong root detection', async () => {
     const { exec } = await import( './index.js' );
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
 
     redisMulti.exec.mockResolvedValue( [] );
-    const workflowStart = { id: 'id1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
+    const workflowStart = { id: 'run-1', name: 'WF', kind: 'workflow', action: 'start', details: {}, timestamp: startTime };
     const stepEndNoParent = { id: 'step-1', action: 'end', details: { done: true }, timestamp: startTime + 1 };
     zRangeMock.mockResolvedValue( [
       JSON.stringify( workflowStart ),
       JSON.stringify( stepEndNoParent )
     ] );
 
-    await exec( { ...ctx, entry: workflowStart } );
-    await exec( { ...ctx, entry: stepEndNoParent } );
+    await exec( { traceInfo, entry: workflowStart } );
+    await exec( { traceInfo, entry: stepEndNoParent } );
 
     expect( redisMulti.zAdd ).toHaveBeenCalledTimes( 2 );
     expect( buildTraceTreeMock ).not.toHaveBeenCalled();
@@ -156,17 +165,15 @@ describe( 'tracing/processors/s3', () => {
 
   it( 'exec(): when buildTraceTree returns null (incomplete tree), does not upload or bust cache', async () => {
     const { exec } = await import( './index.js' );
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const ctx = { executionContext: { workflowId: 'id1', workflowName: 'WF', startTime } };
 
     redisMulti.exec.mockResolvedValue( [] );
     const workflowEnd = {
-      kind: 'workflow', id: 'id1', name: 'WF', parentId: undefined, action: 'end', details: {}, timestamp: startTime
+      kind: 'workflow', id: 'run-1', name: 'WF', parentId: undefined, action: 'end', details: {}, timestamp: startTime
     };
     zRangeMock.mockResolvedValue( [ JSON.stringify( workflowEnd ) ] );
     buildTraceTreeMock.mockReturnValueOnce( null );
 
-    const endPromise = exec( { ...ctx, entry: workflowEnd } );
+    const endPromise = exec( { traceInfo, entry: workflowEnd } );
     await vi.advanceTimersByTimeAsync( 10_000 );
     await endPromise;
 

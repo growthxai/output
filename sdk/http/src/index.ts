@@ -2,6 +2,22 @@ import ky from 'ky';
 import type { Options } from 'ky';
 import { fetch as customFetch } from './fetch/index.js';
 
+export type HttpRequestEvent = {
+  requestId: string;
+  method: string;
+  url: string;
+  status: number | undefined;
+  durationMs: number;
+  outcome: 'success' | 'error' | 'failure';
+};
+
+export type HttpRequestCostEvent = {
+  type: 'http:request:cost';
+  requestId: string;
+  url: string;
+  total: number;
+};
+
 /**
  * Creates a ky client.
  *

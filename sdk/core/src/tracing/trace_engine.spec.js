@@ -34,6 +34,14 @@ async function loadTraceEngine() {
   return import( './trace_engine.js' );
 }
 
+const traceInfo = {
+  workflowId: 'w1',
+  runId: 'r1',
+  workflowType: 'WF',
+  startTime: 1,
+  disableTrace: false
+};
+
 describe( 'tracing/trace_engine', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -52,9 +60,8 @@ describe( 'tracing/trace_engine', () => {
     expect( localInitMock ).toHaveBeenCalledTimes( 1 );
     expect( s3InitMock ).not.toHaveBeenCalled();
 
-    const executionContext = { disableTrace: false };
     addEventAction( 'start', {
-      kind: 'step', name: 'N', id: '1', parentId: 'p', details: { ok: true }, executionContext
+      kind: 'step', name: 'N', id: '1', parentId: 'p', details: { ok: true }, traceInfo
     } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
@@ -62,7 +69,7 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.kind ).toBe( 'step' );
     expect( payload.entry.action ).toBe( 'start' );
     expect( payload.entry.details ).toEqual( { ok: true } );
-    expect( payload.executionContext ).toBe( executionContext );
+    expect( payload.traceInfo ).toBe( traceInfo );
   } );
 
   it( 'addEventAction() emits an entry consumed by processors', async () => {
@@ -72,7 +79,7 @@ describe( 'tracing/trace_engine', () => {
 
     addEventAction( 'end', {
       kind: 'workflow', name: 'W', id: '2', parentId: 'p2', details: 'done',
-      executionContext: { disableTrace: false }
+      traceInfo
     } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
@@ -81,14 +88,14 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.details ).toBe( 'done' );
   } );
 
-  it( 'addEventAction() does not emit when executionContext.disableTrace is true', async () => {
+  it( 'addEventAction() does not emit when traceInfo.disableTrace is true', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     const { init, addEventAction } = await loadTraceEngine();
     await init();
 
     addEventAction( 'start', {
       kind: 'step', name: 'X', id: '1', parentId: 'p', details: {},
-      executionContext: { disableTrace: true }
+      traceInfo: { ...traceInfo, disableTrace: true }
     } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
@@ -100,7 +107,7 @@ describe( 'tracing/trace_engine', () => {
 
     addEventAction( 'start', {
       kind: 'internal_step', name: 'Internal', id: '1', parentId: 'p', details: {},
-      executionContext: { disableTrace: false }
+      traceInfo
     } );
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
@@ -109,7 +116,7 @@ describe( 'tracing/trace_engine', () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      executionContext: { runId: 'r1', disableTrace: false }
+      traceInfo
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     await init();
@@ -117,7 +124,7 @@ describe( 'tracing/trace_engine', () => {
     addEventActionWithContext( 'tick', { kind: 'step', name: 'S', id: '3', details: 1 } );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     const payload = localExecMock.mock.calls[0][0];
-    expect( payload.executionContext ).toEqual( { runId: 'r1', disableTrace: false } );
+    expect( payload.traceInfo ).toBe( traceInfo );
     expect( payload.entry.parentId ).toBe( 'ctx-p' );
     expect( payload.entry.name ).toBe( 'S' );
     expect( payload.entry.action ).toBe( 'tick' );
@@ -126,10 +133,9 @@ describe( 'tracing/trace_engine', () => {
   it( 'addEventActionWithContext() records ADD_ATTR attributes through storage context', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
     const addAttributeMock = vi.fn();
-    const executionContext = { runId: 'r1', disableTrace: false };
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      executionContext,
+      traceInfo,
       addAttribute: addAttributeMock
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
@@ -144,7 +150,7 @@ describe( 'tracing/trace_engine', () => {
     expect( addAttributeMock ).toHaveBeenCalledWith( attribute );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     expect( localExecMock.mock.calls[0][0] ).toEqual( {
-      executionContext,
+      traceInfo,
       entry: {
         kind: 'http',
         action: EventAction.ADD_ATTR,
@@ -162,7 +168,7 @@ describe( 'tracing/trace_engine', () => {
     const addAttributeMock = vi.fn();
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      executionContext: { runId: 'r1', disableTrace: false },
+      traceInfo,
       addAttribute: addAttributeMock
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
@@ -179,11 +185,11 @@ describe( 'tracing/trace_engine', () => {
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'addEventActionWithContext() does not emit when storage executionContext.disableTrace is true', async () => {
+  it( 'addEventActionWithContext() does not emit when storage traceInfo.disableTrace is true', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      executionContext: { runId: 'r1', disableTrace: true }
+      traceInfo: { ...traceInfo, disableTrace: true }
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     await init();
@@ -203,21 +209,19 @@ describe( 'tracing/trace_engine', () => {
   } );
 
   describe( 'getDestinations()', () => {
-    const executionContext = { workflowId: 'w1', workflowName: 'WF', startTime: 1, disableTrace: false };
-
     it( 'returns null for both when traces are off (env vars unset)', async () => {
       const { getDestinations } = await loadTraceEngine();
-      const result = getDestinations( executionContext );
+      const result = getDestinations( traceInfo );
       expect( result ).toEqual( { local: null, remote: null } );
       expect( localGetDestinationMock ).not.toHaveBeenCalled();
       expect( s3GetDestinationMock ).not.toHaveBeenCalled();
     } );
 
-    it( 'returns null for both when executionContext.disableTrace is true', async () => {
+    it( 'returns null for both when traceInfo.disableTrace is true', async () => {
       process.env.OUTPUT_TRACE_LOCAL_ON = '1';
       process.env.OUTPUT_TRACE_REMOTE_ON = '1';
       const { getDestinations } = await loadTraceEngine();
-      const result = getDestinations( { ...executionContext, disableTrace: true } );
+      const result = getDestinations( { ...traceInfo, disableTrace: true } );
       expect( result ).toEqual( { local: null, remote: null } );
       expect( localGetDestinationMock ).not.toHaveBeenCalled();
       expect( s3GetDestinationMock ).not.toHaveBeenCalled();
@@ -227,24 +231,24 @@ describe( 'tracing/trace_engine', () => {
       process.env.OUTPUT_TRACE_LOCAL_ON = '1';
       process.env.OUTPUT_TRACE_REMOTE_ON = 'true';
       const { getDestinations } = await loadTraceEngine();
-      const result = getDestinations( executionContext );
+      const result = getDestinations( traceInfo );
       expect( result ).toEqual( {
         local: '/local/path.json',
         remote: 'https://bucket.s3.amazonaws.com/key.json'
       } );
       expect( localGetDestinationMock ).toHaveBeenCalledTimes( 1 );
-      expect( localGetDestinationMock ).toHaveBeenCalledWith( executionContext );
+      expect( localGetDestinationMock ).toHaveBeenCalledWith( traceInfo );
       expect( s3GetDestinationMock ).toHaveBeenCalledTimes( 1 );
-      expect( s3GetDestinationMock ).toHaveBeenCalledWith( executionContext );
+      expect( s3GetDestinationMock ).toHaveBeenCalledWith( traceInfo );
     } );
 
     it( 'returns local only when local trace on and remote off', async () => {
       process.env.OUTPUT_TRACE_LOCAL_ON = '1';
       process.env.OUTPUT_TRACE_REMOTE_ON = '0';
       const { getDestinations } = await loadTraceEngine();
-      const result = getDestinations( executionContext );
+      const result = getDestinations( traceInfo );
       expect( result ).toEqual( { local: '/local/path.json', remote: null } );
-      expect( localGetDestinationMock ).toHaveBeenCalledWith( executionContext );
+      expect( localGetDestinationMock ).toHaveBeenCalledWith( traceInfo );
       expect( s3GetDestinationMock ).not.toHaveBeenCalled();
     } );
 
@@ -252,10 +256,10 @@ describe( 'tracing/trace_engine', () => {
       process.env.OUTPUT_TRACE_LOCAL_ON = '0';
       process.env.OUTPUT_TRACE_REMOTE_ON = 'true';
       const { getDestinations } = await loadTraceEngine();
-      const result = getDestinations( executionContext );
+      const result = getDestinations( traceInfo );
       expect( result ).toEqual( { local: null, remote: 'https://bucket.s3.amazonaws.com/key.json' } );
       expect( localGetDestinationMock ).not.toHaveBeenCalled();
-      expect( s3GetDestinationMock ).toHaveBeenCalledWith( executionContext );
+      expect( s3GetDestinationMock ).toHaveBeenCalledWith( traceInfo );
     } );
   } );
 } );

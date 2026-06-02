@@ -113,9 +113,10 @@ Every HTTP call made through `@outputai/http`'s `fetch` (and the higher-level `h
 
 ```typescript
 import { on } from '@outputai/core/hooks';
+import type { HttpRequestEvent } from '@outputai/http';
 
-on( 'http:request', async ( payload ) => {
-  // payload: { eventId, workflowId, runId, activityId?, requestId, method, url, status?, durationMs, outcome }
+on<HttpRequestEvent>( 'http:request', async ( payload ) => {
+  // payload: { eventId, requestId, method, url, status?, durationMs, outcome, activityInfo, workflowDetails, outputActivityKind }
   console.log( `[${payload.outcome}] ${payload.method} ${payload.url} ${payload.status ?? '-'} ${payload.durationMs}ms` );
 } );
 ```
@@ -125,15 +126,15 @@ The payload includes:
 | Field | Description |
 |-------|-------------|
 | `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key — `http:request` and `cost:http:request` for the same fetch get distinct `eventId`s, so dedup keyed on `eventId` won't collapse the two. |
-| `workflowId` | Workflow id (stable across retries / continue-as-new). Auto-attached. |
-| `runId` | Temporal run id for the current execution attempt. Auto-attached. |
-| `activityId` | Activity / step id, when emitted from inside a step. Auto-attached. |
 | `requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
 | `method` | HTTP method (uppercase). |
 | `url` | Absolute request URL. |
 | `status` | HTTP status code; `undefined` on network failure. |
 | `durationMs` | Elapsed time from request issuance to response (or failure), in milliseconds. |
 | `outcome` | One of `'success'` (2xx-3xx), `'error'` (status >= 400), `'failure'` (DNS / timeout / abort). |
+| `activityInfo` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
+| `workflowDetails` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
+| `outputActivityKind` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
 
 The event fires for **every** call — success, non-2xx responses, and network failures alike. The existing [`cost:http:request`](/costs/cost-events#http-request-cost) event is unchanged and continues to fire only when you call `addRequestCost`.
 

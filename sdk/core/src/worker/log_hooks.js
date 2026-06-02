@@ -1,6 +1,6 @@
 import { messageBus } from '#bus';
 import { createChildLogger } from '#logger';
-import { BusEventType, ComponentType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
+import { ACTIVITY_GET_TRACE_DESTINATIONS, BusEventType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
 
 const activityLog = createChildLogger( 'Activity' );
 const workflowLog = createChildLogger( 'Workflow' );
@@ -15,43 +15,34 @@ const workflowLog = createChildLogger( 'Workflow' );
 ╚═════════════════╝
 */
 
-/**
- * Returns true if activity event should be logged
- */
-const shouldLogActivityEvent = ( { kind } ) => kind !== ComponentType.INTERNAL_STEP;
+const serializedActivityFields = activityInfo => ( {
+  activityId: activityInfo.activityId,
+  activityType: activityInfo.activityType,
+  workflowId: activityInfo.workflowExecution.workflowId,
+  workflowType: activityInfo.workflowType,
+  runId: activityInfo.workflowExecution.runId
+} );
 
-messageBus.on( BusEventType.ACTIVITY_START, ( { id, name, kind, workflowId, workflowName } ) =>
-  shouldLogActivityEvent( { kind } ) && activityLog.info( `Started ${name} ${kind}`, {
+const shouldLogActivity = activityInfo => activityInfo.activityType !== ACTIVITY_GET_TRACE_DESTINATIONS;
+
+messageBus.on( BusEventType.ACTIVITY_START, ( { activityInfo, outputActivityKind } ) =>
+  shouldLogActivity( activityInfo ) && activityLog.info( `Started ${activityInfo.activityType} ${outputActivityKind}`, {
     event: LifecycleEvent.START,
-    activityId: id,
-    activityName: name,
-    activityKind: kind,
-    workflowId,
-    workflowName
+    ...serializedActivityFields( activityInfo )
   } )
 );
 
-messageBus.on( BusEventType.ACTIVITY_END, ( { id, name, kind, workflowId, workflowName, duration } ) =>
-  shouldLogActivityEvent( { kind } ) && activityLog.info( `Ended ${name} ${kind}`, {
+messageBus.on( BusEventType.ACTIVITY_END, ( { activityInfo, outputActivityKind } ) =>
+  shouldLogActivity( activityInfo ) && activityLog.info( `Ended ${activityInfo.activityType} ${outputActivityKind}`, {
     event: LifecycleEvent.END,
-    activityId: id,
-    activityName: name,
-    activityKind: kind,
-    workflowId,
-    workflowName,
-    durationMs: duration
+    ...serializedActivityFields( activityInfo )
   } )
 );
 
-messageBus.on( BusEventType.ACTIVITY_ERROR, ( { id, name, kind, workflowId, workflowName, duration, error } ) =>
-  shouldLogActivityEvent( { kind } ) && activityLog.error( `Error ${name} ${kind}: ${error.constructor.name}`, {
+messageBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind, error } ) =>
+  shouldLogActivity( activityInfo ) && activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.constructor.name}`, {
     event: LifecycleEvent.ERROR,
-    activityId: id,
-    activityName: name,
-    activityKind: kind,
-    workflowId,
-    workflowName,
-    durationMs: duration,
+    ...serializedActivityFields( activityInfo ),
     error: error.message
   } )
 );
@@ -62,34 +53,32 @@ messageBus.on( BusEventType.ACTIVITY_ERROR, ( { id, name, kind, workflowId, work
 ╚═════════════════╝
 */
 
-/**
- * Returns true if activity event should be logged
- */
-const shouldLogWorkflowEvent = ( { name } ) => name !== WORKFLOW_CATALOG;
+const serializeWorkflowFields = workflowDetails => ( {
+  workflowId: workflowDetails.workflowId,
+  workflowType: workflowDetails.workflowType,
+  runId: workflowDetails.runId
+} );
 
-messageBus.on( BusEventType.WORKFLOW_START, ( { id, name } ) =>
-  shouldLogWorkflowEvent( { name } ) && workflowLog.info( `Started ${name} workflow`, {
+const shouldLogWorkflow = workflowDetails => workflowDetails.workflowType !== WORKFLOW_CATALOG;
+
+messageBus.on( BusEventType.WORKFLOW_START, ( { workflowDetails } ) =>
+  shouldLogWorkflow( workflowDetails ) && workflowLog.info( `Started ${workflowDetails.workflowType} workflow`, {
     event: LifecycleEvent.START,
-    workflowId: id,
-    workflowName: name
+    ...serializeWorkflowFields( workflowDetails )
   } )
 );
 
-messageBus.on( BusEventType.WORKFLOW_END, ( { id, name, duration } ) =>
-  shouldLogWorkflowEvent( { name } ) && workflowLog.info( `Ended ${name} workflow`, {
+messageBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails } ) =>
+  shouldLogWorkflow( workflowDetails ) && workflowLog.info( `Ended ${workflowDetails.workflowType} workflow`, {
     event: LifecycleEvent.END,
-    workflowId: id,
-    workflowName: name,
-    durationMs: duration
+    ...serializeWorkflowFields( workflowDetails )
   } )
 );
 
-messageBus.on( BusEventType.WORKFLOW_ERROR, ( { id, name, duration, error } ) =>
-  shouldLogWorkflowEvent( { name } ) && workflowLog.error( `Error ${name} workflow: ${error.constructor.name}`, {
+messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
+  shouldLogWorkflow( workflowDetails ) && workflowLog.error( `Error ${workflowDetails.workflowType} workflow: ${error.constructor.name}`, {
     event: LifecycleEvent.ERROR,
-    workflowId: id,
-    workflowName: name,
-    durationMs: duration,
+    ...serializeWorkflowFields( workflowDetails ),
     error: error.message
   } )
 );

@@ -25,6 +25,28 @@ import {
   onWorkflowStart
 } from './index.js';
 
+const workflowDetails = {
+  workflowId: 'wf-1',
+  runId: 'run-1',
+  workflowType: 'myWorkflow',
+  firstExecutionRunId: 'run-1',
+  startTime: 1710000000000,
+  runStartTime: 1710000000000,
+  attempt: 1
+};
+
+const catalogWorkflowDetails = {
+  ...workflowDetails,
+  workflowType: WORKFLOW_CATALOG
+};
+
+const activityInfo = {
+  activityId: 'act-1',
+  activityType: 'wf#step',
+  workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
+  workflowType: 'myWorkflow'
+};
+
 describe( 'hooks/index', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -50,20 +72,18 @@ describe( 'hooks/index', () => {
       const err = new Error( 'act-fail' );
       await onHandlers[BusEventType.ACTIVITY_ERROR]( {
         eventId: 'evt-act-1',
-        id: 'act-1',
-        name: 'wf#step',
-        workflowId: 'wf-run-1',
-        workflowName: 'wf',
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: 'step',
         error: err
       } );
 
       expect( handler ).toHaveBeenCalledWith( {
         eventId: 'evt-act-1',
         source: 'activity',
-        activityId: 'act-1',
-        activityName: 'wf#step',
-        workflowId: 'wf-run-1',
-        workflowName: 'wf',
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: 'step',
         error: err
       } );
     } );
@@ -75,16 +95,14 @@ describe( 'hooks/index', () => {
       const err = new Error( 'wf-fail' );
       await onHandlers[BusEventType.WORKFLOW_ERROR]( {
         eventId: 'evt-wf-1',
-        id: 'wf-run-2',
-        name: 'myWorkflow',
+        workflowDetails,
         error: err
       } );
 
       expect( handler ).toHaveBeenCalledWith( {
         eventId: 'evt-wf-1',
         source: 'workflow',
-        workflowId: 'wf-run-2',
-        workflowName: 'myWorkflow',
+        workflowDetails,
         error: err
       } );
     } );
@@ -118,15 +136,15 @@ describe( 'hooks/index', () => {
       onWorkflowStart( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG
+        eventId: 'evt-ignored', workflowDetails: catalogWorkflowDetails
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-start-1', id: '2', runId: 'run-2', name: 'myWorkflow'
+        eventId: 'evt-start-1', workflowDetails
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-start-1', id: '2', runId: 'run-2', name: 'myWorkflow'
+        eventId: 'evt-start-1', workflowDetails
       } );
     } );
   } );
@@ -137,15 +155,15 @@ describe( 'hooks/index', () => {
       onWorkflowEnd( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG, duration: 10
+        eventId: 'evt-ignored', workflowDetails: catalogWorkflowDetails
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-end-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 5
+        eventId: 'evt-end-1', workflowDetails
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-end-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 5
+        eventId: 'evt-end-1', workflowDetails
       } );
     } );
   } );
@@ -157,15 +175,15 @@ describe( 'hooks/index', () => {
       onWorkflowError( handler );
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-ignored', id: '1', name: WORKFLOW_CATALOG, duration: 1, error: err
+        eventId: 'evt-ignored', workflowDetails: catalogWorkflowDetails, error: err
       } ) );
       expect( handler ).not.toHaveBeenCalled();
 
       await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-err-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 2, error: err
+        eventId: 'evt-err-1', workflowDetails, error: err
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-err-1', id: '2', runId: 'run-2', name: 'myWorkflow', duration: 2, error: err
+        eventId: 'evt-err-1', workflowDetails, error: err
       } );
     } );
   } );

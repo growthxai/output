@@ -5,6 +5,7 @@ import { deepMerge } from '#utils';
 import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 // this is a dynamic generated file with activity configs overwrites
 import stepOptions from '../temp/__activity_options.js';
+import { createWorkflowDetails } from '#internal_utils/temporal_context';
 
 /*
   This is not an AI comment!
@@ -17,8 +18,12 @@ import stepOptions from '../temp/__activity_options.js';
 */
 class HeadersInjectionInterceptor {
   async scheduleActivity( input, next ) {
-    const memo = workflowInfo().memo ?? {};
-    Object.assign( input.headers, memoToHeaders( memo ) );
+    const info = workflowInfo();
+    const memo = info.memo ?? {};
+    Object.assign( input.headers, memoToHeaders( {
+      ...memo,
+      workflowDetails: createWorkflowDetails( info )
+    } ) );
     // apply per-invocation options passed as second argument by rewritten calls
     const options = stepOptions[input.activityType];
     if ( options ) {

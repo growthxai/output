@@ -56,11 +56,11 @@ export const sendHttpRequest = async ( { url, method, payload = undefined, heade
 setMetadata( sendHttpRequest, { type: ComponentType.INTERNAL_STEP } );
 
 /**
- * Invokes a trace method that resolves all trace output paths based on the executionContext
+ * Invokes a trace method that resolves all trace output paths based on the traceInfo
  *
- * @param {object} executionContext
+ * @param {object} traceInfo
  * @returns {object} Information about enabled destinations
  */
-export const getTraceDestinations = executionContext => getDestinations( executionContext );
+export const getTraceDestinations = traceInfo => getDestinations( traceInfo );
 
 setMetadata( getTraceDestinations, { type: ComponentType.INTERNAL_STEP } );

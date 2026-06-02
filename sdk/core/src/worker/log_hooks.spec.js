@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  ACTIVITY_GET_TRACE_DESTINATIONS,
   BusEventType,
-  ComponentType,
   LifecycleEvent,
   WORKFLOW_CATALOG
 } from '#consts';
@@ -30,12 +30,15 @@ describe( 'log_hooks', () => {
   } );
 
   describe( 'activity events', () => {
+    const activityInfo = {
+      activityId: 'act-1',
+      activityType: 'myWorkflow#myStep',
+      workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
+      workflowType: 'myWorkflow'
+    };
     const basePayload = {
-      id: 'act-1',
-      name: 'myWorkflow#myStep',
-      kind: 'step',
-      workflowId: 'wf-1',
-      workflowName: 'myWorkflow'
+      activityInfo,
+      outputActivityKind: 'step'
     };
 
     it( 'ACTIVITY_START logs full message and second arg', () => {
@@ -47,18 +50,18 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.START,
           activityId: 'act-1',
-          activityName: 'myWorkflow#myStep',
-          activityKind: 'step',
+          activityType: 'myWorkflow#myStep',
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow'
+          workflowType: 'myWorkflow',
+          runId: 'run-1'
         }
       );
     } );
 
-    it( 'ACTIVITY_START does not log when kind is INTERNAL_STEP', () => {
+    it( 'ACTIVITY_START does not log trace destination activity', () => {
       onHandlers[BusEventType.ACTIVITY_START]( {
         ...basePayload,
-        kind: ComponentType.INTERNAL_STEP
+        activityInfo: { ...activityInfo, activityType: ACTIVITY_GET_TRACE_DESTINATIONS }
       } );
 
       expect( activityLogMock.info ).not.toHaveBeenCalled();
@@ -73,20 +76,18 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.END,
           activityId: 'act-1',
-          activityName: 'myWorkflow#myStep',
-          activityKind: 'step',
+          activityType: 'myWorkflow#myStep',
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow',
-          durationMs: 42
+          workflowType: 'myWorkflow',
+          runId: 'run-1'
         }
       );
     } );
 
-    it( 'ACTIVITY_END does not log when kind is INTERNAL_STEP', () => {
+    it( 'ACTIVITY_END does not log trace destination activity', () => {
       onHandlers[BusEventType.ACTIVITY_END]( {
         ...basePayload,
-        kind: ComponentType.INTERNAL_STEP,
-        duration: 10
+        activityInfo: { ...activityInfo, activityType: ACTIVITY_GET_TRACE_DESTINATIONS }
       } );
 
       expect( activityLogMock.info ).not.toHaveBeenCalled();
@@ -106,21 +107,19 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.ERROR,
           activityId: 'act-1',
-          activityName: 'myWorkflow#myStep',
-          activityKind: 'step',
+          activityType: 'myWorkflow#myStep',
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow',
-          durationMs: 100,
+          workflowType: 'myWorkflow',
+          runId: 'run-1',
           error: 'step failed'
         }
       );
     } );
 
-    it( 'ACTIVITY_ERROR does not log when kind is INTERNAL_STEP', () => {
+    it( 'ACTIVITY_ERROR does not log trace destination activity', () => {
       onHandlers[BusEventType.ACTIVITY_ERROR]( {
         ...basePayload,
-        kind: ComponentType.INTERNAL_STEP,
-        duration: 5,
+        activityInfo: { ...activityInfo, activityType: ACTIVITY_GET_TRACE_DESTINATIONS },
         error: new Error( 'x' )
       } );
 
@@ -129,7 +128,12 @@ describe( 'log_hooks', () => {
   } );
 
   describe( 'workflow events', () => {
-    const basePayload = { id: 'wf-1', name: 'myWorkflow' };
+    const workflowDetails = {
+      workflowId: 'wf-1',
+      workflowType: 'myWorkflow',
+      runId: 'run-1'
+    };
+    const basePayload = { workflowDetails };
 
     it( 'WORKFLOW_START logs full message and second arg', () => {
       onHandlers[BusEventType.WORKFLOW_START]( basePayload );
@@ -140,25 +144,22 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.START,
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow'
+          workflowType: 'myWorkflow',
+          runId: 'run-1'
         }
       );
     } );
 
-    it( 'WORKFLOW_START does not log when name is WORKFLOW_CATALOG', () => {
+    it( 'WORKFLOW_START does not log when workflowType is WORKFLOW_CATALOG', () => {
       onHandlers[BusEventType.WORKFLOW_START]( {
-        id: 'cat-1',
-        name: WORKFLOW_CATALOG
+        workflowDetails: { ...workflowDetails, workflowType: WORKFLOW_CATALOG }
       } );
 
       expect( workflowLogMock.info ).not.toHaveBeenCalled();
     } );
 
     it( 'WORKFLOW_END logs full message and second arg', () => {
-      onHandlers[BusEventType.WORKFLOW_END]( {
-        ...basePayload,
-        duration: 200
-      } );
+      onHandlers[BusEventType.WORKFLOW_END]( basePayload );
 
       expect( workflowLogMock.info ).toHaveBeenCalledTimes( 1 );
       expect( workflowLogMock.info ).toHaveBeenCalledWith(
@@ -166,17 +167,15 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.END,
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow',
-          durationMs: 200
+          workflowType: 'myWorkflow',
+          runId: 'run-1'
         }
       );
     } );
 
-    it( 'WORKFLOW_END does not log when name is WORKFLOW_CATALOG', () => {
+    it( 'WORKFLOW_END does not log when workflowType is WORKFLOW_CATALOG', () => {
       onHandlers[BusEventType.WORKFLOW_END]( {
-        id: 'cat-1',
-        name: WORKFLOW_CATALOG,
-        duration: 50
+        workflowDetails: { ...workflowDetails, workflowType: WORKFLOW_CATALOG }
       } );
 
       expect( workflowLogMock.info ).not.toHaveBeenCalled();
@@ -196,18 +195,16 @@ describe( 'log_hooks', () => {
         {
           event: LifecycleEvent.ERROR,
           workflowId: 'wf-1',
-          workflowName: 'myWorkflow',
-          durationMs: 150,
+          workflowType: 'myWorkflow',
+          runId: 'run-1',
           error: 'workflow boom'
         }
       );
     } );
 
-    it( 'WORKFLOW_ERROR does not log when name is WORKFLOW_CATALOG', () => {
+    it( 'WORKFLOW_ERROR does not log when workflowType is WORKFLOW_CATALOG', () => {
       onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        id: 'cat-1',
-        name: WORKFLOW_CATALOG,
-        duration: 1,
+        workflowDetails: { ...workflowDetails, workflowType: WORKFLOW_CATALOG },
         error: new Error( 'x' )
       } );
 

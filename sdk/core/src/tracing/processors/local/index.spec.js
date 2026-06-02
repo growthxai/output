@@ -52,12 +52,20 @@ vi.mock( 'json-stream-stringify', async () => {
 const buildTraceTreeMock = vi.fn( entries => ( { count: entries.length } ) );
 vi.mock( '../../tools/build_trace_tree.js', () => ( { default: buildTraceTreeMock } ) );
 
-/** Flush happens when the root id matches workflowId and action is not 'start', or when action is 'error'. */
-const rootStart = ( workflowId, ts ) => ( { id: workflowId, action: 'start', timestamp: ts } );
-const rootEnd = ( workflowId, ts ) => ( { id: workflowId, action: 'end', timestamp: ts } );
+/** Flush happens when the root id matches runId and action is not 'start', or when action is 'error'. */
+const rootStart = ( runId, ts ) => ( { id: runId, action: 'start', timestamp: ts } );
+const rootEnd = ( runId, ts ) => ( { id: runId, action: 'end', timestamp: ts } );
 const childTick = ( id, ts ) => ( { id, action: 'tick', timestamp: ts } );
 
 describe( 'tracing/processors/local', () => {
+  const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
+  const traceInfo = {
+    workflowId: 'id1',
+    runId: 'run-1',
+    workflowType: 'WF',
+    startTime
+  };
+
   beforeEach( () => {
     vi.clearAllMocks();
     store.files.clear();
@@ -81,13 +89,9 @@ describe( 'tracing/processors/local', () => {
     const { exec, init } = await import( './index.js' );
     init();
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'id1';
-    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
-
-    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    await exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
-    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 2 ) } );
+    await exec( { traceInfo, entry: rootStart( traceInfo.runId, startTime ) } );
+    await exec( { traceInfo, entry: childTick( 'child-1', startTime + 1 ) } );
+    await exec( { traceInfo, entry: rootEnd( traceInfo.runId, startTime + 2 ) } );
 
     expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
     expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 3 );
@@ -103,12 +107,8 @@ describe( 'tracing/processors/local', () => {
     const { exec, init } = await import( './index.js' );
     init();
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'id1';
-    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
-
-    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    await exec( { ...ctx, entry: childTick( 'child-1', startTime + 1 ) } );
+    await exec( { traceInfo, entry: rootStart( traceInfo.runId, startTime ) } );
+    await exec( { traceInfo, entry: childTick( 'child-1', startTime + 1 ) } );
 
     expect( buildTraceTreeMock ).not.toHaveBeenCalled();
     expect( writeFileSyncMock ).not.toHaveBeenCalled();
@@ -120,12 +120,8 @@ describe( 'tracing/processors/local', () => {
     const { exec, init } = await import( './index.js' );
     init();
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'id1';
-    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
-
-    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    await exec( { ...ctx, entry: { id: 'step-1', action: 'error', timestamp: startTime + 1 } } );
+    await exec( { traceInfo, entry: rootStart( traceInfo.runId, startTime ) } );
+    await exec( { traceInfo, entry: { id: 'step-1', action: 'error', timestamp: startTime + 1 } } );
 
     expect( buildTraceTreeMock ).toHaveBeenCalledTimes( 1 );
     expect( buildTraceTreeMock.mock.calls[0][0] ).toHaveLength( 2 );
@@ -136,11 +132,11 @@ describe( 'tracing/processors/local', () => {
   it( 'getDestination(): returns absolute path under callerDir logs', async () => {
     const { getDestination } = await import( './index.js' );
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'workflow-id-123';
-    const workflowName = 'test-workflow';
-
-    const destination = getDestination( { startTime, workflowId, workflowName } );
+    const destination = getDestination( {
+      ...traceInfo,
+      workflowId: 'workflow-id-123',
+      workflowType: 'test-workflow'
+    } );
 
     expect( destination ).toMatch( /^\/|^[A-Z]:\\/i );
     expect( destination ).toBe(
@@ -155,12 +151,8 @@ describe( 'tracing/processors/local', () => {
 
     init();
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'id1';
-    const ctx = { executionContext: { workflowId, workflowName: 'WF', startTime } };
-
-    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
+    await exec( { traceInfo, entry: rootStart( traceInfo.runId, startTime ) } );
+    await exec( { traceInfo, entry: rootEnd( traceInfo.runId, startTime + 1 ) } );
 
     expect( createWriteStreamMock ).toHaveBeenCalledTimes( 1 );
     const [ writtenPath ] = createWriteStreamMock.mock.calls[0];
@@ -174,11 +166,11 @@ describe( 'tracing/processors/local', () => {
 
     process.env.OUTPUT_TRACE_HOST_PATH = '/host/path/logs';
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'workflow-id-123';
-    const workflowName = 'test-workflow';
-
-    const destination = getDestination( { startTime, workflowId, workflowName } );
+    const destination = getDestination( {
+      ...traceInfo,
+      workflowId: 'workflow-id-123',
+      workflowType: 'test-workflow'
+    } );
 
     expect( destination ).toBe( '/host/path/logs/runs/test-workflow/2020-01-02-03-04-05-678Z_workflow-id-123.json' );
   } );
@@ -190,15 +182,17 @@ describe( 'tracing/processors/local', () => {
 
     init();
 
-    const startTime = Date.parse( '2020-01-02T03:04:05.678Z' );
-    const workflowId = 'workflow-id-123';
-    const workflowName = 'test-workflow';
-    const ctx = { executionContext: { workflowId, workflowName, startTime } };
+    const testTraceInfo = {
+      ...traceInfo,
+      workflowId: 'workflow-id-123',
+      runId: 'run-123',
+      workflowType: 'test-workflow'
+    };
 
-    await exec( { ...ctx, entry: rootStart( workflowId, startTime ) } );
-    await exec( { ...ctx, entry: rootEnd( workflowId, startTime + 1 ) } );
+    await exec( { traceInfo: testTraceInfo, entry: rootStart( testTraceInfo.runId, startTime ) } );
+    await exec( { traceInfo: testTraceInfo, entry: rootEnd( testTraceInfo.runId, startTime + 1 ) } );
 
-    const destination = getDestination( { startTime, workflowId, workflowName } );
+    const destination = getDestination( testTraceInfo );
 
     const [ writtenPath ] = createWriteStreamMock.mock.calls[0];
     expect( writtenPath ).not.toContain( '/Users/ben/project' );
