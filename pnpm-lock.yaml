@@ -59,6 +59,7 @@ overrides:
   follow-redirects@<=1.15.11: '>=1.16.0'
   hono@<4.12.14: '>=4.12.14'
   js-yaml@>=4.0.0 <4.1.1: '>=4.1.1'
+  liquidjs@<10.26.0: '>=10.26.0'
   lodash@<=4.17.23: '>=4.18.0'
   minimatch@<3.1.4: '>=3.1.4'
   path-to-regexp@<0.1.13: '>=0.1.13'
@@ -66,6 +67,7 @@ overrides:
   postcss@<8.5.10: '>=8.5.10'
   protobufjs@<=7.5.7: '>=7.5.8'
   qs@<=6.14.1: '>=6.14.2'
+  qs@>=6.11.1 <=6.15.1: '>=6.15.2'
   send@<0.19.0: '>=0.19.0'
   serve-static@<1.16.0: '>=1.16.0'
   tar@<=7.5.10: '>=7.5.11'
@@ -424,8 +426,8 @@ importers:
         specifier: 4.0.3
         version: 4.0.3
       liquidjs:
-        specifier: 10.25.7
-        version: 10.25.7
+        specifier: '>=10.26.0'
+        version: 10.27.0
       undici:
         specifier: 'catalog:'
         version: 8.1.0
@@ -5322,8 +5324,8 @@ packages:
     engines: {node: '>=20.17'}
     hasBin: true
 
-  liquidjs@10.25.7:
-    resolution: {integrity: sha512-rPCjJLiD4eDhQjvv964AeXFC+HbeYBbZrd7Z82Q6hqv1lX7G+5w4SJcKLn9CAAAwHI4aS3dTdo083UB79K3pDA==}
+  liquidjs@10.27.0:
+    resolution: {integrity: sha512-tw/OA59K7aIBlMKIrKlumr37fiZUheShVHXY8cVctWisgY1p9mc5hreOvlreoS0wTiwlWk14Ya7305c2a/Cg5w==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -6252,8 +6254,8 @@ packages:
     deprecated: < 24.15.0 is no longer supported
     hasBin: true
 
-  qs@6.15.1:
-    resolution: {integrity: sha512-6YHEFRL9mfgcAvql/XhwTvf5jKcOiiupt2FiJxHkiX1z4j7WL8J/jRHYLluORvc1XxB5rV20KoeK00gVJamspg==}
+  qs@6.15.2:
+    resolution: {integrity: sha512-Rzq0KEyX/w/tEybncDgdkZrJgVUsUMk3xjh3t5bv3S1HTAtg+uOYt72+ZfwiQwKdysThkTBdL/rTi6HDmX9Ddw==}
     engines: {node: '>=0.6'}
 
   quansync@0.2.11:
@@ -11519,7 +11521,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.4.24
       on-finished: 2.4.1
-      qs: 6.15.1
+      qs: 6.15.2
       raw-body: 2.5.3
       type-is: 1.6.18
       unpipe: 1.0.0
@@ -11534,7 +11536,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.2
       on-finished: 2.4.1
-      qs: 6.15.1
+      qs: 6.15.2
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -12436,7 +12438,7 @@ snapshots:
       parseurl: 1.3.3
       path-to-regexp: 8.4.2
       proxy-addr: 2.0.7
-      qs: 6.15.1
+      qs: 6.15.2
       range-parser: 1.2.1
       safe-buffer: 5.2.1
       send: 0.19.2
@@ -12471,7 +12473,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.7
-      qs: 6.15.1
+      qs: 6.15.2
       range-parser: 1.2.1
       router: 2.2.0
       send: 1.2.1
@@ -13718,7 +13720,7 @@ snapshots:
       tinyexec: 1.1.2
       yaml: 2.9.0
 
-  liquidjs@10.25.7:
+  liquidjs@10.27.0:
     dependencies:
       commander: 10.0.1
 
@@ -15009,7 +15011,7 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  qs@6.15.1:
+  qs@6.15.2:
     dependencies:
       side-channel: 1.1.0
 
@@ -15920,7 +15922,7 @@ snapshots:
       formidable: 3.5.4
       methods: 1.1.2
       mime: 2.6.0
-      qs: 6.15.1
+      qs: 6.15.2
     transitivePeerDependencies:
       - supports-color
 
