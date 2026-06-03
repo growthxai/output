@@ -5,7 +5,7 @@ export const options = {
   transports: [ new transports.Console() ],
   defaultMeta: {
     service: 'output-worker',
-    environment: process.env.NODE_ENV
+    environment: 'production'
   },
   format: format.combine(
     format.timestamp( { format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' } ),

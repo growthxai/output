@@ -9,7 +9,7 @@ describe( 'logger/production', () => {
     expect( options.level ).toBe( 'info' );
     expect( options.defaultMeta ).toEqual( {
       service: 'output-worker',
-      environment: process.env.NODE_ENV || 'development'
+      environment: 'production'
     } );
   } );
 
