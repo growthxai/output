@@ -2,7 +2,7 @@
 "@outputai/core": patch
 ---
 
-Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERNAL_MS` env var. Default `0` - off.
+Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` env var. Default `0` - off.
 
 Message examples:
 ### Dev

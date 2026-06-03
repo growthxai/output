@@ -39,7 +39,7 @@ const COLORS = shuffleArray( Object.values( Color ) );
 const assignedColors = new Map();
 
 /**
- * Get the previous assigned color for this value or if not present, assign a new one an store it
+ * Get the previous assigned color for this value or if not present, assign a new one and store it
  * @param {string} v - A text value
  * @returns {string} The color
  * */

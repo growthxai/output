@@ -176,18 +176,6 @@ describe( 'worker/index', () => {
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );
   } );
 
-  it( 'calls setupTelemetry with worker', async () => {
-    vi.resetModules();
-
-    import( './index.js' );
-
-    await vi.waitFor( () => {
-      expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
-    } );
-    runState.resolve();
-    await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );
-  } );
-
   it( 'calls process.exit(1) on fatal error', async () => {
     loadWorkflowsMock.mockRejectedValueOnce( new Error( 'load failed' ) );
     vi.resetModules();

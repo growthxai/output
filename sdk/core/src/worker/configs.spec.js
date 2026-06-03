@@ -10,7 +10,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CACHED_WORKFLOWS',
   'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS',
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
-  'OUTPUT_WORKER_TELEMETRY_INTERNAL_MS',
+  'OUTPUT_WORKER_TELEMETRY_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED'
 ];
@@ -77,7 +77,7 @@ describe( 'worker/configs', () => {
   } );
 
   it( 'treats empty string for worker telemetry interval as default', async () => {
-    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERNAL_MS: '' } );
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '' } );
     const configs = await loadConfigs();
 
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
@@ -88,7 +88,7 @@ describe( 'worker/configs', () => {
       TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS: '10',
       TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: '50',
       TEMPORAL_MAX_CACHED_WORKFLOWS: '500',
-      OUTPUT_WORKER_TELEMETRY_INTERNAL_MS: '30000',
+      OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '30000',
       OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: '60000'
     } );
     const configs = await loadConfigs();
@@ -101,14 +101,14 @@ describe( 'worker/configs', () => {
   } );
 
   it( 'allows zero for worker telemetry interval', async () => {
-    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERNAL_MS: '0' } );
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '0' } );
     const configs = await loadConfigs();
 
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
   } );
 
   it( 'throws when worker telemetry interval is negative', async () => {
-    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERNAL_MS: '-1' } );
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '-1' } );
     vi.resetModules();
 
     await expect( import( './configs.js' ) ).rejects.toThrow();

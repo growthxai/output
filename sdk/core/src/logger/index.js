@@ -2,7 +2,7 @@ import winston from 'winston';
 
 const { options } = await import( process.env.NODE_ENV === 'production' ? './production.js' : './development.js' );
 
-// creates the de root winston logger
+// creates the root winston logger
 const logger = winston.createLogger( options );
 
 /**
