@@ -68,7 +68,7 @@
     "#bus": "./src/bus.js",
     "#consts": "./src/consts.js",
     "#errors": "./src/errors.js",
-    "#logger": "./src/logger.js",
+    "#logger": "./src/logger/index.js",
     "#utils": "./src/utils/index.js",
     "#internal_utils/*": "./src/internal_utils/*.js",
     "#tracing": "./src/tracing/internal_interface.js",

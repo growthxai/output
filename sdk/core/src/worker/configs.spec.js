@@ -10,6 +10,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CACHED_WORKFLOWS',
   'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS',
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
+  'OUTPUT_WORKER_TELEMETRY_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED'
 ];
@@ -61,6 +62,7 @@ describe( 'worker/configs', () => {
     expect( configs.maxCachedWorkflows ).toBe( 1000 );
     expect( configs.maxConcurrentActivityTaskPolls ).toBe( 5 );
     expect( configs.maxConcurrentWorkflowTaskPolls ).toBe( 5 );
+    expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
     expect( configs.taskQueue ).toBe( 'test-catalog' );
@@ -74,11 +76,19 @@ describe( 'worker/configs', () => {
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 40 );
   } );
 
+  it( 'treats empty string for worker telemetry interval as default', async () => {
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '' } );
+    const configs = await loadConfigs();
+
+    expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
+  } );
+
   it( 'parses custom numeric env vars', async () => {
     setEnv( {
       TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS: '10',
       TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: '50',
       TEMPORAL_MAX_CACHED_WORKFLOWS: '500',
+      OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '30000',
       OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: '60000'
     } );
     const configs = await loadConfigs();
@@ -86,7 +96,22 @@ describe( 'worker/configs', () => {
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 10 );
     expect( configs.maxConcurrentWorkflowTaskExecutions ).toBe( 50 );
     expect( configs.maxCachedWorkflows ).toBe( 500 );
+    expect( configs.workerTelemetryIntervalMs ).toBe( 30000 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 60000 );
+  } );
+
+  it( 'allows zero for worker telemetry interval', async () => {
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '0' } );
+    const configs = await loadConfigs();
+
+    expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
+  } );
+
+  it( 'throws when worker telemetry interval is negative', async () => {
+    setEnv( { OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '-1' } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'throws when optional number is zero or negative', async () => {

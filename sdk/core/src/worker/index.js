@@ -11,9 +11,10 @@ import { registerShutdown } from './shutdown.js';
 import { startCatalog } from './start_catalog.js';
 import { bootstrapFetchProxy } from './proxy.js';
 import { messageBus } from '#bus';
-import './log_hooks.js';
 import { BusEventType } from '#consts';
 import { hashSourceCode } from './loader_tools.js';
+import { setupTelemetry } from './setup_telemetry.js';
+import './log_hooks.js';
 
 const log = createChildLogger( 'Worker' );
 
@@ -83,6 +84,8 @@ const callerDir = process.argv[2];
   } );
 
   registerShutdown( { worker, log } );
+
+  setupTelemetry( { worker } );
 
   log.info( 'Running worker...' );
   await Promise.all( [ worker.run(), startCatalog( { connection, namespace, catalog, catalogHash } ) ] );

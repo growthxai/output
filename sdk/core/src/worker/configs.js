@@ -7,6 +7,7 @@ const coalesceEmptyString = v => v === '' ? undefined : v;
 
 const envVarSchema = z.object( {
   OUTPUT_CATALOG_ID: z.string().regex( /^[a-z0-9_.@-]+$/i ),
+  OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().nonnegative().default( 0 ) ),
   TEMPORAL_ADDRESS: z.string().default( 'localhost:7233' ),
   TEMPORAL_API_KEY: z.string().optional(),
   TEMPORAL_NAMESPACE: z.string().optional().default( 'default' ),
@@ -51,6 +52,7 @@ export const maxConcurrentWorkflowTaskPolls = envVars.TEMPORAL_MAX_CONCURRENT_WO
 export const namespace = envVars.TEMPORAL_NAMESPACE;
 export const taskQueue = envVars.OUTPUT_CATALOG_ID;
 export const catalogId = envVars.OUTPUT_CATALOG_ID;
+export const workerTelemetryIntervalMs = envVars.OUTPUT_WORKER_TELEMETRY_INTERVAL_MS;
 export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS;
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
 export const processFailureShutdownDelay = envVars.OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY;
