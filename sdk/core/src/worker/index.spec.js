@@ -62,6 +62,9 @@ vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: bootstrapFetchProxyMock } 
 const registerShutdownMock = vi.fn();
 vi.mock( './shutdown.js', () => ( { registerShutdown: registerShutdownMock } ) );
 
+const setupTelemetryMock = vi.fn();
+vi.mock( './setup_telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
+
 vi.mock( './log_hooks.js', () => ( {} ) );
 
 const runState = { resolve: null };
@@ -129,6 +132,7 @@ describe( 'worker/index', () => {
     } ) );
     expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [], connection: mockConnection } );
     expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
+    expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
     expect( startCatalogMock ).toHaveBeenCalledWith( {
       connection: mockConnection,
       namespace: configValues.namespace,
@@ -167,6 +171,18 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
+    } );
+    runState.resolve();
+    await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );
+  } );
+
+  it( 'calls setupTelemetry with worker', async () => {
+    vi.resetModules();
+
+    import( './index.js' );
+
+    await vi.waitFor( () => {
+      expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
     } );
     runState.resolve();
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );

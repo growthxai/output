@@ -254,14 +254,20 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key |
 | `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key |
 
+### Monitoring
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OUTPUT_WORKER_TELEMETRY_INTERNAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
+
 ## Logging
 
 The worker uses Winston for structured logging.
 
 **Development** (colorized, human-readable):
 ```
-[info] {Core.Worker} Loading workflows... { callerDir: "/app/src" }
-[info] {Core.Scanner} Workflow loaded { name: "lead_enrichment", path: "..." }
+[info] Worker: Loading workflows... { callerDir: "/app/src" }
+[info] Scanner: Workflow loaded { name: "lead_enrichment", path: "..." }
 ```
 
 **Production** (`NODE_ENV=production`, JSON):
@@ -269,6 +275,7 @@ The worker uses Winston for structured logging.
 {"level":"info","message":"Loading workflows...","namespace":"Worker","service":"output-worker","environment":"production","timestamp":"..."}
 ```
 
+### Emitted log levels:
 | Level | Production | Development |
 |-------|------------|-------------|
 | error | Yes | Yes |
