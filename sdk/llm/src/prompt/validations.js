@@ -7,14 +7,20 @@ export const promptSchema = z.object( {
     model: z.string(),
     temperature: z.number().optional(),
     maxTokens: z.number().optional(),
-    tools: z.record( z.string(), z.object( {} ).passthrough() ).optional(),
+    n: z.number().int().positive().optional(),
+    maxImagesPerCall: z.number().int().positive().optional(),
+    size: z.string().regex( /^\d+x\d+$/ ).optional(),
+    aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
+    seed: z.number().int().optional(),
+    skills: z.union( [ z.string().min( 1 ), z.array( z.string().min( 1 ) ) ] ).optional(),
+    tools: z.record( z.string(), z.object( {} ).loose() ).optional(),
     providerOptions: z.object( {
       thinking: z.object( {
         type: z.enum( [ 'enabled', 'disabled' ] ),
         budgetTokens: z.number().optional()
-      } ).passthrough().optional()
-    } ).passthrough().optional()
-  } ).passthrough(),
+      } ).loose().optional()
+    } ).loose().optional()
+  } ).loose(),
   messages: z.array(
     z.object( {
       role: z.string(),
@@ -25,6 +31,8 @@ export const promptSchema = z.object( {
 
 const SNAKE_CASE_WARNINGS = {
   max_tokens: 'maxTokens',
+  max_images_per_call: 'maxImagesPerCall',
+  aspect_ratio: 'aspectRatio',
   budget_tokens: 'budgetTokens',
   top_p: 'topP',
   top_k: 'topK',

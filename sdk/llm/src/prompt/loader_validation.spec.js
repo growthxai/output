@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { loadPrompt } from './prompt_loader.js';
+import { loadPrompt } from './loader.js';
 
 vi.mock( './load_content.js', () => ( {
-  loadContentWithDir: vi.fn()
+  loadContent: vi.fn()
 } ) );
 
-import { loadContentWithDir } from './load_content.js';
+import { loadContent } from './load_content.js';
 
 describe( 'loadPrompt - validation with real schema', () => {
   beforeEach( () => {
@@ -26,7 +26,7 @@ providerOptions:
 
 <user>Hello</user>`;
 
-    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
+    loadContent.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     const result = loadPrompt( 'test', {} );
 
@@ -44,7 +44,7 @@ max_tokens: 64000
 
 <user>Hello</user>`;
 
-    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
+    loadContent.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     // Config uses passthrough, so max_tokens is accepted (though ignored by SDK)
     expect( () => {
@@ -64,7 +64,7 @@ options:
 
 <user>Hello</user>`;
 
-    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
+    loadContent.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     // Config uses passthrough, so 'options' passes through (though not used)
     expect( () => {
@@ -84,7 +84,7 @@ providerOptions:
 
 <user>Hello</user>`;
 
-    loadContentWithDir.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
+    loadContent.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
 
     // budget_tokens is silently stripped from thinking (unknown field), not rejected
     expect( () => {

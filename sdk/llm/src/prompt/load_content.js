@@ -35,32 +35,11 @@ const findContent = ( name, dir ) => {
 };
 
 /**
- * Recursively search for a file by its name and load its content.
- *
- * @param {string} name - Name of the file load its content
- * @param {string} [dir] - The directory to search for the file, defaults to invocation directory
- * @returns {string | null} - File content or null if not found
- */
-export const loadContent = ( name, dir = resolveInvocationDir() ) =>
-  findContent( name, dir )?.content ?? null;
-
-/**
- * Recursively search for a file by name and return the directory containing it.
- *
- * @param {string} name - File name to find
- * @param {string} [dir] - Directory to search, defaults to invocation directory
- * @returns {string | null} - Directory path containing the file, or null if not found
- */
-export const findContentDir = ( name, dir = resolveInvocationDir() ) =>
-  findContent( name, dir )?.dir ?? null;
-
-/**
  * Recursively search for a file by name and return both its content and containing directory.
- * More efficient than calling loadContent + findContentDir separately (single scan).
  *
  * @param {string} name - File name to find
  * @param {string} [dir] - Directory to search, defaults to invocation directory
  * @returns {{ content: string, dir: string } | null}
  */
-export const loadContentWithDir = ( name, dir = resolveInvocationDir() ) =>
+export const loadContent = ( name, dir = resolveInvocationDir() ) =>
   findContent( name, dir ) ?? null;

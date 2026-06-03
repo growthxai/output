@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ValidationError } from '@outputai/core';
-import { validatePrompt } from './prompt_validations.js';
+import { validatePrompt } from './validations.js';
 
 describe( 'validatePrompt', () => {
   it( 'should validate a correct prompt with all required fields', () => {
@@ -236,6 +236,114 @@ describe( 'validatePrompt', () => {
     };
 
     expect( () => validatePrompt( customProviderPrompt ) ).not.toThrow();
+  } );
+
+  it( 'should validate image generation config fields', () => {
+    const imagePrompt = {
+      name: 'image-prompt',
+      config: {
+        provider: 'openai',
+        model: 'gpt-image-1',
+        n: 2,
+        maxImagesPerCall: 1,
+        size: '1024x1024',
+        aspectRatio: '1:1',
+        seed: 42,
+        providerOptions: {
+          openai: {
+            quality: 'high'
+          }
+        }
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Generate an image of a mountain.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( imagePrompt ) ).not.toThrow();
+  } );
+
+  it( 'should validate a prompt with skill path config', () => {
+    const promptWithSkills = {
+      name: 'skills-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        skills: [ './skills', './review.md' ]
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Review this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithSkills ) ).not.toThrow();
+  } );
+
+  it( 'should validate a prompt with a single skill path config', () => {
+    const promptWithSkill = {
+      name: 'skill-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        skills: './skills'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Review this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithSkill ) ).not.toThrow();
+  } );
+
+  it( 'should throw ValidationError for invalid skill path config', () => {
+    const invalidSkillsPrompt = {
+      name: 'invalid-skills-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        skills: [ './skills', '' ]
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Review this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( invalidSkillsPrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError for invalid image generation config fields', () => {
+    const invalidImagePrompt = {
+      name: 'invalid-image-prompt',
+      config: {
+        provider: 'openai',
+        model: 'gpt-image-1',
+        n: 0,
+        maxImagesPerCall: 1.5,
+        size: 'square',
+        aspectRatio: '16x9',
+        seed: 1.2
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Generate an image of a mountain.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( invalidImagePrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should accept extra config fields via passthrough', () => {

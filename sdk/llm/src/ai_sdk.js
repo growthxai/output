@@ -1,87 +1,30 @@
-import { loadModel, loadTools } from './ai_model.js';
+import { types as utilTypes } from 'node:util';
 import * as AI from 'ai';
 import { stepCountIs } from 'ai';
+import { ValidationError } from '@outputai/core';
 import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.js';
-import { loadPrompt } from './prompt_loader.js';
-import { buildSystemSkillsVar, buildLoadSkillTool, loadPromptSkills, loadColocatedSkills } from './skill.js';
+import { loadPrompt } from './prompt/loader.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
-
-export const loadAiSdkOptionsFromPrompt = prompt => {
-  const options = {
-    model: loadModel( prompt ),
-    messages: prompt.messages,
-    providerOptions: prompt.config.providerOptions
-  };
-
-  if ( Number.isFinite( prompt.config.temperature ) ) {
-    options.temperature = prompt.config.temperature;
-  }
-
-  if ( prompt.config.maxTokens ) {
-    options.maxOutputTokens = prompt.config.maxTokens;
-  }
-
-  const tools = loadTools( prompt );
-  if ( tools ) {
-    options.tools = tools;
-  }
-
-  return options;
-};
-
-export const hydratePromptTemplate = ( prompt, variables, promptDir, callerSkills, callerTools = {} ) => {
-  const meta = loadPrompt( prompt, variables, promptDir );
-
-  // Resolve skills: explicit frontmatter paths > colocated auto-discovery
-  const hasExplicitSkills = meta.config.skills && meta.promptFileDir;
-  const frontmatterSkills = hasExplicitSkills ?
-    loadPromptSkills( meta.config.skills, meta.promptFileDir ) :
-    [];
-  const autoSkills = !hasExplicitSkills && meta.promptFileDir ?
-    loadColocatedSkills( meta.promptFileDir ) :
-    [];
-  const resolvedSkills = [ ...frontmatterSkills, ...autoSkills, ...callerSkills ];
-
-  const tools = resolvedSkills.length > 0 ?
-    { load_skill: buildLoadSkillTool( resolvedSkills ), ...callerTools } :
-    callerTools;
-
-  const skillsMessage = resolvedSkills.length > 0 ?
-    { role: 'system', content: buildSystemSkillsVar( resolvedSkills ) } :
-    null;
-
-  if ( skillsMessage ) {
-    // Merge into existing system message to avoid provider errors with multiple system messages
-    const systemMsg = meta.messages.find( m => m.role === 'system' );
-    if ( systemMsg ) {
-      systemMsg.content = `${systemMsg.content}\n\n${skillsMessage.content}`;
-    } else {
-      meta.messages.unshift( skillsMessage );
-    }
-  }
-
-  return { loadedPrompt: meta, allVariables: variables, tools };
-};
+import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './utils/response_wrappers.js';
+import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
+import { prepareTextPrompt } from './prompt/prepare_text.js';
 
 export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
-  const callerSkills = typeof skills === 'function' ? await skills( variables ) : skills;
-  const { loadedPrompt, allVariables, tools } =
-    hydratePromptTemplate( prompt, variables, promptDir, callerSkills, aiSdkArgs.tools );
-  const hasTools = Object.keys( tools ).length > 0;
+  validateGenerateTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
 
-  validateGenerateTextArgs( { prompt, variables: allVariables } );
+  const parsedSkills = typeof skills === 'function' ? await skills( variables ) : skills;
+  const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
 
-  const traceId = startTrace( { name: 'generateText', prompt, variables: allVariables, loadedPrompt } );
+  const traceId = startTrace( { name: 'generateText', prompt, variables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
   try {
     const response = await AI.generateText( {
-      ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
+      ...loadAiSdkTextOptions( loadedPrompt ),
       maxRetries: 0,
       ...aiSdkArgs,
-      ...( hasTools ? { tools } : {} ),
-      ...( hasTools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
+      ...( tools && { tools } ),
+      ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
     return wrapTextResponse( { traceId, modelId, response } );
   } catch ( error ) {
@@ -90,23 +33,50 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   }
 }
 
-export function streamText( { prompt, variables, onFinish, onError, ...aiSdkArgs } ) {
-  validateStreamTextArgs( { prompt, variables } );
-  const loadedPrompt = loadPrompt( prompt, variables );
+export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError, ...aiSdkArgs } ) {
+  validateStreamTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
+
+  const parsedSkills = typeof skills === 'function' ? skills( variables ) : skills;
+  if ( utilTypes.isPromise( parsedSkills ) ) {
+    throw new ValidationError( 'streamText() skills must be synchronous because streamText() returns a stream immediately.' );
+  }
+  const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
+
   const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
   try {
     return AI.streamText( {
-      ...loadAiSdkOptionsFromPrompt( loadedPrompt ),
+      ...loadAiSdkTextOptions( loadedPrompt ),
       maxRetries: 0,
       ...aiSdkArgs,
+      ...( tools && { tools } ),
+      ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
       ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
       onError( event ) {
         endTraceWithError( { traceId, error: event.error } );
         onError?.( event );
       }
     } );
+  } catch ( error ) {
+    endTraceWithError( { traceId, error } );
+    throw error;
+  }
+}
+
+export async function generateImage( { prompt, variables, promptDir, ...aiSdkArgs } ) {
+  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+
+  const traceId = startTrace( { name: 'generateImage', prompt, variables, loadedPrompt } );
+  const { model: modelId } = loadedPrompt.config;
+
+  try {
+    const response = await AI.generateImage( {
+      ...loadAiSdkImageOptions( loadedPrompt ),
+      maxRetries: 0,
+      ...aiSdkArgs
+    } );
+    return wrapImageResponse( { traceId, modelId, response } );
   } catch ( error ) {
     endTraceWithError( { traceId, error } );
     throw error;

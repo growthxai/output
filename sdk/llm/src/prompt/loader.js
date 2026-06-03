@@ -1,8 +1,8 @@
 import { parsePrompt } from './parser.js';
 import { Liquid } from 'liquidjs';
 import { encodeXML, decodeXML } from 'entities';
-import { loadContentWithDir } from './load_content.js';
-import { validatePrompt } from './prompt_validations.js';
+import { loadContent } from './load_content.js';
+import { validatePrompt } from './validations.js';
 import { FatalError } from '@outputai/core';
 
 const VAR_SAFE_FILTER = '__var_safe';
@@ -59,7 +59,7 @@ const renderPrompt = ( name, content, values ) => {
  * @returns {Prompt} Loaded and rendered prompt object, including promptFileDir
  */
 export const loadPrompt = ( name, values = {}, dir ) => {
-  const found = loadContentWithDir( `${name}.prompt`, dir );
+  const found = loadContent( `${name}.prompt`, dir );
   if ( !found ) {
     throw new FatalError( `Prompt ${name} not found.` );
   }

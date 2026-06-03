@@ -68,3 +68,34 @@ export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFin
     } ) );
   }
 } );
+
+/**
+ * Calculates the cost and wraps an AI SDK image response in a Proxy with shortcut for 'result' and 'cost'
+ *
+ * Emits the `cost:llm:request` event.
+ *
+ * Also finishes the trace events.
+ *
+ * @param {object} args
+ * @param {string} args.traceId - id created by the startTrace
+ * @param {string} args.modelId - id of the model used
+ * @param {object} args.response - AI SDK's image response
+ * @returns {object} Proxied response
+ */
+export const wrapImageResponse = async ( { traceId, modelId, response } ) => {
+  const cost = await calculateLLMCallCost( { usage: response.usage, modelId } );
+
+  endTraceWithSuccess( { traceId, modelId, response, cost } );
+
+  return new Proxy( response, {
+    get( target, prop, receiver ) {
+      if ( prop === 'result' ) {
+        return target.image;
+      }
+      if ( prop === 'cost' ) {
+        return cost;
+      }
+      return Reflect.get( target, prop, receiver );
+    }
+  } );
+};

@@ -1,6 +1,6 @@
-export { generateText, streamText } from './ai_sdk.js';
+export { generateText, streamText, generateImage } from './ai_sdk.js';
 export { Agent, createMemoryConversationStore, skill } from './agent.js';
-export { loadPrompt } from './prompt_loader.js';
+export { loadPrompt } from './prompt/loader.js';
 export { registerProvider, getRegisteredProviders } from './ai_model.js';
 export { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';
 export { webSearch as exaSearch } from '@exalabs/ai-sdk';

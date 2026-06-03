@@ -81,6 +81,25 @@ export const loadColocatedSkills = promptDir => {
 };
 
 /**
+ * Resolve all skills available to a prompt.
+ *
+ * @param {object} prompt - Loaded prompt object
+ * @param {{ name: string, description: string, instructions: string }[]} [callerSkills] - Inline caller-provided skills
+ * @returns {{ name: string, description: string, instructions: string }[]}
+ */
+export const resolvePromptSkills = ( prompt, callerSkills = [] ) => {
+  const hasExplicitSkills = prompt.config.skills && prompt.promptFileDir;
+  const frontmatterSkills = hasExplicitSkills ?
+    loadPromptSkills( prompt.config.skills, prompt.promptFileDir ) :
+    [];
+  const autoSkills = !hasExplicitSkills && prompt.promptFileDir ?
+    loadColocatedSkills( prompt.promptFileDir ) :
+    [];
+
+  return [ ...frontmatterSkills, ...autoSkills, ...callerSkills ];
+};
+
+/**
  * Build the skills system message content listing available skills.
  *
  * @param {{ name: string, description: string }[]} skills

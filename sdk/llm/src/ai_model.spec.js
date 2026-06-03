@@ -2,6 +2,7 @@ import { it, expect, vi, afterEach, describe } from 'vitest';
 
 const providerFactoryOptions = vi.hoisted( () => ( {} ) );
 const openaiImpl = vi.hoisted( () => vi.fn( model => `openai:${model}` ) );
+const openaiImageImpl = vi.hoisted( () => vi.fn( model => `openai-image:${model}` ) );
 const azureImpl = vi.hoisted( () => vi.fn( model => `azure:${model}` ) );
 const anthropicImpl = vi.hoisted( () => vi.fn( model => `anthropic:${model}` ) );
 const bedrockImpl = vi.hoisted( () => vi.fn( model => `bedrock:${model}` ) );
@@ -11,6 +12,7 @@ const vertexImpl = vi.hoisted( () => vi.fn( model => `vertex:${model}` ) );
 // OpenAI mock with tools support
 vi.mock( '@ai-sdk/openai', () => {
   const openaiMock = ( ...values ) => openaiImpl( ...values );
+  openaiMock.image = ( ...values ) => openaiImageImpl( ...values );
   openaiMock.tools = {
     webSearch: ( config = {} ) => ( { type: 'webSearch', config } )
   };
@@ -93,14 +95,14 @@ vi.mock( '@ai-sdk/google-vertex', () => {
   };
 } );
 
-import { loadModel, loadTools, registerProvider, getRegisteredProviders, providers, builtInProviders } from './ai_model.js';
+import { loadImageModel, loadTextModel, loadTools, registerProvider, getRegisteredProviders, providers, builtInProviders } from './ai_model.js';
 
 afterEach( async () => {
   await vi.resetModules();
   vi.clearAllMocks();
 } );
 
-describe( 'loadModel', () => {
+describe( 'loadTextModel', () => {
   it( 'initializes built-in providers with custom fetch', () => {
     expect( providerFactoryOptions ).toMatchObject( {
       azure: { fetch: expect.any( Function ) },
@@ -113,7 +115,7 @@ describe( 'loadModel', () => {
   } );
 
   it( 'loads model using selected provider', () => {
-    const result = loadModel( { config: { provider: 'openai', model: 'gpt-4o-mini' } } );
+    const result = loadTextModel( { config: { provider: 'openai', model: 'gpt-4o-mini' } } );
 
     expect( result ).toBe( 'openai:gpt-4o-mini' );
     expect( openaiImpl ).toHaveBeenCalledWith( 'gpt-4o-mini' );
@@ -122,17 +124,33 @@ describe( 'loadModel', () => {
   } );
 
   it( 'loads model using bedrock provider', () => {
-    const result = loadModel( { config: { provider: 'bedrock', model: 'anthropic.claude-sonnet-4-20250514-v1:0' } } );
+    const result = loadTextModel( { config: { provider: 'bedrock', model: 'anthropic.claude-sonnet-4-20250514-v1:0' } } );
 
     expect( result ).toBe( 'bedrock:anthropic.claude-sonnet-4-20250514-v1:0' );
     expect( bedrockImpl ).toHaveBeenCalledWith( 'anthropic.claude-sonnet-4-20250514-v1:0' );
   } );
 
   it( 'loads model using perplexity provider', () => {
-    const result = loadModel( { config: { provider: 'perplexity', model: 'sonar-pro' } } );
+    const result = loadTextModel( { config: { provider: 'perplexity', model: 'sonar-pro' } } );
 
     expect( result ).toBe( 'perplexity:sonar-pro' );
     expect( perplexityImpl ).toHaveBeenCalledWith( 'sonar-pro' );
+  } );
+} );
+
+describe( 'loadImageModel', () => {
+  it( 'loads image model using provider image factory', () => {
+    const result = loadImageModel( { config: { provider: 'openai', model: 'gpt-image-1' } } );
+
+    expect( result ).toBe( 'openai-image:gpt-image-1' );
+    expect( openaiImageImpl ).toHaveBeenCalledWith( 'gpt-image-1' );
+    expect( openaiImpl ).not.toHaveBeenCalled();
+  } );
+
+  it( 'throws a clear error when provider does not support image models', () => {
+    expect( () => loadImageModel( {
+      config: { provider: 'azure', model: 'gpt-image-1' }
+    } ) ).toThrow( 'Provider "azure" does not support image models.' );
   } );
 } );
 
@@ -593,7 +611,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: [ 'googleSearch', 'urlContext' ]
         }
-      } ) ).toThrow( 'tools must be an object with tool configurations, got array' );
+      } ) ).toThrow( /Invalid tools prompt config/ );
     } );
 
     it( 'throws error for string format', () => {
@@ -602,7 +620,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: 'googleSearch'
         }
-      } ) ).toThrow( 'tools must be an object' );
+      } ) ).toThrow( /Invalid tools prompt config/ );
     } );
 
     it( 'throws error for number format', () => {
@@ -611,7 +629,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: 123
         }
-      } ) ).toThrow( 'tools must be an object' );
+      } ) ).toThrow( /Invalid tools prompt config/ );
     } );
 
     it( 'throws error for provider without tools support', () => {
@@ -656,7 +674,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: { googleSearch: null }
         }
-      } ) ).toThrow( /Invalid config for tool "googleSearch".*expected record, received null/s );
+      } ) ).toThrow( /Invalid tools prompt config.*expected record, received null/s );
     } );
 
     it( 'throws error when tool config is a string', () => {
@@ -665,7 +683,7 @@ describe( 'loadTools', () => {
           provider: 'vertex',
           tools: { googleSearch: 'MODE_DYNAMIC' }
         }
-      } ) ).toThrow( /Invalid config for tool "googleSearch".*expected record, received string/s );
+      } ) ).toThrow( /Invalid tools prompt config.*expected record, received string/s );
     } );
 
     it( 'throws error for unknown tool on Bedrock with dynamic tool listing', () => {
@@ -753,11 +771,11 @@ describe( 'registerProvider', () => {
     Object.assign( providers, builtInProviders );
   } );
 
-  it( 'registers a custom provider and uses it in loadModel', () => {
+  it( 'registers a custom provider and uses it in loadTextModel', () => {
     const customProvider = vi.fn( model => `custom:${model}` );
     registerProvider( 'custom', customProvider );
 
-    const result = loadModel( { config: { provider: 'custom', model: 'my-model' } } );
+    const result = loadTextModel( { config: { provider: 'custom', model: 'my-model' } } );
 
     expect( result ).toBe( 'custom:my-model' );
     expect( customProvider ).toHaveBeenCalledWith( 'my-model' );
@@ -767,7 +785,7 @@ describe( 'registerProvider', () => {
     const overrideOpenai = vi.fn( model => `override:${model}` );
     registerProvider( 'openai', overrideOpenai );
 
-    const result = loadModel( { config: { provider: 'openai', model: 'gpt-custom' } } );
+    const result = loadTextModel( { config: { provider: 'openai', model: 'gpt-custom' } } );
 
     expect( result ).toBe( 'override:gpt-custom' );
   } );
