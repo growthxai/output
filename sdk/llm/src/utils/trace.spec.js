@@ -51,19 +51,16 @@ describe( 'trace utils', () => {
   } );
 
   describe( 'endTraceWithSuccess', () => {
-    it( 'adds cost attribute, emits cost attribute, and ends the trace with response fields and extra details', () => {
+    it( 'adds cost attribute, emits cost event, and ends the trace with normalized details', () => {
       const cost = { type: 'llm:usage', modelId: 'my-model', total: 0.01, usage: [] };
       const usage = { inputTokens: 2, outputTokens: 3 };
-      const response = {
-        text: 'hello',
-        totalUsage: usage,
-        providerMetadata: { provider: 'x' }
-      };
 
       endTraceWithSuccess( {
         traceId: 'trace-a',
         modelId: 'my-model',
-        response,
+        result: 'hello',
+        usage,
+        providerMetadata: { provider: 'x' },
         cost,
         sourcesFromTools: [ { url: 'https://u.test', title: '' } ]
       } );
@@ -77,6 +74,7 @@ describe( 'trace utils', () => {
         id: 'trace-a',
         details: {
           result: 'hello',
+          modelId: 'my-model',
           usage,
           providerMetadata: { provider: 'x' },
           sourcesFromTools: [ { url: 'https://u.test', title: '' } ]
@@ -86,16 +84,13 @@ describe( 'trace utils', () => {
 
     it( 'does not emit or add an attribute when cost is missing', () => {
       const usage = { inputTokens: 2, outputTokens: 3 };
-      const response = {
-        text: 'hello',
-        totalUsage: usage,
-        providerMetadata: { provider: 'x' }
-      };
 
       endTraceWithSuccess( {
         traceId: 'trace-no-cost',
         modelId: 'my-model',
-        response
+        result: 'hello',
+        usage,
+        providerMetadata: { provider: 'x' }
       } );
 
       expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
@@ -104,6 +99,7 @@ describe( 'trace utils', () => {
         id: 'trace-no-cost',
         details: {
           result: 'hello',
+          modelId: 'my-model',
           usage,
           providerMetadata: { provider: 'x' }
         }

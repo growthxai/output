@@ -1,6 +1,7 @@
 import { combineSources, extractSourcesFromSteps } from './source_extraction.js';
 import { calculateLLMCallCost } from '../cost/index.js';
 import { endTraceWithSuccess } from './trace.js';
+import { calculateBase64FileSize } from './image.js';
 
 /**
  * Calculates the cost and wraps an AI SDK text response in a Proxy with shortcut for 'result' and 'cost'
@@ -16,10 +17,12 @@ import { endTraceWithSuccess } from './trace.js';
  * @returns {object} Proxied response
  */
 export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
-  const sourcesFromTools = extractSourcesFromSteps( response.steps );
-  const cost = await calculateLLMCallCost( { usage: response.totalUsage, modelId } );
+  const { totalUsage: usage, providerMetadata, text: result, steps, sources } = response;
 
-  endTraceWithSuccess( { traceId, modelId, response, cost, sourcesFromTools } );
+  const cost = await calculateLLMCallCost( { usage, modelId } );
+  const sourcesFromTools = extractSourcesFromSteps( steps );
+
+  endTraceWithSuccess( { traceId, usage, cost, result, providerMetadata, sourcesFromTools } );
 
   return new Proxy( response, {
     get( target, prop, receiver ) {
@@ -30,7 +33,7 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
         return cost;
       }
       if ( prop === 'sources' && sourcesFromTools.length > 0 ) {
-        return combineSources( { sourcesFromTools, sourcesFromResponse: response.sources } );
+        return combineSources( { sourcesFromTools, sourcesFromResponse: sources } );
       }
       return Reflect.get( target, prop, receiver );
     }
@@ -51,21 +54,8 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
  */
 export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFinish } ) => ( {
   async onFinish( response ) {
-    const cost = await calculateLLMCallCost( { modelId, usage: response.totalUsage } );
-
-    endTraceWithSuccess( { traceId, modelId, response, cost } );
-
-    _onFinish?.( new Proxy( response, {
-      get( target, prop, receiver ) {
-        if ( prop === 'result' ) {
-          return target.text;
-        }
-        if ( prop === 'cost' ) {
-          return cost;
-        }
-        return Reflect.get( target, prop, receiver );
-      }
-    } ) );
+    const proxiedResponse = await wrapTextResponse( { traceId, modelId, response } );
+    _onFinish?.( proxiedResponse );
   }
 } );
 
@@ -83,14 +73,20 @@ export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFin
  * @returns {object} Proxied response
  */
 export const wrapImageResponse = async ( { traceId, modelId, response } ) => {
-  const cost = await calculateLLMCallCost( { usage: response.usage, modelId } );
+  const { usage, providerMetadata } = response;
+  const cost = await calculateLLMCallCost( { usage, modelId } );
 
-  endTraceWithSuccess( { traceId, modelId, response, cost } );
+  const result = response.images.map( ( { mediaType, base64Data } ) => ( {
+    size: calculateBase64FileSize( base64Data ),
+    mediaType
+  } ) );
+
+  endTraceWithSuccess( { traceId, usage, cost, result, providerMetadata } );
 
   return new Proxy( response, {
     get( target, prop, receiver ) {
       if ( prop === 'result' ) {
-        return target.image;
+        return target.images[0];
       }
       if ( prop === 'cost' ) {
         return cost;
