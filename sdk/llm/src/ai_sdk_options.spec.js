@@ -100,6 +100,8 @@ describe( 'ai_sdk_options', () => {
   } );
 
   it( 'maps loaded prompts to AI SDK image options', async () => {
+    const images = [ Buffer.from( 'image-bytes' ) ];
+    const mask = Buffer.from( 'mask-bytes' );
     const prompt = makeImagePrompt( {
       n: 2,
       maxImagesPerCall: 1,
@@ -112,14 +114,18 @@ describe( 'ai_sdk_options', () => {
     } );
 
     const { loadAiSdkImageOptions } = await importSut();
-    const result = loadAiSdkImageOptions( prompt );
+    const result = loadAiSdkImageOptions( { prompt, images, mask } );
 
     expect( loadImageModelImpl ).toHaveBeenCalledWith( prompt );
     expect( loadModelImpl ).not.toHaveBeenCalled();
     expect( loadToolsImpl ).not.toHaveBeenCalled();
     expect( result ).toEqual( {
       model: 'IMAGE_MODEL',
-      prompt: 'Generate a cinematic image of a NASCAR race at sunset.',
+      prompt: {
+        text: 'Generate a cinematic image of a NASCAR race at sunset.',
+        images,
+        mask
+      },
       providerOptions: prompt.config.providerOptions,
       n: 2,
       maxImagesPerCall: 1,
@@ -135,7 +141,7 @@ describe( 'ai_sdk_options', () => {
     const prompt = makeImagePrompt( { seed: 0 } );
 
     const { loadAiSdkImageOptions } = await importSut();
-    const result = loadAiSdkImageOptions( prompt );
+    const result = loadAiSdkImageOptions( { prompt } );
 
     expect( result ).toEqual( {
       model: 'IMAGE_MODEL',
@@ -150,7 +156,7 @@ describe( 'ai_sdk_options', () => {
 
     const { loadAiSdkImageOptions } = await importSut();
 
-    expect( () => loadAiSdkImageOptions( prompt ) ).toThrow(
+    expect( () => loadAiSdkImageOptions( { prompt } ) ).toThrow(
       'Prompt "test@v1" has no instructions.'
     );
     expect( loadImageModelImpl ).not.toHaveBeenCalled();

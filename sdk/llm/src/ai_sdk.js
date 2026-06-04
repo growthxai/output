@@ -2,12 +2,13 @@ import { types as utilTypes } from 'node:util';
 import * as AI from 'ai';
 import { stepCountIs } from 'ai';
 import { ValidationError } from '@outputai/core';
-import { validateGenerateTextArgs, validateStreamTextArgs } from './validations.js';
+import { validateGenerateTextArgs, validateStreamTextArgs, validateGenerateImageArgs } from './validations.js';
 import { loadPrompt } from './prompt/loader.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './utils/response_wrappers.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
+import { mapAiError } from './utils/error_handler.js';
 
 export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
   validateGenerateTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
@@ -27,13 +28,14 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
       ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
     return wrapTextResponse( { traceId, modelId, response } );
-  } catch ( error ) {
+  } catch ( originalError ) {
+    const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );
     throw error;
   }
 }
 
-export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError, ...aiSdkArgs } ) {
+export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError: _onError, ...aiSdkArgs } ) {
   validateStreamTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
 
   const parsedSkills = typeof skills === 'function' ? skills( variables ) : skills;
@@ -54,30 +56,34 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
       ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
       ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
       onError( event ) {
-        endTraceWithError( { traceId, error: event.error } );
-        onError?.( event );
+        const error = mapAiError( event.error );
+        endTraceWithError( { traceId, error } );
+        _onError?.( { ...event, error } );
       }
     } );
-  } catch ( error ) {
+  } catch ( originalError ) {
+    const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );
     throw error;
   }
 }
 
-export async function generateImage( { prompt, variables, promptDir, ...aiSdkArgs } ) {
-  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+export async function generateImage( { prompt, variables, promptDir, images, mask, ...aiSdkArgs } ) {
+  validateGenerateImageArgs( { prompt, variables, promptDir, images, mask } );
 
+  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
   const traceId = startTrace( { name: 'generateImage', prompt, variables, loadedPrompt } );
   const { model: modelId } = loadedPrompt.config;
 
   try {
     const response = await AI.generateImage( {
-      ...loadAiSdkImageOptions( loadedPrompt ),
+      ...loadAiSdkImageOptions( { prompt: loadedPrompt, images, mask } ),
       maxRetries: 0,
       ...aiSdkArgs
     } );
     return wrapImageResponse( { traceId, modelId, response } );
-  } catch ( error ) {
+  } catch ( originalError ) {
+    const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );
     throw error;
   }

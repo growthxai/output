@@ -6,7 +6,8 @@ export default workflow( {
   description: 'Generate a NASCAR race image using the LLM image API',
   inputSchema: z.object( {
     scene: z.string(),
-    style: z.string().optional()
+    style: z.string().optional(),
+    referenceImagePath: z.string().optional()
   } ),
   outputSchema: z.object( {
     fileName: z.string()
