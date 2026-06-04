@@ -76,8 +76,8 @@ export const wrapImageResponse = async ( { traceId, modelId, response } ) => {
   const { usage, providerMetadata } = response;
   const cost = await calculateLLMCallCost( { usage, modelId } );
 
-  const result = response.images.map( ( { mediaType, base64Data } ) => ( {
-    size: calculateBase64FileSize( base64Data ),
+  const result = response.images.map( ( { mediaType, base64 } ) => ( {
+    size: calculateBase64FileSize( base64 ),
     mediaType
   } ) );
 
@@ -86,7 +86,7 @@ export const wrapImageResponse = async ( { traceId, modelId, response } ) => {
   return new Proxy( response, {
     get( target, prop, receiver ) {
       if ( prop === 'result' ) {
-        return target.images[0];
+        return target.image;
       }
       if ( prop === 'cost' ) {
         return cost;

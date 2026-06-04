@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { generateImage } from 'ai';
+import { MockImageModelV3 } from 'ai/test';
 import textResponseFixture from './__fixtures__/text_response.json' with { type: 'json' };
 import streamResponseFixture from './__fixtures__/stream_response.json' with { type: 'json' };
 import imageResponseFixture from './__fixtures__/image_response.json' with { type: 'json' };
@@ -31,6 +33,22 @@ vi.mock( './image.js', () => ( {
 import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './response_wrappers.js';
 
 const clone = value => structuredClone( value );
+
+const makeAiSdkImageResponse = () => generateImage( {
+  model: new MockImageModelV3( {
+    doGenerate: async () => ( {
+      images: imageResponseFixture.images.map( image => Buffer.from( image.base64Data, 'base64' ) ),
+      warnings: imageResponseFixture.warnings,
+      response: {
+        ...imageResponseFixture.responses[0],
+        timestamp: new Date( imageResponseFixture.responses[0].timestamp )
+      },
+      providerMetadata: imageResponseFixture.providerMetadata,
+      usage: imageResponseFixture.usage
+    } )
+  } ),
+  prompt: 'fixture prompt'
+} );
 
 describe( 'wrapTextResponse', () => {
   const traceId = 'trace-1';
@@ -187,7 +205,7 @@ describe( 'wrapImageResponse', () => {
   } );
 
   it( 'uses an image response fixture to trace image metadata and attach cost', async () => {
-    const response = clone( imageResponseFixture );
+    const response = await makeAiSdkImageResponse();
 
     const wrapped = await wrapImageResponse( { traceId, modelId, response } );
 
@@ -197,7 +215,7 @@ describe( 'wrapImageResponse', () => {
       usage: response.usage,
       modelId
     } );
-    expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
+    expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64 );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
       traceId,
       usage: response.usage,
