@@ -46,7 +46,7 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
  * @param {object} args
  * @param {string} args.traceId - id created by the startTrace
  * @param {string} args.modelId - id of the model used
- * @param {Function} args.onFinish - Original callback to call with the Proxied reponse
+ * @param {Function} args.onFinish - Original callback to call with the proxied response
  * @returns {object} Proxied response
  */
 export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFinish } ) => ( {
