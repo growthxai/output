@@ -1,0 +1,22 @@
+---
+provider: openai
+model: gpt-image-1
+size: 1024x1024
+n: 1
+---
+
+Create a {{ style }} image about NASCAR racing.
+
+Scene:
+{{ scene }}
+
+Composition:
+- A dramatic stock car race at golden hour
+- Cars are packed close together on a banked oval turn
+- Motion blur, tire smoke, bright sponsor-style colors, and packed grandstands
+- Low trackside camera angle that makes the speed feel intense
+
+Constraints:
+- No readable text, logos, or real sponsor marks
+- No real driver likenesses
+- Make it feel loud, fast, and competitive

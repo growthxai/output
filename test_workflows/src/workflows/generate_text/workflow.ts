@@ -2,7 +2,7 @@ import { workflow, z } from '@outputai/core';
 import { explainTopic, generateChoice, generateCookingInstruction, generateDrawingInstructions } from './steps.js';
 
 export default workflow( {
-  name: 'prompt',
+  name: 'generate_text',
   description: 'A workflow to demonstrate the prompt feature',
   inputSchema: z.object( {
     topic: z.string()

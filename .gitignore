@@ -3,6 +3,7 @@ node_modules
 .DS_Store
 .env
 temp/
+_temp/
 dist/
 logs/
 .vscode/

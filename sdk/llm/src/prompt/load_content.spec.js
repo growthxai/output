@@ -45,9 +45,9 @@ describe( 'loadContent', () => {
     state.entries[tempDir] = [ dirEntry( 'test.txt' ) ];
 
     const { loadContent } = await import( './load_content.js' );
-    const content = loadContent( 'test.txt' );
+    const result = loadContent( 'test.txt' );
 
-    expect( content ).toBe( testContent );
+    expect( result ).toEqual( { content: testContent, dir: tempDir } );
   } );
 
   it( 'loads file from nested subdirectory via recursion', async () => {
@@ -63,9 +63,9 @@ describe( 'loadContent', () => {
     state.entries[subDir] = [ dirEntry( 'nested.txt' ) ];
 
     const { loadContent } = await import( './load_content.js' );
-    const content = loadContent( 'nested.txt' );
+    const result = loadContent( 'nested.txt' );
 
-    expect( content ).toBe( testContent );
+    expect( result ).toEqual( { content: testContent, dir: subDir } );
   } );
 
   it( 'returns null when file does not exist', async () => {
@@ -74,8 +74,8 @@ describe( 'loadContent', () => {
     state.entries[tempDir] = [ dirEntry( 'other.txt' ) ];
 
     const { loadContent } = await import( './load_content.js' );
-    const content = loadContent( 'nonexistent.txt' );
+    const result = loadContent( 'nonexistent.txt' );
 
-    expect( content ).toBeNull();
+    expect( result ).toBeNull();
   } );
 } );

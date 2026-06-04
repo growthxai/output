@@ -1,12 +1,12 @@
 import { ValidationError } from '@outputai/core';
 import { resolveInvocationDir } from '@outputai/core/sdk_utils';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
-import { hydratePromptTemplate, loadAiSdkOptionsFromPrompt } from './ai_sdk.js';
+import { loadAiSdkTextOptions } from './ai_sdk_options.js';
+import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
 import { ROLE, isRole, getContent } from './utils/message.js';
-
-export { skill } from './skill.js';
+export { skill } from './prompt/skill.js';
 
 export const createMemoryConversationStore = () => {
   const messages = [];
@@ -23,8 +23,15 @@ export class Agent extends AIToolLoopAgent {
   #store;
 
   constructor( {
-    prompt, promptDir, variables = {}, skills = [], tools = {},
-    stopWhen, maxSteps = 10, conversationStore, ...rest
+    prompt,
+    promptDir,
+    variables = {},
+    skills = [],
+    tools: toolsArg,
+    stopWhen,
+    maxSteps = 10,
+    conversationStore,
+    ...rest
   } ) {
     if ( !prompt ) {
       throw new ValidationError( 'Agent requires a prompt' );
@@ -34,10 +41,9 @@ export class Agent extends AIToolLoopAgent {
     // breaks the call stack, so resolveInvocationDir() fails if called lazily.
     const resolvedPromptDir = promptDir ?? resolveInvocationDir();
 
-    const { loadedPrompt, tools: mergedTools } =
-      hydratePromptTemplate( prompt, variables, resolvedPromptDir, skills, tools );
+    const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir: resolvedPromptDir, skills, tools: toolsArg } );
 
-    const { messages: allMessages, ...constructorOptions } = loadAiSdkOptionsFromPrompt( loadedPrompt );
+    const { messages: allMessages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
 
     // Extract system messages as `instructions` for the ToolLoopAgent constructor
     // and keep user messages for generate() calls — avoids provider errors
@@ -47,7 +53,7 @@ export class Agent extends AIToolLoopAgent {
     super( {
       ...constructorOptions,
       ...( systemContent ? { instructions: systemContent } : {} ),
-      ...( Object.keys( mergedTools ).length > 0 ? { tools: mergedTools } : {} ),
+      ...( tools ? { tools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest
     } );

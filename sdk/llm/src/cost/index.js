@@ -38,7 +38,7 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
     if ( Number.isFinite( pricing.output ) && Number.isFinite( outputTokens ) ) {
       llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: outputTokens } );
     }
-    // When there aren't reasoning costs, the providers doesn't differentiate reasoning vs output, so the price is included in the output
+    // When there are no reasoning costs, providers do not differentiate reasoning vs output, so the price is included in the output
     if ( Number.isFinite( pricing.reasoning ) && Number.isFinite( reasoningTokens ) ) {
       llmUsage.addUsage( { type: 'reasoning', ppm: pricing.reasoning, amount: reasoningTokens } );
     }

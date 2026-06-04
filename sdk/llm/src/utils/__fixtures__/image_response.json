@@ -1,0 +1,38 @@
+{
+  "images": [
+    {
+      "base64Data": "<<removed as it was a very large base64 representation of the image>>",
+      "mediaType": "image/png"
+    }
+  ],
+  "warnings": [],
+  "responses": [
+    {
+      "timestamp": "2026-06-04T15:29:53.450Z",
+      "modelId": "gpt-image-1",
+      "headers": {
+        "__redacted__": "<<headers were removed>>"
+      }
+    }
+  ],
+  "providerMetadata": {
+    "openai": {
+      "images": [
+        {
+          "created": 1780587031,
+          "size": "1024x1024",
+          "quality": "high",
+          "background": "opaque",
+          "outputFormat": "png",
+          "imageTokens": 0,
+          "textTokens": 138
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 138,
+    "outputTokens": 4160,
+    "totalTokens": 4298
+  }
+}

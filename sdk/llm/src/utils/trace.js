@@ -10,11 +10,10 @@ export const endTraceWithError = ( { traceId, error } ) => {
   Tracing.addEventError( { id: traceId, details: error } );
 };
 
-export const endTraceWithSuccess = ( { traceId, modelId, response, cost, ...extra } ) => {
-  const { totalUsage: usage, text: result, providerMetadata } = response;
+export const endTraceWithSuccess = ( { traceId, result, cost, ...extra } ) => {
   if ( cost ) {
     Tracing.addEventAttribute( { eventId: traceId, attribute: cost } );
     emitEvent( 'cost:llm:request', cost );
   }
-  Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, ...extra } } );
+  Tracing.addEventEnd( { id: traceId, details: { result, ...extra } } );
 };

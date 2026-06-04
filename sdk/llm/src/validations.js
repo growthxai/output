@@ -1,8 +1,17 @@
 import { ValidationError, z } from '@outputai/core';
 
+const skillArgSchema = z.object( {
+  name: z.string().min( 1 ),
+  description: z.string().optional(),
+  instructions: z.string().min( 1 )
+} ).strict();
+
 const generateTextArgsSchema = z.object( {
-  prompt: z.string(),
-  variables: z.any().optional()
+  prompt: z.string().min( 1 ),
+  variables: z.any().optional(),
+  promptDir: z.string().min( 1 ).optional(),
+  skills: z.union( [ z.array( skillArgSchema ), z.function() ] ).optional(),
+  maxSteps: z.number().int().positive().optional()
 } );
 
 function validateSchema( schema, input, errorPrefix ) {

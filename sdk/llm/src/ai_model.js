@@ -31,8 +31,45 @@ const registerProviderSchema = z.object( {
   providerFn: z.function()
 } );
 
+const modelPromptSchema = z.object( {
+  config: z.object( {
+    provider: z.string().min( 1 ),
+    model: z.string().min( 1 )
+  } ).loose()
+} ).loose();
+
+const toolsPromptSchema = z.object( {
+  config: z.object( {
+    provider: z.string().min( 1 ),
+    tools: z.record( z.string(), z.record( z.string(), z.unknown() ) ).optional()
+  } ).loose()
+} ).loose();
+
 const toolConfigSchema = z.record( z.string(), z.unknown() );
 
+const parseModelPrompt = prompt => {
+  const result = modelPromptSchema.safeParse( prompt );
+  if ( !result.success ) {
+    throw new ValidationError( `Invalid model prompt config: ${z.prettifyError( result.error )}` );
+  }
+  return result.data.config;
+};
+
+const parseToolsPrompt = prompt => {
+  const result = toolsPromptSchema.safeParse( prompt );
+  if ( !result.success ) {
+    throw new ValidationError( `Invalid tools prompt config: ${z.prettifyError( result.error )}` );
+  }
+  return result.data.config;
+};
+
+/**
+ * Register or override an AI SDK provider factory by name.
+ *
+ * @param {string} name - Provider name used in prompt frontmatter
+ * @param {Function} providerFn - Factory function that receives a model id
+ * @returns {void}
+ */
 export function registerProvider( name, providerFn ) {
   const result = registerProviderSchema.safeParse( { name, providerFn } );
   if ( !result.success ) {
@@ -41,24 +78,22 @@ export function registerProvider( name, providerFn ) {
   providers[name] = providerFn;
 }
 
+/**
+ * List all currently registered provider names.
+ *
+ * @returns {string[]} Provider names
+ */
 export const getRegisteredProviders = () => Object.keys( providers );
 
-export function loadModel( prompt ) {
-  const config = prompt?.config;
-
-  if ( !config ) {
-    throw new Error( 'Prompt is missing config object' );
-  }
-
+/**
+ * Load a text model from a loaded prompt config.
+ *
+ * @param {object} prompt - Loaded prompt object with `config.provider` and `config.model`
+ * @returns {unknown} AI SDK language model
+ */
+export function loadTextModel( prompt ) {
+  const config = parseModelPrompt( prompt );
   const { provider: providerName, model: modelName } = config;
-
-  if ( !providerName ) {
-    throw new Error( 'Prompt config is missing "provider" field' );
-  }
-
-  if ( !modelName ) {
-    throw new Error( 'Prompt config is missing "model" field' );
-  }
 
   const provider = providers[providerName];
 
@@ -70,34 +105,42 @@ export function loadModel( prompt ) {
   return provider( modelName );
 }
 
-export function loadTools( prompt ) {
-  const config = prompt?.config;
+/**
+ * Load an image model from a loaded prompt config.
+ *
+ * @param {object} prompt - Loaded prompt object with `config.provider` and `config.model`
+ * @returns {unknown} AI SDK image model
+ */
+export function loadImageModel( prompt ) {
+  const config = parseModelPrompt( prompt );
+  const { provider: providerName, model: modelName } = config;
 
-  if ( !config ) {
-    throw new Error( 'Prompt is missing config object' );
+  const provider = providers[providerName];
+
+  if ( !provider ) {
+    const availableProviders = Object.keys( providers ).join( ', ' );
+    throw new Error( `Invalid provider "${providerName}". Valid providers: ${availableProviders}` );
   }
 
+  const imageModelFactory = provider.image ?? provider.imageModel;
+  if ( typeof imageModelFactory !== 'function' ) {
+    throw new Error( `Provider "${providerName}" does not support image models.` );
+  }
+
+  return imageModelFactory( modelName );
+}
+
+/**
+ * Load provider-specific tools configured in a prompt.
+ *
+ * @param {object} prompt - Loaded prompt object with `config.provider` and optional `config.tools`
+ * @returns {Record<string, unknown> | null} AI SDK tools, or null when none are configured
+ */
+export function loadTools( prompt ) {
+  const config = parseToolsPrompt( prompt );
   const { tools: toolsConfig, provider: providerName } = config;
 
-  if ( !toolsConfig ) {
-    return null;
-  }
-
-  if ( Array.isArray( toolsConfig ) ) {
-    throw new Error(
-      'tools must be an object with tool configurations, got array. ' +
-      'Use "tools: { googleSearch: {} }" not "tools: [googleSearch]"'
-    );
-  }
-
-  if ( typeof toolsConfig !== 'object' ) {
-    throw new Error(
-      `tools must be an object, got ${typeof toolsConfig}. ` +
-      'Use "tools: { googleSearch: {} }"'
-    );
-  }
-
-  if ( Object.keys( toolsConfig ).length === 0 ) {
+  if ( !toolsConfig || Object.keys( toolsConfig ).length === 0 ) {
     return null;
   }
 

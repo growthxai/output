@@ -1,0 +1,294 @@
+{
+  "stepNumber": 0,
+  "model": {
+    "provider": "anthropic.messages",
+    "modelId": "claude-sonnet-4-20250514"
+  },
+  "finishReason": "stop",
+  "rawFinishReason": "end_turn",
+  "totalUsage": {
+    "inputTokens": 49,
+    "inputTokenDetails": {
+      "noCacheTokens": 49,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "outputTokens": 160,
+    "outputTokenDetails": {},
+    "totalTokens": 209,
+    "cachedInputTokens": 0
+  },
+  "usage": {
+    "inputTokens": 49,
+    "inputTokenDetails": {
+      "noCacheTokens": 49,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0
+    },
+    "outputTokens": 160,
+    "outputTokenDetails": {},
+    "totalTokens": 209,
+    "raw": {
+      "input_tokens": 49,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 160,
+      "service_tier": "standard",
+      "inference_geo": "not_available"
+    },
+    "cachedInputTokens": 0
+  },
+  "content": [
+    {
+      "type": "text",
+      "text": "A carburetor is a mechanical device that was once the heart of nearly every gasoline engine, responsible for mixing air and fuel in the precise proportions needed for combustion. This ingenious invention uses the principles of airflow and vacuum pressure to draw fuel from a reservoir and atomize it with incoming air, creating a combustible mixture that powers the engine. While carburetors dominated automotive technology for decades\u2014from the early 1900s through the 1980s\u2014they have largely been replaced by fuel injection systems in modern vehicles due to their superior efficiency and emissions control. However, carburetors remain popular in motorcycles, small engines, and classic cars, where enthusiasts appreciate their mechanical simplicity and the hands-on tuning experience they provide."
+    }
+  ],
+  "text": "A carburetor is a mechanical device that was once the heart of nearly every gasoline engine, responsible for mixing air and fuel in the precise proportions needed for combustion. This ingenious invention uses the principles of airflow and vacuum pressure to draw fuel from a reservoir and atomize it with incoming air, creating a combustible mixture that powers the engine. While carburetors dominated automotive technology for decades\u2014from the early 1900s through the 1980s\u2014they have largely been replaced by fuel injection systems in modern vehicles due to their superior efficiency and emissions control. However, carburetors remain popular in motorcycles, small engines, and classic cars, where enthusiasts appreciate their mechanical simplicity and the hands-on tuning experience they provide.",
+  "reasoning": [],
+  "files": [],
+  "sources": [],
+  "toolCalls": [
+    {
+      "type": "tool-call",
+      "toolCallId": "call_fixture_web_search",
+      "toolName": "webSearch",
+      "input": {
+        "query": "carburetor reference article"
+      }
+    }
+  ],
+  "staticToolCalls": [],
+  "dynamicToolCalls": [],
+  "toolResults": [
+    {
+      "type": "tool-result",
+      "toolCallId": "call_fixture_web_search",
+      "toolName": "webSearch",
+      "input": {
+        "query": "carburetor reference article"
+      },
+      "output": {
+        "results": [
+          {
+            "title": "Carburetor reference article",
+            "url": "https://example.com/carburetor-reference"
+          }
+        ]
+      }
+    }
+  ],
+  "staticToolResults": [],
+  "dynamicToolResults": [],
+  "request": {
+    "body": {
+      "model": "claude-sonnet-4-20250514",
+      "max_tokens": 1024,
+      "temperature": 0.7,
+      "messages": [
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "You are an expert content writer who produces clear, engaging, and informative text."
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Write a short paragraph about carburetors."
+            }
+          ]
+        }
+      ],
+      "stream": true
+    }
+  },
+  "response": {
+    "id": "msg_012FXnYFEVPZ6GPoneL32k9J",
+    "timestamp": "2026-06-04T15:30:08.347Z",
+    "modelId": "claude-sonnet-4-20250514",
+    "headers": {
+      "__redacted__": "<<headers were removed>>"
+    },
+    "messages": [
+      {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "A carburetor is a mechanical device that was once the heart of nearly every gasoline engine, responsible for mixing air and fuel in the precise proportions needed for combustion. This ingenious invention uses the principles of airflow and vacuum pressure to draw fuel from a reservoir and atomize it with incoming air, creating a combustible mixture that powers the engine. While carburetors dominated automotive technology for decades\u2014from the early 1900s through the 1980s\u2014they have largely been replaced by fuel injection systems in modern vehicles due to their superior efficiency and emissions control. However, carburetors remain popular in motorcycles, small engines, and classic cars, where enthusiasts appreciate their mechanical simplicity and the hands-on tuning experience they provide."
+          }
+        ]
+      }
+    ]
+  },
+  "warnings": [],
+  "providerMetadata": {
+    "anthropic": {
+      "usage": {
+        "input_tokens": 49,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 160,
+        "service_tier": "standard",
+        "inference_geo": "not_available"
+      },
+      "cacheCreationInputTokens": 0,
+      "stopSequence": null,
+      "iterations": null,
+      "container": null,
+      "contextManagement": null
+    }
+  },
+  "steps": [
+    {
+      "stepNumber": 0,
+      "model": {
+        "provider": "anthropic.messages",
+        "modelId": "claude-sonnet-4-20250514"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "A carburetor is a mechanical device that was once the heart of nearly every gasoline engine, responsible for mixing air and fuel in the precise proportions needed for combustion. This ingenious invention uses the principles of airflow and vacuum pressure to draw fuel from a reservoir and atomize it with incoming air, creating a combustible mixture that powers the engine. While carburetors dominated automotive technology for decades\u2014from the early 1900s through the 1980s\u2014they have largely been replaced by fuel injection systems in modern vehicles due to their superior efficiency and emissions control. However, carburetors remain popular in motorcycles, small engines, and classic cars, where enthusiasts appreciate their mechanical simplicity and the hands-on tuning experience they provide."
+        }
+      ],
+      "finishReason": "stop",
+      "rawFinishReason": "end_turn",
+      "usage": {
+        "inputTokens": 49,
+        "inputTokenDetails": {
+          "noCacheTokens": 49,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": 0
+        },
+        "outputTokens": 160,
+        "outputTokenDetails": {},
+        "totalTokens": 209,
+        "raw": {
+          "input_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "output_tokens": 160,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "cachedInputTokens": 0
+      },
+      "warnings": [],
+      "request": {
+        "body": {
+          "model": "claude-sonnet-4-20250514",
+          "max_tokens": 1024,
+          "temperature": 0.7,
+          "messages": [
+            {
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "You are an expert content writer who produces clear, engaging, and informative text."
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Write a short paragraph about carburetors."
+                }
+              ]
+            }
+          ],
+          "stream": true
+        }
+      },
+      "response": {
+        "id": "msg_012FXnYFEVPZ6GPoneL32k9J",
+        "timestamp": "2026-06-04T15:30:08.347Z",
+        "modelId": "claude-sonnet-4-20250514",
+        "headers": {
+          "__redacted__": "<<headers were removed>>"
+        },
+        "messages": [
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "text",
+                "text": "A carburetor is a mechanical device that was once the heart of nearly every gasoline engine, responsible for mixing air and fuel in the precise proportions needed for combustion. This ingenious invention uses the principles of airflow and vacuum pressure to draw fuel from a reservoir and atomize it with incoming air, creating a combustible mixture that powers the engine. While carburetors dominated automotive technology for decades\u2014from the early 1900s through the 1980s\u2014they have largely been replaced by fuel injection systems in modern vehicles due to their superior efficiency and emissions control. However, carburetors remain popular in motorcycles, small engines, and classic cars, where enthusiasts appreciate their mechanical simplicity and the hands-on tuning experience they provide."
+              }
+            ]
+          }
+        ]
+      },
+      "providerMetadata": {
+        "anthropic": {
+          "usage": {
+            "input_tokens": 49,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "output_tokens": 160,
+            "service_tier": "standard",
+            "inference_geo": "not_available"
+          },
+          "cacheCreationInputTokens": 0,
+          "stopSequence": null,
+          "iterations": null,
+          "container": null,
+          "contextManagement": null
+        }
+      },
+      "toolCalls": [
+        {
+          "type": "tool-call",
+          "toolCallId": "call_fixture_web_search",
+          "toolName": "webSearch",
+          "input": {
+            "query": "carburetor reference article"
+          }
+        }
+      ],
+      "toolResults": [
+        {
+          "type": "tool-result",
+          "toolCallId": "call_fixture_web_search",
+          "toolName": "webSearch",
+          "input": {
+            "query": "carburetor reference article"
+          },
+          "output": {
+            "results": [
+              {
+                "title": "Carburetor reference article",
+                "url": "https://example.com/carburetor-reference"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
