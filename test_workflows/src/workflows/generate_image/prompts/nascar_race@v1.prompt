@@ -5,7 +5,6 @@ size: 1024x1024
 n: 1
 ---
 
-<user>
 Create a {{ style }} image about NASCAR racing.
 
 Scene:
@@ -21,4 +20,3 @@ Constraints:
 - No readable text, logos, or real sponsor marks
 - No real driver likenesses
 - Make it feel loud, fast, and competitive
-</user>

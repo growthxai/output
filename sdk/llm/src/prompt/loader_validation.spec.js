@@ -35,6 +35,39 @@ providerOptions:
     expect( result.config.providerOptions.thinking.budgetTokens ).toBe( 1500 );
   } );
 
+  it( 'should accept a plain-instructions prompt without message blocks', () => {
+    const promptContent = `---
+provider: openai
+model: gpt-image-1
+size: 1024x1024
+---
+
+Create a {{ style }} NASCAR image.
+
+Scene:
+{{ scene }}`;
+
+    loadContent.mockReturnValue( { content: promptContent, dir: '/mock/dir' } );
+
+    const result = loadPrompt( 'image_prompt', {
+      scene: 'Three cars racing side-by-side through a banked turn',
+      style: 'cinematic'
+    } );
+
+    expect( result.messages ).toEqual( [] );
+    expect( result.instructions ).toBe(
+      `Create a cinematic NASCAR image.
+
+Scene:
+Three cars racing side-by-side through a banked turn`
+    );
+    expect( result.config ).toEqual( {
+      provider: 'openai',
+      model: 'gpt-image-1',
+      size: '1024x1024'
+    } );
+  } );
+
   it( 'should accept snake_case max_tokens via config passthrough (no longer strict)', () => {
     const promptContent = `---
 provider: anthropic

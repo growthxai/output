@@ -26,8 +26,26 @@ export const promptSchema = z.object( {
       role: z.string(),
       content: z.string()
     } ).strict()
-  )
-} ).strict();
+  ),
+  instructions: z.string().trim().min( 1 ).nullable().optional()
+} ).strict().superRefine( ( prompt, ctx ) => {
+  const hasMessages = prompt.messages.length > 0;
+  const hasInstructions = !!prompt.instructions;
+  if ( !hasMessages && !hasInstructions ) {
+    ctx.addIssue( {
+      code: 'custom',
+      path: [ 'messages', 'instructions' ],
+      message: 'Prompt must include either message blocks or plain instructions.'
+    } );
+  }
+  if ( hasMessages && hasInstructions ) {
+    ctx.addIssue( {
+      code: 'custom',
+      path: [ 'messages', 'instructions' ],
+      message: 'Prompt cannot include both message blocks and plain instructions.'
+    } );
+  }
+} );
 
 const SNAKE_CASE_WARNINGS = {
   max_tokens: 'maxTokens',

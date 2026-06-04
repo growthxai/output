@@ -147,6 +147,9 @@ export type Prompt = {
 
   /** Array of messages in the conversation */
   messages: PromptMessage[];
+
+  /** Plain prompt instructions for non-chat prompt files */
+  instructions?: string | null;
 };
 
 /**

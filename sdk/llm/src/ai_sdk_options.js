@@ -1,4 +1,5 @@
 import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
+import { FatalError } from '@outputai/core';
 
 /**
  * Convert a loaded prompt into AI SDK text generation options.
@@ -7,6 +8,9 @@ import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
  * @returns {object} Options for AI SDK text calls
  */
 export const loadAiSdkTextOptions = prompt => {
+  if ( prompt.messages.length === 0 ) {
+    throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
+  }
   const options = {
     model: loadTextModel( prompt ),
     messages: prompt.messages,
@@ -36,9 +40,12 @@ export const loadAiSdkTextOptions = prompt => {
  * @returns {object} Options for AI SDK image calls
  */
 export const loadAiSdkImageOptions = prompt => {
+  if ( !prompt.instructions ) {
+    throw new FatalError( `Prompt "${prompt.name}" has no instructions. Image prompts must use plain instructions.` );
+  }
   const options = {
     model: loadImageModel( prompt ),
-    prompt: prompt.messages.map( m => m.content ).join( '\n\n' ),
+    prompt: prompt.instructions,
     providerOptions: prompt.config.providerOptions
   };
   for ( const key of [ 'n', 'maxImagesPerCall', 'size', 'aspectRatio', 'seed' ] ) {

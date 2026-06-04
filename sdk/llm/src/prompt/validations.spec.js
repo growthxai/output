@@ -266,6 +266,86 @@ describe( 'validatePrompt', () => {
     expect( () => validatePrompt( imagePrompt ) ).not.toThrow();
   } );
 
+  it( 'should validate a plain-instructions prompt without messages', () => {
+    const instructionsPrompt = {
+      name: 'image-prompt',
+      config: {
+        provider: 'openai',
+        model: 'gpt-image-1'
+      },
+      messages: [],
+      instructions: 'Generate an image of a mountain.'
+    };
+
+    expect( () => validatePrompt( instructionsPrompt ) ).not.toThrow();
+  } );
+
+  it( 'should validate role messages with null instructions', () => {
+    const messagesPrompt = {
+      name: 'messages-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Write a summary.'
+        }
+      ],
+      instructions: null
+    };
+
+    expect( () => validatePrompt( messagesPrompt ) ).not.toThrow();
+  } );
+
+  it( 'should throw ValidationError when instructions are only whitespace', () => {
+    const whitespaceInstructionsPrompt = {
+      name: 'empty-instructions-prompt',
+      config: {
+        provider: 'openai',
+        model: 'gpt-image-1'
+      },
+      messages: [],
+      instructions: '   '
+    };
+
+    expect( () => validatePrompt( whitespaceInstructionsPrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError when both messages and instructions are present', () => {
+    const mixedPrompt = {
+      name: 'mixed-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Write a summary.'
+        }
+      ],
+      instructions: 'Plain instructions should not be mixed with messages.'
+    };
+
+    expect( () => validatePrompt( mixedPrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError when neither messages nor instructions are present', () => {
+    const emptyPrompt = {
+      name: 'empty-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [],
+      instructions: null
+    };
+
+    expect( () => validatePrompt( emptyPrompt ) ).toThrow( ValidationError );
+  } );
+
   it( 'should validate a prompt with skill path config', () => {
     const promptWithSkills = {
       name: 'skills-prompt',
