@@ -102,7 +102,8 @@ describe( 'validateGenerateImageArgs', () => {
     const buffer = Buffer.from( 'image-bytes' );
     const uint8Array = new Uint8Array( [ 1, 2, 3 ] );
     const arrayBuffer = new ArrayBuffer( 3 );
-    const base64 = 'aW1hZ2UtYnl0ZXM=';
+    const paddedBase64 = 'aW1hZ2UtYnl0ZXM=';
+    const unpaddedBase64 = 'aW1hZ2U';
 
     expect( () => validateGenerateImageArgs( {
       prompt: 'image@v1',
@@ -110,11 +111,12 @@ describe( 'validateGenerateImageArgs', () => {
         buffer,
         uint8Array,
         arrayBuffer,
-        base64,
+        paddedBase64,
+        unpaddedBase64,
         { data: buffer, mediaType: 'image/png' },
         { data: uint8Array },
         { data: arrayBuffer, mediaType: 'image/jpeg' },
-        { data: base64, mediaType: 'image/webp' }
+        { data: paddedBase64, mediaType: 'image/webp' }
       ],
       mask: { data: Buffer.from( 'mask-bytes' ), mediaType: 'image/png' }
     } ) ).not.toThrow();
@@ -139,6 +141,20 @@ describe( 'validateGenerateImageArgs', () => {
       prompt: 'image@v1',
       images: [ { data: 'aW1hZ2U=', mediaType: '' } ]
     } ) ).toThrow( ValidationError );
+  } );
+
+  it( 'rejects image strings that are not raw base64 data', () => {
+    for ( const image of [
+      'https://example.com/image.png',
+      'data:image/png;base64,aW1hZ2U=',
+      'not base64',
+      'abcde'
+    ] ) {
+      expect( () => validateGenerateImageArgs( {
+        prompt: 'image@v1',
+        images: [ image ]
+      } ) ).toThrow( /Image strings must be raw base64 data/ );
+    }
   } );
 
   it( 'requires images when mask is provided', () => {

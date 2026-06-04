@@ -275,7 +275,7 @@ const response = await generateImage({
 const image = response.result;
 ```
 
-Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBuffer`, non-empty strings, or `{ data, mediaType }` objects. `mask` uses the same input shape and requires `images`.
+Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBuffer`, raw base64 strings, or `{ data, mediaType }` objects. `mask` uses the same input shape and requires `images`.
 
 <Note>
 `generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and pass concrete provider options through prompt front matter or `providerOptions`.

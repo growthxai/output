@@ -15,11 +15,18 @@ const generateTextArgsSchema = z.object( {
   maxSteps: z.number().int().positive().optional()
 } );
 
+const base64StringSchema = z.string()
+  .min( 1 )
+  .regex(
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=?)?$/,
+    'Image strings must be raw base64 data.'
+  );
+
 const imageDataSchema = z.union( [
   z.instanceof( Buffer ),
   z.instanceof( Uint8Array ),
   z.instanceof( ArrayBuffer ),
-  z.string().min( 1 )
+  base64StringSchema
 ] );
 
 const imageInputSchema = z.union( [
