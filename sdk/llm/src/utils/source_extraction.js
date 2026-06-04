@@ -3,9 +3,16 @@ import { createHash } from 'node:crypto';
 /**
  * Checks whether a tool result looks like a search response (has a `results` array with `url` strings).
  */
-const isSearchResult = result => !!result?.results?.[0]?.url;
+const isSearchResult = v => Array.isArray( v?.results ) && v.results.some( r => typeof r?.url === 'string' );
 
-const toSource = ( { url, title } ) => ( {
+/**
+ * Builds the final source shape
+ * @param {object} args
+ * @param {string} args.url
+ * @param {string} args.title
+ * @returns {object} final object
+ */
+const buildSource = ( { url, title } ) => ( {
   type: 'source',
   sourceType: 'url',
   id: createHash( 'sha256' ).update( url ).digest( 'hex' ).slice( 0, 16 ),
@@ -19,34 +26,17 @@ const toSource = ( { url, title } ) => ( {
  * Detects any tool result containing a `results[]` array whose items have a `url` string field.
  * This covers perplexitySearch, tavilySearch, exaSearch, and any future tool with the same shape.
  *
- * Best-effort: returns empty array on any error rather than throwing.
- *
  * @param {Array} steps - AI SDK response steps (response.steps)
  * @returns {Array<{ type: string, sourceType: string, id: string, url: string, title: string }>}
  */
-export function extractSourcesFromSteps( steps ) {
-  try {
-    if ( !Array.isArray( steps ) || steps.length === 0 ) {
-      return [];
-    }
-
-    const seen = new Set();
-    return steps
-      .flatMap( step => Array.isArray( step.toolResults ) ? step.toolResults : [] )
-      .flatMap( toolResult => isSearchResult( toolResult.output ) ? toolResult.output.results : [] )
-      .filter( item => {
-        if ( !item.url || seen.has( item.url ) ) {
-          return false;
-        }
-        seen.add( item.url );
-        return true;
-      } )
-      .map( toSource );
-  } catch ( error ) {
-    console.warn( '[output-llm] source extraction failed, returning empty sources', error );
-    return [];
-  }
-}
+export const extractSourcesFromSteps = steps =>
+  ( Array.isArray( steps ) ? steps : [] )
+    .flatMap( step => Array.isArray( step?.toolResults ) ? step.toolResults : [] )
+    .flatMap( toolResult => isSearchResult( toolResult?.output ) ? toolResult.output.results : [] )
+    .filter( item => typeof item?.url === 'string' && item.url.length > 0 ) // Ignore non string or empty string urls
+    .reduce( ( map, v ) => map.has( v.url ) ? map : map.set( v.url, v ), new Map() ) // deduplicate, by keeping first entry
+    .values().toArray()
+    .map( v => buildSource( v ) );
 
 /**
  * Merge sources used tools and sources from AI SDK response into a single list
