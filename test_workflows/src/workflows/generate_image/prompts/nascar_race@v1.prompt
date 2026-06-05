@@ -7,6 +7,9 @@ n: 1
 
 Create a {{ style }} image about NASCAR racing.
 
+Reference:
+{{ referenceInstruction }}
+
 Scene:
 {{ scene }}
 
@@ -17,6 +20,6 @@ Composition:
 - Low trackside camera angle that makes the speed feel intense
 
 Constraints:
-- No readable text, logos, or real sponsor marks
-- No real driver likenesses
+- Use NASCAR race cars.
+- NASCAR race cars are spec cars, they don't have headlights
 - Make it feel loud, fast, and competitive

@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { ValidationError, z } from '@outputai/core';
 
 const skillArgSchema = z.object( {
@@ -14,6 +15,44 @@ const generateTextArgsSchema = z.object( {
   maxSteps: z.number().int().positive().optional()
 } );
 
+const base64StringSchema = z.string()
+  .min( 1 )
+  .regex(
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}(?:==)?|[A-Za-z0-9+/]{3}=?)?$/,
+    'Image strings must be raw base64 data.'
+  );
+
+const imageDataSchema = z.union( [
+  z.instanceof( Buffer ),
+  z.instanceof( Uint8Array ),
+  z.instanceof( ArrayBuffer ),
+  base64StringSchema
+] );
+
+const imageInputSchema = z.union( [
+  imageDataSchema,
+  z.object( {
+    data: imageDataSchema,
+    mediaType: z.string().min( 1 ).optional()
+  } ).strict()
+] );
+
+const generateImageArgsSchema = z.object( {
+  prompt: z.string().min( 1 ),
+  variables: z.any().optional(),
+  promptDir: z.string().min( 1 ).optional(),
+  images: z.array( imageInputSchema ).min( 1 ).optional(),
+  mask: imageInputSchema.optional()
+} ).superRefine( ( args, ctx ) => {
+  if ( args.mask && !args.images ) {
+    ctx.addIssue( {
+      code: 'custom',
+      path: [ 'mask' ],
+      message: 'mask requires images.'
+    } );
+  }
+} );
+
 function validateSchema( schema, input, errorPrefix ) {
   const result = schema.safeParse( input );
   if ( !result.success ) {
@@ -27,4 +66,8 @@ export function validateGenerateTextArgs( args ) {
 
 export function validateStreamTextArgs( args ) {
   validateSchema( generateTextArgsSchema, args, 'Invalid streamText() arguments' );
+}
+
+export function validateGenerateImageArgs( args ) {
+  validateSchema( generateImageArgsSchema, args, 'Invalid generateImage() arguments' );
 }

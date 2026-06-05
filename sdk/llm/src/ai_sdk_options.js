@@ -39,13 +39,17 @@ export const loadAiSdkTextOptions = prompt => {
  * @param {object} prompt - Loaded prompt object
  * @returns {object} Options for AI SDK image calls
  */
-export const loadAiSdkImageOptions = prompt => {
+export const loadAiSdkImageOptions = ( { prompt, images, mask } ) => {
   if ( !prompt.instructions ) {
     throw new FatalError( `Prompt "${prompt.name}" has no instructions. Image prompts must use plain instructions.` );
   }
   const options = {
     model: loadImageModel( prompt ),
-    prompt: prompt.instructions,
+    prompt: ( images || mask ) ? {
+      text: prompt.instructions,
+      ...( images && { images } ),
+      ...( mask && { mask } )
+    } : prompt.instructions,
     providerOptions: prompt.config.providerOptions
   };
   for ( const key of [ 'n', 'maxImagesPerCall', 'size', 'aspectRatio', 'seed' ] ) {

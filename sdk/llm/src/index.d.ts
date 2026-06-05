@@ -200,6 +200,9 @@ export type StreamTextAiSdkOptions<
  * `model` and `prompt` are omitted because Output supplies them from the prompt file.
  */
 export type GenerateImageAiSdkOptions = Omit<Parameters<typeof aiGenerateImage>[0], 'model' | 'prompt'>;
+type GenerateImagePrompt = Parameters<typeof aiGenerateImage>[0]['prompt'];
+type GenerateImagePromptWithImages = Exclude<GenerateImagePrompt, string>;
+type GenerateImageInput = GenerateImagePromptWithImages['images'][number];
 
 /** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
 export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish'> & {
@@ -275,6 +278,10 @@ export type GenerateImageParameters = {
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
+  /** Runtime image inputs for image-to-image generation */
+  images?: GenerateImageInput[];
+  /** Optional mask for image editing */
+  mask?: GenerateImagePromptWithImages['mask'];
 } & GenerateImageAiSdkOptions;
 
 /** A source extracted from search tool results during multi-step LLM execution. */

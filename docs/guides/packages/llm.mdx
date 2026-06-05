@@ -1,9 +1,9 @@
 ---
 title: "@outputai/llm"
-description: "Generate and stream text, objects, and arrays from LLMs with prompt file management"
+description: "Generate and stream text, structured outputs, and images with prompt file management"
 ---
 
-The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and message template in one place.
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place.
 
 ## Generate Functions
 
@@ -16,6 +16,7 @@ The `@outputai/llm` package is how you call LLMs from your steps and evaluators.
 | Typed object | `generateText({ prompt, output: Output.object({ schema }) })` | Structured data, evaluator judgments |
 | Array of objects | `generateText({ prompt, output: Output.array({ element }) })` | Lists, multiple items |
 | One of N choices | `generateText({ prompt, output: Output.choice({ options }) })` | Classification, routing |
+| Image | `generateImage({ prompt })` | Text-to-image, image-to-image, and image edits |
 
 ### Text Output
 
@@ -187,6 +188,109 @@ export const judgeSummaryQuality = evaluator({
 ```
 
 `output` contains the typed object matching your schema.
+
+### Image Output
+
+Generate images from a prompt file with `generateImage`. Image prompt files use plain instructions, not chat role tags like `<system>` or `<user>`:
+
+```yaml prompts/nascar_race@v1.prompt
+---
+provider: openai
+model: gpt-image-1
+size: 1024x1024
+n: 1
+providerOptions:
+  openai:
+    quality: high
+---
+
+Create a cinematic motorsport image.
+
+Scene:
+{{ scene }}
+```
+
+Call `generateImage` from a step:
+
+```typescript steps.ts
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { step, z } from '@outputai/core';
+import { generateImage } from '@outputai/llm';
+
+export const generateRaceImage = step({
+  name: 'generateRaceImage',
+  description: 'Generate a race image from a prompt file',
+  inputSchema: z.object({
+    scene: z.string()
+  }),
+  outputSchema: z.object({
+    fileName: z.string()
+  }),
+  fn: async ({ scene }) => {
+    const response = await generateImage({
+      prompt: 'nascar_race@v1',
+      variables: { scene }
+    });
+
+    if (!response.result?.base64) {
+      throw new Error('Image generation did not return base64 image data.');
+    }
+
+    mkdirSync('_temp', { recursive: true });
+    const fileName = `race-${randomUUID()}.png`;
+    writeFileSync(join('_temp', fileName), Buffer.from(response.result.base64, 'base64'));
+
+    return { fileName };
+  }
+});
+```
+
+`result` is a convenience alias for the first generated image (`response.images[0]`). The returned image exposes AI SDK image fields such as `base64` and `mediaType`.
+
+For image-to-image or edit flows, pass runtime image inputs with `images` and optionally `mask`. Output forwards these to the AI SDK prompt object:
+
+```typescript
+import { readFileSync } from 'node:fs';
+import { generateImage } from '@outputai/llm';
+
+const referenceImage = readFileSync('nascar-reference.jpg');
+
+const response = await generateImage({
+  prompt: 'nascar_race@v1',
+  variables: {
+    scene: 'Use the reference car as the hero car in a night race restart.'
+  },
+  images: [referenceImage],
+  providerOptions: {
+    openai: {
+      background: 'auto',
+      quality: 'high',
+      output_format: 'png'
+    }
+  }
+});
+
+const image = response.result;
+```
+
+Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBuffer`, raw base64 strings, or `{ data, mediaType }` objects. `mask` uses the same input shape and requires `images`.
+
+<Note>
+`generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and pass concrete provider options through prompt front matter or `providerOptions`.
+</Note>
+
+Common image options can live in prompt front matter:
+
+| Option | Description |
+|--------|-------------|
+| `n` | Number of images to request when supported by the provider/model |
+| `maxImagesPerCall` | AI SDK image batching limit |
+| `size` | Concrete image size such as `1024x1024` |
+| `aspectRatio` | Aspect ratio such as `1:1` or `16:9` |
+| `seed` | Seed for deterministic output when supported |
+| `providerOptions` | Provider-specific options, for example `openai.quality` or `vertex.imageConfig.imageSize` |
 
 ### Array Output
 
