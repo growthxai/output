@@ -40,11 +40,6 @@ export type {
 // Re-export the tool helper function, Output, smoothStream, stop condition helpers, and jsonSchema
 export { tool, Output, smoothStream, stepCountIs, hasToolCall, jsonSchema } from 'ai';
 
-// Web search tool factories
-export { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';
-export { webSearch as exaSearch } from '@exalabs/ai-sdk';
-export { perplexitySearch } from '@perplexity-ai/ai-sdk';
-
 /**
  * Represents a single message in a prompt conversation.
  *
@@ -391,7 +386,7 @@ export function registerProvider(
  *
  * @returns Array of provider name strings
  */
-export function getRegisteredProviders(): string[];
+export function getProviderNames(): string[];
 
 /**
  * Use an LLM model to generate text.

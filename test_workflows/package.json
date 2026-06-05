@@ -12,6 +12,8 @@
     "output:worker:watch": "npx nodemon --watch src --watch package.json --ext ts,js,json,prompt,md --ignore 'dist/**' --ignore '**/*.test.*' --exec 'npm run output:worker'"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "3.0.81",
+    "@ai-sdk/openai": "3.0.67",
     "@growthxlabs/workflows_catalog": "0.0.12",
     "@outputai/core": "workspace:^",
     "@outputai/credentials": "workspace:^",

@@ -1,0 +1,84 @@
+---
+title: "v0.6.0 → v0.7.0"
+description: "Upgrading Output.ai projects from v0.6.0 to v0.7.0: LLM provider packages and removed web search tool re-exports."
+---
+
+This guide covers the `@outputai/llm` dependency and export changes in v0.7.0.
+
+## What changed
+
+- AI SDK provider packages are now optional peer dependencies of `@outputai/llm`.
+- Projects must install the AI SDK provider packages they use in prompt files.
+- `@outputai/llm` no longer re-exports Tavily, Exa, or Perplexity search tool factories.
+
+## Migration steps
+
+### Install the provider packages you use
+
+If your prompt files use built-in providers, add the matching AI SDK provider package to your project:
+
+| Prompt `provider` | Package to install |
+|-------------------|--------------------|
+| `anthropic` | `@ai-sdk/anthropic` |
+| `openai` | `@ai-sdk/openai` |
+| `azure` | `@ai-sdk/azure` |
+| `vertex` | `@ai-sdk/google-vertex` |
+| `bedrock` | `@ai-sdk/amazon-bedrock` |
+| `perplexity` | `@ai-sdk/perplexity` |
+
+For example:
+
+```bash
+npm install @ai-sdk/openai @ai-sdk/anthropic
+```
+
+Keep `@outputai/llm` installed as before:
+
+```bash
+npm install @outputai/llm
+```
+
+If a provider package is missing, `@outputai/llm` now reports the package that must be installed when that provider is used.
+
+### Import web search tools from their packages
+
+`@outputai/llm` no longer re-exports third-party search tool factories. Import them directly from the package that owns them.
+
+#### Before
+
+```ts
+import {
+  tavilySearch,
+  tavilyExtract,
+  tavilyCrawl,
+  tavilyMap,
+  exaSearch,
+  perplexitySearch
+} from '@outputai/llm';
+```
+
+#### After
+
+```ts
+import { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';
+import { webSearch as exaSearch } from '@exalabs/ai-sdk';
+import { perplexitySearch } from '@perplexity-ai/ai-sdk';
+```
+
+Install whichever search tool packages you use:
+
+```bash
+npm install @tavily/ai-sdk @exalabs/ai-sdk @perplexity-ai/ai-sdk
+```
+
+<Note>
+`provider: perplexity` uses the AI SDK provider package `@ai-sdk/perplexity`. The removed `perplexitySearch` export comes from the separate tool package `@perplexity-ai/ai-sdk`.
+</Note>
+
+## Checklist
+
+- Install each `@ai-sdk/*` provider package used by your prompt files.
+- Replace Tavily imports from `@outputai/llm` with imports from `@tavily/ai-sdk`.
+- Replace `exaSearch` imports from `@outputai/llm` with `webSearch as exaSearch` from `@exalabs/ai-sdk`.
+- Replace `perplexitySearch` imports from `@outputai/llm` with imports from `@perplexity-ai/ai-sdk`.
+- Run your package manager install command and type checker.

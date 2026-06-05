@@ -584,6 +584,25 @@ Company size: {{ size }} employees
 
 ## Providers
 
+`@outputai/llm` ships built-in support for common AI SDK providers, but the provider packages themselves are optional peer dependencies. Install the package for each provider you use in prompt files:
+
+| Prompt `provider` | Package to install |
+|-------------------|--------------------|
+| `anthropic` | `@ai-sdk/anthropic` |
+| `openai` | `@ai-sdk/openai` |
+| `azure` | `@ai-sdk/azure` |
+| `vertex` | `@ai-sdk/google-vertex` |
+| `bedrock` | `@ai-sdk/amazon-bedrock` |
+| `perplexity` | `@ai-sdk/perplexity` |
+
+For example, an OpenAI and Anthropic project should include:
+
+```bash
+npm install @outputai/llm @ai-sdk/openai @ai-sdk/anthropic
+```
+
+If a prompt uses a built-in provider whose package is not installed, `@outputai/llm` throws an error telling you which package to add.
+
 ### Anthropic
 
 ```yaml
