@@ -1,7 +1,12 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { load as parseYaml } from 'js-yaml';
 import { decrypt } from './encryption.js';
-import { InvalidCredentialsKeyError, MalformedCredentialsKeyError, MissingKeyError } from './errors.js';
+import { isSealedParsed, openSealedParsed } from './sealedbox.js';
+import {
+  InvalidCredentialsKeyError,
+  MalformedCredentialsKeyError,
+  MissingKeyError
+} from './errors.js';
 import {
   resolveKeyEnvVar,
   resolveCredentialsPath,
@@ -66,9 +71,28 @@ const safeDecrypt = ( ciphertext: string, key: string, credPath: string ): strin
   }
 };
 
+// A legacy blob that fails to parse is treated as legacy (handed to the symmetric
+// decryptor) rather than surfacing a raw YAML error, matching the CLI's detectFormat.
+const tryParseYaml = ( content: string ): unknown => {
+  try {
+    return parseYaml( content );
+  } catch {
+    return null;
+  }
+};
+
 const decryptYaml = ( credPath: string, key: string ): Record<string, unknown> => {
-  const ciphertext = readFileSync( credPath, 'utf8' ).trim();
-  const plaintext = safeDecrypt( ciphertext, key, credPath );
+  const content = readFileSync( credPath, 'utf8' ).trim();
+
+  // A sealed file parses to a header object; a legacy file is a base64 scalar. Parse
+  // once and branch so the sealed path doesn't re-parse the document.
+  const parsed = tryParseYaml( content );
+
+  if ( isSealedParsed( parsed ) ) {
+    return openSealedParsed( parsed, key, credPath );
+  }
+
+  const plaintext = safeDecrypt( content, key, credPath );
   return ( parseYaml( plaintext ) as Record<string, unknown> ) || {};
 };
 

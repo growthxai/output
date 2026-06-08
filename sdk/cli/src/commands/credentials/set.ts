@@ -1,12 +1,17 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { confirm } from '@inquirer/prompts';
 import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
+import { seal } from '@outputai/credentials';
 import { getErrorMessage } from '#utils/error_utils.js';
 import {
   decryptCredentials,
   credentialsExist,
   writeEncrypted,
-  resolveCredentialsPath
+  resolveCredentialsPath,
+  isSealedCredentials,
+  readSealedDocument,
+  writeSealedDocument,
+  resolveRecipientPublicKey
 } from '#services/credentials_service.js';
 
 type CredentialsObject = Record<string, unknown>;
@@ -138,6 +143,39 @@ export default class CredentialsSet extends Command {
     }
 
     try {
+      // Sealed credentials: seal the single new value with the committed public key.
+      // The other values stay sealed and the private key is never needed.
+      if ( isSealedCredentials( environment, workflow ) ) {
+        const recipient = resolveRecipientPublicKey( environment, workflow );
+        const { recipient: fileRecipient, data } = readSealedDocument( environment, workflow );
+
+        // If the committed public key was rotated away from the recipient the existing
+        // values were sealed to, "set" cannot re-seal those values (no private key, no
+        // plaintext) — writing here would leave a file with two recipients. Refuse.
+        if ( fileRecipient && fileRecipient !== recipient ) {
+          this.error(
+            `The committed public key (${recipient}) does not match the recipient the existing ` +
+            `credentials were sealed to (${fileRecipient}). "set" cannot re-seal existing values. ` +
+            'Re-seal with "output credentials edit" (which decrypts and re-seals everything), ' +
+            'or restore the matching public key, before adding new values.'
+          );
+        }
+
+        const conflict = detectPathConflict( data, args.path );
+        if ( conflict && !flags.yes ) {
+          const shouldContinue = await this.confirmOverwrite( conflict, args.path );
+          if ( !shouldContinue ) {
+            this.log( 'Aborted.' );
+            return;
+          }
+        }
+
+        setNestedValue( data, args.path, seal( args.value, recipient ) );
+        writeSealedDocument( environment, recipient, data, workflow );
+        this.log( `Set ${args.path}` );
+        return;
+      }
+
       const plaintext = decryptCredentials( environment, workflow );
       const data = ( parseYaml( plaintext ) || {} ) as CredentialsObject;
 

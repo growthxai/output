@@ -14,6 +14,12 @@ describe( 'credentials init command', () => {
       credPath: '/project/config/credentials.yml.enc'
     } );
     vi.mocked( credentialsService.resolveKeyPath ).mockReturnValue( '/project/config/credentials.key' );
+    vi.mocked( credentialsService.initSealed ).mockReturnValue( {
+      keyPath: '/project/config/credentials.key',
+      credPath: '/project/config/credentials.yml.enc',
+      pubPath: '/project/config/credentials.pub',
+      publicKey: 'a'.repeat( 64 )
+    } );
   } );
 
   afterEach( () => {
@@ -79,6 +85,15 @@ describe( 'credentials init command', () => {
       await cmd.run();
 
       expect( credentialsService.initCredentials ).toHaveBeenCalled();
+    } );
+
+    it( 'should call initSealed and log public-key guidance with --sealed', async () => {
+      const cmd = createTestCommand( { sealed: true } );
+      await cmd.run();
+
+      expect( credentialsService.initSealed ).toHaveBeenCalledWith( undefined, undefined );
+      expect( credentialsService.initCredentials ).not.toHaveBeenCalled();
+      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'COMMIT the public key' ) );
     } );
   } );
 } );

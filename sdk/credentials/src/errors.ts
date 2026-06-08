@@ -41,3 +41,25 @@ export class MalformedCredentialsKeyError extends Error {
     this.name = 'MalformedCredentialsKeyError';
   }
 }
+
+export class SealedRecipientMismatchError extends Error {
+  constructor( credentialsPath: string, expectedRecipient: string, actualRecipient: string ) {
+    super(
+      `Sealed credentials ${credentialsPath} were sealed for a different key. ` +
+      `The file's recipient public key is ${actualRecipient}, but the configured private key ` +
+      `corresponds to ${expectedRecipient}. The file was sealed for a different keypair, or the ` +
+      'wrong OUTPUT_CREDENTIALS_KEY is configured. Run "output credentials verify" to diagnose.'
+    );
+    this.name = 'SealedRecipientMismatchError';
+  }
+}
+
+export class SealedValueError extends Error {
+  constructor( credentialsPath: string, detail: string ) {
+    super(
+      `Failed to open a sealed value in ${credentialsPath}: ${detail}. ` +
+      'The value may be corrupted or sealed for a different key.'
+    );
+    this.name = 'SealedValueError';
+  }
+}

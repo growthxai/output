@@ -1,6 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 import {
   initCredentials,
+  initSealed,
   resolveCredentialsPath,
   resolveKeyPath,
   credentialsExist
@@ -12,6 +13,7 @@ export default class CredentialsInit extends Command {
   static override examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --environment production',
+    '<%= config.bin %> <%= command.id %> --sealed --environment production',
     '<%= config.bin %> <%= command.id %> --workflow my_workflow'
   ];
 
@@ -23,6 +25,11 @@ export default class CredentialsInit extends Command {
     workflow: Flags.string( {
       char: 'w',
       description: 'Target a specific workflow directory'
+    } ),
+    sealed: Flags.boolean( {
+      char: 's',
+      description: 'Use asymmetric (sealed) credentials: a committed public key encrypts, a private key decrypts',
+      default: false
     } ),
     force: Flags.boolean( {
       char: 'f',
@@ -44,6 +51,23 @@ export default class CredentialsInit extends Command {
       this.error(
         `Credentials already exist at ${resolveCredentialsPath( environment, workflow )}. Use --force to overwrite.`
       );
+    }
+
+    if ( flags.sealed ) {
+      const { keyPath, credPath, pubPath, publicKey } = initSealed( environment, workflow );
+
+      this.log( '' );
+      this.log( `Created private key: ${keyPath}` );
+      this.log( `Created public key:  ${pubPath}` );
+      this.log( `Created credentials: ${credPath}` );
+      this.log( `Recipient public key: ${publicKey}` );
+      this.log( '' );
+      this.log( 'IMPORTANT: Add the PRIVATE key file to .gitignore (keep it only in your runtime):' );
+      this.log( `  ${keyPath}` );
+      this.log( 'COMMIT the public key and the credentials file — they are safe to share.' );
+      this.log( '' );
+      this.log( 'Add credentials with: output credentials set <path> <value>  (no private key needed)' );
+      return;
     }
 
     const { keyPath, credPath } = initCredentials( environment, workflow );

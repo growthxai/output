@@ -15,11 +15,18 @@ export const resolveKeyPath = ( baseDir: string, environment?: string ): string 
   resolve( baseDir, `config/credentials/${environment}.key` ) :
   resolve( baseDir, 'config/credentials.key' );
 
+export const resolvePublicKeyPath = ( baseDir: string, environment?: string ): string => environment ?
+  resolve( baseDir, `config/credentials/${environment}.pub` ) :
+  resolve( baseDir, 'config/credentials.pub' );
+
 export const resolveWorkflowCredentialsPath = ( workflowDir: string ): string =>
   resolve( workflowDir, 'credentials.yml.enc' );
 
 export const resolveWorkflowKeyPath = ( workflowDir: string ): string =>
   resolve( workflowDir, 'credentials.key' );
+
+export const resolveWorkflowPublicKeyPath = ( workflowDir: string ): string =>
+  resolve( workflowDir, 'credentials.pub' );
 
 export const getNestedValue = ( obj: unknown, dotPath: string ): unknown =>
   dotPath.split( '.' ).reduce(

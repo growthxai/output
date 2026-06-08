@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { dump as stringifyYaml } from 'js-yaml';
 import { encrypt, generateKey } from './encryption.js';
+import { generateKeypair, sealTree, serializeSealedDocument } from './sealedbox.js';
 
 const YAML_CONTENT = stringifyYaml( {
   db: { host: 'localhost', password: 'secret' }
@@ -239,6 +240,60 @@ describe( 'encrypted YAML provider', () => {
       } );
 
       expect( result ).toEqual( { db: { host: 'localhost', password: 'secret' } } );
+    } );
+  } );
+
+  describe( 'sealed credentials', () => {
+    const recipient = generateKeypair();
+    const sealedDoc = serializeSealedDocument(
+      recipient.publicKey,
+      sealTree( { db: { host: 'localhost', password: 'secret' } }, recipient.publicKey )
+    );
+
+    it( 'should open sealed values with the matching private key', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = recipient.privateKey;
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => sealedDoc,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const result = provider.loadGlobal( { environment: undefined } );
+
+      expect( result ).toEqual( { db: { host: 'localhost', password: 'secret' } } );
+    } );
+
+    it( 'should throw SealedRecipientMismatchError when the private key is for a different keypair', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = generateKeypair().privateKey;
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => sealedDoc,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { SealedRecipientMismatchError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( SealedRecipientMismatchError );
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( /sealed for a different key/ );
+    } );
+
+    it( 'should throw MalformedCredentialsKeyError when the key is not 64 hex chars', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY = 'too-short';
+
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => sealedDoc,
+        existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
+      } ) );
+
+      const provider = await loadProvider();
+      const { MalformedCredentialsKeyError } = await import( './errors.js' );
+
+      expect( () => provider.loadGlobal( { environment: undefined } ) )
+        .toThrow( MalformedCredentialsKeyError );
     } );
   } );
 } );
