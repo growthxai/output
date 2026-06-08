@@ -1,0 +1,14 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0
+maxTokens: 1000
+---
+
+<assistant>
+Return a concise structured response.
+</assistant>
+
+<user>
+Return an object with the answer field set to any short string.
+</user>
