@@ -20,7 +20,7 @@ import {
   UnsupportedFunctionalityError
 } from 'ai';
 import { FatalError } from '@outputai/core';
-import { mapAiError } from './error_handler.js';
+import { findInstanceInCauseChain, mapAiError } from './error_handler.js';
 
 const makeApiCallError = ( input = {} ) => new APICallError( {
   message: 'Provider rejected the request',
@@ -130,9 +130,99 @@ const preservedAiSdkErrors = [
   ]
 ];
 
+describe( 'findInstanceInCauseChain', () => {
+  class FirstCustomError extends Error {}
+  class SecondCustomError extends Error {}
+
+  it( 'returns the input error when it matches the target constructor', () => {
+    const error = new FirstCustomError( 'first' );
+
+    expect( findInstanceInCauseChain( error, FirstCustomError ) ).toBe( error );
+  } );
+
+  it( 'returns the input error when it matches the target constructor name', () => {
+    const error = new FirstCustomError( 'first' );
+
+    expect( findInstanceInCauseChain( error, 'FirstCustomError' ) ).toBe( error );
+  } );
+
+  it( 'walks the cause chain to find an error by constructor', () => {
+    const target = new SecondCustomError( 'second' );
+    const wrapper = new FirstCustomError( 'first', { cause: target } );
+
+    expect( findInstanceInCauseChain( wrapper, SecondCustomError ) ).toBe( target );
+  } );
+
+  it( 'walks the cause chain to find an error by constructor name', () => {
+    const target = new SecondCustomError( 'second' );
+    const wrapper = new FirstCustomError( 'first', { cause: target } );
+
+    expect( findInstanceInCauseChain( wrapper, 'SecondCustomError' ) ).toBe( target );
+  } );
+
+  it( 'returns null when the target is not found', () => {
+    const error = new FirstCustomError( 'first', { cause: new Error( 'root' ) } );
+
+    expect( findInstanceInCauseChain( error, SecondCustomError ) ).toBeNull();
+  } );
+
+  it( 'returns null for empty or non-object inputs', () => {
+    expect( findInstanceInCauseChain( null, Error ) ).toBeNull();
+    expect( findInstanceInCauseChain( 'not an error', Error ) ).toBeNull();
+  } );
+
+  it( 'stops searching after the depth limit', () => {
+    const makeErrorChain = depth => depth === 0 ?
+      new SecondCustomError( 'target' ) :
+      new FirstCustomError( `level ${depth}`, { cause: makeErrorChain( depth - 1 ) } );
+
+    expect( findInstanceInCauseChain( makeErrorChain( 11 ), SecondCustomError ) ).toBeNull();
+  } );
+} );
+
 describe( 'mapAiError', () => {
   it( 'preserves existing FatalError instances', () => {
     const error = new FatalError( 'Already fatal' );
+
+    expect( mapAiError( error ) ).toBe( error );
+  } );
+
+  it( 'adds first schema issue details to NoObjectGeneratedError schema mismatches', () => {
+    class ZodError extends Error {
+      constructor( issues ) {
+        super( 'schema failed' );
+        this.issues = issues;
+      }
+    }
+    const zodError = new ZodError( [
+      {
+        path: [ 'items', 0, 'title' ],
+        message: 'Expected string'
+      }
+    ] );
+    const validationError = new Error( 'validation failed', { cause: zodError } );
+    const error = new NoObjectGeneratedError( {
+      message: 'No object generated: response did not match schema.',
+      text: '{"items":[{}]}',
+      cause: validationError
+    } );
+
+    const result = mapAiError( error );
+
+    expect( result ).not.toBe( error );
+    expect( result.name ).toBe( 'NoObjectGeneratedError' );
+    expect( result.message ).toBe(
+      'No object generated: response did not match schema. First issue is "Expected string" at path [items, 0, title].'
+    );
+    expect( result.cause ).toBe( error );
+  } );
+
+  it( 'preserves NoObjectGeneratedError schema mismatches when no schema issue is available', () => {
+    const error = new NoObjectGeneratedError( {
+      message: 'No object generated: response did not match schema.',
+      text: '{"items":[{}]}',
+      cause: new Error( 'validation failed' )
+    } );
 
     expect( mapAiError( error ) ).toBe( error );
   } );
