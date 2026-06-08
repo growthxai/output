@@ -6,11 +6,36 @@ import {
   LoadAPIKeyError,
   LoadSettingError,
   NoImageGeneratedError,
+  NoObjectGeneratedError,
   NoSuchModelError,
   NoSuchProviderError,
   UnsupportedFunctionalityError
 } from 'ai';
 import { FatalError } from '@outputai/core';
+
+/**
+ * Recursively search an error cause chain until finds an error which is instance of given prototype.
+ *
+ * @param {object} error - Error instance.
+ * @param {Function|string} _class - Target constructor or constructor name.
+ * @param {number} depth - Current depth, search up to 10 causes deep.
+ * @returns {object|null} - Error or null if not found.
+ */
+export const findInstanceInCauseChain = ( error, _class, depth = 0 ) => {
+  if ( !error || typeof error !== 'object' ) {
+    return null;
+  }
+  if ( typeof _class === 'string' && error.constructor.name === _class ) {
+    return error;
+  }
+  if ( typeof _class === 'function' && error instanceof _class ) {
+    return error;
+  }
+  if ( depth >= 10 ) {
+    return null;
+  }
+  return error.cause ? findInstanceInCauseChain( error.cause, _class, depth + 1 ) : null;
+};
 
 const toFatalError = ( error, extraMessage = '' ) => new FatalError(
   `AI-SDK fatal error${extraMessage ? ` (${extraMessage})` : ''}: ${error.message}`,
@@ -21,6 +46,20 @@ export const mapAiError = error => {
   if ( error instanceof FatalError ) {
     return error;
   }
+
+  // NoObjectGeneratedError can be thrown when the response doesn't match the schema
+  // This adds a wrapper to that error serializing the first zod validation in the message, to make it easier to debug.
+  if ( NoObjectGeneratedError.isInstance( error ) && error.message.includes( 'No object generated: response did not match schema.' ) ) {
+    const zodError = findInstanceInCauseChain( error, 'ZodError' );
+    if ( zodError && zodError.issues?.length > 0 ) {
+      const { path, message } = zodError.issues[0];
+      const wrapper = new Error( `${error.message} First issue is "${message}" at path [${path.join( ', ' )}].`, { cause: error } );
+      wrapper.name = 'NoObjectGeneratedError';
+      return wrapper;
+    }
+    return error;
+  }
+
   if ( APICallError.isInstance( error ) && !error.isRetryable ) {
     // Non-retryable API failures are already classified by AI SDK as permanent provider failures.
     return toFatalError( error, error.statusCode ? `HTTP ${error.statusCode}` : '' );
