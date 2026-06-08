@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
 const SHIPPED_PROVIDERS = [
   { name: 'anthropic', pkg: '@ai-sdk/anthropic', exportName: 'createAnthropic' },
   { name: 'azure', pkg: '@ai-sdk/azure', exportName: 'createAzure' },
@@ -7,39 +8,6 @@ const SHIPPED_PROVIDERS = [
   { name: 'perplexity', pkg: '@ai-sdk/perplexity', exportName: 'createPerplexity' },
   { name: 'vertex', pkg: '@ai-sdk/google-vertex', exportName: 'createVertex' }
 ];
-
-const moduleNotFoundError = ( pkg, requireStack = [ '/test.mjs' ] ) => Object.assign(
-  new Error( `Cannot find module '${pkg}'\nRequire stack:\n${requireStack.map( item => `- ${item}` ).join( '\n' )}` ),
-  { code: 'MODULE_NOT_FOUND' }
-);
-
-const importWithMockedRequire = async modules => {
-  await vi.resetModules();
-
-  const fakeRequire = vi.fn( pkg => {
-    const result = modules[pkg];
-    if ( result instanceof Error ) {
-      throw result;
-    }
-    if ( !result ) {
-      throw moduleNotFoundError( pkg );
-    }
-    return result;
-  } );
-
-  vi.doMock( 'module', async () => {
-    const actual = await vi.importActual( 'module' );
-    return {
-      ...actual,
-      createRequire: () => fakeRequire
-    };
-  } );
-
-  return {
-    fakeRequire,
-    ...( await import( './ai_provider.js' ) )
-  };
-};
 
 const makeProviderModules = () => Object.fromEntries(
   SHIPPED_PROVIDERS.map( ( { name, pkg, exportName } ) => [
@@ -50,27 +18,50 @@ const makeProviderModules = () => Object.fromEntries(
   ] )
 );
 
+const importWithMockedProviders = async ( modules = makeProviderModules() ) => {
+  await vi.resetModules();
+
+  for ( const { pkg, exportName } of SHIPPED_PROVIDERS ) {
+    vi.doMock( pkg, () => ( {
+      [exportName]: modules[pkg][exportName]
+    } ) );
+  }
+
+  return {
+    modules,
+    ...( await import( './ai_provider.js' ) )
+  };
+};
+
 afterEach( () => {
-  vi.doUnmock( 'module' );
+  for ( const { pkg } of SHIPPED_PROVIDERS ) {
+    vi.doUnmock( pkg );
+  }
   vi.resetModules();
   vi.restoreAllMocks();
 } );
 
 describe( 'getProvider', () => {
-  it( 'loads each shipped provider with custom fetch', async () => {
-    const modules = makeProviderModules();
-    const { fakeRequire, getProvider } = await importWithMockedRequire( modules );
+  it( 'does not initialize shipped providers on import', async () => {
+    const { modules } = await importWithMockedProviders();
+
+    for ( const { pkg, exportName } of SHIPPED_PROVIDERS ) {
+      expect( modules[pkg][exportName] ).not.toHaveBeenCalled();
+    }
+  } );
+
+  it( 'initializes each shipped provider with custom fetch when requested', async () => {
+    const { modules, getProvider } = await importWithMockedProviders();
 
     for ( const { name, pkg, exportName } of SHIPPED_PROVIDERS ) {
       const provider = getProvider( name );
 
       expect( provider ).toMatchObject( { name, options: { fetch: expect.any( Function ) } } );
-      expect( fakeRequire ).toHaveBeenCalledWith( pkg );
       expect( modules[pkg][exportName] ).toHaveBeenCalledWith( { fetch: expect.any( Function ) } );
     }
   } );
 
-  it( 'can require all installed shipped provider packages', async () => {
+  it( 'can import and initialize all installed shipped providers', async () => {
     const { getProvider } = await import( './ai_provider.js' );
 
     for ( const { name } of SHIPPED_PROVIDERS ) {
@@ -78,76 +69,48 @@ describe( 'getProvider', () => {
     }
   } );
 
-  it( 'caches loaded providers', async () => {
-    const modules = makeProviderModules();
-    const { fakeRequire, getProvider } = await importWithMockedRequire( modules );
+  it( 'caches initialized providers', async () => {
+    const { modules, getProvider } = await importWithMockedProviders();
 
     const first = getProvider( 'openai' );
     const second = getProvider( 'openai' );
 
     expect( second ).toBe( first );
-    expect( fakeRequire ).toHaveBeenCalledTimes( 1 );
     expect( modules['@ai-sdk/openai'].createOpenAI ).toHaveBeenCalledTimes( 1 );
   } );
 
   it( 'uses registered providers before shipped providers', async () => {
-    const modules = makeProviderModules();
-    const { fakeRequire, getProvider, registerProvider } = await importWithMockedRequire( modules );
+    const { modules, getProvider, registerProvider } = await importWithMockedProviders();
     const customProvider = vi.fn( model => ( { provider: 'custom', model } ) );
 
     registerProvider( 'openai', customProvider );
 
     expect( getProvider( 'openai' ) ).toBe( customProvider );
-    expect( fakeRequire ).not.toHaveBeenCalled();
+    expect( modules['@ai-sdk/openai'].createOpenAI ).not.toHaveBeenCalled();
   } );
 
   it( 'throws FatalError for unsupported providers', async () => {
-    const { getProvider } = await importWithMockedRequire( {} );
+    const { getProvider } = await importWithMockedProviders();
 
     expect( () => getProvider( 'not-real' ) ).toThrow( 'Unsupported provider "not-real"' );
   } );
 
-  it( 'throws a friendly error when an optional provider package is missing', async () => {
-    const { getProvider } = await importWithMockedRequire( {
-      '@ai-sdk/openai': moduleNotFoundError( '@ai-sdk/openai' )
+  it( 'throws a friendly error when provider initialization fails', async () => {
+    const modules = makeProviderModules();
+    modules['@ai-sdk/openai'].createOpenAI.mockImplementation( () => {
+      throw new Error( 'Missing OpenAI API key' );
     } );
+    const { getProvider } = await importWithMockedProviders( modules );
 
     expect( () => getProvider( 'openai' ) ).toThrow(
-      'Provider "openai" requires "@ai-sdk/openai". Install it to use this provider.'
-    );
-  } );
-
-  it( 'rethrows module not found errors for transitive dependencies', async () => {
-    const transitiveError = moduleNotFoundError( 'missing-transitive-package', [
-      '/node_modules/@ai-sdk/openai/dist/index.js',
-      '/test.mjs'
-    ] );
-    const { getProvider } = await importWithMockedRequire( {
-      '@ai-sdk/openai': transitiveError
-    } );
-
-    expect( () => getProvider( 'openai' ) ).toThrow( transitiveError );
-  } );
-
-  it.each( [
-    'ERR_REQUIRE_ESM',
-    'ERR_REQUIRE_ASYNC_MODULE',
-    'ERR_PACKAGE_PATH_NOT_EXPORTED'
-  ] )( 'throws a friendly error when provider package cannot be loaded synchronously: %s', async code => {
-    const error = Object.assign( new Error( code ), { code } );
-    const { getProvider } = await importWithMockedRequire( {
-      '@ai-sdk/openai': error
-    } );
-
-    expect( () => getProvider( 'openai' ) ).toThrow(
-      'Provider "openai" package "@ai-sdk/openai" cannot be loaded synchronously. Use a compatible version.'
+      'Failed to initialize provider "openai": Missing OpenAI API key'
     );
   } );
 } );
 
 describe( 'registerProvider', () => {
   it( 'registers custom providers', async () => {
-    const { getProvider, getProviderNames, registerProvider } = await importWithMockedRequire( {} );
+    const { getProvider, getProviderNames, registerProvider } = await importWithMockedProviders();
     const customProvider = vi.fn();
 
     registerProvider( 'custom', customProvider );
@@ -157,7 +120,7 @@ describe( 'registerProvider', () => {
   } );
 
   it( 'validates provider registration arguments', async () => {
-    const { registerProvider } = await importWithMockedRequire( {} );
+    const { registerProvider } = await importWithMockedProviders();
 
     expect( () => registerProvider( '', vi.fn() ) ).toThrow( 'Provider name must be a non-empty string' );
     expect( () => registerProvider( 'custom', 'not-a-function' ) ).toThrow( 'expected function, received string' );
@@ -166,7 +129,7 @@ describe( 'registerProvider', () => {
 
 describe( 'getProviderNames', () => {
   it( 'returns shipped and registered provider names without duplicates', async () => {
-    const { getProviderNames, registerProvider } = await importWithMockedRequire( {} );
+    const { getProviderNames, registerProvider } = await importWithMockedProviders();
 
     registerProvider( 'custom', vi.fn() );
     registerProvider( 'openai', vi.fn() );

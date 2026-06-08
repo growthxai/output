@@ -13,7 +13,6 @@
     "output:dev": "output dev"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "3.0.81",
     "@outputai/output": "{{frameworkVersion}}"
   },
   "devDependencies": {

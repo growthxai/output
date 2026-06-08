@@ -7,38 +7,10 @@ This guide covers the `@outputai/llm` dependency and export changes in v0.7.0.
 
 ## What changed
 
-- AI SDK provider packages are now optional peer dependencies of `@outputai/llm`.
-- Projects must install the AI SDK provider packages they use in prompt files.
 - `@outputai/llm` no longer re-exports Tavily, Exa, or Perplexity search tool factories.
+- `@outputai/llm` `.getRegisteredProviders()` was renamed to `.getProviderNames()`.
 
 ## Migration steps
-
-### Install the provider packages you use
-
-If your prompt files use built-in providers, add the matching AI SDK provider package to your project:
-
-| Prompt `provider` | Package to install |
-|-------------------|--------------------|
-| `anthropic` | `@ai-sdk/anthropic` |
-| `openai` | `@ai-sdk/openai` |
-| `azure` | `@ai-sdk/azure` |
-| `vertex` | `@ai-sdk/google-vertex` |
-| `bedrock` | `@ai-sdk/amazon-bedrock` |
-| `perplexity` | `@ai-sdk/perplexity` |
-
-For example:
-
-```bash
-npm install @ai-sdk/openai @ai-sdk/anthropic
-```
-
-Keep `@outputai/llm` installed as before:
-
-```bash
-npm install @outputai/llm
-```
-
-If a provider package is missing, `@outputai/llm` now reports the package that must be installed when that provider is used.
 
 ### Import web search tools from their packages
 
@@ -75,10 +47,30 @@ npm install @tavily/ai-sdk @exalabs/ai-sdk @perplexity-ai/ai-sdk
 `provider: perplexity` uses the AI SDK provider package `@ai-sdk/perplexity`. The removed `perplexitySearch` export comes from the separate tool package `@perplexity-ai/ai-sdk`.
 </Note>
 
+### Rename `getRegisteredProviders` to `getProviderNames`
+
+The provider list helper was renamed to better describe that it returns built-in provider names as well as custom providers registered with `registerProvider`.
+
+#### Before
+
+```ts
+import { getRegisteredProviders } from '@outputai/llm';
+
+const providers = getRegisteredProviders();
+```
+
+#### After
+
+```ts
+import { getProviderNames } from '@outputai/llm';
+
+const providers = getProviderNames();
+```
+
 ## Checklist
 
-- Install each `@ai-sdk/*` provider package used by your prompt files.
 - Replace Tavily imports from `@outputai/llm` with imports from `@tavily/ai-sdk`.
 - Replace `exaSearch` imports from `@outputai/llm` with `webSearch as exaSearch` from `@exalabs/ai-sdk`.
 - Replace `perplexitySearch` imports from `@outputai/llm` with imports from `@perplexity-ai/ai-sdk`.
+- Replace `getRegisteredProviders` imports and calls with `getProviderNames`.
 - Run your package manager install command and type checker.

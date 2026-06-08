@@ -32,26 +32,6 @@
     "@ai-sdk/openai": ">=3 <4",
     "@ai-sdk/perplexity": ">=3 <4"
   },
-  "peerDependenciesMeta": {
-    "@ai-sdk/amazon-bedrock": {
-      "optional": true
-    },
-    "@ai-sdk/anthropic": {
-      "optional": true
-    },
-    "@ai-sdk/azure": {
-      "optional": true
-    },
-    "@ai-sdk/google-vertex": {
-      "optional": true
-    },
-    "@ai-sdk/openai": {
-      "optional": true
-    },
-    "@ai-sdk/perplexity": {
-      "optional": true
-    }
-  },
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"

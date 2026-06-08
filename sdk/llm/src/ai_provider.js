@@ -1,8 +1,12 @@
 import { FatalError, ValidationError, z } from '@outputai/core';
 import { Agent, fetch } from 'undici';
-import { createRequire } from 'module';
-
-const require = createRequire( import.meta.url );
+// providers
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createAzure } from '@ai-sdk/azure';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createPerplexity } from '@ai-sdk/perplexity';
+import { createVertex } from '@ai-sdk/google-vertex';
 
 /** This custom dispatcher has longer timeouts */
 const customDispatcher = new Agent( {
@@ -13,18 +17,18 @@ const customDispatcher = new Agent( {
 /** This custom fetch instance uses the custom dispatcher */
 const customFetch = ( input, init ) => fetch( input, { dispatcher: customDispatcher, ...init } );
 
-/** Providers loaded during usage */
-const loadedProviders = {};
-
-/** Available provider to lazy load. Imports need to be strings for bundlers to see them */
-const shippedProviders = {
-  anthropic: { loader: () => require( '@ai-sdk/anthropic' ).createAnthropic, pkg: '@ai-sdk/anthropic' },
-  azure: { loader: () => require( '@ai-sdk/azure' ).createAzure, pkg: '@ai-sdk/azure' },
-  bedrock: { loader: () => require( '@ai-sdk/amazon-bedrock' ).createAmazonBedrock, pkg: '@ai-sdk/amazon-bedrock' },
-  openai: { loader: () => require( '@ai-sdk/openai' ).createOpenAI, pkg: '@ai-sdk/openai' },
-  perplexity: { loader: () => require( '@ai-sdk/perplexity' ).createPerplexity, pkg: '@ai-sdk/perplexity' },
-  vertex: { loader: () => require( '@ai-sdk/google-vertex' ).createVertex, pkg: '@ai-sdk/google-vertex' }
+/** Available provider to initialize. */
+const providerInitializers = {
+  anthropic: createAnthropic,
+  azure: createAzure,
+  bedrock: createAmazonBedrock,
+  openai: createOpenAI,
+  perplexity: createPerplexity,
+  vertex: createVertex
 };
+
+/** Providers already initialized due usage */
+const initializedProviders = {};
 
 /** Providers registered by the user */
 const registeredProviders = {};
@@ -34,7 +38,7 @@ const registeredProviders = {};
  * @returns {string[]} Provider names
  */
 export const getProviderNames = () =>
-  new Set( Object.keys( shippedProviders ).concat( Object.keys( registeredProviders ) ) ).values().toArray();
+  new Set( Object.keys( providerInitializers ).concat( Object.keys( registeredProviders ) ) ).values().toArray();
 
 const registerProviderSchema = z.object( {
   name: z.string().min( 1, 'Provider name must be a non-empty string' ),
@@ -56,44 +60,26 @@ export function registerProvider( name, providerFn ) {
 }
 
 /**
- * Dynamic load a provider
- * @param {string} name
- * @returns {object} provider
- */
-const loadProvider = name => {
-  const { loader, pkg } = shippedProviders[name];
-  try {
-    const provider = loader()( { fetch: customFetch } );
-    console.debug( `LLM: Provider "${name}" loaded` );
-    return provider;
-  } catch ( error ) {
-    if ( error.code === 'MODULE_NOT_FOUND' && error.message.startsWith( `Cannot find module '${pkg}'` ) ) {
-      throw new FatalError( `Provider "${name}" requires "${pkg}". Install it to use this provider.`, { cause: error } );
-    }
-    if ( [ 'ERR_REQUIRE_ESM', 'ERR_REQUIRE_ASYNC_MODULE', 'ERR_PACKAGE_PATH_NOT_EXPORTED' ].includes( error.code ) ) {
-      throw new FatalError( `Provider "${name}" package "${pkg}" cannot be loaded synchronously. Use a compatible version.`, { cause: error } );
-    }
-    throw error;
-  }
-};
-
-/**
  * Return a provider by its name.
  * Look for registered providers first.
- * If none, looks for loaded providers.
- * Finally, looks for shipped providers, and if exists load it.
+ * If none, looks for initialized providers.
+ * Finally, looks for available provider initializers, and if found, init it.
  *
  * @param {string} name
  * @returns {object} provider
  */
 export const getProvider = name => {
-  const provider = registeredProviders[name] ?? loadedProviders[name];
+  const provider = registeredProviders[name] ?? initializedProviders[name];
 
   if ( provider ) {
     return provider;
   }
-  if ( shippedProviders[name] ) {
-    return loadedProviders[name] = loadProvider( name );
+  if ( providerInitializers[name] ) {
+    try {
+      return initializedProviders[name] = providerInitializers[name]( { fetch: customFetch } );
+    } catch ( error ) {
+      throw new FatalError( `Failed to initialize provider "${name}": ${error.message}`, { cause: error } );
+    }
   }
 
   throw new FatalError( `Unsupported provider "${name}"` );

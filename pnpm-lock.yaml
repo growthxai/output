@@ -426,12 +426,6 @@ importers:
 
   test_workflows:
     dependencies:
-      '@ai-sdk/anthropic':
-        specifier: 3.0.81
-        version: 3.0.81(zod@4.3.6)
-      '@ai-sdk/openai':
-        specifier: 3.0.67
-        version: 3.0.67(zod@4.3.6)
       '@growthxlabs/workflows_catalog':
         specifier: 0.0.12
         version: 0.0.12(@outputai/core@sdk+core)(zod@4.3.6)
@@ -7661,12 +7655,6 @@ snapshots:
       aws4fetch: 1.0.20
       zod: 4.4.3
 
-  '@ai-sdk/anthropic@3.0.81(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.27(zod@4.3.6)
-      zod: 4.3.6
-
   '@ai-sdk/anthropic@3.0.81(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
@@ -7711,12 +7699,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.27(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.67(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@ai-sdk/provider-utils': 4.0.27(zod@4.3.6)
-      zod: 4.3.6
-
   '@ai-sdk/openai@3.0.67(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
@@ -7735,13 +7717,6 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.8
       zod: 4.4.3
-
-  '@ai-sdk/provider-utils@4.0.27(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.8
-      zod: 4.3.6
 
   '@ai-sdk/provider-utils@4.0.27(zod@4.4.3)':
     dependencies:
