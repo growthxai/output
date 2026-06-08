@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+
 /**
  * @typedef {object} SerializedError
  * @property {string} name - The error constructor name
@@ -6,16 +8,35 @@
  */
 
 /**
- * Serialize an error object.
+ * Recursively Serialize an error object. Navigate using "cause" property.
  *
- * If it has ".cause", recursive serialize its cause until finally found an error without it.
+ * Goes up 10 levels deep.
  *
  * @param {Error} error
  * @returns {SerializedError}
  */
-export const serializeError = error =>
-  error.cause ? serializeError( error.cause ) : {
-    name: error.constructor.name,
-    message: error.message,
-    stack: error.stack
+export const serializeError = ( () => {
+
+  const serializeValue = v => {
+    try {
+      return JSON.parse( JSON.stringify( v ) );
+    } catch {
+      return inspect( v, { depth: 5, breakLength: Infinity, colors: false } );
+    }
   };
+
+  return ( error, depth = 0 ) => {
+    if ( depth > 10 ) {
+      return { name: 'Error', message: 'Cause chain too deep' };
+    }
+    if ( error instanceof Error ) {
+      return {
+        name: error.constructor.name,
+        message: error.message,
+        stack: error.stack,
+        ...( error.cause !== undefined ? { cause: serializeError( error.cause, depth + 1 ) } : {} )
+      };
+    }
+    return serializeValue( error );
+  };
+} )();
