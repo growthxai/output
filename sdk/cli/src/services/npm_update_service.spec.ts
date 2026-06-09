@@ -1,25 +1,37 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
+  getLocalInstalledPackages,
   getLocalInstalledVersion,
+  updateLocal,
   isOutdated
 } from './npm_update_service.js';
 
-const { mockExecFile } = vi.hoisted( () => ( { mockExecFile: vi.fn() } ) );
+const { mockExecFile, mockReadFile, mockSpawn } = vi.hoisted( () => ( {
+  mockExecFile: vi.fn(),
+  mockReadFile: vi.fn(),
+  mockSpawn: vi.fn()
+} ) );
 
 vi.mock( 'node:child_process', () => ( {
   execFile: vi.fn(),
-  spawn: vi.fn()
+  spawn: mockSpawn
 } ) );
 
 vi.mock( 'node:util', () => ( {
   promisify: vi.fn( () => mockExecFile )
 } ) );
 
+vi.mock( 'node:fs/promises', () => ( {
+  readFile: mockReadFile
+} ) );
+
 describe( 'npm_update_service', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    mockReadFile.mockResolvedValue( JSON.stringify( { dependencies: {} } ) );
   } );
 
   describe( 'fetchLatestVersion', () => {
@@ -28,7 +40,7 @@ describe( 'npm_update_service', () => {
 
       const result = await fetchLatestVersion();
       expect( result ).toBe( '1.2.3' );
-      expect( mockExecFile ).toHaveBeenCalledWith( 'npm', [ 'view', '@outputai/cli', 'version' ] );
+      expect( mockExecFile ).toHaveBeenCalledWith( 'npm', [ 'view', '@outputai/core', 'version' ] );
     } );
 
     it( 'should return null on empty output', async () => {
@@ -109,6 +121,72 @@ describe( 'npm_update_service', () => {
 
       const result = await getLocalInstalledVersion( '/some/project' );
       expect( result ).toBeNull();
+    } );
+  } );
+
+  describe( 'getLocalInstalledPackages', () => {
+    it( 'should return directly installed Output SDK package versions', async () => {
+      mockReadFile.mockResolvedValue( JSON.stringify( {
+        dependencies: {
+          '@outputai/cli': '0.8.3',
+          '@outputai/core': '0.8.3',
+          'other-package': '1.0.0'
+        },
+        devDependencies: {
+          '@outputai/llm': '0.8.3'
+        }
+      } ) );
+      mockExecFile.mockImplementation( async ( _command, args ) => {
+        const packageName = args[1];
+        return {
+          stdout: JSON.stringify( {
+            dependencies: { [packageName]: { version: '0.8.3' } }
+          } )
+        };
+      } );
+
+      const result = await getLocalInstalledPackages( '/some/project' );
+
+      expect( result ).toEqual( [
+        { name: '@outputai/cli', version: '0.8.3' },
+        { name: '@outputai/core', version: '0.8.3' },
+        { name: '@outputai/llm', version: '0.8.3' }
+      ] );
+      expect( mockExecFile ).toHaveBeenCalledWith(
+        'npm', [ 'ls', '@outputai/cli', '--json' ], { cwd: '/some/project' }
+      );
+      expect( mockExecFile ).toHaveBeenCalledWith(
+        'npm', [ 'ls', '@outputai/core', '--json' ], { cwd: '/some/project' }
+      );
+      expect( mockExecFile ).toHaveBeenCalledWith(
+        'npm', [ 'ls', '@outputai/llm', '--json' ], { cwd: '/some/project' }
+      );
+    } );
+
+    it( 'should return an empty list when package.json cannot be read', async () => {
+      mockReadFile.mockRejectedValue( new Error( 'missing package.json' ) );
+
+      const result = await getLocalInstalledPackages( '/some/project' );
+
+      expect( result ).toEqual( [] );
+      expect( mockExecFile ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'updateLocal', () => {
+    it( 'should install local packages at the target version exactly', async () => {
+      const proc = new EventEmitter();
+      mockSpawn.mockReturnValue( proc );
+
+      const promise = updateLocal( '/some/project', [ '@outputai/cli', '@outputai/core' ], '1.0.0' );
+      proc.emit( 'close', 0 );
+      await promise;
+
+      expect( mockSpawn ).toHaveBeenCalledWith(
+        'npm',
+        [ 'install', '--ignore-scripts', '--save-exact', '@outputai/cli@1.0.0', '@outputai/core@1.0.0' ],
+        { cwd: '/some/project', stdio: 'inherit' }
+      );
     } );
   } );
 

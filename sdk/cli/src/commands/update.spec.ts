@@ -4,6 +4,7 @@ import Update from './update.js';
 import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
+  getLocalInstalledPackages,
   getLocalInstalledVersion,
   updateGlobal,
   updateLocal,
@@ -15,6 +16,7 @@ import { confirm } from '#utils/prompt.js';
 vi.mock( '#services/npm_update_service.js', () => ( {
   fetchLatestVersion: vi.fn(),
   getGlobalInstalledVersion: vi.fn(),
+  getLocalInstalledPackages: vi.fn(),
   getLocalInstalledVersion: vi.fn(),
   updateGlobal: vi.fn(),
   updateLocal: vi.fn(),
@@ -44,6 +46,7 @@ describe( 'update command', () => {
     vi.clearAllMocks();
     vi.mocked( fetchLatestVersion ).mockResolvedValue( '1.0.0' );
     vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( '0.8.4' );
+    vi.mocked( getLocalInstalledPackages ).mockResolvedValue( [] );
     vi.mocked( getLocalInstalledVersion ).mockResolvedValue( null );
     vi.mocked( isOutdated ).mockReturnValue( true );
     vi.mocked( confirm ).mockResolvedValue( true );
@@ -195,7 +198,50 @@ describe( 'update command', () => {
   } );
 
   describe( 'local update', () => {
-    it( 'should prompt and update local install when outdated', async () => {
+    it( 'should prompt and update local SDK packages when outdated', async () => {
+      vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
+      vi.mocked( getLocalInstalledPackages )
+        .mockResolvedValueOnce( [
+          { name: '@outputai/cli', version: '0.8.3' },
+          { name: '@outputai/core', version: '0.8.3' },
+          { name: '@outputai/http', version: '1.0.0' }
+        ] )
+        .mockResolvedValueOnce( [
+          { name: '@outputai/cli', version: '1.0.0' },
+          { name: '@outputai/core', version: '1.0.0' },
+          { name: '@outputai/http', version: '1.0.0' }
+        ] );
+      vi.mocked( isOutdated ).mockImplementation( ( current, latest ) => current !== latest );
+
+      const cmd = createTestCommand( { cli: true } );
+      await cmd.run();
+
+      expect( updateLocal ).toHaveBeenCalledWith(
+        process.cwd(),
+        [ '@outputai/cli', '@outputai/core', '@outputai/http' ],
+        '1.0.0'
+      );
+      expect( confirm ).toHaveBeenCalledWith(
+        expect.objectContaining( { message: expect.stringContaining( 'Output SDK packages' ) } )
+      );
+    } );
+
+    it( 'should show local SDK packages as up to date', async () => {
+      vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
+      vi.mocked( getLocalInstalledPackages ).mockResolvedValue( [
+        { name: '@outputai/cli', version: '1.0.0' },
+        { name: '@outputai/core', version: '1.0.0' }
+      ] );
+      vi.mocked( isOutdated ).mockReturnValue( false );
+
+      const cmd = createTestCommand( { cli: true } );
+      await cmd.run();
+
+      expect( updateLocal ).not.toHaveBeenCalled();
+      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'up to date' ) );
+    } );
+
+    it( 'should prompt and update legacy local install when outdated', async () => {
       vi.mocked( getLocalInstalledVersion )
         .mockResolvedValueOnce( '0.8.3' )
         .mockResolvedValueOnce( '1.0.0' );
