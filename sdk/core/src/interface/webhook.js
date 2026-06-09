@@ -24,7 +24,7 @@ export async function sendHttpRequest( { url, method = 'GET', payload = undefine
       nonRetryableErrorTypes: [ FatalError.name ]
     }
   } )[ACTIVITY_SEND_HTTP_REQUEST]( { method, url, payload, headers } );
-  return res;
+  return res.output;
 };
 
 /**

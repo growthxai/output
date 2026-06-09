@@ -10,6 +10,12 @@ vi.mock( './validations/static.js', () => ( {
   validateRequestPayload: validateRequestPayloadMock
 } ) );
 
+const activityEnvelope = output => ( {
+  __output_activity_wrapper_version: 1,
+  output,
+  aggregations: null
+} );
+
 // Minimal, legible mock of @temporalio/workflow APIs used by webhook.js
 const activityFnMock = vi.fn();
 const proxyActivitiesMock = vi.fn( () => ( { ['__internal#sendHttpRequest']: activityFnMock } ) );
@@ -70,7 +76,7 @@ describe( 'interface/webhook', () => {
       headers: { 'content-type': 'application/json' },
       body: { ok: true }
     };
-    activityFnMock.mockResolvedValueOnce( fakeSerializedResponse );
+    activityFnMock.mockResolvedValueOnce( activityEnvelope( fakeSerializedResponse ) );
 
     const args = { url: 'https://example.com/api', method: 'GET' };
     const res = await sendHttpRequest( args );
@@ -97,14 +103,14 @@ describe( 'interface/webhook', () => {
     const { sendPostRequestAndAwaitWebhook } = await import( './webhook.js' );
 
     // Make the inner activity resolve (through sendHttpRequest)
-    activityFnMock.mockResolvedValueOnce( {
+    activityFnMock.mockResolvedValueOnce( activityEnvelope( {
       url: 'https://webhook.site',
       status: 200,
       statusText: 'OK',
       ok: true,
       headers: {},
       body: null
-    } );
+    } ) );
 
     const url = 'https://webhook.site/ingest';
     const promise = sendPostRequestAndAwaitWebhook( { url, payload: { x: 1 }, headers: { a: 'b' } } );
