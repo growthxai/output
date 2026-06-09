@@ -1,6 +1,6 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { workflowInfo, proxySinks, ApplicationFailure, ContinueAsNew, isCancellation } from '@temporalio/workflow';
-import { memoToHeaders } from '../sandboxed_utils.js';
+import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#utils';
 import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 // this is a dynamic generated file with activity configs overwrites

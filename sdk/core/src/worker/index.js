@@ -5,7 +5,7 @@ import { sinks } from './sinks.js';
 import { createCatalog } from './catalog_workflow/index.js';
 import { init as initTracing } from '#tracing';
 import { webpackConfigHook } from './bundler_options.js';
-import { initInterceptors } from './interceptors.js';
+import { initInterceptors } from './interceptors/index.js';
 import { createChildLogger } from '#logger';
 import { registerShutdown } from './shutdown.js';
 import { startCatalog } from './start_catalog.js';

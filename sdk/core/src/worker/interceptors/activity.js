@@ -1,7 +1,7 @@
 import { Context, activityInfo as activityInfoFn } from '@temporalio/activity';
 import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
-import { headersToObject } from '../sandboxed_utils.js';
+import { headersToObject } from './headers.js';
 import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, namespace } from '../configs.js';
 import { messageBus } from '#bus';
@@ -29,37 +29,30 @@ const log = createChildLogger( 'ActivityInterceptor' );
 */
 export class ActivityExecutionInterceptor {
   constructor( { activities, workflows, connection } ) {
-    this.activities = activities;
-    this.workflowsMap = workflows.reduce( ( map, w ) => {
-      map.set( w.name, w );
-      for ( const alias of w.aliases ?? [] ) {
-        map.set( alias, w );
-      }
-      return map;
-    }, new Map() );
+    // convert activities{} object to a map: activityType:kind
+    this.activityKindMap = new Map( Object.entries( activities )
+      .map( ( [ type, fn ] ) => ( [ type, fn[METADATA_ACCESS_SYMBOL].type ] ) ) );
+
+    // convert workflows[] array to a map: workflowType/alias:workflow
+    this.workflowsPathMap = new Map( workflows.flatMap( ( { name, aliases, path } ) =>
+      [ name, ...aliases ?? [] ].map( a => ( [ a, path ] ) )
+    ) );
     this.connection = connection;
   };
-
-  /**
-   * Returns a workflow entry by its name or throws error
-   * @param {string} workflowType
-   * @returns {object} Workflow entry
-   * @throws {Error}
-   */
-  getWorkflowEntry( workflowType ) {
-    const workflowEntry = this.workflowsMap.get( workflowType );
-    if ( !workflowEntry ) {
-      throw new Error( `Activity interceptor: workflow "${workflowType}" not found in workflowsMap.` );
-    }
-    return workflowEntry;
-  }
 
   async execute( input, next ) {
     const activityInfo = activityInfoFn();
     const { workflowExecution: { workflowId, runId }, activityId, activityType, workflowType } = activityInfo;
     const { traceInfo, workflowDetails } = headersToObject( input.headers );
-    const { type: outputActivityKind } = this.activities?.[activityType]?.[METADATA_ACCESS_SYMBOL];
-    const { path: workflowFilename } = this.getWorkflowEntry( workflowType );
+    const outputActivityKind = this.activityKindMap.get( activityType );
+    const workflowFilename = this.workflowsPathMap.get( workflowType );
+
+    if ( !outputActivityKind ) {
+      throw new Error( `Activity interceptor: activity "${activityType}" was not registered.` );
+    }
+    if ( !workflowFilename ) {
+      throw new Error( `Activity interceptor: workflow "${workflowType}" was not registered.` );
+    }
 
     const state = {
       heartbeat: null,
