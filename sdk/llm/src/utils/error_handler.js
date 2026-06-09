@@ -13,6 +13,9 @@ import {
 } from 'ai';
 import { FatalError } from '@outputai/core';
 
+// AI SDK does not expose a dedicated schema-mismatch discriminator for NoObjectGeneratedError.
+const NO_OBJECT_SCHEMA_MISMATCH_MESSAGE = 'No object generated: response did not match schema.';
+
 /**
  * Recursively search an error cause chain until finds an error which is instance of given prototype.
  *
@@ -25,7 +28,7 @@ export const findInstanceInCauseChain = ( error, _class, depth = 0 ) => {
   if ( !error || typeof error !== 'object' ) {
     return null;
   }
-  if ( typeof _class === 'string' && error.constructor.name === _class ) {
+  if ( typeof _class === 'string' && error.constructor?.name === _class ) {
     return error;
   }
   if ( typeof _class === 'function' && error instanceof _class ) {
@@ -42,20 +45,34 @@ const toFatalError = ( error, extraMessage = '' ) => new FatalError(
   { cause: error }
 );
 
+/**
+ * Map an AI SDK error to a framework specific error:
+ *
+ * - AI SDK Unrecoverable errors become FatalErrors, check code to see options.
+ * - NoObjectGeneratedError from invalid schema are reinitialized with a better message.
+ * - Other errors are preserved.
+ * @param {object} error - Original Error
+ * @returns {object} A new Error
+ */
 export const mapAiError = error => {
   if ( error instanceof FatalError ) {
     return error;
   }
 
-  // NoObjectGeneratedError can be thrown when the response doesn't match the schema
-  // This adds a wrapper to that error serializing the first zod validation in the message, to make it easier to debug.
-  if ( NoObjectGeneratedError.isInstance( error ) && error.message.includes( 'No object generated: response did not match schema.' ) ) {
+  // NoObjectGeneratedError can be thrown when the response doesn't match the schema.
+  // This re-creates the error with a better message, making it easier to debug.
+  if ( NoObjectGeneratedError.isInstance( error ) && error.message.includes( NO_OBJECT_SCHEMA_MISMATCH_MESSAGE ) ) {
     const zodError = findInstanceInCauseChain( error, 'ZodError' );
     if ( zodError && zodError.issues?.length > 0 ) {
-      const { path, message } = zodError.issues[0];
-      const wrapper = new Error( `${error.message} First issue is "${message}" at path [${path.join( ', ' )}].`, { cause: error } );
-      wrapper.name = 'NoObjectGeneratedError';
-      return wrapper;
+      const [ { path, message } ] = zodError.issues;
+      return new NoObjectGeneratedError( {
+        message: `${error.message} First issue is "${message}" at path [${path.join( ', ' )}].`,
+        cause: error.cause,
+        text: error.text,
+        response: error.response,
+        usage: error.usage,
+        finishReason: error.finishReason
+      } );
     }
     return error;
   }

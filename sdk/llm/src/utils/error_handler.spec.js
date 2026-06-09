@@ -171,6 +171,13 @@ describe( 'findInstanceInCauseChain', () => {
     expect( findInstanceInCauseChain( 'not an error', Error ) ).toBeNull();
   } );
 
+  it( 'returns null for object causes without constructors', () => {
+    const cause = Object.create( null );
+    const error = new FirstCustomError( 'first', { cause } );
+
+    expect( findInstanceInCauseChain( error, 'SecondCustomError' ) ).toBeNull();
+  } );
+
   it( 'stops searching after the depth limit', () => {
     const makeErrorChain = depth => depth === 0 ?
       new SecondCustomError( 'target' ) :
@@ -204,17 +211,25 @@ describe( 'mapAiError', () => {
     const error = new NoObjectGeneratedError( {
       message: 'No object generated: response did not match schema.',
       text: '{"items":[{}]}',
+      response: { id: 'response-1' },
+      usage: { totalTokens: 10 },
+      finishReason: 'stop',
       cause: validationError
     } );
 
     const result = mapAiError( error );
 
     expect( result ).not.toBe( error );
-    expect( result.name ).toBe( 'NoObjectGeneratedError' );
+    expect( NoObjectGeneratedError.isInstance( result ) ).toBe( true );
+    expect( result.name ).toBe( 'AI_NoObjectGeneratedError' );
     expect( result.message ).toBe(
       'No object generated: response did not match schema. First issue is "Expected string" at path [items, 0, title].'
     );
-    expect( result.cause ).toBe( error );
+    expect( result.cause ).toBe( validationError );
+    expect( result.text ).toBe( error.text );
+    expect( result.response ).toBe( error.response );
+    expect( result.usage ).toBe( error.usage );
+    expect( result.finishReason ).toBe( error.finishReason );
   } );
 
   it( 'preserves NoObjectGeneratedError schema mismatches when no schema issue is available', () => {
