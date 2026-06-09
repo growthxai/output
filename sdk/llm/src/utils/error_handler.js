@@ -48,10 +48,9 @@ const toFatalError = ( error, extraMessage = '' ) => new FatalError(
 /**
  * Map an AI SDK error to a framework specific error:
  *
- * Unrecoverable errors become FatalErrors.
- *
- * NoObjectGeneratedError from invalid schema are reinitialized with a better message.
- *
+ * - AI SDK Unrecoverable errors become FatalErrors, check code to see options.
+ * - NoObjectGeneratedError from invalid schema are reinitialized with a better message.
+ * - Other errors are preserved.
  * @param {object} error - Original Error
  * @returns {object} A new Error
  */
