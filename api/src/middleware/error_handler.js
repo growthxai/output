@@ -5,7 +5,7 @@ import {
 } from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
-import { isProduction } from '#configs';
+import { serializeTemporalError } from '#utils';
 import { ZodError } from 'zod';
 
 // gRPC status codes we surface as HTTP errors. Keeps the lookup numeric so we don't
@@ -55,8 +55,11 @@ export default function errorHandler( error, req, res, _next ) {
   response.workflowId = error.workflowId;
 
   const status = NAMED_ERROR_STATUSES[error.constructor.name] ?? grpcHttpStatus( error ) ?? error.status ?? 500;
-  if ( status === 500 ) {
-    logger.error( `${error.constructor.name}: ${error.message}`, { requestId: req?.id, stack: isProduction ? undefined : error.stack } );
+  // Log unhandled 500s with the full nested Temporal/gRPC context. Skip if a deeper layer (e.g.
+  // getCatalog) already logged the rich detail, to avoid duplicate entries. Client response is
+  // unchanged — the serialized detail goes only to logs, never to res.json.
+  if ( status === 500 && !error.alreadyLogged ) {
+    logger.error( `${error.constructor.name}: ${error.message}`, { requestId: req?.id, ...serializeTemporalError( error ) } );
   }
 
   if ( status === 503 && error.retryAfter ) {

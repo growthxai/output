@@ -5,6 +5,9 @@ import {
   parseS3Url,
   extractErrorDetail,
   extractErrorMessage,
+  serializeErrorChain,
+  extractFailure,
+  serializeTemporalError,
   takeFromAsyncIterable
 } from './utils.js';
 
@@ -234,6 +237,170 @@ describe( 'utils spec', () => {
       const result = extractErrorMessage( chain );
       expect( result ).toBeDefined();
       expect( result ).not.toBe( 'level 0' );
+    } );
+  } );
+
+  describe( 'extractFailure', () => {
+    it( 'returns null for null and undefined', () => {
+      expect( extractFailure( null ) ).toBeNull();
+      expect( extractFailure( undefined ) ).toBeNull();
+    } );
+
+    it( 'extracts message/type/retryable from the ApplicationFailure node, skipping wrappers', () => {
+      const appFailure = { type: 'ValidationError', nonRetryable: true, message: 'bad input', cause: { message: 'bad input' } };
+      const activityFailure = { message: 'Activity task failed', cause: appFailure };
+      const workflowError = { message: 'Workflow execution failed', cause: activityFailure };
+
+      const failure = extractFailure( workflowError );
+
+      expect( failure.message ).toBe( 'bad input' );
+      expect( failure.type ).toBe( 'ValidationError' );
+      expect( failure.retryable ).toBe( false );
+    } );
+
+    it( 'returns retryable true when nonRetryable is false', () => {
+      const appFailure = { type: 'SomeError', nonRetryable: false, message: 'oops' };
+
+      expect( extractFailure( appFailure ).retryable ).toBe( true );
+    } );
+
+    it( 'returns retryable null when nonRetryable is absent', () => {
+      const appFailure = { type: 'SomeError', message: 'oops' };
+
+      expect( extractFailure( appFailure ).retryable ).toBeNull();
+    } );
+
+    it( 'falls back to the deepest message and a null retryable when there is no ApplicationFailure node', () => {
+      const root = new Error( 'root cause' );
+      const activity = new Error( 'Activity task failed' );
+      activity.cause = root;
+      const workflowError = new Error( 'Workflow execution failed' );
+      workflowError.cause = activity;
+
+      const failure = extractFailure( workflowError );
+
+      expect( failure.message ).toBe( 'root cause' );
+      expect( failure.type ).toBe( 'Error' );
+      expect( failure.retryable ).toBeNull();
+    } );
+
+    it( 'includes a sanitized cause chain', () => {
+      const workflowError = { message: 'top', cause: { type: 'X', nonRetryable: true, message: 'mid' } };
+
+      expect( extractFailure( workflowError ).cause ).toEqual( {
+        name: 'Object',
+        message: 'top',
+        cause: { name: 'Object', type: 'X', message: 'mid' }
+      } );
+    } );
+  } );
+
+  describe( 'serializeErrorChain', () => {
+    it( 'returns null for falsy input', () => {
+      expect( serializeErrorChain( null ) ).toBeNull();
+      expect( serializeErrorChain( undefined ) ).toBeNull();
+    } );
+
+    it( 'serializes a single node and omits stack, details, and cause', () => {
+      const node = serializeErrorChain( { message: 'x', stack: 'STACK', details: [ { trace: {} } ] } );
+
+      expect( node ).toEqual( { name: 'Object', message: 'x' } );
+      expect( node.stack ).toBeUndefined();
+    } );
+
+    it( 'includes type only when present', () => {
+      expect( serializeErrorChain( { type: 'ValidationError', message: 'x' } ) )
+        .toEqual( { name: 'Object', type: 'ValidationError', message: 'x' } );
+      expect( serializeErrorChain( { message: 'x' } ).type ).toBeUndefined();
+    } );
+
+    it( 'serializes a nested cause chain', () => {
+      const chain = { message: 'a', cause: { message: 'b', cause: { message: 'c' } } };
+
+      expect( serializeErrorChain( chain ) ).toEqual( {
+        name: 'Object',
+        message: 'a',
+        cause: { name: 'Object', message: 'b', cause: { name: 'Object', message: 'c' } }
+      } );
+    } );
+
+    it( 'stops at depth > 10 with a sentinel', () => {
+      const build = n => n === 0 ? { message: 'deep' } : { message: `l${n}`, cause: build( n - 1 ) };
+      const deepest = node => node.cause ? deepest( node.cause ) : node;
+
+      expect( deepest( serializeErrorChain( build( 12 ) ) ) ).toEqual( { name: 'Error', message: 'Cause chain too deep' } );
+    } );
+  } );
+
+  describe( 'serializeTemporalError', () => {
+    it( 'serializes a plain Error with name, message and stack but no gRPC fields or cause', () => {
+      const out = serializeTemporalError( new Error( 'boom' ) );
+
+      expect( out.name ).toBe( 'Error' );
+      expect( out.message ).toBe( 'boom' );
+      expect( out.stack ).toBeDefined();
+      expect( out.code ).toBeUndefined();
+      expect( out.cause ).toBeUndefined();
+    } );
+
+    it( 'nests the cause chain and keeps stack on the top node only', () => {
+      const top = new Error( 'top' );
+      top.cause = new Error( 'root' );
+
+      const out = serializeTemporalError( top );
+
+      expect( out.stack ).toBeDefined();
+      expect( out.cause.message ).toBe( 'root' );
+      expect( out.cause.stack ).toBeUndefined();
+    } );
+
+    it( 'captures gRPC code/codeName/details and redacts metadata to key names plus an allowlist', () => {
+      const out = serializeTemporalError( {
+        message: '14 UNAVAILABLE: connection failed',
+        code: 14,
+        details: 'connection failed',
+        metadata: { authorization: 'Bearer secret', 'content-type': 'application/grpc' }
+      } );
+
+      expect( out.code ).toBe( 14 );
+      expect( out.codeName ).toBe( 'UNAVAILABLE' );
+      expect( out.details ).toBe( 'connection failed' );
+      expect( out.metadata.keys ).toEqual( [ 'authorization', 'content-type' ] );
+      expect( out.metadata.authorization ).toBeUndefined();
+      expect( out.metadata['content-type'] ).toBe( 'application/grpc' );
+    } );
+
+    it( 'finds the gRPC code one cause level down (the "Failed to query Workflow" wrapper)', () => {
+      const out = serializeTemporalError( {
+        message: 'Failed to query Workflow',
+        cause: { message: '14 UNAVAILABLE', code: 14, details: 'x', metadata: {} }
+      } );
+
+      expect( out.code ).toBeUndefined();
+      expect( out.cause.code ).toBe( 14 );
+      expect( out.cause.codeName ).toBe( 'UNAVAILABLE' );
+    } );
+
+    it( 'returns { value } for non-Error throwables', () => {
+      expect( serializeTemporalError( 'boom' ) ).toEqual( { value: 'boom' } );
+      expect( serializeTemporalError( 42 ) ).toEqual( { value: '42' } );
+      expect( serializeTemporalError( null ) ).toEqual( { value: 'null' } );
+    } );
+
+    it( 'surfaces context annotations', () => {
+      const err = new Error( 'x' );
+      Object.assign( err, { workflowId: 'wf1', runId: 'run1', taskQueue: 'q', query: 'get' } );
+
+      expect( serializeTemporalError( err ) ).toMatchObject( {
+        workflowId: 'wf1', runId: 'run1', taskQueue: 'q', query: 'get'
+      } );
+    } );
+
+    it( 'stops at depth > 10 with a sentinel', () => {
+      const build = n => n === 0 ? { message: 'deep' } : { message: `l${n}`, cause: build( n - 1 ) };
+      const deepest = node => node.cause ? deepest( node.cause ) : node;
+
+      expect( deepest( serializeTemporalError( build( 12 ) ) ) ).toEqual( { name: 'Error', message: 'Cause chain too deep' } );
     } );
   } );
 

@@ -89,6 +89,48 @@ describe( 'error_handler', () => {
     );
   } );
 
+  it( 'logs the nested cause chain for unhandled 500 errors', async () => {
+    const error = new Error( 'top' );
+    error.cause = new Error( 'root cause' );
+
+    await sendError( error );
+
+    expect( logger.error ).toHaveBeenCalledWith(
+      'Error: top',
+      expect.objectContaining( {
+        name: 'Error',
+        cause: expect.objectContaining( { message: 'root cause' } )
+      } )
+    );
+  } );
+
+  it( 'does not log a 500 that was already logged deeper in the stack', async () => {
+    const error = new Error( 'already handled' );
+    error.alreadyLogged = true;
+
+    const { httpRes } = await sendError( error );
+
+    expect( httpRes.status ).toBe( 500 );
+    expect( logger.error ).not.toHaveBeenCalled();
+  } );
+
+  it( 'keeps the client response body sanitized (no rootCause/stack/cause), even for gRPC cause chains', async () => {
+    const error = new Error( 'top' );
+    error.cause = new Error( '14 UNAVAILABLE: catalog down' );
+    error.workflowId = 'wf-1';
+
+    const { httpRes } = await sendError( error );
+
+    expect( httpRes.body ).toEqual( {
+      error: 'Error',
+      message: 'top',
+      workflowId: 'wf-1'
+    } );
+    expect( httpRes.body.rootCause ).toBeUndefined();
+    expect( httpRes.body.stack ).toBeUndefined();
+    expect( httpRes.body.cause ).toBeUndefined();
+  } );
+
   it( 'should not log for non-500 errors', async () => {
     const error = new WorkflowNotFoundError( 'Workflow not found' );
 

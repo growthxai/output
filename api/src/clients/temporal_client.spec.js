@@ -5,6 +5,7 @@ import {
   StepNotFoundError,
   StepNotCompletedError,
   WorkflowNotFoundError,
+  CatalogNotAvailableError,
   InvalidPageTokenError
 }
   from './errors.js';
@@ -124,6 +125,9 @@ vi.mock( '#utils', () => ( {
   buildWorkflowId: vi.fn( () => 'test-uuid' ),
   extractErrorDetail: vi.fn( ( e, key ) => e?.details?.find?.( d => Object.prototype.hasOwnProperty.call( d, key ) )?.[key] ?? null ),
   extractErrorMessage: vi.fn( e => walkCause( e ) ),
+  extractFailure: vi.fn( e => e ? { message: walkCause( e ), type: e.name ?? null, retryable: null, cause: null } : null ),
+  serializeErrorChain: vi.fn( () => null ),
+  serializeTemporalError: vi.fn( e => ( { name: e?.name ?? 'Error', message: e?.message } ) ),
   takeFromAsyncIterable: async ( iterable, count ) => {
     const items = [];
     for await ( const item of iterable ) {
@@ -218,7 +222,8 @@ describe( 'temporal_client', () => {
         output: null,
         trace: tracePayload,
         aggregations,
-        error: 'step error message'
+        error: 'step error message',
+        failure: { message: 'step error message', type: 'WorkflowFailedError', retryable: null, cause: null }
       } );
       expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Workflow execution failed', expect.objectContaining( {
         workflowId: 'test-uuid',
@@ -254,7 +259,8 @@ describe( 'temporal_client', () => {
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } },
-        error: null
+        error: null,
+        failure: null
       } );
     } );
 
@@ -314,6 +320,7 @@ describe( 'temporal_client', () => {
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
       mockStart.mockResolvedValue( {
+        firstExecutionRunId: 'run-zzz',
         result: () => Promise.reject( timeoutError )
       } );
       mockGetHandle
@@ -326,6 +333,10 @@ describe( 'temporal_client', () => {
       await expect( client.runWorkflow( 'test-workflow', { input: 'data' } ) )
         .rejects
         .toThrow( WorkflowExecutionTimedOutError );
+
+      // Context annotated onto the re-thrown error so the error_handler serializer can surface it
+      expect( timeoutError.workflowId ).toBe( 'test-uuid' );
+      expect( timeoutError.runId ).toBe( 'run-zzz' );
     } );
   } );
 
@@ -351,6 +362,41 @@ describe( 'temporal_client', () => {
         resolvedName: 'new_name',
         taskQueue: 'test-queue'
       } );
+    } );
+  } );
+
+  describe( 'getCatalog', () => {
+    it( 'maps WorkflowNotFoundError to CatalogNotAvailableError without logging at error level', async () => {
+      mockQuery.mockRejectedValue( new WorkflowNotFoundError( 'catalog not found' ) );
+      mockGetHandle.mockReturnValue( { query: mockQuery } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.startWorkflow( 'test-workflow', {} ) )
+        .rejects
+        .toBeInstanceOf( CatalogNotAvailableError );
+      expect( mockLoggerError ).not.toHaveBeenCalledWith( 'Catalog query failed', expect.anything() );
+    } );
+
+    it( 'logs rich Temporal detail, annotates context, marks alreadyLogged, and re-throws the original error', async () => {
+      const grpcError = Object.assign( new Error( 'Failed to query Workflow' ), {
+        cause: { message: '14 UNAVAILABLE: worker unavailable', code: 14, details: 'unavailable', metadata: {} }
+      } );
+      mockQuery.mockRejectedValue( grpcError );
+      mockGetHandle.mockReturnValue( { query: mockQuery } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.startWorkflow( 'test-workflow', {} ) ).rejects.toBe( grpcError );
+      expect( grpcError.taskQueue ).toBe( 'test-queue' );
+      expect( grpcError.query ).toBe( 'get' );
+      expect( grpcError.alreadyLogged ).toBe( true );
+      expect( mockLoggerError ).toHaveBeenCalledWith(
+        'Catalog query failed',
+        expect.objectContaining( { taskQueue: 'test-queue', query: 'get' } )
+      );
     } );
   } );
 
@@ -393,7 +439,8 @@ describe( 'temporal_client', () => {
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
         aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
-        error: null
+        error: null,
+        failure: null
       } );
     } );
 
@@ -480,7 +527,8 @@ describe( 'temporal_client', () => {
         output: null,
         trace: tracePayload,
         aggregations,
-        error: 'step error message'
+        error: 'step error message',
+        failure: { message: 'step error message', type: 'WorkflowFailedError', retryable: null, cause: null }
       } );
     } );
 
@@ -528,7 +576,8 @@ describe( 'temporal_client', () => {
         output: null,
         trace: null,
         aggregations: null,
-        error: null
+        error: null,
+        failure: null
       } );
     } );
 

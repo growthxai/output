@@ -1,6 +1,6 @@
 import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
-import { buildWorkflowId, extractErrorDetail, extractErrorMessage, takeFromAsyncIterable } from '#utils';
+import { buildWorkflowId, extractErrorDetail, extractErrorMessage, extractFailure, serializeTemporalError, takeFromAsyncIterable } from '#utils';
 import { logger } from '#logger';
 import {
   WorkflowNotFoundError,
@@ -41,6 +41,12 @@ const getCatalog = async ( { client, taskQueue } ) => {
     if ( error instanceof WorkflowNotFoundError ) {
       throw new CatalogNotAvailableError( 3 );
     }
+    // Annotate context the error_handler's serializer can't recover on its own, then log the full
+    // nested Temporal/gRPC detail here — the only place that knows the task queue + query name.
+    error.taskQueue = taskQueue;
+    error.query = 'get';
+    logger.error( 'Catalog query failed', { taskQueue, query: 'get', ...serializeTemporalError( error ) } );
+    error.alreadyLogged = true;
     throw error;
   }
 };
@@ -167,6 +173,7 @@ export const extractWorkflowInput = history => {
  * @property {string|number|boolean|object|array|undefined|null} output - The workflow output
  * @property {object|null} trace - Trace information
  * @property {string|null} error - Error message if failed
+ * @property {object|null} failure - Structured failure details if failed (message, type, retryable, cause), null otherwise
  */
 
 /**
@@ -199,9 +206,11 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
     ...( error ? {
       trace: extractErrorDetail( error, 'trace' ),
       aggregations: extractErrorDetail( error, 'aggregations' ),
-      error: extractErrorMessage( error )
+      error: extractErrorMessage( error ),
+      failure: extractFailure( error )
     } : {
-      error: null
+      error: null,
+      failure: null
     } )
   } );
 
@@ -290,6 +299,9 @@ export default {
           }
           // Other errors (timeout, not found, etc.) are still thrown
           error.workflowId = workflowId;
+          if ( runId ) {
+            error.runId = runId;
+          }
           throw error;
         }
       },
