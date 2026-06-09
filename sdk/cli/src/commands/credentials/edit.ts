@@ -8,7 +8,9 @@ import {
   decryptCredentials,
   writeEncrypted,
   credentialsExist,
-  resolveCredentialsPath
+  resolveCredentialsPath,
+  checkKeyMatchesCredentials,
+  reEncryptKeyMismatchMessage
 } from '#services/credentials_service.js';
 
 export default class CredentialsEdit extends Command {
@@ -28,6 +30,11 @@ export default class CredentialsEdit extends Command {
     workflow: Flags.string( {
       char: 'w',
       description: 'Target a specific workflow directory'
+    } ),
+    force: Flags.boolean( {
+      char: 'f',
+      description: 'Edit on an empty file and re-encrypt with the current key when it cannot decrypt the existing file (discards existing values)',
+      default: false
     } )
   };
 
@@ -46,9 +53,17 @@ export default class CredentialsEdit extends Command {
       );
     }
 
+    const keyMismatch = checkKeyMatchesCredentials( environment, workflow ) === 'mismatch';
+    if ( keyMismatch && !flags.force ) {
+      this.error( reEncryptKeyMismatchMessage( resolveCredentialsPath( environment, workflow ) ) );
+    }
+    if ( keyMismatch ) {
+      this.warn( reEncryptKeyMismatchMessage( resolveCredentialsPath( environment, workflow ) ) );
+    }
+
     const editorEnv = process.env.EDITOR || process.env.VISUAL || 'vi';
     const [ editorCmd, ...editorArgs ] = editorEnv.split( /\s+/ );
-    const plaintext = decryptCredentials( environment, workflow );
+    const plaintext = keyMismatch ? '' : decryptCredentials( environment, workflow );
     const tmpFile = path.join( os.tmpdir(), `output-credentials-${Date.now()}.yml` );
 
     try {

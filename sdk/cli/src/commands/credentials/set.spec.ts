@@ -28,6 +28,8 @@ describe( 'credentials set command', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.mocked( credentialsService.credentialsExist ).mockReturnValue( true );
+    vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'match' );
+    vi.mocked( credentialsService.reEncryptKeyMismatchMessage ).mockReturnValue( 'KEY_MISMATCH_WARNING' );
     vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( 'anthropic:\n  api_key: sk-existing\n' );
     vi.mocked( credentialsService.writeEncrypted ).mockImplementation( () => {} );
     vi.mocked( confirm ).mockResolvedValue( true );
@@ -50,7 +52,7 @@ describe( 'credentials set command', () => {
     Object.defineProperty( cmd, 'parse', {
       value: vi.fn().mockResolvedValue( {
         args: { path: 'anthropic.api_key', value: 'sk-new-key', ...parsedArgs },
-        flags: { environment: undefined, workflow: undefined, yes: false, ...flags }
+        flags: { environment: undefined, workflow: undefined, yes: false, force: false, ...flags }
       } ),
       configurable: true
     } );
@@ -69,10 +71,11 @@ describe( 'credentials set command', () => {
       expect( CredentialsSet.args.value.required ).toBe( true );
     } );
 
-    it( 'should have environment, workflow, and yes flags', () => {
+    it( 'should have environment, workflow, yes, and force flags', () => {
       expect( CredentialsSet.flags.environment ).toBeDefined();
       expect( CredentialsSet.flags.workflow ).toBeDefined();
       expect( CredentialsSet.flags.yes ).toBeDefined();
+      expect( CredentialsSet.flags.force ).toBeDefined();
     } );
   } );
 
@@ -149,6 +152,29 @@ describe( 'credentials set command', () => {
       const cmd = createTestCommand();
 
       await expect( cmd.run() ).rejects.toThrow( 'Failed to update credentials: Permission denied' );
+    } );
+  } );
+
+  describe( 'key mismatch handling', () => {
+    it( 'should error and not write when the key cannot decrypt and --force is absent', async () => {
+      vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'mismatch' );
+      const cmd = createTestCommand();
+
+      await expect( cmd.run() ).rejects.toThrow( 'KEY_MISMATCH_WARNING' );
+      expect( credentialsService.decryptCredentials ).not.toHaveBeenCalled();
+      expect( credentialsService.writeEncrypted ).not.toHaveBeenCalled();
+    } );
+
+    it( 'should warn, skip decryption, and re-encrypt from empty when --force is passed', async () => {
+      vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'mismatch' );
+      const cmd = createTestCommand( {}, { force: true } );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( 'KEY_MISMATCH_WARNING' );
+      expect( credentialsService.decryptCredentials ).not.toHaveBeenCalled();
+      expect( credentialsService.writeEncrypted ).toHaveBeenCalledTimes( 1 );
+      expect( cmd.log ).toHaveBeenCalledWith( 'Set anthropic.api_key' );
     } );
   } );
 

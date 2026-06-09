@@ -7,7 +7,8 @@ import { encrypt, decrypt, generateKey } from '@outputai/credentials';
 import {
   initCredentials,
   decryptCredentials,
-  writeEncrypted
+  writeEncrypted,
+  checkKeyMatchesCredentials
 } from './credentials_service.js';
 
 describe( 'credentials service integration', () => {
@@ -167,6 +168,44 @@ describe( 'credentials service integration', () => {
 
       expect( fs.readFileSync( prod.keyPath ).equals( prodKeyBytes ) ).toBe( true );
       expect( fs.readFileSync( prod.credPath ).equals( prodCredBytes ) ).toBe( true );
+    } ) );
+  } );
+
+  describe( 'checkKeyMatchesCredentials', () => {
+    const withIsolatedProject = ( body: () => void ): void => {
+      const originalCwd = process.cwd();
+      const originalKey = process.env.OUTPUT_CREDENTIALS_KEY;
+      delete process.env.OUTPUT_CREDENTIALS_KEY;
+      const projectDir = fs.mkdtempSync( path.join( os.tmpdir(), 'output-creds-keymatch-' ) );
+      process.chdir( projectDir );
+      try {
+        body();
+      } finally {
+        process.chdir( originalCwd );
+        if ( originalKey === undefined ) {
+          delete process.env.OUTPUT_CREDENTIALS_KEY;
+        } else {
+          process.env.OUTPUT_CREDENTIALS_KEY = originalKey;
+        }
+        fs.rmSync( projectDir, { recursive: true, force: true } );
+      }
+    };
+
+    it( 'returns "no_file" when no credentials file exists', () => withIsolatedProject( () => {
+      expect( checkKeyMatchesCredentials( undefined ) ).toBe( 'no_file' );
+    } ) );
+
+    it( 'returns "match" when the current key decrypts the file', () => withIsolatedProject( () => {
+      initCredentials( undefined );
+
+      expect( checkKeyMatchesCredentials( undefined ) ).toBe( 'match' );
+    } ) );
+
+    it( 'returns "mismatch" when the key cannot decrypt the file', () => withIsolatedProject( () => {
+      const { keyPath } = initCredentials( undefined );
+      fs.writeFileSync( keyPath, generateKey(), { mode: 0o600 } );
+
+      expect( checkKeyMatchesCredentials( undefined ) ).toBe( 'mismatch' );
     } ) );
   } );
 } );
