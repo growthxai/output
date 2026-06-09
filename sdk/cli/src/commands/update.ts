@@ -3,10 +3,12 @@ import { confirm } from '#utils/prompt.js';
 import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
+  getLocalInstalledPackages,
   getLocalInstalledVersion,
   updateGlobal,
   updateLocal,
-  isOutdated
+  isOutdated,
+  type LocalInstalledPackage
 } from '#services/npm_update_service.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { getErrorMessage } from '#utils/error_utils.js';
@@ -49,7 +51,7 @@ export default class Update extends Command {
       this.error( 'Could not fetch the latest version from the npm registry. Run with DEBUG=output-cli:npm-update for details.' );
     }
 
-    this.log( `\nLatest @outputai/cli version: v${latest}\n` );
+    this.log( `\nLatest Output SDK version: v${latest}\n` );
 
     await this.handleGlobalUpdate( latest );
     await this.handleLocalUpdate( latest );
@@ -106,6 +108,12 @@ export default class Update extends Command {
 
   private async handleLocalUpdate( latest: string ): Promise<boolean> {
     const cwd = process.cwd();
+    const localPackages = await getLocalInstalledPackages( cwd );
+
+    if ( localPackages.length > 0 ) {
+      return this.handleLocalSdkPackageUpdate( cwd, latest, localPackages );
+    }
+
     const localVersion = await getLocalInstalledVersion( cwd );
 
     if ( !localVersion ) {
@@ -128,7 +136,7 @@ export default class Update extends Command {
     }
 
     try {
-      await updateLocal( cwd );
+      await updateLocal( cwd, [ '@outputai/cli' ], latest );
       const newLocalVersion = await getLocalInstalledVersion( cwd );
 
       if ( newLocalVersion ) {
@@ -136,12 +144,63 @@ export default class Update extends Command {
 
         if ( isOutdated( newLocalVersion, latest ) ) {
           this.warn(
-            `Your package.json constrains @outputai/output which limits @outputai/cli to v${newLocalVersion}. ` +
-            'Update the @outputai/output version range in package.json to get the latest CLI.'
+            `Your package.json constrains @outputai/cli to v${newLocalVersion}. ` +
+            'Update your Output SDK package version ranges to get the latest CLI.'
           );
         }
       } else {
         this.log( '\nLocal update completed (could not verify new version)' );
+      }
+
+      return true;
+    } catch ( error: unknown ) {
+      this.warn( `Failed to update local install: ${getErrorMessage( error )}` );
+      return false;
+    }
+  }
+
+  private async handleLocalSdkPackageUpdate(
+    cwd: string,
+    latest: string,
+    localPackages: LocalInstalledPackage[]
+  ): Promise<boolean> {
+    const outdatedPackages = localPackages.filter( pkg => isOutdated( pkg.version, latest ) );
+
+    if ( outdatedPackages.length === 0 ) {
+      this.log( '\nLocal Output SDK packages: up to date' );
+      return false;
+    }
+
+    this.log( '\nLocal Output SDK packages:' );
+    for ( const pkg of localPackages ) {
+      const suffix = isOutdated( pkg.version, latest ) ? ` -> v${latest}` : ' (up to date)';
+      this.log( `  ${pkg.name}: v${pkg.version}${suffix}` );
+    }
+
+    const shouldUpdate = await confirm( {
+      message: `Update local Output SDK packages to v${latest}?`
+    } );
+
+    if ( !shouldUpdate ) {
+      return false;
+    }
+
+    const packageNames = localPackages.map( pkg => pkg.name );
+
+    try {
+      await updateLocal( cwd, packageNames, latest );
+      const newLocalPackages = await getLocalInstalledPackages( cwd );
+
+      if ( newLocalPackages.length > 0 ) {
+        this.log( `\nLocal Output SDK packages updated to v${latest}` );
+
+        const stalePackages = newLocalPackages.filter( pkg => isOutdated( pkg.version, latest ) );
+        if ( stalePackages.length > 0 ) {
+          const staleNames = stalePackages.map( pkg => `${pkg.name}@${pkg.version}` ).join( ', ' );
+          this.warn( `Some Output SDK packages are still behind v${latest}: ${staleNames}` );
+        }
+      } else {
+        this.log( '\nLocal update completed (could not verify new versions)' );
       }
 
       return true;
