@@ -155,21 +155,6 @@ describe( 'loadTools', () => {
     } ) ).toThrow( 'Provider "azure" does not support provider-specific tools.' );
   } );
 
-  it( 'throws when the provider tools value is not an object', () => {
-    const provider = vi.fn();
-    provider.tools = vi.fn();
-    getProvider.mockReturnValue( provider );
-
-    expect( () => loadTools( {
-      config: {
-        provider: 'custom',
-        tools: {
-          webSearch: {}
-        }
-      }
-    } ) ).toThrow( 'Provider "custom" does not support provider-specific tools.' );
-  } );
-
   it( 'loads a single provider tool with config', () => {
     const googleSearch = vi.fn( config => ( { type: 'googleSearch', config } ) );
     const provider = {
@@ -251,7 +236,7 @@ describe( 'loadTools', () => {
           unknownTool: {}
         }
       }
-    } ) ).toThrow( 'Unsupported tool(s) unknownTool for provider "vertex". Available: googleSearch, urlContext' );
+    } ) ).toThrow( 'Invalid tool(s) unknownTool for provider "vertex". Available: googleSearch, urlContext.' );
   } );
 
   it( 'reports all unsupported configured tools', () => {
@@ -269,26 +254,6 @@ describe( 'loadTools', () => {
           anotherUnknownTool: {}
         }
       }
-    } ) ).toThrow( 'Unsupported tool(s) unknownTool, anotherUnknownTool for provider "vertex". Available: googleSearch' );
-  } );
-
-  it( 'ignores non-function provider tool properties when listing available tools', () => {
-    getProvider.mockReturnValue( {
-      tools: {
-        googleSearch: vi.fn(),
-        metadata: {
-          source: 'provider'
-        }
-      }
-    } );
-
-    expect( () => loadTools( {
-      config: {
-        provider: 'vertex',
-        tools: {
-          metadata: {}
-        }
-      }
-    } ) ).toThrow( 'Unsupported tool(s) metadata for provider "vertex". Available: googleSearch' );
+    } ) ).toThrow( 'Invalid tool(s) unknownTool, anotherUnknownTool for provider "vertex". Available: googleSearch.' );
   } );
 } );

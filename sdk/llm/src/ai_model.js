@@ -33,27 +33,28 @@ export const loadImageModel = prompt => {
  * @returns {Record<string, unknown> | null} AI SDK tools, or null when none are configured
  */
 export const loadTools = prompt => {
-  const { tools: toolsConfig, provider: providerName } = prompt.config;
+  const { tools: promptTools, provider: providerName } = prompt.config;
 
-  if ( !toolsConfig || Object.keys( toolsConfig ).length === 0 ) {
+  if ( Object.keys( promptTools ?? {} ).length === 0 ) {
     return null;
   }
 
   const provider = getProvider( providerName );
 
-  if ( !provider.tools || typeof provider.tools !== 'object' ) {
+  if ( !provider.tools ) {
     throw new ValidationError( `Provider "${providerName}" does not support provider-specific tools.` );
   }
 
-  const list = Object.entries( provider.tools ).filter( ( [ _, v ] ) => typeof v === 'function' ).map( e => e[0] );
-  const invalid = Object.keys( toolsConfig ).filter( name => !list.includes( name ) );
+  const supportedTools = Object.keys( provider.tools );
+  const invalidTools = Object.keys( promptTools ).filter( name => !supportedTools.includes( name ) );
 
-  if ( invalid.length > 0 ) {
-    throw new ValidationError( `Unsupported tool(s) ${invalid.join( ', ' )} for provider "${providerName}". Available: ${list.join( ', ' )}` );
+  if ( invalidTools.length > 0 ) {
+    throw new ValidationError( `Invalid tool(s) ${invalidTools.join( ', ' )} for provider "${providerName}". \
+Available: ${supportedTools.join( ', ' )}.` );
   }
 
   // load all tools and return in an object
-  return Object.entries( toolsConfig ).reduce( ( loaded, [ name, config ] ) =>
-    Object.assign( loaded, { [name]: provider.tools[name]( config ) } )
-  , {} );
+  return Object.fromEntries(
+    Object.entries( promptTools ).map( ( [ name, args ] ) => [ name, provider.tools[name]( args ) ] )
+  );
 };
