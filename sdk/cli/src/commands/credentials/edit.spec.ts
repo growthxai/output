@@ -27,6 +27,8 @@ describe( 'credentials edit command', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.mocked( credentialsService.credentialsExist ).mockReturnValue( true );
+    vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'match' );
+    vi.mocked( credentialsService.reEncryptKeyMismatchMessage ).mockReturnValue( 'KEY_MISMATCH_WARNING' );
     vi.mocked( credentialsService.decryptCredentials ).mockReturnValue( 'anthropic:\n  api_key: sk-test\n' );
   } );
 
@@ -39,13 +41,14 @@ describe( 'credentials edit command', () => {
   ) => {
     const cmd = new CredentialsEdit( [], {} as any );
     cmd.log = vi.fn();
+    cmd.warn = vi.fn() as any;
     cmd.error = vi.fn( ( msg: string ) => {
       throw new Error( msg );
     } ) as any;
     Object.defineProperty( cmd, 'parse', {
       value: vi.fn().mockResolvedValue( {
         args: {},
-        flags: { environment: undefined, workflow: undefined, ...flags }
+        flags: { environment: undefined, workflow: undefined, force: false, ...flags }
       } ),
       configurable: true
     } );
@@ -57,9 +60,10 @@ describe( 'credentials edit command', () => {
       expect( CredentialsEdit.description ).toContain( 'Edit' );
     } );
 
-    it( 'should have environment and workflow flags', () => {
+    it( 'should have environment, workflow, and force flags', () => {
       expect( CredentialsEdit.flags.environment ).toBeDefined();
       expect( CredentialsEdit.flags.workflow ).toBeDefined();
+      expect( CredentialsEdit.flags.force ).toBeDefined();
     } );
   } );
 
@@ -85,6 +89,29 @@ describe( 'credentials edit command', () => {
       const cmd = createTestCommand();
 
       await expect( cmd.run() ).rejects.toThrow( 'No credentials file found' );
+    } );
+  } );
+
+  describe( 'key mismatch handling', () => {
+    it( 'should error and not decrypt when the key cannot decrypt and --force is absent', async () => {
+      vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'mismatch' );
+      const cmd = createTestCommand();
+
+      await expect( cmd.run() ).rejects.toThrow( 'KEY_MISMATCH_WARNING' );
+      expect( credentialsService.decryptCredentials ).not.toHaveBeenCalled();
+      expect( credentialsService.writeEncrypted ).not.toHaveBeenCalled();
+    } );
+
+    it( 'should warn, edit from empty, and re-encrypt when --force is passed', async () => {
+      vi.mocked( credentialsService.checkKeyMatchesCredentials ).mockReturnValue( 'mismatch' );
+      vi.mocked( fs.readFileSync ).mockReturnValue( 'edited: content\n' );
+      const cmd = createTestCommand( { force: true } );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( 'KEY_MISMATCH_WARNING' );
+      expect( credentialsService.decryptCredentials ).not.toHaveBeenCalled();
+      expect( credentialsService.writeEncrypted ).toHaveBeenCalledWith( undefined, 'edited: content\n', undefined );
     } );
   } );
 

@@ -64,6 +64,31 @@ export const resolveKey = ( environment: CredentialsEnvironment, workflow?: Work
 export const credentialsExist = ( environment: CredentialsEnvironment, workflow?: WorkflowTarget ): boolean =>
   fs.existsSync( resolveCredentialsPath( environment, workflow ) );
 
+export type KeyMatch = 'no_file' | 'match' | 'mismatch';
+
+export const checkKeyMatchesCredentials = ( environment: CredentialsEnvironment, workflow?: WorkflowTarget ): KeyMatch => {
+  const credPath = resolveCredentialsPath( environment, workflow );
+
+  if ( !fs.existsSync( credPath ) ) {
+    return 'no_file';
+  }
+
+  try {
+    const key = resolveKey( environment, workflow );
+    const ciphertext = fs.readFileSync( credPath, 'utf8' ).trim();
+    decrypt( ciphertext, key );
+    return 'match';
+  } catch {
+    return 'mismatch';
+  }
+};
+
+export const reEncryptKeyMismatchMessage = ( credPath: string ): string =>
+  `The current credentials key cannot decrypt ${credPath}. ` +
+  'Continuing will re-encrypt the file with a different key — the wrong key ' +
+  '(OUTPUT_CREDENTIALS_KEY env var or key file) may be in use, and the existing values will be discarded. ' +
+  'Re-run with --force to proceed anyway.';
+
 export const decryptCredentials = ( environment: CredentialsEnvironment, workflow?: WorkflowTarget ): string => {
   const key = resolveKey( environment, workflow );
   const credPath = resolveCredentialsPath( environment, workflow );

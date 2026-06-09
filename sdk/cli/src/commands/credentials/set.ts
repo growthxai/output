@@ -6,7 +6,9 @@ import {
   decryptCredentials,
   credentialsExist,
   writeEncrypted,
-  resolveCredentialsPath
+  resolveCredentialsPath,
+  checkKeyMatchesCredentials,
+  reEncryptKeyMismatchMessage
 } from '#services/credentials_service.js';
 
 type CredentialsObject = Record<string, unknown>;
@@ -104,6 +106,11 @@ export default class CredentialsSet extends Command {
       char: 'y',
       description: 'Skip confirmation prompts when overwriting a value of a different shape',
       default: false
+    } ),
+    force: Flags.boolean( {
+      char: 'f',
+      description: 'Re-encrypt with the current key even if it cannot decrypt the existing file (discards existing values)',
+      default: false
     } )
   };
 
@@ -137,8 +144,17 @@ export default class CredentialsSet extends Command {
       );
     }
 
+    const keyMismatch = checkKeyMatchesCredentials( environment, workflow ) === 'mismatch';
+    if ( keyMismatch && !flags.force ) {
+      this.error( reEncryptKeyMismatchMessage( resolveCredentialsPath( environment, workflow ) ) );
+    }
+
     try {
-      const plaintext = decryptCredentials( environment, workflow );
+      if ( keyMismatch ) {
+        this.warn( reEncryptKeyMismatchMessage( resolveCredentialsPath( environment, workflow ) ) );
+      }
+
+      const plaintext = keyMismatch ? '' : decryptCredentials( environment, workflow );
       const data = ( parseYaml( plaintext ) || {} ) as CredentialsObject;
 
       const conflict = detectPathConflict( data, args.path );
