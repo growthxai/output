@@ -2,7 +2,8 @@
 "@outputai/llm": minor
 ---
 
-- Moved supported `@ai-sdk/*` provider packages to required peer dependencies:
+- Updated `@ai-sdk/*` providers and `ai` itself to peer dependencies, with these supported ranges:
+  - `ai`: `>=6 <7`
   - `@ai-sdk/amazon-bedrock`: `>=4 <5`
   - `@ai-sdk/anthropic`: `>=3 <4`
   - `@ai-sdk/azure`: `>=3 <4`

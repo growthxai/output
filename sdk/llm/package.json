@@ -10,13 +10,13 @@
   ],
   "dependencies": {
     "@outputai/core": "workspace:",
-    "ai": "6.0.168",
     "entities": "8.0.0",
     "gray-matter": "4.0.3",
     "liquidjs": "10.25.7",
     "undici": "catalog:"
   },
   "devDependencies": {
+    "ai": "6.0.168",
     "@ai-sdk/amazon-bedrock": "4.0.111",
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/azure": "3.0.68",
@@ -25,6 +25,7 @@
     "@ai-sdk/perplexity": "3.0.33"
   },
   "peerDependencies": {
+    "ai": ">=6 <7",
     "@ai-sdk/amazon-bedrock": ">=4 <5",
     "@ai-sdk/anthropic": ">=3 <4",
     "@ai-sdk/azure": ">=3 <4",

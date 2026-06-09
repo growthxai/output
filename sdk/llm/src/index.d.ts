@@ -6,6 +6,7 @@ import type {
   StreamTextResult as AIStreamTextResult,
   ToolLoopAgent as AIToolLoopAgent,
   ToolSet,
+  ModelMessage,
   StreamTextOnFinishCallback,
   generateText as aiGenerateText,
   streamText as aiStreamText,
@@ -166,11 +167,40 @@ export type SkillsArg<Input = unknown> = Skill[] |
   ( ( input: Input ) => Skill[] | Promise<Skill[]> );
 
 /** Prompt-owned AI SDK fields supplied by Output prompt files. */
-type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt';
+type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt' | 'tools';
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
+type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
+type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;
+
+/**
+ * Structurally-compatible AI SDK tool shape.
+ *
+ * This intentionally avoids referencing AI SDK's concrete `Tool` schema types so tools
+ * from packages resolved with a different Zod peer instance remain assignable.
+ */
+export type CompatibleTool = {
+  description?: string;
+  title?: string;
+  providerOptions?: Record<string, unknown>;
+  inputSchema?: unknown;
+  parameters?: unknown;
+  execute?: CompatibleToolFunction;
+  onInputStart?: CompatibleToolFunction;
+  onInputDelta?: CompatibleToolFunction;
+  onInputAvailable?: CompatibleToolFunction;
+  needsApproval?: boolean | CompatibleApprovalFunction;
+} & (
+  { inputSchema: unknown } |
+  { parameters: unknown } |
+  { execute: CompatibleToolFunction }
+);
+
+/** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
+export type CompatibleToolSet = Record<string, CompatibleTool>;
 
 /**
  * AI SDK options accepted by generateText, with prompt-owned fields supplied by Output prompt files.
+ * `tools` is accepted separately as {@link CompatibleToolSet} to support third-party tool packages.
  *
  * @typeParam Tools - The tools available for the model to call
  */
@@ -181,6 +211,7 @@ export type GenerateTextAiSdkOptions<
 
 /**
  * AI SDK options accepted by streamText, with prompt-owned fields supplied by Output prompt files.
+ * `tools` is accepted separately as {@link CompatibleToolSet} to support third-party tool packages.
  *
  * @typeParam Tools - The tools available for the model to call
  */
@@ -200,7 +231,8 @@ type GenerateImagePromptWithImages = Exclude<GenerateImagePrompt, string>;
 type GenerateImageInput = GenerateImagePromptWithImages['images'][number];
 
 /** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
-export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish'> & {
+export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish' | 'tools'> & {
+  tools?: CompatibleToolSet;
   onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
 };
 
@@ -219,7 +251,7 @@ export type OutputAgentConstructorParameters<
   /** Static skill packages made available to the LLM */
   skills?: Skill[];
   /** AI SDK tools available during the reasoning loop */
-  tools?: ConstructorParameters<typeof AIToolLoopAgent>[0]['tools'];
+  tools?: CompatibleToolSet;
   /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
   maxSteps?: number;
   /** Pluggable conversation store — opt-in, stateless by default */
@@ -227,7 +259,9 @@ export type OutputAgentConstructorParameters<
 };
 
 /** Agent generate options accepted by the underlying AI SDK agent. */
-export type OutputAgentGenerateParameters = AgentCallParameters<never, ToolSet>;
+export type OutputAgentGenerateParameters = Omit<AgentCallParameters<never, ToolSet>, 'tools'> & {
+  tools?: CompatibleToolSet;
+};
 
 /** Parameters accepted by {@link generateText}. */
 export type GenerateTextParameters<
@@ -244,6 +278,8 @@ export type GenerateTextParameters<
   skills?: SkillsArg<Record<string, string | number | boolean> | undefined>;
   /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
   maxSteps?: number;
+  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
+  tools?: CompatibleToolSet;
 } & GenerateTextAiSdkOptions<Tools, OutputSpec>;
 
 /** Parameters accepted by {@link streamText}. */
@@ -261,6 +297,8 @@ export type StreamTextParameters<
   skills?: Skill[] | ( ( input: Record<string, string | number | boolean> | undefined ) => Skill[] );
   /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
   maxSteps?: number;
+  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
+  tools?: CompatibleToolSet;
   /** Callback when stream finishes. Receives the wrapped event with optional `cost`. */
   onFinish?: WrappedStreamTextOnFinishCallback<Tools>;
 } & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish'>;
@@ -393,8 +431,9 @@ export function getProviderNames(): string[];
  *
  * This function is a wrapper over the AI SDK's `generateText`.
  * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, and `providerOptions`.
- * All other AI SDK `generateText` options are accepted via {@link GenerateTextAiSdkOptions}, including
- * tools, tool choice, structured output, callbacks, retries, and sampling settings.
+ * AI SDK-compatible `tools` are accepted structurally via {@link CompatibleToolSet}. Other AI SDK
+ * `generateText` options are accepted via {@link GenerateTextAiSdkOptions}, including tool choice,
+ * structured output, callbacks, retries, and sampling settings.
  *
  * @param args - Generation arguments. See {@link GenerateTextParameters}.
  * @returns AI SDK response with text and metadata.
@@ -411,8 +450,9 @@ export function generateText<
  *
  * This function is a wrapper over the AI SDK's `streamText`.
  * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, and `providerOptions`.
- * All other AI SDK `streamText` options are accepted via {@link StreamTextAiSdkOptions}, except
- * `onFinish`, which Output wraps to add optional cost data.
+ * AI SDK-compatible `tools` are accepted structurally via {@link CompatibleToolSet}. Other AI SDK
+ * `streamText` options are accepted via {@link StreamTextAiSdkOptions}, except `onFinish`, which
+ * Output wraps to add optional cost data.
  *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
@@ -458,8 +498,8 @@ export function skill( params: {
 
 /** Pluggable conversation store for multi-turn Agent interactions. */
 export interface ConversationStore {
-  getMessages(): import( 'ai' ).ModelMessage[] | Promise<import( 'ai' ).ModelMessage[]>;
-  addMessages( messages: import( 'ai' ).ModelMessage[] ): void | Promise<void>;
+  getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
+  addMessages( messages: ModelMessage[] ): void | Promise<void>;
 }
 
 /** Create an in-memory conversation store backed by a closure array. */
