@@ -16,7 +16,6 @@ Output.ai is an AI framework for building reliable production-ready LLM workflow
   - HTTP: [sdk/http/README.md](sdk/http/README.md)
   - Credentials: [sdk/credentials/README.md](sdk/credentials/README.md)
   - Evals: [sdk/evals/README.md](sdk/evals/README.md)
-  - Framework: [sdk/framework/README.md](sdk/framework/README.md)
   - CLI: [sdk/cli/README.md](sdk/cli/README.md)
 - **Test examples**: See [test_workflows/](test_workflows/) directory
 
