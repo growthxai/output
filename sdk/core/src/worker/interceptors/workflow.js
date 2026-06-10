@@ -1,6 +1,6 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { workflowInfo, proxySinks, ApplicationFailure, ContinueAsNew, isCancellation } from '@temporalio/workflow';
-import { memoToHeaders } from '../sandboxed_utils.js';
+import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#utils';
 import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 // this is a dynamic generated file with activity configs overwrites
@@ -8,13 +8,9 @@ import stepOptions from '../temp/__activity_options.js';
 import { createWorkflowDetails } from '#internal_utils/temporal_context';
 
 /*
-  This is not an AI comment!
-
-  This interceptor adds information value from workflowInfo().memo as Activity invocation headers.
-
+  This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
   This is a strategy to share values between the workflow context and activity context.
-
-  We also want to preserve existing headers that might have been inject somewhere else and
+  We also want to preserve existing headers that might have been inject somewhere else.
 */
 class HeadersInjectionInterceptor {
   async scheduleActivity( input, next ) {

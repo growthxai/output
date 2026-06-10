@@ -51,7 +51,7 @@ vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMo
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
 
 const initInterceptorsMock = vi.fn().mockReturnValue( [] );
-vi.mock( './interceptors.js', () => ( { initInterceptors: initInterceptorsMock } ) );
+vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
 
 const startCatalogMock = vi.fn().mockResolvedValue( undefined );
 vi.mock( './start_catalog.js', () => ( { startCatalog: startCatalogMock } ) );

@@ -73,7 +73,7 @@ vi.mock( '#tracing', () => ( {
   addEventError: addEventErrorMock
 } ) );
 
-vi.mock( '../sandboxed_utils.js', () => ( {
+vi.mock( './headers.js', () => ( {
   headersToObject: () => ( { traceInfo: traceInfoMock, workflowDetails: workflowDetailsMock } )
 } ) );
 

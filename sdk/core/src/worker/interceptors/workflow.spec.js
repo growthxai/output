@@ -61,7 +61,7 @@ vi.mock( '@temporalio/workflow', () => ( {
 } ) );
 
 const memoToHeadersMock = vi.fn( memo => ( memo ? { ...memo, __asHeaders: true } : {} ) );
-vi.mock( '../sandboxed_utils.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMock( ...args ) } ) );
+vi.mock( './headers.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMock( ...args ) } ) );
 
 const deepMergeMock = vi.fn( ( a, b ) => ( { ...( a || {} ), ...( b || {} ) } ) );
 vi.mock( '#utils', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
