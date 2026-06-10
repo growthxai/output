@@ -1,5 +1,185 @@
 # @outputai/core
 
+## 0.7.0
+
+### Minor Changes
+
+- 383b24b: ## Workflow hooks
+  Updated `onWorkflowStart()`, `onWorkflowEnd()`, `onWorkflowError()` hooks payload:
+
+  ```js
+  { eventId, eventDate, workflowDetails, error? }
+  ```
+
+  Where `eventDate` is the event timestamp in milliseconds.
+
+  Where `workflowDetails` is an abstraction over [Temporal's `workflowInfo()`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo):
+
+  ```ts
+  {
+    attempt: number,
+    continuedFromExecutionRunId?: string | undefined,
+    firstExecutionRunId: string,
+    parent?: {
+      runId: string,
+      workflowId: string,
+      namespace: string
+    } | undefined,
+    root?: {
+      runId: string,
+      workflowId: string
+    } | undefined,
+    runId: string,
+    runStartTime: number, // epoch
+    startTime: number, // epoch
+    workflowId: string,
+    workflowType: string
+  }
+  ```
+
+  ## Error hook
+
+  Updated `onError()` hooks payload. The fields change according to the `source`:
+
+  ### Source is "workflow"
+
+  ```js
+  {
+    eventId, eventDate, source, workflowDetails, error;
+  }
+  ```
+
+  Where `workflowDetails` is the same as in workflow hooks.
+
+  ### Source is "activity"
+
+  ```js
+  {
+    eventId,
+      eventDate,
+      source,
+      workflowDetails,
+      activityInfo,
+      outputActivityKind,
+      error;
+  }
+  ```
+
+  Where `activityInfo` is Temporal's `activityInfo()` [function return](https://typescript.temporal.io/api/interfaces/activity.Info).
+
+  And `outputActivityKind` is the framework flavor of the Temporal Activity: `step`, `evaluator` or `internal_step`.
+
+  ### Source is "runtime"
+
+  ```js
+  {
+    eventId, eventDate, source, error;
+  }
+  ```
+
+  ## "on()" hook
+
+  Updated `on()` hooks with better typing and a new envelope.
+
+  ### Envelope
+
+  All events have these fields:
+
+  - `eventId`
+  - `eventDate`
+  - `workflowDetails`: Same from other hooks
+  - `activityInfo`: From Temporal
+  - `outputActivityKind`
+
+  ### Typing
+
+  Besides the envelope fields, each event also has its own fields, their types are specified by the event emitter:
+
+  - `on<HttpRequestEvent>( 'http:request', handler )` from `@outputai/http`;
+  - `on<HttpRequestCostEvent>( 'cost:http:request', handler )` from `@outputai/http`;
+  - `on<LLMUsageEvent>( 'cost:llm:request', handler )` from `@outputai/llm`
+
+  ## Execution Context
+
+  Updated `getExecutionContext()` from `core/sdk_activity_integration` to return:
+
+  ```js
+  {
+    activityInfo, workflowFilename;
+  }
+  ```
+
+  ## Trace File
+
+  Updated trace workflow node ids to use Temporal `runId`, instead of `workflowId`. This helps to create trees when child workflows "continued as new".
+
+### Patch Changes
+
+- 1f47248: Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` env var. Default `0` - off.
+
+  Message examples:
+
+  ### Dev
+
+  ```
+  [info] Telemetry: Worker { status: { runState: "RUNNING", numHeartbeatingActivities: 0, workflowPollerState: "POLLING", activityPollerState: "POLLING", hasOutstandingWorkflowPoll: true, hasOutstandingActivityPoll: true, numCachedWorkflows: 1, numInFlightWorkflowActivations: 0, numInFlightActivities: 0, numInFlightNonLocalActivities: 0, numInFlightLocalActivities: 0 }, memory: { availableMemory: 7500000000, constrainedMemory: 20000000000000000000, memoryUsage: { rss: 582348800, heapTotal: 400000000, heapUsed: 200000000, external: 800000000, arrayBuffers: 300000000 } } }
+  ```
+
+  ### Prod
+
+  ```json
+  {
+    "environment": "production",
+    "level": "info",
+    "memory": {
+      "availableMemory": 7500000000,
+      "constrainedMemory": 20000000000000000000,
+      "memoryUsage": {
+        "arrayBuffers": 1445268,
+        "external": 800000000,
+        "heapTotal": 400000000,
+        "heapUsed": 200000000,
+        "rss": 300000000
+      }
+    },
+    "message": "Worker",
+    "namespace": "Telemetry",
+    "service": "output-worker",
+    "status": {
+      "activityPollerState": "POLLING",
+      "hasOutstandingActivityPoll": true,
+      "hasOutstandingWorkflowPoll": true,
+      "numCachedWorkflows": 1,
+      "numHeartbeatingActivities": 0,
+      "numInFlightActivities": 0,
+      "numInFlightLocalActivities": 0,
+      "numInFlightNonLocalActivities": 0,
+      "numInFlightWorkflowActivations": 0,
+      "runState": "RUNNING",
+      "workflowPollerState": "POLLING"
+    },
+    "timestamp": "2026-06-02T21:54:29.261+00:00"
+  }
+  ```
+
+- 0d08ff5: Improve trace error serialization to preserve nested error causes. Error entries in trace files now include the error `name`, `message`, `stack`, and recursively serialized `cause` values up to 10 levels deep, including JSON-safe non-Error causes where present.
+
+  ```js
+  {
+    name: "from error.constructor.name",
+    message: "from error.message",
+    stack: "from error.stack",
+    cause: { // from .cause
+      name: "from error.constructor.name",
+      message: "from error.message",
+      stack: "from error.stack",
+      cause: {
+        ... // up to 10 levels
+      }
+    }
+  }
+  ```
+
 ## 0.6.0
 
 ### Minor Changes

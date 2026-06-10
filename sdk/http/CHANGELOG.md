@@ -1,5 +1,21 @@
 # @outputai/http
 
+## 0.7.0
+
+### Patch Changes
+
+- 383b24b: Exported event payload types for hook consumers.
+
+  - `@outputai/http` now exports `HttpRequestEvent` for `http:request` and `HttpRequestCostEvent` for `cost:http:request`.
+  - `@outputai/llm` now exports `LLMUsageEvent` for `cost:llm:request`.
+
+  Use these with `@outputai/core/hooks` as `on<HttpRequestEvent>( 'http:request', handler )`, so applications can type event-specific fields without redefining the payload shapes locally.
+
+- Updated dependencies [383b24b]
+- Updated dependencies [1f47248]
+- Updated dependencies [0d08ff5]
+  - @outputai/core@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

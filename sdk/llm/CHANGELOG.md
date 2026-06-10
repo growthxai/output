@@ -1,5 +1,60 @@
 # @outputai/llm
 
+## 0.7.0
+
+### Minor Changes
+
+- 5d7e612: - Added the `generateImage()` function for image generation, including image model loading, image prompt options, and wrapped image responses;
+  - Improved public TS types by deriving AI SDK options and results from the upstream `ai` package;
+  - Removed unused TS types;
+  - Added validation for prompt skills, text generation arguments, and image prompt options;
+  - Updated `streamText()` to support prompt skills and tools consistently with `generateText()`.
+- f8d698e: - Updated `@ai-sdk/*` providers and `ai` itself to peer dependencies, with these supported ranges:
+  - `ai`: `>=6 <7`
+  - `@ai-sdk/amazon-bedrock`: `>=4 <5`
+  - `@ai-sdk/anthropic`: `>=3 <4`
+  - `@ai-sdk/azure`: `>=3 <4`
+  - `@ai-sdk/google-vertex`: `>=4 <5`
+  - `@ai-sdk/openai`: `>=3 <4`
+  - `@ai-sdk/perplexity`: `>=3 <4`
+  - Built-in providers are now initialized lazily. Provider packages are imported when `@outputai/llm` is loaded, but provider instances are created only when first requested by a prompt.
+  - No longer re-exports Tavily, Exa, or Perplexity search tool factories.
+  - `getRegisteredProviders()` was renamed to `getProviderNames()`.
+
+### Patch Changes
+
+- 2cc4685: - Added runtime image inputs to `generateImage()`, including image-to-image generation and optional masks for image editing;
+  - Added validation and TypeScript types for `generateImage()` `images` and `mask` arguments;
+  - Added conversion of AI SDK non-retryable API errors to `FatalError` across `generateText()`, `streamText()`, and `generateImage()` so permanent provider failures do not trigger workflow/activity retries:
+    - APICallError (when `.isRetriable() === false` )
+    - InvalidArgumentError
+    - InvalidDataContentError
+    - InvalidPromptError
+    - LoadAPIKeyError
+    - LoadSettingError
+    - NoImageGeneratedError
+    - NoSuchModelError
+    - NoSuchProviderError
+    - UnsupportedFunctionalityError
+- 34badf9: Fixing vulnerabilities by updating `qs` and `liquidjs` dependencies.
+- 383b24b: Exported event payload types for hook consumers.
+
+  - `@outputai/http` now exports `HttpRequestEvent` for `http:request` and `HttpRequestCostEvent` for `cost:http:request`.
+  - `@outputai/llm` now exports `LLMUsageEvent` for `cost:llm:request`.
+
+  Use these with `@outputai/core/hooks` as `on<HttpRequestEvent>( 'http:request', handler )`, so applications can type event-specific fields without redefining the payload shapes locally.
+
+- fc6a93e: Recreate AI SDK `NoObjectGeneratedError` schema validation failures as new `NoObjectGeneratedError` instances with a clearer message:
+
+  ```txt
+  No object generated: response did not match schema. First issue is "Invalid input: expected string, received number" at path [name].
+  ```
+
+- Updated dependencies [383b24b]
+- Updated dependencies [1f47248]
+- Updated dependencies [0d08ff5]
+  - @outputai/core@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @outputai/cli
 
+## 0.7.0
+
+### Patch Changes
+
+- 83742db: `credentials set` and `credentials edit` now check whether the current key can decrypt the existing credentials file before re-encrypting. On a key mismatch they abort with a clear warning that the wrong key may be in use and the file would be re-encrypted under a different key. Pass `--force` / `-f` to proceed anyway (re-encrypts from empty, discarding the undecryptable values).
+- Updated dependencies [5d7e612]
+- Updated dependencies [2cc4685]
+- Updated dependencies [34badf9]
+- Updated dependencies [383b24b]
+- Updated dependencies [fc6a93e]
+- Updated dependencies [f8d698e]
+  - @outputai/llm@0.7.0
+  - @outputai/credentials@0.7.0
+  - @outputai/evals@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes

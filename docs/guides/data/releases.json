@@ -1,6 +1,121 @@
 {
   "releases": [
     {
+      "version": "0.7.0",
+      "date": "2026-06-10",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "eager-boxes-allow",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "## Workflow hooks\nUpdated `onWorkflowStart()`, `onWorkflowEnd()`, `onWorkflowError()` hooks payload:\n\n```js\n{ eventId, eventDate, workflowDetails, error? }\n```\n\nWhere `eventDate` is the event timestamp in milliseconds.\n\nWhere `workflowDetails` is an abstraction over [Temporal's `workflowInfo()`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo):\n```ts\n{\n  attempt: number,\n  continuedFromExecutionRunId?: string | undefined,\n  firstExecutionRunId: string,\n  parent?: {\n    runId: string,\n    workflowId: string,\n    namespace: string\n  } | undefined,\n  root?: {\n    runId: string,\n    workflowId: string\n  } | undefined,\n  runId: string,\n  runStartTime: number, // epoch\n  startTime: number, // epoch\n  workflowId: string,\n  workflowType: string\n}\n```\n\n## Error hook\nUpdated `onError()` hooks payload. The fields change according to the `source`:\n\n### Source is \"workflow\"\n```js\n{ eventId, eventDate, source, workflowDetails, error }\n```\nWhere `workflowDetails` is the same as in workflow hooks.\n\n### Source is \"activity\"\n```js\n{ eventId, eventDate, source, workflowDetails, activityInfo, outputActivityKind, error }\n```\n\nWhere `activityInfo` is Temporal's `activityInfo()` [function return](https://typescript.temporal.io/api/interfaces/activity.Info).\n\nAnd `outputActivityKind` is the framework flavor of the Temporal Activity: `step`, `evaluator` or `internal_step`.\n\n### Source is \"runtime\"\n```js\n{ eventId, eventDate, source, error }\n```\n\n## \"on()\" hook\nUpdated `on()` hooks with better typing and a new envelope.\n\n### Envelope\nAll events have these fields:\n- `eventId`\n- `eventDate`\n- `workflowDetails`: Same from other hooks\n- `activityInfo`: From Temporal\n- `outputActivityKind`\n\n### Typing\nBesides the envelope fields, each event also has its own fields, their types are specified by the event emitter:\n- `on<HttpRequestEvent>( 'http:request', handler )` from `@outputai/http`;\n- `on<HttpRequestCostEvent>( 'cost:http:request', handler )` from `@outputai/http`;\n- `on<LLMUsageEvent>( 'cost:llm:request', handler )` from `@outputai/llm`\n\n## Execution Context\nUpdated `getExecutionContext()` from `core/sdk_activity_integration` to return:\n```js\n{ activityInfo, workflowFilename }\n```\n\n## Trace File\nUpdated trace workflow node ids to use Temporal `runId`, instead of `workflowId`. This helps to create trees when child workflows \"continued as new\"."
+        },
+        {
+          "id": "great-guests-fail",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Added the `generateImage()` function for image generation, including image model loading, image prompt options, and wrapped image responses;\n- Improved public TS types by deriving AI SDK options and results from the upstream `ai` package;\n- Removed unused TS types;\n- Added validation for prompt skills, text generation arguments, and image prompt options;\n- Updated `streamText()` to support prompt skills and tools consistently with `generateText()`."
+        },
+        {
+          "id": "long-badgers-pick",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` env var. Default `0` - off.\n\nMessage examples:\n### Dev\n```\n[info] Telemetry: Worker { status: { runState: \"RUNNING\", numHeartbeatingActivities: 0, workflowPollerState: \"POLLING\", activityPollerState: \"POLLING\", hasOutstandingWorkflowPoll: true, hasOutstandingActivityPoll: true, numCachedWorkflows: 1, numInFlightWorkflowActivations: 0, numInFlightActivities: 0, numInFlightNonLocalActivities: 0, numInFlightLocalActivities: 0 }, memory: { availableMemory: 7500000000, constrainedMemory: 20000000000000000000, memoryUsage: { rss: 582348800, heapTotal: 400000000, heapUsed: 200000000, external: 800000000, arrayBuffers: 300000000 } } }\n```\n\n### Prod\n```json\n{\n  \"environment\": \"production\",\n  \"level\": \"info\",\n  \"memory\": {\n    \"availableMemory\": 7500000000,\n    \"constrainedMemory\": 20000000000000000000,\n    \"memoryUsage\": {\n      \"arrayBuffers\": 1445268,\n      \"external\": 800000000,\n      \"heapTotal\": 400000000,\n      \"heapUsed\": 200000000,\n      \"rss\": 300000000\n      }\n    },\n  \"message\": \"Worker\",\n  \"namespace\": \"Telemetry\",\n  \"service\": \"output-worker\",\n  \"status\": {\n    \"activityPollerState\": \"POLLING\",\n    \"hasOutstandingActivityPoll\": true,\n    \"hasOutstandingWorkflowPoll\": true,\n    \"numCachedWorkflows\": 1,\n    \"numHeartbeatingActivities\": 0,\n    \"numInFlightActivities\": 0,\n    \"numInFlightLocalActivities\": 0,\n    \"numInFlightNonLocalActivities\": 0,\n    \"numInFlightWorkflowActivations\": 0,\n    \"runState\": \"RUNNING\",\n    \"workflowPollerState\": \"POLLING\"\n  },\n  \"timestamp\": \"2026-06-02T21:54:29.261+00:00\"\n}\n```"
+        },
+        {
+          "id": "shaggy-eagles-ring",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Added runtime image inputs to `generateImage()`, including image-to-image generation and optional masks for image editing;\n- Added validation and TypeScript types for `generateImage()` `images` and `mask` arguments;\n- Added conversion of AI SDK non-retryable API errors to `FatalError` across `generateText()`, `streamText()`, and `generateImage()` so permanent provider failures do not trigger workflow/activity retries:\n  - APICallError (when `.isRetriable() === false` )\n  - InvalidArgumentError\n  - InvalidDataContentError\n  - InvalidPromptError\n  - LoadAPIKeyError\n  - LoadSettingError\n  - NoImageGeneratedError\n  - NoSuchModelError\n  - NoSuchProviderError\n  - UnsupportedFunctionalityError"
+        },
+        {
+          "id": "sixty-bats-fry",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fixing vulnerabilities by updating `qs` and `liquidjs` dependencies."
+        },
+        {
+          "id": "sour-parks-rule",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Improve trace error serialization to preserve nested error causes. Error entries in trace files now include the error `name`, `message`, `stack`, and recursively serialized `cause` values up to 10 levels deep, including JSON-safe non-Error causes where present.\n\n```js\n{\n  name: \"from error.constructor.name\",\n  message: \"from error.message\",\n  stack: \"from error.stack\",\n  cause: { // from .cause\n    name: \"from error.constructor.name\",\n    message: \"from error.message\",\n    stack: \"from error.stack\",\n    cause: {\n      ... // up to 10 levels\n    }\n  }\n}\n```"
+        },
+        {
+          "id": "spotty-rules-shout",
+          "packages": [
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Exported event payload types for hook consumers.\n\n- `@outputai/http` now exports `HttpRequestEvent` for `http:request` and `HttpRequestCostEvent` for `cost:http:request`.\n- `@outputai/llm` now exports `LLMUsageEvent` for `cost:llm:request`.\n\nUse these with `@outputai/core/hooks` as `on<HttpRequestEvent>( 'http:request', handler )`, so applications can type event-specific fields without redefining the payload shapes locally."
+        },
+        {
+          "id": "tiny-toys-unite",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Recreate AI SDK `NoObjectGeneratedError` schema validation failures as new `NoObjectGeneratedError` instances with a clearer message:\n\n```txt\nNo object generated: response did not match schema. First issue is \"Invalid input: expected string, received number\" at path [name].\n```"
+        },
+        {
+          "id": "warn-reencrypt-credentials-mismatched-key",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "`credentials set` and `credentials edit` now check whether the current key can decrypt the existing credentials file before re-encrypting. On a key mismatch they abort with a clear warning that the wrong key may be in use and the file would be re-encrypted under a different key. Pass `--force` / `-f` to proceed anyway (re-encrypts from empty, discarding the undecryptable values)."
+        },
+        {
+          "id": "wide-eels-act",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Updated `@ai-sdk/*` providers and `ai` itself to peer dependencies, with these supported ranges:\n  - `ai`: `>=6 <7`\n  - `@ai-sdk/amazon-bedrock`: `>=4 <5`\n  - `@ai-sdk/anthropic`: `>=3 <4`\n  - `@ai-sdk/azure`: `>=3 <4`\n  - `@ai-sdk/google-vertex`: `>=4 <5`\n  - `@ai-sdk/openai`: `>=3 <4`\n  - `@ai-sdk/perplexity`: `>=3 <4`\n- Built-in providers are now initialized lazily. Provider packages are imported when `@outputai/llm` is loaded, but provider instances are created only when first requested by a prompt.\n- No longer re-exports Tavily, Exa, or Perplexity search tool factories.\n- `getRegisteredProviders()` was renamed to `getProviderNames()`."
+        }
+      ]
+    },
+    {
       "version": "0.6.0",
       "date": "2026-05-29",
       "level": "minor",
