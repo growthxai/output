@@ -1,5 +1,11 @@
 # output-api
 
+## 0.7.0
+
+### Patch Changes
+
+- 34badf9: Fixing vulnerabilities by updating `qs` and `liquidjs` dependencies.
+
 ## 0.6.0
 
 ### Minor Changes

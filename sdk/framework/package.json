@@ -1,6 +1,6 @@
 {
   "name": "@outputai/output",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "The Output.ai Framework",
   "type": "module",
   "dependencies": {
