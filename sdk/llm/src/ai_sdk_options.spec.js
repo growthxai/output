@@ -162,12 +162,12 @@ describe( 'ai_sdk_options', () => {
     expect( loadImageModelImpl ).not.toHaveBeenCalled();
   } );
 
-  it( 'expands the cache shorthand into per-message anthropic cacheControl', async () => {
+  it( 'resolves block attributes into per-message providerOptions', async () => {
     const prompt = {
       name: 'cache@v1',
       config: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
       messages: [
-        { role: 'system', content: 'Static instructions', cache: true },
+        { role: 'system', content: 'Static', attributes: { cache: '1h' } },
         { role: 'user', content: 'Hello' }
       ],
       instructions: null
@@ -179,117 +179,10 @@ describe( 'ai_sdk_options', () => {
     expect( result.messages ).toEqual( [
       {
         role: 'system',
-        content: 'Static instructions',
-        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+        content: 'Static',
+        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
       },
       { role: 'user', content: 'Hello' }
     ] );
-  } );
-
-  it( 'passes the 1h ttl through the cache shorthand', async () => {
-    const prompt = {
-      name: 'cache@v1',
-      config: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
-      messages: [
-        { role: 'system', content: 'Static', cache: '1h' },
-        { role: 'user', content: 'Hello' }
-      ],
-      instructions: null
-    };
-
-    const { loadAiSdkTextOptions } = await importSut();
-    const result = loadAiSdkTextOptions( prompt );
-
-    expect( result.messages[0].providerOptions ).toEqual( {
-      anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } }
-    } );
-  } );
-
-  it( 'resolves messageOptions set references into per-message providerOptions', async () => {
-    const prompt = {
-      name: 'opts@v1',
-      config: {
-        provider: 'anthropic',
-        model: 'claude-sonnet-4-5',
-        messageOptions: { cached: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
-      },
-      messages: [
-        { role: 'system', content: 'Docs', options: [ 'cached' ] },
-        { role: 'user', content: 'Question' }
-      ],
-      instructions: null
-    };
-
-    const { loadAiSdkTextOptions } = await importSut();
-    const result = loadAiSdkTextOptions( prompt );
-
-    expect( result.messages[0] ).toEqual( {
-      role: 'system',
-      content: 'Docs',
-      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
-    } );
-    expect( result.messages[1] ).toEqual( { role: 'user', content: 'Question' } );
-  } );
-
-  it( 'resolves the cache shorthand for Claude models on vertex', async () => {
-    const prompt = {
-      name: 'vertex@v1',
-      config: { provider: 'vertex', model: 'claude-sonnet-4@vertex' },
-      messages: [
-        { role: 'system', content: 'Static', cache: true },
-        { role: 'user', content: 'Hello' }
-      ],
-      instructions: null
-    };
-
-    const { loadAiSdkTextOptions } = await importSut();
-    const result = loadAiSdkTextOptions( prompt );
-
-    expect( result.messages[0].providerOptions ).toEqual( {
-      anthropic: { cacheControl: { type: 'ephemeral' } }
-    } );
-  } );
-
-  it( 'warns and skips the cache shorthand for non-anthropic providers', async () => {
-    const warnSpy = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
-    const prompt = {
-      name: 'openai@v1',
-      config: { provider: 'openai', model: 'gpt-4o' },
-      messages: [
-        { role: 'system', content: 'Static', cache: true },
-        { role: 'user', content: 'Hello' }
-      ],
-      instructions: null
-    };
-
-    const { loadAiSdkTextOptions } = await importSut();
-    const result = loadAiSdkTextOptions( prompt );
-
-    expect( result.messages ).toEqual( [
-      { role: 'system', content: 'Static' },
-      { role: 'user', content: 'Hello' }
-    ] );
-    expect( warnSpy ).toHaveBeenCalledWith(
-      expect.stringContaining( '"cache" shorthand only supports Anthropic models' )
-    );
-
-    warnSpy.mockRestore();
-  } );
-
-  it( 'throws when a message references an unknown messageOptions set', async () => {
-    const prompt = {
-      name: 'bad@v1',
-      config: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
-      messages: [
-        { role: 'user', content: 'Hello', options: [ 'missing' ] }
-      ],
-      instructions: null
-    };
-
-    const { loadAiSdkTextOptions } = await importSut();
-
-    expect( () => loadAiSdkTextOptions( prompt ) ).toThrow(
-      'Prompt "bad@v1" references unknown messageOptions set "missing"'
-    );
   } );
 } );

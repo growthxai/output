@@ -1,4 +1,5 @@
 import { ValidationError, z } from '@outputai/core';
+import { attributesSchema } from './block_options.js';
 
 const toolConfigSchema = z.record( z.string(), z.unknown() );
 const toolsConfigSchema = z.record( z.string(), toolConfigSchema );
@@ -32,8 +33,7 @@ export const promptSchema = z.object( {
     z.object( {
       role: z.string(),
       content: z.string(),
-      cache: z.union( [ z.boolean(), z.enum( [ '5m', '1h' ] ) ] ).optional(),
-      options: z.array( z.string().min( 1 ) ).optional()
+      attributes: attributesSchema.optional()
     } ).strict()
   ),
   instructions: z.string().trim().min( 1 ).nullable().optional()

@@ -597,7 +597,7 @@ describe( 'validatePrompt', () => {
     expect( () => validatePrompt( maxTokensSnakeCase ) ).not.toThrow();
   } );
 
-  it( 'should validate per-message cache shorthand values', () => {
+  it( 'should validate per-message cache attribute values', () => {
     const promptWithCache = {
       name: 'cache-prompt',
       config: {
@@ -605,15 +605,15 @@ describe( 'validatePrompt', () => {
         model: 'claude-sonnet-4-5'
       },
       messages: [
-        { role: 'system', content: 'Static instructions.', cache: true },
-        { role: 'user', content: 'Question', cache: '1h' }
+        { role: 'system', content: 'Static instructions.', attributes: { cache: true } },
+        { role: 'user', content: 'Question', attributes: { cache: '1h' } }
       ]
     };
 
     expect( () => validatePrompt( promptWithCache ) ).not.toThrow();
   } );
 
-  it( 'should validate messageOptions sets referenced by message options', () => {
+  it( 'should validate the options attribute referencing messageOptions sets', () => {
     const promptWithMessageOptions = {
       name: 'message-options-prompt',
       config: {
@@ -624,7 +624,7 @@ describe( 'validatePrompt', () => {
         }
       },
       messages: [
-        { role: 'system', content: 'Docs.', options: [ 'cached' ] },
+        { role: 'system', content: 'Docs.', attributes: { options: 'cached' } },
         { role: 'user', content: 'Question' }
       ]
     };
@@ -632,7 +632,7 @@ describe( 'validatePrompt', () => {
     expect( () => validatePrompt( promptWithMessageOptions ) ).not.toThrow();
   } );
 
-  it( 'should throw ValidationError for an invalid cache shorthand value', () => {
+  it( 'should throw ValidationError for an invalid cache attribute value', () => {
     const invalidCachePrompt = {
       name: 'invalid-cache-prompt',
       config: {
@@ -640,14 +640,29 @@ describe( 'validatePrompt', () => {
         model: 'claude-sonnet-4-5'
       },
       messages: [
-        { role: 'system', content: 'Static.', cache: '2h' }
+        { role: 'system', content: 'Static.', attributes: { cache: '2h' } }
       ]
     };
 
     expect( () => validatePrompt( invalidCachePrompt ) ).toThrow( ValidationError );
   } );
 
-  it( 'should throw ValidationError for unknown per-message fields', () => {
+  it( 'should throw ValidationError for an unknown block attribute', () => {
+    const unknownAttributePrompt = {
+      name: 'unknown-attribute-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'user', content: 'Hi', attributes: { cacheControl: { type: 'ephemeral' } } }
+      ]
+    };
+
+    expect( () => validatePrompt( unknownAttributePrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError for unknown top-level message fields', () => {
     const unknownFieldPrompt = {
       name: 'unknown-field-prompt',
       config: {
@@ -655,7 +670,7 @@ describe( 'validatePrompt', () => {
         model: 'claude-sonnet-4-5'
       },
       messages: [
-        { role: 'user', content: 'Hi', cacheControl: { type: 'ephemeral' } }
+        { role: 'user', content: 'Hi', cache: true }
       ]
     };
 

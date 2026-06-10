@@ -165,104 +165,22 @@ model: claude-3-5-sonnet-20241022
     expect( result.instructions ).toBeNull();
   } );
 
-  it( 'parses the cache shorthand as a boolean breakpoint marker', () => {
+  it( 'surfaces block opening-tag attributes as an attributes object', () => {
     const raw = `---
 provider: anthropic
 model: claude-sonnet-4-5
 ---
 
-<system cache>Static instructions.</system>
-<user>Question</user>`;
-
-    const result = parsePrompt( { name: 'test', raw } );
-
-    expect( result.messages ).toEqual( [
-      { role: 'system', content: 'Static instructions.', cache: true },
-      { role: 'user', content: 'Question' }
-    ] );
-  } );
-
-  it( 'parses the cache shorthand ttl value', () => {
-    const raw = `---
-provider: anthropic
-model: claude-sonnet-4-5
----
-
-<system cache="1h">Static instructions.</system>
+<system cache="1h">Static.</system>
 <user>Question</user>`;
 
     const result = parsePrompt( { name: 'test', raw } );
 
     expect( result.messages[0] ).toEqual( {
       role: 'system',
-      content: 'Static instructions.',
-      cache: '1h'
+      content: 'Static.',
+      attributes: { cache: '1h' }
     } );
-  } );
-
-  it( 'parses options set references, single and space-separated', () => {
-    const raw = `---
-provider: anthropic
-model: claude-sonnet-4-5
----
-
-<system options="cached">Docs.</system>
-<user options="cached fast">Question</user>`;
-
-    const result = parsePrompt( { name: 'test', raw } );
-
-    expect( result.messages[0].options ).toEqual( [ 'cached' ] );
-    expect( result.messages[1].options ).toEqual( [ 'cached', 'fast' ] );
-  } );
-
-  it( 'parses cache and options on the same block', () => {
-    const raw = `---
-provider: anthropic
-model: claude-sonnet-4-5
----
-
-<user cache="1h" options="extra">Question</user>`;
-
-    const result = parsePrompt( { name: 'test', raw } );
-
-    expect( result.messages[0] ).toEqual( {
-      role: 'user',
-      content: 'Question',
-      cache: '1h',
-      options: [ 'extra' ]
-    } );
-  } );
-
-  it( 'does not mistake options="cache" for the cache shorthand', () => {
-    const raw = `---
-provider: anthropic
-model: claude-sonnet-4-5
----
-
-<system options="cache">Docs.</system>`;
-
-    const result = parsePrompt( { name: 'test', raw } );
-
-    expect( result.messages[0] ).toEqual( {
-      role: 'system',
-      content: 'Docs.',
-      options: [ 'cache' ]
-    } );
-    expect( result.messages[0].cache ).toBeUndefined();
-  } );
-
-  it( 'leaves plain blocks without cache or options keys', () => {
-    const raw = `---
-provider: anthropic
-model: claude-sonnet-4-5
----
-
-<system>Plain.</system>`;
-
-    const result = parsePrompt( { name: 'test', raw } );
-
-    expect( result.messages[0] ).toEqual( { role: 'system', content: 'Plain.' } );
-    expect( Object.hasOwn( result.messages[0], 'cache' ) ).toBe( false );
-    expect( Object.hasOwn( result.messages[0], 'options' ) ).toBe( false );
+    expect( result.messages[1] ).toEqual( { role: 'user', content: 'Question' } );
   } );
 } );
