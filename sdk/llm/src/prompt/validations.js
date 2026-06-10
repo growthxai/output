@@ -1,5 +1,8 @@
 import { ValidationError, z } from '@outputai/core';
 
+const toolConfigSchema = z.record( z.string(), z.unknown() );
+const toolsConfigSchema = z.record( z.string(), toolConfigSchema );
+
 export const promptSchema = z.object( {
   name: z.string(),
   config: z.object( {
@@ -13,7 +16,7 @@ export const promptSchema = z.object( {
     aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
     seed: z.number().int().optional(),
     skills: z.union( [ z.string().min( 1 ), z.array( z.string().min( 1 ) ) ] ).optional(),
-    tools: z.record( z.string(), z.object( {} ).loose() ).optional(),
+    tools: toolsConfigSchema.optional(),
     providerOptions: z.object( {
       thinking: z.object( {
         type: z.enum( [ 'enabled', 'disabled' ] ),

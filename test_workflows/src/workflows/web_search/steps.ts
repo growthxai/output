@@ -1,5 +1,6 @@
 import { step, z } from '@outputai/core';
-import { generateText, perplexitySearch, stepCountIs } from '@outputai/llm';
+import { generateText, stepCountIs } from '@outputai/llm';
+import { perplexitySearch } from '@perplexity-ai/ai-sdk';
 import { searchOutputSchema } from './types.js';
 
 export const searchWeb = step( {

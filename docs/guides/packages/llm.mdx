@@ -584,6 +584,19 @@ Company size: {{ size }} employees
 
 ## Providers
 
+`@outputai/llm` ships built-in support for common AI SDK providers. The provider packages are peer dependencies with supported version ranges:
+
+| Prompt `provider` | Peer dependency | Supported range |
+|-------------------|-----------------|-----------------|
+| `anthropic` | `@ai-sdk/anthropic` | `>=3 <4` |
+| `openai` | `@ai-sdk/openai` | `>=3 <4` |
+| `azure` | `@ai-sdk/azure` | `>=3 <4` |
+| `vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
+| `bedrock` | `@ai-sdk/amazon-bedrock` | `>=4 <5` |
+| `perplexity` | `@ai-sdk/perplexity` | `>=3 <4` |
+
+Built-in provider instances are initialized lazily. Output creates the provider instance only when a prompt or API call first requests that provider, then reuses it for later calls.
+
 ### Anthropic
 
 ```yaml

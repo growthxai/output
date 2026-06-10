@@ -1,0 +1,76 @@
+---
+title: "v0.6.0 → v0.7.0"
+description: "Upgrading Output.ai projects from v0.6.0 to v0.7.0: removed web search tool re-exports and provider list helper rename."
+---
+
+This guide covers the `@outputai/llm` export changes in v0.7.0.
+
+## What changed
+
+- `@outputai/llm` no longer re-exports Tavily, Exa, or Perplexity search tool factories.
+- `@outputai/llm` `.getRegisteredProviders()` was renamed to `.getProviderNames()`.
+
+## Migration steps
+
+### Import web search tools from their packages
+
+`@outputai/llm` no longer re-exports third-party search tool factories. Import them directly from the package that owns them.
+
+#### Before
+
+```ts
+import {
+  tavilySearch,
+  tavilyExtract,
+  tavilyCrawl,
+  tavilyMap,
+  exaSearch,
+  perplexitySearch
+} from '@outputai/llm';
+```
+
+#### After
+
+```ts
+import { tavilySearch, tavilyExtract, tavilyCrawl, tavilyMap } from '@tavily/ai-sdk';
+import { webSearch as exaSearch } from '@exalabs/ai-sdk';
+import { perplexitySearch } from '@perplexity-ai/ai-sdk';
+```
+
+Install whichever search tool packages you use:
+
+```bash
+npm install @tavily/ai-sdk @exalabs/ai-sdk @perplexity-ai/ai-sdk
+```
+
+<Note>
+`provider: perplexity` uses the AI SDK provider package `@ai-sdk/perplexity`. The removed `perplexitySearch` export comes from the separate tool package `@perplexity-ai/ai-sdk`.
+</Note>
+
+### Rename `getRegisteredProviders` to `getProviderNames`
+
+The provider list helper was renamed to better describe that it returns built-in provider names as well as custom providers registered with `registerProvider`.
+
+#### Before
+
+```ts
+import { getRegisteredProviders } from '@outputai/llm';
+
+const providers = getRegisteredProviders();
+```
+
+#### After
+
+```ts
+import { getProviderNames } from '@outputai/llm';
+
+const providers = getProviderNames();
+```
+
+## Checklist
+
+- Replace Tavily imports from `@outputai/llm` with imports from `@tavily/ai-sdk`.
+- Replace `exaSearch` imports from `@outputai/llm` with `webSearch as exaSearch` from `@exalabs/ai-sdk`.
+- Replace `perplexitySearch` imports from `@outputai/llm` with imports from `@perplexity-ai/ai-sdk`.
+- Replace `getRegisteredProviders` imports and calls with `getProviderNames`.
+- Run your package manager install command and type checker.

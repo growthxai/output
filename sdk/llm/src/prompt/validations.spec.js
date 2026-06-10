@@ -384,6 +384,71 @@ describe( 'validatePrompt', () => {
     expect( () => validatePrompt( promptWithSkill ) ).not.toThrow();
   } );
 
+  it( 'should validate provider tool config records', () => {
+    const promptWithTools = {
+      name: 'tools-prompt',
+      config: {
+        provider: 'vertex',
+        model: 'gemini-2.0-flash',
+        tools: {
+          googleSearch: {
+            mode: 'MODE_DYNAMIC',
+            dynamicThreshold: 0.8
+          },
+          urlContext: {}
+        }
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Research this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithTools ) ).not.toThrow();
+  } );
+
+  it( 'should throw ValidationError when tools config is not a record', () => {
+    const invalidToolsPrompt = {
+      name: 'invalid-tools-prompt',
+      config: {
+        provider: 'vertex',
+        model: 'gemini-2.0-flash',
+        tools: [ 'googleSearch' ]
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Research this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( invalidToolsPrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError when a tool config is not a record', () => {
+    const invalidToolConfigPrompt = {
+      name: 'invalid-tool-config-prompt',
+      config: {
+        provider: 'vertex',
+        model: 'gemini-2.0-flash',
+        tools: {
+          googleSearch: 'MODE_DYNAMIC'
+        }
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Research this.'
+        }
+      ]
+    };
+
+    expect( () => validatePrompt( invalidToolConfigPrompt ) ).toThrow( ValidationError );
+  } );
+
   it( 'should throw ValidationError for invalid skill path config', () => {
     const invalidSkillsPrompt = {
       name: 'invalid-skills-prompt',
