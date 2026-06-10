@@ -79,18 +79,24 @@ const isApplicationFailure = e =>
   Boolean( e ) && ( typeof e.type === 'string' || typeof e.nonRetryable === 'boolean' );
 
 /**
- * Walks the .cause chain and returns the first ApplicationFailure-like node, or null.
+ * Temporal's own failure wrappers. When one of these is itself wrapped in an ApplicationFailure, the
+ * wrapper's `type` names the transport layer (e.g. "ActivityFailure"), not the user's error. We skip
+ * them so we surface the original throw (e.g. "Foo"/"Error") instead of "Activity task failed".
+ */
+const TEMPORAL_FAILURE_TYPES = new Set( [
+  'ActivityFailure', 'ChildWorkflowFailure', 'TimeoutFailure',
+  'CancelledFailure', 'TerminatedFailure', 'ServerFailure', 'ApplicationFailure'
+] );
+
+/**
+ * Flattens an error's .cause chain into an array, outermost first (depth-limited).
  *
  * @param {Error} e
  * @param {number} [depth=20]
- * @returns {object|null}
+ * @returns {object[]}
  */
-const findApplicationFailure = ( e, depth = 20 ) => {
-  if ( !e || depth <= 0 ) {
-    return null;
-  }
-  return isApplicationFailure( e ) ? e : findApplicationFailure( e.cause, depth - 1 );
-};
+const collectChain = ( e, depth = 20 ) =>
+  !e || depth <= 0 ? [] : [ e, ...collectChain( e.cause, depth - 1 ) ];
 
 /**
  * Recursively serializes an error's .cause chain into a sanitized, transport-safe shape for
@@ -136,11 +142,20 @@ export const extractFailure = error => {
   if ( !error ) {
     return null;
   }
-  const appFailure = findApplicationFailure( error );
+  const chain = collectChain( error );
+  // Temporal double-wraps: WorkflowFailedError -> ApplicationFailure(type=ActivityFailure) ->
+  // ActivityFailure -> ApplicationFailure(type=<user error>). Prefer the deepest ApplicationFailure
+  // whose type is the user's error, so we surface the friendly message rather than the wrapper.
+  const deepestFirst = chain.filter( isApplicationFailure ).reverse();
+  const userFailure = deepestFirst.find( link => typeof link.type === 'string' && !TEMPORAL_FAILURE_TYPES.has( link.type ) ) ??
+    deepestFirst[0] ??
+    null;
+  // Retryability lives on whichever link Temporal flagged (usually the activity wrapper).
+  const flagged = chain.find( link => typeof link.nonRetryable === 'boolean' );
   return {
-    message: appFailure?.message ?? extractErrorMessage( error ),
-    type: appFailure?.type ?? error.constructor?.name ?? error.name ?? null,
-    retryable: appFailure && typeof appFailure.nonRetryable === 'boolean' ? !appFailure.nonRetryable : null,
+    message: userFailure?.message ?? extractErrorMessage( error ),
+    type: userFailure?.type ?? error.constructor?.name ?? error.name ?? null,
+    retryable: flagged ? !flagged.nonRetryable : null,
     cause: serializeErrorChain( error )
   };
 };

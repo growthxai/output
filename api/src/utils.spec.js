@@ -258,6 +258,27 @@ describe( 'utils spec', () => {
       expect( failure.retryable ).toBe( false );
     } );
 
+    it( 'picks the innermost user error over the outer ActivityFailure wrapper (real double-wrapped chain)', () => {
+      // Mirrors the live Temporal chain captured from a step throwing new Error('Foo'):
+      // WorkflowFailedError -> ApplicationFailure(type=ActivityFailure) -> ActivityFailure -> ApplicationFailure(type=Error)
+      const chain = {
+        name: 'WorkflowFailedError', message: 'Workflow execution failed',
+        cause: {
+          type: 'ActivityFailure', nonRetryable: false, message: 'Activity task failed',
+          cause: {
+            message: 'Activity task failed',
+            cause: { type: 'Error', message: 'Foo' }
+          }
+        }
+      };
+
+      const failure = extractFailure( chain );
+
+      expect( failure.message ).toBe( 'Foo' );
+      expect( failure.type ).toBe( 'Error' );
+      expect( failure.retryable ).toBe( true );
+    } );
+
     it( 'returns retryable true when nonRetryable is false', () => {
       const appFailure = { type: 'SomeError', nonRetryable: false, message: 'oops' };
 
