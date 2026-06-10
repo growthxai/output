@@ -33,7 +33,7 @@ export class ActivityExecutionInterceptor {
     this.activityKindMap = new Map( Object.entries( activities )
       .map( ( [ type, fn ] ) => ( [ type, fn[METADATA_ACCESS_SYMBOL].type ] ) ) );
 
-    // convert workflows[] array to a map: workflowType/alias:workflow
+    // convert workflows[] array to a map: workflowType/alias.n:path
     this.workflowsPathMap = new Map( workflows.flatMap( ( { name, aliases, path } ) =>
       [ name, ...aliases ?? [] ].map( a => ( [ a, path ] ) )
     ) );
