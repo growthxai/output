@@ -57,6 +57,18 @@ export type PromptMessage = {
   role: string;
   /** The content of the message */
   content: string;
+  /**
+   * Shorthand marking this block as an Anthropic prompt-cache breakpoint (caches the prompt
+   * prefix up to and including this block). `true` uses the default 5-minute TTL; `'1h'` uses
+   * the 1-hour TTL. Applied only for Anthropic models (provider `anthropic`, or `vertex` with a
+   * Claude model). Authored in a prompt file as `<system cache>` or `<user cache="1h">`.
+   */
+  cache?: boolean | '5m' | '1h';
+  /**
+   * Names of frontmatter `messageOptions` sets to merge into this block's per-message
+   * `providerOptions`. Authored as `<system options="set_a set_b">`.
+   */
+  options?: string[];
 };
 
 /**
@@ -139,6 +151,13 @@ export type Prompt = {
 
     /** Provider-specific options */
     providerOptions?: Record<string, unknown>;
+
+    /**
+     * Named, reusable per-message `providerOptions` sets, referenced from message blocks via the
+     * `options="<name>"` attribute. Each value is a provider-namespaced options object, e.g.
+     * `{ anthropic: { cacheControl: { type: 'ephemeral' } } }`.
+     */
+    messageOptions?: Record<string, Record<string, Record<string, unknown>>>;
   };
 
   /** Array of messages in the conversation */

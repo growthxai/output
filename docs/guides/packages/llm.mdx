@@ -691,6 +691,72 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
+## Prompt Caching
+
+When a prompt sends the same large prefix on every call — a long system prompt, few-shot examples, a pasted reference document — you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. Mark the block that ends your static prefix and Output sets the cache breakpoint for you.
+
+### The cache shorthand
+
+Add `cache` to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
+
+```text prompts/generate_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+---
+
+<system cache>
+You write concise company summaries for sales teams. Follow this style guide:
+{{ style_guide }}
+</system>
+
+<user>
+Summarize {{ companyName }}.
+</user>
+```
+
+Only the `<user>` block — the part that changes each call — is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. Use `cache="1h"` for the 1-hour cache instead of the default 5 minutes.
+
+<Warning>
+Mark the last **static** block, never one containing per-call `{{ variables }}`. A breakpoint on changing content rewrites the cache on every call and never gets a hit. Order your blocks static-first, dynamic-last.
+</Warning>
+
+The shorthand targets Anthropic models — `provider: anthropic`, or `provider: vertex` with a Claude model. On any other provider it is ignored with a warning; use `messageOptions` with that provider's namespace instead.
+
+### messageOptions
+
+`cache` is shorthand over a general mechanism: per-message `providerOptions`. Define named option sets in front matter and attach them to blocks with `options`:
+
+```text prompts/enrich_company@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+messageOptions:
+  cached:
+    anthropic:
+      cacheControl:
+        type: ephemeral
+---
+
+<system options="cached">
+{{ enrichment_playbook }}
+</system>
+
+<user>
+Enrich {{ company }}.
+</user>
+```
+
+Each set is a provider-namespaced `providerOptions` object — the same shape and [namespace rules](/prompts#provider-options) as call-level `providerOptions`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks. Use this to cache on providers whose namespace differs from Anthropic's, or to attach any other per-message provider option.
+
+### Confirming a cache hit
+
+Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache-creation tokens, and later calls within the TTL report cache-read tokens (`cachedInputTokens`), already priced at the cheaper rate in `response.cost`.
+
+<Note>
+Anthropic caches only prefixes above a model-specific minimum — around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
+</Note>
+
 ## Provider Tools
 
 Many providers offer built-in tools like web search. Configure them in YAML front matter:

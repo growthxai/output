@@ -596,4 +596,69 @@ describe( 'validatePrompt', () => {
 
     expect( () => validatePrompt( maxTokensSnakeCase ) ).not.toThrow();
   } );
+
+  it( 'should validate per-message cache shorthand values', () => {
+    const promptWithCache = {
+      name: 'cache-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'system', content: 'Static instructions.', cache: true },
+        { role: 'user', content: 'Question', cache: '1h' }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithCache ) ).not.toThrow();
+  } );
+
+  it( 'should validate messageOptions sets referenced by message options', () => {
+    const promptWithMessageOptions = {
+      name: 'message-options-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        messageOptions: {
+          cached: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+        }
+      },
+      messages: [
+        { role: 'system', content: 'Docs.', options: [ 'cached' ] },
+        { role: 'user', content: 'Question' }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithMessageOptions ) ).not.toThrow();
+  } );
+
+  it( 'should throw ValidationError for an invalid cache shorthand value', () => {
+    const invalidCachePrompt = {
+      name: 'invalid-cache-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'system', content: 'Static.', cache: '2h' }
+      ]
+    };
+
+    expect( () => validatePrompt( invalidCachePrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError for unknown per-message fields', () => {
+    const unknownFieldPrompt = {
+      name: 'unknown-field-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'user', content: 'Hi', cacheControl: { type: 'ephemeral' } }
+      ]
+    };
+
+    expect( () => validatePrompt( unknownFieldPrompt ) ).toThrow( ValidationError );
+  } );
 } );

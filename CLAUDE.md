@@ -226,6 +226,49 @@ AI SDK uses `Record<string, Record<string, JSONValue>>` for `providerOptions` to
 
 The nesting is intentional architecture, not redundancy.
 
+### Per-Message Caching (Anthropic Prompt Cache)
+
+Anthropic prompt caching is a **per-message** directive, not a call-level one. Mark the block that ends your static prefix; that prefix is then cached and reused across calls.
+
+**Shorthand — `cache` on a block:**
+
+```text
+<system cache>
+{{ long static instructions }}
+</system>
+
+<user>
+{{ per-call input }}
+</user>
+```
+
+- `<system cache>` → default 5-minute TTL; `<system cache="1h">` → 1-hour TTL.
+- Applies to `provider: anthropic` and `provider: vertex` with a Claude model. Ignored (with a warning) for other providers — use `messageOptions` instead.
+
+**General — `messageOptions` sets** (any provider, any per-message option):
+
+```yaml
+messageOptions:
+  cached: { anthropic: { cacheControl: { type: ephemeral } } }
+```
+```text
+<system options="cached">
+{{ long static instructions }}
+</system>
+```
+
+Each set is a provider-namespaced `providerOptions` object (same namespace rules as call-level `providerOptions`). A block may list multiple sets: `options="cached fast"`. The `cache` shorthand desugars onto this mechanism.
+
+**Rules:**
+- Mark the **last static block**, never one containing per-call `{{ variables }}` — a breakpoint on changing content rewrites the cache every call and never hits.
+- Order blocks **static-first, dynamic-last**.
+- Minimum cacheable prefix is model-specific (~1,024 tokens for most Sonnet/Opus; higher for some). Below it, caching is silently skipped — verify via the cost trace (`cachedInputTokens`).
+- Max 4 cache breakpoints per request.
+
+❌ caching a dynamic block: `<user cache>{{ topic }}</user>` (never hits)
+
+✅ caching the static prefix: `<system cache>{{ guide }}</system>` then `<user>{{ topic }}</user>`
+
 ## Schema Constraints for LLM Structured Output
 
 When using `Output.object()` with `generateText`, the Zod schema is converted to JSON Schema and sent to the LLM provider as a tool definition. **Anthropic does not support many JSON Schema constraints**, which means certain Zod methods will cause errors or be silently ignored when the schema is sent to the provider.
