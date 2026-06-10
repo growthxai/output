@@ -164,4 +164,23 @@ model: claude-3-5-sonnet-20241022
     ] );
     expect( result.instructions ).toBeNull();
   } );
+
+  it( 'surfaces block opening-tag attributes as an attributes object', () => {
+    const raw = `---
+provider: anthropic
+model: claude-sonnet-4-5
+---
+
+<system options="cached">Static.</system>
+<user>Question</user>`;
+
+    const result = parsePrompt( { name: 'test', raw } );
+
+    expect( result.messages[0] ).toEqual( {
+      role: 'system',
+      content: 'Static.',
+      attributes: { options: 'cached' }
+    } );
+    expect( result.messages[1] ).toEqual( { role: 'user', content: 'Question' } );
+  } );
 } );

@@ -32,8 +32,13 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
     if ( Number.isFinite( pricing.input ) && Number.isFinite( nonCachedTokens ) ) {
       llmUsage.addUsage( { type: 'input', ppm: pricing.input, amount: nonCachedTokens } );
     }
-    if ( Number.isFinite( pricing.cache_read ) && Number.isFinite( cachedInputTokens ) ) {
-      llmUsage.addUsage( { type: 'input_cached', ppm: pricing.cache_read, amount: cachedInputTokens } );
+    // Surface cached input tokens whenever the provider reports them, even if the model's
+    // pricing lacks a cache_read rate — otherwise caching savings vanish from the token
+    // aggregation (these tokens are already excluded from the input line above). Price at
+    // cache_read when available, otherwise at 0.
+    if ( Number.isFinite( cachedInputTokens ) ) {
+      const cacheReadPpm = Number.isFinite( pricing.cache_read ) ? pricing.cache_read : 0;
+      llmUsage.addUsage( { type: 'input_cached', ppm: cacheReadPpm, amount: cachedInputTokens } );
     }
     if ( Number.isFinite( pricing.output ) && Number.isFinite( outputTokens ) ) {
       llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: outputTokens } );

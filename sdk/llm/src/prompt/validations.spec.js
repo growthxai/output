@@ -596,4 +596,53 @@ describe( 'validatePrompt', () => {
 
     expect( () => validatePrompt( maxTokensSnakeCase ) ).not.toThrow();
   } );
+
+  it( 'should validate the options attribute referencing messageOptions sets', () => {
+    const promptWithMessageOptions = {
+      name: 'message-options-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        messageOptions: {
+          cached: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+        }
+      },
+      messages: [
+        { role: 'system', content: 'Docs.', attributes: { options: 'cached' } },
+        { role: 'user', content: 'Question' }
+      ]
+    };
+
+    expect( () => validatePrompt( promptWithMessageOptions ) ).not.toThrow();
+  } );
+
+  it( 'should reject the removed cache shorthand as an unknown block attribute', () => {
+    const cacheShorthandPrompt = {
+      name: 'cache-shorthand-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'system', content: 'Static.', attributes: { cache: true } }
+      ]
+    };
+
+    expect( () => validatePrompt( cacheShorthandPrompt ) ).toThrow( ValidationError );
+  } );
+
+  it( 'should throw ValidationError for unknown top-level message fields', () => {
+    const unknownFieldPrompt = {
+      name: 'unknown-field-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5'
+      },
+      messages: [
+        { role: 'user', content: 'Hi', options: 'cached' }
+      ]
+    };
+
+    expect( () => validatePrompt( unknownFieldPrompt ) ).toThrow( ValidationError );
+  } );
 } );

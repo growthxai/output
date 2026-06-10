@@ -1,7 +1,11 @@
 import { ValidationError, z } from '@outputai/core';
+import { attributesSchema } from './block_options.js';
 
 const toolConfigSchema = z.record( z.string(), z.unknown() );
 const toolsConfigSchema = z.record( z.string(), toolConfigSchema );
+
+// A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
+const providerOptionsSchema = z.record( z.string(), z.record( z.string(), z.unknown() ) );
 
 export const promptSchema = z.object( {
   name: z.string(),
@@ -22,12 +26,14 @@ export const promptSchema = z.object( {
         type: z.enum( [ 'enabled', 'disabled' ] ),
         budgetTokens: z.number().optional()
       } ).loose().optional()
-    } ).loose().optional()
+    } ).loose().optional(),
+    messageOptions: z.record( z.string(), providerOptionsSchema ).optional()
   } ).loose(),
   messages: z.array(
     z.object( {
       role: z.string(),
-      content: z.string()
+      content: z.string(),
+      attributes: attributesSchema.optional()
     } ).strict()
   ),
   instructions: z.string().trim().min( 1 ).nullable().optional()

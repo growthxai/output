@@ -132,7 +132,7 @@ describe( 'calculateLLMCallCost', () => {
     } );
   } );
 
-  it( 'omits cached usage when model has no cache_read rate', async () => {
+  it( 'still counts cached tokens when the model has no cache_read rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-cache', { input: 2, output: 10 } ] ] ) );
 
     const result = await calculateLLMCallCost( {
@@ -140,14 +140,17 @@ describe( 'calculateLLMCallCost', () => {
       usage: { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 0 }
     } );
 
+    // Cached tokens are surfaced (priced at 0 without a cache_read rate) so caching is
+    // visible in the aggregation; cost is unchanged since they are excluded from `input`.
     expectLLMUsage( result, {
       modelId: 'no-cache',
       usage: [
         { type: 'input', ppm: 2, amount: 800_000, total: 1.6 },
+        { type: 'input_cached', ppm: 0, amount: 200_000, total: 0 },
         { type: 'output', ppm: 10, amount: 0, total: 0 }
       ],
       total: 1.6,
-      tokensUsed: 800_000
+      tokensUsed: 1_000_000
     } );
   } );
 

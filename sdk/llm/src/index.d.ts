@@ -57,6 +57,12 @@ export type PromptMessage = {
   role: string;
   /** The content of the message */
   content: string;
+  /**
+   * Parsed opening-tag attributes for the block. Currently `options` — a space-separated list of
+   * frontmatter `messageOptions` set names — which is resolved into per-message `providerOptions`
+   * at call time and stripped before the request is sent. Authored as `<system options="set_a set_b">`.
+   */
+  attributes?: Record<string, string | boolean>;
 };
 
 /**
@@ -139,6 +145,13 @@ export type Prompt = {
 
     /** Provider-specific options */
     providerOptions?: Record<string, unknown>;
+
+    /**
+     * Named, reusable per-message `providerOptions` sets, referenced from message blocks via the
+     * `options="<name>"` attribute. Each value is a provider-namespaced options object, e.g.
+     * `{ anthropic: { cacheControl: { type: 'ephemeral' } } }`.
+     */
+    messageOptions?: Record<string, Record<string, Record<string, unknown>>>;
   };
 
   /** Array of messages in the conversation */
