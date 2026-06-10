@@ -98,20 +98,26 @@ describe( 'error_handler', () => {
     expect( logger.error ).toHaveBeenCalledWith(
       'Error: top',
       expect.objectContaining( {
-        name: 'Error',
-        cause: expect.objectContaining( { message: 'root cause' } )
+        cause: expect.objectContaining( {
+          name: 'Error',
+          message: 'top',
+          cause: expect.objectContaining( { message: 'root cause' } )
+        } )
       } )
     );
   } );
 
-  it( 'does not log a 500 that was already logged deeper in the stack', async () => {
-    const error = new Error( 'already handled' );
-    error.alreadyLogged = true;
+  it( 'includes annotated catalog context (taskQueue/query) in the 500 log', async () => {
+    const error = new Error( 'Failed to query Workflow' );
+    error.taskQueue = 'main';
+    error.query = 'get';
 
-    const { httpRes } = await sendError( error );
+    await sendError( error );
 
-    expect( httpRes.status ).toBe( 500 );
-    expect( logger.error ).not.toHaveBeenCalled();
+    expect( logger.error ).toHaveBeenCalledWith(
+      'Error: Failed to query Workflow',
+      expect.objectContaining( { taskQueue: 'main', query: 'get' } )
+    );
   } );
 
   it( 'keeps the client response body sanitized (no rootCause/stack/cause), even for gRPC cause chains', async () => {

@@ -67,100 +67,7 @@ export const extractErrorDetail = ( e, key ) =>
  */
 export const extractErrorMessage = ( e, depth = 20 ) => depth > 0 && e?.cause ? extractErrorMessage( e.cause, depth - 1 ) : ( e?.message ?? null );
 
-/**
- * Duck-types a Temporal ApplicationFailure node. The worker interceptor wraps user errors as
- * ApplicationFailure( message, type = constructorName, nonRetryable, details, cause ); only that
- * node carries .type / .nonRetryable. We duck-type to keep this module free of @temporalio imports.
- *
- * @param {unknown} e
- * @returns {boolean}
- */
-const isApplicationFailure = e =>
-  Boolean( e ) && ( typeof e.type === 'string' || typeof e.nonRetryable === 'boolean' );
-
-/**
- * Temporal's own failure wrappers. When one of these is itself wrapped in an ApplicationFailure, the
- * wrapper's `type` names the transport layer (e.g. "ActivityFailure"), not the user's error. We skip
- * them so we surface the original throw (e.g. "Foo"/"Error") instead of "Activity task failed".
- */
-const TEMPORAL_FAILURE_TYPES = new Set( [
-  'ActivityFailure', 'ChildWorkflowFailure', 'TimeoutFailure',
-  'CancelledFailure', 'TerminatedFailure', 'ServerFailure', 'ApplicationFailure'
-] );
-
-/**
- * Flattens an error's .cause chain into an array, outermost first (depth-limited).
- *
- * @param {Error} e
- * @param {number} [depth=20]
- * @returns {object[]}
- */
-const collectChain = ( e, depth = 20 ) =>
-  !e || depth <= 0 ? [] : [ e, ...collectChain( e.cause, depth - 1 ) ];
-
-/**
- * Recursively serializes an error's .cause chain into a sanitized, transport-safe shape for
- * client responses. Includes name/message always, and type only when present (ApplicationFailure
- * nodes). Deliberately excludes stack and details (security + payload size).
- *
- * @param {Error} e
- * @param {number} [depth=0]
- * @returns {object|null}
- */
-export const serializeErrorChain = ( e, depth = 0 ) => {
-  if ( !e ) {
-    return null;
-  }
-  if ( depth > 10 ) {
-    return { name: 'Error', message: 'Cause chain too deep' };
-  }
-  return {
-    name: e.constructor?.name ?? e.name ?? 'Error',
-    ...( typeof e.type === 'string' ? { type: e.type } : {} ),
-    message: e.message ?? null,
-    ...( e.cause ? { cause: serializeErrorChain( e.cause, depth + 1 ) } : {} )
-  };
-};
-
-/**
- * @typedef {object} WorkflowFailure
- * @property {string|null} message - Friendly failure message (from the ApplicationFailure node)
- * @property {string|null} type - Error type (the original error's class name)
- * @property {boolean|null} retryable - Whether the failure was retryable; null if Temporal did not report it
- * @property {object|null} cause - Sanitized error cause chain ({ name, type?, message, cause? }); no stack
- */
-
-/**
- * Extracts structured failure details from a Temporal workflow error chain. Returns null for falsy
- * input so callers can omit the field. The friendly message/type come from the first
- * ApplicationFailure node (skipping the WorkflowFailedError/ActivityFailure wrappers).
- *
- * @param {Error} error
- * @returns {WorkflowFailure|null}
- */
-export const extractFailure = error => {
-  if ( !error ) {
-    return null;
-  }
-  const chain = collectChain( error );
-  // Temporal double-wraps: WorkflowFailedError -> ApplicationFailure(type=ActivityFailure) ->
-  // ActivityFailure -> ApplicationFailure(type=<user error>). Prefer the deepest ApplicationFailure
-  // whose type is the user's error, so we surface the friendly message rather than the wrapper.
-  const deepestFirst = chain.filter( isApplicationFailure ).reverse();
-  const userFailure = deepestFirst.find( link => typeof link.type === 'string' && !TEMPORAL_FAILURE_TYPES.has( link.type ) ) ??
-    deepestFirst[0] ??
-    null;
-  // Retryability lives on whichever link Temporal flagged (usually the activity wrapper).
-  const flagged = chain.find( link => typeof link.nonRetryable === 'boolean' );
-  return {
-    message: userFailure?.message ?? extractErrorMessage( error ),
-    type: userFailure?.type ?? error.constructor?.name ?? error.name ?? null,
-    retryable: flagged ? !flagged.nonRetryable : null,
-    cause: serializeErrorChain( error )
-  };
-};
-
-// gRPC status integers we may surface by name in logs (subset of @grpc/grpc-js Status).
+// gRPC status integers we surface by name (subset of @grpc/grpc-js Status).
 const GRPC_STATUS_NAMES = {
   3: 'INVALID_ARGUMENT',
   4: 'DEADLINE_EXCEEDED',
@@ -171,7 +78,7 @@ const GRPC_STATUS_NAMES = {
   14: 'UNAVAILABLE'
 };
 
-// gRPC metadata can carry auth headers/tokens, so we log only key NAMES plus an allowlist of
+// gRPC metadata can carry auth headers/tokens, so we keep only key NAMES plus an allowlist of
 // non-sensitive diagnostic values.
 const SAFE_METADATA_KEYS = [ 'grpc-status-details-bin', 'content-type' ];
 
@@ -191,38 +98,82 @@ const redactMetadata = metadata => {
 };
 
 /**
- * Recursively serializes an error and its .cause chain into a plain object for structured logging
- * (winston meta). Captures gRPC ServiceError fields (code, codeName, details, redacted metadata)
- * when a link duck-types as a gRPC error, includes the top node's stack, and surfaces context
- * annotations (workflowId, runId, taskQueue, query). For server logs only — never sent to clients.
+ * Recursively serializes an error's .cause chain into a plain object. `name` is the Temporal
+ * ApplicationFailure `type` when present (e.g. "ValidationError"), otherwise the constructor name.
+ * gRPC ServiceError links also contribute code/codeName/details/redacted-metadata. Stack is excluded
+ * so the same shape is safe in client responses; loggers add `stack` themselves at the call site.
  *
- * @param {unknown} error
+ * @param {unknown} e
  * @param {number} [depth=0]
- * @returns {object}
+ * @returns {object|null}
  */
-export const serializeTemporalError = ( error, depth = 0 ) => {
+export const serializeErrorChain = ( e, depth = 0 ) => {
+  if ( !e ) {
+    return null;
+  }
   if ( depth > 10 ) {
     return { name: 'Error', message: 'Cause chain too deep' };
   }
-  if ( !error || typeof error !== 'object' ) {
-    return { value: String( error ) };
-  }
-  const isGrpc = typeof error.details === 'string' && typeof error.metadata === 'object' && error.metadata !== null;
+  const isGrpc = typeof e.details === 'string' && typeof e.metadata === 'object' && e.metadata !== null;
   return {
-    name: error.constructor?.name ?? error.name ?? 'Error',
-    message: error.message,
-    ...( depth === 0 && error.stack ? { stack: error.stack } : {} ),
-    ...( isGrpc ? {
-      code: error.code,
-      codeName: GRPC_STATUS_NAMES[error.code] ?? 'UNKNOWN',
-      details: error.details,
-      metadata: redactMetadata( error.metadata )
-    } : {} ),
-    ...( error.workflowId ? { workflowId: error.workflowId } : {} ),
-    ...( error.runId ? { runId: error.runId } : {} ),
-    ...( error.taskQueue ? { taskQueue: error.taskQueue } : {} ),
-    ...( error.query ? { query: error.query } : {} ),
-    ...( error.cause ? { cause: serializeTemporalError( error.cause, depth + 1 ) } : {} )
+    name: e.type ?? e.constructor?.name ?? e.name ?? 'Error',
+    message: e.message ?? null,
+    ...( isGrpc && { code: e.code, codeName: GRPC_STATUS_NAMES[e.code] ?? 'UNKNOWN', details: e.details, metadata: redactMetadata( e.metadata ) } ),
+    ...( e.cause && { cause: serializeErrorChain( e.cause, depth + 1 ) } )
+  };
+};
+
+// Temporal's own failure wrappers. When one is wrapped in an ApplicationFailure, that wrapper's
+// `type` names the transport layer (e.g. "ActivityFailure"), not the user's error — so we skip them
+// when choosing the friendly failure name/message.
+const TEMPORAL_FAILURE_TYPES = new Set( [
+  'ActivityFailure', 'ChildWorkflowFailure', 'TimeoutFailure',
+  'CancelledFailure', 'TerminatedFailure', 'ServerFailure', 'ApplicationFailure'
+] );
+
+/**
+ * Flattens an error's .cause chain into an array, outermost first (depth-limited).
+ *
+ * @param {Error} e
+ * @param {number} [depth=20]
+ * @returns {object[]}
+ */
+const collectChain = ( e, depth = 20 ) =>
+  !e || depth <= 0 ? [] : [ e, ...collectChain( e.cause, depth - 1 ) ];
+
+/**
+ * @typedef {object} WorkflowFailure
+ * @property {string|null} message - Friendly failure message (from the user's ApplicationFailure)
+ * @property {string|null} name - Error name/type (the original error's class)
+ * @property {boolean|null} retryable - Whether Temporal flagged the failure retryable; null if unknown
+ * @property {object|null} cause - Serialized error cause chain ({ name, message, cause? }); no stack
+ */
+
+/**
+ * Extracts structured failure details from a Temporal workflow error chain. Returns null for falsy
+ * input so callers can omit the field. Temporal double-wraps (WorkflowFailedError ->
+ * ApplicationFailure(ActivityFailure) -> ActivityFailure -> ApplicationFailure(<user error>)), so we
+ * pick the deepest ApplicationFailure whose type is the user's error to surface the friendly message.
+ *
+ * @param {Error} error
+ * @returns {WorkflowFailure|null}
+ */
+export const extractFailure = error => {
+  if ( !error ) {
+    return null;
+  }
+  const chain = collectChain( error );
+  const deepestFirst = chain.filter( link => typeof link.type === 'string' || typeof link.nonRetryable === 'boolean' ).reverse();
+  const userFailure = deepestFirst.find( link => typeof link.type === 'string' && !TEMPORAL_FAILURE_TYPES.has( link.type ) ) ??
+    deepestFirst[0] ??
+    null;
+  // Retryability lives on whichever link Temporal flagged (usually the activity wrapper).
+  const flagged = chain.find( link => typeof link.nonRetryable === 'boolean' );
+  return {
+    message: userFailure?.message ?? extractErrorMessage( error ),
+    name: userFailure?.type ?? error.constructor?.name ?? error.name ?? null,
+    retryable: flagged ? !flagged.nonRetryable : null,
+    cause: serializeErrorChain( error )
   };
 };
 

@@ -262,17 +262,17 @@ export type WorkflowResultResponseFailure = {
      */
   message?: string | null;
   /**
-     * Error type (the original error's class name)
+     * Error name/type (the original error's class)
      * @nullable
      */
-  type?: string | null;
+  name?: string | null;
   /**
-     * Whether the failure was retryable; null if not reported by Temporal
+     * Whether Temporal flagged the failure retryable; null if unknown
      * @nullable
      */
   retryable?: boolean | null;
   /**
-     * Sanitized error cause chain (name/type/message per level, no stack)
+     * Sanitized error cause chain (name/message per level, no stack)
      * @nullable
      */
   cause?: { [key: string]: unknown } | null;

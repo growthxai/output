@@ -366,19 +366,19 @@ app.use( ( req, res, next ) => {
  *               type: string
  *               nullable: true
  *               description: Friendly failure message (from the underlying application error)
- *             type:
+ *             name:
  *               type: string
  *               nullable: true
- *               description: Error type (the original error's class name)
+ *               description: Error name/type (the original error's class)
  *             retryable:
  *               type: boolean
  *               nullable: true
- *               description: Whether the failure was retryable; null if not reported by Temporal
+ *               description: Whether Temporal flagged the failure retryable; null if unknown
  *             cause:
  *               type: object
  *               nullable: true
  *               additionalProperties: true
- *               description: Sanitized error cause chain (name/type/message per level, no stack)
+ *               description: Sanitized error cause chain (name/message per level, no stack)
  *     StopWorkflowResponse:
  *       type: object
  *       properties:

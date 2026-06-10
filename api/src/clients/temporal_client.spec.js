@@ -125,9 +125,7 @@ vi.mock( '#utils', () => ( {
   buildWorkflowId: vi.fn( () => 'test-uuid' ),
   extractErrorDetail: vi.fn( ( e, key ) => e?.details?.find?.( d => Object.prototype.hasOwnProperty.call( d, key ) )?.[key] ?? null ),
   extractErrorMessage: vi.fn( e => walkCause( e ) ),
-  extractFailure: vi.fn( e => e ? { message: walkCause( e ), type: e.name ?? null, retryable: null, cause: null } : null ),
-  serializeErrorChain: vi.fn( () => null ),
-  serializeTemporalError: vi.fn( e => ( { name: e?.name ?? 'Error', message: e?.message } ) ),
+  extractFailure: vi.fn( e => e ? { message: walkCause( e ), name: e.name ?? null, retryable: null, cause: null } : null ),
   takeFromAsyncIterable: async ( iterable, count ) => {
     const items = [];
     for await ( const item of iterable ) {
@@ -223,7 +221,7 @@ describe( 'temporal_client', () => {
         trace: tracePayload,
         aggregations,
         error: 'step error message',
-        failure: { message: 'step error message', type: 'WorkflowFailedError', retryable: null, cause: null }
+        failure: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, cause: null }
       } );
       expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Workflow execution failed', expect.objectContaining( {
         workflowId: 'test-uuid',
@@ -366,7 +364,7 @@ describe( 'temporal_client', () => {
   } );
 
   describe( 'getCatalog', () => {
-    it( 'maps WorkflowNotFoundError to CatalogNotAvailableError without logging at error level', async () => {
+    it( 'maps WorkflowNotFoundError to CatalogNotAvailableError', async () => {
       mockQuery.mockRejectedValue( new WorkflowNotFoundError( 'catalog not found' ) );
       mockGetHandle.mockReturnValue( { query: mockQuery } );
 
@@ -376,10 +374,9 @@ describe( 'temporal_client', () => {
       await expect( client.startWorkflow( 'test-workflow', {} ) )
         .rejects
         .toBeInstanceOf( CatalogNotAvailableError );
-      expect( mockLoggerError ).not.toHaveBeenCalledWith( 'Catalog query failed', expect.anything() );
     } );
 
-    it( 'logs rich Temporal detail, annotates context, marks alreadyLogged, and re-throws the original error', async () => {
+    it( 'annotates taskQueue/query and re-throws other errors unchanged (logging is centralized in error_handler)', async () => {
       const grpcError = Object.assign( new Error( 'Failed to query Workflow' ), {
         cause: { message: '14 UNAVAILABLE: worker unavailable', code: 14, details: 'unavailable', metadata: {} }
       } );
@@ -392,11 +389,7 @@ describe( 'temporal_client', () => {
       await expect( client.startWorkflow( 'test-workflow', {} ) ).rejects.toBe( grpcError );
       expect( grpcError.taskQueue ).toBe( 'test-queue' );
       expect( grpcError.query ).toBe( 'get' );
-      expect( grpcError.alreadyLogged ).toBe( true );
-      expect( mockLoggerError ).toHaveBeenCalledWith(
-        'Catalog query failed',
-        expect.objectContaining( { taskQueue: 'test-queue', query: 'get' } )
-      );
+      expect( mockLoggerError ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -528,7 +521,7 @@ describe( 'temporal_client', () => {
         trace: tracePayload,
         aggregations,
         error: 'step error message',
-        failure: { message: 'step error message', type: 'WorkflowFailedError', retryable: null, cause: null }
+        failure: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, cause: null }
       } );
     } );
 
