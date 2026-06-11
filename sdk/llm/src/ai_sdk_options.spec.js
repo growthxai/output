@@ -161,4 +161,32 @@ describe( 'ai_sdk_options', () => {
     );
     expect( loadImageModelImpl ).not.toHaveBeenCalled();
   } );
+
+  it( 'resolves block attributes into per-message providerOptions', async () => {
+    const prompt = {
+      name: 'cache@v1',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-5',
+        messageOptions: { cached: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } } }
+      },
+      messages: [
+        { role: 'system', content: 'Static', attributes: { options: 'cached' } },
+        { role: 'user', content: 'Hello' }
+      ],
+      instructions: null
+    };
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.messages ).toEqual( [
+      {
+        role: 'system',
+        content: 'Static',
+        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+      },
+      { role: 'user', content: 'Hello' }
+    ] );
+  } );
 } );

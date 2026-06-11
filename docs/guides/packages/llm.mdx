@@ -691,6 +691,74 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
+## Prompt Caching
+
+When a prompt sends the same large prefix on every call — a long system prompt, few-shot examples, a pasted reference document — you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
+
+### Anthropic
+
+Anthropic caches only what you explicitly mark. Define a `cacheControl` set in `messageOptions` and attach it — with `options` — to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
+
+```text prompts/generate_summary@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+messageOptions:
+  cached:
+    anthropic:
+      cacheControl:
+        type: ephemeral
+---
+
+<system options="cached">
+You write concise company summaries for sales teams. Follow this style guide:
+{{ style_guide }}
+</system>
+
+<user>
+Summarize {{ companyName }}.
+</user>
+```
+
+Only the `<user>` block — the part that changes each call — is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks.
+
+<Warning>
+Attach the set to the last **static** block, never one containing per-call `{{ variables }}`. A breakpoint on changing content rewrites the cache on every call and never gets a hit. Order your blocks static-first, dynamic-last.
+</Warning>
+
+Each set is a provider-namespaced `providerOptions` object — the same shape and [namespace rules](/prompts#provider-options) as call-level `providerOptions`. On Vertex with a Claude model, use the same `anthropic` namespace.
+
+### OpenAI
+
+OpenAI caches automatically — there are no breakpoints to set, so the `messageOptions` mechanism above isn't needed. Any prompt of 1024 tokens or longer is cached for you, with no markup. To improve hit rates across calls, set a stable `promptCacheKey` (and, on GPT-5.1+, extend retention) via `providerOptions`:
+
+```yaml prompts/enrich_company@v1.prompt
+---
+provider: openai
+model: gpt-5
+providerOptions:
+  openai:
+    promptCacheKey: enrich-company-v1
+    promptCacheRetention: 24h
+---
+
+<system>
+{{ enrichment_playbook }}
+</system>
+
+<user>
+Enrich {{ company }}.
+</user>
+```
+
+### Confirming a cache hit
+
+Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache-creation tokens, and later calls within the TTL report cache-read tokens (`cachedInputTokens`), already priced at the cheaper rate in `response.cost`.
+
+<Note>
+Anthropic caches only prefixes above a model-specific minimum — around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
+</Note>
+
 ## Provider Tools
 
 Many providers offer built-in tools like web search. Configure them in YAML front matter:

@@ -226,6 +226,38 @@ AI SDK uses `Record<string, Record<string, JSONValue>>` for `providerOptions` to
 
 The nesting is intentional architecture, not redundancy.
 
+### Per-Message Caching (Anthropic Prompt Cache)
+
+Anthropic prompt caching is a **per-message** directive. Mark the block that ends your static prefix and that prefix is cached and reused across calls. Define a `cacheControl` set in frontmatter `messageOptions` and attach it to the block with `options`:
+
+```yaml
+messageOptions:
+  cached: { anthropic: { cacheControl: { type: ephemeral } } }      # add ttl: 1h for the 1-hour cache
+```
+```text
+<system options="cached">
+{{ long static instructions }}
+</system>
+
+<user>
+{{ per-call input }}
+</user>
+```
+
+Each set is a provider-namespaced `providerOptions` object (same namespace rules as call-level `providerOptions`); on Vertex with a Claude model use the same `anthropic` namespace. A block may list multiple sets: `options="cached fast"`.
+
+**Rules:**
+- Attach the set to the **last static block**, never one containing per-call `{{ variables }}` — a breakpoint on changing content rewrites the cache every call and never hits.
+- Order blocks **static-first, dynamic-last**.
+- Minimum cacheable prefix is model-specific (~1,024 tokens for most Sonnet/Opus; higher for some). Below it, caching is silently skipped — verify via the cost trace (`cachedInputTokens`).
+- Max 4 cache breakpoints per request.
+
+❌ caching a dynamic block: `<user options="cached">{{ topic }}</user>` (never hits)
+
+✅ caching the static prefix: `<system options="cached">{{ guide }}</system>` then `<user>{{ topic }}</user>`
+
+**OpenAI / Azure:** caching is automatic for prompts ≥1024 tokens — no `messageOptions` needed. Tune routing with `providerOptions.openai.promptCacheKey` (and `promptCacheRetention: 24h` on GPT-5.1+).
+
 ## Schema Constraints for LLM Structured Output
 
 When using `Output.object()` with `generateText`, the Zod schema is converted to JSON Schema and sent to the LLM provider as a tool definition. **Anthropic does not support many JSON Schema constraints**, which means certain Zod methods will cause errors or be silently ignored when the schema is sent to the provider.

@@ -1,4 +1,5 @@
 import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
+import { resolveMessageProviderOptions } from './prompt/block_options.js';
 import { FatalError } from '@outputai/core';
 
 /**
@@ -13,7 +14,7 @@ export const loadAiSdkTextOptions = prompt => {
   }
   const options = {
     model: loadTextModel( prompt ),
-    messages: prompt.messages,
+    messages: resolveMessageProviderOptions( prompt ),
     providerOptions: prompt.config.providerOptions
   };
 
