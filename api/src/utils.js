@@ -142,10 +142,11 @@ const collectChain = ( e, depth = 20 ) =>
   !e || depth <= 0 ? [] : [ e, ...collectChain( e.cause, depth - 1 ) ];
 
 /**
- * @typedef {object} WorkflowFailure
+ * @typedef {object} WorkflowErrorDetails
  * @property {string|null} message - Friendly failure message (from the user's ApplicationFailure)
  * @property {string|null} name - Error name/type (the original error's class)
  * @property {boolean|null} retryable - Whether Temporal flagged the failure retryable; null if unknown
+ * @property {string|null} activityId - The failing activity key ("workflow#step"); null if no activity failed
  * @property {object|null} cause - Serialized error cause chain ({ name, message, cause? }); no stack
  */
 
@@ -156,7 +157,7 @@ const collectChain = ( e, depth = 20 ) =>
  * pick the deepest ApplicationFailure whose type is the user's error to surface the friendly message.
  *
  * @param {Error} error
- * @returns {WorkflowFailure|null}
+ * @returns {WorkflowErrorDetails|null}
  */
 export const extractFailure = error => {
   if ( !error ) {
@@ -169,10 +170,13 @@ export const extractFailure = error => {
     null;
   // Retryability lives on whichever link Temporal flagged (usually the activity wrapper).
   const flagged = chain.find( link => typeof link.nonRetryable === 'boolean' );
+  // The failing step surfaces as an ActivityFailure whose activityType is the "workflow#step" key.
+  const activityFailure = chain.find( link => typeof link.activityType === 'string' );
   return {
     message: userFailure?.message ?? extractErrorMessage( error ),
     name: userFailure?.type ?? error.constructor?.name ?? error.name ?? null,
     retryable: flagged ? !flagged.nonRetryable : null,
+    activityId: activityFailure?.activityType ?? null,
     cause: serializeErrorChain( error )
   };
 };

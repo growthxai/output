@@ -125,7 +125,7 @@ vi.mock( '#utils', () => ( {
   buildWorkflowId: vi.fn( () => 'test-uuid' ),
   extractErrorDetail: vi.fn( ( e, key ) => e?.details?.find?.( d => Object.prototype.hasOwnProperty.call( d, key ) )?.[key] ?? null ),
   extractErrorMessage: vi.fn( e => walkCause( e ) ),
-  extractFailure: vi.fn( e => e ? { message: walkCause( e ), name: e.name ?? null, retryable: null, cause: null } : null ),
+  extractFailure: vi.fn( e => e ? { message: walkCause( e ), name: e.name ?? null, retryable: null, activityId: null, cause: null } : null ),
   takeFromAsyncIterable: async ( iterable, count ) => {
     const items = [];
     for await ( const item of iterable ) {
@@ -221,7 +221,7 @@ describe( 'temporal_client', () => {
         trace: tracePayload,
         aggregations,
         error: 'step error message',
-        failure: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, cause: null }
+        errorDetails: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, activityId: null, cause: null }
       } );
       expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Workflow execution failed', expect.objectContaining( {
         workflowId: 'test-uuid',
@@ -258,7 +258,7 @@ describe( 'temporal_client', () => {
         trace: { local: '/tmp/trace.json' },
         aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } },
         error: null,
-        failure: null
+        errorDetails: null
       } );
     } );
 
@@ -433,7 +433,7 @@ describe( 'temporal_client', () => {
         trace: { local: '/tmp/trace.json' },
         aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
         error: null,
-        failure: null
+        errorDetails: null
       } );
     } );
 
@@ -521,7 +521,7 @@ describe( 'temporal_client', () => {
         trace: tracePayload,
         aggregations,
         error: 'step error message',
-        failure: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, cause: null }
+        errorDetails: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, activityId: null, cause: null }
       } );
     } );
 
@@ -570,7 +570,7 @@ describe( 'temporal_client', () => {
         trace: null,
         aggregations: null,
         error: null,
-        failure: null
+        errorDetails: null
       } );
     } );
 

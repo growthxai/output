@@ -357,7 +357,7 @@ app.use( ( req, res, next ) => {
  *           type: string
  *           nullable: true
  *           description: Error message if workflow failed, null otherwise
- *         failure:
+ *         errorDetails:
  *           type: object
  *           nullable: true
  *           description: Structured failure details if the workflow failed, null otherwise
@@ -374,6 +374,10 @@ app.use( ( req, res, next ) => {
  *               type: boolean
  *               nullable: true
  *               description: Whether Temporal flagged the failure retryable; null if unknown
+ *             activityId:
+ *               type: string
+ *               nullable: true
+ *               description: Failing activity key ("workflow#step"); null if no activity failed
  *             cause:
  *               type: object
  *               nullable: true

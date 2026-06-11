@@ -171,7 +171,7 @@ export const extractWorkflowInput = history => {
  * @property {string|number|boolean|object|array|undefined|null} output - The workflow output
  * @property {object|null} trace - Trace information
  * @property {string|null} error - Error message if failed
- * @property {object|null} failure - Structured failure details if failed (message, type, retryable, cause), null otherwise
+ * @property {object|null} errorDetails - Structured failure details if failed (message, name, retryable, activityId, cause), null otherwise
  */
 
 /**
@@ -205,10 +205,10 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
       trace: extractErrorDetail( error, 'trace' ),
       aggregations: extractErrorDetail( error, 'aggregations' ),
       error: extractErrorMessage( error ),
-      failure: extractFailure( error )
+      errorDetails: extractFailure( error )
     } : {
       error: null,
-      failure: null
+      errorDetails: null
     } )
   } );
 

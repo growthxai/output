@@ -255,7 +255,7 @@ export const WorkflowResultResponseStatus = {
  * Structured failure details if the workflow failed, null otherwise
  * @nullable
  */
-export type WorkflowResultResponseFailure = {
+export type WorkflowResultResponseErrorDetails = {
   /**
      * Friendly failure message (from the underlying application error)
      * @nullable
@@ -271,6 +271,11 @@ export type WorkflowResultResponseFailure = {
      * @nullable
      */
   retryable?: boolean | null;
+  /**
+     * Failing activity key ("workflow#step"); null if no activity failed
+     * @nullable
+     */
+  activityId?: string | null;
   /**
      * Sanitized error cause chain (name/message per level, no stack)
      * @nullable
@@ -304,7 +309,7 @@ export interface WorkflowResultResponse {
      * Structured failure details if the workflow failed, null otherwise
      * @nullable
      */
-  failure?: WorkflowResultResponseFailure;
+  errorDetails?: WorkflowResultResponseErrorDetails;
 }
 
 export interface StopWorkflowResponse {

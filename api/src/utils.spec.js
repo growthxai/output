@@ -313,6 +313,22 @@ describe( 'utils spec', () => {
         cause: { name: 'X', message: 'mid' }
       } );
     } );
+
+    it( 'reports the failing activity key under activityId', () => {
+      const chain = {
+        name: 'WorkflowFailedError', message: 'Workflow execution failed',
+        cause: {
+          activityType: 'test_error#thrower', message: 'Activity task failed',
+          cause: { type: 'Error', message: 'Foo' }
+        }
+      };
+
+      expect( extractFailure( chain ).activityId ).toBe( 'test_error#thrower' );
+    } );
+
+    it( 'sets activityId to null when no activity failed (workflow-level throw)', () => {
+      expect( extractFailure( { type: 'Error', message: 'boom' } ).activityId ).toBeNull();
+    } );
   } );
 
   describe( 'serializeErrorChain', () => {
