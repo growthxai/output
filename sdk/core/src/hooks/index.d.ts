@@ -85,6 +85,8 @@ export interface WorkflowDetails {
 export interface ErrorHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
   /** Origin of the error: workflow execution, activity execution, or runtime. */
   source: 'workflow' | 'activity' | 'runtime';
   /** Information about the current workflow execution */
@@ -103,6 +105,8 @@ export interface ErrorHookPayload {
 export interface WorkflowStartHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
   /** Information about the current workflow execution */
   workflowDetails: WorkflowDetails;
 }
@@ -113,6 +117,8 @@ export interface WorkflowStartHookPayload {
 export interface WorkflowEndHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
   /** Information about the current workflow execution */
   workflowDetails: WorkflowDetails;
 }
@@ -123,6 +129,8 @@ export interface WorkflowEndHookPayload {
 export interface WorkflowErrorHookPayload {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
   /** Information about the current workflow execution */
   workflowDetails: WorkflowDetails;
   /** The error thrown. */
@@ -177,6 +185,8 @@ export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPa
 export interface OnHookEnvelope {
   /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
   eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
   /** Information about the current workflow execution */
   workflowDetails: WorkflowDetails;
   /** Temporal's activityInfo(). */
