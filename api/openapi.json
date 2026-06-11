@@ -375,6 +375,39 @@
             "type": "string",
             "nullable": true,
             "description": "Error message if workflow failed, null otherwise"
+          },
+          "errorDetails": {
+            "type": "object",
+            "nullable": true,
+            "description": "Structured failure details if the workflow failed, null otherwise",
+            "properties": {
+              "message": {
+                "type": "string",
+                "nullable": true,
+                "description": "Friendly failure message (from the underlying application error)"
+              },
+              "name": {
+                "type": "string",
+                "nullable": true,
+                "description": "Error name/type (the original error's class)"
+              },
+              "retryable": {
+                "type": "boolean",
+                "nullable": true,
+                "description": "Whether Temporal flagged the failure retryable; null if unknown"
+              },
+              "activityId": {
+                "type": "string",
+                "nullable": true,
+                "description": "Failing activity key (\"workflow#step\"); null if no activity failed"
+              },
+              "cause": {
+                "type": "object",
+                "nullable": true,
+                "additionalProperties": true,
+                "description": "Sanitized error cause chain (name/message per level, no stack)"
+              }
+            }
           }
         }
       },

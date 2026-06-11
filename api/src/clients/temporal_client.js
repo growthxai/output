@@ -1,6 +1,6 @@
 import { Client, Connection, defaultPayloadConverter } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
-import { buildWorkflowId, extractErrorDetail, extractErrorMessage, takeFromAsyncIterable } from '#utils';
+import { buildWorkflowId, extractErrorDetail, extractErrorMessage, extractFailure, takeFromAsyncIterable } from '#utils';
 import { logger } from '#logger';
 import {
   WorkflowNotFoundError,
@@ -41,6 +41,10 @@ const getCatalog = async ( { client, taskQueue } ) => {
     if ( error instanceof WorkflowNotFoundError ) {
       throw new CatalogNotAvailableError( 3 );
     }
+    // Annotate the catalog/query context (the only place that knows it) so the error_handler can
+    // surface it when it logs the failure centrally.
+    error.taskQueue = taskQueue;
+    error.query = 'get';
     throw error;
   }
 };
@@ -167,6 +171,7 @@ export const extractWorkflowInput = history => {
  * @property {string|number|boolean|object|array|undefined|null} output - The workflow output
  * @property {object|null} trace - Trace information
  * @property {string|null} error - Error message if failed
+ * @property {object|null} errorDetails - Structured failure details if failed (message, name, retryable, activityId, cause), null otherwise
  */
 
 /**
@@ -199,9 +204,11 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
     ...( error ? {
       trace: extractErrorDetail( error, 'trace' ),
       aggregations: extractErrorDetail( error, 'aggregations' ),
-      error: extractErrorMessage( error )
+      error: extractErrorMessage( error ),
+      errorDetails: extractFailure( error )
     } : {
-      error: null
+      error: null,
+      errorDetails: null
     } )
   } );
 
@@ -290,6 +297,7 @@ export default {
           }
           // Other errors (timeout, not found, etc.) are still thrown
           error.workflowId = workflowId;
+          error.runId = runId;
           throw error;
         }
       },

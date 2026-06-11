@@ -5,6 +5,8 @@ import {
   parseS3Url,
   extractErrorDetail,
   extractErrorMessage,
+  serializeErrorChain,
+  extractFailure,
   takeFromAsyncIterable
 } from './utils.js';
 
@@ -234,6 +236,169 @@ describe( 'utils spec', () => {
       const result = extractErrorMessage( chain );
       expect( result ).toBeDefined();
       expect( result ).not.toBe( 'level 0' );
+    } );
+  } );
+
+  describe( 'extractFailure', () => {
+    it( 'returns null for null and undefined', () => {
+      expect( extractFailure( null ) ).toBeNull();
+      expect( extractFailure( undefined ) ).toBeNull();
+    } );
+
+    it( 'extracts message/type/retryable from the ApplicationFailure node, skipping wrappers', () => {
+      const appFailure = { type: 'ValidationError', nonRetryable: true, message: 'bad input', cause: { message: 'bad input' } };
+      const activityFailure = { message: 'Activity task failed', cause: appFailure };
+      const workflowError = { message: 'Workflow execution failed', cause: activityFailure };
+
+      const failure = extractFailure( workflowError );
+
+      expect( failure.message ).toBe( 'bad input' );
+      expect( failure.name ).toBe( 'ValidationError' );
+      expect( failure.retryable ).toBe( false );
+    } );
+
+    it( 'picks the innermost user error over the outer ActivityFailure wrapper (real double-wrapped chain)', () => {
+      // Mirrors the live Temporal chain captured from a step throwing new Error('Foo'):
+      // WorkflowFailedError -> ApplicationFailure(type=ActivityFailure) -> ActivityFailure -> ApplicationFailure(type=Error)
+      const chain = {
+        name: 'WorkflowFailedError', message: 'Workflow execution failed',
+        cause: {
+          type: 'ActivityFailure', nonRetryable: false, message: 'Activity task failed',
+          cause: {
+            message: 'Activity task failed',
+            cause: { type: 'Error', message: 'Foo' }
+          }
+        }
+      };
+
+      const failure = extractFailure( chain );
+
+      expect( failure.message ).toBe( 'Foo' );
+      expect( failure.name ).toBe( 'Error' );
+      expect( failure.retryable ).toBe( true );
+    } );
+
+    it( 'returns retryable true when nonRetryable is false', () => {
+      const appFailure = { type: 'SomeError', nonRetryable: false, message: 'oops' };
+
+      expect( extractFailure( appFailure ).retryable ).toBe( true );
+    } );
+
+    it( 'returns retryable null when nonRetryable is absent', () => {
+      const appFailure = { type: 'SomeError', message: 'oops' };
+
+      expect( extractFailure( appFailure ).retryable ).toBeNull();
+    } );
+
+    it( 'falls back to the deepest message and a null retryable when there is no ApplicationFailure node', () => {
+      const root = new Error( 'root cause' );
+      const activity = new Error( 'Activity task failed' );
+      activity.cause = root;
+      const workflowError = new Error( 'Workflow execution failed' );
+      workflowError.cause = activity;
+
+      const failure = extractFailure( workflowError );
+
+      expect( failure.message ).toBe( 'root cause' );
+      expect( failure.name ).toBe( 'Error' );
+      expect( failure.retryable ).toBeNull();
+    } );
+
+    it( 'includes a sanitized cause chain (ApplicationFailure type becomes the node name)', () => {
+      const workflowError = { message: 'top', cause: { type: 'X', nonRetryable: true, message: 'mid' } };
+
+      expect( extractFailure( workflowError ).cause ).toEqual( {
+        name: 'Object',
+        message: 'top',
+        cause: { name: 'X', message: 'mid' }
+      } );
+    } );
+
+    it( 'reports the failing activity key under activityId', () => {
+      const chain = {
+        name: 'WorkflowFailedError', message: 'Workflow execution failed',
+        cause: {
+          activityType: 'test_error#thrower', message: 'Activity task failed',
+          cause: { type: 'Error', message: 'Foo' }
+        }
+      };
+
+      expect( extractFailure( chain ).activityId ).toBe( 'test_error#thrower' );
+    } );
+
+    it( 'sets activityId to null when no activity failed (workflow-level throw)', () => {
+      expect( extractFailure( { type: 'Error', message: 'boom' } ).activityId ).toBeNull();
+    } );
+  } );
+
+  describe( 'serializeErrorChain', () => {
+    it( 'returns null for falsy input', () => {
+      expect( serializeErrorChain( null ) ).toBeNull();
+      expect( serializeErrorChain( undefined ) ).toBeNull();
+    } );
+
+    it( 'serializes a single node and omits stack, details, and cause', () => {
+      const node = serializeErrorChain( { message: 'x', stack: 'STACK', details: [ { trace: {} } ] } );
+
+      expect( node ).toEqual( { name: 'Object', message: 'x' } );
+      expect( node.stack ).toBeUndefined();
+    } );
+
+    it( 'uses the ApplicationFailure type as the node name when present', () => {
+      expect( serializeErrorChain( { type: 'ValidationError', message: 'x' } ) )
+        .toEqual( { name: 'ValidationError', message: 'x' } );
+    } );
+
+    it( 'serializes a nested cause chain', () => {
+      const chain = { message: 'a', cause: { message: 'b', cause: { message: 'c' } } };
+
+      expect( serializeErrorChain( chain ) ).toEqual( {
+        name: 'Object',
+        message: 'a',
+        cause: { name: 'Object', message: 'b', cause: { name: 'Object', message: 'c' } }
+      } );
+    } );
+
+    it( 'captures gRPC code/codeName/details and redacts metadata to key names plus an allowlist', () => {
+      const node = serializeErrorChain( {
+        message: '14 UNAVAILABLE: connection failed',
+        code: 14,
+        details: 'connection failed',
+        metadata: { authorization: 'Bearer secret', 'content-type': 'application/grpc' }
+      } );
+
+      expect( node.code ).toBe( 14 );
+      expect( node.codeName ).toBe( 'UNAVAILABLE' );
+      expect( node.details ).toBe( 'connection failed' );
+      expect( node.metadata.keys ).toEqual( [ 'authorization', 'content-type' ] );
+      expect( node.metadata.authorization ).toBeUndefined();
+      expect( node.metadata['content-type'] ).toBe( 'application/grpc' );
+    } );
+
+    it( 'finds the gRPC code one cause level down (the "Failed to query Workflow" wrapper)', () => {
+      const node = serializeErrorChain( {
+        message: 'Failed to query Workflow',
+        cause: { message: '14 UNAVAILABLE', code: 14, details: 'x', metadata: {} }
+      } );
+
+      expect( node.code ).toBeUndefined();
+      expect( node.cause.code ).toBe( 14 );
+      expect( node.cause.codeName ).toBe( 'UNAVAILABLE' );
+    } );
+
+    it( 'never includes stack, even when the error has one', () => {
+      const node = serializeErrorChain( new Error( 'boom' ) );
+
+      expect( node.name ).toBe( 'Error' );
+      expect( node.message ).toBe( 'boom' );
+      expect( node.stack ).toBeUndefined();
+    } );
+
+    it( 'stops at depth > 10 with a sentinel', () => {
+      const build = n => n === 0 ? { message: 'deep' } : { message: `l${n}`, cause: build( n - 1 ) };
+      const deepest = node => node.cause ? deepest( node.cause ) : node;
+
+      expect( deepest( serializeErrorChain( build( 12 ) ) ) ).toEqual( { name: 'Error', message: 'Cause chain too deep' } );
     } );
   } );
 

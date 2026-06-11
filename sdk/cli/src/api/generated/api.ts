@@ -251,6 +251,38 @@ export const WorkflowResultResponseStatus = {
   continued: 'continued',
 } as const;
 
+/**
+ * Structured failure details if the workflow failed, null otherwise
+ * @nullable
+ */
+export type WorkflowResultResponseErrorDetails = {
+  /**
+     * Friendly failure message (from the underlying application error)
+     * @nullable
+     */
+  message?: string | null;
+  /**
+     * Error name/type (the original error's class)
+     * @nullable
+     */
+  name?: string | null;
+  /**
+     * Whether Temporal flagged the failure retryable; null if unknown
+     * @nullable
+     */
+  retryable?: boolean | null;
+  /**
+     * Failing activity key ("workflow#step"); null if no activity failed
+     * @nullable
+     */
+  activityId?: string | null;
+  /**
+     * Sanitized error cause chain (name/message per level, no stack)
+     * @nullable
+     */
+  cause?: { [key: string]: unknown } | null;
+} | null | null;
+
 export interface WorkflowResultResponse {
   /** The workflow execution id */
   workflowId?: string;
@@ -273,6 +305,11 @@ export interface WorkflowResultResponse {
      * @nullable
      */
   error?: string | null;
+  /**
+     * Structured failure details if the workflow failed, null otherwise
+     * @nullable
+     */
+  errorDetails?: WorkflowResultResponseErrorDetails;
 }
 
 export interface StopWorkflowResponse {

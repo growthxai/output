@@ -89,6 +89,54 @@ describe( 'error_handler', () => {
     );
   } );
 
+  it( 'logs the nested cause chain for unhandled 500 errors', async () => {
+    const error = new Error( 'top' );
+    error.cause = new Error( 'root cause' );
+
+    await sendError( error );
+
+    expect( logger.error ).toHaveBeenCalledWith(
+      'Error: top',
+      expect.objectContaining( {
+        cause: expect.objectContaining( {
+          name: 'Error',
+          message: 'top',
+          cause: expect.objectContaining( { message: 'root cause' } )
+        } )
+      } )
+    );
+  } );
+
+  it( 'includes annotated catalog context (taskQueue/query) in the 500 log', async () => {
+    const error = new Error( 'Failed to query Workflow' );
+    error.taskQueue = 'main';
+    error.query = 'get';
+
+    await sendError( error );
+
+    expect( logger.error ).toHaveBeenCalledWith(
+      'Error: Failed to query Workflow',
+      expect.objectContaining( { taskQueue: 'main', query: 'get' } )
+    );
+  } );
+
+  it( 'keeps the client response body sanitized (no rootCause/stack/cause), even for gRPC cause chains', async () => {
+    const error = new Error( 'top' );
+    error.cause = new Error( '14 UNAVAILABLE: catalog down' );
+    error.workflowId = 'wf-1';
+
+    const { httpRes } = await sendError( error );
+
+    expect( httpRes.body ).toEqual( {
+      error: 'Error',
+      message: 'top',
+      workflowId: 'wf-1'
+    } );
+    expect( httpRes.body.rootCause ).toBeUndefined();
+    expect( httpRes.body.stack ).toBeUndefined();
+    expect( httpRes.body.cause ).toBeUndefined();
+  } );
+
   it( 'should not log for non-500 errors', async () => {
     const error = new WorkflowNotFoundError( 'Workflow not found' );
 
