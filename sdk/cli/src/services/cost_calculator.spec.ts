@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TraceNode, HTTPCall } from '#types/cost.js';
+import type { TraceNode, HTTPCall, LLMUsageLine } from '#types/cost.js';
 
 const mockReadFileSync = vi.fn();
 const mockExistsSync = vi.fn();
@@ -23,6 +23,58 @@ import {
   calculateCost,
   loadPricingConfig
 } from '#services/cost_calculator.js';
+
+// ---------------------------------------------------------------------------
+// Fixture builders
+// ---------------------------------------------------------------------------
+
+function llmLines(
+  inAmt: number, inPpm: number,
+  outAmt: number, outPpm: number,
+  cachedAmt = 0, cachedPpm = 0
+): LLMUsageLine[] {
+  return [
+    { type: 'input', ppm: inPpm, amount: inAmt, total: ( inAmt / 1e6 ) * inPpm },
+    { type: 'input_cached', ppm: cachedPpm, amount: cachedAmt, total: ( cachedAmt / 1e6 ) * cachedPpm },
+    { type: 'output', ppm: outPpm, amount: outAmt, total: ( outAmt / 1e6 ) * outPpm }
+  ];
+}
+
+function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): TraceNode {
+  const total = lines.reduce( ( s, l ) => s + l.total, 0 );
+  return {
+    id,
+    kind: 'llm',
+    name: 'gen',
+    attributes: {
+      'llm:usage': {
+        type: 'llm:usage',
+        modelId: model,
+        usage: lines,
+        total,
+        tokensUsed: lines.reduce( ( s, l ) => s + l.amount, 0 )
+      }
+    }
+  };
+}
+
+function httpEventNode(
+  id: string, url: string, method: string, total: number,
+  output: Record<string, unknown> = { status: 200, body: {} }
+): TraceNode {
+  return {
+    id,
+    kind: 'http',
+    name: 'request',
+    input: { url, method },
+    output,
+    attributes: {
+      'http:request:cost': { type: 'http:request:cost', url, requestId: id, total }
+    }
+  };
+}
+
+// Legacy traces (no attributes events) — exercise the costs.yml fallback path.
 
 const llmTrace: TraceNode = {
   id: 'test-trace-1',
@@ -147,7 +199,8 @@ const duplicateTrace: TraceNode = {
 const testConfig = {
   models: {
     'claude-sonnet-4-5': { provider: 'anthropic', input: 3.0, output: 15.0, cached_input: 0.30 },
-    'claude-haiku-4-5': { provider: 'anthropic', input: 1.0, output: 5.0, cached_input: 0.10 }
+    'claude-haiku-4-5': { provider: 'anthropic', input: 1.0, output: 5.0, cached_input: 0.10 },
+    'claude-opus-4': { provider: 'anthropic', input: 15.0, output: 75.0, cached_input: 1.50 }
   },
   services: {
     jina: {
@@ -161,6 +214,11 @@ const testConfig = {
       url_pattern: 'api.exa.ai',
       cost_path: 'output.body.costDollars.total',
       billable_method: 'POST'
+    },
+    tavily: {
+      type: 'request' as const,
+      url_pattern: 'api.tavily.com',
+      endpoints: { search: { pattern: '/search', price: 0.01 } }
     }
   }
 };
@@ -189,7 +247,7 @@ describe( 'extractValue', () => {
 } );
 
 describe( 'findLLMCalls', () => {
-  it( 'finds nested LLM calls', () => {
+  it( 'finds nested LLM calls (legacy output.usage)', () => {
     const calls = findLLMCalls( llmTrace );
     expect( calls ).toHaveLength( 2 );
   } );
@@ -213,9 +271,36 @@ describe( 'findLLMCalls', () => {
     expect( calls[1].usage.cachedInputTokens ).toBe( 500 );
   } );
 
+  it( 'reads model, tokens and as-charged cost from llm:usage event', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'llm-ev', 'gpt-5.5', llmLines( 27400, 5, 7275, 30 ) ) ]
+    };
+    const calls = findLLMCalls( trace );
+    expect( calls ).toHaveLength( 1 );
+    expect( calls[0].model ).toBe( 'gpt-5.5' );
+    expect( calls[0].usage.inputTokens ).toBe( 27400 );
+    expect( calls[0].usage.outputTokens ).toBe( 7275 );
+    expect( calls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
+  } );
+
   it( 'deduplicates by ID', () => {
     const calls = findLLMCalls( duplicateTrace );
     expect( calls ).toHaveLength( 1 );
+  } );
+
+  it( 'deduplicates event-bearing nodes by ID', () => {
+    const lines = llmLines( 1000, 1, 1000, 5 );
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [
+        llmEventNode( 'dup', 'claude-haiku-4-5', lines ),
+        llmEventNode( 'dup', 'claude-haiku-4-5', lines )
+      ]
+    };
+    expect( findLLMCalls( trace ) ).toHaveLength( 1 );
   } );
 } );
 
@@ -225,16 +310,30 @@ describe( 'findHTTPCalls', () => {
     expect( calls ).toHaveLength( 2 );
   } );
 
-  it( 'extracts URLs and methods', () => {
+  it( 'extracts URLs, methods and host', () => {
     const calls = findHTTPCalls( httpTrace );
     expect( calls[0].url ).toContain( 'r.jina.ai' );
     expect( calls[0].method ).toBe( 'GET' );
+    expect( calls[0].host ).toBe( 'r.jina.ai' );
   } );
 
   it( 'extracts step names', () => {
     const calls = findHTTPCalls( httpTrace );
     expect( calls[0].stepName ).toBe( 'fetch_content' );
     expect( calls[1].stepName ).toBe( 'search' );
+  } );
+
+  it( 'reads host and as-charged cost from http:request:cost event', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'req-1', 'https://api.exa.ai/search', 'POST', 0.012 ) ]
+    };
+    const calls = findHTTPCalls( trace );
+    expect( calls ).toHaveLength( 1 );
+    expect( calls[0].host ).toBe( 'api.exa.ai' );
+    expect( calls[0].originalCost ).toBe( 0.012 );
+    expect( calls[0].requestId ).toBe( 'req-1' );
   } );
 } );
 
@@ -267,42 +366,22 @@ describe( 'calculateLLMCallCost', () => {
 } );
 
 describe( 'identifyService', () => {
-  it( 'identifies Jina by URL pattern', () => {
-    const call: HTTPCall = {
-      stepName: 'test',
-      url: 'https://r.jina.ai/https://example.com',
-      method: 'GET',
-      input: {},
-      output: {}
-    };
+  const baseCall = ( url: string ): HTTPCall => ( {
+    stepName: 'test', url, method: 'GET', input: {}, output: {}, host: url
+  } );
 
-    const result = identifyService( call, testConfig.services );
+  it( 'identifies Jina by URL pattern', () => {
+    const result = identifyService( baseCall( 'https://r.jina.ai/https://example.com' ), testConfig.services );
     expect( result?.serviceName ).toBe( 'jina' );
   } );
 
   it( 'identifies Exa by URL pattern', () => {
-    const call: HTTPCall = {
-      stepName: 'test',
-      url: 'https://api.exa.ai/research',
-      method: 'GET',
-      input: {},
-      output: {}
-    };
-
-    const result = identifyService( call, testConfig.services );
+    const result = identifyService( baseCall( 'https://api.exa.ai/research' ), testConfig.services );
     expect( result?.serviceName ).toBe( 'exa' );
   } );
 
   it( 'returns null for unknown URLs', () => {
-    const call: HTTPCall = {
-      stepName: 'test',
-      url: 'https://unknown-api.com/endpoint',
-      method: 'GET',
-      input: {},
-      output: {}
-    };
-
-    const result = identifyService( call, testConfig.services );
+    const result = identifyService( baseCall( 'https://unknown-api.com/endpoint' ), testConfig.services );
     expect( result ).toBeNull();
   } );
 } );
@@ -313,10 +392,9 @@ describe( 'calculateServiceCost', () => {
       stepName: 'test',
       url: 'https://r.jina.ai/https://example.com',
       method: 'GET',
+      host: 'r.jina.ai',
       input: {},
-      output: {
-        body: { data: { usage: { tokens: 1000000 } } }
-      }
+      output: { body: { data: { usage: { tokens: 1000000 } } } }
     };
 
     const serviceInfo = identifyService( call, testConfig.services )!;
@@ -331,12 +409,10 @@ describe( 'calculateServiceCost', () => {
       stepName: 'test',
       url: 'https://api.exa.ai/research',
       method: 'GET',
+      host: 'api.exa.ai',
       input: {},
       output: {
-        body: {
-          model: 'exa-research',
-          costDollars: { total: 0.15, numSearches: 1, numPages: 5 }
-        }
+        body: { model: 'exa-research', costDollars: { total: 0.15, numSearches: 1, numPages: 5 } }
       }
     };
 
@@ -353,10 +429,9 @@ describe( 'calculateServiceCost', () => {
       stepName: 'test',
       url: 'https://api.exa.ai/research',
       method: 'GET',
+      host: 'api.exa.ai',
       input: {},
-      output: {
-        body: { status: 'pending' }
-      }
+      output: { body: { status: 'pending' } }
     };
 
     const serviceInfo = identifyService( call, testConfig.services )!;
@@ -367,100 +442,81 @@ describe( 'calculateServiceCost', () => {
   } );
 } );
 
-describe( 'response_cost filtering in calculateCost', () => {
+describe( 'legacy HTTP path (no cost events)', () => {
   it( 'skips Exa polling requests without cost data', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test_workflow',
-      startedAt: 1700000000000,
-      endedAt: 1700000100000,
       children: [
         {
-          id: 'step-exa',
-          kind: 'step',
-          name: 'test_workflow#search',
-          children: [
-            {
-              id: 'http-exa-poll',
-              kind: 'http',
-              name: 'exa_poll',
-              input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
-              output: { status: 200, body: { status: 'in_progress' } }
-            }
-          ]
+          id: 'http-exa-poll',
+          kind: 'http',
+          name: 'exa_poll',
+          input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
+          output: { status: 200, body: { status: 'in_progress' } }
         }
       ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.serviceTotalCost ).toBe( 0 );
-    expect( report.services ).toHaveLength( 0 );
+    expect( report.httpAdjustedCost ).toBe( 0 );
+    expect( report.httpCosts ).toHaveLength( 0 );
   } );
 
   it( 'counts Exa responses that have costDollars', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test_workflow',
-      startedAt: 1700000000000,
-      endedAt: 1700000100000,
       children: [
         {
-          id: 'step-exa',
-          kind: 'step',
-          name: 'test_workflow#search',
-          children: [
-            {
-              id: 'http-exa-poll',
-              kind: 'http',
-              name: 'exa_poll',
-              input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
-              output: { status: 200, body: { status: 'in_progress' } }
-            },
-            {
-              id: 'http-exa-result',
-              kind: 'http',
-              name: 'exa_result',
-              input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
-              output: {
-                status: 200,
-                body: {
-                  model: 'exa-research',
-                  costDollars: { total: 0.08, numSearches: 1, numPages: 3 }
-                }
-              }
-            }
-          ]
+          id: 'http-exa-poll',
+          kind: 'http',
+          name: 'exa_poll',
+          input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
+          output: { status: 200, body: { status: 'in_progress' } }
+        },
+        {
+          id: 'http-exa-result',
+          kind: 'http',
+          name: 'exa_result',
+          input: { url: 'https://api.exa.ai/research/task-123', method: 'GET' },
+          output: {
+            status: 200,
+            body: { model: 'exa-research', costDollars: { total: 0.08, numSearches: 1, numPages: 3 } }
+          }
         }
       ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.services ).toHaveLength( 1 );
-    expect( report.services[0].calls ).toHaveLength( 1 );
-    expect( report.services[0].totalCost ).toBeCloseTo( 0.08, 4 );
+    expect( report.httpCosts ).toHaveLength( 1 );
+    expect( report.httpCosts[0].host ).toBe( 'api.exa.ai' );
+    expect( report.httpCosts[0].calls ).toHaveLength( 1 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.08, 4 );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.08, 4 );
   } );
 } );
 
-describe( 'calculateCost', () => {
+describe( 'calculateCost (legacy LLM)', () => {
   it( 'calculates total cost for LLM trace', () => {
     const report = calculateCost( llmTrace, testConfig, 'test.json' );
 
     expect( report.llmCalls ).toHaveLength( 2 );
     expect( report.workflowName ).toBe( 'test_workflow' );
-    expect( report.llmTotalCost ).toBeGreaterThan( 0 );
-    expect( report.totalCost ).toBe( report.llmTotalCost + report.serviceTotalCost );
+    expect( report.llmAdjustedCost ).toBeGreaterThan( 0 );
+    expect( report.totalCost ).toBe( report.adjustedTotalCost );
+    expect( report.adjustedTotalCost ).toBe( report.llmAdjustedCost + report.httpAdjustedCost );
   } );
 
   it( 'calculates total cost for HTTP trace', () => {
     const report = calculateCost( httpTrace, testConfig, 'test.json' );
 
-    expect( report.services.length ).toBeGreaterThan( 0 );
-    expect( report.serviceTotalCost ).toBeGreaterThan( 0 );
+    expect( report.httpCosts.length ).toBeGreaterThan( 0 );
+    expect( report.httpAdjustedCost ).toBeGreaterThan( 0 );
   } );
 
   it( 'calculates duration from timestamps', () => {
     const report = calculateCost( llmTrace, testConfig, 'test.json' );
-    // 1700000100000 - 1700000000000 = 100000ms
     expect( report.durationMs ).toBe( 100000 );
   } );
 
@@ -474,47 +530,37 @@ describe( 'calculateCost', () => {
       kind: 'workflow',
       name: 'test',
       children: [ {
-        id: 'step-1',
-        kind: 'step',
-        name: 'test#gen',
-        children: [ {
-          id: 'llm-1',
-          kind: 'llm',
-          name: 'gen',
-          input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5-20250514' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
-        } ]
+        id: 'llm-1',
+        kind: 'llm',
+        name: 'gen',
+        input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5-20250514' } } },
+        output: { usage: { inputTokens: 1000, outputTokens: 500 } }
       } ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.llmTotalCost ).toBeGreaterThan( 0 );
-    expect( report.unknownModels ).toHaveLength( 0 );
-    expect( report.llmCalls[0].warning ).toBe( 'priced as claude-sonnet-4-5' );
+    expect( report.llmAdjustedCost ).toBeGreaterThan( 0 );
+    expect( report.unconfiguredModels ).toHaveLength( 0 );
+    expect( report.llmCalls[0].note ).toBe( 'priced as claude-sonnet-4-5' );
   } );
 
-  it( 'reports unknown model when no prefix match exists', () => {
+  it( 'reports unconfigured model when no prefix match exists', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
       children: [ {
-        id: 'step-1',
-        kind: 'step',
-        name: 'test#gen',
-        children: [ {
-          id: 'llm-1',
-          kind: 'llm',
-          name: 'gen',
-          input: { loadedPrompt: { config: { model: 'totally-unknown-model' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
-        } ]
+        id: 'llm-1',
+        kind: 'llm',
+        name: 'gen',
+        input: { loadedPrompt: { config: { model: 'totally-unknown-model' } } },
+        output: { usage: { inputTokens: 1000, outputTokens: 500 } }
       } ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.llmTotalCost ).toBe( 0 );
-    expect( report.unknownModels ).toContain( 'totally-unknown-model' );
-    expect( report.llmCalls[0].warning ).toBe( 'unknown model' );
+    expect( report.llmAdjustedCost ).toBe( 0 );
+    expect( report.unconfiguredModels ).toContain( 'totally-unknown-model' );
+    expect( report.llmCalls[0].note ).toBe( 'unknown model' );
   } );
 
   it( 'prefers exact model match over prefix', () => {
@@ -522,21 +568,130 @@ describe( 'calculateCost', () => {
       kind: 'workflow',
       name: 'test',
       children: [ {
-        id: 'step-1',
-        kind: 'step',
-        name: 'test#gen',
-        children: [ {
-          id: 'llm-1',
-          kind: 'llm',
-          name: 'gen',
-          input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-          output: { usage: { inputTokens: 1000, outputTokens: 500 } }
-        } ]
+        id: 'llm-1',
+        kind: 'llm',
+        name: 'gen',
+        input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
+        output: { usage: { inputTokens: 1000, outputTokens: 500 } }
       } ]
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.llmCalls[0].warning ).toBeUndefined();
+    expect( report.llmCalls[0].note ).toBeUndefined();
+  } );
+} );
+
+describe( 'event-driven LLM costs (original vs adjusted)', () => {
+  it( 'matches original when costs.yml rate equals the event rate', () => {
+    // haiku event priced at the same rate as testConfig (input 1 / output 5)
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'h', 'claude-haiku-4-5', llmLines( 1_000_000, 1, 1_000_000, 5 ) ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmCalls[0].originalCost ).toBeCloseTo( 6, 5 );
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6, 5 );
+    expect( report.llmCalls[0].note ).toBeUndefined();
+  } );
+
+  it( 'overrides via prefix match when the configured rate differs (opus-4-8 → opus-4)', () => {
+    // event charged at 5/25; costs.yml has no opus-4-8, prefix-matches opus-4 at 15/75
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'o', 'claude-opus-4-8', llmLines( 1_000_000, 5, 1_000_000, 25 ) ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmCalls[0].originalCost ).toBeCloseTo( 30, 5 );
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 90, 5 );
+    expect( report.llmCalls[0].note ).toBe( 'priced as claude-opus-4' );
+    expect( report.llmOriginalCost ).toBeCloseTo( 30, 5 );
+    expect( report.llmAdjustedCost ).toBeCloseTo( 90, 5 );
+  } );
+
+  it( 'leaves adjusted equal to original for a model not in costs.yml (gpt-5.5)', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'g', 'gpt-5.5', llmLines( 27400, 5, 7275, 30 ) ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.llmCalls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.35525, 5 );
+    expect( report.llmCalls[0].note ).toBe( 'no costs.yml override' );
+    expect( report.unconfiguredModels ).toContain( 'gpt-5.5' );
+  } );
+} );
+
+describe( 'event-driven HTTP costs (original vs adjusted)', () => {
+  it( 'falls back to as-charged cost when service recompute is not usable', () => {
+    // exa POST with a cost event but no costDollars body → recompute is $0 → use event
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'exa-1', 'https://api.exa.ai/search', 'POST', 0.012 ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts ).toHaveLength( 1 );
+    expect( report.httpCosts[0].host ).toBe( 'api.exa.ai' );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.012, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.012, 5 );
+    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
+  } );
+
+  it( 'overrides with the recomputed cost for a request-based service (tavily)', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'tv-1', 'https://api.tavily.com/search', 'POST', 0.008 ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts[0].host ).toBe( 'api.tavily.com' );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.008, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.01, 5 );
+  } );
+
+  it( 'uses as-charged cost for an unconfigured host (firecrawl)', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'fc-1', 'https://api.firecrawl.dev/v1/scrape', 'POST', 0.0008 ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts[0].host ).toBe( 'api.firecrawl.dev' );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.0008, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.0008, 5 );
+  } );
+
+  it( 'ignores count-only nodes and groups billable requests by host', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [
+        // count-only webhook (no cost event) — must be excluded
+        {
+          id: 'wh-1',
+          kind: 'http',
+          name: 'request',
+          input: { url: 'https://os.growthx.ai/webhooks/output', method: 'POST' },
+          attributes: {
+            'http:request:count': {
+              type: 'http:request:count',
+              url: 'https://os.growthx.ai/webhooks/output',
+              requestId: 'wh-1'
+            }
+          }
+        },
+        httpEventNode( 'fc-1', 'https://api.firecrawl.dev/v1/scrape', 'POST', 0.10 ),
+        httpEventNode( 'fc-2', 'https://api.firecrawl.dev/v1/scrape', 'POST', 0.05 )
+      ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts ).toHaveLength( 1 );
+    expect( report.httpCosts[0].host ).toBe( 'api.firecrawl.dev' );
+    expect( report.httpCosts[0].calls ).toHaveLength( 2 );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.15, 5 );
   } );
 } );
 
