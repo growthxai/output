@@ -5,7 +5,7 @@ import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
-import { ROLE, isRole, getContent } from './utils/message.js';
+import { ROLE, isRole } from './utils/message.js';
 export { skill } from './prompt/skill.js';
 
 export const createMemoryConversationStore = () => {
@@ -47,12 +47,13 @@ export class Agent extends AIToolLoopAgent {
 
     // Extract system messages as `instructions` for the ToolLoopAgent constructor
     // and keep user messages for generate() calls — avoids provider errors
-    // with multiple system messages during multi-step tool loops
-    const systemContent = allMessages.filter( isRole( ROLE.SYSTEM ) ).map( getContent ).join( '\n\n' );
+    // with multiple system messages during multi-step tool loops.
+    // Pass message objects (not a string) so per-message providerOptions are preserved.
+    const systemMessages = allMessages.filter( isRole( ROLE.SYSTEM ) );
 
     super( {
       ...constructorOptions,
-      ...( systemContent ? { instructions: systemContent } : {} ),
+      ...( systemMessages.length > 0 ? { instructions: systemMessages } : {} ),
       ...( tools ? { tools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest

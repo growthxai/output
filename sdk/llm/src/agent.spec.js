@@ -86,7 +86,8 @@ vi.mock( './utils/trace.js', () => ( {
 
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapStreamOnFinishResponse: ( ...args ) => wrapMocks.wrapStreamOnFinishResponse( ...args )
+  wrapStreamOnFinishResponse: ( ...args ) =>
+    wrapMocks.wrapStreamOnFinishResponse( ...args )
 } ) );
 
 vi.mock( './prompt/skill.js', () => ( {
@@ -131,7 +132,9 @@ describe( 'Agent', () => {
     aiMocks.superConstructor.mockReset();
     aiMocks.superGenerate.mockReset().mockResolvedValue( aiResponse );
     aiMocks.superStream.mockReset().mockReturnValue( { textStream: 'stream' } );
-    aiMocks.stepCountIs.mockReset().mockImplementation( count => ( { type: 'step-count', count } ) );
+    aiMocks.stepCountIs
+      .mockReset()
+      .mockImplementation( count => ( { type: 'step-count', count } ) );
 
     promptMocks.prepareTextPrompt.mockReset().mockReturnValue( {
       loadedPrompt,
@@ -143,7 +146,9 @@ describe( 'Agent', () => {
     traceMocks.startTrace.mockReset().mockReturnValue( 'trace-id' );
     traceMocks.endTraceWithError.mockReset();
 
-    wrapMocks.wrapTextResponse.mockReset().mockImplementation( async ( { response } ) => response );
+    wrapMocks.wrapTextResponse
+      .mockReset()
+      .mockImplementation( async ( { response } ) => response );
     wrapMocks.wrapStreamOnFinishResponse.mockReset().mockReturnValue( {
       onFinish: vi.fn()
     } );
@@ -175,7 +180,9 @@ describe( 'Agent', () => {
 
   it( 'prepares the prompt using the resolved invocation dir', async () => {
     const { Agent } = await importSut();
-    const skills = [ { name: 'style', description: 'Style', instructions: '# Style' } ];
+    const skills = [
+      { name: 'style', description: 'Style', instructions: '# Style' }
+    ];
     const tools = { search: { description: 'Search' } };
 
     new Agent( {
@@ -199,9 +206,11 @@ describe( 'Agent', () => {
 
     new Agent( { prompt: 'test@v1', promptDir: '/explicit/prompts' } );
 
-    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-      promptDir: '/explicit/prompts'
-    } ) );
+    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        promptDir: '/explicit/prompts'
+      } )
+    );
   } );
 
   it( 'constructs ToolLoopAgent with text options, instructions, tools, and default stopWhen', async () => {
@@ -215,10 +224,31 @@ describe( 'Agent', () => {
       model,
       providerOptions: { test: true },
       temperature: 0.3,
-      instructions: 'You are concise.',
+      instructions: [ { role: 'system', content: 'You are concise.' } ],
       tools: preparedTools,
       stopWhen: { type: 'step-count', count: 10 }
     } );
+  } );
+
+  it( 'preserves per-message providerOptions on system messages passed as instructions', async () => {
+    const { Agent } = await importSut();
+    const systemMessage = {
+      role: 'system',
+      content: 'You are concise.',
+      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+    };
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      model,
+      messages: [ systemMessage, { role: 'user', content: 'Hello' } ]
+    } );
+
+    new Agent( { prompt: 'test@v1' } );
+
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        instructions: [ systemMessage ]
+      } )
+    );
   } );
 
   it( 'omits tools when prompt preparation returns null tools', async () => {
@@ -234,7 +264,7 @@ describe( 'Agent', () => {
       model,
       providerOptions: { test: true },
       temperature: 0.3,
-      instructions: 'You are concise.',
+      instructions: [ { role: 'system', content: 'You are concise.' } ],
       stopWhen: { type: 'step-count', count: 10 }
     } );
   } );
@@ -246,9 +276,11 @@ describe( 'Agent', () => {
     new Agent( { prompt: 'test@v1', stopWhen } );
 
     expect( aiMocks.stepCountIs ).not.toHaveBeenCalled();
-    expect( aiMocks.superConstructor ).toHaveBeenCalledWith( expect.objectContaining( {
-      stopWhen
-    } ) );
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        stopWhen
+      } )
+    );
   } );
 
   it( 'passes custom constructor options through', async () => {
@@ -256,10 +288,12 @@ describe( 'Agent', () => {
 
     new Agent( { prompt: 'test@v1', temperature: 0.8, seed: 42 } );
 
-    expect( aiMocks.superConstructor ).toHaveBeenCalledWith( expect.objectContaining( {
-      temperature: 0.8,
-      seed: 42
-    } ) );
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        temperature: 0.8,
+        seed: 42
+      } )
+    );
   } );
 
   it( 'keeps only user prompt messages as initial generate messages', async () => {
@@ -275,7 +309,9 @@ describe( 'Agent', () => {
 
   it( 'combines initial, stored, and caller messages for generate', async () => {
     const store = {
-      getMessages: vi.fn( () => [ { role: 'assistant', content: 'Stored reply' } ] ),
+      getMessages: vi.fn( () => [
+        { role: 'assistant', content: 'Stored reply' }
+      ] ),
       addMessages: vi.fn()
     };
     const callerMessage = { role: 'user', content: 'New question' };
@@ -336,7 +372,9 @@ describe( 'Agent', () => {
 
   it( 'streams with initial, stored, and caller messages', async () => {
     const store = {
-      getMessages: vi.fn( () => [ { role: 'assistant', content: 'Stored reply' } ] ),
+      getMessages: vi.fn( () => [
+        { role: 'assistant', content: 'Stored reply' }
+      ] ),
       addMessages: vi.fn()
     };
     const onFinish = vi.fn();
@@ -345,7 +383,12 @@ describe( 'Agent', () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
 
-    const result = await agent.stream( { messages: [ callerMessage ], onFinish, onError, maxRetries: 1 } );
+    const result = await agent.stream( {
+      messages: [ callerMessage ],
+      onFinish,
+      onError,
+      maxRetries: 1
+    } );
 
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.stream',

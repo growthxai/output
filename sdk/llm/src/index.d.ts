@@ -62,7 +62,7 @@ export type PromptMessage = {
    * frontmatter `messageOptions` set names — which is resolved into per-message `providerOptions`
    * at call time and stripped before the request is sent. Authored as `<system options="set_a set_b">`.
    */
-  attributes?: Record<string, string | boolean>;
+  attributes?: Record<string, string | true>;
 };
 
 /**
