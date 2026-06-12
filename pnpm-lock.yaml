@@ -427,8 +427,8 @@ importers:
   test_workflows:
     dependencies:
       '@growthxlabs/workflows_catalog':
-        specifier: 0.0.12
-        version: 0.0.12(@outputai/core@sdk+core)(zod@4.3.6)
+        specifier: 0.0.13
+        version: 0.0.13(@outputai/core@sdk+core)(zod@4.3.6)
       '@outputai/core':
         specifier: workspace:^
         version: link:../sdk/core
@@ -1083,8 +1083,8 @@ packages:
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
 
-  '@growthxlabs/workflows_catalog@0.0.12':
-    resolution: {integrity: sha512-h42rGIBcyV2pDAvvq0Ip9DANIcyyDOgkvYR6Kxb7rLKpuKUlfNbZX9H6NR6t40R19eYA3735lt+nHFtw9Pl9zA==}
+  '@growthxlabs/workflows_catalog@0.0.13':
+    resolution: {integrity: sha512-g1jpzPg9OZEKckznrEirVRK4t0nIJ8aTsbyJfVhxEeK29iAYddClR/zVd2D8eVdIXExGnJvCkq9q9Lto8yyCEA==}
     peerDependencies:
       '@outputai/core': '>=0.2.0'
       zod: ^4.3.0
@@ -8659,7 +8659,7 @@ snapshots:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@growthxlabs/workflows_catalog@0.0.12(@outputai/core@sdk+core)(zod@4.3.6)':
+  '@growthxlabs/workflows_catalog@0.0.13(@outputai/core@sdk+core)(zod@4.3.6)':
     dependencies:
       '@outputai/core': link:sdk/core
       zod: 4.3.6

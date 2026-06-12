@@ -35,10 +35,6 @@ export const BusEventType = {
   RUNTIME_ERROR: 'runtime_error'
 };
 
-export const Signal = {
-  SEND_AGGREGATIONS: 'send_aggregations'
-};
-
 export const WorkflowSpecialOutput = {
   CONTINUED_AS_NEW: '<<continued_as_new>>'
 };

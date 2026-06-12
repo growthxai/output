@@ -27,7 +27,7 @@ The API server reads these environment variables:
 | `TEMPORAL_API_KEY` | — | Temporal Cloud API key (optional for local) |
 | `TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT` | `24h` | Max workflow execution duration |
 | `TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING` | `300000` | Max wait for workflow result (ms, 5 min) |
-| `TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES` | `33554432` (32 MiB) | Max gRPC message size (send + receive) for the Temporal client. Raise if workflow result envelopes hit `RESOURCE_EXHAUSTED`. |
+| `TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES` | `33554432` (32 MiB) | Max gRPC message size (send + receive) for the Temporal client. Raise if large workflow results hit `RESOURCE_EXHAUSTED`. |
 | `OUTPUT_AWS_REGION` | `us-west-1` | AWS region for S3 trace uploads |
 | `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key for remote traces |
 | `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key for remote traces |

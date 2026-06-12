@@ -175,19 +175,6 @@ describe( 'utils spec', () => {
 
       expect( extractErrorDetail( error, 'trace' ) ).toEqual( tracePayload );
     } );
-
-    it( 'returns the requested detail from a nested cause chain', () => {
-      const aggregations = { cost: { total: 1 } };
-      const error = { cause: { details: [ { aggregations } ] } };
-
-      expect( extractErrorDetail( error, 'aggregations' ) ).toBe( aggregations );
-    } );
-
-    it( 'returns null when the requested detail is missing', () => {
-      const error = { details: [ { trace: {} } ], cause: { details: [] } };
-
-      expect( extractErrorDetail( error, 'aggregations' ) ).toBeNull();
-    } );
   } );
 
   describe( 'extractErrorMessage', () => {

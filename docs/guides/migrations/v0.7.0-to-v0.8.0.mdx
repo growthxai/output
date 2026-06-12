@@ -1,0 +1,199 @@
+---
+title: "v0.7.0 → v0.8.0"
+description: "Upgrading Output.ai projects from v0.7.0 to v0.8.0: workflow result aggregations removal, workflow invocation options, and child workflow execution semantics."
+---
+
+This guide covers the `@outputai/core` workflow execution changes in v0.8.0.
+
+## What changed
+
+- Workflows no longer aggregate usage data or expose `aggregations` in run results.
+- Workflow invocation options changed.
+- Calling a workflow from inside another workflow now always starts a Temporal child workflow.
+
+## Migration steps
+
+### Replace workflow result aggregations
+
+Workflows no longer collect usage events into workflow-level totals. As a result, workflow results now focus on the workflow output and trace metadata, and no longer expose `result.aggregations`.
+
+If your API or CLI consumers read usage totals from `result.aggregations`, move that aggregation into hooks.
+
+#### Before
+
+```ts
+const result = await client.runWorkflow( 'lead_enrichment', input );
+
+console.log( result.aggregations.cost.total );
+console.log( result.aggregations.tokens.total );
+console.log( result.aggregations.httpRequests.total );
+```
+
+#### After
+
+Record cost events as they happen, then aggregate them in your own store. Hook payloads include `workflowDetails`, so you can group totals by workflow id and run id.
+
+```ts
+// hooks.ts
+import { on } from '@outputai/core/hooks';
+import type { HttpRequestCostEvent } from '@outputai/http';
+import type { LLMUsageEvent } from '@outputai/llm';
+
+type Totals = {
+  cost: number,
+  tokens: number,
+  httpRequests: number
+};
+
+const totalsByRun = new Map<string, Totals>();
+
+function getTotalsKey( payload: { workflowDetails: { workflowId: string, runId: string } } ) {
+  return `${payload.workflowDetails.workflowId}:${payload.workflowDetails.runId}`;
+}
+
+function getTotals( key: string ) {
+  const current = totalsByRun.get( key ) ?? { cost: 0, tokens: 0, httpRequests: 0 };
+  totalsByRun.set( key, current );
+  return current;
+}
+
+on<HttpRequestCostEvent>( 'cost:http:request', payload => {
+  const totals = getTotals( getTotalsKey( payload ) );
+
+  totals.cost += payload.total;
+  totals.httpRequests += 1;
+} );
+
+on<LLMUsageEvent>( 'cost:llm:request', payload => {
+  const totals = getTotals( getTotalsKey( payload ) );
+
+  totals.cost += payload.total;
+  totals.tokens += payload.tokensUsed;
+} );
+```
+
+For production systems, write the hook payloads to durable storage instead of an in-memory map. Use `eventId` as the idempotency key if your sink can receive retries or duplicate deliveries.
+
+```ts
+// hooks.ts
+import { on } from '@outputai/core/hooks';
+import type { HttpRequestCostEvent } from '@outputai/http';
+
+on<HttpRequestCostEvent>( 'cost:http:request', async payload => {
+  await usageEvents.insert( {
+    id: payload.eventId,
+    workflowId: payload.workflowDetails.workflowId,
+    runId: payload.workflowDetails.runId,
+    source: 'http',
+    requestId: payload.requestId,
+    cost: payload.total,
+    occurredAt: new Date( payload.eventDate )
+  } );
+} );
+```
+
+If you previously displayed workflow-level totals in a run detail page, query your aggregation store by `workflowId` and `runId` alongside the workflow result.
+
+### Update workflow invocation options
+
+The second argument to a workflow function is now named `WorkflowInvocationOptions`.
+
+If you imported the old invocation configuration type directly, update that import:
+
+```ts
+// Before
+import type { WorkflowInvocationConfiguration } from '@outputai/core';
+
+// After
+import type { WorkflowInvocationOptions } from '@outputai/core';
+```
+
+The shape also changed: invocation-level activity options are now passed as `activityOptions`. The old `options` property is no longer accepted for workflow calls.
+
+#### Before
+
+```ts
+await enrichCompanyWorkflow(
+  { domain: input.domain },
+  {
+    options: {
+      retry: {
+        maximumAttempts: 1
+      }
+    }
+  }
+);
+```
+
+#### After
+
+```ts
+await enrichCompanyWorkflow(
+  { domain: input.domain },
+  {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 1
+      }
+    }
+  }
+);
+```
+
+The invocation options shape is:
+
+```ts
+type WorkflowInvocationOptions = {
+  activityOptions?: TemporalActivityOptions,
+  detached?: boolean,
+  context?: DeepPartial<WorkflowContext>
+};
+```
+
+`detached` and `context` remain invocation options. The field to update for this migration is `activityOptions`.
+
+### Review workflow-to-workflow calls
+
+Calling a workflow function from inside another workflow now always starts a Temporal child workflow.
+
+In older versions, some direct workflow calls were rewritten only in specific code paths. When that rewrite happened, the called workflow could effectively run as part of the parent workflow's execution path: its activities were scheduled from the parent workflow, and the child workflow did not necessarily appear as a distinct Temporal child execution.
+
+In v0.8.0, this is different by design. A direct call like this:
+
+```ts
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+
+export default workflow( {
+  name: 'lead_enrichment',
+  async fn( input ) {
+    return enrichCompanyWorkflow( { domain: input.domain } );
+  }
+} );
+```
+
+now starts `enrich_company` as a Temporal child workflow.
+
+That means:
+
+- The called workflow has its own Temporal workflow execution, run id, history, and retry/cancellation behavior.
+- Activities inside the called workflow are scheduled by the child workflow, not by the parent.
+- The parent receives the child workflow result when you `await` or return the call.
+- Errors from the called workflow cross a child workflow boundary.
+- The child appears as a child workflow in Temporal and in traces.
+
+Most awaited calls keep the same value-level behavior:
+
+```ts
+const childOutput = await enrichCompanyWorkflow( { domain: input.domain } );
+```
+
+But operational behavior changes. Check code that depended on parent workflow activity history, parent-close behavior, or catching specific raw Temporal failure shapes.
+
+## Checklist
+
+- Remove usage of workflow result `.attributes` and `.aggregations`.
+- Add hook handlers for `cost:http:request` and `cost:llm:request` if you still need usage totals.
+- Persist hook events or aggregated totals outside the workflow result.
+- Replace workflow invocation `options` with top-level `activityOptions`.
+- Review every workflow-to-workflow call and treat it as a Temporal child workflow boundary.
+- Update tests that assume workflow-to-workflow calls run inside the parent execution.

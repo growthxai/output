@@ -46,11 +46,11 @@ The child workflow runs with its own retry boundaries — if `enrich_company` fa
 // With input
 const result = await enrichCompanyWorkflow({ domain: 'acme.com' });
 
-// With input and options
+// With input and activity options
 const result = await enrichCompanyWorkflow(
   { domain: 'acme.com' },
   {
-    options: {
+    activityOptions: {
       retry: {
         maximumAttempts: 1
       }
@@ -58,11 +58,11 @@ const result = await enrichCompanyWorkflow(
   }
 );
 
-// Without input but with options (pass undefined as first argument)
+// Without input but with activity options (pass undefined as first argument)
 const result = await generateReportWorkflow(
   undefined,
   {
-    options: {
+    activityOptions: {
       retry: {
         maximumAttempts: 99
       }
@@ -80,19 +80,20 @@ The second argument to a child workflow invocation is a configuration object:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `options` | `TemporalActivityOptions` | Override activity options for all steps in the child workflow. Options are merged with the child workflow's own options. See [Activity Options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions) for available options. |
+| `activityOptions` | `TemporalActivityOptions` | Override activity options for all steps in the child workflow. These are merged with the parent workflow's current activity options and the child workflow's own defaults. See [Activity Options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions) for available options. |
 | `detached` | `boolean` | If `true`, the child workflow uses `ParentClosePolicy.ABANDON` instead of `TERMINATE`. See [Lifecycle](#lifecycle) below. |
+| `context` | `DeepPartial<WorkflowContext>` | Override workflow context values in test environments. This is mainly useful for unit tests. |
 
 ### Activity Options Override
 
-Options set on a child workflow invocation apply to all steps within that child workflow. Steps can still override these with their own `options` property.
+Options set on a child workflow invocation apply to all steps within that child workflow branch. Steps can still override these with their own `options.activityOptions` property.
 
 ```typescript
 // All steps in enrich_company will use maximumAttempts: 1
 await enrichCompanyWorkflow(
   { domain: input.companyDomain },
   {
-    options: {
+    activityOptions: {
       retry: {
         maximumAttempts: 1
       }
@@ -100,6 +101,16 @@ await enrichCompanyWorkflow(
   }
 );
 ```
+
+Activity options are merged from broad defaults to specific overrides:
+
+1. Output's default activity options
+2. The child workflow's `options.activityOptions`
+3. Activity options inherited from the parent workflow
+4. The `activityOptions` passed to this child workflow invocation
+5. The called step's own `options.activityOptions`
+
+This lets a parent tune a child workflow branch for the current use case, while step-specific options still protect activities that need stricter behavior, such as activities that should not retry.
 
 ## Lifecycle
 

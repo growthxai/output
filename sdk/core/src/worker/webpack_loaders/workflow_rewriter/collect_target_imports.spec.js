@@ -10,7 +10,7 @@ function makeAst( source, filename ) {
 }
 
 describe( 'collect_target_imports', () => {
-  it( 'collects ESM imports for steps and workflows and flags changes', () => {
+  it( 'collects ESM imports for steps and evaluators and leaves workflow imports intact', () => {
     const dir = mkdtempSync( join( tmpdir(), 'collect-esm-' ) );
     writeFileSync( join( dir, 'steps.js' ), `
 export const StepA = step({ name: 'step.a' });
@@ -27,25 +27,20 @@ import WF, { FlowA } from './workflow.js';
 const x = 1;`;
 
     const ast = makeAst( source, join( dir, 'file.js' ) );
-    const { stepImports, evaluatorImports, flowImports } = collectTargetImports(
+    const { stepImports, evaluatorImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( evaluatorImports ).toEqual( [ { localName: 'EvalA', evaluatorName: 'eval.a' } ] );
 
     expect( stepImports ).toEqual( [ { localName: 'StepA', stepName: 'step.a' } ] );
-    expect( flowImports ).toEqual( [
-      { localName: 'WF', workflowName: 'flow.def' },
-      { localName: 'FlowA', workflowName: 'flow.a' }
-    ] );
-    // Import declarations should have been removed
-    expect( ast.program.body.find( n => n.type === 'ImportDeclaration' ) ).toBeUndefined();
+    expect( ast.program.body.find( n => n.type === 'ImportDeclaration' )?.source.value ).toBe( './workflow.js' );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'collects CJS requires and removes declarators (steps + default workflow)', () => {
+  it( 'collects CJS requires for steps and evaluators and leaves workflow requires intact', () => {
     const dir = mkdtempSync( join( tmpdir(), 'collect-cjs-' ) );
     writeFileSync( join( dir, 'steps.js' ), 'export const StepB = step({ name: \'step.b\' })' );
     writeFileSync( join( dir, 'evaluators.js' ), 'export const EvalB = evaluator({ name: \'eval.b\' })' );
@@ -58,20 +53,19 @@ const WF = require( './workflow.js' );
 const obj = {};`;
 
     const ast = makeAst( source, join( dir, 'file.js' ) );
-    const { stepImports, evaluatorImports, flowImports } = collectTargetImports(
+    const { stepImports, evaluatorImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( evaluatorImports ).toEqual( [ { localName: 'EvalB', evaluatorName: 'eval.b' } ] );
 
     expect( stepImports ).toEqual( [ { localName: 'StepB', stepName: 'step.b' } ] );
-    expect( flowImports ).toEqual( [ { localName: 'WF', workflowName: 'flow.c' } ] );
-    // All require-based declarators should have been removed (only non-require decls may remain)
+    // Only non-target require declarators should remain.
     const hasRequireDecl = ast.program.body.some( n =>
       n.type === 'VariableDeclaration' && n.declarations.some( d => d.init && d.init.type === 'CallExpression' )
     );
-    expect( hasRequireDecl ).toBe( false );
+    expect( hasRequireDecl ).toBe( true );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -86,7 +80,7 @@ const obj = {};`;
     const { evaluatorImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( evaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
 
@@ -103,7 +97,7 @@ const obj = {};`;
     const { stepImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( stepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
 
@@ -120,7 +114,7 @@ const obj = {};`;
     const { evaluatorImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( evaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
 
@@ -137,14 +131,14 @@ const obj = {};`;
     const { stepImports } = collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
     expect( stepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'throws when ESM import from workflow.js has non-workflow export', () => {
+  it( 'leaves ESM imports from workflow.js alone', () => {
     const dir = mkdtempSync( join( tmpdir(), 'collect-esm-mismatch-wf-' ) );
     writeFileSync( join( dir, 'workflow.js' ), 'export const helper = () => 42;' );
 
@@ -154,13 +148,14 @@ const obj = {};`;
     expect( () => collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
-    ) ).toThrow( /Unresolved import 'helper' from workflow file/ );
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
+    ) ).not.toThrow();
+    expect( ast.program.body.find( n => n.type === 'ImportDeclaration' )?.source.value ).toBe( './workflow.js' );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'throws when CJS destructured require from workflow.js has non-workflow export', () => {
+  it( 'leaves CJS requires from workflow.js alone', () => {
     const dir = mkdtempSync( join( tmpdir(), 'collect-cjs-mismatch-wf-' ) );
     writeFileSync( join( dir, 'workflow.js' ), 'export const helper = () => 42;' );
 
@@ -170,25 +165,26 @@ const obj = {};`;
     expect( () => collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
-    ) ).toThrow( /Unresolved import 'helper' from workflow file/ );
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
+    ) ).not.toThrow();
+    expect( ast.program.body.some( n => n.type === 'VariableDeclaration' ) ).toBe( true );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'collects CJS destructured require from workflow.js', () => {
+  it( 'does not collect CJS destructured require from workflow.js', () => {
     const dir = mkdtempSync( join( tmpdir(), 'collect-cjs-wf-destruct-' ) );
     writeFileSync( join( dir, 'workflow.js' ), 'export const FlowX = workflow({ name: \'flow.x\' });' );
 
     const source = 'const { FlowX } = require( \'./workflow.js\' );\nconst obj = {};';
     const ast = makeAst( source, join( dir, 'file.js' ) );
 
-    const { flowImports } = collectTargetImports(
+    collectTargetImports(
       ast,
       dir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( flowImports ).toEqual( [ { localName: 'FlowX', workflowName: 'flow.x' } ] );
+    expect( ast.program.body.some( n => n.type === 'VariableDeclaration' ) ).toBe( true );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -208,7 +204,7 @@ const obj = {};`;
     const { sharedEvaluatorImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
     expect( sharedEvaluatorImports ).toEqual( [ { localName: 'SharedEval', evaluatorName: 'shared.eval' } ] );
 
@@ -230,7 +226,7 @@ const obj = {};`;
     const { sharedEvaluatorImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
     expect( sharedEvaluatorImports ).toEqual( [ { localName: 'SharedEval', evaluatorName: 'shared.eval' } ] );
 
@@ -254,8 +250,7 @@ const obj = {};`;
       join( dir, 'workflows', 'my_workflow' ),
       {
         stepsNameCache: new Map(), sharedStepsNameCache: new Map(),
-        evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(),
-        workflowNameCache: new Map()
+        evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map()
       }
     );
     expect( sharedStepImports ).toEqual( [ { localName: 'SharedA', stepName: 'shared.a' } ] );
@@ -280,8 +275,7 @@ const obj = {};`;
       join( dir, 'workflows', 'my_workflow' ),
       {
         stepsNameCache: new Map(), sharedStepsNameCache: new Map(),
-        evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(),
-        workflowNameCache: new Map()
+        evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map()
       }
     );
     expect( sharedStepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
@@ -304,7 +298,7 @@ const obj = {};`;
     const { sharedEvaluatorImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
     expect( sharedEvaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
 
@@ -326,78 +320,12 @@ const obj = {};`;
     const { sharedEvaluatorImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map(), workflowNameCache: new Map() }
+      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
     expect( sharedEvaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'collects ESM imports from @growthxlabs/workflows_catalog', () => {
-    const dir = mkdtempSync( join( tmpdir(), 'collect-cat-esm-' ) );
-    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
-    const srcDir = join( pkgRoot, 'src' );
-    mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
-    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
-      name: '@growthxlabs/workflows_catalog',
-      type: 'module',
-      main: './src/index.js',
-      dependencies: { '@outputai/core': '1.0.0' }
-    } ) );
-    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
-    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow\' });\n' );
-
-    const fileDir = join( dir, 'consumer' );
-    mkdirSync( fileDir, { recursive: true } );
-    const resourcePath = join( fileDir, 'workflow.js' );
-
-    const source = `
-import { sumNumbers as SN } from '@growthxlabs/workflows_catalog';
-const x = 1;`;
-    const ast = makeAst( source, resourcePath );
-
-    const { flowImports } = collectTargetImports(
-      ast,
-      fileDir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() },
-      resourcePath
-    );
-    expect( flowImports ).toEqual( [ { localName: 'SN', workflowName: 'cat.flow' } ] );
-    expect( ast.program.body.find( n => n.type === 'ImportDeclaration' ) ).toBeUndefined();
-
-    rmSync( dir, { recursive: true, force: true } );
-  } );
-
-  it( 'collects CJS destructured require from @growthxlabs/workflows_catalog', () => {
-    const dir = mkdtempSync( join( tmpdir(), 'collect-cat-cjs-' ) );
-    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
-    const srcDir = join( pkgRoot, 'src' );
-    mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
-    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
-      name: '@growthxlabs/workflows_catalog',
-      type: 'module',
-      main: './src/index.js',
-      dependencies: { '@outputai/core': '1.0.0' }
-    } ) );
-    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
-    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'cat.flow2\' });\n' );
-
-    const fileDir = join( dir, 'consumer' );
-    mkdirSync( fileDir, { recursive: true } );
-    const resourcePath = join( fileDir, 'workflow.js' );
-
-    const source = 'const { sumNumbers } = require( \'@growthxlabs/workflows_catalog\' );\nconst x = 1;';
-    const ast = makeAst( source, resourcePath );
-
-    const { flowImports } = collectTargetImports(
-      ast,
-      fileDir,
-      { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), workflowNameCache: new Map() },
-      resourcePath
-    );
-    expect( flowImports ).toEqual( [ { localName: 'sumNumbers', workflowName: 'cat.flow2' } ] );
-
-    rmSync( dir, { recursive: true, force: true } );
-  } );
 } );
 

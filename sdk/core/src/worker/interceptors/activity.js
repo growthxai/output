@@ -2,14 +2,11 @@ import { Context, activityInfo as activityInfoFn } from '@temporalio/activity';
 import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from './headers.js';
-import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL, Signal } from '#consts';
-import { activityHeartbeatEnabled, activityHeartbeatIntervalMs, namespace } from '../configs.js';
+import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
+import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { messageBus } from '#bus';
-import { Client } from '@temporalio/client';
-import { createChildLogger } from '#logger';
 import { aggregateAttributes } from '#internal_utils/aggregations';
-
-const log = createChildLogger( 'ActivityInterceptor' );
+import { buildApplicationFailureWithDetails } from '#internal_utils/errors';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -28,7 +25,7 @@ const log = createChildLogger( 'ActivityInterceptor' );
   - Headers injected by the workflow interceptor
 */
 export class ActivityExecutionInterceptor {
-  constructor( { activities, workflows, connection } ) {
+  constructor( { activities, workflows } ) {
     // convert activities{} object to a map: activityType:kind
     this.activityKindMap = new Map( Object.entries( activities )
       .map( ( [ type, fn ] ) => ( [ type, fn[METADATA_ACCESS_SYMBOL].type ] ) ) );
@@ -37,12 +34,11 @@ export class ActivityExecutionInterceptor {
     this.workflowsPathMap = new Map( workflows.flatMap( ( { name, aliases, path } ) =>
       [ name, ...aliases ?? [] ].map( a => ( [ a, path ] ) )
     ) );
-    this.connection = connection;
   };
 
   async execute( input, next ) {
     const activityInfo = activityInfoFn();
-    const { workflowExecution: { workflowId, runId }, activityId, activityType, workflowType } = activityInfo;
+    const { workflowExecution: { runId }, activityId, activityType, workflowType } = activityInfo;
     const { traceInfo, workflowDetails } = headersToObject( input.headers );
     const outputActivityKind = this.activityKindMap.get( activityType );
     const workflowFilename = this.workflowsPathMap.get( workflowType );
@@ -60,19 +56,6 @@ export class ActivityExecutionInterceptor {
     };
 
     const addAttribute = attribute => state.attributes.push( attribute );
-
-    const sendAggregationsViaSignal = async () => {
-      if ( state.attributes.length > 0 ) {
-        try {
-          const client = new Client( { connection: this.connection, namespace } );
-          const workflowHandle = client.workflow.getHandle( workflowId );
-          await workflowHandle.signal( Signal.SEND_AGGREGATIONS, aggregateAttributes( state.attributes ) );
-        } catch ( error ) {
-          const errorContext = { message: error.message, stack: error.stack, activityId, activityType, workflowId, workflowType, runId };
-          log.warn( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, errorContext );
-        }
-      }
-    };
 
     // Adds context accessible information
     const storageContext = {
@@ -107,9 +90,9 @@ export class ActivityExecutionInterceptor {
       messageBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error } );
       Tracing.addEventError( { id: activityId, details: error, traceInfo } );
 
-      await sendAggregationsViaSignal();
+      const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
 
-      throw error;
+      throw aggregations ? buildApplicationFailureWithDetails( error, { aggregations } ) : error;
     } finally {
       clearInterval( state.heartbeat );
     }

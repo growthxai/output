@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import loader from './index.mjs';
 
 function runLoader( source, resourcePath ) {
@@ -17,7 +17,7 @@ function runLoader( source, resourcePath ) {
 }
 
 describe( 'workflows_rewriter Webpack loader spec', () => {
-  it( 'rewrites ESM imports and converts fn arrow to function', async () => {
+  it( 'rewrites ESM step imports and leaves workflow calls intact', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-esm-' ) );
     writeFileSync( join( dir, 'steps.js' ), 'export const StepA = step({ name: \'step.a\' });' );
     writeFileSync( join( dir, 'workflow.js' ), `
@@ -39,11 +39,11 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'file.js' ) );
 
     expect( code ).not.toMatch( /from '\.\/steps\.js'/ );
-    expect( code ).not.toMatch( /from '\.\/workflow\.js'/ );
+    expect( code ).toMatch( /from '\.\/workflow\.js'/ );
     expect( code ).toMatch( /fn:\s*async function \(x\)/ );
     expect( code ).toMatch( /this\.invokeStep\('step\.a',\s*1\)/ );
-    expect( code ).toMatch( /this\.startWorkflow\('flow\.a',\s*2\)/ );
-    expect( code ).toMatch( /this\.startWorkflow\('flow\.def',\s*3\)/ );
+    expect( code ).toMatch( /FlowA\(2\)/ );
+    expect( code ).toMatch( /FlowDef\(3\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -98,7 +98,7 @@ const obj = {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites CJS requires and converts fn arrow to function', async () => {
+  it( 'rewrites CJS step requires and leaves workflow calls intact', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-cjs-' ) );
     writeFileSync( join( dir, 'steps.js' ), 'export const StepB = step({ name: \'step.b\' });' );
     writeFileSync( join( dir, 'workflow.js' ), 'export default workflow({ name: \'flow.c\' });' );
@@ -117,10 +117,10 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'file.js' ) );
 
     expect( code ).not.toMatch( /require\('\.\/steps\.js'\)/ );
-    expect( code ).not.toMatch( /require\('\.\/workflow\.js'\)/ );
+    expect( code ).toMatch( /require\('\.\/workflow\.js'\)/ );
     expect( code ).toMatch( /fn:\s*async function \(y\)/ );
     expect( code ).toMatch( /this\.invokeStep\('step\.b'\)/ );
-    expect( code ).toMatch( /this\.startWorkflow\('flow\.c'\)/ );
+    expect( code ).toMatch( /FlowDefault\(\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -143,8 +143,8 @@ const obj = { fn: async () => { StepC(); FlowC(); FlowDef(); } }`;
 
     const { code } = await runLoader( source, join( dir, 'file.js' ) );
     expect( code ).toMatch( /this\.invokeStep\('step\.const'\)/ );
-    expect( code ).toMatch( /this\.startWorkflow\('wf\.const'\)/ );
-    expect( code ).toMatch( /this\.startWorkflow\('wf\.def'\)/ );
+    expect( code ).toMatch( /FlowC\(\)/ );
+    expect( code ).toMatch( /FlowDef\(\)/ );
     rmSync( dir, { recursive: true, force: true } );
   } );
 
@@ -196,78 +196,6 @@ const obj = {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites ESM imports from @growthxlabs/workflows_catalog to startWorkflow', async () => {
-    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-catalog-' ) );
-    const pkgRoot = join( dir, 'node_modules', '@growthxlabs', 'workflows_catalog' );
-    const srcDir = join( pkgRoot, 'src' );
-    mkdirSync( join( srcDir, 'workflows', 'wf' ), { recursive: true } );
-    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
-      name: '@growthxlabs/workflows_catalog',
-      type: 'module',
-      main: './src/index.js',
-      dependencies: { '@outputai/core': '1.0.0' }
-    } ) );
-    writeFileSync( join( srcDir, 'index.js' ), 'export { default as sumNumbers } from \'./workflows/wf/workflow.js\';\n' );
-    writeFileSync( join( srcDir, 'workflows', 'wf', 'workflow.js' ), 'export default workflow({ name: \'nest.cat\' });\n' );
-
-    const resourcePath = join( dir, 'workflows', 'mine', 'workflow.js' );
-    mkdirSync( dirname( resourcePath ), { recursive: true } );
-
-    const source = `
-import { sumNumbers } from '@growthxlabs/workflows_catalog';
-
-const obj = {
-  fn: async () => {
-    sumNumbers( 1 );
-  }
-}`;
-
-    const { code } = await runLoader( source, resourcePath );
-
-    expect( code ).not.toMatch( /@growthxlabs\/workflows_catalog/ );
-    expect( code ).toMatch( /this\.startWorkflow\('nest\.cat',\s*1\)/ );
-
-    rmSync( dir, { recursive: true, force: true } );
-  } );
-
-  it( 'rewrites imports through the output workflow bundle export condition', async () => {
-    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-catalog-condition-' ) );
-    const pkgRoot = join( dir, 'node_modules', '@test', 'conditional_catalog' );
-    mkdirSync( join( pkgRoot, 'bundle' ), { recursive: true } );
-    writeFileSync( join( pkgRoot, 'package.json' ), JSON.stringify( {
-      name: '@test/conditional_catalog',
-      type: 'module',
-      main: './node-entry.js',
-      exports: {
-        '.': {
-          'output-workflow-bundle': './bundle/workflow.js',
-          default: './node-entry.js'
-        }
-      }
-    } ) );
-    writeFileSync( join( pkgRoot, 'node-entry.js' ), 'export const helper = () => 1;\n' );
-    writeFileSync( join( pkgRoot, 'bundle', 'workflow.js' ), 'export default workflow({ name: \'bundle.cat\' });\n' );
-
-    const resourcePath = join( dir, 'workflows', 'mine', 'workflow.js' );
-    mkdirSync( dirname( resourcePath ), { recursive: true } );
-
-    const source = `
-import BundleCatalog from '@test/conditional_catalog';
-
-const obj = {
-  fn: async () => {
-    BundleCatalog( 1 );
-  }
-}`;
-
-    const { code } = await runLoader( source, resourcePath );
-
-    expect( code ).not.toMatch( /@test\/conditional_catalog/ );
-    expect( code ).toMatch( /this\.startWorkflow\('bundle\.cat',\s*1\)/ );
-
-    rmSync( dir, { recursive: true, force: true } );
-  } );
-
   it( 'throws on non-static name', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-error-' ) );
     writeFileSync( join( dir, 'steps.js' ), `
@@ -282,7 +210,7 @@ import { StepX } from './steps.js';
 import WF from './workflow.js';
 const obj = { fn: async () => { StepX(); WF(); } }`;
 
-    await expect( runLoader( source, join( dir, 'file.js' ) ) ).rejects.toThrow( /Invalid (step|default workflow) name/ );
+    await expect( runLoader( source, join( dir, 'file.js' ) ) ).rejects.toThrow( /Invalid step name/ );
     rmSync( dir, { recursive: true, force: true } );
   } );
 } );

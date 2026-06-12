@@ -1,7 +1,8 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { workflowInfo, proxySinks, ApplicationFailure, ContinueAsNew, isCancellation } from '@temporalio/workflow';
+import { workflowInfo, proxySinks, ContinueAsNew, isCancellation } from '@temporalio/workflow';
 import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#utils';
+import { buildApplicationFailureWithDetails } from '#internal_utils/errors';
 import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 // this is a dynamic generated file with activity configs overwrites
 import stepOptions from '../temp/__activity_options.js';
@@ -55,17 +56,13 @@ class WorkflowExecutionInterceptor {
       }
 
       sinks.workflow.error( error );
-      const failure = new ApplicationFailure( error.message, error.constructor.name, undefined, undefined, error );
 
       /*
-       * If intercepted error has metadata, set it to .details property of Temporal's ApplicationFailure instance.
+       * Add internal error .details to Temporal's ApplicationFailure .details
        * This make it possible for this information be retrieved by Temporal's client instance.
        * Ref: https://typescript.temporal.io/api/classes/common.ApplicationFailure#details
        */
-      if ( error[METADATA_ACCESS_SYMBOL] ) {
-        failure.details = [ error[METADATA_ACCESS_SYMBOL] ];
-      }
-      throw failure;
+      throw error[METADATA_ACCESS_SYMBOL] ? buildApplicationFailureWithDetails( error, error[METADATA_ACCESS_SYMBOL] ) : error;
     }
   }
 };

@@ -1,4 +1,3 @@
-import { deepMergeWithResolver } from '#utils';
 import { Attribute } from '#trace_attribute';
 import Decimal from 'decimal.js';
 
@@ -43,12 +42,3 @@ export const aggregateAttributes = attributes => ( {
     total: attributes.filter( a => Attribute.HTTPRequestCount.TYPE === a.type ).length
   }
 } );
-
-/**
- * Combine two or more aggregation objects into a single Aggregation, adding up the totals and merging keys.
- *
- * @param {Aggregation} aggregations
- * @returns {Aggregation}
- */
-export const mergeAggregations = ( ...aggregations ) =>
-  aggregations.reduce( ( final, item ) => deepMergeWithResolver( final, item, ( a, b ) => Decimal( a ?? 0 ).add( b ?? 0 ).toNumber() ), {} );
