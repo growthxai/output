@@ -114,10 +114,6 @@ TOTAL ESTIMATED COST (adjusted)   $0.0163
 As-charged (from trace)           $0.0163
 ```
 
-Models or hosts whose Adjusted figure diverges from Original (e.g. priced via a
-costs.yml prefix match, or no override available) are explained in a
-`Pricing notes:` footnote under the relevant table.
-
 ### JSON format fields:
 ```json
 {
@@ -127,20 +123,17 @@ costs.yml prefix match, or no override available) are explained in a
   "llmAdjustedCost": 0.0123,
   "totalInputTokens": 1234,
   "totalOutputTokens": 567,
-  "unconfiguredModels": [],
   "httpCosts": [{ "host": "r.jina.ai", "originalTotalCost": 0.004, "adjustedTotalCost": 0.004 }],
   "httpOriginalCost": 0.004,
   "httpAdjustedCost": 0.004,
   "originalTotalCost": 0.0163,
-  "adjustedTotalCost": 0.0163,
   "totalCost": 0.0163
 }
 ```
 
-Per-call entries in `llmCalls` and `httpCosts[].calls` carry `originalCost`,
-`adjustedCost`, and an optional `note`. (Older releases exposed `llmTotalCost`,
-`services[]`, `serviceTotalCost`, and `unknownModels` — replaced by the fields
-above.)
+Per-call entries in `llmCalls` and `httpCosts[].calls` carry `originalCost` and
+`adjustedCost`. (Older releases exposed `llmTotalCost`, `services[]`,
+`serviceTotalCost`, and `unknownModels` — replaced by the fields above.)
 
 ---
 

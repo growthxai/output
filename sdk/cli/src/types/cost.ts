@@ -80,7 +80,6 @@ export interface HTTPCall {
   // As-charged total from the http:request:cost event. Undefined for nodes
   // without a cost event (e.g. count-only webhooks, polling requests).
   originalCost?: number;
-  requestId?: string;
 }
 
 // Pricing Configuration Types
@@ -149,8 +148,6 @@ export interface LLMCostResult {
   // Cost after applying any costs.yml override (equals originalCost when no
   // override applies).
   adjustedCost: number;
-  // e.g. 'priced as claude-opus-4', 'no costs.yml override', 'unknown model'.
-  note?: string;
 }
 
 // Result of recomputing a single HTTP cost from costs.yml service rules.
@@ -175,7 +172,6 @@ export interface HTTPCostResult {
   usage: string;
   originalCost: number;
   adjustedCost: number;
-  note?: string;
 }
 
 export interface HostCostSummary {
@@ -197,16 +193,14 @@ export interface CostReport {
   totalOutputTokens: number;
   totalCachedTokens: number;
   totalReasoningTokens: number;
-  // Models with no matching costs.yml entry; priced from the trace event only.
-  unconfiguredModels: string[];
 
   httpCosts: HostCostSummary[];
   httpOriginalCost: number;
   httpAdjustedCost: number;
 
+  // As-charged total from the trace events.
   originalTotalCost: number;
-  adjustedTotalCost: number;
-  // Headline figure (equals adjustedTotalCost).
+  // Headline figure — the costs.yml-adjusted total.
   totalCost: number;
 }
 
@@ -217,7 +211,6 @@ export interface LLMModelSummary {
   count: number;
   originalCost: number;
   adjustedCost: number;
-  note?: string;
 }
 
 export interface HostSummary {
@@ -225,7 +218,6 @@ export interface HostSummary {
   callCount: number;
   originalCost: number;
   adjustedCost: number;
-  note?: string;
 }
 
 export interface VerboseFlags {
@@ -258,7 +250,6 @@ export interface ParsedCostData {
   totalReasoningTokens: number;
 
   originalTotalCost: number;
-  adjustedTotalCost: number;
-  unconfiguredModels: string[];
+  totalCost: number;
   isEmpty: boolean;
 }

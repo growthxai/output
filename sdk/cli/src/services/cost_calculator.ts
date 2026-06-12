@@ -216,9 +216,7 @@ export function findHTTPCalls(
         output: ( n.output as Record<string, unknown> ) || {},
         status: n.output?.status as number | undefined,
         host: hostFromUrl( url ),
-        originalCost: costEvent?.total,
-        requestId: costEvent?.requestId ||
-          ( typeof n.id === 'string' ? n.id : undefined )
+        originalCost: costEvent?.total
       };
     },
     parentStepName,
@@ -518,31 +516,17 @@ export function calculateServiceCost(
 function findModelPricing(
   model: string,
   models: Record<string, ModelPricing>
-): { pricing: ModelPricing | undefined; matchedKey: string | undefined } {
+): ModelPricing | undefined {
   if ( models[model] ) {
-    return { pricing: models[model], matchedKey: model };
+    return models[model];
   }
-  const prefixMatch = Object.entries( models ).find( ( [ key ] ) => model.startsWith( key ) );
-  return prefixMatch ?
-    { pricing: prefixMatch[1], matchedKey: prefixMatch[0] } :
-    { pricing: undefined, matchedKey: undefined };
+  return Object.entries( models ).find( ( [ key ] ) => model.startsWith( key ) )?.[1];
 }
 
 function repriceCall( call: LLMCall, pricing: ModelPricing ): number {
   return call.lines ?
     priceLines( call.lines, pricing ) :
     calculateLLMCallCost( call.usage, pricing ).cost;
-}
-
-function llmNote(
-  call: LLMCall,
-  pricing: ModelPricing | undefined,
-  matchedKey: string | undefined
-): string | undefined {
-  if ( !pricing ) {
-    return call.originalCost !== undefined ? 'no costs.yml override' : 'unknown model';
-  }
-  return matchedKey !== call.model ? `priced as ${matchedKey}` : undefined;
 }
 
 function aggregateLLMCosts(
@@ -556,9 +540,7 @@ function aggregateLLMCosts(
   totalReasoningTokens: number;
   llmOriginalCost: number;
   llmAdjustedCost: number;
-  unconfiguredModels: string[];
 } {
-  const unconfiguredModels = new Set<string>();
   const results: LLMCostResult[] = [];
   const totals = {
     inputTokens: 0, outputTokens: 0, cachedTokens: 0, reasoningTokens: 0,
@@ -566,7 +548,7 @@ function aggregateLLMCosts(
   };
 
   for ( const call of llmCalls ) {
-    const { pricing, matchedKey } = findModelPricing( call.model, config.models ?? {} );
+    const pricing = findModelPricing( call.model, config.models ?? {} );
 
     // costs.yml override (the "adjusted" cost) — re-price the event's usage
     // lines at configured rates (or the legacy token counts when no event).
@@ -578,11 +560,6 @@ function aggregateLLMCosts(
     const originalCost = call.originalCost ?? repriced ?? 0;
     const adjustedCost = repriced ?? originalCost;
 
-    if ( !pricing ) {
-      unconfiguredModels.add( call.model );
-    }
-    const note = llmNote( call, pricing, matchedKey );
-
     results.push( {
       step: call.stepName,
       model: call.model,
@@ -591,8 +568,7 @@ function aggregateLLMCosts(
       cached: call.usage.cachedInputTokens ?? 0,
       reasoning: call.usage.reasoningTokens ?? 0,
       originalCost,
-      adjustedCost,
-      note
+      adjustedCost
     } );
 
     totals.inputTokens += call.usage.inputTokens ?? 0;
@@ -610,8 +586,7 @@ function aggregateLLMCosts(
     totalCachedTokens: totals.cachedTokens,
     totalReasoningTokens: totals.reasoningTokens,
     llmOriginalCost: totals.originalCost,
-    llmAdjustedCost: totals.adjustedCost,
-    unconfiguredModels: [ ...unconfiguredModels ]
+    llmAdjustedCost: totals.adjustedCost
   };
 }
 
@@ -638,29 +613,15 @@ function resolveHTTPOverride(
   call: HTTPCall,
   serviceInfo: { serviceName: string; config: ServiceConfig } | null,
   originalCost: number
-): { adjustedCost: number; usage: string; note?: string } {
-  if ( !serviceInfo ) {
+): { adjustedCost: number; usage: string } {
+  if ( !serviceInfo || ( call.status && call.status >= 400 ) ) {
     return { adjustedCost: originalCost, usage: 'as-charged' };
   }
 
-  if ( call.status && call.status >= 400 ) {
-    return {
-      adjustedCost: originalCost,
-      usage: 'as-charged',
-      note: 'request errored; using as-charged'
-    };
-  }
-
   const recompute = calculateServiceCost( call, serviceInfo );
-  if ( recompute.kind === 'computed' ) {
-    return { adjustedCost: recompute.cost, usage: recompute.usage };
-  }
-
-  return {
-    adjustedCost: originalCost,
-    usage: 'as-charged',
-    note: 'no usable costs.yml override; using as-charged'
-  };
+  return recompute.kind === 'computed' ?
+    { adjustedCost: recompute.cost, usage: recompute.usage } :
+    { adjustedCost: originalCost, usage: 'as-charged' };
 }
 
 // Each call is priced by the best evidence it carries: an http:request:cost
@@ -680,7 +641,7 @@ function aggregateHTTPCosts(
   for ( const call of httpCalls ) {
     if ( call.originalCost !== undefined ) {
       const serviceInfo = identifyService( call, config.services );
-      const { adjustedCost, usage, note } =
+      const { adjustedCost, usage } =
         resolveHTTPOverride( call, serviceInfo, call.originalCost );
 
       pushHTTPResult( hosts, {
@@ -688,8 +649,7 @@ function aggregateHTTPCosts(
         host: call.host,
         usage,
         originalCost: call.originalCost,
-        adjustedCost,
-        note
+        adjustedCost
       } );
       continue;
     }
@@ -719,8 +679,7 @@ function aggregateHTTPCosts(
       host: call.host,
       usage: recompute.usage,
       originalCost: recompute.cost,
-      adjustedCost: recompute.cost,
-      note: recompute.warning
+      adjustedCost: recompute.cost
     } );
   }
 
@@ -738,16 +697,12 @@ export function calculateCost( trace: TraceNode, config: PricingConfig, traceFil
     totalCachedTokens,
     totalReasoningTokens,
     llmOriginalCost,
-    llmAdjustedCost,
-    unconfiguredModels
+    llmAdjustedCost
   } = aggregateLLMCosts( llmCalls, config );
 
   const httpCosts = Object.values( aggregateHTTPCosts( httpCalls, config ) );
   const httpOriginalCost = httpCosts.reduce( ( sum, h ) => sum + h.originalTotalCost, 0 );
   const httpAdjustedCost = httpCosts.reduce( ( sum, h ) => sum + h.adjustedTotalCost, 0 );
-
-  const originalTotalCost = llmOriginalCost + httpOriginalCost;
-  const adjustedTotalCost = llmAdjustedCost + httpAdjustedCost;
 
   const durationMs =
     trace.endedAt && trace.startedAt ? trace.endedAt - trace.startedAt : null;
@@ -764,14 +719,12 @@ export function calculateCost( trace: TraceNode, config: PricingConfig, traceFil
     totalOutputTokens,
     totalCachedTokens,
     totalReasoningTokens,
-    unconfiguredModels,
 
     httpCosts,
     httpOriginalCost,
     httpAdjustedCost,
 
-    originalTotalCost,
-    adjustedTotalCost,
-    totalCost: adjustedTotalCost
+    originalTotalCost: llmOriginalCost + httpOriginalCost,
+    totalCost: llmAdjustedCost + httpAdjustedCost
   };
 }

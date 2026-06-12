@@ -32,57 +32,24 @@ function formatCurrency( amount: number ): string {
   return `$${roundGaussian( amount, 2 ).toFixed( 2 )}`;
 }
 
-// Annotations are rendered as a footnote beneath each table rather than inside
-// the Adjusted cell, so tables stay narrow and render cleanly in narrow
-// terminals.
-function pricingNoteLines( items: Array<{ name: string; note?: string }> ): string[] {
-  const noted = items.filter( i => i.note );
-  if ( noted.length === 0 ) {
-    return [];
-  }
-  return [ 'Pricing notes:', ...noted.map( i => `  ${i.name}: ${i.note}` ) ];
-}
-
-function llmNoteLines( models: LLMModelSummary[] ): string[] {
-  return pricingNoteLines( models.map( m => ( { name: m.model, note: m.note } ) ) );
-}
-
-function hostNoteLines( hosts: HostSummary[] ): string[] {
-  return pricingNoteLines( hosts.map( h => ( { name: h.host, note: h.note } ) ) );
-}
-
-function joinDistinct( notes: Array<string | undefined> ): string | undefined {
-  const distinct = [ ...new Set( notes.filter( ( n ): n is string => !!n ) ) ];
-  return distinct.length > 0 ? distinct.join( '; ' ) : undefined;
-}
-
 function pluralize( count: number, singular: string ): string {
   return count === 1 ? `1 ${singular}` : `${count} ${singular}s`;
 }
 
 export function parseCostData( report: CostReport ): ParsedCostData {
-  const byModel: Record<string, {
-    count: number; originalCost: number; adjustedCost: number; notes: Array<string | undefined>;
-  }> = {};
+  const byModel: Record<string, { count: number; originalCost: number; adjustedCost: number }> = {};
   for ( const r of report.llmCalls ) {
     if ( !byModel[r.model] ) {
-      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0, notes: [] };
+      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0 };
     }
     byModel[r.model].count++;
     byModel[r.model].originalCost += r.originalCost;
     byModel[r.model].adjustedCost += r.adjustedCost;
-    byModel[r.model].notes.push( r.note );
   }
 
   const llmModels: LLMModelSummary[] = Object.entries( byModel )
     .sort( ( a, b ) => b[1].adjustedCost - a[1].adjustedCost )
-    .map( ( [ model, s ] ) => ( {
-      model,
-      count: s.count,
-      originalCost: s.originalCost,
-      adjustedCost: s.adjustedCost,
-      note: joinDistinct( s.notes )
-    } ) );
+    .map( ( [ model, s ] ) => ( { model, ...s } ) );
 
   const hosts: HostSummary[] = [ ...report.httpCosts ]
     .sort( ( a, b ) => b.adjustedTotalCost - a.adjustedTotalCost )
@@ -90,8 +57,7 @@ export function parseCostData( report: CostReport ): ParsedCostData {
       host: h.host,
       callCount: h.calls.length,
       originalCost: h.originalTotalCost,
-      adjustedCost: h.adjustedTotalCost,
-      note: joinDistinct( h.calls.map( c => c.note ) )
+      adjustedCost: h.adjustedTotalCost
     } ) );
 
   const httpTotalCalls = hosts.reduce( ( sum, h ) => sum + h.callCount, 0 );
@@ -124,8 +90,7 @@ export function parseCostData( report: CostReport ): ParsedCostData {
     totalReasoningTokens: report.totalReasoningTokens,
 
     originalTotalCost: report.originalTotalCost,
-    adjustedTotalCost: report.adjustedTotalCost,
-    unconfiguredModels: report.unconfiguredModels,
+    totalCost: report.totalCost,
     isEmpty: report.llmCalls.length === 0 && report.httpCosts.length === 0
   };
 }
@@ -158,7 +123,6 @@ function formatSummary( data: ParsedCostData ): string {
 
     lines.push( 'LLM Costs:' );
     lines.push( table.toString() );
-    lines.push( ...llmNoteLines( data.llmModels ) );
     lines.push( '' );
   }
 
@@ -187,7 +151,6 @@ function formatSummary( data: ParsedCostData ): string {
 
     lines.push( 'API Costs:' );
     lines.push( table.toString() );
-    lines.push( ...hostNoteLines( data.hosts ) );
     lines.push( '' );
   }
 
@@ -252,7 +215,6 @@ function formatVerbose( data: ParsedCostData ): string {
 
     lines.push( 'LLM Calls:' );
     lines.push( table.toString() );
-    lines.push( ...llmNoteLines( data.llmModels ) );
     lines.push( '' );
   }
 
@@ -283,7 +245,6 @@ function formatVerbose( data: ParsedCostData ): string {
 
     lines.push( 'API Calls:' );
     lines.push( table.toString() );
-    lines.push( ...hostNoteLines( data.hosts ) );
     lines.push( '' );
   }
 
@@ -312,7 +273,7 @@ export function formatCostReport( report: CostReport, options: { verbose?: boole
       colAligns: [ 'left', 'right' ],
       colWidths: [ 36, 12 ]
     } );
-    totalTable.push( [ 'TOTAL ESTIMATED COST (adjusted)', formatCurrency( data.adjustedTotalCost ) ] );
+    totalTable.push( [ 'TOTAL ESTIMATED COST (adjusted)', formatCurrency( data.totalCost ) ] );
     totalTable.push( [ 'As-charged (from trace)', formatCurrency( data.originalTotalCost ) ] );
     lines.push( totalTable.toString() );
   }

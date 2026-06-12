@@ -289,14 +289,11 @@ describe( 'findLLMCalls', () => {
     expect( calls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
   } );
 
-  it( 'deduplicates by ID', () => {
-    const calls = findLLMCalls( duplicateTrace );
-    expect( calls ).toHaveLength( 1 );
-  } );
+  it( 'deduplicates legacy and event-bearing nodes by ID', () => {
+    expect( findLLMCalls( duplicateTrace ) ).toHaveLength( 1 );
 
-  it( 'deduplicates event-bearing nodes by ID', () => {
     const lines = llmLines( 1000, 1, 1000, 5 );
-    const trace: TraceNode = {
+    const eventDupTrace: TraceNode = {
       kind: 'workflow',
       name: 'test',
       children: [
@@ -304,7 +301,7 @@ describe( 'findLLMCalls', () => {
         llmEventNode( 'dup', 'claude-haiku-4-5', lines )
       ]
     };
-    expect( findLLMCalls( trace ) ).toHaveLength( 1 );
+    expect( findLLMCalls( eventDupTrace ) ).toHaveLength( 1 );
   } );
 } );
 
@@ -337,7 +334,6 @@ describe( 'findHTTPCalls', () => {
     expect( calls ).toHaveLength( 1 );
     expect( calls[0].host ).toBe( 'api.exa.ai' );
     expect( calls[0].originalCost ).toBe( 0.012 );
-    expect( calls[0].requestId ).toBe( 'req-1' );
   } );
 } );
 
@@ -508,8 +504,8 @@ describe( 'calculateCost (legacy LLM)', () => {
     expect( report.llmCalls ).toHaveLength( 2 );
     expect( report.workflowName ).toBe( 'test_workflow' );
     expect( report.llmAdjustedCost ).toBeGreaterThan( 0 );
-    expect( report.totalCost ).toBe( report.adjustedTotalCost );
-    expect( report.adjustedTotalCost ).toBe( report.llmAdjustedCost + report.httpAdjustedCost );
+    expect( report.totalCost ).toBe( report.llmAdjustedCost + report.httpAdjustedCost );
+    expect( report.originalTotalCost ).toBe( report.llmOriginalCost + report.httpOriginalCost );
   } );
 
   it( 'calculates total cost for HTTP trace', () => {
@@ -543,9 +539,8 @@ describe( 'calculateCost (legacy LLM)', () => {
     };
 
     const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.llmAdjustedCost ).toBeGreaterThan( 0 );
-    expect( report.unconfiguredModels ).toHaveLength( 0 );
-    expect( report.llmCalls[0].note ).toBe( 'priced as claude-sonnet-4-5' );
+    // priced at the claude-sonnet-4-5 prefix rates: 1000@$3/M + 500@$15/M
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.0105, 5 );
   } );
 
   it( 'reports unconfigured model when no prefix match exists', () => {
@@ -563,25 +558,7 @@ describe( 'calculateCost (legacy LLM)', () => {
 
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmAdjustedCost ).toBe( 0 );
-    expect( report.unconfiguredModels ).toContain( 'totally-unknown-model' );
-    expect( report.llmCalls[0].note ).toBe( 'unknown model' );
-  } );
-
-  it( 'prefers exact model match over prefix', () => {
-    const trace: TraceNode = {
-      kind: 'workflow',
-      name: 'test',
-      children: [ {
-        id: 'llm-1',
-        kind: 'llm',
-        name: 'gen',
-        input: { loadedPrompt: { config: { model: 'claude-sonnet-4-5' } } },
-        output: { usage: { inputTokens: 1000, outputTokens: 500 } }
-      } ]
-    };
-
-    const report = calculateCost( trace, testConfig, 'test.json' );
-    expect( report.llmCalls[0].note ).toBeUndefined();
+    expect( report.llmCalls[0].originalCost ).toBe( 0 );
   } );
 } );
 
@@ -596,7 +573,6 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmCalls[0].originalCost ).toBeCloseTo( 6, 5 );
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6, 5 );
-    expect( report.llmCalls[0].note ).toBeUndefined();
   } );
 
   it( 'overrides via prefix match when the configured rate differs (opus-4-8 → opus-4)', () => {
@@ -609,7 +585,6 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmCalls[0].originalCost ).toBeCloseTo( 30, 5 );
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 90, 5 );
-    expect( report.llmCalls[0].note ).toBe( 'priced as claude-opus-4' );
     expect( report.llmOriginalCost ).toBeCloseTo( 30, 5 );
     expect( report.llmAdjustedCost ).toBeCloseTo( 90, 5 );
   } );
@@ -623,8 +598,6 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmCalls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.35525, 5 );
-    expect( report.llmCalls[0].note ).toBe( 'no costs.yml override' );
-    expect( report.unconfiguredModels ).toContain( 'gpt-5.5' );
   } );
 
   it( 'prices an unknown line type at its as-charged total, not $0', () => {
@@ -671,7 +644,6 @@ describe( 'event-driven HTTP costs (original vs adjusted)', () => {
     expect( report.httpCosts[0].host ).toBe( 'api.exa.ai' );
     expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.012, 5 );
     expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.012, 5 );
-    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
   } );
 
   it( 'overrides with the recomputed cost for a request-based service (tavily)', () => {
@@ -778,7 +750,6 @@ describe( 'event-driven HTTP costs (original vs adjusted)', () => {
     };
     const report = calculateCost( trace, config, 'test.json' );
     expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.012, 5 );
-    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
   } );
 
   it( 'treats an un-captured request body as failed, preserving the as-charged cost', () => {
@@ -790,7 +761,6 @@ describe( 'event-driven HTTP costs (original vs adjusted)', () => {
     };
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.015, 5 );
-    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
   } );
 
   it( 'overrides with a real measured item count, including an empty array', () => {
