@@ -46,7 +46,7 @@ export default class Update extends Command {
     const latest = await fetchLatestVersion();
 
     if ( !latest ) {
-      this.error( 'Could not fetch the latest version from npm. Check your network connection.' );
+      this.error( 'Could not fetch the latest version from the npm registry. Run with DEBUG=output-cli:npm-update for details.' );
     }
 
     this.log( `\nLatest @outputai/cli version: v${latest}\n` );

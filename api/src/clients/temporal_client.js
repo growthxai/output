@@ -145,7 +145,7 @@ export const resolveResetEventId = ( events, stepName ) => {
  * Extracts the workflow input from a Temporal history object.
  * The first event is always WorkflowExecutionStarted, which contains the input payloads.
  *
- * @param {object} history - Temporal History object from handle.fetchHistory()
+ * @param {object} history - Temporal History object (e.g. GetWorkflowExecutionHistoryResponse.history); the first event must be WorkflowExecutionStarted
  * @returns {any} The decoded first input argument, or null if unavailable
  */
 export const extractWorkflowInput = history => {
@@ -434,7 +434,16 @@ export default {
           namespace,
           execution: { workflowId, runId: resolvedRunId },
           maximumPageSize: 1
+        } ).catch( error => {
+          if ( error?.code === GrpcStatus.NOT_FOUND ) {
+            throw new WorkflowNotFoundError( `Workflow "${workflowId}" not found` );
+          }
+          throw error;
         } );
+
+        if ( !firstPage.history ) {
+          logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: resolvedRunId } );
+        }
 
         const status = mapWorkflowStatus( description.status.name );
         const input = extractWorkflowInput( firstPage.history );

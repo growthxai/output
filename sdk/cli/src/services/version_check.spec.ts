@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { readCachedResult, refreshVersionCheck, spawnBackgroundRefresh } from './version_check.js';
+import { readCachedResult, refreshVersionCheck, runRefresh, spawnBackgroundRefresh } from './version_check.js';
 import { fetchLatestVersion, isOutdated } from '#services/npm_update_service.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -88,6 +88,8 @@ describe( 'version_check', () => {
         currentVersion: '0.8.4',
         latestVersion: '1.0.0'
       } );
+      // A missing/invalid timestamp would make the cache immortal (NaN > TTL is false)
+      expect( written.timestamp ).toBeCloseTo( Date.now(), -3 );
     } );
 
     it( 'should skip the cache write when fetch fails so the next invocation retries', async () => {
@@ -97,6 +99,33 @@ describe( 'version_check', () => {
 
       expect( isOutdated ).not.toHaveBeenCalled();
       expect( writeFile ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'runRefresh', () => {
+    it( 'should refresh the cache from argv in spawn order (script, currentVersion, cacheDir)', async () => {
+      vi.mocked( fetchLatestVersion ).mockResolvedValue( '1.0.0' );
+      vi.mocked( isOutdated ).mockReturnValue( true );
+
+      const exitCode = await runRefresh( [ 'node', 'refresh_version_check.js', '0.8.4', cacheDir ] );
+
+      expect( exitCode ).toBe( 0 );
+      expect( mkdir ).toHaveBeenCalledWith( cacheDir, { recursive: true } );
+      const written = JSON.parse( vi.mocked( writeFile ).mock.calls[0][1] as string );
+      expect( written.result.currentVersion ).toBe( '0.8.4' );
+      expect( written.result.latestVersion ).toBe( '1.0.0' );
+    } );
+
+    it( 'should exit non-zero with usage on missing args without fetching', async () => {
+      const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
+
+      const exitCode = await runRefresh( [ 'node', 'refresh_version_check.js' ] );
+
+      expect( exitCode ).toBe( 1 );
+      expect( errorSpy ).toHaveBeenCalledWith( expect.stringContaining( 'Usage:' ) );
+      expect( fetchLatestVersion ).not.toHaveBeenCalled();
+      expect( writeFile ).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
     } );
   } );
 

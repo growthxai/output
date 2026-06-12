@@ -670,6 +670,41 @@ describe( 'temporal_client', () => {
       expect( mockFetchHistory ).not.toHaveBeenCalled();
     } );
 
+    it( 'maps gRPC NOT_FOUND from the input-extraction history call to WorkflowNotFoundError', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-gone'
+      } );
+      const grpcError = Object.assign( new Error( 'not found' ), { code: 5 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowResult( 'workflow-123' ) )
+        .rejects
+        .toThrow( WorkflowNotFoundError );
+    } );
+
+    it( 'warns when the input-extraction history response has no history field', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-nohistory'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+      mockGetWorkflowExecutionHistory.mockResolvedValueOnce( {} );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowResult( 'workflow-123' );
+
+      expect( result.input ).toBeNull();
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
+        'Temporal getWorkflowExecutionHistory returned no history field',
+        { workflowId: 'workflow-123', runId: 'run-nohistory' }
+      );
+    } );
+
     it( 'should throw when describe reports no runId for a terminal execution', async () => {
       mockDescribe.mockResolvedValue( { status: { code: 2, name: 'COMPLETED' } } );
 

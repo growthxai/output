@@ -1,5 +1,8 @@
 import { Hook, ux } from '@oclif/core';
+import debugFactory from 'debug';
 import { readCachedResult, spawnBackgroundRefresh } from '#services/version_check.js';
+
+const debug = debugFactory( 'output-cli:init' );
 import { setNonInteractive } from '#utils/interactive.js';
 
 export const INTERACTIVE_FLAGS = [ '--yes', '--non-interactive' ];
@@ -57,8 +60,9 @@ const hook: Hook<'init'> = async function ( opts ) {
     ux.stdout( '' );
     ux.stdout( border );
     ux.stdout( '' );
-  } catch {
+  } catch ( error ) {
     // Never block CLI execution
+    debug( 'Version banner failed: %O', error );
   }
 };
 
