@@ -428,10 +428,16 @@ export default {
         }
         // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
         const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
-        const history = await pinnedHandle.fetchHistory();
+        // The input lives in the first event (WorkflowExecutionStarted), so a
+        // single-event page suffices instead of paging through the full history
+        const firstPage = await connection.workflowService.getWorkflowExecutionHistory( {
+          namespace,
+          execution: { workflowId, runId: resolvedRunId },
+          maximumPageSize: 1
+        } );
 
         const status = mapWorkflowStatus( description.status.name );
-        const input = extractWorkflowInput( history );
+        const input = extractWorkflowInput( firstPage.history );
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {
