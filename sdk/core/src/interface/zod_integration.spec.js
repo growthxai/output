@@ -495,7 +495,7 @@ describe( 'Zod Schema Integration Tests', () => {
         await errorStep( { age: 16, email: 'invalid' } );
         expect.fail( 'Should have thrown an error' );
       } catch ( error ) {
-        expect( error.message ).toContain( 'Step error_test input validation failed' );
+        expect( error.message ).toContain( 'Step "error_test" input validation failed' );
       }
     } );
 
@@ -527,7 +527,7 @@ describe( 'Zod Schema Integration Tests', () => {
       const metadata = testStep[METADATA_ACCESS_SYMBOL];
       expect( metadata.inputSchema ).toBe( zodSchema );
       expect( metadata.inputSchema ).not.toBe( null );
-      expect( metadata.inputSchema._def ).toBeDefined(); // Zod-specific property
+      expect( metadata.inputSchema._zod?.def ).toBeDefined(); // Zod v4-specific property
     } );
 
     it( 'should handle deeply nested Zod schemas', async () => {

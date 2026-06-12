@@ -194,16 +194,13 @@ const buildWorkflowResult = ( { workflowId, status, runId, input, result, error 
     input,
     ...( result ? {
       output: result.output,
-      trace: result.trace,
-      aggregations: result.aggregations
+      trace: result.trace
     } : {
       output: null,
-      trace: null,
-      aggregations: null
+      trace: null
     } ),
     ...( error ? {
       trace: extractErrorDetail( error, 'trace' ),
-      aggregations: extractErrorDetail( error, 'aggregations' ),
       error: extractErrorMessage( error ),
       errorDetails: extractFailure( error )
     } : {

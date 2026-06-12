@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   EvaluationResult,
   EvaluationStringResult,
@@ -7,6 +7,122 @@ import {
   EvaluationFeedback
 } from './evaluation_result.js';
 import { ValidationError } from '#errors';
+import { ComponentType } from '#consts';
+
+const validateDefinitionMock = vi.hoisted( () => vi.fn() );
+const validateInputMock = vi.hoisted( () => vi.fn() );
+const validateOutputMock = vi.hoisted( () => vi.fn() );
+const validatorConstructorMock = vi.hoisted( () => vi.fn() );
+
+vi.mock( './validations/index.js', () => {
+  class EvaluatorValidator {
+    static validateDefinition( ...args ) {
+      return validateDefinitionMock( ...args );
+    }
+
+    constructor( ...args ) {
+      validatorConstructorMock( ...args );
+      this.validateInput = validateInputMock;
+      this.validateOutput = validateOutputMock;
+    }
+  }
+
+  return { EvaluatorValidator };
+} );
+
+describe( 'evaluator()', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
+
+  it( 'validates the definition, creates a runtime validator, and attaches metadata', async () => {
+    const { evaluator } = await import( './evaluator.js' );
+    const inputSchema = { safeParse: vi.fn() };
+    const fn = vi.fn().mockResolvedValue( new EvaluationResult( { value: 'ok', confidence: 1 } ) );
+    const options = { activityOptions: { startToCloseTimeout: '1m' } };
+
+    const wrapper = evaluator( {
+      name: 'test_evaluator',
+      description: 'Test evaluator',
+      inputSchema,
+      fn,
+      options
+    } );
+
+    expect( validateDefinitionMock ).toHaveBeenCalledWith( {
+      name: 'test_evaluator',
+      description: 'Test evaluator',
+      inputSchema,
+      fn,
+      options
+    } );
+    expect( validatorConstructorMock ).toHaveBeenCalledWith( {
+      name: 'test_evaluator',
+      inputSchema
+    } );
+
+    const [ metadataSymbol ] = Object.getOwnPropertySymbols( wrapper );
+    expect( wrapper[metadataSymbol] ).toEqual( {
+      name: 'test_evaluator',
+      description: 'Test evaluator',
+      inputSchema,
+      type: ComponentType.EVALUATOR,
+      options
+    } );
+  } );
+
+  it( 'validates input and output around the evaluator function', async () => {
+    const { evaluator } = await import( './evaluator.js' );
+    const output = new EvaluationResult( { value: 'ok', confidence: 1 } );
+    const fn = vi.fn().mockResolvedValue( output );
+    const wrapper = evaluator( {
+      name: 'runtime_evaluator',
+      inputSchema: undefined,
+      fn
+    } );
+
+    await expect( wrapper( { value: 'input' } ) ).resolves.toBe( output );
+
+    expect( validateInputMock ).toHaveBeenCalledWith( { value: 'input' } );
+    expect( fn ).toHaveBeenCalledWith( { value: 'input' } );
+    expect( validateOutputMock ).toHaveBeenCalledWith( output );
+  } );
+
+  it( 'does not call the evaluator function when input validation throws', async () => {
+    const { evaluator } = await import( './evaluator.js' );
+    const error = new ValidationError( 'invalid input' );
+    validateInputMock.mockImplementationOnce( () => {
+      throw error;
+    } );
+    const fn = vi.fn();
+    const wrapper = evaluator( {
+      name: 'invalid_input_evaluator',
+      fn
+    } );
+
+    await expect( wrapper( { value: 'bad' } ) ).rejects.toBe( error );
+    expect( fn ).not.toHaveBeenCalled();
+    expect( validateOutputMock ).not.toHaveBeenCalled();
+  } );
+
+  it( 'propagates output validation errors after the evaluator function runs', async () => {
+    const { evaluator } = await import( './evaluator.js' );
+    const error = new ValidationError( 'invalid output' );
+    validateOutputMock.mockImplementationOnce( () => {
+      throw error;
+    } );
+    const output = { value: 'not-an-evaluation-result' };
+    const fn = vi.fn().mockResolvedValue( output );
+    const wrapper = evaluator( {
+      name: 'invalid_output_evaluator',
+      fn
+    } );
+
+    await expect( wrapper( { value: 'input' } ) ).rejects.toBe( error );
+    expect( fn ).toHaveBeenCalledOnce();
+    expect( validateOutputMock ).toHaveBeenCalledWith( output );
+  } );
+} );
 
 describe( 'interface/evaluator - EvaluationResult classes', () => {
   describe( 'class inheritance', () => {

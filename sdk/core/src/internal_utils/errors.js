@@ -1,10 +1,16 @@
+import { ApplicationFailure } from '@temporalio/common';
+
 /**
- * Extract a property from the error .details.
- * If error does not have details, navigate up the .cause chain.
- *
- * @param {Error} e
- * @param {string} key
- * @returns {any} The value of the property
+ * Builds a Temporal ApplicationFailure based on an error attaching info to its details
+ * @param {Error} error
+ * @param {unknown} info
+ * @returns {ApplicationFailure}
  */
-export const extractErrorDetail = ( e, key ) =>
-  e ? ( e.details?.find?.( d => d[key] )?.[key] ?? extractErrorDetail( e.cause, key ) ) : null;
+export const buildApplicationFailureWithDetails = ( error, info ) =>
+  ApplicationFailure.create( {
+    message: error.message,
+    type: error.type ?? error.constructor?.name ?? error.name,
+    nonRetryable: error.nonRetryable,
+    details: ( Array.isArray( error.details ) ? error.details : [] ).concat( info ),
+    cause: error
+  } );

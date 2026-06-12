@@ -193,9 +193,8 @@ describe( 'temporal_client', () => {
   describe( 'runWorkflow', () => {
     it( 'should return failed status with trace and deepest error message from cause chain', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
-      const aggregations = { cost: { total: 0.4 }, tokens: { total: 20 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload, aggregations } ],
+        details: [ { trace: tracePayload } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -219,7 +218,6 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: null,
         trace: tracePayload,
-        aggregations,
         error: 'step error message',
         errorDetails: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, activityId: null, cause: null }
       } );
@@ -232,8 +230,7 @@ describe( 'temporal_client', () => {
     it( 'should return completed status with output on success', async () => {
       const successResult = {
         output: { data: 'result' },
-        trace: { local: '/tmp/trace.json' },
-        aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } }
+        trace: { local: '/tmp/trace.json' }
       };
 
       mockQuery.mockResolvedValue( { workflows: [ { name: 'test-workflow' } ] } );
@@ -256,7 +253,6 @@ describe( 'temporal_client', () => {
         input: { input: 'data' },
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        aggregations: { cost: { total: 1 }, tokens: { total: 10 }, httpRequests: { total: 0 } },
         error: null,
         errorDetails: null
       } );
@@ -410,8 +406,7 @@ describe( 'temporal_client', () => {
     it( 'should return completed workflow with output and trace', async () => {
       const workflowOutput = {
         output: { data: 'result' },
-        trace: { local: '/tmp/trace.json' },
-        aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } }
+        trace: { local: '/tmp/trace.json' }
       };
 
       mockDescribe.mockResolvedValue( {
@@ -431,7 +426,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: { data: 'result' },
         trace: { local: '/tmp/trace.json' },
-        aggregations: { cost: { total: 0 }, tokens: { total: 0 }, httpRequests: { total: 1 } },
         error: null,
         errorDetails: null
       } );
@@ -496,9 +490,8 @@ describe( 'temporal_client', () => {
 
     it( 'should return failed workflow with deepest error message and trace from WorkflowFailedError', async () => {
       const tracePayload = { destinations: { local: '/tmp/trace.json' } };
-      const aggregations = { cost: { total: 1.5 }, tokens: { total: 0 }, httpRequests: { total: 0 } };
       const workflowError = new MockWorkflowFailedError( 'Workflow execution failed', {
-        details: [ { trace: tracePayload, aggregations } ],
+        details: [ { trace: tracePayload } ],
         cause: { message: 'Activity task failed', cause: { message: 'step error message' } }
       } );
 
@@ -519,7 +512,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: tracePayload,
-        aggregations,
         error: 'step error message',
         errorDetails: { message: 'step error message', name: 'WorkflowFailedError', retryable: null, activityId: null, cause: null }
       } );
@@ -568,7 +560,6 @@ describe( 'temporal_client', () => {
         input: null,
         output: null,
         trace: null,
-        aggregations: null,
         error: null,
         errorDetails: null
       } );

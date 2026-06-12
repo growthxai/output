@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Attribute } from '#trace_attribute';
-import { aggregateAttributes, mergeAggregations } from './aggregations.js';
+import { aggregateAttributes } from './aggregations.js';
 
 describe( 'aggregateAttributes', () => {
   it( 'returns zeroed aggregations when there are no attributes', () => {
@@ -90,50 +90,3 @@ describe( 'aggregateAttributes', () => {
   } );
 } );
 
-describe( 'mergeAggregations', () => {
-  it( 'returns an empty object when no aggregations are provided', () => {
-    expect( mergeAggregations() ).toEqual( {} );
-  } );
-
-  it( 'sums nested aggregation values', () => {
-    expect( mergeAggregations(
-      {
-        cost: { total: 1.2 },
-        tokens: { total: 10, input: 6 },
-        httpRequests: { total: 2 }
-      },
-      {
-        cost: { total: 0.3 },
-        tokens: { total: 5, input: 2, output: 3 },
-        httpRequests: { total: 1 }
-      }
-    ) ).toEqual( {
-      cost: { total: 1.5 },
-      tokens: { total: 15, input: 8, output: 3 },
-      httpRequests: { total: 3 }
-    } );
-  } );
-
-  it( 'handles undefined or partial aggregation objects', () => {
-    expect( mergeAggregations(
-      undefined,
-      { cost: { total: 2 } },
-      { tokens: { total: 4, reasoning: 1 } },
-      { httpRequests: { total: 3 } }
-    ) ).toEqual( {
-      cost: { total: 2 },
-      tokens: { total: 4, reasoning: 1 },
-      httpRequests: { total: 3 }
-    } );
-  } );
-
-  it( 'does not mutate source aggregation objects', () => {
-    const first = { cost: { total: 1 }, tokens: { total: 2 }, httpRequests: { total: 3 } };
-    const second = { cost: { total: 4 }, tokens: { total: 5 }, httpRequests: { total: 6 } };
-
-    mergeAggregations( first, second );
-
-    expect( first ).toEqual( { cost: { total: 1 }, tokens: { total: 2 }, httpRequests: { total: 3 } } );
-    expect( second ).toEqual( { cost: { total: 4 }, tokens: { total: 5 }, httpRequests: { total: 6 } } );
-  } );
-} );

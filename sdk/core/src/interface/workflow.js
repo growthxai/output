@@ -1,202 +1,94 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
-import { defineSignal, setHandler } from '@temporalio/workflow';
-import { validateWorkflow } from './validations/static.js';
-import { validateWithSchema } from './validations/runtime.js';
+import { WorkflowValidator } from './validations/index.js';
 import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
-import { FatalError, ValidationError } from '#errors';
 import { WorkflowContext } from '#internal_utils/workflow_context';
-import { aggregateAttributes, mergeAggregations } from '#internal_utils/aggregations';
-import { extractErrorDetail } from '#internal_utils/errors';
 import { TraceInfo } from '#internal_utils/trace_info';
-import {
-  ACTIVITY_GET_TRACE_DESTINATIONS,
-  ACTIVITY_WRAPPER_VERSION_FIELD,
-  METADATA_ACCESS_SYMBOL,
-  SHARED_STEP_PREFIX,
-  Signal,
-  WORKFLOW_WRAPPER_VERSION_FIELD
-} from '#consts';
-
-const defaultOptions = {
-  activityOptions: {
-    startToCloseTimeout: '20m',
-    heartbeatTimeout: '5m',
-    retry: {
-      initialInterval: '10s',
-      backoffCoefficient: 2.0,
-      maximumInterval: '2m',
-      maximumAttempts: 3,
-      nonRetryableErrorTypes: [ ValidationError.name, FatalError.name ]
-    }
-  },
-  disableTrace: false
-};
+import { defaultOptions } from './workflow_activity_options.js';
+import { ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL, SHARED_STEP_PREFIX, WORKFLOW_WRAPPER_VERSION_FIELD } from '#consts';
 
 /**
- * Checks if the activity result uses the internal wrapper
+ * Create a new workflow and return a wrapper function around its fn handler
  */
-const isActivityResultWrapped = result => result?.[ACTIVITY_WRAPPER_VERSION_FIELD] > 0;
-
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
-  validateWorkflow( { name, description, inputSchema, outputSchema, fn, options, aliases } );
+  WorkflowValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
   const { disableTrace, activityOptions } = deepMerge( defaultOptions, options );
-  const steps = proxyActivities( activityOptions );
+  const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
-  /**
-   * Wraps the `fn` function of the workflow
-   *
-   * @param {unknown} input - The input, must match the inputSchema
-   * @param {object} extra - Workflow configurations (received directly only in unit tests)
-   * @returns {unknown} The result, will match the outputSchema
-   */
   const wrapper = async ( input, extra = {} ) => {
+    validator.validateInvocationOptions( extra );
+
     // this returns a plain function, for example, in unit tests
     if ( !inWorkflowContext() ) {
-      validateWithSchema( inputSchema, input, `Workflow ${name} input` );
-      const output = await fn( input, deepMerge( WorkflowContext.build(), extra.context ) );
-      validateWithSchema( outputSchema, output, `Workflow ${name} output` );
+      validator.validateInput( input );
+      const output = await fn( input, deepMerge( WorkflowContext.build(), extra?.context ) );
+      validator.validateOutput( output );
       return output;
     }
 
     const { workflowId, memo, root } = workflowInfo();
-    const context = WorkflowContext.build();
+
+    // if the stack already includes this workflowId, means the workflow() function was called
+    // from within a running workflow, meaning it is suppose to start a child workflow
+    const isChild = memo?.stack?.includes( workflowId );
+    if ( isChild ) {
+      const result = await executeChild( name, {
+        args: undefined === input ? [] : [ input ],
+        workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
+        parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
+        memo: {
+          ...memo, // Preserve memo and mix activityOptions, if provided
+          ...( extra?.activityOptions && {
+            activityOptions: deepMerge( memo?.activityOptions ?? {}, extra?.activityOptions )
+          } )
+        }
+      } );
+      return result.output;
+    }
 
     const isRoot = !root;
 
-    // Creates the immutable memo that will be used by all nested workflows/activities
-    // Preserves all info that already exists in the memo object, so new child workflows inherit this
-    Object.assign( memo, {
-      traceInfo: memo.traceInfo ?? TraceInfo.build( { disableTrace } ),
-      activityOptions: memo.activityOptions ?? activityOptions
-    } );
+    memo.stack = [ ...memo.stack ?? [], workflowId ];
+    // Parent options have prevalence on nested calls, child will be overwritten
+    memo.activityOptions = deepMerge( activityOptions, memo.activityOptions );
+    // Trace info is only added in the root workflow
+    if ( isRoot ) {
+      memo.traceInfo = TraceInfo.build( { disableTrace } );
+    }
 
-    /**
-     * Run the internal activity to retrieve the workflow trace destinations
-     * This only happens at the root workflow because nested share the same trace file
-     * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
-     * @TODO [OUT-468]
-    */
-    const getTraceDestinations = async () => {
-      const result = await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo );
-      return isActivityResultWrapped( result ) ? result.output : result;
-    };
-
-    // Creates the result wrapper with information about the workflow
-    const workflowResult = {
-      [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-      aggregations: null,
-      ...( isRoot && {
-        trace: {
-          destinations: await getTraceDestinations()
-        }
-      } )
-    };
-
-    // Combine aggregations in the workflow result aggregations, mutating it
-    const mergeAggregationsInWorkflowResult = aggregations => {
-      workflowResult.aggregations = mergeAggregations( workflowResult.aggregations, aggregations );
-    };
-
-    setHandler( defineSignal( Signal.SEND_AGGREGATIONS ), aggregations => {
-      mergeAggregationsInWorkflowResult( aggregations );
-    } );
-
-    /**
-     * @IMPORTANT Keep support for deprecated add_attribute Signal to allow for Temporal replays.
-     * @TODO This can be removed 30days after this release
-     */
-    setHandler( defineSignal( 'add_attribute' ), attribute => {
-      mergeAggregationsInWorkflowResult( aggregateAttributes( [ attribute ] ) );
-    } );
-
-    /**
-     * Invoke a step and unwraps the result to extract and merge "aggregations" and return only the output.
-     *
-     * @IMPORTANT Keep support for deprecated non-wrapped activity result to allow for Temporal replays.
-     * @TODO [OUT-468]
-     * @param {Function} step
-     * @param  {...any} args
-     * @returns {any} The step "output"
-     */
-    const callStepAndUnwrapResult = async ( step, ...args ) => {
-      const result = await step( ...args );
-      if ( !isActivityResultWrapped( result ) ) {
-        return result;
-      }
-      const { output, aggregations } = result;
-      if ( aggregations ) {
-        mergeAggregationsInWorkflowResult( aggregations );
-      }
-      return output;
-    };
+    const steps = proxyActivities( memo.activityOptions );
+    const traceDest = isRoot && ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output;
 
     try {
-      // validation comes after setting memo to have that info already set for interceptor even if validations fail
-      validateWithSchema( inputSchema, input, `Workflow ${name} input` );
+      validator.validateInput( input );
 
+      // Creates an activity caller based on a prefix
+      const createCaller = prefix => async ( t, ...args ) => ( await steps[`${prefix}#${t}`]( ...args ) ).output;
+
+      // This are functions used by the AST to replace direct activity (step/evaluator) calls
       const dispatchers = {
-        /* This are shortcuts to invoke activities as steps/evaluators both shared and non shared */
-        invokeStep: async ( stepName, input, options ) =>
-          callStepAndUnwrapResult( steps[`${name}#${stepName}`], input, options ),
-        invokeSharedStep: async ( stepName, input, options ) =>
-          callStepAndUnwrapResult( steps[`${SHARED_STEP_PREFIX}#${stepName}`], input, options ),
-        invokeEvaluator: async ( evaluatorName, input, options ) =>
-          callStepAndUnwrapResult( steps[`${name}#${evaluatorName}`], input, options ),
-        invokeSharedEvaluator: async ( evaluatorName, input, options ) =>
-          callStepAndUnwrapResult( steps[`${SHARED_STEP_PREFIX}#${evaluatorName}`], input, options ),
-
-        // Start a new child workflow
-        startWorkflow: async ( childName, input, extra = {} ) => {
-          try {
-            const result = await executeChild( childName, {
-              args: undefined === input ? [] : [ input ],
-              workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
-              parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
-              memo: {
-                ...memo,
-                ...( extra?.options?.activityOptions && { activityOptions: deepMerge( activityOptions, extra.options.activityOptions ) } )
-              }
-            } );
-            /**
-             * @IMPORTANT Keep support for deprecated ".attributes" from workflow results to allow for Temporal replays.
-             * @TODO [OUT-468]
-             */
-            if ( result?.attributes ) {
-              mergeAggregationsInWorkflowResult( aggregateAttributes( result.attributes ) );
-            }
-            if ( result?.aggregations ) {
-              mergeAggregationsInWorkflowResult( result.aggregations );
-            }
-            return result.output;
-          } catch ( error ) {
-            /**
-             * @IMPORTANT Keep support for deprecated ".attributes" from workflow errors to allow for Temporal replays.
-             * @TODO [OUT-468]
-             */
-            const attributesFromError = extractErrorDetail( error, 'attributes' );
-            if ( attributesFromError ) {
-              mergeAggregationsInWorkflowResult( aggregateAttributes( attributesFromError ) );
-            }
-            const aggregationsFromError = extractErrorDetail( error, 'aggregations' );
-            if ( aggregationsFromError ) {
-              mergeAggregationsInWorkflowResult( aggregationsFromError );
-            }
-            throw error;
-          }
-        }
+        invokeStep: createCaller( name ),
+        invokeSharedStep: createCaller( SHARED_STEP_PREFIX ),
+        invokeEvaluator: createCaller( name ),
+        invokeSharedEvaluator: createCaller( SHARED_STEP_PREFIX )
       };
 
-      workflowResult.output = await fn.call( dispatchers, input, context );
+      // The workflow function execution with "this" set with the dispatchers
+      const output = await fn.call( dispatchers, input, WorkflowContext.build() );
+      validator.validateOutput( output );
 
-      validateWithSchema( outputSchema, workflowResult.output, `Workflow ${name} output` );
-
-      return workflowResult;
-    } catch ( e ) {
-      // Append the result as metadata of the error, so it can be read by the interceptor.
-      e[METADATA_ACCESS_SYMBOL] = { ...( e[METADATA_ACCESS_SYMBOL] ?? {} ), ...workflowResult };
-      throw e;
+      return {
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
+        output,
+        ...( traceDest && { trace: { destinations: traceDest } } )
+      };
+    } catch ( error ) {
+      if ( isRoot && traceDest ) {
+        // Append the trace destinations so it is carried to interceptor
+        error[METADATA_ACCESS_SYMBOL] = { trace: { destinations: traceDest } };
+      }
+      throw error;
     }
   };
 

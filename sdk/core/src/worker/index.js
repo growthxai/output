@@ -74,7 +74,7 @@ const callerDir = process.argv[2];
     workflowsPath,
     activities,
     sinks,
-    interceptors: initInterceptors( { activities, workflows, connection } ),
+    interceptors: initInterceptors( { activities, workflows } ),
     maxConcurrentWorkflowTaskExecutions,
     maxConcurrentActivityTaskExecutions,
     maxCachedWorkflows,

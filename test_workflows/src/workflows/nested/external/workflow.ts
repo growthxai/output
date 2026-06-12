@@ -3,7 +3,7 @@ import { processNumbers } from '@growthxlabs/workflows_catalog';
 
 export default workflow( {
   name: 'nested_external',
-  description: 'A workflow to test nested external workflows workflows',
+  description: 'Calling nested external workflow',
   outputSchema: z.object( {
     values: z.array( z.number() ),
     summation: z.number(),
