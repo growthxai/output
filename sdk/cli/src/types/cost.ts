@@ -53,7 +53,7 @@ export interface TraceNode {
   endedAt?: number;
   children?: TraceNode[];
   input?: Record<string, unknown>;
-  output?: Record<string, unknown> & { usage?: TokenUsage };
+  output?: Record<string, unknown>;
   attributes?: NodeAttributes;
 }
 
@@ -62,11 +62,10 @@ export interface LLMCall {
   llmName: string;
   model: string;
   usage: TokenUsage;
-  // As-charged total from the trace event. Undefined for legacy traces that
-  // predate llm:usage events, in which case the costs.yml-derived cost is used.
-  originalCost?: number;
-  // Priced usage lines from the llm:usage event; absent for legacy traces.
-  lines?: LLMUsageLine[];
+  // As-charged total from the llm:usage event.
+  originalCost: number;
+  // Priced usage lines from the llm:usage event.
+  lines: LLMUsageLine[];
 }
 
 export interface HTTPCall {
