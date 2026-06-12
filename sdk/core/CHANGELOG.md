@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.8.0
+
+### Patch Changes
+
+- 306c136: Fixed missing eventDate fields on hook types.
+
 ## 0.7.0
 
 ### Minor Changes

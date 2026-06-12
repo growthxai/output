@@ -1,5 +1,29 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.8.0" description="2026-06-12 · minor release">
+
+**`output-api`** — `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
+
+**`@outputai/cli`** — Faster CLI startup: ship `oclif.manifest.json` in the published package so only the invoked command module is loaded (instead of importing every command on every invocation), move the update check off the critical path (the init hook now only reads the local cache and refreshes it via a detached background process with a 5s registry timeout, instead of awaiting an unbounded `npm view` subprocess), and load `undici` only when a proxy env var is configured.
+
+**`@outputai/cli`** — `workflow cost` now calculates costs from the trace events themselves (the as-charged "Original" cost) and applies `costs.yml` as an override layer (the "Adjusted" cost), displaying both per model and per host. This fixes models with no `costs.yml` entry (e.g. `gpt-5.5`) and HTTP hosts (e.g. `api.exa.ai`, `api.firecrawl.dev`) previously reporting $0, and surfaces where the configured `costs.yml` rate diverges from what was actually charged. The bottom line shows the adjusted total with the as-charged total alongside.
+
+Costs come exclusively from trace cost attributes: LLM nodes with an `llm:usage` event and HTTP calls with an `http:request:cost` event are counted as-charged (even on error responses — the event proves a charge); calls without events are not priced. Traces from SDK versions that predate cost attributes (< 0.5) report no costs. Only exact (`computed`) recomputes override an event cost — estimates and failed recomputes never do, and a configured `$0` price is now honored. Body-dependent `costs.yml` service rules require traces recorded with `OUTPUT_TRACE_HTTP_VERBOSE=true` (the dev default).
+
+**`--format json` field changes** (the report shape changed; update any scripts parsing it): `llmTotalCost` → `llmOriginalCost`/`llmAdjustedCost`; `services[]`/`serviceTotalCost` → `httpCosts[]` (grouped by `host`) with `httpOriginalCost`/`httpAdjustedCost`; `unknownModels` removed; per-call `cost`/`warning` → `originalCost`/`adjustedCost`; new `originalTotalCost`; `totalCost` is now the adjusted total.
+
+**`@outputai/core`** — Fixed missing eventDate fields on hook types.
+
+**`output-api`** — Expose structured workflow failure details (`failure` object with `message`, `type`, `retryable`, and a sanitized `cause` chain) in `/workflow/run` and `/workflow/:id/result` responses, alongside the existing `error` string. Also log Temporal/gRPC client errors with full nested context (cause chain, gRPC `code`/`details`, redacted metadata keys, `workflowId`/`runId`/`taskQueue`/query) while keeping client-facing HTTP responses sanitized.
+
+**`@outputai/llm`** — Add per-message provider options to `.prompt` files via `messageOptions`.
+
+- Define named `messageOptions` sets in front matter and attach them to message blocks with `options="<name>"` (e.g. `<system options="cached">`); each set is a provider-namespaced `providerOptions` object merged onto that message.
+- Enables Anthropic prompt caching (`{ anthropic: { cacheControl: { type: ephemeral } } }`) and any other per-message provider option, on any provider.
+- Cost tracking now reports cached input tokens (`input_cached`) even for models whose pricing record lacks a `cache_read` rate, so cache savings are visible in usage aggregations instead of silently disappearing.
+
+</Update>
+
 <Update label="v0.7.0" description="2026-06-10 · minor release">
 
 **`@outputai/core`** — ## Workflow hooks

@@ -1,5 +1,12 @@
 # output-api
 
+## 0.8.0
+
+### Patch Changes
+
+- d67ad85: `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
+- 2a4105c: Expose structured workflow failure details (`failure` object with `message`, `type`, `retryable`, and a sanitized `cause` chain) in `/workflow/run` and `/workflow/:id/result` responses, alongside the existing `error` string. Also log Temporal/gRPC client errors with full nested context (cause chain, gRPC `code`/`details`, redacted metadata keys, `workflowId`/`runId`/`taskQueue`/query) while keeping client-facing HTTP responses sanitized.
+
 ## 0.7.0
 
 ### Patch Changes
