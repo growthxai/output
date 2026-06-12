@@ -1,5 +1,5 @@
 import { Hook, ux } from '@oclif/core';
-import { checkForUpdate } from '#services/version_check.js';
+import { readCachedResult, spawnBackgroundRefresh } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
 
 export const INTERACTIVE_FLAGS = [ '--yes', '--non-interactive' ];
@@ -27,7 +27,14 @@ const hook: Hook<'init'> = async function ( opts ) {
   }
 
   try {
-    const result = await checkForUpdate( this.config.version, this.config.cacheDir );
+    // Only the local cache is read here; the registry roundtrip happens in a
+    // detached child so it never delays the invoked command.
+    const result = await readCachedResult( this.config.version, this.config.cacheDir );
+
+    if ( !result ) {
+      spawnBackgroundRefresh( this.config.version, this.config.cacheDir );
+      return;
+    }
 
     if ( !result.updateAvailable ) {
       return;
