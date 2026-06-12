@@ -14,7 +14,7 @@
     "output": "./bin/run.js"
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc && npm run copy-assets",
+    "build": "rm -rf ./dist && tsc && npm run copy-assets && npx oclif manifest",
     "copy-assets": "./bin/copyassets.sh",
     "test": "vitest run",
     "generate:api": "orval --config ./orval.config.ts",
