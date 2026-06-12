@@ -19,11 +19,18 @@ vi.mock( 'node:child_process', () => ( {
   spawn: vi.fn()
 } ) );
 
+const { mockDebugEnabled } = vi.hoisted( () => ( { mockDebugEnabled: vi.fn() } ) );
+
+vi.mock( 'debug', () => ( {
+  default: Object.assign( vi.fn( () => vi.fn() ), { enabled: mockDebugEnabled } )
+} ) );
+
 describe( 'version_check', () => {
   const cacheDir = '/tmp/test-cache';
 
   beforeEach( () => {
     vi.clearAllMocks();
+    mockDebugEnabled.mockReturnValue( false );
   } );
 
   describe( 'readCachedResult', () => {
@@ -77,7 +84,7 @@ describe( 'version_check', () => {
       vi.mocked( fetchLatestVersion ).mockResolvedValue( '1.0.0' );
       vi.mocked( isOutdated ).mockReturnValue( true );
 
-      await refreshVersionCheck( '0.8.4', cacheDir );
+      await expect( refreshVersionCheck( '0.8.4', cacheDir ) ).resolves.toBe( true );
 
       expect( mkdir ).toHaveBeenCalledWith( cacheDir, { recursive: true } );
       expect( writeFile ).toHaveBeenCalledTimes( 1 );
@@ -95,7 +102,7 @@ describe( 'version_check', () => {
     it( 'should skip the cache write when fetch fails so the next invocation retries', async () => {
       vi.mocked( fetchLatestVersion ).mockResolvedValue( null );
 
-      await refreshVersionCheck( '0.8.4', cacheDir );
+      await expect( refreshVersionCheck( '0.8.4', cacheDir ) ).resolves.toBe( false );
 
       expect( isOutdated ).not.toHaveBeenCalled();
       expect( writeFile ).not.toHaveBeenCalled();
@@ -114,6 +121,15 @@ describe( 'version_check', () => {
       const written = JSON.parse( vi.mocked( writeFile ).mock.calls[0][1] as string );
       expect( written.result.currentVersion ).toBe( '0.8.4' );
       expect( written.result.latestVersion ).toBe( '1.0.0' );
+    } );
+
+    it( 'should exit with a distinct code when the latest version cannot be fetched', async () => {
+      vi.mocked( fetchLatestVersion ).mockResolvedValue( null );
+
+      const exitCode = await runRefresh( [ 'node', 'refresh_version_check.js', '0.8.4', cacheDir ] );
+
+      expect( exitCode ).toBe( 2 );
+      expect( writeFile ).not.toHaveBeenCalled();
     } );
 
     it( 'should exit non-zero with usage on missing args without fetching', async () => {
@@ -142,6 +158,21 @@ describe( 'version_check', () => {
         { detached: true, stdio: 'ignore' }
       );
       expect( unref ).toHaveBeenCalled();
+    } );
+
+    it( 'should inherit stdio when the version-check debug namespace is enabled', () => {
+      mockDebugEnabled.mockReturnValue( true );
+      const unref = vi.fn();
+      vi.mocked( spawn ).mockReturnValue( { unref } as never );
+
+      spawnBackgroundRefresh( '0.8.4', cacheDir );
+
+      expect( mockDebugEnabled ).toHaveBeenCalledWith( 'output-cli:version-check' );
+      expect( spawn ).toHaveBeenCalledWith(
+        process.execPath,
+        expect.any( Array ),
+        { detached: true, stdio: 'inherit' }
+      );
     } );
 
     it( 'should swallow spawn failures', () => {

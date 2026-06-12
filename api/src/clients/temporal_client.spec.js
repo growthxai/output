@@ -686,6 +686,22 @@ describe( 'temporal_client', () => {
         .toThrow( WorkflowNotFoundError );
     } );
 
+    it( 'propagates non-NOT_FOUND gRPC errors from the input-extraction history call unwrapped', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-outage'
+      } );
+      const grpcError = Object.assign( new Error( 'UNAVAILABLE: connection refused' ), { code: 14 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      const error = await client.getWorkflowResult( 'workflow-123' ).catch( e => e );
+      expect( error.message ).toBe( 'UNAVAILABLE: connection refused' );
+      expect( error ).not.toBeInstanceOf( WorkflowNotFoundError );
+    } );
+
     it( 'warns when the input-extraction history response has no history field', async () => {
       mockDescribe.mockResolvedValue( {
         status: { code: 2, name: 'COMPLETED' },

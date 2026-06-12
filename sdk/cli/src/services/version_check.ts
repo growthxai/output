@@ -53,15 +53,15 @@ async function writeCache( cacheDir: string, result: VersionCheckResult ): Promi
 
 /**
  * Fetches the latest published version and persists the comparison to the
- * cache file. Skips the write when the latest version can't be determined
- * so the next invocation retries.
+ * cache file. Skips the write and returns false when the latest version
+ * can't be determined so the next invocation retries.
  */
-export async function refreshVersionCheck( currentVersion: string, cacheDir: string ): Promise<void> {
+export async function refreshVersionCheck( currentVersion: string, cacheDir: string ): Promise<boolean> {
   const latestVersion = await fetchLatestVersion();
 
   if ( !latestVersion ) {
     debug( 'Latest version unavailable, skipping cache write' );
-    return;
+    return false;
   }
 
   await writeCache( cacheDir, {
@@ -69,11 +69,13 @@ export async function refreshVersionCheck( currentVersion: string, cacheDir: str
     currentVersion,
     latestVersion
   } );
+  return true;
 }
 
 /**
  * Entry point for the detached refresh helper. Validates the argv contract
- * (`<currentVersion> <cacheDir>`) and returns the process exit code.
+ * (`<currentVersion> <cacheDir>`) and returns the process exit code:
+ * 0 on success, 1 on bad args, 2 when the latest version couldn't be fetched.
  */
 export async function runRefresh( argv: string[] ): Promise<number> {
   const [ , , currentVersion, cacheDir ] = argv;
@@ -83,8 +85,7 @@ export async function runRefresh( argv: string[] ): Promise<number> {
     return 1;
   }
 
-  await refreshVersionCheck( currentVersion, cacheDir );
-  return 0;
+  return await refreshVersionCheck( currentVersion, cacheDir ) ? 0 : 2;
 }
 
 /**
@@ -97,7 +98,7 @@ export function spawnBackgroundRefresh( currentVersion: string, cacheDir: string
     const scriptPath = fileURLToPath( new URL( '../scripts/refresh_version_check.js', import.meta.url ) );
     // stdio is discarded in normal use; surface the child's output when
     // debugging is on so refresh failures are diagnosable
-    const stdio = process.env.DEBUG?.includes( 'output-cli' ) ? 'inherit' : 'ignore';
+    const stdio = debugFactory.enabled( 'output-cli:version-check' ) ? 'inherit' : 'ignore';
     spawn( process.execPath, [ scriptPath, currentVersion, cacheDir ], {
       detached: true,
       stdio

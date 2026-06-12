@@ -1,9 +1,9 @@
 import { Hook, ux } from '@oclif/core';
 import debugFactory from 'debug';
 import { readCachedResult, spawnBackgroundRefresh } from '#services/version_check.js';
+import { setNonInteractive } from '#utils/interactive.js';
 
 const debug = debugFactory( 'output-cli:init' );
-import { setNonInteractive } from '#utils/interactive.js';
 
 export const INTERACTIVE_FLAGS = [ '--yes', '--non-interactive' ];
 
