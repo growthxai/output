@@ -32,10 +32,15 @@ function formatCurrency( amount: number ): string {
   return `$${roundGaussian( amount, 2 ).toFixed( 2 )}`;
 }
 
-// The adjusted cell shows the costs.yml figure, annotated when it diverges from
-// the as-charged cost (so the override is self-explaining).
-function adjustedCell( adjusted: number, note?: string ): string {
-  return formatCurrency( adjusted ) + ( note ? ` (${note})` : '' );
+// Per-model annotations are rendered as a footnote beneath the LLM table rather
+// than inside the Adjusted cell, so the table stays as narrow as the API table
+// and renders cleanly in narrow terminals.
+function llmNoteLines( models: LLMModelSummary[] ): string[] {
+  const noted = models.filter( m => m.note );
+  if ( noted.length === 0 ) {
+    return [];
+  }
+  return [ 'Pricing notes:', ...noted.map( m => `  ${m.model}: ${m.note}` ) ];
 }
 
 function pluralize( count: number, singular: string ): string {
@@ -122,7 +127,7 @@ function formatSummary( data: ParsedCostData ): string {
         m.model,
         pluralize( m.count, 'call' ),
         formatCurrency( m.originalCost ),
-        adjustedCell( m.adjustedCost, m.note )
+        formatCurrency( m.adjustedCost )
       ] );
     }
 
@@ -135,6 +140,7 @@ function formatSummary( data: ParsedCostData ): string {
 
     lines.push( 'LLM Costs:' );
     lines.push( table.toString() );
+    lines.push( ...llmNoteLines( data.llmModels ) );
     lines.push( '' );
   }
 
@@ -206,7 +212,7 @@ function formatVerbose( data: ParsedCostData ): string {
       if ( data.verbose.hasReasoning ) {
         row.push( formatNumber( r.reasoning ) );
       }
-      row.push( formatCurrency( r.originalCost ), adjustedCell( r.adjustedCost, r.note ) );
+      row.push( formatCurrency( r.originalCost ), formatCurrency( r.adjustedCost ) );
       table.push( row );
     }
 
@@ -227,6 +233,7 @@ function formatVerbose( data: ParsedCostData ): string {
 
     lines.push( 'LLM Calls:' );
     lines.push( table.toString() );
+    lines.push( ...llmNoteLines( data.llmModels ) );
     lines.push( '' );
   }
 
@@ -244,7 +251,7 @@ function formatVerbose( data: ParsedCostData ): string {
           call.step,
           call.usage,
           formatCurrency( call.originalCost ),
-          adjustedCell( call.adjustedCost, call.note )
+          formatCurrency( call.adjustedCost )
         ] );
       }
     }
@@ -288,14 +295,6 @@ export function formatCostReport( report: CostReport, options: { verbose?: boole
     totalTable.push( [ 'TOTAL ESTIMATED COST (adjusted)', formatCurrency( data.adjustedTotalCost ) ] );
     totalTable.push( [ 'As-charged (from trace)', formatCurrency( data.originalTotalCost ) ] );
     lines.push( totalTable.toString() );
-  }
-
-  if ( data.unconfiguredModels.length > 0 ) {
-    lines.push( '' );
-    lines.push(
-      `Note: no costs.yml override for: ${data.unconfiguredModels.join( ', ' )} ` +
-      '— shown at the as-charged cost from the trace.'
-    );
   }
 
   if ( data.isEmpty ) {
