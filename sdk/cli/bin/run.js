@@ -7,7 +7,7 @@ import { loadCredentialRefs } from '../dist/utils/credentials_loader.js';
 
 // Load environment variables from .env files before executing CLI
 loadEnvironment();
-bootstrapProxy();
+await bootstrapProxy();
 loadCredentialRefs();
 
 await execute( { dir: import.meta.url } );
