@@ -1,31 +1,20 @@
-import { join } from 'node:path';
 import traverseModule from '@babel/traverse';
 import {
-  buildWorkflowNameMap,
   buildEvaluatorsNameMap,
   buildSharedEvaluatorsNameMap,
   buildSharedStepsNameMap,
   buildStepsNameMap,
   getLocalNameFromDestructuredProperty,
-  isAbsoluteWorkflowJsResource,
   isEvaluatorsPath,
   isSharedEvaluatorsPath,
   isSharedStepsPath,
   isStepsPath,
-  isWorkflowPath,
   toAbsolutePath
 } from '../tools.js';
-import {
-  isBareNpmSpecifier,
-  resolveBareImportSpecifiersAsWorkflows,
-  resolveBareDestructuredRequireAsWorkflows,
-  resolveBareDefaultRequireAsWorkflow
-} from '../npm_workflow_export_resolve.js';
 
 import {
   isCallExpression,
   isIdentifier,
-  isImportDefaultSpecifier,
   isImportSpecifier,
   isObjectPattern,
   isObjectProperty,
@@ -43,12 +32,6 @@ const unresolvedImportError = ( name, fileLabel, filePath ) =>
     'Use the matching factory function for the file ' +
     '(e.g. step() in steps files, evaluator() in evaluators files, workflow() in workflow files).'
   );
-
-const mixedBareWorkflowImportError = ( specifier, resourcePath ) => new Error(
-  `Workflow file '${resourcePath}': import from '${specifier}' mixes workflow exports with ` +
-  'non-workflow exports, or could not resolve every binding to a workflow.js module. ' +
-  'Split npm imports so each declaration only imports workflows, or only non-workflows.'
-);
 
 const removeRequireDeclarator = path => {
   if ( isVariableDeclaration( path.parent ) && path.parent.declarations.length === 1 ) {
@@ -84,28 +67,23 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
 
 /**
  * Collect and strip target imports and requires from an AST, producing
- * step/workflow import mappings for later rewrites.
+ * step/evaluator import mappings for later rewrites.
  *
  * Mutates the AST by removing matching import declarations and require declarators.
  *
  * @param {import('@babel/types').File} ast - Parsed file AST.
  * @param {string} fileDir - Absolute directory of the file represented by `ast`.
- * @param {{ stepsNameCache: Map<string,Map<string,string>>, workflowNameCache: Map<string,{default:(string|null),named:Map<string,string>}> }} caches
+ * @param {{ stepsNameCache: Map<string,Map<string,string>> }} caches
  *  Resolved-name caches to avoid re-reading same modules.
- * @param {string} [resourcePath] - Absolute path of the file being transformed; used to resolve
- *  npm package imports from `workflow.js` via Node resolution and export following.
  * @returns {{ stepImports: Array<{localName:string,stepName:string}>,
- *  flowImports: Array<{localName:string,workflowName:string}> }} Collected info mappings.
+ *  evaluatorImports: Array<{localName:string,evaluatorName:string}> }} Collected info mappings.
  */
 export default function collectTargetImports(
   ast, fileDir,
-  { stepsNameCache, workflowNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache },
-  resourcePath
+  { stepsNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache }
 ) {
-  const resolutionPath = resourcePath ?? join( fileDir, 'file.js' );
   const stepImports = [];
   const sharedStepImports = [];
-  const flowImports = [];
   const evaluatorImports = [];
   const sharedEvaluatorImports = [];
 
@@ -113,27 +91,7 @@ export default function collectTargetImports(
     ImportDeclaration: path => {
       const src = path.node.source.value;
 
-      if ( isBareNpmSpecifier( src ) && isAbsoluteWorkflowJsResource( resolutionPath ) ) {
-        const outcome = resolveBareImportSpecifiersAsWorkflows( {
-          fromAbsoluteFile: resolutionPath,
-          specifier: src,
-          specifiers: path.node.specifiers,
-          workflowNameCache
-        } );
-        if ( outcome.type === 'partial' ) {
-          throw mixedBareWorkflowImportError( src, resolutionPath );
-        }
-        if ( outcome.type === 'all' ) {
-          for ( const { localName, workflowName } of outcome.bindings ) {
-            flowImports.push( { localName, workflowName } );
-          }
-          path.remove();
-          return;
-        }
-      }
-
       const isTargetImport = isStepsPath( src ) || isSharedStepsPath( src ) ||
-        isWorkflowPath( src ) ||
         isEvaluatorsPath( src ) || isSharedEvaluatorsPath( src );
       if ( !isTargetImport ) {
         return;
@@ -166,24 +124,6 @@ export default function collectTargetImports(
         isSharedEvaluatorsPath( src ), buildSharedEvaluatorsNameMap,
         sharedEvaluatorsNameCache, sharedEvaluatorImports, 'evaluatorName', 'shared evaluators'
       );
-      if ( isWorkflowPath( src ) ) {
-        const { named, default: defName } = buildWorkflowNameMap( absolutePath, workflowNameCache );
-        for ( const s of path.node.specifiers ) {
-          if ( isImportDefaultSpecifier( s ) ) {
-            const localName = s.local.name;
-            flowImports.push( { localName, workflowName: defName ?? localName } );
-          } else if ( isImportSpecifier( s ) ) {
-            const importedName = s.imported.name;
-            const localName = s.local.name;
-            const workflowName = named.get( importedName );
-            if ( workflowName ) {
-              flowImports.push( { localName, workflowName } );
-            } else {
-              throw unresolvedImportError( importedName, 'workflow', absolutePath );
-            }
-          }
-        }
-      }
       path.remove();
     },
     VariableDeclarator: path => {
@@ -201,38 +141,7 @@ export default function collectTargetImports(
 
       const req = firstArgument.value;
 
-      if ( isBareNpmSpecifier( req ) && isAbsoluteWorkflowJsResource( resolutionPath ) ) {
-        if ( isObjectPattern( path.node.id ) ) {
-          const outcome = resolveBareDestructuredRequireAsWorkflows( {
-            fromAbsoluteFile: resolutionPath,
-            specifier: req,
-            properties: path.node.id.properties,
-            workflowNameCache
-          } );
-          if ( outcome.type === 'partial' ) {
-            throw mixedBareWorkflowImportError( req, resolutionPath );
-          }
-          if ( outcome.type === 'all' ) {
-            for ( const { localName, workflowName } of outcome.bindings ) {
-              flowImports.push( { localName, workflowName } );
-            }
-            removeRequireDeclarator( path );
-            return;
-          }
-        } else if ( isIdentifier( path.node.id ) ) {
-          const outcome = resolveBareDefaultRequireAsWorkflow(
-            resolutionPath, req, path.node.id.name, workflowNameCache
-          );
-          if ( outcome.type === 'binding' ) {
-            flowImports.push( { localName: outcome.localName, workflowName: outcome.workflowName } );
-            removeRequireDeclarator( path );
-            return;
-          }
-        }
-      }
-
       const isTargetRequire = isStepsPath( req ) || isSharedStepsPath( req ) ||
-        isWorkflowPath( req ) ||
         isEvaluatorsPath( req ) || isSharedEvaluatorsPath( req );
       if ( !isTargetRequire ) {
         return;
@@ -263,12 +172,6 @@ export default function collectTargetImports(
             cache: sharedEvaluatorsNameCache ?? evaluatorsNameCache,
             target: sharedEvaluatorImports,
             valueKey: 'evaluatorName', label: 'shared evaluators'
-          },
-          {
-            match: isWorkflowPath,
-            buildMap: ( p, c ) => buildWorkflowNameMap( p, c ).named,
-            cache: workflowNameCache, target: flowImports,
-            valueKey: 'workflowName', label: 'workflow'
           }
         ];
         collectDestructuredRequires(
@@ -276,15 +179,8 @@ export default function collectTargetImports(
         );
         return;
       }
-
-      if ( isWorkflowPath( req ) && isIdentifier( path.node.id ) ) {
-        const { default: defName } = buildWorkflowNameMap( absolutePath, workflowNameCache );
-        const localName = path.node.id.name;
-        flowImports.push( { localName, workflowName: defName ?? localName } );
-        removeRequireDeclarator( path );
-      }
     }
   } );
 
-  return { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports };
+  return { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports };
 }

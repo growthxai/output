@@ -13,10 +13,9 @@ const stepsNameCache = new Map(); // path -> Map<exported, stepName>
 const sharedStepsNameCache = new Map(); // path -> Map<exported, stepName> (shared)
 const evaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName>
 const sharedEvaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName> (shared)
-const workflowNameCache = new Map(); // path -> { default?: name, named: Map<exported, flowName> }
 
 /**
- * Webpack loader that rewrites step/workflow calls by reading names from
+ * Webpack loader that rewrites step/evaluator calls by reading names from
  * the respective modules and transforming `fn` bodies accordingly.
  * Preserves sourcemaps.
  *
@@ -28,21 +27,21 @@ const workflowNameCache = new Map(); // path -> { default?: name, named: Map<exp
 export default function stepImportRewriterAstLoader( source, inputMap ) {
   this.cacheable?.( true );
   const callback = this.async?.() ?? this.callback;
-  const cache = { stepsNameCache, sharedStepsNameCache, evaluatorsNameCache, sharedEvaluatorsNameCache, workflowNameCache };
+  const cache = { stepsNameCache, sharedStepsNameCache, evaluatorsNameCache, sharedEvaluatorsNameCache };
 
   try {
     const filename = this.resourcePath;
     const ast = parse( String( source ), filename );
     const fileDir = dirname( filename );
-    const { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports } =
+    const { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports } =
       collectTargetImports( ast, fileDir, cache, filename );
 
     // No imports
-    if ( [].concat( stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports ).length === 0 ) {
+    if ( [].concat( stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports ).length === 0 ) {
       return callback( null, source, inputMap );
     }
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports, flowImports } );
+    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports } );
     // No edits performed
     if ( !rewrote ) {
       return callback( null, source, inputMap );

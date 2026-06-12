@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
+import { ApplicationFailure } from '@temporalio/common';
+import { METADATA_ACCESS_SYMBOL } from '#consts';
 
 const workflowInfoMock = vi.fn();
 const workflowStartMock = vi.fn();
@@ -41,16 +41,6 @@ vi.mock( '@temporalio/workflow', () => ( {
   proxySinks: () => ( {
     workflow: { start: workflowStartMock, end: workflowEndMock, error: workflowErrorMock }
   } ),
-  ApplicationFailure: class ApplicationFailure {
-    constructor( message, type, nonRetryable, cause, originalError ) {
-      this.message = message;
-      this.type = type;
-      this.nonRetryable = nonRetryable;
-      this.cause = cause;
-      this.originalError = originalError;
-      this.details = undefined;
-    }
-  },
   ContinueAsNew: class ContinueAsNew extends Error {
     constructor() {
       super( 'ContinueAsNew' );
@@ -65,15 +55,6 @@ vi.mock( './headers.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMo
 
 const deepMergeMock = vi.fn( ( a, b ) => ( { ...( a || {} ), ...( b || {} ) } ) );
 vi.mock( '#utils', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
-
-vi.mock( '#consts', async importOriginal => {
-  const actual = await importOriginal();
-  return {
-    ...actual, get METADATA_ACCESS_SYMBOL() {
-      return METADATA_ACCESS_SYMBOL;
-    }
-  };
-} );
 
 const stepOptionsDefault = {};
 vi.mock( '../temp/__activity_options.js', () => ( { default: stepOptionsDefault } ) );
@@ -150,7 +131,7 @@ describe( 'workflow interceptors', () => {
       expect( workflowErrorMock ).not.toHaveBeenCalled();
     } );
 
-    it( 'calls sinks.workflow.error and throws ApplicationFailure on error', async () => {
+    it( 'calls sinks.workflow.error and rethrows workflow errors', async () => {
       const { interceptors } = await import( './workflow.js' );
       const { inbound } = interceptors();
       const interceptor = inbound[0];
@@ -158,41 +139,68 @@ describe( 'workflow interceptors', () => {
       const err = new Error( 'workflow failed' );
       const next = vi.fn().mockRejectedValue( err );
 
-      await expect( interceptor.execute( input, next ) ).rejects.toMatchObject( {
-        message: 'workflow failed',
-        type: 'Error',
-        originalError: err
-      } );
+      await expect( interceptor.execute( input, next ) ).rejects.toBe( err );
       expect( workflowStartMock ).toHaveBeenCalled();
       expect( workflowErrorMock ).toHaveBeenCalledWith( err );
       expect( workflowEndMock ).not.toHaveBeenCalled();
     } );
 
-    it( 'sets failure.details from error metadata when present', async () => {
+    it( 'wraps workflow errors with metadata in ApplicationFailure details', async () => {
       const { interceptors } = await import( './workflow.js' );
-      const { ApplicationFailure } = await import( '@temporalio/workflow' );
       const { inbound } = interceptors();
       const interceptor = inbound[0];
-      const meta = { code: 'CUSTOM' };
-      const err = new Error( 'custom' );
-      err[METADATA_ACCESS_SYMBOL] = meta;
+      const trace = { trace: { destinations: { local: '/tmp/trace' } } };
+      const err = new Error( 'workflow failed' );
+      err[METADATA_ACCESS_SYMBOL] = trace;
       const next = vi.fn().mockRejectedValue( err );
 
-      const error = await ( async () => {
-        try {
-          await interceptor.execute( { args: [ {} ] }, next );
-          return null;
-        } catch ( error ) {
-          return error;
-        }
-      } )();
-      expect( error ).toBeInstanceOf( ApplicationFailure );
-      expect( error.details ).toEqual( [ meta ] );
+      const thrown = await interceptor.execute( { args: [ {} ] }, next ).catch( e => e );
+
+      expect( thrown ).toBeInstanceOf( ApplicationFailure );
+      expect( thrown ).toMatchObject( {
+        message: 'workflow failed',
+        type: 'Error',
+        details: [ trace ],
+        cause: err
+      } );
+      expect( workflowErrorMock ).toHaveBeenCalledWith( err );
+      expect( workflowEndMock ).not.toHaveBeenCalled();
+    } );
+
+    it( 'preserves ApplicationFailure metadata when wrapping workflow errors with details', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { inbound } = interceptors();
+      const interceptor = inbound[0];
+      const trace = { trace: { destinations: { local: '/tmp/trace' } } };
+      const err = ApplicationFailure.create( {
+        message: 'domain failed',
+        type: 'DomainFailure',
+        nonRetryable: true,
+        details: [ { domain: { reason: 'bad-input' } } ]
+      } );
+      err[METADATA_ACCESS_SYMBOL] = trace;
+      const next = vi.fn().mockRejectedValue( err );
+
+      const thrown = await interceptor.execute( { args: [ {} ] }, next ).catch( e => e );
+
+      expect( thrown ).toBeInstanceOf( ApplicationFailure );
+      expect( thrown ).not.toBe( err );
+      expect( thrown.cause ).toBe( err );
+      expect( thrown.cause ).not.toBe( thrown );
+      expect( thrown ).toMatchObject( {
+        message: 'domain failed',
+        type: 'DomainFailure',
+        nonRetryable: true,
+        details: [
+          { domain: { reason: 'bad-input' } },
+          trace
+        ]
+      } );
+      expect( workflowErrorMock ).toHaveBeenCalledWith( err );
     } );
 
     it( 'calls sinks.workflow.error and rethrows cancellation errors without wrapping', async () => {
       const { interceptors } = await import( './workflow.js' );
-      const { ApplicationFailure } = await import( '@temporalio/workflow' );
       const { inbound } = interceptors();
       const interceptor = inbound[0];
       const cancellation = new Error( 'Workflow cancelled' );
@@ -201,7 +209,6 @@ describe( 'workflow interceptors', () => {
 
       await expect( interceptor.execute( { args: [ {} ] }, next ) ).rejects.toBe( cancellation );
       expect( isCancellationMock ).toHaveBeenCalledWith( cancellation );
-      expect( cancellation ).not.toBeInstanceOf( ApplicationFailure );
       expect( workflowErrorMock ).toHaveBeenCalledWith( cancellation );
       expect( workflowEndMock ).not.toHaveBeenCalled();
     } );

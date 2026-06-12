@@ -28,7 +28,7 @@ ignoreScripts: true
 minimumReleaseAge: 10080
 
 minimumReleaseAgeExclude:
-  - '@growthxlabs/gx-workflows'
+  - '@growthxlabs/*'
 
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': '>=0.91.1'

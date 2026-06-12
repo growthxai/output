@@ -160,12 +160,11 @@ export default workflow({
 });
 ```
 
-Individual steps can override these with their own `options.activityOptions` — see [step options](/steps#options).
+Individual steps can override these with their own `options.activityOptions` — see [step options](/steps#options). When this workflow is called as a child workflow, the caller can also pass invocation-level `activityOptions` for that child branch; step options still take final precedence. See [Child Workflows](/workflows/child-workflows#activity-options-override).
 
-The fields under `activityOptions` are supported by Output and relayed directly to [Temporal](https://temporal.io/), our runtime. The full list of [Activity options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions):
+The fields under `activityOptions` are supported by Output and relayed directly to [Temporal](https://temporal.io/), our runtime. Output accepts Temporal [Activity options](https://typescript.temporal.io/api/interfaces/common.ActivityOptions), except `versioningIntent`, `taskQueue`, and `allowEagerDispatch`:
 
 - `activityId`
-- `allowEagerDispatch`
 - `cancellationType`
 - `heartbeatTimeout`
 - `priority`
@@ -180,6 +179,7 @@ Default values:
 ```js
 {
   startToCloseTimeout: '20m',
+  heartbeatTimeout: '5m',
   retry: {
     initialInterval: '10s',
     backoffCoefficient: 2.0,

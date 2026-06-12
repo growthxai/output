@@ -14,7 +14,7 @@ const envSchema = z.object( {
   TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING: z.coerce.number().optional().default( 300_000 ), // 5minutes
   TEMPORAL_API_KEY: z.string().optional(),
   // gRPC max message size for the Temporal client connection (send + receive).
-  // gRPC's default receive cap is 4 MiB; some workflow result envelopes exceed it.
+  // gRPC's default receive cap is 4 MiB; some workflow result exceed it.
   TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 32 * 1024 * 1024 ) ),
   OUTPUT_API_PORT: z.coerce.number().optional().default( 3000 ),
   OUTPUT_API_SERVICE_NAME: z.string().optional().default( 'output-api' ),
