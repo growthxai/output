@@ -20,12 +20,6 @@ import type {
 
 const ARRAY_ACCESS_PATTERN = /^(\w+)\[(\d+)\]$/;
 
-// Recompute warnings that mean "couldn't price this from costs.yml" — when one
-// of these is present we fall back to the as-charged cost from the trace event.
-const RECOMPUTE_FAILURE_WARNINGS = new Set( [
-  'no cost data', 'no usage data', 'unknown endpoint', 'unknown type'
-] );
-
 function tokenCost( tokens: number, pricePerMillion: number ): number {
   return ( tokens / 1_000_000 ) * pricePerMillion;
 }
@@ -37,38 +31,40 @@ function hostFromUrl( url: string ): string {
   return url.replace( /^https?:\/\//, '' ).split( '/' )[0] || 'unknown';
 }
 
-// Maps the trace event's per-line token amounts onto the TokenUsage shape so
-// costs.yml rates can be re-applied via calculateLLMCallCost.
-function linesToUsage( lines: LLMUsageLine[] ): TokenUsage {
-  const usage: TokenUsage = {
-    inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, reasoningTokens: 0
+function lineRate( type: string, pricing: ModelPricing ): number | undefined {
+  const rates: Record<string, number> = {
+    input: pricing.input ?? 0,
+    input_cached: pricing.cached_input ?? 0,
+    output: pricing.output ?? 0,
+    reasoning: pricing.reasoning ?? pricing.output ?? 0
   };
-  for ( const line of lines ) {
-    switch ( line.type ) {
-      case 'input':
-        usage.inputTokens! += line.amount;
-        break;
-      case 'input_cached':
-        usage.cachedInputTokens! += line.amount;
-        break;
-      case 'output':
-        usage.outputTokens! += line.amount;
-        break;
-      case 'reasoning':
-      case 'output_reasoning':
-        usage.reasoningTokens! += line.amount;
-        break;
-    }
-  }
-  return usage;
+  return rates[type];
 }
 
-function isRecomputeUsable( result: ServiceCostResult ): boolean {
-  return (
-    Number.isFinite( result.cost ) &&
-    result.cost > 0 &&
-    !( result.warning && RECOMPUTE_FAILURE_WARNINGS.has( result.warning ) )
-  );
+// Re-prices the event's usage lines at costs.yml rates. A line type without a
+// configured mapping degrades to its as-charged total rather than $0, so new
+// producer line types never silently vanish from the adjusted figure.
+function priceLines( lines: LLMUsageLine[], pricing: ModelPricing ): number {
+  return lines.reduce( ( sum, line ) => {
+    const rate = lineRate( line.type, pricing );
+    return sum + ( rate === undefined ? line.total : tokenCost( line.amount, rate ) );
+  }, 0 );
+}
+
+// Token counts for display. The producer's 'input' line excludes cached tokens
+// (sdk/llm emits input − cached), while AI SDK / legacy output.usage report
+// inputTokens as the total — add cached back so both trace formats show
+// comparable columns.
+function eventTokenUsage( lines: LLMUsageLine[] ): TokenUsage {
+  const sumOf = ( type: string ): number =>
+    lines.filter( l => l.type === type ).reduce( ( s, l ) => s + l.amount, 0 );
+  const cached = sumOf( 'input_cached' );
+  return {
+    inputTokens: sumOf( 'input' ) + cached,
+    cachedInputTokens: cached,
+    outputTokens: sumOf( 'output' ),
+    reasoningTokens: sumOf( 'reasoning' )
+  };
 }
 
 export function extractValue( obj: unknown, path: string ): unknown {
@@ -170,8 +166,9 @@ export function findLLMCalls(
           stepName: stepName || n.name || 'unknown',
           llmName: n.name || 'llm',
           model: event.modelId || 'unknown',
-          usage: linesToUsage( event.usage ?? [] ),
-          originalCost: event.total
+          usage: eventTokenUsage( event.usage ?? [] ),
+          originalCost: event.total,
+          lines: event.usage ?? []
         };
       }
 
@@ -237,9 +234,14 @@ export function calculateLLMCallCost(
     return { cost: 0, warning: 'unknown model' };
   }
 
-  const inputCost = tokenCost( usage.inputTokens ?? 0, modelPricing.input ?? 0 );
+  // AI SDK inputTokens includes cached tokens — charge the cached portion at
+  // the cached rate only (matches how sdk/llm prices the same call).
+  const cachedTokens = usage.cachedInputTokens ?? 0;
+  const nonCachedTokens = Math.max( 0, ( usage.inputTokens ?? 0 ) - cachedTokens );
+
+  const inputCost = tokenCost( nonCachedTokens, modelPricing.input ?? 0 );
   const outputCost = tokenCost( usage.outputTokens ?? 0, modelPricing.output ?? 0 );
-  const cachedCost = tokenCost( usage.cachedInputTokens ?? 0, modelPricing.cached_input ?? 0 );
+  const cachedCost = tokenCost( cachedTokens, modelPricing.cached_input ?? 0 );
   const reasoningCost =
     tokenCost( usage.reasoningTokens ?? 0, modelPricing.reasoning || modelPricing.output || 0 );
 
@@ -268,40 +270,60 @@ function calculateTokenServiceCost(
   config: ServiceConfig
 ): ServiceCostResult {
   if ( !config.usage_path ) {
-    return { step: httpCall.stepName, cost: 0, usage: 'no usage data', warning: 'no usage data' };
+    return {
+      step: httpCall.stepName, cost: 0, usage: 'no usage data',
+      kind: 'failed', warning: 'no usage data'
+    };
   }
 
   const usage = extractValue( httpCall.output, config.usage_path );
 
   if ( config.input_field && config.output_field ) {
     const usageObj = usage as Record<string, number> | undefined;
-    const inputTokens = usageObj?.[config.input_field] ?? 0;
-    const outputTokens = usageObj?.[config.output_field] ?? 0;
+    if ( !usageObj ) {
+      return {
+        step: httpCall.stepName, cost: 0, usage: 'no usage data',
+        kind: 'failed', warning: 'no usage data'
+      };
+    }
+    const inputTokens = usageObj[config.input_field] ?? 0;
+    const outputTokens = usageObj[config.output_field] ?? 0;
     const inputCost = tokenCost( inputTokens, config.input_per_million ?? 0 );
     const outputCost = tokenCost( outputTokens, config.output_per_million ?? 0 );
     return {
       step: httpCall.stepName,
       cost: inputCost + outputCost,
-      usage: `${( inputTokens + outputTokens ).toLocaleString( 'en-US' )} tokens`
+      usage: `${( inputTokens + outputTokens ).toLocaleString( 'en-US' )} tokens`,
+      kind: 'computed'
     };
   }
 
   const tokens = typeof usage === 'number' ? usage : 0;
   if ( tokens === 0 ) {
-    return { step: httpCall.stepName, cost: 0, usage: 'no usage data', warning: 'no usage data' };
+    return {
+      step: httpCall.stepName, cost: 0, usage: 'no usage data',
+      kind: 'failed', warning: 'no usage data'
+    };
   }
 
   const cost = tokenCost( tokens, config.per_million ?? 0 );
-  return { step: httpCall.stepName, cost, usage: `${tokens.toLocaleString( 'en-US' )} tokens` };
+  return {
+    step: httpCall.stepName,
+    cost,
+    usage: `${tokens.toLocaleString( 'en-US' )} tokens`,
+    kind: 'computed'
+  };
 }
 
+// units: undefined means the call couldn't be measured (no endpoint match, or
+// a units_per_line endpoint without a string body) — distinct from a measured 0.
 function resolveUnitEndpoint(
   url: string,
   httpCall: HTTPCall,
   config: ServiceConfig
-): { units: number; endpoint: string } {
+): { units: number | undefined; endpoint: string } {
   if ( !config.endpoints ) {
-    return { units: 0, endpoint: 'unknown' };
+    return { units: undefined, endpoint: 'unknown' };
   }
 
   for ( const [ endpointName, endpointConfig ] of Object.entries( config.endpoints ) ) {
@@ -324,10 +346,10 @@ function resolveUnitEndpoint(
       }
     }
 
-    return { units: 0, endpoint: endpointName };
+    return { units: undefined, endpoint: endpointName };
   }
 
-  return { units: 0, endpoint: 'unknown' };
+  return { units: undefined, endpoint: 'unknown' };
 }
 
 function calculateUnitServiceCost(
@@ -335,11 +357,19 @@ function calculateUnitServiceCost(
   config: ServiceConfig
 ): ServiceCostResult {
   const { units, endpoint } = resolveUnitEndpoint( httpCall.url, httpCall, config );
+  if ( units === undefined ) {
+    return {
+      step: httpCall.stepName, cost: 0, usage: '0 units',
+      kind: 'failed', warning: 'unknown endpoint', endpoint
+    };
+  }
+
   const cost = units * ( config.price_per_unit || 0 );
   return {
     step: httpCall.stepName,
     cost,
     usage: `${units.toLocaleString( 'en-US' )} units`,
+    kind: 'computed',
     endpoint
   };
 }
@@ -350,8 +380,16 @@ function calculateRequestServiceCost(
 ): ServiceCostResult {
   if ( config.models && config.model_path ) {
     const model = extractValue( httpCall.input, config.model_path ) as string | undefined;
-    const price = ( model && config.models[model] ) || config.default_price || 0;
-    return { step: httpCall.stepName, cost: price, usage: '1 request', model };
+    // ?? rather than || so a configured price of 0 (free tier) is honored.
+    const price = ( model !== undefined ? config.models[model] : undefined ) ??
+      config.default_price;
+    if ( price === undefined ) {
+      return {
+        step: httpCall.stepName, cost: 0, usage: '1 request',
+        kind: 'failed', warning: 'unknown model price', model
+      };
+    }
+    return { step: httpCall.stepName, cost: price, usage: '1 request', kind: 'computed', model };
   }
 
   if ( config.endpoints ) {
@@ -362,16 +400,25 @@ function calculateRequestServiceCost(
             step: httpCall.stepName,
             cost: endpointConfig.price,
             usage: '1 request',
+            kind: 'computed',
             endpoint: endpointName
           };
         }
         if ( endpointConfig.price_per_item && endpointConfig.items_path ) {
           const items = extractValue( httpCall.input, endpointConfig.items_path );
-          const count = Array.isArray( items ) ? items.length : 0;
+          // Missing/un-captured request body is not the same as zero items —
+          // only a real array is a measured count.
+          if ( !Array.isArray( items ) ) {
+            return {
+              step: httpCall.stepName, cost: 0, usage: 'items not captured',
+              kind: 'failed', warning: 'items not captured', endpoint: endpointName
+            };
+          }
           return {
             step: httpCall.stepName,
-            cost: count * endpointConfig.price_per_item,
-            usage: `${count} items`,
+            cost: items.length * endpointConfig.price_per_item,
+            usage: `${items.length} items`,
+            kind: 'computed',
             endpoint: endpointName
           };
         }
@@ -379,7 +426,10 @@ function calculateRequestServiceCost(
     }
   }
 
-  return { step: httpCall.stepName, cost: 0, usage: 'unknown endpoint', warning: 'unknown endpoint' };
+  return {
+    step: httpCall.stepName, cost: 0, usage: 'unknown endpoint',
+    kind: 'failed', warning: 'unknown endpoint'
+  };
 }
 
 function calculateResponseCostService(
@@ -388,7 +438,8 @@ function calculateResponseCostService(
 ): ServiceCostResult {
   const cost = extractValue( httpCall, config.cost_path! ) as number | undefined;
 
-  if ( typeof cost === 'number' && cost > 0 ) {
+  // A provider-reported cost — including a legitimate $0 — is an exact figure.
+  if ( typeof cost === 'number' ) {
     const costDollars = extractValue(
       httpCall, 'output.body.costDollars'
     ) as Record<string, number> | undefined;
@@ -400,6 +451,7 @@ function calculateResponseCostService(
       step: httpCall.stepName,
       cost,
       usage: `${numSearches} searches, ${Math.round( numPages )} pages`,
+      kind: 'computed',
       model: model || 'unknown',
       details: costDollars
     };
@@ -411,28 +463,33 @@ function calculateResponseCostService(
       ( extractValue( httpCall, 'output.body.model' ) as string ) ||
       'unknown';
     const fallbackPrice = config.fallback_models[model];
-    if ( fallbackPrice ) {
+    if ( fallbackPrice !== undefined ) {
       return {
         step: httpCall.stepName,
         cost: fallbackPrice,
         usage: '1 request (estimated)',
+        kind: 'estimated',
         model,
         warning: 'using fallback estimate'
       };
     }
 
-    if ( config.default_fallback ) {
+    if ( config.default_fallback !== undefined ) {
       return {
         step: httpCall.stepName,
         cost: config.default_fallback,
         usage: '1 request (estimated)',
+        kind: 'estimated',
         model: 'unknown',
         warning: 'using default estimate'
       };
     }
   }
 
-  return { step: httpCall.stepName, cost: 0, usage: 'no cost data', warning: 'no cost data' };
+  return {
+    step: httpCall.stepName, cost: 0, usage: 'no cost data',
+    kind: 'failed', warning: 'no cost data'
+  };
 }
 
 export function calculateServiceCost(
@@ -451,7 +508,10 @@ export function calculateServiceCost(
     case 'response_cost':
       return calculateResponseCostService( httpCall, config );
     default:
-      return { step: httpCall.stepName, cost: 0, usage: 'unknown type', warning: 'unknown type' };
+      return {
+        step: httpCall.stepName, cost: 0, usage: 'unknown type',
+        kind: 'failed', warning: 'unknown type'
+      };
   }
 }
 
@@ -466,6 +526,12 @@ function findModelPricing(
   return prefixMatch ?
     { pricing: prefixMatch[1], matchedKey: prefixMatch[0] } :
     { pricing: undefined, matchedKey: undefined };
+}
+
+function repriceCall( call: LLMCall, pricing: ModelPricing ): number {
+  return call.lines ?
+    priceLines( call.lines, pricing ) :
+    calculateLLMCallCost( call.usage, pricing ).cost;
 }
 
 function llmNote(
@@ -502,9 +568,10 @@ function aggregateLLMCosts(
   for ( const call of llmCalls ) {
     const { pricing, matchedKey } = findModelPricing( call.model, config.models ?? {} );
 
-    // costs.yml override (the "adjusted" cost) — re-price the event's tokens at
-    // configured rates. Undefined when the model isn't in costs.yml.
-    const repriced = pricing ? calculateLLMCallCost( call.usage, pricing ).cost : undefined;
+    // costs.yml override (the "adjusted" cost) — re-price the event's usage
+    // lines at configured rates (or the legacy token counts when no event).
+    // Undefined when the model isn't in costs.yml.
+    const repriced = pricing ? repriceCall( call, pricing ) : undefined;
 
     // Original = as-charged from the trace event; fall back to the repriced cost
     // for legacy traces with no event.
@@ -562,9 +629,11 @@ function pushHTTPResult(
   acc[result.host].adjustedTotalCost += result.adjustedCost;
 }
 
-// For an event-bearing (billable) request, decide the adjusted cost: use the
-// costs.yml service recompute when it yields a usable figure, otherwise keep the
-// as-charged cost from the trace event.
+// For an event-bearing (billable) request, decide the adjusted cost: apply the
+// costs.yml recompute only when it produced an exact figure ('computed' —
+// which includes a legitimate $0). Estimates and failed recomputes never
+// replace the as-charged cost, and an errored response can't be re-priced
+// from service rules even though its event proves it was charged.
 function resolveHTTPOverride(
   call: HTTPCall,
   serviceInfo: { serviceName: string; config: ServiceConfig } | null,
@@ -574,8 +643,16 @@ function resolveHTTPOverride(
     return { adjustedCost: originalCost, usage: 'as-charged' };
   }
 
+  if ( call.status && call.status >= 400 ) {
+    return {
+      adjustedCost: originalCost,
+      usage: 'as-charged',
+      note: 'request errored; using as-charged'
+    };
+  }
+
   const recompute = calculateServiceCost( call, serviceInfo );
-  if ( isRecomputeUsable( recompute ) ) {
+  if ( recompute.kind === 'computed' ) {
     return { adjustedCost: recompute.cost, usage: recompute.usage };
   }
 
@@ -586,29 +663,23 @@ function resolveHTTPOverride(
   };
 }
 
+// Each call is priced by the best evidence it carries: an http:request:cost
+// event is proof of a charge (counted regardless of HTTP status), while
+// eventless calls fall back to costs.yml service rules — so a mixed trace
+// (instrumented and uninstrumented clients) loses neither.
+// Known edge: an eventless node whose body carries cost data (e.g. exa
+// costDollars) is priced by the legacy path even in an event-bearing trace;
+// addRequestCost binds events to the node carrying the cost data, so this
+// does not double-count in practice.
 function aggregateHTTPCosts(
   httpCalls: HTTPCall[],
   config: PricingConfig
 ): Record<string, HostCostSummary> {
   const hosts: Record<string, HostCostSummary> = {};
 
-  // When the trace carries http:request:cost events, those are the source of
-  // truth: only event-bearing (billable) requests count, priced as-charged.
-  // Older traces with no cost events fall back to costs.yml service rules.
-  const hasCostEvents = httpCalls.some( c => c.originalCost !== undefined );
-
   for ( const call of httpCalls ) {
-    if ( call.status && call.status >= 400 ) {
-      continue;
-    }
-
-    const serviceInfo = identifyService( call, config.services );
-
-    if ( hasCostEvents ) {
-      if ( call.originalCost === undefined ) {
-        continue;
-      }
-
+    if ( call.originalCost !== undefined ) {
+      const serviceInfo = identifyService( call, config.services );
       const { adjustedCost, usage, note } =
         resolveHTTPOverride( call, serviceInfo, call.originalCost );
 
@@ -623,7 +694,12 @@ function aggregateHTTPCosts(
       continue;
     }
 
-    // Legacy path — no cost events in the trace.
+    // Legacy path — no cost event on this call; price from costs.yml rules.
+    if ( call.status && call.status >= 400 ) {
+      continue;
+    }
+
+    const serviceInfo = identifyService( call, config.services );
     if ( !serviceInfo ) {
       continue;
     }

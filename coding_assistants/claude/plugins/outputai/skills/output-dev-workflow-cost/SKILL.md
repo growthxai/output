@@ -91,31 +91,56 @@ npx output workflow cost <runId> --verbose
 
 > Pricing values are illustrative — the model and per-token rates shown below were current as of 2026-05-04. Live pricing comes from [models.dev](https://models.dev). For current model IDs, see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).
 
+Costs come in two figures per row: **Original** is the as-charged cost recorded
+in the trace events (`llm:usage` / `http:request:cost`), and **Adjusted** is the
+cost after applying any `costs.yml` override (equal to Original when no override
+applies). The bottom line and JSON `totalCost` are the Adjusted total.
+
 ```
 Workflow: process_transcripts
 Duration: 12.3s
 
 LLM Costs:
-  claude-sonnet-4-6 — 1,234 in / 567 out tokens — $0.0123
+  Model              | Calls | Original | Adjusted
+  claude-sonnet-4-6  |     3 |  $0.0123 |  $0.0123
+  Subtotal           |     3 |  $0.0123 |  $0.0123
 
-Services:
-  jina — 2 requests — $0.004
+API Costs:
+  Host       | Calls | Original | Adjusted
+  r.jina.ai  |     2 |  $0.0040 |  $0.0040
+  Subtotal   |     2 |  $0.0040 |  $0.0040
 
-Total Cost: $0.0163
+TOTAL ESTIMATED COST (adjusted)   $0.0163
+As-charged (from trace)           $0.0163
 ```
+
+Models or hosts whose Adjusted figure diverges from Original (e.g. priced via a
+costs.yml prefix match, or no override available) are explained in a
+`Pricing notes:` footnote under the relevant table.
 
 ### JSON format fields:
 ```json
 {
   "workflowName": "process_transcripts",
   "durationMs": 12300,
-  "llmTotalCost": 0.0123,
+  "llmOriginalCost": 0.0123,
+  "llmAdjustedCost": 0.0123,
   "totalInputTokens": 1234,
   "totalOutputTokens": 567,
-  "services": [{ "serviceName": "jina", "totalCost": 0.004 }],
+  "unconfiguredModels": [],
+  "httpCosts": [{ "host": "r.jina.ai", "originalTotalCost": 0.004, "adjustedTotalCost": 0.004 }],
+  "httpOriginalCost": 0.004,
+  "httpAdjustedCost": 0.004,
+  "originalTotalCost": 0.0163,
+  "adjustedTotalCost": 0.0163,
   "totalCost": 0.0163
 }
 ```
+
+Per-call entries in `llmCalls` and `httpCosts[].calls` carry `originalCost`,
+`adjustedCost`, and an optional `note`. (Older releases exposed `llmTotalCost`,
+`services[]`, `serviceTotalCost`, and `unknownModels` — replaced by the fields
+above.)
 
 ---
 

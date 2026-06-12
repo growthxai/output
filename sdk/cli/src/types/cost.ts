@@ -17,22 +17,14 @@ export interface TokenUsage {
   reasoningTokens?: number;
 }
 
-// Cost events recorded on trace nodes (the as-charged ground truth)
+// Cost events recorded on trace nodes (the as-charged ground truth).
+// The llm:usage shape is owned by the producer — import it rather than
+// re-declaring, so the CLI can't silently drift from the wire format.
 
-export interface LLMUsageLine {
-  type: string; // 'input' | 'input_cached' | 'output' | 'reasoning' | ...
-  ppm: number;
-  amount: number;
-  total: number;
-}
+export type { LLMUsageEvent } from '@outputai/llm';
+import type { LLMUsageEvent } from '@outputai/llm';
 
-export interface LLMUsageEvent {
-  type: 'llm:usage';
-  modelId: string;
-  usage: LLMUsageLine[];
-  total: number;
-  tokensUsed?: number;
-}
+export type LLMUsageLine = LLMUsageEvent['usage'][number];
 
 export interface HTTPCostEvent {
   type: 'http:request:cost';
@@ -73,6 +65,8 @@ export interface LLMCall {
   // As-charged total from the trace event. Undefined for legacy traces that
   // predate llm:usage events, in which case the costs.yml-derived cost is used.
   originalCost?: number;
+  // Priced usage lines from the llm:usage event; absent for legacy traces.
+  lines?: LLMUsageLine[];
 }
 
 export interface HTTPCall {
@@ -160,10 +154,15 @@ export interface LLMCostResult {
 }
 
 // Result of recomputing a single HTTP cost from costs.yml service rules.
+// kind distinguishes a real price ('computed' — exact rates, including a
+// legitimate $0) from a rough guess ('estimated' — fallback_models /
+// default_fallback) and from a recompute that couldn't price the call
+// ('failed'). Only 'computed' results may override an as-charged event cost.
 export interface ServiceCostResult {
   step: string;
   cost: number;
   usage: string;
+  kind: 'computed' | 'estimated' | 'failed';
   model?: string;
   endpoint?: string;
   warning?: string;
@@ -226,6 +225,7 @@ export interface HostSummary {
   callCount: number;
   originalCost: number;
   adjustedCost: number;
+  note?: string;
 }
 
 export interface VerboseFlags {

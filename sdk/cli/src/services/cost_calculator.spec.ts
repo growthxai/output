@@ -60,13 +60,14 @@ function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): Trace
 
 function httpEventNode(
   id: string, url: string, method: string, total: number,
-  output: Record<string, unknown> = { status: 200, body: {} }
+  output: Record<string, unknown> = { status: 200, body: {} },
+  inputBody?: Record<string, unknown>
 ): TraceNode {
   return {
     id,
     kind: 'http',
     name: 'request',
-    input: { url, method },
+    input: { url, method, ...( inputBody ? { body: inputBody } : {} ) },
     output,
     attributes: {
       'http:request:cost': { type: 'http:request:cost', url, requestId: id, total }
@@ -218,7 +219,10 @@ const testConfig = {
     tavily: {
       type: 'request' as const,
       url_pattern: 'api.tavily.com',
-      endpoints: { search: { pattern: '/search', price: 0.01 } }
+      endpoints: {
+        search: { pattern: '/search', price: 0.01 },
+        extract: { pattern: '/extract', price_per_item: 0.005, items_path: 'body.urls' }
+      }
     }
   }
 };
@@ -347,13 +351,13 @@ describe( 'calculateLLMCallCost', () => {
     expect( cost ).toBeCloseTo( 10.5, 2 );
   } );
 
-  it( 'includes cached input tokens at reduced rate', () => {
-    const usage = { inputTokens: 1000000, outputTokens: 0, cachedInputTokens: 1000000 };
+  it( 'charges cached tokens at the cached rate only (inputTokens includes them)', () => {
+    const usage = { inputTokens: 1000000, outputTokens: 0, cachedInputTokens: 600000 };
     const modelPricing = { provider: 'anthropic', input: 3.0, output: 15.0, cached_input: 0.3 };
 
     const { cost } = calculateLLMCallCost( usage, modelPricing );
-    // 1M input * $3/M + 1M cached * $0.3/M = $3 + $0.3 = $3.3
-    expect( cost ).toBeCloseTo( 3.3, 2 );
+    // 0.4M non-cached * $3/M + 0.6M cached * $0.3/M = $1.2 + $0.18 = $1.38
+    expect( cost ).toBeCloseTo( 1.38, 2 );
   } );
 
   it( 'returns zero with warning for unknown model', () => {
@@ -622,6 +626,36 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     expect( report.llmCalls[0].note ).toBe( 'no costs.yml override' );
     expect( report.unconfiguredModels ).toContain( 'gpt-5.5' );
   } );
+
+  it( 'prices an unknown line type at its as-charged total, not $0', () => {
+    const lines = [
+      ...llmLines( 1_000_000, 1, 1_000_000, 5 ),
+      { type: 'input_cache_write', ppm: 1.25, amount: 200_000, total: 0.25 }
+    ];
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'cw', 'claude-haiku-4-5', lines ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    // known lines reprice to $6 at config rates; unknown line passes through at $0.25
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6.25, 5 );
+    expect( report.llmCalls[0].originalCost ).toBeCloseTo( 6.25, 5 );
+  } );
+
+  it( 'reports inputTokens including cached tokens for event traces', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmEventNode( 'c', 'claude-haiku-4-5', llmLines( 1000, 1, 500, 5, 600, 0.1 ) ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    // producer 'input' line excludes cached — display restores the AI SDK total
+    expect( report.llmCalls[0].input ).toBe( 1600 );
+    expect( report.llmCalls[0].cached ).toBe( 600 );
+    // repriced: 1000@$1/M + 600@$0.1/M + 500@$5/M
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.00356, 6 );
+  } );
 } );
 
 describe( 'event-driven HTTP costs (original vs adjusted)', () => {
@@ -662,6 +696,116 @@ describe( 'event-driven HTTP costs (original vs adjusted)', () => {
     expect( report.httpCosts[0].host ).toBe( 'api.firecrawl.dev' );
     expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.0008, 5 );
     expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.0008, 5 );
+  } );
+
+  it( 'counts an event-bearing 4xx call as-charged (the event proves a charge)', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode(
+        'fc-429', 'https://api.firecrawl.dev/v1/scrape', 'POST', 0.10,
+        { status: 429, body: {} }
+      ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts ).toHaveLength( 1 );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.10, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.10, 5 );
+  } );
+
+  it( 'prices eventless billable calls via costs.yml even when other calls carry events', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [
+        httpEventNode( 'fc-1', 'https://api.firecrawl.dev/v1/scrape', 'POST', 0.05 ),
+        // jina call from an uninstrumented client — no cost event, but token
+        // usage in the body lets costs.yml price it
+        {
+          id: 'jina-legacy',
+          kind: 'http',
+          name: 'request',
+          input: { url: 'https://r.jina.ai/https://example.com', method: 'GET' },
+          output: { status: 200, body: { data: { usage: { tokens: 1000000 } } } }
+        }
+      ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    const jina = report.httpCosts.find( h => h.host === 'r.jina.ai' );
+    expect( jina ).toBeDefined();
+    expect( jina!.adjustedTotalCost ).toBeCloseTo( 0.045, 4 );
+    expect( report.httpCosts.find( h => h.host === 'api.firecrawl.dev' ) ).toBeDefined();
+  } );
+
+  it( 'applies a legitimately computed $0 override', () => {
+    const config = {
+      ...testConfig,
+      services: {
+        ...testConfig.services,
+        tavily: {
+          type: 'request' as const,
+          url_pattern: 'api.tavily.com',
+          endpoints: { search: { pattern: '/search', price: 0 } }
+        }
+      }
+    };
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'tv-free', 'https://api.tavily.com/search', 'POST', 0.008 ) ]
+    };
+    const report = calculateCost( trace, config, 'test.json' );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.008, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBe( 0 );
+  } );
+
+  it( 'does not let a fallback estimate override an exact event cost', () => {
+    const config = {
+      ...testConfig,
+      services: {
+        ...testConfig.services,
+        exa: {
+          ...testConfig.services.exa,
+          fallback_models: { 'exa-research': 0.10 },
+          default_fallback: 0.10
+        }
+      }
+    };
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'exa-est', 'https://api.exa.ai/search', 'POST', 0.012 ) ]
+    };
+    const report = calculateCost( trace, config, 'test.json' );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.012, 5 );
+    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
+  } );
+
+  it( 'treats an un-captured request body as failed, preserving the as-charged cost', () => {
+    // tavily /extract is price_per_item over body.urls — body missing from trace
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode( 'tv-x', 'https://api.tavily.com/extract', 'POST', 0.015 ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBeCloseTo( 0.015, 5 );
+    expect( report.httpCosts[0].calls[0].note ).toMatch( /as-charged/ );
+  } );
+
+  it( 'overrides with a real measured item count, including an empty array', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ httpEventNode(
+        'tv-0', 'https://api.tavily.com/extract', 'POST', 0.015,
+        { status: 200, body: {} },
+        { urls: [] }
+      ) ]
+    };
+    const report = calculateCost( trace, testConfig, 'test.json' );
+    expect( report.httpCosts[0].originalTotalCost ).toBeCloseTo( 0.015, 5 );
+    expect( report.httpCosts[0].adjustedTotalCost ).toBe( 0 );
   } );
 
   it( 'ignores count-only nodes and groups billable requests by host', () => {

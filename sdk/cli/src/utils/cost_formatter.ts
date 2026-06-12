@@ -32,15 +32,28 @@ function formatCurrency( amount: number ): string {
   return `$${roundGaussian( amount, 2 ).toFixed( 2 )}`;
 }
 
-// Per-model annotations are rendered as a footnote beneath the LLM table rather
-// than inside the Adjusted cell, so the table stays as narrow as the API table
-// and renders cleanly in narrow terminals.
-function llmNoteLines( models: LLMModelSummary[] ): string[] {
-  const noted = models.filter( m => m.note );
+// Annotations are rendered as a footnote beneath each table rather than inside
+// the Adjusted cell, so tables stay narrow and render cleanly in narrow
+// terminals.
+function pricingNoteLines( items: Array<{ name: string; note?: string }> ): string[] {
+  const noted = items.filter( i => i.note );
   if ( noted.length === 0 ) {
     return [];
   }
-  return [ 'Pricing notes:', ...noted.map( m => `  ${m.model}: ${m.note}` ) ];
+  return [ 'Pricing notes:', ...noted.map( i => `  ${i.name}: ${i.note}` ) ];
+}
+
+function llmNoteLines( models: LLMModelSummary[] ): string[] {
+  return pricingNoteLines( models.map( m => ( { name: m.model, note: m.note } ) ) );
+}
+
+function hostNoteLines( hosts: HostSummary[] ): string[] {
+  return pricingNoteLines( hosts.map( h => ( { name: h.host, note: h.note } ) ) );
+}
+
+function joinDistinct( notes: Array<string | undefined> ): string | undefined {
+  const distinct = [ ...new Set( notes.filter( ( n ): n is string => !!n ) ) ];
+  return distinct.length > 0 ? distinct.join( '; ' ) : undefined;
 }
 
 function pluralize( count: number, singular: string ): string {
@@ -49,22 +62,26 @@ function pluralize( count: number, singular: string ): string {
 
 export function parseCostData( report: CostReport ): ParsedCostData {
   const byModel: Record<string, {
-    count: number; originalCost: number; adjustedCost: number; note?: string;
+    count: number; originalCost: number; adjustedCost: number; notes: Array<string | undefined>;
   }> = {};
   for ( const r of report.llmCalls ) {
     if ( !byModel[r.model] ) {
-      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0, note: r.note };
+      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0, notes: [] };
     }
     byModel[r.model].count++;
     byModel[r.model].originalCost += r.originalCost;
     byModel[r.model].adjustedCost += r.adjustedCost;
-    byModel[r.model].note ??= r.note;
+    byModel[r.model].notes.push( r.note );
   }
 
   const llmModels: LLMModelSummary[] = Object.entries( byModel )
     .sort( ( a, b ) => b[1].adjustedCost - a[1].adjustedCost )
     .map( ( [ model, s ] ) => ( {
-      model, count: s.count, originalCost: s.originalCost, adjustedCost: s.adjustedCost, note: s.note
+      model,
+      count: s.count,
+      originalCost: s.originalCost,
+      adjustedCost: s.adjustedCost,
+      note: joinDistinct( s.notes )
     } ) );
 
   const hosts: HostSummary[] = [ ...report.httpCosts ]
@@ -73,7 +90,8 @@ export function parseCostData( report: CostReport ): ParsedCostData {
       host: h.host,
       callCount: h.calls.length,
       originalCost: h.originalTotalCost,
-      adjustedCost: h.adjustedTotalCost
+      adjustedCost: h.adjustedTotalCost,
+      note: joinDistinct( h.calls.map( c => c.note ) )
     } ) );
 
   const httpTotalCalls = hosts.reduce( ( sum, h ) => sum + h.callCount, 0 );
@@ -169,6 +187,7 @@ function formatSummary( data: ParsedCostData ): string {
 
     lines.push( 'API Costs:' );
     lines.push( table.toString() );
+    lines.push( ...hostNoteLines( data.hosts ) );
     lines.push( '' );
   }
 
@@ -264,6 +283,7 @@ function formatVerbose( data: ParsedCostData ): string {
 
     lines.push( 'API Calls:' );
     lines.push( table.toString() );
+    lines.push( ...hostNoteLines( data.hosts ) );
     lines.push( '' );
   }
 
