@@ -3,7 +3,7 @@ import type {
   CostReport,
   ParsedCostData,
   LLMModelSummary,
-  ServiceSummary
+  HostSummary
 } from '#types/cost.js';
 
 function formatNumber( num: number ): string {
@@ -37,24 +37,30 @@ function pluralize( count: number, singular: string ): string {
 }
 
 export function parseCostData( report: CostReport ): ParsedCostData {
-  const byModel: Record<string, { count: number; cost: number }> = {};
+  const byModel: Record<string, { count: number; originalCost: number; adjustedCost: number }> = {};
   for ( const r of report.llmCalls ) {
     if ( !byModel[r.model] ) {
-      byModel[r.model] = { count: 0, cost: 0 };
+      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0 };
     }
     byModel[r.model].count++;
-    byModel[r.model].cost += r.cost;
+    byModel[r.model].originalCost += r.originalCost;
+    byModel[r.model].adjustedCost += r.adjustedCost;
   }
 
   const llmModels: LLMModelSummary[] = Object.entries( byModel )
-    .sort( ( a, b ) => b[1].cost - a[1].cost )
-    .map( ( [ model, stats ] ) => ( { model, count: stats.count, cost: stats.cost } ) );
+    .sort( ( a, b ) => b[1].adjustedCost - a[1].adjustedCost )
+    .map( ( [ model, s ] ) => ( { model, ...s } ) );
 
-  const services: ServiceSummary[] = [ ...report.services ]
-    .sort( ( a, b ) => b.totalCost - a.totalCost )
-    .map( s => ( { serviceName: s.serviceName, callCount: s.calls.length, cost: s.totalCost } ) );
+  const hosts: HostSummary[] = [ ...report.httpCosts ]
+    .sort( ( a, b ) => b.adjustedTotalCost - a.adjustedTotalCost )
+    .map( h => ( {
+      host: h.host,
+      callCount: h.calls.length,
+      originalCost: h.originalTotalCost,
+      adjustedCost: h.adjustedTotalCost
+    } ) );
 
-  const serviceTotalCalls = services.reduce( ( sum, s ) => sum + s.callCount, 0 );
+  const httpTotalCalls = hosts.reduce( ( sum, h ) => sum + h.callCount, 0 );
 
   return {
     traceFile: report.traceFile,
@@ -63,27 +69,29 @@ export function parseCostData( report: CostReport ): ParsedCostData {
 
     llmModels,
     llmTotalCalls: report.llmCalls.length,
-    llmTotalCost: report.llmTotalCost,
+    llmOriginalCost: report.llmOriginalCost,
+    llmAdjustedCost: report.llmAdjustedCost,
 
-    services,
-    serviceTotalCalls,
-    serviceTotalCost: report.serviceTotalCost,
+    hosts,
+    httpTotalCalls,
+    httpOriginalCost: report.httpOriginalCost,
+    httpAdjustedCost: report.httpAdjustedCost,
 
     verbose: {
       hasReasoning: report.totalReasoningTokens > 0,
       hasCached: report.totalCachedTokens > 0
     },
     llmCalls: report.llmCalls,
-    serviceDetails: report.services,
+    httpDetails: report.httpCosts,
 
     totalInputTokens: report.totalInputTokens,
     totalOutputTokens: report.totalOutputTokens,
     totalCachedTokens: report.totalCachedTokens,
     totalReasoningTokens: report.totalReasoningTokens,
 
+    originalTotalCost: report.originalTotalCost,
     totalCost: report.totalCost,
-    unknownModels: report.unknownModels,
-    isEmpty: report.llmCalls.length === 0 && report.services.length === 0
+    isEmpty: report.llmCalls.length === 0 && report.httpCosts.length === 0
   };
 }
 
@@ -92,19 +100,25 @@ function formatSummary( data: ParsedCostData ): string {
 
   if ( data.llmModels.length > 0 ) {
     const table = new Table( {
-      head: [ 'Model', 'Calls', 'Cost' ],
+      head: [ 'Model', 'Calls', 'Original', 'Adjusted' ],
       style: { head: [ 'cyan' ] },
-      colAligns: [ 'left', 'right', 'right' ]
+      colAligns: [ 'left', 'right', 'right', 'right' ]
     } );
 
     for ( const m of data.llmModels ) {
-      table.push( [ m.model, pluralize( m.count, 'call' ), formatCurrency( m.cost ) ] );
+      table.push( [
+        m.model,
+        pluralize( m.count, 'call' ),
+        formatCurrency( m.originalCost ),
+        formatCurrency( m.adjustedCost )
+      ] );
     }
 
     table.push( [
       'Subtotal',
       pluralize( data.llmTotalCalls, 'call' ),
-      formatCurrency( data.llmTotalCost )
+      formatCurrency( data.llmOriginalCost ),
+      formatCurrency( data.llmAdjustedCost )
     ] );
 
     lines.push( 'LLM Costs:' );
@@ -112,21 +126,27 @@ function formatSummary( data: ParsedCostData ): string {
     lines.push( '' );
   }
 
-  if ( data.services.length > 0 ) {
+  if ( data.hosts.length > 0 ) {
     const table = new Table( {
-      head: [ 'Service', 'Calls', 'Cost' ],
+      head: [ 'Host', 'Calls', 'Original', 'Adjusted' ],
       style: { head: [ 'cyan' ] },
-      colAligns: [ 'left', 'right', 'right' ]
+      colAligns: [ 'left', 'right', 'right', 'right' ]
     } );
 
-    for ( const s of data.services ) {
-      table.push( [ s.serviceName, pluralize( s.callCount, 'call' ), formatCurrency( s.cost ) ] );
+    for ( const h of data.hosts ) {
+      table.push( [
+        h.host,
+        pluralize( h.callCount, 'call' ),
+        formatCurrency( h.originalCost ),
+        formatCurrency( h.adjustedCost )
+      ] );
     }
 
     table.push( [
       'Subtotal',
-      pluralize( data.serviceTotalCalls, 'call' ),
-      formatCurrency( data.serviceTotalCost )
+      pluralize( data.httpTotalCalls, 'call' ),
+      formatCurrency( data.httpOriginalCost ),
+      formatCurrency( data.httpAdjustedCost )
     ] );
 
     lines.push( 'API Costs:' );
@@ -152,8 +172,8 @@ function formatVerbose( data: ParsedCostData ): string {
       head.push( 'Reasoning' );
       colAligns.push( 'right' );
     }
-    head.push( 'Cost' );
-    colAligns.push( 'right' );
+    head.push( 'Original', 'Adjusted' );
+    colAligns.push( 'right', 'right' );
 
     const table = new Table( {
       head,
@@ -174,7 +194,7 @@ function formatVerbose( data: ParsedCostData ): string {
       if ( data.verbose.hasReasoning ) {
         row.push( formatNumber( r.reasoning ) );
       }
-      row.push( formatCurrency( r.cost ) + ( r.warning ? ` (${r.warning})` : '' ) );
+      row.push( formatCurrency( r.originalCost ), formatCurrency( r.adjustedCost ) );
       table.push( row );
     }
 
@@ -190,7 +210,7 @@ function formatVerbose( data: ParsedCostData ): string {
     if ( data.verbose.hasReasoning ) {
       totalRow.push( formatNumber( data.totalReasoningTokens ) );
     }
-    totalRow.push( formatCurrency( data.llmTotalCost ) );
+    totalRow.push( formatCurrency( data.llmOriginalCost ), formatCurrency( data.llmAdjustedCost ) );
     table.push( totalRow );
 
     lines.push( 'LLM Calls:' );
@@ -198,25 +218,30 @@ function formatVerbose( data: ParsedCostData ): string {
     lines.push( '' );
   }
 
-  if ( data.serviceDetails.length > 0 ) {
+  if ( data.httpDetails.length > 0 ) {
     const table = new Table( {
-      head: [ 'Service', 'Step', 'Usage', 'Cost' ],
+      head: [ 'Host', 'Step', 'Usage', 'Original', 'Adjusted' ],
       style: { head: [ 'cyan' ] },
-      colAligns: [ 'left', 'left', 'right', 'right' ]
+      colAligns: [ 'left', 'left', 'right', 'right', 'right' ]
     } );
 
-    for ( const service of data.serviceDetails ) {
-      for ( const call of service.calls ) {
+    for ( const host of data.httpDetails ) {
+      for ( const call of host.calls ) {
         table.push( [
-          service.serviceName,
+          host.host,
           call.step,
           call.usage,
-          formatCurrency( call.cost )
+          formatCurrency( call.originalCost ),
+          formatCurrency( call.adjustedCost )
         ] );
       }
     }
 
-    table.push( [ 'Subtotal', '', '', formatCurrency( data.serviceTotalCost ) ] );
+    table.push( [
+      'Subtotal', '', '',
+      formatCurrency( data.httpOriginalCost ),
+      formatCurrency( data.httpAdjustedCost )
+    ] );
 
     lines.push( 'API Calls:' );
     lines.push( table.toString() );
@@ -248,15 +273,9 @@ export function formatCostReport( report: CostReport, options: { verbose?: boole
       colAligns: [ 'left', 'right' ],
       colWidths: [ 36, 12 ]
     } );
-    totalTable.push( [ 'TOTAL ESTIMATED COST', formatCurrency( data.totalCost ) ] );
+    totalTable.push( [ 'TOTAL ESTIMATED COST (adjusted)', formatCurrency( data.totalCost ) ] );
+    totalTable.push( [ 'As-charged (from trace)', formatCurrency( data.originalTotalCost ) ] );
     lines.push( totalTable.toString() );
-  }
-
-  if ( data.unknownModels.length > 0 ) {
-    lines.push( '' );
-    lines.push(
-      `Warning: Unknown models (add to config/costs.yml): ${data.unknownModels.join( ', ' )}`
-    );
   }
 
   if ( data.isEmpty ) {
