@@ -149,6 +149,7 @@ describe( 'temporal_client', () => {
       close: vi.fn()
     } );
     mockFetchHistory.mockResolvedValue( { events: [] } );
+    mockGetWorkflowExecutionHistory.mockResolvedValue( { history: { events: [] } } );
     mockGetHandle.mockReturnValue( {
       describe: mockDescribe,
       result: mockResult,
@@ -633,12 +634,14 @@ describe( 'temporal_client', () => {
         runId: 'run-input'
       } );
       mockResult.mockResolvedValue( { output: { data: 'result' }, trace: null } );
-      mockFetchHistory.mockResolvedValue( {
-        events: [ {
-          workflowExecutionStartedEventAttributes: {
-            input: { payloads: [ workflowInput ] }
-          }
-        } ]
+      mockGetWorkflowExecutionHistory.mockResolvedValue( {
+        history: {
+          events: [ {
+            workflowExecutionStartedEventAttributes: {
+              input: { payloads: [ workflowInput ] }
+            }
+          } ]
+        }
       } );
 
       const temporalClient = ( await import( './temporal_client.js' ) ).default;
@@ -646,6 +649,76 @@ describe( 'temporal_client', () => {
       const result = await client.getWorkflowResult( 'workflow-123' );
 
       expect( result.input ).toEqual( workflowInput );
+    } );
+
+    it( 'should fetch only the first history event for input extraction', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-input'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      await client.getWorkflowResult( 'workflow-123' );
+
+      expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledWith( {
+        namespace: 'default',
+        execution: { workflowId: 'workflow-123', runId: 'run-input' },
+        maximumPageSize: 1
+      } );
+      expect( mockFetchHistory ).not.toHaveBeenCalled();
+    } );
+
+    it( 'maps gRPC NOT_FOUND from the input-extraction history call to WorkflowNotFoundError', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-gone'
+      } );
+      const grpcError = Object.assign( new Error( 'not found' ), { code: 5 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      await expect( client.getWorkflowResult( 'workflow-123' ) )
+        .rejects
+        .toThrow( WorkflowNotFoundError );
+    } );
+
+    it( 'propagates non-NOT_FOUND gRPC errors from the input-extraction history call unwrapped', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-outage'
+      } );
+      const grpcError = Object.assign( new Error( 'UNAVAILABLE: connection refused' ), { code: 14 } );
+      mockGetWorkflowExecutionHistory.mockRejectedValueOnce( grpcError );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+
+      const error = await client.getWorkflowResult( 'workflow-123' ).catch( e => e );
+      expect( error.message ).toBe( 'UNAVAILABLE: connection refused' );
+      expect( error ).not.toBeInstanceOf( WorkflowNotFoundError );
+    } );
+
+    it( 'warns when the input-extraction history response has no history field', async () => {
+      mockDescribe.mockResolvedValue( {
+        status: { code: 2, name: 'COMPLETED' },
+        runId: 'run-nohistory'
+      } );
+      mockResult.mockResolvedValue( { output: null, trace: null } );
+      mockGetWorkflowExecutionHistory.mockResolvedValueOnce( {} );
+
+      const temporalClient = ( await import( './temporal_client.js' ) ).default;
+      const client = await temporalClient.init();
+      const result = await client.getWorkflowResult( 'workflow-123' );
+
+      expect( result.input ).toBeNull();
+      expect( mockLoggerWarn ).toHaveBeenCalledWith(
+        'Temporal getWorkflowExecutionHistory returned no history field',
+        { workflowId: 'workflow-123', runId: 'run-nohistory' }
+      );
     } );
 
     it( 'should throw when describe reports no runId for a terminal execution', async () => {

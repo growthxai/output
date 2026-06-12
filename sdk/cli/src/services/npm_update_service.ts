@@ -8,6 +8,8 @@ const execFile = promisify( execFileCb );
 const debug = debugFactory( 'output-cli:npm-update' );
 
 const PACKAGE_NAME = packageJson.name;
+const REGISTRY_URL = 'https://registry.npmjs.org';
+const REGISTRY_TIMEOUT_MS = 5000;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -41,9 +43,15 @@ function parseNpmLsVersion( output: string ): string | null {
 
 export async function fetchLatestVersion(): Promise<string | null> {
   try {
-    const { stdout } = await execFile( 'npm', [ 'view', PACKAGE_NAME, 'version' ] );
-    const version = stdout.trim();
-    return version || null;
+    const response = await fetch( `${REGISTRY_URL}/${PACKAGE_NAME}/latest`, {
+      signal: AbortSignal.timeout( REGISTRY_TIMEOUT_MS )
+    } );
+    if ( !response.ok ) {
+      debug( 'Registry responded with status %d', response.status );
+      return null;
+    }
+    const data = await response.json() as { version?: string };
+    return data.version || null;
   } catch ( error ) {
     debug( 'Failed to fetch latest version: %O', error );
     return null;

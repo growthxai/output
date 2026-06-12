@@ -17,29 +17,48 @@ vi.mock( 'node:util', () => ( {
   promisify: vi.fn( () => mockExecFile )
 } ) );
 
+const mockFetch = vi.fn();
+vi.stubGlobal( 'fetch', mockFetch );
+
 describe( 'npm_update_service', () => {
   beforeEach( () => {
     vi.clearAllMocks();
   } );
 
   describe( 'fetchLatestVersion', () => {
-    it( 'should return version from npm view output', async () => {
-      mockExecFile.mockResolvedValue( { stdout: '1.2.3\n' } );
+    it( 'should return version from the registry response', async () => {
+      mockFetch.mockResolvedValue( {
+        ok: true,
+        json: async () => ( { version: '1.2.3' } )
+      } );
 
       const result = await fetchLatestVersion();
       expect( result ).toBe( '1.2.3' );
-      expect( mockExecFile ).toHaveBeenCalledWith( 'npm', [ 'view', '@outputai/cli', 'version' ] );
+      expect( mockFetch ).toHaveBeenCalledWith(
+        'https://registry.npmjs.org/@outputai/cli/latest',
+        { signal: expect.any( AbortSignal ) }
+      );
     } );
 
-    it( 'should return null on empty output', async () => {
-      mockExecFile.mockResolvedValue( { stdout: '' } );
+    it( 'should return null on non-ok response', async () => {
+      mockFetch.mockResolvedValue( { ok: false, status: 404 } );
 
       const result = await fetchLatestVersion();
       expect( result ).toBeNull();
     } );
 
-    it( 'should return null on whitespace-only output', async () => {
-      mockExecFile.mockResolvedValue( { stdout: '  \n' } );
+    it( 'should return null when response has no version', async () => {
+      mockFetch.mockResolvedValue( {
+        ok: true,
+        json: async () => ( {} )
+      } );
+
+      const result = await fetchLatestVersion();
+      expect( result ).toBeNull();
+    } );
+
+    it( 'should return null on network failure or timeout', async () => {
+      mockFetch.mockRejectedValue( new Error( 'aborted' ) );
 
       const result = await fetchLatestVersion();
       expect( result ).toBeNull();

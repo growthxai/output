@@ -14,7 +14,7 @@
     "output": "./bin/run.js"
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc && npm run copy-assets",
+    "build": "rm -rf ./dist && tsc && npm run copy-assets && oclif manifest",
     "copy-assets": "./bin/copyassets.sh",
     "test": "vitest run",
     "generate:api": "orval --config ./orval.config.ts",
@@ -54,6 +54,7 @@
     "@types/js-yaml": "catalog:",
     "@types/react": "19.2.14",
     "@types/semver": "7.7.1",
+    "oclif": "4.23.10",
     "orval": "8.9.0"
   },
   "license": "Apache-2.0",

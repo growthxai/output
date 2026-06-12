@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { checkForUpdate } from '#services/version_check.js';
+import { readCachedResult, spawnBackgroundRefresh } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
 
 vi.mock( '#services/version_check.js', () => ( {
-  checkForUpdate: vi.fn()
+  readCachedResult: vi.fn(),
+  spawnBackgroundRefresh: vi.fn()
 } ) );
 
 vi.mock( '#utils/interactive.js', () => ( {
@@ -30,8 +31,8 @@ describe( 'init hook', () => {
     config: { version, cacheDir: '/tmp/test-cache' }
   } );
 
-  it( 'should display warning when update is available', async () => {
-    vi.mocked( checkForUpdate ).mockResolvedValue( {
+  it( 'should display warning when cached result says an update is available', async () => {
+    vi.mocked( readCachedResult ).mockResolvedValue( {
       updateAvailable: true,
       currentVersion: '0.8.4',
       latestVersion: '1.0.0'
@@ -40,7 +41,8 @@ describe( 'init hook', () => {
     const ctx = createHookContext();
     await hook.call( ctx as any, { argv: [], id: undefined } as any );
 
-    expect( checkForUpdate ).toHaveBeenCalledWith( '0.8.4', '/tmp/test-cache' );
+    expect( readCachedResult ).toHaveBeenCalledWith( '0.8.4', '/tmp/test-cache' );
+    expect( spawnBackgroundRefresh ).not.toHaveBeenCalled();
     expect( ux.stdout ).toHaveBeenCalled();
 
     const output = vi.mocked( ux.stdout ).mock.calls.map( c => c[0] ).join( '\n' );
@@ -51,7 +53,7 @@ describe( 'init hook', () => {
   } );
 
   it( 'should not display anything when up to date', async () => {
-    vi.mocked( checkForUpdate ).mockResolvedValue( {
+    vi.mocked( readCachedResult ).mockResolvedValue( {
       updateAvailable: false,
       currentVersion: '0.8.4',
       latestVersion: '0.8.4'
@@ -60,11 +62,22 @@ describe( 'init hook', () => {
     const ctx = createHookContext();
     await hook.call( ctx as any, { argv: [], id: undefined } as any );
 
+    expect( spawnBackgroundRefresh ).not.toHaveBeenCalled();
+    expect( ux.stdout ).not.toHaveBeenCalled();
+  } );
+
+  it( 'should kick off a background refresh and stay silent when the cache is stale', async () => {
+    vi.mocked( readCachedResult ).mockResolvedValue( null );
+
+    const ctx = createHookContext();
+    await hook.call( ctx as any, { argv: [], id: undefined } as any );
+
+    expect( spawnBackgroundRefresh ).toHaveBeenCalledWith( '0.8.4', '/tmp/test-cache' );
     expect( ux.stdout ).not.toHaveBeenCalled();
   } );
 
   it( 'should silently handle errors', async () => {
-    vi.mocked( checkForUpdate ).mockRejectedValue( new Error( 'network failure' ) );
+    vi.mocked( readCachedResult ).mockRejectedValue( new Error( 'cache failure' ) );
 
     const ctx = createHookContext();
     await hook.call( ctx as any, { argv: [], id: undefined } as any );
@@ -76,7 +89,7 @@ describe( 'init hook', () => {
     const originalArgv = process.argv;
 
     beforeEach( () => {
-      vi.mocked( checkForUpdate ).mockResolvedValue( {
+      vi.mocked( readCachedResult ).mockResolvedValue( {
         updateAvailable: false,
         currentVersion: '0.8.4',
         latestVersion: '0.8.4'

@@ -32,6 +32,7 @@ minimumReleaseAgeExclude:
 
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': '>=0.91.1'
+  '@types/node@<24': '>=24.10.15'
   '@hono/node-server@<1.19.13': '>=1.19.13'
   axios@>=1.0.0 <1.15.2: '>=1.15.2'
   body-parser@<1.20.3: '>=1.20.3'

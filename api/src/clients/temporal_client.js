@@ -143,9 +143,8 @@ export const resolveResetEventId = ( events, stepName ) => {
 
 /**
  * Extracts the workflow input from a Temporal history object.
- * The first event is always WorkflowExecutionStarted, which contains the input payloads.
  *
- * @param {object} history - Temporal History object from handle.fetchHistory()
+ * @param {object} history - Temporal History object (e.g. GetWorkflowExecutionHistoryResponse.history); the first event must be WorkflowExecutionStarted, which contains the input payloads
  * @returns {any} The decoded first input argument, or null if unavailable
  */
 export const extractWorkflowInput = history => {
@@ -428,10 +427,25 @@ export default {
         }
         // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
         const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
-        const history = await pinnedHandle.fetchHistory();
+        // The input lives in the first event (WorkflowExecutionStarted), so a
+        // single-event page suffices instead of paging through the full history
+        const firstPage = await connection.workflowService.getWorkflowExecutionHistory( {
+          namespace,
+          execution: { workflowId, runId: resolvedRunId },
+          maximumPageSize: 1
+        } ).catch( error => {
+          if ( error?.code === GrpcStatus.NOT_FOUND ) {
+            throw new WorkflowNotFoundError( `Run "${resolvedRunId}" not found for workflow "${workflowId}"` );
+          }
+          throw error;
+        } );
+
+        if ( !firstPage.history ) {
+          logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: resolvedRunId } );
+        }
 
         const status = mapWorkflowStatus( description.status.name );
-        const input = extractWorkflowInput( history );
+        const input = extractWorkflowInput( firstPage.history );
 
         // For completed workflows, return the full result
         if ( description.status.code === TemporalStatus.COMPLETED ) {

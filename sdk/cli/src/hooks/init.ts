@@ -1,6 +1,9 @@
 import { Hook, ux } from '@oclif/core';
-import { checkForUpdate } from '#services/version_check.js';
+import debugFactory from 'debug';
+import { readCachedResult, spawnBackgroundRefresh } from '#services/version_check.js';
 import { setNonInteractive } from '#utils/interactive.js';
+
+const debug = debugFactory( 'output-cli:init' );
 
 export const INTERACTIVE_FLAGS = [ '--yes', '--non-interactive' ];
 
@@ -27,7 +30,14 @@ const hook: Hook<'init'> = async function ( opts ) {
   }
 
   try {
-    const result = await checkForUpdate( this.config.version, this.config.cacheDir );
+    // Only the local cache is read here; the registry roundtrip happens in a
+    // detached child so it never delays the invoked command.
+    const result = await readCachedResult( this.config.version, this.config.cacheDir );
+
+    if ( !result ) {
+      spawnBackgroundRefresh( this.config.version, this.config.cacheDir );
+      return;
+    }
 
     if ( !result.updateAvailable ) {
       return;
@@ -50,8 +60,9 @@ const hook: Hook<'init'> = async function ( opts ) {
     ux.stdout( '' );
     ux.stdout( border );
     ux.stdout( '' );
-  } catch {
+  } catch ( error ) {
     // Never block CLI execution
+    debug( 'Version banner failed: %O', error );
   }
 };
 

@@ -25,7 +25,7 @@ describe( 'proxy bootstrap', () => {
 
   it( 'does nothing when no proxy env vars are set', async () => {
     const { bootstrapProxy } = await import( './proxy.js' );
-    bootstrapProxy();
+    await bootstrapProxy();
 
     expect( mockSetGlobalDispatcher ).not.toHaveBeenCalled();
   } );
@@ -33,7 +33,7 @@ describe( 'proxy bootstrap', () => {
   it( 'sets global dispatcher when HTTPS_PROXY is set', async () => {
     process.env.HTTPS_PROXY = 'http://proxy:8080';
     const { bootstrapProxy } = await import( './proxy.js' );
-    bootstrapProxy();
+    await bootstrapProxy();
 
     expect( MockEnvHttpProxyAgent ).toHaveBeenCalled();
     expect( mockSetGlobalDispatcher ).toHaveBeenCalledTimes( 1 );
@@ -42,7 +42,7 @@ describe( 'proxy bootstrap', () => {
   it( 'sets global dispatcher when HTTP_PROXY is set', async () => {
     process.env.HTTP_PROXY = 'http://proxy:8080';
     const { bootstrapProxy } = await import( './proxy.js' );
-    bootstrapProxy();
+    await bootstrapProxy();
 
     expect( MockEnvHttpProxyAgent ).toHaveBeenCalled();
     expect( mockSetGlobalDispatcher ).toHaveBeenCalledTimes( 1 );
@@ -52,7 +52,7 @@ describe( 'proxy bootstrap', () => {
     process.env.HTTPS_PROXY = 'not a url';
     const warnSpy = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
     const { bootstrapProxy } = await import( './proxy.js' );
-    bootstrapProxy();
+    await bootstrapProxy();
 
     expect( mockSetGlobalDispatcher ).not.toHaveBeenCalled();
     expect( warnSpy ).toHaveBeenCalled();
