@@ -86,11 +86,15 @@ function createWorkflowTable( workflows: Workflow[], detailed: boolean ): string
   return table.toString();
 }
 
-function formatWorkflowsAsList( workflows: Workflow[] ): string {
-  const sortedWorkflows = sortWorkflowsByName( workflows );
-  const names = sortedWorkflows.map( w => parseWorkflowForDisplay( w ).name );
+function formatWorkflowAsListItem( workflow: Workflow ): string {
+  const { name, aliases } = parseWorkflowForDisplay( workflow );
+  return aliases === 'none' ? `- ${name}` : `- ${name} (aliases: ${aliases})`;
+}
 
-  return `\nWorkflows:\n\n${names.map( name => `- ${name}` ).join( '\n' )}`;
+export function formatWorkflowsAsList( workflows: Workflow[] ): string {
+  const lines = sortWorkflowsByName( workflows ).map( formatWorkflowAsListItem );
+
+  return `\nWorkflows:\n\n${lines.join( '\n' )}`;
 }
 
 function formatWorkflowsAsJson( workflows: Workflow[] ): string {

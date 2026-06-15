@@ -141,3 +141,24 @@ describe( 'workflow list parsing', () => {
     expect( parsed.inputs ).toContain( 'user.email: string' );
   } );
 } );
+
+describe( 'formatWorkflowsAsList', () => {
+  it( 'appends aliases to the default list when present', async () => {
+    const { formatWorkflowsAsList } = await import( './list.js' );
+
+    const output = formatWorkflowsAsList( [
+      { name: 'galileoExtractKeyword', aliases: [ 'seoContentExtractKeywordWorkflow' ] }
+    ] );
+
+    expect( output ).toContain( '- galileoExtractKeyword (aliases: seoContentExtractKeywordWorkflow)' );
+  } );
+
+  it( 'omits the aliases segment when a workflow has none', async () => {
+    const { formatWorkflowsAsList } = await import( './list.js' );
+
+    const output = formatWorkflowsAsList( [ { name: 'simple' } ] );
+
+    expect( output ).toContain( '- simple' );
+    expect( output ).not.toContain( 'aliases:' );
+  } );
+} );
