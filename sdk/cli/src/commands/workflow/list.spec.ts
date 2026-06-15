@@ -7,9 +7,8 @@ vi.mock( '#utils/scenario_resolver.js', () => ( {
   listScenariosForWorkflow: mockListScenarios
 } ) );
 
-vi.mock( '#api/generated/api.js', () => ( {
-  getWorkflowCatalog: vi.fn(),
-  getWorkflowCatalogId: vi.fn()
+vi.mock( '#api/workflow_catalog.js', () => ( {
+  fetchWorkflowCatalog: vi.fn()
 } ) );
 
 describe( 'workflow list command', () => {
@@ -181,11 +180,7 @@ describe( 'run() catalog resolution', () => {
     vi.clearAllMocks();
   } );
 
-  const catalogResponse = {
-    data: { workflows: [ { name: 'simple' } ] },
-    status: 200,
-    headers: new Headers()
-  };
+  const catalogWorkflows = [ { name: 'simple' } ];
 
   const createCommand = async ( flagOverrides: Record<string, unknown> ) => {
     const WorkflowList = ( await import( './list.js' ) ).default;
@@ -201,24 +196,22 @@ describe( 'run() catalog resolution', () => {
   };
 
   it( 'fetches a specific catalog by id when a catalog is provided', async () => {
-    const { getWorkflowCatalog, getWorkflowCatalogId } = await import( '#api/generated/api.js' );
-    vi.mocked( getWorkflowCatalogId ).mockResolvedValue( catalogResponse as any );
+    const { fetchWorkflowCatalog } = await import( '#api/workflow_catalog.js' );
+    vi.mocked( fetchWorkflowCatalog ).mockResolvedValue( catalogWorkflows as any );
 
     const cmd = await createCommand( { catalog: 'my-catalog' } );
     await cmd.run();
 
-    expect( getWorkflowCatalogId ).toHaveBeenCalledWith( 'my-catalog' );
-    expect( getWorkflowCatalog ).not.toHaveBeenCalled();
+    expect( fetchWorkflowCatalog ).toHaveBeenCalledWith( 'my-catalog' );
   } );
 
   it( 'falls back to the default catalog when no catalog is provided', async () => {
-    const { getWorkflowCatalog, getWorkflowCatalogId } = await import( '#api/generated/api.js' );
-    vi.mocked( getWorkflowCatalog ).mockResolvedValue( catalogResponse as any );
+    const { fetchWorkflowCatalog } = await import( '#api/workflow_catalog.js' );
+    vi.mocked( fetchWorkflowCatalog ).mockResolvedValue( catalogWorkflows as any );
 
     const cmd = await createCommand( { catalog: undefined } );
     await cmd.run();
 
-    expect( getWorkflowCatalog ).toHaveBeenCalledTimes( 1 );
-    expect( getWorkflowCatalogId ).not.toHaveBeenCalled();
+    expect( fetchWorkflowCatalog ).toHaveBeenCalledWith( undefined );
   } );
 } );

@@ -7,27 +7,23 @@ import {
   listScenariosForWorkflow
 } from './scenario_resolver.js';
 import * as fs from 'node:fs';
-import * as api from '#api/generated/api.js';
+import * as catalog from '#api/workflow_catalog.js';
 
 vi.mock( 'node:fs', () => ( {
   existsSync: vi.fn(),
   readdirSync: vi.fn()
 } ) );
 
-vi.mock( '#api/generated/api.js', () => ( {
-  getWorkflowCatalog: vi.fn()
+vi.mock( '#api/workflow_catalog.js', () => ( {
+  fetchWorkflowCatalog: vi.fn()
 } ) );
 
 function mockCatalog( workflows: Array<{ name: string; path?: string }> ) {
-  vi.mocked( api.getWorkflowCatalog ).mockResolvedValue( {
-    data: { workflows },
-    status: 200,
-    headers: new Headers()
-  } as never );
+  vi.mocked( catalog.fetchWorkflowCatalog ).mockResolvedValue( workflows as never );
 }
 
 function mockCatalogFailure() {
-  vi.mocked( api.getWorkflowCatalog ).mockRejectedValue( new Error( 'API unavailable' ) );
+  vi.mocked( catalog.fetchWorkflowCatalog ).mockRejectedValue( new Error( 'API unavailable' ) );
 }
 
 describe( 'extractWorkflowRelativePath', () => {

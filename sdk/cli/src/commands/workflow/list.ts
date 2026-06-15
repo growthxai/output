@@ -1,6 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 import Table from 'cli-table3';
-import { getWorkflowCatalog, getWorkflowCatalogId, type GetWorkflowCatalog200, type Workflow } from '#api/generated/api.js';
+import { type Workflow } from '#api/generated/api.js';
+import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
 import { parseWorkflowDefinition, formatParameters } from '#api/parser.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { listScenariosForWorkflow } from '#utils/scenario_resolver.js';
@@ -167,31 +168,16 @@ export default class WorkflowList extends Command {
     const { flags } = await this.parse( WorkflowList );
 
     this.log( flags.catalog ? `Fetching workflow catalog: ${flags.catalog}...` : 'Fetching workflow catalog...' );
-    const response = flags.catalog ?
-      await getWorkflowCatalogId( flags.catalog ) :
-      await getWorkflowCatalog();
+    const catalogWorkflows = await fetchWorkflowCatalog( flags.catalog );
 
-    if ( !response ) {
-      this.error( 'Failed to connect to API server. Is it running?', { exit: 1 } );
-    }
-
-    if ( !response.data ) {
-      this.error( 'API returned invalid response (missing data)', { exit: 1 } );
-    }
-
-    const data = response.data as GetWorkflowCatalog200;
-    if ( !data.workflows ) {
-      this.error( 'API returned invalid response (missing workflows)', { exit: 1 } );
-    }
-
-    if ( data.workflows.length === 0 ) {
+    if ( catalogWorkflows.length === 0 ) {
       this.log( 'No workflows found in catalog.' );
       return;
     }
 
     const workflows = flags.filter ?
-      data.workflows.filter( matchName( flags.filter ) ) :
-      data.workflows;
+      catalogWorkflows.filter( matchName( flags.filter ) ) :
+      catalogWorkflows;
 
     if ( workflows.length === 0 && flags.filter ) {
       this.log( `No workflows matching filter: ${flags.filter}` );
