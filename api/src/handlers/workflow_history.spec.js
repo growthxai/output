@@ -5,7 +5,7 @@ import { createWorkflowHistoryHandler } from './workflow_history.js';
 
 describe( 'workflow_history handler', () => {
   const mockGetWorkflowHistory = vi.fn();
-  const mockClient = { getWorkflowHistory: mockGetWorkflowHistory };
+  const mockClient = { workflow: { getHistory: mockGetWorkflowHistory } };
 
   const createApp = () => {
     const app = express();

@@ -23,7 +23,7 @@ export function createWorkflowHistoryHandler( client ) {
       pathRunId ? { ...req.query, runId: pathRunId } : req.query
     );
 
-    const result = await client.getWorkflowHistory( workflowId, {
+    const result = await client.workflow.getHistory( workflowId, {
       runId,
       pageSize,
       pageToken,

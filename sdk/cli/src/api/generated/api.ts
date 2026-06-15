@@ -173,7 +173,7 @@ export const WorkflowRunInfoStatus = {
   canceled: 'canceled',
   terminated: 'terminated',
   timed_out: 'timed_out',
-  continued: 'continued',
+  continued_as_new: 'continued_as_new',
 } as const;
 
 export interface WorkflowRunInfo {
@@ -248,7 +248,7 @@ export const WorkflowResultResponseStatus = {
   canceled: 'canceled',
   terminated: 'terminated',
   timed_out: 'timed_out',
-  continued: 'continued',
+  continued_as_new: 'continued_as_new',
 } as const;
 
 /**

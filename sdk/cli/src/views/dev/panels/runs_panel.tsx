@@ -32,7 +32,7 @@ const STATUS_ORDER: Record<string, number> = {
   timed_out: 2,
   terminated: 3,
   canceled: 4,
-  continued: 5,
+  continued_as_new: 5,
   completed: 6
 };
 

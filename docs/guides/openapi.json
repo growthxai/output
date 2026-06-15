@@ -266,7 +266,7 @@
               "canceled",
               "terminated",
               "timed_out",
-              "continued"
+              "continued_as_new"
             ],
             "description": "Current run status"
           },
@@ -367,7 +367,7 @@
               "canceled",
               "terminated",
               "timed_out",
-              "continued"
+              "continued_as_new"
             ],
             "description": "The workflow execution status"
           },

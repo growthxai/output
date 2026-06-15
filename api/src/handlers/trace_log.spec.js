@@ -21,7 +21,7 @@ import errorHandler from '../middleware/error_handler.js';
 
 describe( 'trace_log handler', () => {
   const mockGetWorkflowResult = vi.fn();
-  const mockClient = { getWorkflowResult: mockGetWorkflowResult };
+  const mockClient = { workflow: { getResult: mockGetWorkflowResult } };
 
   /**
    * Express app with both the latest-shortcut and the pinned route wired up,

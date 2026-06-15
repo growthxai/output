@@ -55,16 +55,28 @@ describe( 'formatWorkflowResult', () => {
     expect( result ).toContain( 'Error: Workflow was canceled' );
   } );
 
-  it( 'should display status without error line for continued workflows', () => {
+  it( 'should display status without error line for continued_as_new workflows', () => {
     const result = formatWorkflowResult( {
       workflowId: 'wf-cont',
-      status: 'continued',
+      status: 'continued_as_new',
       output: null,
       error: null
     } );
 
-    expect( result ).toContain( 'Status: continued' );
+    expect( result ).toContain( 'Status: continued_as_new' );
     expect( result ).not.toContain( 'Error:' );
+  } );
+
+  it( 'temporarily normalizes legacy continued status to continued_as_new', () => {
+    const legacyResult = {
+      workflowId: 'wf-cont',
+      status: 'continued',
+      output: null,
+      error: null
+    } as unknown as Parameters<typeof formatWorkflowResult>[0];
+    const result = formatWorkflowResult( legacyResult );
+
+    expect( result ).toContain( 'Status: continued_as_new' );
   } );
 
   it( 'should omit error line when error is null on failed workflow', () => {

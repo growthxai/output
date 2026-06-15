@@ -8,6 +8,7 @@ import {
   type WorkflowResultResponse
 } from '#api/generated/api.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
+import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
 export interface RunStep {
   index: number;
@@ -123,7 +124,11 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
     const response = runId ?
       await getWorkflowIdRunsRidResult( workflowId, runId ) :
       await getWorkflowIdResult( workflowId );
-    return response.data as WorkflowResultResponse;
+    const data = response.data as WorkflowResultResponse;
+    return {
+      ...data,
+      status: normalizeWorkflowStatus( data.status )
+    } as WorkflowResultResponse;
   } catch {
     return null;
   }

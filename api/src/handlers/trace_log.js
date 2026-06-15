@@ -38,7 +38,7 @@ export function createTraceLogHandler( client ) {
     try {
       const workflowId = req.params.id;
       const runId = readPinnedRunId( req );
-      const result = await client.getWorkflowResult( workflowId, runId );
+      const result = await client.workflow.getResult( workflowId, runId );
 
       const localPath = result?.trace?.destinations?.local;
       const remotePath = result?.trace?.destinations?.remote;
