@@ -1,6 +1,6 @@
 import { Command, Flags } from '@oclif/core';
 import Table from 'cli-table3';
-import { getWorkflowCatalog, type GetWorkflowCatalog200, type Workflow } from '#api/generated/api.js';
+import { getWorkflowCatalog, getWorkflowCatalogId, type GetWorkflowCatalog200, type Workflow } from '#api/generated/api.js';
 import { parseWorkflowDefinition, formatParameters } from '#api/parser.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { listScenariosForWorkflow } from '#utils/scenario_resolver.js';
@@ -134,10 +134,19 @@ export default class WorkflowList extends Command {
     '<%= config.bin %> <%= command.id %> --format table',
     '<%= config.bin %> <%= command.id %> --format json',
     '<%= config.bin %> <%= command.id %> --detailed',
-    '<%= config.bin %> <%= command.id %> --filter simple'
+    '<%= config.bin %> <%= command.id %> --filter simple',
+    '<%= config.bin %> <%= command.id %> --catalog my-catalog'
   ];
 
   static override flags = {
+    catalog: Flags.string( {
+      char: 'c',
+      aliases: [ 'task-queue' ],
+      charAliases: [ 'q' ],
+      deprecateAliases: true,
+      description: 'Catalog to list workflows from (defaults to OUTPUT_CATALOG_ID)',
+      env: 'OUTPUT_CATALOG_ID'
+    } ),
     format: Flags.string( {
       char: 'f',
       description: 'Output format',
@@ -157,8 +166,10 @@ export default class WorkflowList extends Command {
   async run(): Promise<void> {
     const { flags } = await this.parse( WorkflowList );
 
-    this.log( 'Fetching workflow catalog...' );
-    const response = await getWorkflowCatalog();
+    this.log( flags.catalog ? `Fetching workflow catalog: ${flags.catalog}...` : 'Fetching workflow catalog...' );
+    const response = flags.catalog ?
+      await getWorkflowCatalogId( flags.catalog ) :
+      await getWorkflowCatalog();
 
     if ( !response ) {
       this.error( 'Failed to connect to API server. Is it running?', { exit: 1 } );

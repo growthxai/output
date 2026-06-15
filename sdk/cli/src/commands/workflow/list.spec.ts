@@ -1,9 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockListScenarios = vi.fn().mockReturnValue( [] );
 
 vi.mock( '#utils/scenario_resolver.js', () => ( {
   listScenariosForWorkflow: mockListScenarios
+} ) );
+
+vi.mock( '#api/generated/api.js', () => ( {
+  getWorkflowCatalog: vi.fn(),
+  getWorkflowCatalogId: vi.fn()
 } ) );
 
 describe( 'workflow list command', () => {
@@ -19,6 +25,13 @@ describe( 'workflow list command', () => {
       expect( WorkflowList.flags ).toHaveProperty( 'format' );
       expect( WorkflowList.flags ).toHaveProperty( 'detailed' );
       expect( WorkflowList.flags ).toHaveProperty( 'filter' );
+      expect( WorkflowList.flags ).toHaveProperty( 'catalog' );
+    } );
+
+    it( 'reads the catalog flag from OUTPUT_CATALOG_ID', async () => {
+      const WorkflowList = ( await import( './list.js' ) ).default;
+      expect( WorkflowList.flags.catalog.env ).toBe( 'OUTPUT_CATALOG_ID' );
+      expect( WorkflowList.flags.catalog.char ).toBe( 'c' );
     } );
 
     it( 'should have correct flag configuration', async () => {
@@ -160,5 +173,52 @@ describe( 'formatWorkflowsAsList', () => {
 
     expect( output ).toContain( '- simple' );
     expect( output ).not.toContain( 'aliases:' );
+  } );
+} );
+
+describe( 'run() catalog resolution', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
+
+  const catalogResponse = {
+    data: { workflows: [ { name: 'simple' } ] },
+    status: 200,
+    headers: new Headers()
+  };
+
+  const createCommand = async ( flagOverrides: Record<string, unknown> ) => {
+    const WorkflowList = ( await import( './list.js' ) ).default;
+    const cmd = new WorkflowList( [], {} as any );
+    cmd.log = vi.fn();
+    cmd.error = vi.fn( () => {
+      throw new Error( 'error called' );
+    } ) as any;
+    ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+      flags: { format: 'list', detailed: false, filter: undefined, catalog: undefined, ...flagOverrides }
+    } );
+    return cmd;
+  };
+
+  it( 'fetches a specific catalog by id when a catalog is provided', async () => {
+    const { getWorkflowCatalog, getWorkflowCatalogId } = await import( '#api/generated/api.js' );
+    vi.mocked( getWorkflowCatalogId ).mockResolvedValue( catalogResponse as any );
+
+    const cmd = await createCommand( { catalog: 'my-catalog' } );
+    await cmd.run();
+
+    expect( getWorkflowCatalogId ).toHaveBeenCalledWith( 'my-catalog' );
+    expect( getWorkflowCatalog ).not.toHaveBeenCalled();
+  } );
+
+  it( 'falls back to the default catalog when no catalog is provided', async () => {
+    const { getWorkflowCatalog, getWorkflowCatalogId } = await import( '#api/generated/api.js' );
+    vi.mocked( getWorkflowCatalog ).mockResolvedValue( catalogResponse as any );
+
+    const cmd = await createCommand( { catalog: undefined } );
+    await cmd.run();
+
+    expect( getWorkflowCatalog ).toHaveBeenCalledTimes( 1 );
+    expect( getWorkflowCatalogId ).not.toHaveBeenCalled();
   } );
 } );
