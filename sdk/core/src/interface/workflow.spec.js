@@ -84,6 +84,8 @@ const workflowDefinition = overrides => ( {
   ...overrides
 } );
 
+const invokeWorkflowFromHelper = ( wf, input, options ) => wf( input, options );
+
 describe( 'workflow()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -307,6 +309,50 @@ describe( 'workflow()', () => {
         parentClosePolicy: ParentClosePolicy.TERMINATE,
         memo: { stack: [ 'workflow-123' ], activityOptions: { heartbeatTimeout: '1m' } }
       } ) );
+    } );
+
+    it( 'starts a child workflow when the call is made through a helper outside the handler', async () => {
+      const { workflow } = await import( './workflow.js' );
+      const { ParentClosePolicy } = await import( '@temporalio/workflow' );
+      const getTraceDestinations = vi.fn().mockResolvedValue( { output: null } );
+      const info = setWorkflowInfo( { memo: {} } );
+      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: getTraceDestinations } );
+      executeChildMock.mockResolvedValueOnce( { output: { child: 'ok' } } );
+      const childFn = vi.fn();
+
+      const childWorkflow = workflow( workflowDefinition( {
+        name: 'indirect_child_wf',
+        inputSchema: z.object( { id: z.number() } ),
+        outputSchema: z.object( { child: z.string() } ),
+        fn: childFn
+      } ) );
+      const parentWorkflow = workflow( workflowDefinition( {
+        name: 'indirect_parent_wf',
+        outputSchema: z.object( { child: z.string() } ),
+        fn: async () => invokeWorkflowFromHelper( childWorkflow, { id: 1 }, {
+          activityOptions: {
+            retry: { maximumAttempts: 1 }
+          }
+        } )
+      } ) );
+
+      await expect( parentWorkflow( {} ) ).resolves.toEqual( {
+        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
+        output: { child: 'ok' }
+      } );
+      expect( childFn ).not.toHaveBeenCalled();
+      expect( executeChildMock ).toHaveBeenCalledWith( 'indirect_child_wf', expect.objectContaining( {
+        args: [ { id: 1 } ],
+        parentClosePolicy: ParentClosePolicy.TERMINATE,
+        memo: expect.objectContaining( {
+          stack: [ 'workflow-123' ],
+          traceInfo: info.memo.traceInfo,
+          activityOptions: expect.objectContaining( {
+            retry: expect.objectContaining( { maximumAttempts: 1 } )
+          } )
+        } )
+      } ) );
+      expect( getTraceDestinations ).toHaveBeenCalledWith( info.memo.traceInfo );
     } );
 
     it( 'propagates executeChild errors without root ApplicationFailure wrapping', async () => {
