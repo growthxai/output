@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockTakeFromAsyncIterable } = vi.hoisted( () => ( {
+const { mockFormatStatus, mockTakeFromAsyncIterable } = vi.hoisted( () => ( {
+  mockFormatStatus: vi.fn(),
   mockTakeFromAsyncIterable: vi.fn()
 } ) );
 
@@ -8,9 +9,14 @@ vi.mock( '#utils', () => ( {
   takeFromAsyncIterable: mockTakeFromAsyncIterable
 } ) );
 
+vi.mock( '../types.js', () => ( {
+  formatStatus: mockFormatStatus
+} ) );
+
 describe( 'listRuns', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    mockFormatStatus.mockReturnValue( 'formatted-status' );
     mockTakeFromAsyncIterable.mockResolvedValue( [
       {
         workflowId: 'workflow-1',
@@ -41,6 +47,8 @@ describe( 'listRuns', () => {
 
     expect( list ).toHaveBeenCalledWith( { query: undefined } );
     expect( mockTakeFromAsyncIterable ).toHaveBeenCalledWith( iterable, 100 );
+    expect( mockFormatStatus ).toHaveBeenNthCalledWith( 1, 'COMPLETED' );
+    expect( mockFormatStatus ).toHaveBeenNthCalledWith( 2, 'RUNNING' );
     expect( result ).toEqual( {
       count: 2,
       runs: [
@@ -48,7 +56,7 @@ describe( 'listRuns', () => {
           workflowId: 'workflow-1',
           runId: 'run-1',
           workflowType: 'factChecker',
-          status: 'completed',
+          status: 'formatted-status',
           startedAt: '2024-01-01T00:00:00.000Z',
           completedAt: '2024-01-01T00:01:00.000Z'
         },
@@ -56,7 +64,7 @@ describe( 'listRuns', () => {
           workflowId: 'workflow-2',
           runId: 'run-2',
           workflowType: 'writer',
-          status: 'running',
+          status: 'formatted-status',
           startedAt: '2024-01-01T00:02:00.000Z',
           completedAt: null
         }

@@ -1,7 +1,7 @@
 import { defaultPayloadConverter } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { WorkflowNotFoundError, WorkflowFailedError, WorkflowNotCompletedError } from '../../errors.js';
-import { WorkflowStatus, isWorkflowClosed, GrpcStatus } from '../types.js';
+import { WorkflowStatus, isWorkflowClosed, GrpcStatus, formatStatus } from '../types.js';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { logger } from '#logger';
 const { namespace } = temporalConfig;
@@ -63,7 +63,7 @@ export const getResult = async ( { client, connection }, workflowId, runId ) => 
     logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: resolvedRunId } );
   }
 
-  const status = description.status.name?.toLocaleLowerCase();
+  const status = formatStatus( description.status.name );
   const input = extractWorkflowInput( firstPage.history );
 
   // For completed workflows, return the full result

@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CatalogNotAvailableError, WorkflowNotFoundError } from '../errors.js';
 
+vi.mock( '#logger', () => ( {
+  logger: { info: vi.fn() }
+} ) );
+
 describe( 'getCatalog', () => {
   beforeEach( () => {
     vi.clearAllMocks();

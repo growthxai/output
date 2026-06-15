@@ -4,6 +4,7 @@ import { WorkflowStatus } from '../types.js';
 
 const {
   mockFromPayload,
+  mockFormatStatus,
   mockBuildWorkflowResult,
   mockLoggerWarn,
   MockWorkflowFailedError,
@@ -14,6 +15,7 @@ const {
 
   return {
     mockFromPayload: vi.fn(),
+    mockFormatStatus: vi.fn(),
     mockBuildWorkflowResult: vi.fn(),
     mockLoggerWarn: vi.fn(),
     MockWorkflowFailedError,
@@ -37,6 +39,11 @@ vi.mock( '#logger', () => ( {
 
 vi.mock( '../workflow_result.js', () => ( {
   buildWorkflowResult: mockBuildWorkflowResult
+} ) );
+
+vi.mock( '../types.js', async importOriginal => ( {
+  ...( await importOriginal() ),
+  formatStatus: mockFormatStatus
 } ) );
 
 describe( 'extractWorkflowInput', () => {
@@ -68,6 +75,7 @@ describe( 'getResult', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mockFromPayload.mockImplementation( payload => ( { decoded: payload } ) );
+    mockFormatStatus.mockReturnValue( 'formatted-status' );
     mockBuildWorkflowResult.mockImplementation( args => ( { shaped: args } ) );
   } );
 
@@ -143,9 +151,10 @@ describe( 'getResult', () => {
       execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
       maximumPageSize: 1
     } );
+    expect( mockFormatStatus ).toHaveBeenCalledWith( 'COMPLETED' );
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
       workflowId: 'workflow-id',
-      status: 'completed',
+      status: 'formatted-status',
       runId: 'resolved-run',
       input: { decoded: { input: true } },
       result: workflowOutput
@@ -190,7 +199,7 @@ describe( 'getResult', () => {
     expect( fixtures.pinnedHandle.result ).not.toHaveBeenCalled();
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
       workflowId: 'workflow-id',
-      status: 'continued_as_new',
+      status: 'formatted-status',
       runId: 'continued-run',
       input: { decoded: { input: true } }
     } );
@@ -211,7 +220,7 @@ describe( 'getResult', () => {
 
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
       workflowId: 'workflow-id',
-      status: 'failed',
+      status: 'formatted-status',
       runId: 'failed-run',
       input: { decoded: { input: true } },
       error: workflowError
@@ -232,7 +241,7 @@ describe( 'getResult', () => {
     await expect( getResult( fixtures, 'workflow-id' ) ).rejects.toBe( unexpectedError );
     expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Unexpected error fetching workflow result', {
       workflowId: 'workflow-id',
-      status: 'failed',
+      status: 'formatted-status',
       errorType: 'Error',
       message: 'connection lost'
     } );

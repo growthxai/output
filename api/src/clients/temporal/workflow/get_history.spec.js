@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { InvalidPageTokenError, WorkflowNotFoundError } from '../../errors.js';
 
-const { mockLoggerWarn, mockDecodeEventPayloads, mockSerializeEvent } = vi.hoisted( () => ( {
+const { mockFormatStatus, mockLoggerWarn, mockDecodeEventPayloads, mockSerializeEvent } = vi.hoisted( () => ( {
+  mockFormatStatus: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockDecodeEventPayloads: vi.fn(),
   mockSerializeEvent: vi.fn()
@@ -20,9 +21,15 @@ vi.mock( '../../event_serialization.js', () => ( {
   serializeEvent: mockSerializeEvent
 } ) );
 
+vi.mock( '../types.js', async importOriginal => ( {
+  ...( await importOriginal() ),
+  formatStatus: mockFormatStatus
+} ) );
+
 describe( 'getHistory', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    mockFormatStatus.mockReturnValue( 'formatted-status' );
     mockDecodeEventPayloads.mockImplementation( event => ( { ...event, decoded: true } ) );
     mockSerializeEvent.mockImplementation( ( event, options ) => ( { event, options } ) );
   } );
@@ -57,11 +64,12 @@ describe( 'getHistory', () => {
     } );
     expect( mockDecodeEventPayloads ).not.toHaveBeenCalled();
     expect( mockSerializeEvent ).toHaveBeenCalledWith( event, { includePayloads: false } );
+    expect( mockFormatStatus ).toHaveBeenCalledWith( 'RUNNING' );
     expect( result ).toEqual( {
       workflow: {
         workflowId: 'workflow-id',
         runId: 'resolved-run',
-        status: 'running',
+        status: 'formatted-status',
         startTime: '2024-01-01T00:00:00.000Z',
         closeTime: null,
         historyLength: 10,

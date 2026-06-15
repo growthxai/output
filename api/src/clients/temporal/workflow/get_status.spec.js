@@ -1,7 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
-import { getStatus } from './get_status.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { mockFormatStatus } = vi.hoisted( () => ( {
+  mockFormatStatus: vi.fn()
+} ) );
+
+vi.mock( '../types.js', () => ( {
+  formatStatus: mockFormatStatus
+} ) );
 
 describe( 'getStatus', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+    mockFormatStatus.mockReturnValue( 'formatted-status' );
+  } );
+
   it( 'describes a pinned run and maps Temporal timestamps to epoch milliseconds', async () => {
     const describe = vi.fn().mockResolvedValue( {
       runId: 'run-id',
@@ -11,14 +23,16 @@ describe( 'getStatus', () => {
     } );
     const getHandle = vi.fn().mockReturnValue( { describe } );
     const client = { workflow: { getHandle } };
+    const { getStatus } = await import( './get_status.js' );
 
     const result = await getStatus( { client }, 'workflow-id', 'run-id' );
 
     expect( getHandle ).toHaveBeenCalledWith( 'workflow-id', 'run-id' );
+    expect( mockFormatStatus ).toHaveBeenCalledWith( 'COMPLETED' );
     expect( result ).toEqual( {
       workflowId: 'workflow-id',
       runId: 'run-id',
-      status: 'completed',
+      status: 'formatted-status',
       startedAt: 1_704_067_200_000,
       completedAt: 1_704_067_201_000
     } );
@@ -33,14 +47,16 @@ describe( 'getStatus', () => {
     } );
     const getHandle = vi.fn().mockReturnValue( { describe } );
     const client = { workflow: { getHandle } };
+    const { getStatus } = await import( './get_status.js' );
 
     const result = await getStatus( { client }, 'workflow-id' );
 
     expect( getHandle ).toHaveBeenCalledWith( 'workflow-id', undefined );
+    expect( mockFormatStatus ).toHaveBeenCalledWith( 'RUNNING' );
     expect( result ).toEqual( {
       workflowId: 'workflow-id',
       runId: 'latest-run',
-      status: 'running',
+      status: 'formatted-status',
       startedAt: '',
       completedAt: ''
     } );

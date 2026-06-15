@@ -1,4 +1,5 @@
 import { WorkflowNotFoundError, CatalogNotAvailableError } from '../errors.js';
+import { logger } from '#logger';
 
 /**
  * Returns the catalog object from the catalog workflow
@@ -37,6 +38,9 @@ export const resolveWorkflowName = ( catalog, workflowName, taskQueue ) => {
   const resolved = catalog.workflows.find( w => w.name === workflowName || w.aliases?.includes( workflowName ) );
   if ( !resolved ) {
     throw new WorkflowNotFoundError( `Workflow "${workflowName}" is not available at worker "${taskQueue}"` );
+  }
+  if ( resolved.name !== workflowName ) {
+    logger.info( 'Workflow alias resolved', { alias: workflowName, resolvedName: resolved.name, taskQueue } );
   }
   return resolved.name;
 };

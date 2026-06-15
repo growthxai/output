@@ -32,3 +32,5 @@ export const GrpcStatus = {
   INVALID_ARGUMENT: 3,
   NOT_FOUND: 5
 };
+
+export const formatStatus = name => name?.toLowerCase() ?? 'unspecified';

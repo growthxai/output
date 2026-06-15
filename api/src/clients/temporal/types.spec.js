@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GrpcStatus, WorkflowStatus, isWorkflowClosed } from './types.js';
+import { GrpcStatus, WorkflowStatus, formatStatus, isWorkflowClosed } from './types.js';
 
 describe( 'WorkflowStatus', () => {
   it( 'exposes Temporal workflow execution status code values', () => {
@@ -40,5 +40,17 @@ describe( 'GrpcStatus', () => {
       INVALID_ARGUMENT: 3,
       NOT_FOUND: 5
     } );
+  } );
+} );
+
+describe( 'formatStatus', () => {
+  it( 'formats Temporal status names for API responses', () => {
+    expect( formatStatus( 'COMPLETED' ) ).toBe( 'completed' );
+    expect( formatStatus( 'CONTINUED_AS_NEW' ) ).toBe( 'continued_as_new' );
+  } );
+
+  it( 'falls back to unspecified when Temporal omits the name', () => {
+    expect( formatStatus() ).toBe( 'unspecified' );
+    expect( formatStatus( null ) ).toBe( 'unspecified' );
   } );
 } );

@@ -2,7 +2,7 @@ import { temporal as temporalConfig } from '#configs';
 import { logger } from '#logger';
 import { WorkflowNotFoundError, InvalidPageTokenError } from '../../errors.js';
 import { decodeEventPayloads, serializeEvent } from '../../event_serialization.js';
-import { GrpcStatus } from '../types.js';
+import { formatStatus, GrpcStatus } from '../types.js';
 
 const { namespace } = temporalConfig;
 
@@ -60,7 +60,7 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
       workflow: {
         workflowId,
         runId: description.runId,
-        status: description.status.name?.toLowerCase(),
+        status: formatStatus( description.status.name ),
         startTime: description.startTime?.toISOString() ?? null,
         closeTime: description.closeTime?.toISOString() ?? null,
         historyLength: description.historyLength,

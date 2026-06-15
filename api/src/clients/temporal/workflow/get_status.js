@@ -1,3 +1,5 @@
+import { formatStatus } from '../types.js';
+
 /**
  * @typedef {Object} WorkflowStatus
  * @property {string} workflowId - The workflow execution id
@@ -21,7 +23,7 @@ export const getStatus = async ( { client }, workflowId, runId ) => {
   return {
     workflowId,
     runId: description.runId,
-    status: description.status.name?.toLowerCase(),
+    status: formatStatus( description.status.name ),
     startedAt: description.startTime ? new Date( description.startTime ).getTime() : '',
     completedAt: description.closeTime ? new Date( description.closeTime ).getTime() : ''
   };

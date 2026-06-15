@@ -1,4 +1,5 @@
 import { takeFromAsyncIterable } from '#utils';
+import { formatStatus } from '../types.js';
 
 /**
  * Workflow run info
@@ -46,7 +47,7 @@ export const listRuns = async ( { client }, options = {} ) => {
     workflowId: execution.workflowId,
     runId: execution.runId,
     workflowType: execution.type,
-    status: execution.status.name?.toLowerCase(),
+    status: formatStatus( execution.status.name ),
     startedAt: execution.startTime.toISOString(),
     completedAt: execution.closeTime?.toISOString() ?? null
   } ) );
