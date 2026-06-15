@@ -19,6 +19,10 @@
     "./sdk_utils": {
       "types": "./src/utils/index.d.ts",
       "import": "./src/utils/index.js"
+    },
+    "./worker": {
+      "types": "./src/worker/public.d.ts",
+      "import": "./src/worker/public.js"
     }
   },
   "files": [

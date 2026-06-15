@@ -22,7 +22,7 @@ describe( 'fix package', () => {
     expect( plan.scriptsToRemove.map( r => r.key ).sort() ).toEqual( [ ...legacyScripts ].sort() );
     expect( plan.hasChanges ).toBe( true );
     expect( plan.scriptsToReplace ).toEqual( [] );
-    expect( plan.scriptsToAdd ).toHaveLength( 6 );
+    expect( plan.scriptsToAdd ).toHaveLength( 7 );
 
     applyFix( plan );
 
@@ -53,10 +53,11 @@ describe( 'fix package', () => {
     expect( plan.scriptsToReplace ).toEqual( [
       { key: 'output:dev', before: 'bad-dev-command', after: 'output dev' }
     ] );
-    expect( plan.scriptsToAdd ).toHaveLength( 5 );
+    expect( plan.scriptsToAdd ).toHaveLength( 6 );
     expect( plan.scriptsToAdd.map( a => a.key ).sort() ).toEqual( [
       'output:worker',
       'output:worker:build',
+      'output:worker:check',
       'output:worker:install',
       'output:worker:start',
       'output:worker:watch'

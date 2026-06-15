@@ -16,6 +16,7 @@ claude plugin install outputai@outputai --scope project
 ```bash
 npm run output:dev           # Start dev environment (worker + Temporal)
 npm run output:worker:build  # Build TypeScript to dist/
+npm run output:worker:check  # Optional: bundle-check workflows for bad imports (node: built-ins)
 npm run output:worker:watch  # Build + restart on file changes
 npm run output:worker        # Install, build, and start worker
 ```

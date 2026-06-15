@@ -100,3 +100,35 @@ Monitor workflow execution and system status in the Temporal UI:
 ```bash
 open http://localhost:8080
 ```
+
+## Checking Workflows for Bad Imports
+
+Temporal bundles your workflows before they run. If a workflow — or anything it
+transitively imports — pulls in a `node:` built-in (e.g. `node:fs`), the bundle fails
+**at worker startup**, not at `tsc` build time. The optional bundle check reproduces
+that bundling so you catch it early:
+
+```bash
+npm run output:worker:build   # compile to dist/
+npm run output:worker:check   # bundle-check workflows (runs output-worker --check)
+```
+
+It exits non-zero and names the offending module when a workflow can't be bundled.
+
+To gate merges, wire it into your CI — for example, GitHub Actions:
+
+```yaml
+# .github/workflows/output-check.yml
+name: Output checks
+on: [pull_request]
+jobs:
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: npm run output:worker:build
+      - run: npm run output:worker:check
+```
