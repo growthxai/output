@@ -1,5 +1,5 @@
 ---
-"@outputai/core": minor
+"@outputai/core": patch
 ---
 
 Add an opt-in `output-worker --check` workflow bundle check (and a `@outputai/core/worker` export) that reproduces the worker's webpack bundling without a Temporal server, catching bad workflow imports — e.g. a transitive `node:` built-in — before they crash-loop the worker at startup. `tsc` cannot detect these; only the Temporal bundle can.
