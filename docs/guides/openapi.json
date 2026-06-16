@@ -552,6 +552,19 @@
         }
       }
     },
+    "/ready": {
+      "get": {
+        "summary": "Check if the API is ready to answer requests",
+        "responses": {
+          "200": {
+            "description": "It is ready"
+          },
+          "503": {
+            "description": "It is having problems"
+          }
+        }
+      }
+    },
     "/workflow/run": {
       "post": {
         "summary": "Execute a workflow synchronously",
