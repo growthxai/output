@@ -15,6 +15,7 @@ import { BusEventType } from '#consts';
 import { hashSourceCode } from './loader_tools.js';
 import { setupTelemetry } from './setup_telemetry.js';
 import './log_hooks.js';
+import { setupConnectionMonitor } from './connection_monitor.js';
 
 const log = createChildLogger( 'Worker' );
 
@@ -88,7 +89,11 @@ const callerDir = process.argv[2];
   setupTelemetry( { worker } );
 
   log.info( 'Running worker...' );
-  await Promise.all( [ worker.run(), startCatalog( { connection, namespace, catalog, catalogHash } ) ] );
+  await Promise.all( [
+    worker.run(),
+    startCatalog( { connection, namespace, catalog, catalogHash } ),
+    setupConnectionMonitor( { connection } )
+  ] );
 
   log.info( 'Closing connection...' );
   await connection.close();

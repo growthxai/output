@@ -3,8 +3,9 @@ import request from 'supertest';
 
 const RID = '11111111-2222-4333-8444-555555555555';
 
-const { mockClient, mockLogger } = vi.hoisted( () => ( {
-  mockClient: {
+const { mockClient, mockLogger, temporalInitState, mockTemporalInit } = vi.hoisted( () => {
+  const temporalInitState = { options: null };
+  const mockClient = {
     workflow: {
       run: vi.fn(),
       start: vi.fn(),
@@ -19,21 +20,32 @@ const { mockClient, mockLogger } = vi.hoisted( () => ( {
       signal: vi.fn(),
       executeUpdate: vi.fn()
     },
-    close: () => Promise.resolve()
-  },
-  mockLogger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    http: vi.fn()
-  }
-} ) );
+    close: () => Promise.resolve(),
+    isReady: vi.fn( () => true )
+  };
+  const mockTemporalInit = vi.fn( options => {
+    temporalInitState.options = options;
+    return Promise.resolve( mockClient );
+  } );
+
+  return {
+    mockClient,
+    mockTemporalInit,
+    temporalInitState,
+    mockLogger: {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      http: vi.fn()
+    }
+  };
+} );
 
 vi.mock( './clients/temporal/index.js', async () => {
   const { WorkflowNotFoundError, WorkflowNotCompletedError, WorkflowExecutionTimedOutError } =
     await import( './clients/errors.js' );
   return {
-    default: { init: () => Promise.resolve( mockClient ) },
+    default: { init: mockTemporalInit },
     WorkflowNotFoundError,
     WorkflowNotCompletedError,
     WorkflowExecutionTimedOutError
@@ -101,6 +113,24 @@ describe( 'API endpoints', () => {
 
   describe( 'GET /health', () => {
     it( 'returns 200 when healthy', () => request( `http://localhost:${PORT}` ).get( '/health' ).expect( 200 ) );
+  } );
+
+  it( 'logs and exits when the Temporal connection is lost', () => {
+    const exit = vi.spyOn( process, 'exit' ).mockImplementation( code => {
+      throw new Error( `process.exit ${code}` );
+    } );
+    const error = new Error( 'Temporal unavailable' );
+
+    expect( () => temporalInitState.options.onConnectionLost( error ) ).toThrow( 'process.exit 1' );
+
+    expect( mockLogger.error ).toHaveBeenCalledWith( 'Temporal connection lost', {
+      error: 'Temporal unavailable',
+      errorType: 'Error',
+      stack: error.stack
+    } );
+    expect( exit ).toHaveBeenCalledWith( 1 );
+
+    exit.mockRestore();
   } );
 
   describe( 'POST /heartbeat', () => {

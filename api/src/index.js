@@ -42,7 +42,12 @@ const resolveCatalogField = ( body, route ) => {
 
 const app = express();
 
-const client = await temporalClient.init().catch( e => {
+const client = await temporalClient.init( {
+  onConnectionLost: e => {
+    logger.error( 'Temporal connection lost', { error: e.message, errorType: e.constructor.name, stack: e.stack } );
+    process.exit( 1 );
+  }
+} ).catch( e => {
   logger.error( 'Failed to initialize Temporal client', { error: e.message, errorType: e.constructor.name, stack: e.stack } );
   process.exit( 1 );
 } );
@@ -74,9 +79,24 @@ app.get( '/health', ( _req, res ) => {
   res.sendStatus( 200 );
 } );
 
+/**
+ * @swagger
+ * /ready:
+ *   get:
+ *     summary: Check if the API is ready to answer requests
+ *     responses:
+ *       200:
+ *         description: It is ready
+ *       503:
+ *         description: It is having problems
+ */
+app.get( '/ready', ( _req, res ) => {
+  res.sendStatus( client.isReady() ? 200 : 503 );
+} );
+
 // Auth logic (skip in development mode or for /health endpoint)
 app.use( ( req, res, next ) => {
-  if ( !isProduction || req.url === '/health' ) {
+  if ( !isProduction || [ '/health', '/ready' ].includes( req.path ) ) {
     return next();
   }
 

@@ -65,6 +65,9 @@ vi.mock( './shutdown.js', () => ( { registerShutdown: registerShutdownMock } ) )
 const setupTelemetryMock = vi.fn();
 vi.mock( './setup_telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
 
+const setupConnectionMonitorMock = vi.fn().mockResolvedValue( undefined );
+vi.mock( './connection_monitor.js', () => ( { setupConnectionMonitor: setupConnectionMonitorMock } ) );
+
 vi.mock( './log_hooks.js', () => ( {} ) );
 
 const runState = { resolve: null };
@@ -133,6 +136,7 @@ describe( 'worker/index', () => {
     expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [] } );
     expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
     expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
+    expect( setupConnectionMonitorMock ).toHaveBeenCalledWith( { connection: mockConnection } );
     expect( startCatalogMock ).toHaveBeenCalledWith( {
       connection: mockConnection,
       namespace: configValues.namespace,
