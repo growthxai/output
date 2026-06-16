@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import temporalClient from './clients/temporal_client.js';
+import temporalClient from './clients/temporal/index.js';
 import { api as apiConfig, isProduction } from '#configs';
 import { logger } from '#logger';
 import requestIdMiddleware from './middleware/request_id.js';
@@ -289,7 +289,7 @@ app.use( ( req, res, next ) => {
  *           description: Name of the workflow definition
  *         status:
  *           type: string
- *           enum: [running, completed, failed, canceled, terminated, timed_out, continued]
+ *           enum: [running, completed, failed, canceled, terminated, timed_out, continued_as_new]
  *           description: Current run status
  *         startedAt:
  *           type: string
@@ -351,7 +351,7 @@ app.use( ( req, res, next ) => {
  *           description: Convenience totals aggregated from LLM and http usage and cost
  *         status:
  *           type: string
- *           enum: [completed, failed, canceled, terminated, timed_out, continued]
+ *           enum: [completed, failed, canceled, terminated, timed_out, continued_as_new]
  *           description: The workflow execution status
  *         error:
  *           type: string
@@ -527,7 +527,7 @@ app.post( '/workflow/run', async ( req, res ) => {
     timeout: z.coerce.number().int().min( 250 ).optional()
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/run' );
-  const result = await client.runWorkflow( parsed.workflowName, parsed.input, {
+  const result = await client.workflow.run( parsed.workflowName, parsed.input, {
     workflowId: parsed.workflowId,
     taskQueue: catalog,
     timeout: parsed.timeout
@@ -597,7 +597,7 @@ app.post( '/workflow/start', async ( req, res ) => {
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/start' );
 
-  res.json( await client.startWorkflow( parsed.workflowName, parsed.input, { workflowId: parsed.workflowId, taskQueue: catalog } ) );
+  res.json( await client.workflow.start( parsed.workflowName, parsed.input, { workflowId: parsed.workflowId, taskQueue: catalog } ) );
 } );
 
 /**
@@ -657,7 +657,7 @@ app.post( '/workflow/start', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 const statusHandler = async ( req, res ) => {
-  res.json( await client.getWorkflowStatus( req.params.id, readPinnedRunId( req ) ) );
+  res.json( await client.workflow.getStatus( req.params.id, readPinnedRunId( req ) ) );
 };
 app.get( '/workflow/:id/status', statusHandler );
 app.get( '/workflow/:id/runs/:rid/status', statusHandler );
@@ -894,7 +894,7 @@ const resetHandler = async ( req, res ) => {
     stepName: z.string(),
     reason: z.string().optional()
   } ).parse( req.body );
-  res.json( await client.resetWorkflow( req.params.id, stepName, reason, readPinnedRunId( req ) ) );
+  res.json( await client.workflow.reset( req.params.id, stepName, reason, readPinnedRunId( req ) ) );
 };
 app.post( '/workflow/:id/runs/:rid/reset', resetHandler );
 app.post(
@@ -1198,7 +1198,7 @@ app.get( '/workflow/:id/runs/:rid/history', historyHandler );
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/catalog/:id', async ( req, res ) => {
-  res.json( await client.queryWorkflow( req.params.id, 'get' ) );
+  res.json( await client.workflow.query( req.params.id, 'get' ) );
 } );
 
 /**
@@ -1225,7 +1225,7 @@ app.get( '/workflow/catalog/:id', async ( req, res ) => {
  *         $ref: '#/components/responses/InternalServerError'
  */
 app.get( '/workflow/catalog', async ( _req, res ) => {
-  res.json( await client.queryWorkflow( apiConfig.defaultCatalogWorkflow, 'get' ) );
+  res.json( await client.workflow.query( apiConfig.defaultCatalogWorkflow, 'get' ) );
 } );
 
 /**
@@ -1271,7 +1271,7 @@ app.get( '/workflow/runs', async ( req, res ) => {
     catalog: queryIdentifier.optional(),
     limit: z.coerce.number().int().min( 1 ).max( 1000 ).default( 100 )
   } ).parse( req.query );
-  res.json( await client.listWorkflowRuns( { workflowType, taskQueue: catalog, limit } ) );
+  res.json( await client.workflow.listRuns( { workflowType, taskQueue: catalog, limit } ) );
 } );
 
 /**
@@ -1311,7 +1311,7 @@ app.get( '/workflow/runs', async ( req, res ) => {
 app.post( '/workflow/:id/feedback', async ( req, res ) => {
   const { payload } = z.object( { payload: z.looseObject().optional() } ).optional().default( {} ).parse( req.body );
 
-  await client.sendSignal( req.params.id, 'resume', payload );
+  await client.workflow.signal( req.params.id, 'resume', payload );
   res.sendStatus( 200 );
 } );
 
@@ -1358,7 +1358,7 @@ app.post( '/workflow/:id/feedback', async ( req, res ) => {
 app.post( '/workflow/:id/signal/:signal', async ( req, res ) => {
   const { payload } = z.object( { payload: z.looseObject().optional() } ).optional().default( {} ).parse( req.body );
 
-  await client.sendSignal( req.params.id, req.params.signal, payload );
+  await client.workflow.signal( req.params.id, req.params.signal, payload );
   res.sendStatus( 200 );
 } );
 
@@ -1405,7 +1405,7 @@ app.post( '/workflow/:id/signal/:signal', async ( req, res ) => {
 app.post( '/workflow/:id/query/:query', async ( req, res ) => {
   const { payload } = z.object( { payload: z.looseObject().optional() } ).optional().default( {} ).parse( req.body );
 
-  const result = await client.sendQuery( req.params.id, req.params.query, payload );
+  const result = await client.workflow.query( req.params.id, req.params.query, payload );
   res.status( 200 ).json( result );
 } );
 
@@ -1452,7 +1452,7 @@ app.post( '/workflow/:id/query/:query', async ( req, res ) => {
 app.post( '/workflow/:id/update/:update', async ( req, res ) => {
   const { payload } = z.object( { payload: z.looseObject().optional() } ).optional().default( {} ).parse( req.body );
 
-  const result = await client.executeUpdate( req.params.id, req.params.update, payload );
+  const result = await client.workflow.executeUpdate( req.params.id, req.params.update, payload );
   res.status( 200 ).json( result );
 } );
 

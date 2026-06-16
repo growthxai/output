@@ -13,7 +13,7 @@ describe( 'isTerminalRunStatus', () => {
 
   it( 'returns false for in-progress states', () => {
     expect( isTerminalRunStatus( 'running' ) ).toBe( false );
-    expect( isTerminalRunStatus( 'continued' ) ).toBe( false );
+    expect( isTerminalRunStatus( 'continued_as_new' ) ).toBe( false );
   } );
 
   it( 'returns false for nullish input', () => {

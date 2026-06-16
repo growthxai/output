@@ -3,6 +3,7 @@ import { getWorkflowIdStatus, WorkflowStatusResponse } from '#api/generated/api.
 import { OUTPUT_FORMAT, OutputFormat } from '#utils/constants.js';
 import { formatOutput } from '#utils/output_formatter.js';
 import { handleApiError } from '#utils/error_handler.js';
+import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
 export default class WorkflowStatus extends Command {
   static override description = 'Get workflow execution status';
@@ -39,7 +40,11 @@ export default class WorkflowStatus extends Command {
       this.error( 'API returned invalid response', { exit: 1 } );
     }
 
-    const data = response.data as WorkflowStatusResponse;
+    const rawData = response.data as WorkflowStatusResponse;
+    const data = {
+      ...rawData,
+      status: normalizeWorkflowStatus( rawData.status )
+    } as WorkflowStatusResponse;
     const output = formatOutput(
       data,
       flags.format as OutputFormat,
