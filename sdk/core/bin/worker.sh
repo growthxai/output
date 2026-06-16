@@ -23,9 +23,9 @@ sdk_dir="$(dirname "$script_dir")"
 
 cd ${sdk_dir}
 
-# Route `output-worker --check` (or OUTPUT_WORKER_CHECK=1) to the bundle-check entry,
-# which validates the workflow bundle without a Temporal connection or worker config.
-if [[ " $* " == *" --check "* || "${OUTPUT_WORKER_CHECK}" == "1" || "${OUTPUT_WORKER_MODE}" == "check" ]]; then
+# Route `output-worker --check` to the bundle-check entry, which validates the
+# workflow bundle without a Temporal connection or worker config.
+if [[ " $* " == *" --check "* ]]; then
   exec node "${sdk_dir}/src/worker/check.js" "${invocation_dir}"
 fi
 
