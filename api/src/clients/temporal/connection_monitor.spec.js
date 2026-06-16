@@ -66,7 +66,7 @@ describe( 'ConnectionMonitor', () => {
     await flushPromises();
 
     expect( unhealthy ).toHaveBeenCalledWith( {
-      error: expect.objectContaining( { message: 'Connection health check timeout' } ),
+      error: expect.objectContaining( { message: 'Connection health check timed out' } ),
       failures: 1
     } );
     expect( monitor.failing ).toBe( true );

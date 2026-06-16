@@ -23,7 +23,7 @@ export class ConnectionMonitor {
     try {
       const timeout = delay( this.#CHECK_TIMEOUT_MS, 0, { ref: false } )
         .then( () => {
-          throw new Error( 'Connection health check timeout' );
+          throw new Error( 'Connection health check timed out' );
         } );
 
       const health = await Promise.race( [ this.#connection.healthService.check( {} ), timeout ] );
