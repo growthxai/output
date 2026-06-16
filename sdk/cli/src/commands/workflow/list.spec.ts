@@ -1,9 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockListScenarios = vi.fn().mockReturnValue( [] );
 
 vi.mock( '#utils/scenario_resolver.js', () => ( {
   listScenariosForWorkflow: mockListScenarios
+} ) );
+
+vi.mock( '#api/workflow_catalog.js', () => ( {
+  fetchWorkflowCatalog: vi.fn()
 } ) );
 
 describe( 'workflow list command', () => {
@@ -19,6 +24,13 @@ describe( 'workflow list command', () => {
       expect( WorkflowList.flags ).toHaveProperty( 'format' );
       expect( WorkflowList.flags ).toHaveProperty( 'detailed' );
       expect( WorkflowList.flags ).toHaveProperty( 'filter' );
+      expect( WorkflowList.flags ).toHaveProperty( 'catalog' );
+    } );
+
+    it( 'reads the catalog flag from OUTPUT_CATALOG_ID', async () => {
+      const WorkflowList = ( await import( './list.js' ) ).default;
+      expect( WorkflowList.flags.catalog.env ).toBe( 'OUTPUT_CATALOG_ID' );
+      expect( WorkflowList.flags.catalog.char ).toBe( 'c' );
     } );
 
     it( 'should have correct flag configuration', async () => {
@@ -139,5 +151,67 @@ describe( 'workflow list parsing', () => {
     const parsed = parseWorkflowForDisplay( mockWorkflow );
     expect( parsed.inputs ).toContain( 'user.name: string' );
     expect( parsed.inputs ).toContain( 'user.email: string' );
+  } );
+} );
+
+describe( 'formatWorkflowsAsList', () => {
+  it( 'appends aliases to the default list when present', async () => {
+    const { formatWorkflowsAsList } = await import( './list.js' );
+
+    const output = formatWorkflowsAsList( [
+      { name: 'galileoExtractKeyword', aliases: [ 'seoContentExtractKeywordWorkflow' ] }
+    ] );
+
+    expect( output ).toContain( '- galileoExtractKeyword (aliases: seoContentExtractKeywordWorkflow)' );
+  } );
+
+  it( 'omits the aliases segment when a workflow has none', async () => {
+    const { formatWorkflowsAsList } = await import( './list.js' );
+
+    const output = formatWorkflowsAsList( [ { name: 'simple' } ] );
+
+    expect( output ).toContain( '- simple' );
+    expect( output ).not.toContain( 'aliases:' );
+  } );
+} );
+
+describe( 'run() catalog resolution', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
+
+  const catalogWorkflows = [ { name: 'simple' } ];
+
+  const createCommand = async ( flagOverrides: Record<string, unknown> ) => {
+    const WorkflowList = ( await import( './list.js' ) ).default;
+    const cmd = new WorkflowList( [], {} as any );
+    cmd.log = vi.fn();
+    cmd.error = vi.fn( () => {
+      throw new Error( 'error called' );
+    } ) as any;
+    ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+      flags: { format: 'list', detailed: false, filter: undefined, catalog: undefined, ...flagOverrides }
+    } );
+    return cmd;
+  };
+
+  it( 'fetches a specific catalog by id when a catalog is provided', async () => {
+    const { fetchWorkflowCatalog } = await import( '#api/workflow_catalog.js' );
+    vi.mocked( fetchWorkflowCatalog ).mockResolvedValue( catalogWorkflows as any );
+
+    const cmd = await createCommand( { catalog: 'my-catalog' } );
+    await cmd.run();
+
+    expect( fetchWorkflowCatalog ).toHaveBeenCalledWith( 'my-catalog' );
+  } );
+
+  it( 'falls back to the default catalog when no catalog is provided', async () => {
+    const { fetchWorkflowCatalog } = await import( '#api/workflow_catalog.js' );
+    vi.mocked( fetchWorkflowCatalog ).mockResolvedValue( catalogWorkflows as any );
+
+    const cmd = await createCommand( { catalog: undefined } );
+    await cmd.run();
+
+    expect( fetchWorkflowCatalog ).toHaveBeenCalledWith( undefined );
   } );
 } );
