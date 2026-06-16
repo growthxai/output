@@ -18,7 +18,8 @@ vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { loadWorkflows, loadActivities, createWorkflowsEntryPoint } from './loader.js';
 import { webpackConfigHook } from './bundler_options.js';
-import { initInterceptors, workflowInterceptorModules } from './interceptors/index.js';
+import { initInterceptors } from './interceptors/index.js';
+import { workflowInterceptorModules } from './interceptors/modules.js';
 import { bundleWorkflows } from './bundle.js';
 
 describe( 'output-worker --check parity', () => {
