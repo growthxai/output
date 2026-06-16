@@ -11,6 +11,7 @@ import {
   findSharedActivitiesFromWorkflows,
   importComponents,
   findPackageRoot,
+  hashSourceCode,
   isPackageRoot,
   isPathDescendentFromNodeModules,
   resolveNodeModulesPath,
@@ -565,6 +566,41 @@ describe( 'findSharedActivitiesFromWorkflows', () => {
       { path: join( root, 'local', 'workflow.js' ) }
     ] );
     expect( found.map( f => f.path ).sort() ).toEqual( [ sharedEvaluator, sharedStep ].sort() );
+  } );
+} );
+
+describe( 'hashSourceCode', () => {
+  const writeSource = root => {
+    mkdirSync( join( root, 'src' ), { recursive: true } );
+    writeFileSync( join( root, 'package.json' ), JSON.stringify( { name: 'proj' } ) );
+    writeFileSync( join( root, 'src', 'workflow.js' ), 'export default {};\n' );
+  };
+
+  it( 'ignores excluded folders so accumulated run logs do not change the hash', async () => {
+    const baseline = join( TEMP_BASE, `hash-baseline-${Date.now()}` );
+    const withCruft = join( TEMP_BASE, `hash-cruft-${Date.now()}` );
+    writeSource( baseline );
+    writeSource( withCruft );
+
+    // The cruft tree is identical source plus large excluded artifacts that
+    // boot must not walk: local trace dumps under logs/ and build output under dist/.
+    for ( const excluded of [ 'logs', 'logs/runs', 'dist', 'node_modules' ] ) {
+      const dir = join( withCruft, excluded );
+      mkdirSync( dir, { recursive: true } );
+      writeFileSync( join( dir, 'dump.json' ), JSON.stringify( { blob: 'x'.repeat( 50_000 ) } ) );
+    }
+
+    expect( await hashSourceCode( withCruft ) ).toBe( await hashSourceCode( baseline ) );
+  } );
+
+  it( 'changes the hash when actual source changes', async () => {
+    const before = join( TEMP_BASE, `hash-src-before-${Date.now()}` );
+    const after = join( TEMP_BASE, `hash-src-after-${Date.now()}` );
+    writeSource( before );
+    writeSource( after );
+    writeFileSync( join( after, 'src', 'workflow.js' ), 'export default { changed: true };\n' );
+
+    expect( await hashSourceCode( after ) ).not.toBe( await hashSourceCode( before ) );
   } );
 } );
 
