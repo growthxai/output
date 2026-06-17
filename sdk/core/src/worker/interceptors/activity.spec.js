@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, Signal } from '#consts';
+import { ApplicationFailure } from '@temporalio/common';
+import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType } from '#consts';
 import { Attribute } from '#trace_attribute';
 
 const METADATA_ACCESS_SYMBOL = vi.hoisted( () => Symbol( '__metadata' ) );
-const workflowHandleMock = vi.hoisted( () => ( { signal: vi.fn() } ) );
-const getHandleMock = vi.hoisted( () => vi.fn( () => workflowHandleMock ) );
-const clientConstructorMock = vi.hoisted( () => vi.fn() );
-const logWarnMock = vi.hoisted( () => vi.fn() );
 const heartbeatMock = vi.hoisted( () => vi.fn() );
 const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async fn => fn() ) );
 const activityInfoMock = vi.hoisted( () => ( {
@@ -32,36 +29,24 @@ const workflowDetailsMock = vi.hoisted( () => ( {
   attempt: 1
 } ) );
 
-vi.mock( '@temporalio/activity', () => ( {
-  activityInfo: () => activityInfoMock,
-  Context: {
-    current: () => ( {
-      info: activityInfoMock,
-      heartbeat: heartbeatMock
-    } )
-  }
-} ) );
-
-vi.mock( '@temporalio/client', () => ( {
-  Client: class Client {
-    constructor( options ) {
-      clientConstructorMock( options );
+vi.mock( '@temporalio/activity', async importOriginal => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    activityInfo: () => activityInfoMock,
+    Context: {
+      current: () => ( {
+        info: activityInfoMock,
+        heartbeat: heartbeatMock
+      } )
     }
-
-    workflow = {
-      getHandle: getHandleMock
-    };
-  }
-} ) );
+  };
+} );
 
 vi.mock( '#async_storage', () => ( {
   Storage: {
     runWithContext: runWithContextMock
   }
-} ) );
-
-vi.mock( '#logger', () => ( {
-  createChildLogger: () => ( { warn: logWarnMock } )
 } ) );
 
 const addEventStartMock = vi.fn();
@@ -95,9 +80,6 @@ vi.mock( '../configs.js', () => ( {
   },
   get activityHeartbeatIntervalMs() {
     return parseInt( process.env.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS || '120000', 10 );
-  },
-  get namespace() {
-    return process.env.TEMPORAL_NAMESPACE || 'default';
   }
 } ) );
 
@@ -122,7 +104,6 @@ describe( 'ActivityExecutionInterceptor', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     activityInfoMock.workflowType = 'myWorkflow';
-    workflowHandleMock.signal.mockResolvedValue( undefined );
     vi.useFakeTimers();
     vi.resetModules();
     // Default: heartbeat enabled with 50ms interval for fast tests
@@ -167,7 +148,6 @@ describe( 'ActivityExecutionInterceptor', () => {
     } );
     expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'ok' }, traceInfo: traceInfoMock } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
-    expect( clientConstructorMock ).not.toHaveBeenCalled();
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
       expect.objectContaining( {
@@ -180,7 +160,6 @@ describe( 'ActivityExecutionInterceptor', () => {
         addAttribute: expect.any( Function )
       } )
     );
-    expect( getHandleMock ).not.toHaveBeenCalled();
   } );
 
   it( 'handles next returning a non-Promise value', async () => {
@@ -199,7 +178,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'does not signal collected attributes after successful execution', async () => {
+  it( 'returns collected aggregations after successful execution', async () => {
     runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
       ctx.addAttribute( httpRequestAttribute );
       return fn();
@@ -218,11 +197,9 @@ describe( 'ActivityExecutionInterceptor', () => {
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
 
-    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
-    expect( clientConstructorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'signals collected aggregations after failed execution', async () => {
+  it( 'stores collected aggregations in ApplicationFailure details after failed execution', async () => {
     runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
       ctx.addAttribute( httpRequestAttribute );
       return fn();
@@ -232,52 +209,106 @@ describe( 'ActivityExecutionInterceptor', () => {
     const error = new Error( 'step failed' );
     const next = vi.fn().mockRejectedValue( error );
 
-    await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
-
-    expect( clientConstructorMock ).toHaveBeenCalledWith( { connection: undefined, namespace: 'default' } );
-    expect( getHandleMock ).toHaveBeenCalledWith( 'wf-1' );
-    expect( workflowHandleMock.signal ).toHaveBeenCalledWith( Signal.SEND_AGGREGATIONS, {
-      cost: { total: 0 },
-      tokens: { total: 0 },
-      httpRequests: { total: 1 }
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
+    expect( thrown ).toBeInstanceOf( ApplicationFailure );
+    expect( thrown ).toMatchObject( {
+      message: 'step failed',
+      type: 'Error',
+      details: [ {
+        aggregations: {
+          cost: { total: 0 },
+          tokens: { total: 0 },
+          httpRequests: { total: 1 }
+        }
+      } ],
+      cause: error
     } );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.objectContaining( { error } ) );
     expect( addEventErrorMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'does not send fallback signal when failed execution collected no attributes', async () => {
-    const { ActivityExecutionInterceptor } = await import( './activity.js' );
-    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
-    const next = vi.fn().mockRejectedValue( new Error( 'step failed' ) );
-
-    await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
-
-    expect( workflowHandleMock.signal ).not.toHaveBeenCalled();
-    expect( clientConstructorMock ).not.toHaveBeenCalled();
-  } );
-
-  it( 'logs when fallback attribute signal fails', async () => {
-    const signalError = new Error( 'signal failed' );
-    workflowHandleMock.signal.mockRejectedValueOnce( signalError );
+  it( 'appends collected aggregations to existing failure details', async () => {
     runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
       ctx.addAttribute( httpRequestAttribute );
       return fn();
     } );
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
-    const next = vi.fn().mockRejectedValue( new Error( 'step failed' ) );
+    const error = new Error( 'step failed' );
+    error.details = [ { domain: { reason: 'bad-input' } } ];
+    const next = vi.fn().mockRejectedValue( error );
 
-    await expect( interceptor.execute( makeInput(), next ) ).rejects.toThrow( 'step failed' );
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
 
-    expect( logWarnMock ).toHaveBeenCalledWith( `Signal "${Signal.SEND_AGGREGATIONS}" failed`, expect.objectContaining( {
-      message: 'signal failed',
-      activityId: 'act-1',
-      activityType: 'myWorkflow#myStep',
-      workflowId: 'wf-1',
-      workflowType: 'myWorkflow',
-      runId: 'run-1'
-    } ) );
+    expect( thrown.details ).toEqual( [
+      { domain: { reason: 'bad-input' } },
+      {
+        aggregations: {
+          cost: { total: 0 },
+          tokens: { total: 0 },
+          httpRequests: { total: 1 }
+        }
+      }
+    ] );
+  } );
+
+  it( 'rethrows the original error when failed execution collected no attributes', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const error = new Error( 'step failed' );
+    const next = vi.fn().mockRejectedValue( error );
+
+    await expect( interceptor.execute( makeInput(), next ) ).rejects.toBe( error );
+  } );
+
+  it( 'rethrows the original error with existing details when failed execution collected no attributes', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const error = new Error( 'step failed' );
+    error.details = [ { domain: { reason: 'bad-input' } } ];
+    const next = vi.fn().mockRejectedValue( error );
+
+    await expect( interceptor.execute( makeInput(), next ) ).rejects.toBe( error );
+    expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
+  } );
+
+  it( 'wraps existing ApplicationFailure without creating a self-cause', async () => {
+    runWithContextMock.mockImplementationOnce( async ( fn, ctx ) => {
+      ctx.addAttribute( httpRequestAttribute );
+      return fn();
+    } );
+    const error = ApplicationFailure.create( {
+      message: 'application failed',
+      type: 'OriginalType',
+      nonRetryable: true,
+      details: [ { domain: { reason: 'bad-input' } } ]
+    } );
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const next = vi.fn().mockRejectedValue( error );
+
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
+
+    expect( thrown ).toBeInstanceOf( ApplicationFailure );
+    expect( thrown ).not.toBe( error );
+    expect( thrown.cause ).toBe( error );
+    expect( thrown.cause ).not.toBe( thrown );
+    expect( thrown ).toMatchObject( {
+      message: 'application failed',
+      type: 'OriginalType',
+      nonRetryable: true,
+      details: [
+        { domain: { reason: 'bad-input' } },
+        {
+          aggregations: {
+            cost: { total: 0 },
+            tokens: { total: 0 },
+            httpRequests: { total: 1 }
+          }
+        }
+      ]
+    } );
   } );
 
   it( 'records trace error event on failed execution', async () => {

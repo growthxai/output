@@ -6,7 +6,7 @@ import rewriteFnBodies from './rewrite_fn_bodies.js';
 const generate = generatorModule.default ?? generatorModule;
 
 describe( 'rewrite_fn_bodies', () => {
-  it( 'converts arrow to function and rewrites step/workflow calls', () => {
+  it( 'converts arrow to function and rewrites step calls without rewriting workflow calls', () => {
     const src = `
 const obj = {
   fn: async x => {
@@ -16,13 +16,13 @@ const obj = {
 }`;
     const ast = parse( src, 'file.js' );
     const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
-    const flowImports = [ { localName: 'FlowB', workflowName: 'flow.b' } ];
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [], flowImports } );
+    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [] } );
     expect( rewrote ).toBe( true );
 
-    const code = ast.program.body.map( n => n.type ).length; // smoke: ast mutated
-    expect( code ).toBeGreaterThan( 0 );
+    const { code } = generate( ast, { quotes: 'single' } );
+    expect( code ).toMatch( /this\.invokeStep\(([\"'])step\.a\1,\s*1\)/ );
+    expect( code ).toMatch( /FlowB\(2\)/ );
   } );
 
   it( 'rewrites evaluator calls to this.invokeEvaluator', () => {
@@ -34,14 +34,14 @@ const obj = {
 };`;
     const ast = parse( src, 'file.js' );
     const evaluatorImports = [ { localName: 'EvalA', evaluatorName: 'eval.a' } ];
-    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports, flowImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports } );
     expect( rewrote ).toBe( true );
   } );
 
   it( 'does nothing when no matching calls are present', () => {
     const src = [ 'const obj = { fn: function() { other(); } }' ].join( '\n' );
     const ast = parse( src, 'file.js' );
-    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports: [], flowImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports: [] } );
     expect( rewrote ).toBe( false );
   } );
 
@@ -66,7 +66,7 @@ const obj = {
     const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
     const evaluatorImports = [ { localName: 'EvalA', evaluatorName: 'eval.a' } ];
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports: [], evaluatorImports, flowImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports: [], evaluatorImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -105,7 +105,7 @@ const obj = {
 
     const ast = parse( src, 'file.js' );
     const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
-    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [], flowImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [] } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );

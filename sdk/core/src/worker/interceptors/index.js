@@ -4,11 +4,11 @@ import { ActivityExecutionInterceptor } from './activity.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 
-export const initInterceptors = ( { activities, workflows, connection } ) => ( {
+export const initInterceptors = ( { activities, workflows } ) => ( {
   workflowModules: [ join( __dirname, './workflow.js' ) ],
   activity: [
     () => ( {
-      inbound: new ActivityExecutionInterceptor( { activities, workflows, connection } )
+      inbound: new ActivityExecutionInterceptor( { activities, workflows } )
     } )
   ]
 } );

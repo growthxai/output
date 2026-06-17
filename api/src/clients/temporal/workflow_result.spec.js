@@ -20,12 +20,11 @@ describe( 'buildWorkflowResult', () => {
     mockExtractFailure.mockImplementation( error => ( { message: error.message, name: error.name } ) );
   } );
 
-  it( 'builds a successful result with output, trace, and aggregations', async () => {
+  it( 'builds a successful result with output and trace', async () => {
     const { buildWorkflowResult } = await import( './workflow_result.js' );
     const resultPayload = {
       output: { ok: true },
-      trace: { local: '/tmp/trace.json' },
-      aggregations: { tokens: { total: 10 } }
+      trace: { local: '/tmp/trace.json' }
     };
 
     const result = buildWorkflowResult( {
@@ -43,7 +42,6 @@ describe( 'buildWorkflowResult', () => {
       input: { input: true },
       output: { ok: true },
       trace: { local: '/tmp/trace.json' },
-      aggregations: { tokens: { total: 10 } },
       error: null,
       errorDetails: null
     } );
@@ -67,19 +65,17 @@ describe( 'buildWorkflowResult', () => {
       input: null,
       output: null,
       trace: null,
-      aggregations: null,
       error: null,
       errorDetails: null
     } );
   } );
 
-  it( 'overlays error trace, aggregations, message, and failure details when an error is provided', async () => {
+  it( 'overlays error trace, message, and failure details when an error is provided', async () => {
     const { buildWorkflowResult } = await import( './workflow_result.js' );
     const error = Object.assign( new Error( 'step failed' ), {
       name: 'WorkflowFailedError',
       details: {
-        trace: { local: '/tmp/error-trace.json' },
-        aggregations: { cost: { total: 1.25 } }
+        trace: { local: '/tmp/error-trace.json' }
       }
     } );
 
@@ -92,7 +88,6 @@ describe( 'buildWorkflowResult', () => {
     } );
 
     expect( mockExtractErrorDetail ).toHaveBeenCalledWith( error, 'trace' );
-    expect( mockExtractErrorDetail ).toHaveBeenCalledWith( error, 'aggregations' );
     expect( mockExtractErrorMessage ).toHaveBeenCalledWith( error );
     expect( mockExtractFailure ).toHaveBeenCalledWith( error );
     expect( result ).toEqual( {
@@ -102,7 +97,6 @@ describe( 'buildWorkflowResult', () => {
       input: { input: true },
       output: null,
       trace: { local: '/tmp/error-trace.json' },
-      aggregations: { cost: { total: 1.25 } },
       error: 'step failed',
       errorDetails: { message: 'step failed', name: 'WorkflowFailedError' }
     } );
@@ -112,8 +106,7 @@ describe( 'buildWorkflowResult', () => {
     const { buildWorkflowResult } = await import( './workflow_result.js' );
     const error = Object.assign( new Error( 'failed after partial result' ), {
       details: {
-        trace: { errorTrace: true },
-        aggregations: { errorAggregations: true }
+        trace: { errorTrace: true }
       }
     } );
 
@@ -124,8 +117,7 @@ describe( 'buildWorkflowResult', () => {
       input: null,
       result: {
         output: { partial: true },
-        trace: { resultTrace: true },
-        aggregations: { resultAggregations: true }
+        trace: { resultTrace: true }
       },
       error
     } );
@@ -133,7 +125,6 @@ describe( 'buildWorkflowResult', () => {
     expect( result ).toMatchObject( {
       output: { partial: true },
       trace: { errorTrace: true },
-      aggregations: { errorAggregations: true },
       error: 'failed after partial result'
     } );
   } );

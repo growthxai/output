@@ -53,23 +53,6 @@ curl http://localhost:3001/workflow/<workflow-id>/result
     "summary": "Enterprise software company focused on..."
   },
   "trace": { "destinations": {} },
-  "attributes": [
-    {
-      "type": "llm:usage",
-      "modelId": "anthropic/claude-3-5-sonnet",
-      "total": 0.0084,
-      "tokensUsed": 1200,
-      "usage": [
-        { "type": "input", "ppm": 3, "amount": 800, "total": 0.0024 },
-        { "type": "output", "ppm": 15, "amount": 400, "total": 0.006 }
-      ]
-    }
-  ],
-  "aggregations": {
-    "cost": { "total": 0.0084 },
-    "tokens": { "total": 1200, "input": 800, "output": 400 },
-    "httpRequests": { "total": 0 }
-  },
   "error": null
 }
 ```
@@ -82,13 +65,9 @@ curl http://localhost:3001/workflow/<workflow-id>/result
 | `input` | Original workflow input. |
 | `output` | Value returned by the workflow on success, or `null` on failure. |
 | `trace` | Trace metadata for the run, or `null` when unavailable. |
-| `attributes` | Durable workflow attributes collected during execution, such as LLM usage and HTTP cost/count attributes. |
-| `aggregations` | Convenience totals derived from `attributes`, including `cost.total`, `tokens.total`, and `httpRequests.total`. |
 | `error` | Error message on failure, otherwise `null`. |
 
-`attributes` are the primary data source for usage and cost details. Use `aggregations` when you only need high-level totals for billing, reporting, or dashboards.
-
-When a workflow fails after collecting attributes, the result still includes the available `trace`, `attributes`, and `aggregations` fields alongside the error message.
+When a workflow fails, the result includes `status: "failed"`, `output: null`, and an `error` message. Trace metadata may still be present when available.
 
 ## Interacting with Running Workflows
 

@@ -1,5 +1,5 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { validateExecuteInParallel } from './validations/static.js';
+import { validateExecuteInParallel } from './validations/index.js';
 
 /**
  * Execute jobs in parallel with optional concurrency limit.
