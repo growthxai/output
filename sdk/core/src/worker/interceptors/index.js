@@ -1,11 +1,8 @@
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'node:url';
 import { ActivityExecutionInterceptor } from './activity.js';
-
-const __dirname = dirname( fileURLToPath( import.meta.url ) );
+import { workflowInterceptorModules } from './modules.js';
 
 export const initInterceptors = ( { activities, workflows } ) => ( {
-  workflowModules: [ join( __dirname, './workflow.js' ) ],
+  workflowModules: workflowInterceptorModules,
   activity: [
     () => ( {
       inbound: new ActivityExecutionInterceptor( { activities, workflows } )
