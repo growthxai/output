@@ -4,7 +4,7 @@ import {
   findPackageRoot,
   isPathDescendentFromNodeModules,
   packageExposesWorkflows
-} from './loader_tools.js';
+} from './loader/tools.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const workerDir = __dirname; // sdk/core/src/worker

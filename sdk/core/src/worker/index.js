@@ -1,6 +1,9 @@
 import { Worker, NativeConnection } from '@temporalio/worker';
 import * as configs from './configs.js';
-import { loadActivities, loadHooks, loadWorkflows, createWorkflowsEntryPoint } from './loader.js';
+import { loadActivities } from './loader/activities.js';
+import { loadWorkflows } from './loader/workflows.js';
+import { loadHooks } from './loader/hooks.js';
+import { hashSourceCode } from './loader/tools.js';
 import { sinks } from './sinks.js';
 import { createCatalog } from './catalog_workflow/index.js';
 import { init as initTracing } from '#tracing';
@@ -12,7 +15,6 @@ import { CatalogJob } from './catalog_workflow/catalog_job.js';
 import { bootstrapFetchProxy } from './proxy.js';
 import { messageBus } from '#bus';
 import { BusEventType } from '#consts';
-import { hashSourceCode } from './loader_tools.js';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { runOnce } from '#utils';
@@ -49,16 +51,13 @@ const execute = async () => {
   await loadHooks( callerDir );
 
   log.info( 'Loading workflows...', { callerDir } );
-  const workflows = await loadWorkflows( callerDir );
+  const { workflows, entrypoint: workflowsPath } = await loadWorkflows( callerDir );
 
   log.info( 'Loading activities...', { callerDir } );
-  const activities = await loadActivities( callerDir, workflows );
+  const { activities } = await loadActivities( callerDir, workflows );
 
   messageBus.emit( BusEventType.WORKER_BEFORE_START );
   bootstrapFetchProxy();
-
-  log.info( 'Creating worker entry point...' );
-  const workflowsPath = createWorkflowsEntryPoint( workflows );
 
   log.info( 'Initializing tracing...' );
   await initTracing();

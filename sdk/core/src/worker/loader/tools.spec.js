@@ -1,10 +1,24 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
+
+const { workflowFileMatcherMock, sharedStepsDirMatcherMock, sharedEvaluatorsDirMatcherMock } = vi.hoisted( () => ( {
+  workflowFileMatcherMock: vi.fn(),
+  sharedStepsDirMatcherMock: vi.fn(),
+  sharedEvaluatorsDirMatcherMock: vi.fn()
+} ) );
+
+vi.mock( './matchers.js', () => ( {
+  staticMatchers: {
+    workflowFile: workflowFileMatcherMock,
+    sharedStepsDir: sharedStepsDirMatcherMock,
+    sharedEvaluatorsDir: sharedEvaluatorsDirMatcherMock
+  }
+} ) );
+
 import {
-  activityMatchersBuilder,
   matchFiles,
   findWorkflowsInNodeModules,
   findWorkflowsInPackages,
@@ -16,11 +30,17 @@ import {
   isPathDescendentFromNodeModules,
   resolveNodeModulesPath,
   resolveSymlink,
-  staticMatchers,
   packageExposesWorkflows
-} from './loader_tools.js';
+} from './tools.js';
 
 const TEMP_BASE = join( process.cwd(), 'sdk/core/temp_test_modules' );
+
+beforeEach( () => {
+  vi.clearAllMocks();
+  workflowFileMatcherMock.mockImplementation( path => path.endsWith( `${sep}workflow.js` ) );
+  sharedStepsDirMatcherMock.mockImplementation( path => path.includes( `${sep}shared${sep}steps${sep}` ) && path.endsWith( '.js' ) );
+  sharedEvaluatorsDirMatcherMock.mockImplementation( path => path.includes( `${sep}shared${sep}evaluators${sep}` ) && path.endsWith( '.js' ) );
+} );
 
 afterEach( () => {
   rmSync( TEMP_BASE, { recursive: true, force: true } );
@@ -156,36 +176,6 @@ describe( 'node_modules package resource helpers', () => {
     writeFileSync( deepFile, 'export const x = 1;\n' );
 
     expect( findPackageRoot( deepFile ) ).toBe( null );
-  } );
-} );
-
-describe( 'activityMatchersBuilder', () => {
-  const base = `${sep}app${sep}proj`;
-
-  it( 'stepsFile matches only steps.js at base', () => {
-    const m = activityMatchersBuilder( base );
-    expect( m.stepsFile( `${base}${sep}steps.js` ) ).toBe( true );
-    expect( m.stepsFile( `${base}${sep}nested${sep}steps.js` ) ).toBe( false );
-  } );
-
-  it( 'evaluatorsFile matches only evaluators.js at base', () => {
-    const m = activityMatchersBuilder( base );
-    expect( m.evaluatorsFile( `${base}${sep}evaluators.js` ) ).toBe( true );
-    expect( m.evaluatorsFile( `${base}${sep}sub${sep}evaluators.js` ) ).toBe( false );
-  } );
-
-  it( 'stepsDir matches js under steps/', () => {
-    const m = activityMatchersBuilder( base );
-    expect( m.stepsDir( `${base}${sep}steps${sep}a.js` ) ).toBe( true );
-    expect( m.stepsDir( `${base}${sep}steps${sep}sub${sep}b.js` ) ).toBe( true );
-    expect( m.stepsDir( `${base}${sep}other${sep}a.js` ) ).toBe( false );
-  } );
-
-  it( 'evaluatorsDir matches js under evaluators/', () => {
-    const m = activityMatchersBuilder( base );
-    expect( m.evaluatorsDir( `${base}${sep}evaluators${sep}x.js` ) ).toBe( true );
-    expect( m.evaluatorsDir( `${base}${sep}evaluators${sep}y${sep}z.js` ) ).toBe( true );
-    expect( m.evaluatorsDir( `${base}${sep}steps${sep}x.js` ) ).toBe( false );
   } );
 } );
 
@@ -601,63 +591,5 @@ describe( 'hashSourceCode', () => {
     writeFileSync( join( after, 'src', 'workflow.js' ), 'export default { changed: true };\n' );
 
     expect( await hashSourceCode( after ) ).not.toBe( await hashSourceCode( before ) );
-  } );
-} );
-
-describe( 'staticMatchers', () => {
-  describe( 'workflowFile', () => {
-    it( 'matches paths ending with path separator and workflow.js', () => {
-      expect( staticMatchers.workflowFile( `${sep}x${sep}y${sep}workflow.js` ) ).toBe( true );
-    } );
-
-    it( 'rejects workflow.ts', () => {
-      expect( staticMatchers.workflowFile( `${sep}a${sep}workflow.ts` ) ).toBe( false );
-    } );
-  } );
-
-  describe( 'workflowPathHasShared', () => {
-    it( 'matches workflow.js under a shared folder segment', () => {
-      expect( staticMatchers.workflowPathHasShared( `${sep}foo${sep}shared${sep}workflow.js` ) ).toBe( true );
-    } );
-
-    it( 'rejects workflow.js not under shared', () => {
-      expect( staticMatchers.workflowPathHasShared( `${sep}foo${sep}workflow.js` ) ).toBe( false );
-    } );
-  } );
-
-  describe( 'sharedStepsDir', () => {
-    it( 'matches .js files inside shared/steps/', () => {
-      expect( staticMatchers.sharedStepsDir( `${sep}app${sep}dist${sep}shared${sep}steps${sep}tools.js` ) ).toBe( true );
-    } );
-
-    it( 'matches .js files in nested subdirectories of shared/steps/', () => {
-      expect( staticMatchers.sharedStepsDir( `${sep}app${sep}dist${sep}shared${sep}steps${sep}utils${sep}helper.js` ) ).toBe( true );
-    } );
-
-    it( 'rejects .ts files inside shared/steps/', () => {
-      expect( staticMatchers.sharedStepsDir( `${sep}app${sep}src${sep}shared${sep}steps${sep}tools.ts` ) ).toBe( false );
-    } );
-
-    it( 'rejects non-.js files inside shared/steps/', () => {
-      expect( staticMatchers.sharedStepsDir( `${sep}app${sep}dist${sep}shared${sep}steps${sep}readme.md` ) ).toBe( false );
-    } );
-  } );
-
-  describe( 'sharedEvaluatorsDir', () => {
-    it( 'matches .js files inside shared/evaluators/', () => {
-      expect( staticMatchers.sharedEvaluatorsDir( `${sep}app${sep}dist${sep}shared${sep}evaluators${sep}quality.js` ) ).toBe( true );
-    } );
-
-    it( 'matches .js files in nested subdirectories of shared/evaluators/', () => {
-      expect( staticMatchers.sharedEvaluatorsDir( `${sep}app${sep}dist${sep}shared${sep}evaluators${sep}utils${sep}helper.js` ) ).toBe( true );
-    } );
-
-    it( 'rejects .ts files inside shared/evaluators/', () => {
-      expect( staticMatchers.sharedEvaluatorsDir( `${sep}app${sep}src${sep}shared${sep}evaluators${sep}quality.ts` ) ).toBe( false );
-    } );
-
-    it( 'rejects non-.js files inside shared/evaluators/', () => {
-      expect( staticMatchers.sharedEvaluatorsDir( `${sep}app${sep}dist${sep}shared${sep}evaluators${sep}readme.md` ) ).toBe( false );
-    } );
   } );
 } );

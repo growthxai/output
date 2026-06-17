@@ -33,7 +33,7 @@ describe( 'webpackConfigHook loader excludes', () => {
 
   it( 'excludes worker and interface internals', () => {
     for ( const exclude of buildExcludes() ) {
-      expect( exclude( join( __dirname, 'loader.js' ) ) ).toBe( true );
+      expect( exclude( join( __dirname, 'loader', 'tools.js' ) ) ).toBe( true );
       expect( exclude( join( __dirname, '..', 'interface', 'index.js' ) ) ).toBe( true );
     }
   } );

@@ -1,8 +1,9 @@
-import { dirname, resolve, sep } from 'path';
-import { pathToFileURL } from 'url';
+import { join, dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { METADATA_ACCESS_SYMBOL } from '#consts';
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, mkdirSync, writeFileSync } from 'node:fs';
 import { hashElement } from 'folder-hash';
+import { staticMatchers } from './matchers.js';
 
 /**
  * Returns the real path for symlink
@@ -18,69 +19,6 @@ export const resolveSymlink = link => {
   } catch {
     return null;
   }
-};
-
-/**
- * Returns matchers that need to be built using a relative path
- *
- * @param {string} path
- * @returns {object} The object containing the matchers
- */
-export const activityMatchersBuilder = path => ( {
-  /**
-   * Matches a file called steps.js, located at the path
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  stepsFile: v => v === `${path}${sep}steps.js`,
-  /**
-   * Matches a file called evaluators.js, located at the path
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  evaluatorsFile: v => v === `${path}${sep}evaluators.js`,
-  /**
-   * Matches all files on any levels inside a folder called steps/, located at the path
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  stepsDir: v => v.startsWith( `${path}${sep}steps${sep}` ),
-  /**
-   * Matches all files on any levels inside a folder called evaluators/, located at the path
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  evaluatorsDir: v => v.startsWith( `${path}${sep}evaluators${sep}` )
-} );
-
-/**
- * Matchers that can be used to access conditions without initializing them
- */
-export const staticMatchers = {
-  /**
-   * Matches a workflow.js file
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  workflowFile: v => v.endsWith( `${sep}workflow.js` ),
-  /**
-   * Matches a workflow.js that is inside a shared folder: eg foo/shared/workflow.js
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  workflowPathHasShared: v => v.endsWith( `${sep}shared${sep}workflow.js` ),
-  /**
-   * Matches the shared folder for steps src/shared/steps/../step_file.js
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  sharedStepsDir: v => v.includes( `${sep}shared${sep}steps${sep}` ) && v.endsWith( '.js' ),
-  /**
-   * Matches the shared folder for evaluators src/shared/evaluators/../evaluator_file.js
-   * @param {string} path - Path to test
-   * @returns {boolean}
-   */
-  sharedEvaluatorsDir: v => v.includes( `${sep}shared${sep}evaluators${sep}` ) && v.endsWith( '.js' )
 };
 
 /**
@@ -326,4 +264,18 @@ export const hashSourceCode = async rootDir => {
   } catch ( error ) {
     throw new Error( `Error calculating hash from "${error}": ${error.message}`, { cause: error } );
   }
+};
+
+/**
+ * Creates a file in the temp folder and returns its path
+ * @returns {string} Folder
+ */
+export const writeFileInTempDir = ( content, name ) => {
+  const here = dirname( fileURLToPath( import.meta.url ) );
+  const tempDir = join( here, '..', 'temp' );
+  mkdirSync( tempDir, { recursive: true } );
+
+  const filename = join( tempDir, name );
+  writeFileSync( filename, content, 'utf-8' );
+  return filename;
 };

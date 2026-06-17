@@ -4,9 +4,10 @@ import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#utils';
 import { buildApplicationFailureWithDetails } from '#internal_utils/errors';
 import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
+import { createWorkflowDetails } from '#internal_utils/temporal_context';
+
 // this is a dynamic generated file with activity configs overwrites
 import stepOptions from '../temp/__activity_options.js';
-import { createWorkflowDetails } from '#internal_utils/temporal_context';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
