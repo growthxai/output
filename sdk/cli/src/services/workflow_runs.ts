@@ -2,6 +2,7 @@
  * Workflow runs service for fetching workflow run data from the API
  */
 import { getWorkflowRuns, type WorkflowRunInfo, type WorkflowRunsResponse } from '#api/generated/api.js';
+import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
 export type WorkflowRun = WorkflowRunInfo;
 
@@ -42,8 +43,12 @@ export async function fetchWorkflowRuns( options: FetchWorkflowRunsOptions = {} 
   }
 
   const data = response.data as WorkflowRunsResponse;
+  const runs = ( data.runs || [] ).map( run => ( {
+    ...run,
+    status: normalizeWorkflowStatus( run.status )
+  } ) );
   return {
-    runs: data.runs || [],
+    runs,
     count: data.count || 0
   };
 }

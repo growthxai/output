@@ -79,20 +79,21 @@ export type WorkflowContext<
 };
 
 /**
- * Configuration for workflow invocations.
+ * Options for workflow invocations.
  *
  * Allows overriding Temporal Activity options for this workflow.
  */
-export type WorkflowInvocationConfiguration<Context extends WorkflowContext = WorkflowContext> = {
+export type WorkflowInvocationOptions<Context extends WorkflowContext = WorkflowContext> = {
 
   /**
    * Temporal activity options for this invocation (overrides the workflow's default activity options).
    */
-  options?: TemporalActivityOptions,
+  activityOptions?: TemporalActivityOptions,
 
   /**
-   * Configures whether this workflow runs detached.
-   * Detached workflows called without explicitly awaiting the result are "fire-and-forget" and may outlive the parent.
+   * Configures whether this workflow runs detached:
+   * - `detached=true` maps to `ParentClosePolicy.ABANDON`: if parent closes before child, the child keeps executing.
+   * - `detached=false` maps to `ParentClosePolicy.TERMINATE`: if parent closes before child, the child is terminated.
    */
   detached?: boolean,
 
@@ -140,19 +141,19 @@ export type WorkflowFunction<
  *
  * It accepts the same input and returns the same value, calling the user function inside.
  *
- * The second argument is a WorkflowInvocationConfiguration object, allowing workflows configuration overwrite.
+ * The second argument is a WorkflowInvocationOptions object, allowing workflows configuration overwrite.
  *
  * It adds input and output validation based on the `inputSchema`, `outputSchema`.
  *
  * @param input - The workflow input; it matches the schema defined by `inputSchema`.
- * @param config - Additional configuration for the invocation.
+ * @param options - Additional options for the invocation.
  * @returns A value matching the schema defined by `outputSchema`.
  */
 export type WorkflowFunctionWrapper<WorkflowFunction> =
   [Parameters<WorkflowFunction>[0]] extends [undefined | null] ?
-    ( input?: undefined | null, config?: WorkflowInvocationConfiguration ) =>
+    ( input?: undefined | null, options?: WorkflowInvocationOptions ) =>
     ReturnType<WorkflowFunction> :
-    ( input: Parameters<WorkflowFunction>[0], config?: WorkflowInvocationConfiguration ) =>
+    ( input: Parameters<WorkflowFunction>[0], options?: WorkflowInvocationOptions ) =>
     ReturnType<WorkflowFunction>;
 
 /**

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { getWorkflowCatalog, type GetWorkflowCatalog200 } from '#api/generated/api.js';
+import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
 import { getWorkflowsBasePath } from '#utils/paths.js';
 
 const SCENARIOS_DIR = 'scenarios';
@@ -52,19 +52,9 @@ export function findWorkflowDirectoryFromPath(
 
 async function fetchWorkflowPath( workflowName: string ): Promise<string | null> {
   try {
-    const response = await getWorkflowCatalog();
-    const data = response?.data as GetWorkflowCatalog200 | undefined;
-    const workflows = data?.workflows;
-    if ( !workflows ) {
-      return null;
-    }
-
+    const workflows = await fetchWorkflowCatalog();
     const workflow = workflows.find( w => w.name === workflowName );
-    if ( !workflow ) {
-      return null;
-    }
-
-    return workflow.path ?? null;
+    return workflow?.path ?? null;
   } catch {
     return null;
   }

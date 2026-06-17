@@ -266,7 +266,7 @@
               "canceled",
               "terminated",
               "timed_out",
-              "continued"
+              "continued_as_new"
             ],
             "description": "Current run status"
           },
@@ -353,12 +353,6 @@
           "trace": {
             "$ref": "#/components/schemas/TraceInfo"
           },
-          "aggregations": {
-            "type": "object",
-            "nullable": true,
-            "additionalProperties": true,
-            "description": "Convenience totals aggregated from LLM and http usage and cost"
-          },
           "status": {
             "type": "string",
             "enum": [
@@ -367,7 +361,7 @@
               "canceled",
               "terminated",
               "timed_out",
-              "continued"
+              "continued_as_new"
             ],
             "description": "The workflow execution status"
           },

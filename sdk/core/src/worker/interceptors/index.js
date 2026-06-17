@@ -1,11 +1,11 @@
 import { ActivityExecutionInterceptor } from './activity.js';
 import { workflowInterceptorModules } from './modules.js';
 
-export const initInterceptors = ( { activities, workflows, connection } ) => ( {
+export const initInterceptors = ( { activities, workflows } ) => ( {
   workflowModules: workflowInterceptorModules,
   activity: [
     () => ( {
-      inbound: new ActivityExecutionInterceptor( { activities, workflows, connection } )
+      inbound: new ActivityExecutionInterceptor( { activities, workflows } )
     } )
   ]
 } );

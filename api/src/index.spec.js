@@ -5,19 +5,20 @@ const RID = '11111111-2222-4333-8444-555555555555';
 
 const { mockClient, mockLogger } = vi.hoisted( () => ( {
   mockClient: {
-    runWorkflow: vi.fn(),
-    startWorkflow: vi.fn(),
-    getWorkflowStatus: vi.fn(),
-    stopWorkflow: vi.fn(),
-    terminateWorkflow: vi.fn(),
-    getWorkflowResult: vi.fn(),
-    getWorkflowHistory: vi.fn(),
-    resetWorkflow: vi.fn(),
-    queryWorkflow: vi.fn(),
-    listWorkflowRuns: vi.fn(),
-    sendSignal: vi.fn(),
-    sendQuery: vi.fn(),
-    executeUpdate: vi.fn(),
+    workflow: {
+      run: vi.fn(),
+      start: vi.fn(),
+      getStatus: vi.fn(),
+      stop: vi.fn(),
+      terminate: vi.fn(),
+      getResult: vi.fn(),
+      getHistory: vi.fn(),
+      reset: vi.fn(),
+      query: vi.fn(),
+      listRuns: vi.fn(),
+      signal: vi.fn(),
+      executeUpdate: vi.fn()
+    },
     close: () => Promise.resolve()
   },
   mockLogger: {
@@ -28,7 +29,7 @@ const { mockClient, mockLogger } = vi.hoisted( () => ( {
   }
 } ) );
 
-vi.mock( './clients/temporal_client.js', async () => {
+vi.mock( './clients/temporal/index.js', async () => {
   const { WorkflowNotFoundError, WorkflowNotCompletedError, WorkflowExecutionTimedOutError } =
     await import( './clients/errors.js' );
   return {
@@ -68,13 +69,13 @@ describe( 'API endpoints', () => {
 
   beforeEach( () => {
     vi.clearAllMocks();
-    mockClient.runWorkflow.mockResolvedValue( { workflowId: 'run-1', runId: 'r1', output: null, trace: null, status: 'completed', error: null } );
-    mockClient.startWorkflow.mockResolvedValue( { workflowId: 'start-1', runId: 'r-start' } );
-    mockClient.getWorkflowStatus.mockResolvedValue( { workflowId: 'w1', runId: 'r1', status: 'running', startedAt: 0, completedAt: null } );
-    mockClient.stopWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
-    mockClient.terminateWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
-    mockClient.resetWorkflow.mockResolvedValue( { workflowId: 'w1', runId: 'new-run-123' } );
-    mockClient.getWorkflowResult.mockResolvedValue( {
+    mockClient.workflow.run.mockResolvedValue( { workflowId: 'run-1', runId: 'r1', output: null, trace: null, status: 'completed', error: null } );
+    mockClient.workflow.start.mockResolvedValue( { workflowId: 'start-1', runId: 'r-start' } );
+    mockClient.workflow.getStatus.mockResolvedValue( { workflowId: 'w1', runId: 'r1', status: 'running', startedAt: 0, completedAt: null } );
+    mockClient.workflow.stop.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
+    mockClient.workflow.terminate.mockResolvedValue( { workflowId: 'w1', runId: 'r1' } );
+    mockClient.workflow.reset.mockResolvedValue( { workflowId: 'w1', runId: 'new-run-123' } );
+    mockClient.workflow.getResult.mockResolvedValue( {
       workflowId: 'w1',
       runId: 'r1',
       status: 'completed',
@@ -83,7 +84,7 @@ describe( 'API endpoints', () => {
       trace: { destinations: { local: '/tmp/trace.json', remote: null } },
       error: null
     } );
-    mockClient.getWorkflowHistory.mockResolvedValue( {
+    mockClient.workflow.getHistory.mockResolvedValue( {
       workflow: {
         workflowId: 'w1', runId: 'run-1', status: 'running',
         startTime: '2024-04-15T12:00:00.000Z', closeTime: null,
@@ -92,11 +93,10 @@ describe( 'API endpoints', () => {
       events: [ { eventId: '1', eventTypeName: 'WORKFLOW_EXECUTION_STARTED' } ],
       nextPageToken: null
     } );
-    mockClient.queryWorkflow.mockResolvedValue( { workflows: [] } );
-    mockClient.listWorkflowRuns.mockResolvedValue( { runs: [] } );
-    mockClient.sendSignal.mockResolvedValue( undefined );
-    mockClient.sendQuery.mockResolvedValue( { data: null } );
-    mockClient.executeUpdate.mockResolvedValue( { result: null } );
+    mockClient.workflow.query.mockResolvedValue( { workflows: [] } );
+    mockClient.workflow.listRuns.mockResolvedValue( { runs: [] } );
+    mockClient.workflow.signal.mockResolvedValue( undefined );
+    mockClient.workflow.executeUpdate.mockResolvedValue( { result: null } );
   } );
 
   describe( 'GET /health', () => {
@@ -114,7 +114,7 @@ describe( 'API endpoints', () => {
         .send( { workflowName: 'MyWorkflow', input: { x: 1 } } )
         .expect( 200 );
       expect( res.body ).toMatchObject( { workflowId: 'run-1', status: 'completed' } );
-      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', { x: 1 }, expect.any( Object ) );
+      expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', { x: 1 }, expect.any( Object ) );
     } );
 
     it( 'forwards catalog body field as taskQueue to runWorkflow', async () => {
@@ -122,7 +122,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/run' )
         .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat' } )
         .expect( 200 );
-      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
     } );
 
     it( 'accepts deprecated taskQueue body field, forwards as taskQueue, and warns', async () => {
@@ -130,7 +130,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/run' )
         .send( { workflowName: 'MyWorkflow', input: {}, taskQueue: 'sepcat' } )
         .expect( 200 );
-      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
       expect( mockLogger.warn ).toHaveBeenCalledWith(
         'Deprecated body field',
         expect.objectContaining( { field: 'taskQueue', successor: 'catalog', route: '/workflow/run' } )
@@ -142,14 +142,14 @@ describe( 'API endpoints', () => {
         .post( '/workflow/run' )
         .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'wins', taskQueue: 'loses' } )
         .expect( 200 );
-      expect( mockClient.runWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'wins' } ) );
+      expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'wins' } ) );
     } );
 
     it( 'validation error returns 400', async () => {
       const res = await request( `http://localhost:${PORT}` ).post( '/workflow/run' ).send( { input: { x: 1 } } ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError', message: 'Invalid Payload' } );
       expect( res.body.issues ).toBeDefined();
-      expect( mockClient.runWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.run ).not.toHaveBeenCalled();
     } );
 
     it( 'rejects catalog containing characters that could break the visibility query', async () => {
@@ -157,7 +157,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/run' )
         .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat" OR "x' } )
         .expect( 400 );
-      expect( mockClient.runWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.run ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -168,7 +168,7 @@ describe( 'API endpoints', () => {
         .send( { workflowName: 'MyWorkflow', input: {} } )
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'start-1', runId: 'r-start' } );
-      expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.any( Object ) );
+      expect( mockClient.workflow.start ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.any( Object ) );
     } );
 
     it( 'forwards catalog body field as taskQueue to startWorkflow', async () => {
@@ -176,7 +176,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/start' )
         .send( { workflowName: 'MyWorkflow', input: {}, catalog: 'sepcat' } )
         .expect( 200 );
-      expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockClient.workflow.start ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
     } );
 
     it( 'accepts deprecated taskQueue body field, forwards as taskQueue, and warns', async () => {
@@ -184,7 +184,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/start' )
         .send( { workflowName: 'MyWorkflow', input: {}, taskQueue: 'sepcat' } )
         .expect( 200 );
-      expect( mockClient.startWorkflow ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
+      expect( mockClient.workflow.start ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'sepcat' } ) );
       expect( mockLogger.warn ).toHaveBeenCalledWith(
         'Deprecated body field',
         expect.objectContaining( { field: 'taskQueue', successor: 'catalog', route: '/workflow/start' } )
@@ -193,7 +193,7 @@ describe( 'API endpoints', () => {
 
     it( 'validation error returns 400', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/start' ).send( {} ).expect( 400 );
-      expect( mockClient.startWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.start ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -201,20 +201,20 @@ describe( 'API endpoints', () => {
     it( 'returns workflow status for given id', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/status' ).expect( 200 );
       expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'running' } );
-      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', undefined );
+      expect( mockClient.workflow.getStatus ).toHaveBeenCalledWith( 'w1', undefined );
     } );
   } );
 
   describe( 'GET /workflow/:id/runs/:rid/status (pinned)', () => {
     it( 'forwards the pinned runId to the client', async () => {
       await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/status` ).expect( 200 );
-      expect( mockClient.getWorkflowStatus ).toHaveBeenCalledWith( 'w1', RID );
+      expect( mockClient.workflow.getStatus ).toHaveBeenCalledWith( 'w1', RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/status' ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError' } );
-      expect( mockClient.getWorkflowStatus ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.getStatus ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -222,12 +222,12 @@ describe( 'API endpoints', () => {
     it( 'returns workflowId after stopping pinned run', async () => {
       const res = await request( `http://localhost:${PORT}` ).patch( `/workflow/w1/runs/${RID}/stop` ).expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
-      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', RID );
+      expect( mockClient.workflow.stop ).toHaveBeenCalledWith( 'w1', RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/runs/not-a-uuid/stop' ).expect( 400 );
-      expect( mockClient.stopWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.stop ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -235,7 +235,7 @@ describe( 'API endpoints', () => {
     it( 'targets the latest run and sets deprecation headers', async () => {
       const res = await request( `http://localhost:${PORT}` ).patch( '/workflow/w1/stop' ).expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'r1' } );
-      expect( mockClient.stopWorkflow ).toHaveBeenCalledWith( 'w1', undefined );
+      expect( mockClient.workflow.stop ).toHaveBeenCalledWith( 'w1', undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
       expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/stop' );
@@ -254,17 +254,17 @@ describe( 'API endpoints', () => {
         .send( { reason: 'test reason' } )
         .expect( 200 );
       expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', RID );
+      expect( mockClient.workflow.terminate ).toHaveBeenCalledWith( 'w1', 'test reason', RID );
     } );
 
     it( 'works without body', async () => {
       await request( `http://localhost:${PORT}` ).post( `/workflow/w1/runs/${RID}/terminate` ).expect( 200 );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', undefined, RID );
+      expect( mockClient.workflow.terminate ).toHaveBeenCalledWith( 'w1', undefined, RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/runs/not-a-uuid/terminate' ).expect( 400 );
-      expect( mockClient.terminateWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.terminate ).not.toHaveBeenCalled();
     } );
 
     it( 'validation error when reason is not string returns 400', async () => {
@@ -272,7 +272,7 @@ describe( 'API endpoints', () => {
         .post( `/workflow/w1/runs/${RID}/terminate` )
         .send( { reason: 123 } )
         .expect( 400 );
-      expect( mockClient.terminateWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.terminate ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -283,7 +283,7 @@ describe( 'API endpoints', () => {
         .send( { reason: 'test reason' } )
         .expect( 200 );
       expect( res.body ).toEqual( { terminated: true, workflowId: 'w1', runId: 'r1' } );
-      expect( mockClient.terminateWorkflow ).toHaveBeenCalledWith( 'w1', 'test reason', undefined );
+      expect( mockClient.workflow.terminate ).toHaveBeenCalledWith( 'w1', 'test reason', undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
       expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/terminate' );
@@ -301,7 +301,7 @@ describe( 'API endpoints', () => {
         .send( { stepName: 'generateBlogPost', reason: 'retry with new prompt' } )
         .expect( 200 );
       expect( res.body ).toEqual( { workflowId: 'w1', runId: 'new-run-123' } );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt', RID );
+      expect( mockClient.workflow.reset ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', 'retry with new prompt', RID );
     } );
 
     it( 'works without reason', async () => {
@@ -309,7 +309,7 @@ describe( 'API endpoints', () => {
         .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { stepName: 'generateBlogPost' } )
         .expect( 200 );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, RID );
+      expect( mockClient.workflow.reset ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
@@ -317,7 +317,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/w1/runs/not-a-uuid/reset' )
         .send( { stepName: 'generateBlogPost' } )
         .expect( 400 );
-      expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.reset ).not.toHaveBeenCalled();
     } );
 
     it( 'validation error when stepName is missing returns 400', async () => {
@@ -325,7 +325,7 @@ describe( 'API endpoints', () => {
         .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { reason: 'no step' } )
         .expect( 400 );
-      expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.reset ).not.toHaveBeenCalled();
     } );
 
     it( 'validation error when stepName is not a string returns 400', async () => {
@@ -333,7 +333,7 @@ describe( 'API endpoints', () => {
         .post( `/workflow/w1/runs/${RID}/reset` )
         .send( { stepName: 123 } )
         .expect( 400 );
-      expect( mockClient.resetWorkflow ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.reset ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -343,7 +343,7 @@ describe( 'API endpoints', () => {
         .post( '/workflow/w1/reset' )
         .send( { stepName: 'generateBlogPost' } )
         .expect( 200 );
-      expect( mockClient.resetWorkflow ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
+      expect( mockClient.workflow.reset ).toHaveBeenCalledWith( 'w1', 'generateBlogPost', undefined, undefined );
       expect( res.headers.deprecation ).toBe( 'true' );
       expect( res.headers.sunset ).toBe( new Date( '2026-07-16T00:00:00Z' ).toUTCString() );
       expect( res.headers.link ).toContain( '/workflow/{id}/runs/{rid}/reset' );
@@ -358,19 +358,19 @@ describe( 'API endpoints', () => {
     it( 'returns workflow output and status when completed', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/result' ).expect( 200 );
       expect( res.body ).toMatchObject( { workflowId: 'w1', runId: 'r1', status: 'completed', output: { done: true } } );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
+      expect( mockClient.workflow.getResult ).toHaveBeenCalledWith( 'w1', undefined );
     } );
   } );
 
   describe( 'GET /workflow/:id/runs/:rid/result (pinned)', () => {
     it( 'forwards the pinned runId to the client', async () => {
       await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/result` ).expect( 200 );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', RID );
+      expect( mockClient.workflow.getResult ).toHaveBeenCalledWith( 'w1', RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/result' ).expect( 400 );
-      expect( mockClient.getWorkflowResult ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.getResult ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -378,19 +378,19 @@ describe( 'API endpoints', () => {
     it( 'returns local trace path when trace is stored locally', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/w1/trace-log' ).expect( 200 );
       expect( res.body ).toEqual( { source: 'local', runId: 'r1', localPath: '/tmp/trace.json' } );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', undefined );
+      expect( mockClient.workflow.getResult ).toHaveBeenCalledWith( 'w1', undefined );
     } );
   } );
 
   describe( 'GET /workflow/:id/runs/:rid/trace-log (pinned)', () => {
     it( 'forwards the pinned runId to the client', async () => {
       await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/trace-log` ).expect( 200 );
-      expect( mockClient.getWorkflowResult ).toHaveBeenCalledWith( 'w1', RID );
+      expect( mockClient.workflow.getResult ).toHaveBeenCalledWith( 'w1', RID );
     } );
 
     it( 'returns 400 when rid is not a valid UUID', async () => {
       await request( `http://localhost:${PORT}` ).get( '/workflow/w1/runs/not-a-uuid/trace-log' ).expect( 400 );
-      expect( mockClient.getWorkflowResult ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.getResult ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -402,7 +402,7 @@ describe( 'API endpoints', () => {
         events: expect.any( Array ),
         nextPageToken: null
       } );
-      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', {
+      expect( mockClient.workflow.getHistory ).toHaveBeenCalledWith( 'w1', {
         runId: undefined,
         pageSize: 20,
         pageToken: undefined,
@@ -421,7 +421,7 @@ describe( 'API endpoints', () => {
   describe( 'GET /workflow/:id/runs/:rid/history', () => {
     it( 'passes pinned runId from path to client', async () => {
       await request( `http://localhost:${PORT}` ).get( `/workflow/w1/runs/${RID}/history` ).expect( 200 );
-      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+      expect( mockClient.workflow.getHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
         runId: RID
       } ) );
     } );
@@ -431,7 +431,7 @@ describe( 'API endpoints', () => {
       await request( `http://localhost:${PORT}` )
         .get( `/workflow/w1/runs/${RID}/history?pageToken=${token}` )
         .expect( 200 );
-      expect( mockClient.getWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
+      expect( mockClient.workflow.getHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( {
         runId: RID,
         pageToken: token
       } ) );
@@ -442,7 +442,7 @@ describe( 'API endpoints', () => {
     it( 'returns workflows from catalog by id via queryWorkflow', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/catalog/cat-1' ).expect( 200 );
       expect( res.body ).toEqual( { workflows: [] } );
-      expect( mockClient.queryWorkflow ).toHaveBeenCalledWith( 'cat-1', 'get' );
+      expect( mockClient.workflow.query ).toHaveBeenCalledWith( 'cat-1', 'get' );
     } );
   } );
 
@@ -450,7 +450,7 @@ describe( 'API endpoints', () => {
     it( 'returns default catalog workflows when no id in path', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/catalog' ).expect( 200 );
       expect( res.body ).toEqual( { workflows: [] } );
-      expect( mockClient.queryWorkflow ).toHaveBeenCalledWith( 'default-catalog', 'get' );
+      expect( mockClient.workflow.query ).toHaveBeenCalledWith( 'default-catalog', 'get' );
     } );
   } );
 
@@ -458,12 +458,12 @@ describe( 'API endpoints', () => {
     it( 'returns list of workflow runs from listWorkflowRuns', async () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/runs' ).expect( 200 );
       expect( res.body ).toEqual( { runs: [] } );
-      expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( expect.any( Object ) );
+      expect( mockClient.workflow.listRuns ).toHaveBeenCalledWith( expect.any( Object ) );
     } );
 
     it( 'forwards catalog query param to listWorkflowRuns as taskQueue', async () => {
       await request( `http://localhost:${PORT}` ).get( '/workflow/runs?catalog=session-123' ).expect( 200 );
-      expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( {
+      expect( mockClient.workflow.listRuns ).toHaveBeenCalledWith( {
         workflowType: undefined,
         taskQueue: 'session-123',
         limit: 100
@@ -472,7 +472,7 @@ describe( 'API endpoints', () => {
 
     it( 'forwards both workflowType and catalog (as taskQueue) together', async () => {
       await request( `http://localhost:${PORT}` ).get( '/workflow/runs?workflowType=simple&catalog=session-456' ).expect( 200 );
-      expect( mockClient.listWorkflowRuns ).toHaveBeenCalledWith( {
+      expect( mockClient.workflow.listRuns ).toHaveBeenCalledWith( {
         workflowType: 'simple',
         taskQueue: 'session-456',
         limit: 100
@@ -483,14 +483,14 @@ describe( 'API endpoints', () => {
       const res = await request( `http://localhost:${PORT}` ).get( '/workflow/runs?limit=0' ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError', message: 'Invalid Payload' } );
       expect( res.body.issues ).toBeDefined();
-      expect( mockClient.listWorkflowRuns ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.listRuns ).not.toHaveBeenCalled();
     } );
 
     it( 'rejects catalog containing characters that could break the visibility query', async () => {
       await request( `http://localhost:${PORT}` )
         .get( '/workflow/runs?catalog=sepcat%22%20OR%20%22x' ) // sepcat" OR "x
         .expect( 400 );
-      expect( mockClient.listWorkflowRuns ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.listRuns ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -498,35 +498,35 @@ describe( 'API endpoints', () => {
     it( 'preserves payload properties', async () => {
       const payload = { score: 5, comment: 'Great work!', approved: true };
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/feedback' ).send( { payload } ).expect( 200 );
-      expect( mockClient.sendSignal ).toHaveBeenCalledWith( 'w1', 'resume', payload );
+      expect( mockClient.workflow.signal ).toHaveBeenCalledWith( 'w1', 'resume', payload );
     } );
 
     it( 'accepts request with no payload and sends undefined to workflow', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/feedback' ).expect( 200 );
-      expect( mockClient.sendSignal ).toHaveBeenCalledWith( 'w1', 'resume', undefined );
+      expect( mockClient.workflow.signal ).toHaveBeenCalledWith( 'w1', 'resume', undefined );
     } );
 
     it( 'validation error when payload is not object returns 400', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/feedback' ).send( { payload: 'not-an-object' } ).expect( 400 );
-      expect( mockClient.sendSignal ).not.toHaveBeenCalled();
+      expect( mockClient.workflow.signal ).not.toHaveBeenCalled();
     } );
   } );
 
   describe( 'POST /workflow/:id/update/:update', () => {
     it( 'returns update result and calls executeUpdate with payload', async () => {
-      mockClient.executeUpdate.mockResolvedValue( { result: { accepted: true } } );
+      mockClient.workflow.executeUpdate.mockResolvedValue( { result: { accepted: true } } );
       const res = await request( `http://localhost:${PORT}` )
         .post( '/workflow/w1/update/approve' )
         .send( { payload: { reason: 'ok' } } )
         .expect( 200 );
       expect( res.body ).toEqual( { result: { accepted: true } } );
-      expect( mockClient.executeUpdate ).toHaveBeenCalledWith( 'w1', 'approve', { reason: 'ok' } );
+      expect( mockClient.workflow.executeUpdate ).toHaveBeenCalledWith( 'w1', 'approve', { reason: 'ok' } );
     } );
 
     it( 'works with no payload', async () => {
-      mockClient.executeUpdate.mockResolvedValue( { result: null } );
+      mockClient.workflow.executeUpdate.mockResolvedValue( { result: null } );
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/update/ping' ).expect( 200 );
-      expect( mockClient.executeUpdate ).toHaveBeenCalledWith( 'w1', 'ping', undefined );
+      expect( mockClient.workflow.executeUpdate ).toHaveBeenCalledWith( 'w1', 'ping', undefined );
     } );
   } );
 
@@ -536,30 +536,30 @@ describe( 'API endpoints', () => {
         .post( '/workflow/w1/signal/cancel' )
         .send( { payload: { reason: 'done' } } )
         .expect( 200 );
-      expect( mockClient.sendSignal ).toHaveBeenCalledWith( 'w1', 'cancel', { reason: 'done' } );
+      expect( mockClient.workflow.signal ).toHaveBeenCalledWith( 'w1', 'cancel', { reason: 'done' } );
     } );
 
     it( 'works with no payload', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/signal/ping' ).expect( 200 );
-      expect( mockClient.sendSignal ).toHaveBeenCalledWith( 'w1', 'ping', undefined );
+      expect( mockClient.workflow.signal ).toHaveBeenCalledWith( 'w1', 'ping', undefined );
     } );
   } );
 
   describe( 'POST /workflow/:id/query/:query', () => {
     it( 'returns query result and calls sendQuery with payload', async () => {
-      mockClient.sendQuery.mockResolvedValue( { data: { count: 42 } } );
+      mockClient.workflow.query.mockResolvedValue( { data: { count: 42 } } );
       const res = await request( `http://localhost:${PORT}` )
         .post( '/workflow/w1/query/getState' )
         .send( { payload: { key: 'x' } } )
         .expect( 200 );
       expect( res.body ).toEqual( { data: { count: 42 } } );
-      expect( mockClient.sendQuery ).toHaveBeenCalledWith( 'w1', 'getState', { key: 'x' } );
+      expect( mockClient.workflow.query ).toHaveBeenCalledWith( 'w1', 'getState', { key: 'x' } );
     } );
 
     it( 'works with no payload', async () => {
-      mockClient.sendQuery.mockResolvedValue( { data: null } );
+      mockClient.workflow.query.mockResolvedValue( { data: null } );
       await request( `http://localhost:${PORT}` ).post( '/workflow/w1/query/getState' ).expect( 200 );
-      expect( mockClient.sendQuery ).toHaveBeenCalledWith( 'w1', 'getState', undefined );
+      expect( mockClient.workflow.query ).toHaveBeenCalledWith( 'w1', 'getState', undefined );
     } );
   } );
 

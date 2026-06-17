@@ -314,7 +314,7 @@ export const hashSourceCode = async rootDir => {
   try {
     const { hash } = await hashElement( rootDir, {
       folders: {
-        exclude: [ '.*', 'node_modules', 'test_coverage', 'vendor', 'test' ],
+        exclude: [ '.*', 'node_modules', 'test_coverage', 'vendor', 'test', 'logs', 'dist' ],
         ignoreRootName: true
       },
       files: {

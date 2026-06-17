@@ -6,7 +6,7 @@ vi.mock( '#consts', () => ( {
 } ) );
 
 const validateRequestPayloadMock = vi.fn();
-vi.mock( './validations/static.js', () => ( {
+vi.mock( './validations/index.js', () => ( {
   validateRequestPayload: validateRequestPayloadMock
 } ) );
 

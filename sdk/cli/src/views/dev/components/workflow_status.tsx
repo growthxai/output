@@ -13,7 +13,7 @@ const WORKFLOW_STATUS_MAP: Record<string, StatusDisplay> = {
   canceled: { icon: '○', color: 'gray' },
   terminated: { icon: '✗', color: 'gray' },
   timed_out: { icon: '✗', color: 'red' },
-  continued: { icon: '↻', color: 'blue' }
+  continued_as_new: { icon: '↻', color: 'blue' }
 };
 
 const DEFAULT_DISPLAY: StatusDisplay = { icon: '?', color: 'white' };

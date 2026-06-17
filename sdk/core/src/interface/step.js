@@ -1,19 +1,18 @@
-// THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
+import { StepValidator } from './validations/index.js';
 import { setMetadata } from '#utils';
-import { validateStep } from './validations/static.js';
-import { validateWithSchema } from './validations/runtime.js';
 import { ComponentType } from '#consts';
 
+/**
+ * Create a new step (activity flavor) and return a wrapper function around its fn handler
+ */
 export function step( { name, description, inputSchema, outputSchema, fn, options } ) {
-  validateStep( { name, description, inputSchema, outputSchema, fn, options } );
+  StepValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options } );
+  const validator = new StepValidator( { name, inputSchema, outputSchema } );
 
   const wrapper = async input => {
-    validateWithSchema( inputSchema, input, `Step ${name} input` );
-
+    validator.validateInput( input );
     const output = await fn( input );
-
-    validateWithSchema( outputSchema, output, `Step ${name} output` );
-
+    validator.validateOutput( output );
     return output;
   };
 

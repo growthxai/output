@@ -6,9 +6,13 @@
 /**
  * Any generic fatal errors
  */
-export class FatalError extends Error { }
+export class FatalError extends Error {
+  name = 'FatalError';
+}
 
 /**
  * Any validation error
  */
-export class ValidationError extends Error { }
+export class ValidationError extends Error {
+  name = 'ValidationError';
+}

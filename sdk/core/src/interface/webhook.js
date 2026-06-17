@@ -2,7 +2,7 @@
 import { defineSignal, setHandler, proxyActivities, workflowInfo, proxySinks, uuid4, Trigger } from '@temporalio/workflow';
 import { ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 import { FatalError } from '#errors';
-import { validateRequestPayload } from './validations/static.js';
+import { validateRequestPayload } from './validations/index.js';
 
 /**
  * Call the internal activity to make a HTTP request and returns its response.

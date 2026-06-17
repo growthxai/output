@@ -15,7 +15,7 @@ const traverse = traverseModule.default ?? traverseModule;
  * Check whether a CallExpression callee is a simple Identifier.
  * Only direct identifier calls are rewritten; member/dynamic calls are skipped.
  *
- * We only support rewriting `Foo()` calls that refer to imported steps/flows/evaluators
+ * We only support rewriting `Foo()` calls that refer to imported steps/evaluators
  * or local call-chain functions. Calls like `obj.Foo()` or `(getFn())()` are out of scope.
  *
  * Examples:
@@ -31,7 +31,7 @@ const isIdentifierCallee = cPath => isIdentifier( cPath.node.callee );
  * Convert an ArrowFunctionExpression at the given path into a FunctionExpression
  * to ensure dynamic `this` semantics inside the function body.
  *
- * Workflow code relies on `this` to invoke steps/flows (e.g., `this.invokeStep(...)`).
+ * Workflow code relies on `this` to invoke steps/evaluators (e.g., `this.invokeStep(...)`).
  * Arrow functions capture `this` lexically, which would break that contract.
  *
  * If the node is an arrow, it is replaced by an equivalent FunctionExpression and
@@ -49,7 +49,7 @@ const normalizeArrowToFunctionPath = ( nodePath, state ) => {
 };
 /**
  * Rewrite calls inside a function body and collect call-chain functions discovered within.
- * - Imported calls (steps/shared/evaluators/flows) are rewritten to `this.invokeX` or `this.startWorkflow`.
+ * - Imported calls (steps/shared/evaluators) are rewritten to `this.invokeX`.
  * - Local call-chain function calls are rewritten to `fn.call(this, ...)` to bind `this` correctly.
  * - Returns a map of call-chain function name -> binding path for further recursive processing.
  *
@@ -67,7 +67,7 @@ const rewriteCallsInBody = ( bodyPath, descriptors, state ) => {
       }
       const callee = cPath.node.callee;
 
-      // Rewrite imported calls (steps/shared/evaluators/flows)
+      // Rewrite imported calls (steps/shared/evaluators)
       for ( const { list, method, key } of descriptors ) {
         const found = list.find( x => x.localName === callee.name );
         if ( found ) {
@@ -143,28 +143,25 @@ const processFunction = ( { name, bindingPath, state, descriptors, processedFns 
 };
 
 /**
- * Rewrite calls to imported steps/workflows within `fn` object properties.
+ * Rewrite calls to imported steps/evaluators within `fn` object properties.
  * Converts arrow fns to functions and replaces `StepX(...)` with
- * `this.invokeStep('name', ...)` and `FlowY(...)` with
- * `this.startWorkflow('name', ...)`.
+ * `this.invokeStep('name', ...)`.
  *
  * @param {object} params
  * @param {import('@babel/types').File} params.ast - Parsed file AST.
  * @param {Array<{localName:string,stepName:string}>} params.stepImports - Step imports.
  * @param {Array<{localName:string,stepName:string}>} params.sharedStepImports - Shared step imports.
  * @param {Array<{localName:string,evaluatorName:string}>} params.evaluatorImports - Evaluator imports.
- * @param {Array<{localName:string,workflowName:string}>} params.flowImports - Workflow imports.
  * @returns {boolean} True if the AST was modified; false otherwise.
  */
-export default function rewriteFnBodies( { ast, stepImports, sharedStepImports = [], evaluatorImports, sharedEvaluatorImports = [], flowImports } ) {
+export default function rewriteFnBodies( { ast, stepImports, sharedStepImports = [], evaluatorImports, sharedEvaluatorImports = [] } ) {
   const state = { rewrote: false };
   // Build rewrite descriptors once per traversal
   const descriptors = [
     { list: stepImports, method: 'invokeStep', key: 'stepName' },
     { list: sharedStepImports, method: 'invokeSharedStep', key: 'stepName' },
     { list: evaluatorImports, method: 'invokeEvaluator', key: 'evaluatorName' },
-    { list: sharedEvaluatorImports, method: 'invokeSharedEvaluator', key: 'evaluatorName' },
-    { list: flowImports, method: 'startWorkflow', key: 'workflowName' }
+    { list: sharedEvaluatorImports, method: 'invokeSharedEvaluator', key: 'evaluatorName' }
   ];
   traverse( ast, {
     ObjectProperty: path => {

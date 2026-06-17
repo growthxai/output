@@ -16,7 +16,13 @@ describe( 'workflow_run handlers', () => {
   const mockStopWorkflow = vi.fn();
   const mockTerminateWorkflow = vi.fn();
   const mockGetWorkflowResult = vi.fn();
-  const mockClient = { stopWorkflow: mockStopWorkflow, terminateWorkflow: mockTerminateWorkflow, getWorkflowResult: mockGetWorkflowResult };
+  const mockClient = {
+    workflow: {
+      stop: mockStopWorkflow,
+      terminate: mockTerminateWorkflow,
+      getResult: mockGetWorkflowResult
+    }
+  };
 
   beforeEach( () => vi.clearAllMocks() );
 

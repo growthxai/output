@@ -1,43 +1,89 @@
 import { describe, expect, it } from 'vitest';
-import { extractErrorDetail } from './errors.js';
+import { ApplicationFailure } from '@temporalio/common';
+import { buildApplicationFailureWithDetails } from './errors.js';
 
-describe( 'extractErrorDetail', () => {
-  it( 'returns a matching value from error details', () => {
-    const error = new Error( 'failed' );
-    error.details = [
-      { requestId: 'req-1' },
-      { workflowId: 'workflow-1' }
-    ];
+class CustomFailure extends Error {}
 
-    expect( extractErrorDetail( error, 'workflowId' ) ).toBe( 'workflow-1' );
+describe( 'buildApplicationFailureWithDetails', () => {
+  it( 'wraps a regular error in an ApplicationFailure with appended details', () => {
+    const error = new Error( 'step failed' );
+    const info = { aggregations: { cost: { total: 1 } } };
+
+    const failure = buildApplicationFailureWithDetails( error, info );
+
+    expect( failure ).toBeInstanceOf( ApplicationFailure );
+    expect( failure ).toMatchObject( {
+      message: 'step failed',
+      type: 'Error',
+      nonRetryable: false,
+      details: [ info ],
+      cause: error
+    } );
   } );
 
-  it( 'walks the cause chain until it finds matching details', () => {
-    const root = new Error( 'root' );
-    root.details = [ { traceId: 'trace-1' } ];
-    const wrapped = new Error( 'wrapped', { cause: root } );
+  it( 'uses the original constructor name for custom errors', () => {
+    const error = new CustomFailure( 'custom failed' );
+    const info = { trace: { destinations: { local: '/tmp/trace' } } };
 
-    expect( extractErrorDetail( wrapped, 'traceId' ) ).toBe( 'trace-1' );
+    const failure = buildApplicationFailureWithDetails( error, info );
+
+    expect( failure ).toMatchObject( {
+      message: 'custom failed',
+      type: 'CustomFailure',
+      details: [ info ],
+      cause: error
+    } );
   } );
 
-  it( 'prefers details from the current error over causes', () => {
-    const root = new Error( 'root' );
-    root.details = [ { traceId: 'root-trace' } ];
-    const wrapped = new Error( 'wrapped', { cause: root } );
-    wrapped.details = [ { traceId: 'wrapped-trace' } ];
+  it( 'preserves existing details and appends new info without mutating the original error', () => {
+    const existingDetails = [ { domain: { reason: 'bad-input' } } ];
+    const error = new Error( 'step failed' );
+    error.details = existingDetails;
+    const info = { aggregations: { httpRequests: { total: 1 } } };
 
-    expect( extractErrorDetail( wrapped, 'traceId' ) ).toBe( 'wrapped-trace' );
+    const failure = buildApplicationFailureWithDetails( error, info );
+
+    expect( failure.details ).toEqual( [
+      { domain: { reason: 'bad-input' } },
+      info
+    ] );
+    expect( error.details ).toBe( existingDetails );
+    expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
   } );
 
-  it( 'returns null when the key is not found', () => {
-    const root = new Error( 'root' );
-    root.details = [ { traceId: 'trace-1' } ];
-    const wrapped = new Error( 'wrapped', { cause: root } );
+  it( 'ignores non-array details on the original error', () => {
+    const error = new Error( 'step failed' );
+    error.details = { domain: { reason: 'bad-input' } };
+    const info = { aggregations: { tokens: { total: 3 } } };
 
-    expect( extractErrorDetail( wrapped, 'missing' ) ).toBeNull();
+    const failure = buildApplicationFailureWithDetails( error, info );
+
+    expect( failure.details ).toEqual( [ info ] );
   } );
 
-  it( 'returns null for empty errors', () => {
-    expect( extractErrorDetail( null, 'traceId' ) ).toBeNull();
+  it( 'preserves ApplicationFailure type, nonRetryable flag, and details while avoiding self-cause', () => {
+    const original = ApplicationFailure.create( {
+      message: 'application failed',
+      type: 'DomainFailure',
+      nonRetryable: true,
+      details: [ { domain: { reason: 'bad-input' } } ]
+    } );
+    const info = { aggregations: { cost: { total: 2 } } };
+
+    const failure = buildApplicationFailureWithDetails( original, info );
+
+    expect( failure ).toBeInstanceOf( ApplicationFailure );
+    expect( failure ).not.toBe( original );
+    expect( failure.cause ).toBe( original );
+    expect( failure.cause ).not.toBe( failure );
+    expect( failure ).toMatchObject( {
+      message: 'application failed',
+      type: 'DomainFailure',
+      nonRetryable: true,
+      details: [
+        { domain: { reason: 'bad-input' } },
+        info
+      ]
+    } );
   } );
 } );

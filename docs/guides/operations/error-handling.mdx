@@ -67,15 +67,11 @@ If you don't catch the error, the workflow fails.
 
 ### Error metadata
 
-When a root workflow fails, Output attaches execution metadata to the Temporal error returned by the runtime. This metadata includes:
+When a root workflow fails, Output can attach trace metadata to the Temporal error returned by the runtime.
 
-- `trace` — Trace metadata for the run, when available.
-- `attributes` — Durable attributes collected before the failure, such as LLM usage and HTTP cost/count attributes.
-- `aggregations` — Convenience totals derived from those attributes.
+The CLI and API expose this metadata on failed workflow results alongside the error message when it is available.
 
-The CLI and API expose these attachments on failed workflow results alongside the error message. This lets you inspect partial cost, token, and HTTP request data for failed runs without changing your workflow code.
-
-If you inspect raw errors directly, remember that workflow failures are native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. The metadata is stored in a Temporal failure's `details`, which may be on a nested error in the `.cause` chain rather than on the top-level error object. Walk the `.cause` chain and look for `details` containing `trace`, `attributes`, or `aggregations`.
+If you inspect raw errors directly, remember that workflow failures are native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. The metadata is stored in a Temporal failure's `details`, which may be on a nested error in the `.cause` chain rather than on the top-level error object. Walk the `.cause` chain and look for `details` containing `trace`.
 
 ```typescript
 function getWorkflowErrorMetadata(error: unknown) {
@@ -85,7 +81,7 @@ function getWorkflowErrorMetadata(error: unknown) {
     const metadata = current.details?.find((detail) =>
       detail &&
       typeof detail === 'object' &&
-      ('trace' in detail || 'attributes' in detail || 'aggregations' in detail)
+      'trace' in detail
     );
 
     if (metadata) {

@@ -173,7 +173,7 @@ export const WorkflowRunInfoStatus = {
   canceled: 'canceled',
   terminated: 'terminated',
   timed_out: 'timed_out',
-  continued: 'continued',
+  continued_as_new: 'continued_as_new',
 } as const;
 
 export interface WorkflowRunInfo {
@@ -231,12 +231,6 @@ export interface WorkflowStatusResponse {
 }
 
 /**
- * Convenience totals aggregated from LLM and http usage and cost
- * @nullable
- */
-export type WorkflowResultResponseAggregations = { [key: string]: unknown } | null;
-
-/**
  * The workflow execution status
  */
 export type WorkflowResultResponseStatus = typeof WorkflowResultResponseStatus[keyof typeof WorkflowResultResponseStatus];
@@ -248,7 +242,7 @@ export const WorkflowResultResponseStatus = {
   canceled: 'canceled',
   terminated: 'terminated',
   timed_out: 'timed_out',
-  continued: 'continued',
+  continued_as_new: 'continued_as_new',
 } as const;
 
 /**
@@ -293,11 +287,6 @@ export interface WorkflowResultResponse {
   /** The result of workflow, null if workflow failed */
   output?: unknown;
   trace?: TraceInfo;
-  /**
-     * Convenience totals aggregated from LLM and http usage and cost
-     * @nullable
-     */
-  aggregations?: WorkflowResultResponseAggregations;
   /** The workflow execution status */
   status?: WorkflowResultResponseStatus;
   /**
