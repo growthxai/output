@@ -1,5 +1,6 @@
 import { createChildLogger } from '#logger';
 import { setTimeout as delay } from 'node:timers/promises';
+import { CancellablePromise } from '#utils';
 
 const ServingStatus = {
   UNKNOWN: 0,
@@ -8,38 +9,105 @@ const ServingStatus = {
   SERVICE_UNKNOWN: 3
 };
 
-const logger = createChildLogger( 'Connection' );
+const log = createChildLogger( 'Connection' );
 
-const MAX_FAILURES = 3;
-const CHECK_INTERVAL_MS = 30_000;
-const CHECK_TIMEOUT_MS = 5_000;
+export class TemporalConnectionMonitor {
+  #MAX_FAILURES = 3;
+  #CHECK_INTERVAL_MS = 10_000;
+  #CHECK_TIMEOUT_MS = 5_000;
 
-const watchConnection = async ( connection, state = { failures: 0 } ) => {
-  try {
-    const timeout = delay( CHECK_TIMEOUT_MS, 0, { ref: false } )
-      .then( () => {
-        throw new Error( 'Connection health check timed out' );
-      } );
+  #cancellation = new CancellablePromise();
+  #failures = 0;
+  #error = null;
+  #running = false;
+  #watchPromise = null;
+  #connection = null;
+  #connectionLostCb = null;
 
-    const health = await Promise.race( [ connection.healthService.check( {} ), timeout ] );
+  #getTimeout = async () => delay( this.#CHECK_TIMEOUT_MS, 0, { ref: false } ).then( () => {
+    throw new Error( 'Connection health check timed out' );
+  } );
 
-    if ( health.status !== ServingStatus.SERVING ) {
-      throw new Error( `Connection not serving (status ${health.status})` );
+  #healthcheck = async () => this.#connection.healthService.check( {} );
+
+  #sleep = async () => delay( this.#CHECK_INTERVAL_MS, 0, { ref: false } );
+
+  #watch = async () => {
+    try {
+      const health = await Promise.race( [ this.#healthcheck(), this.#getTimeout(), this.#cancellation.promise ] );
+
+      // cancellation won the race
+      if ( this.#cancellation.completed ) {
+        return true;
+      }
+
+      if ( health?.status !== ServingStatus.SERVING ) {
+        throw new Error( `Connection not serving (status ${health?.status})` );
+      }
+
+      log.info( this.#failures === 0 ? 'Healthy' : 'Recovered' );
+      this.#failures = 0;
+    } catch ( error ) {
+      // cancellation will ignore warnings and not throw errors;
+      if ( this.#cancellation.completed ) {
+        return true;
+      }
+
+      if ( ++this.#failures >= this.#MAX_FAILURES ) {
+        log.warn( 'Connection lost', { error: error.message, failures: this.#failures } );
+        this.#error = error;
+        this.#connectionLostCb?.( error );
+        return true;
+      } else {
+        log.warn( 'Connection unhealthy', { error: error.message, failures: this.#failures } );
+      }
     }
 
-    logger.info( state.failures === 0 ? 'Healthy' : 'Recovered' );
-    state.failures = 0;
-  } catch ( e ) {
-    state.failures++;
-    if ( state.failures >= MAX_FAILURES ) {
-      throw e;
-    } else {
-      logger.warn( 'Connection unhealthy', { error: e.message, ...state } );
+    await Promise.race( [ this.#sleep(), this.#cancellation.promise ] );
+    if ( this.#cancellation.completed ) {
+      return true;
+    }
+    return this.#watch();
+  };
+
+  constructor( connection, overrides = {} ) {
+    this.#connection = connection;
+    if ( Number.isFinite( overrides?.maxFailures ) ) {
+      this.#MAX_FAILURES = overrides.maxFailures;
+    }
+    if ( Number.isFinite( overrides?.checkIntervalMs ) ) {
+      this.#CHECK_INTERVAL_MS = overrides.checkIntervalMs;
+    }
+    if ( Number.isFinite( overrides?.checkTimeoutMs ) ) {
+      this.#CHECK_TIMEOUT_MS = overrides.checkTimeoutMs;
     }
   }
 
-  await delay( CHECK_INTERVAL_MS, 0, { ref: false } );
-  return watchConnection( connection, state );
-};
+  onConnectionLost( cb ) {
+    this.#connectionLostCb = cb;
+  }
 
-export const setupConnectionMonitor = ( { connection } ) => watchConnection( connection );
+  get running() {
+    return this.#running;
+  }
+
+  start() {
+    if ( this.#watchPromise ) {
+      return this.#watchPromise;
+    }
+    this.#running = true;
+    this.#watchPromise = this.#watch().finally( () => {
+      this.#running = false;
+    } );
+    return this.#watchPromise;
+  }
+
+  stop() {
+    this.#cancellation.complete();
+    return this.#watchPromise ?? Promise.resolve();
+  }
+
+  get connectionLossError() {
+    return this.#error;
+  }
+};
