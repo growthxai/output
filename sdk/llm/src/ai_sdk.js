@@ -22,6 +22,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   try {
     const response = await AI.generateText( {
       ...loadAiSdkTextOptions( loadedPrompt ),
+      allowSystemInMessages: true,
       maxRetries: 0,
       ...aiSdkArgs,
       ...( tools && { tools } ),
@@ -50,6 +51,7 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
   try {
     return AI.streamText( {
       ...loadAiSdkTextOptions( loadedPrompt ),
+      allowSystemInMessages: true,
       maxRetries: 0,
       ...aiSdkArgs,
       ...( tools && { tools } ),

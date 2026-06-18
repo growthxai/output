@@ -113,7 +113,8 @@ const model = { id: 'MODEL' };
 
 const textOptions = {
   model,
-  messages: loadedPrompt.messages,
+  system: [ { role: 'system', content: 'You are concise.' } ],
+  messages: [ { role: 'user', content: 'Initial user message' } ],
   providerOptions: { test: true },
   temperature: 0.3
 };
@@ -239,7 +240,8 @@ describe( 'Agent', () => {
     };
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,
-      messages: [ systemMessage, { role: 'user', content: 'Hello' } ]
+      system: [ systemMessage ],
+      messages: [ { role: 'user', content: 'Hello' } ]
     } );
 
     new Agent( { prompt: 'test@v1' } );
@@ -303,7 +305,8 @@ describe( 'Agent', () => {
     await agent.generate();
 
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
-      messages: [ { role: 'user', content: 'Initial user message' } ]
+      messages: [ { role: 'user', content: 'Initial user message' } ],
+      allowSystemInMessages: true
     } );
   } );
 
@@ -326,6 +329,7 @@ describe( 'Agent', () => {
         { role: 'assistant', content: 'Stored reply' },
         callerMessage
       ],
+      allowSystemInMessages: true,
       maxRetries: 1
     } );
   } );
@@ -405,6 +409,7 @@ describe( 'Agent', () => {
         { role: 'assistant', content: 'Stored reply' },
         callerMessage
       ],
+      allowSystemInMessages: true,
       maxRetries: 1,
       onFinish: expect.any( Function ),
       onError: expect.any( Function )

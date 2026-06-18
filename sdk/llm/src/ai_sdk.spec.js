@@ -190,6 +190,7 @@ describe( 'ai_sdk', () => {
       expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
       expect( aiFns.generateText ).toHaveBeenCalledWith( {
         ...textOptions,
+        allowSystemInMessages: true,
         maxRetries: 0,
         tools,
         temperature: 0.2,
@@ -225,6 +226,7 @@ describe( 'ai_sdk', () => {
       expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
       expect( aiFns.generateText ).toHaveBeenCalledWith( {
         ...textOptions,
+        allowSystemInMessages: true,
         maxRetries: 0
       } );
     } );
@@ -326,6 +328,7 @@ describe( 'ai_sdk', () => {
       expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
+        allowSystemInMessages: true,
         maxRetries: 0,
         tools,
         temperature: 0.2,
@@ -373,6 +376,7 @@ describe( 'ai_sdk', () => {
       expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
+        allowSystemInMessages: true,
         maxRetries: 0,
         onFinish: expect.any( Function ),
         onError: expect.any( Function )

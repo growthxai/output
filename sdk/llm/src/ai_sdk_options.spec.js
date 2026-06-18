@@ -60,7 +60,8 @@ describe( 'ai_sdk_options', () => {
     expect( loadToolsImpl ).toHaveBeenCalledWith( prompt );
     expect( result ).toEqual( {
       model: 'MODEL',
-      messages: prompt.messages,
+      system: [ { role: 'system', content: 'You are concise.' } ],
+      messages: [ { role: 'user', content: 'Hello' } ],
       providerOptions: prompt.config.providerOptions,
       temperature: 0.3,
       maxOutputTokens: 1000
@@ -180,13 +181,50 @@ describe( 'ai_sdk_options', () => {
     const { loadAiSdkTextOptions } = await importSut();
     const result = loadAiSdkTextOptions( prompt );
 
-    expect( result.messages ).toEqual( [
+    expect( result.system ).toEqual( [
       {
         role: 'system',
         content: 'Static',
         providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
-      },
-      { role: 'user', content: 'Hello' }
+      }
     ] );
+    expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
+  } );
+
+  it( 'omits the system option when the prompt has no system block', async () => {
+    const prompt = {
+      name: 'no-system@v1',
+      config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+      messages: [ { role: 'user', content: 'Hello' } ],
+      instructions: null
+    };
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.system ).toBeUndefined();
+    expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
+  } );
+
+  it( 'groups multiple system blocks into the system option and keeps them out of messages', async () => {
+    const prompt = {
+      name: 'multi-system@v1',
+      config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+      messages: [
+        { role: 'system', content: 'First' },
+        { role: 'system', content: 'Second' },
+        { role: 'user', content: 'Hello' }
+      ],
+      instructions: null
+    };
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.system ).toEqual( [
+      { role: 'system', content: 'First' },
+      { role: 'system', content: 'Second' }
+    ] );
+    expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
   } );
 } );
