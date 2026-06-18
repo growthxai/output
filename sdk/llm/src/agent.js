@@ -45,12 +45,11 @@ export class Agent extends AIToolLoopAgent {
 
     const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
 
-    // loadAiSdkTextOptions already routes system blocks to the `system` slot
-    // (preserving per-message providerOptions); pass them as the agent's
-    // `instructions` and keep the user messages for generate()/stream() calls.
+    // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
+    // per-message providerOptions); pass them as the agent's `instructions`.
     super( {
       ...constructorOptions,
-      ...( system ? { instructions: system } : {} ),
+      ...( system.length > 0 ? { instructions: system } : {} ),
       ...( tools ? { tools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest
@@ -58,6 +57,8 @@ export class Agent extends AIToolLoopAgent {
 
     this.#prompt = prompt;
     this.#modelId = loadedPrompt.config.model;
+    // `messages` is system-free but may still hold authored <assistant>/<tool>
+    // blocks; seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
     this.#store = conversationStore ?? null;
   }

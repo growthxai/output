@@ -20,11 +20,10 @@ export const loadAiSdkTextOptions = prompt => {
   }
   const isSystem = isRole( ROLE.SYSTEM );
   const resolvedMessages = resolveMessageProviderOptions( prompt );
-  const system = resolvedMessages.filter( isSystem );
 
   const options = {
     model: loadTextModel( prompt ),
-    ...( system.length > 0 ? { system } : {} ),
+    system: resolvedMessages.filter( isSystem ),
     messages: resolvedMessages.filter( message => !isSystem( message ) ),
     providerOptions: prompt.config.providerOptions
   };

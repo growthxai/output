@@ -191,7 +191,7 @@ describe( 'ai_sdk_options', () => {
     expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
   } );
 
-  it( 'omits the system option when the prompt has no system block', async () => {
+  it( 'returns an empty system array when the prompt has no system block', async () => {
     const prompt = {
       name: 'no-system@v1',
       config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
@@ -202,7 +202,7 @@ describe( 'ai_sdk_options', () => {
     const { loadAiSdkTextOptions } = await importSut();
     const result = loadAiSdkTextOptions( prompt );
 
-    expect( result.system ).toBeUndefined();
+    expect( result.system ).toEqual( [] );
     expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
   } );
 

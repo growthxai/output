@@ -310,6 +310,26 @@ describe( 'Agent', () => {
     } );
   } );
 
+  it( 'excludes authored assistant/tool blocks from the initial generate messages', async () => {
+    const { Agent } = await importSut();
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      model,
+      system: [ { role: 'system', content: 'You are concise.' } ],
+      messages: [
+        { role: 'user', content: 'Initial user message' },
+        { role: 'assistant', content: 'Authored assistant block' }
+      ]
+    } );
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.generate();
+
+    expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
+      messages: [ { role: 'user', content: 'Initial user message' } ],
+      allowSystemInMessages: true
+    } );
+  } );
+
   it( 'combines initial, stored, and caller messages for generate', async () => {
     const store = {
       getMessages: vi.fn( () => [
