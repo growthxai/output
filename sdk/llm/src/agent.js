@@ -43,17 +43,13 @@ export class Agent extends AIToolLoopAgent {
 
     const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir: resolvedPromptDir, skills, tools: toolsArg } );
 
-    const { messages: allMessages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
+    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
 
-    // Extract system messages as `instructions` for the ToolLoopAgent constructor
-    // and keep user messages for generate() calls — avoids provider errors
-    // with multiple system messages during multi-step tool loops.
-    // Pass message objects (not a string) so per-message providerOptions are preserved.
-    const systemMessages = allMessages.filter( isRole( ROLE.SYSTEM ) );
-
+    // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
+    // per-message providerOptions); pass them as the agent's `instructions`.
     super( {
       ...constructorOptions,
-      ...( systemMessages.length > 0 ? { instructions: systemMessages } : {} ),
+      ...( system.length > 0 ? { instructions: system } : {} ),
       ...( tools ? { tools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest
@@ -61,7 +57,9 @@ export class Agent extends AIToolLoopAgent {
 
     this.#prompt = prompt;
     this.#modelId = loadedPrompt.config.model;
-    this.#initialMessages = allMessages.filter( isRole( ROLE.USER ) );
+    // `messages` is system-free but may still hold authored <assistant>/<tool>
+    // blocks; seed only <user> turns into each generate()/stream() call.
+    this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
     this.#store = conversationStore ?? null;
   }
 
@@ -80,7 +78,7 @@ export class Agent extends AIToolLoopAgent {
     const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
     try {
       const messages = await this.#fetchMessages( userMessages );
-      const response = await super.generate( { messages, ...callOptions } );
+      const response = await super.generate( { messages, allowSystemInMessages: true, ...callOptions } );
       const wrapped = await wrapTextResponse( { traceId, response, modelId: this.#modelId } );
       await this.#storeMessages( userMessages, wrapped );
       return wrapped;
@@ -96,6 +94,7 @@ export class Agent extends AIToolLoopAgent {
       const messages = await this.#fetchMessages( userMessages );
       return super.stream( {
         messages,
+        allowSystemInMessages: true,
         ...callOptions,
         ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, onFinish } ),
         onError( event ) {
