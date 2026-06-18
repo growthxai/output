@@ -1,5 +1,28 @@
 # @outputai/llm
 
+## 0.8.0
+
+### Minor Changes
+
+- ae5bab4: Add per-message provider options to `.prompt` files via `messageOptions`.
+
+  - Define named `messageOptions` sets in front matter and attach them to message blocks with `options="<name>"` (e.g. `<system options="cached">`); each set is a provider-namespaced `providerOptions` object merged onto that message.
+  - Enables Anthropic prompt caching (`{ anthropic: { cacheControl: { type: ephemeral } } }`) and any other per-message provider option, on any provider.
+  - Cost tracking now reports cached input tokens (`input_cached`) even for models whose pricing record lacks a `cache_read` rate, so cache savings are visible in usage aggregations instead of silently disappearing.
+
+### Patch Changes
+
+- 66f1583: Route `<system>` blocks to the AI SDK `system` option instead of leaving them in the `messages` array.
+
+  - `loadAiSdkTextOptions` now splits resolved messages: system blocks go to the top-level `system` option (as `SystemModelMessage[]`, so per-message `cacheControl`/`providerOptions` are preserved); only user/assistant/tool messages stay in `messages`. `Agent` consumes the split `system` directly as its `instructions`.
+  - Silences the AI SDK warning that system messages in `messages` are a prompt-injection risk; `generateText`/`streamText`/`Agent` also set `allowSystemInMessages: true` as defense-in-depth for caller-supplied message histories.
+
+- Updated dependencies [ad03627]
+- Updated dependencies [306c136]
+- Updated dependencies [c005dac]
+- Updated dependencies [930738c]
+  - @outputai/core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

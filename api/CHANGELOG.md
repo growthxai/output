@@ -1,5 +1,42 @@
 # output-api
 
+## 0.8.0
+
+### Minor Changes
+
+- 930738c: - Updated workflow result API responses to return workflow output and trace metadata without workflow-level `aggregations`.
+  - Regenerated CLI API types to match the workflow result response shape.
+
+### Patch Changes
+
+- d67ad85: `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
+- 2a4105c: Expose structured workflow failure details (`failure` object with `message`, `type`, `retryable`, and a sanitized `cause` chain) in `/workflow/run` and `/workflow/:id/result` responses, alongside the existing `error` string. Also log Temporal/gRPC client errors with full nested context (cause chain, gRPC `code`/`details`, redacted metadata keys, `workflowId`/`runId`/`taskQueue`/query) while keeping client-facing HTTP responses sanitized.
+- db8ddd7: The `continued` workflow status was renamed to `continued_as_new` in API responses.
+
+  ## Explicit Status Fields
+
+  | Endpoint                               | HTTP response JSON path | Generated client path         |
+  | -------------------------------------- | ----------------------- | ----------------------------- |
+  | `POST /workflow/run`                   | `status`                | `response.data.status`        |
+  | `GET /workflow/{id}/result`            | `status`                | `response.data.status`        |
+  | `GET /workflow/{id}/runs/{rid}/result` | `status`                | `response.data.status`        |
+  | `GET /workflow/{id}/status`            | `status`                | `response.data.status`        |
+  | `GET /workflow/{id}/runs/{rid}/status` | `status`                | `response.data.status`        |
+  | `GET /workflow/runs`                   | `runs[].status`         | `response.data.runs[].status` |
+
+  ## History Metadata Status Fields
+
+  These endpoints also return workflow status in the history metadata object. The OpenAPI schema currently leaves this nested object unexpanded.
+
+  | Endpoint                                | HTTP response JSON path | Generated client path           |
+  | --------------------------------------- | ----------------------- | ------------------------------- |
+  | `GET /workflow/{id}/history`            | `workflow.status`       | `response.data.workflow.status` |
+  | `GET /workflow/{id}/runs/{rid}/history` | `workflow.status`       | `response.data.workflow.status` |
+
+  ## Backwards support
+
+  In the CLI, the old value is still supported.
+
 ## 0.7.0
 
 ### Patch Changes
