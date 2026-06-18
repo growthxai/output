@@ -3,27 +3,43 @@ import { ConnectionMonitor } from './connection_monitor.js';
 
 const SERVING = 1;
 const NOT_SERVING = 2;
-const HEALTH_CHECK_TIMEOUT_MS = 5_000;
-const HEALTH_CHECK_INTERVAL_MS = 30_000;
+const MAX_FAILURES = 3;
+const CHECK_INTERVAL_MS = 10;
+const CHECK_TIMEOUT_MS = 5;
+const CONNECTION_MONITOR_OVERRIDES = {
+  maxFailures: MAX_FAILURES,
+  checkIntervalMs: CHECK_INTERVAL_MS,
+  checkTimeoutMs: CHECK_TIMEOUT_MS
+};
 
-const { scheduledDelays, delayMock } = vi.hoisted( () => {
+const { deadlineError, scheduledDelays, delayMock } = vi.hoisted( () => {
   const scheduledDelays = [];
   const delayMock = vi.fn( ( ms, value, options ) => new Promise( resolve => {
     scheduledDelays.push( { ms, value, options, resolve } );
   } ) );
 
-  return { scheduledDelays, delayMock };
+  return { deadlineError: new Error( 'Deadline exceeded' ), scheduledDelays, delayMock };
 } );
 
 vi.mock( 'node:timers/promises', () => ( { setTimeout: delayMock } ) );
+vi.mock( '@temporalio/client', () => ( { isGrpcDeadlineError: error => error === deadlineError } ) );
 
-const createMonitor = check => new ConnectionMonitor( {
-  healthService: { check }
-} );
+const createMonitor = check => {
+  const connection = {
+    healthService: { check },
+    withDeadline: vi.fn( ( _deadline, fn ) => fn() )
+  };
+
+  return {
+    connection,
+    monitor: new ConnectionMonitor( connection, CONNECTION_MONITOR_OVERRIDES )
+  };
+};
 
 const flushPromises = async () => {
-  await Promise.resolve();
-  await Promise.resolve();
+  await Array
+    .from( { length: 10 } )
+    .reduce( promise => promise.then( () => Promise.resolve() ), Promise.resolve() );
 };
 
 const resolveNextDelay = ms => {
@@ -42,27 +58,26 @@ describe( 'ConnectionMonitor', () => {
   it( 'reports heartbeat when the connection is serving', async () => {
     const check = vi.fn().mockResolvedValue( { status: SERVING } );
     const heartbeat = vi.fn();
-    const monitor = createMonitor( check );
+    const { connection, monitor } = createMonitor( check );
 
     monitor.onHeartbeat( heartbeat );
     monitor.start();
     await flushPromises();
 
+    expect( connection.withDeadline ).toHaveBeenCalledWith( expect.any( Number ), expect.any( Function ) );
     expect( check ).toHaveBeenCalledWith( {} );
     expect( heartbeat ).toHaveBeenCalledOnce();
     expect( monitor.failing ).toBe( false );
-    expect( delayMock ).toHaveBeenCalledWith( HEALTH_CHECK_TIMEOUT_MS, 0, { ref: false } );
-    expect( delayMock ).toHaveBeenCalledWith( HEALTH_CHECK_INTERVAL_MS, 0, { ref: false } );
+    expect( delayMock ).toHaveBeenCalledWith( CHECK_INTERVAL_MS, 0, { ref: false } );
   } );
 
   it( 'marks the monitor unhealthy when the health check times out', async () => {
-    const check = vi.fn().mockReturnValue( new Promise( () => {} ) );
+    const check = vi.fn().mockRejectedValue( deadlineError );
     const unhealthy = vi.fn();
-    const monitor = createMonitor( check );
+    const { monitor } = createMonitor( check );
 
     monitor.onUnhealthy( unhealthy );
     monitor.start();
-    resolveNextDelay( HEALTH_CHECK_TIMEOUT_MS );
     await flushPromises();
 
     expect( unhealthy ).toHaveBeenCalledWith( {
@@ -79,7 +94,7 @@ describe( 'ConnectionMonitor', () => {
     const unhealthy = vi.fn();
     const recover = vi.fn();
     const heartbeat = vi.fn();
-    const monitor = createMonitor( check );
+    const { monitor } = createMonitor( check );
 
     monitor.onUnhealthy( unhealthy );
     monitor.onRecover( recover );
@@ -93,7 +108,7 @@ describe( 'ConnectionMonitor', () => {
     } );
     expect( monitor.failing ).toBe( true );
 
-    resolveNextDelay( HEALTH_CHECK_INTERVAL_MS );
+    resolveNextDelay( CHECK_INTERVAL_MS );
     await flushPromises();
 
     expect( recover ).toHaveBeenCalledOnce();
@@ -108,7 +123,7 @@ describe( 'ConnectionMonitor', () => {
     const connectionLost = vi.fn( cause => {
       throw cause;
     } );
-    const monitor = createMonitor( check );
+    const { monitor } = createMonitor( check );
 
     monitor.onUnhealthy( unhealthy );
     monitor.onConnectionLost( connectionLost );
@@ -116,13 +131,13 @@ describe( 'ConnectionMonitor', () => {
     const rejection = run.catch( e => e );
 
     await flushPromises();
-    resolveNextDelay( HEALTH_CHECK_INTERVAL_MS );
+    resolveNextDelay( CHECK_INTERVAL_MS );
     await flushPromises();
-    resolveNextDelay( HEALTH_CHECK_INTERVAL_MS );
+    resolveNextDelay( CHECK_INTERVAL_MS );
     await flushPromises();
 
     expect( await rejection ).toBe( error );
-    expect( unhealthy ).toHaveBeenCalledTimes( 2 );
+    expect( unhealthy ).toHaveBeenCalledTimes( MAX_FAILURES - 1 );
     expect( connectionLost ).toHaveBeenCalledWith( error );
     expect( monitor.failing ).toBe( true );
   } );
@@ -130,7 +145,7 @@ describe( 'ConnectionMonitor', () => {
   it( 'treats non-serving health status as a failure', async () => {
     const check = vi.fn().mockResolvedValue( { status: NOT_SERVING } );
     const unhealthy = vi.fn();
-    const monitor = createMonitor( check );
+    const { monitor } = createMonitor( check );
 
     monitor.onUnhealthy( unhealthy );
     monitor.start();

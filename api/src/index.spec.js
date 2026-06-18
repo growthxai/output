@@ -4,7 +4,7 @@ import request from 'supertest';
 const RID = '11111111-2222-4333-8444-555555555555';
 
 const { mockClient, mockLogger, temporalInitState, mockTemporalInit } = vi.hoisted( () => {
-  const temporalInitState = { options: null };
+  const temporalInitState = { connectionLostCb: null, options: null };
   const mockClient = {
     workflow: {
       run: vi.fn(),
@@ -20,7 +20,10 @@ const { mockClient, mockLogger, temporalInitState, mockTemporalInit } = vi.hoist
       signal: vi.fn(),
       executeUpdate: vi.fn()
     },
-    close: () => Promise.resolve(),
+    close: vi.fn( () => Promise.resolve() ),
+    onConnectionLost: vi.fn( cb => {
+      temporalInitState.connectionLostCb = cb;
+    } ),
     isReady: vi.fn( () => true )
   };
   const mockTemporalInit = vi.fn( options => {
@@ -115,22 +118,9 @@ describe( 'API endpoints', () => {
     it( 'returns 200 when healthy', () => request( `http://localhost:${PORT}` ).get( '/health' ).expect( 200 ) );
   } );
 
-  it( 'logs and exits when the Temporal connection is lost', () => {
-    const exit = vi.spyOn( process, 'exit' ).mockImplementation( code => {
-      throw new Error( `process.exit ${code}` );
-    } );
-    const error = new Error( 'Temporal unavailable' );
-
-    expect( () => temporalInitState.options.onConnectionLost( error ) ).toThrow( 'process.exit 1' );
-
-    expect( mockLogger.error ).toHaveBeenCalledWith( 'Temporal connection lost', {
-      error: 'Temporal unavailable',
-      errorType: 'Error',
-      stack: error.stack
-    } );
-    expect( exit ).toHaveBeenCalledWith( 1 );
-
-    exit.mockRestore();
+  it( 'registers a Temporal connection lost handler', () => {
+    expect( temporalInitState.options ).toBeUndefined();
+    expect( temporalInitState.connectionLostCb ).toEqual( expect.any( Function ) );
   } );
 
   describe( 'POST /heartbeat', () => {

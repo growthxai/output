@@ -153,22 +153,30 @@ describe( 'temporal client', () => {
   } );
 
   it( 'starts a connection monitor and exposes readiness', async () => {
-    const onConnectionLost = vi.fn();
     const temporalClient = ( await import( './index.js' ) ).default;
 
-    const client = await temporalClient.init( { onConnectionLost } );
+    const client = await temporalClient.init();
 
     expect( mockConnectionMonitorCtor ).toHaveBeenCalledWith( mockConnection );
     expect( mockMonitor.onHeartbeat ).toHaveBeenCalledWith( expect.any( Function ) );
     expect( mockMonitor.onRecover ).toHaveBeenCalledWith( expect.any( Function ) );
     expect( mockMonitor.onUnhealthy ).toHaveBeenCalledWith( expect.any( Function ) );
-    expect( mockMonitor.onConnectionLost ).toHaveBeenCalledWith( onConnectionLost );
     expect( mockMonitor.start ).toHaveBeenCalled();
     expect( client.isReady() ).toBe( true );
 
     mockMonitor.failing = true;
 
     expect( client.isReady() ).toBe( false );
+  } );
+
+  it( 'registers a connection lost callback after initialization', async () => {
+    const onConnectionLost = vi.fn();
+    const temporalClient = ( await import( './index.js' ) ).default;
+
+    const client = await temporalClient.init();
+    client.onConnectionLost( onConnectionLost );
+
+    expect( mockMonitor.onConnectionLost ).toHaveBeenCalledWith( onConnectionLost );
   } );
 
   it( 'closes the Temporal connection', async () => {

@@ -11,7 +11,7 @@ export default {
   /**
    * Status the client and returns the methods to interact with Temporal
    */
-  async init( { onConnectionLost } = {} ) {
+  async init() {
     logger.info( 'Temporal client connecting', { address, namespace, grpcMaxMessageSizeBytes } );
 
     // enable TLS only when connecting to remote (api key is present)
@@ -32,7 +32,7 @@ export default {
     monitor.onHeartbeat( () => logger.info( 'Connection healthy' ) );
     monitor.onRecover( () => logger.info( 'Connection recovered' ) );
     monitor.onUnhealthy( ( { error, failures } ) => logger.warn( 'Connection unhealthy', { error: error.message, failures } ) );
-    monitor.onConnectionLost( onConnectionLost );
+
     monitor.start();
 
     logger.info( 'Temporal client connected', { address, namespace } );
@@ -44,6 +44,14 @@ export default {
        */
       async close() {
         await connection.close();
+      },
+
+      /**
+       * Trigger a function when the connection es permanently lost
+       * @param {Function} cb
+       */
+      onConnectionLost( cb ) {
+        monitor.onConnectionLost( cb );
       },
 
       /**

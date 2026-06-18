@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises';
+import { isGrpcDeadlineError } from '@temporalio/client';
 
 const ServingStatus = {
   UNKNOWN: 0,
@@ -9,7 +10,7 @@ const ServingStatus = {
 
 export class ConnectionMonitor {
   #MAX_FAILURES = 3;
-  #CHECK_INTERVAL_MS = 30_000;
+  #CHECK_INTERVAL_MS = 60_000;
   #CHECK_TIMEOUT_MS = 5_000;
 
   #connection = null;
@@ -19,14 +20,14 @@ export class ConnectionMonitor {
   #recoverCb = null;
   #unhealthyCb = null;
 
-  #check = async () => {
-    try {
-      const timeout = delay( this.#CHECK_TIMEOUT_MS, 0, { ref: false } )
-        .then( () => {
-          throw new Error( 'Connection health check timed out' );
-        } );
+  #wrapError( error ) {
+    return isGrpcDeadlineError( error ) ? new Error( 'Connection health check timed out', { cause: error } ) : error;
+  }
 
-      const health = await Promise.race( [ this.#connection.healthService.check( {} ), timeout ] );
+  #check = async () => {
+    const deadline = Date.now() + this.#CHECK_TIMEOUT_MS;
+    try {
+      const health = await this.#connection.withDeadline( deadline, () => this.#connection.healthService.check( {} ) );
 
       if ( health.status !== ServingStatus.SERVING ) {
         throw new Error( `Connection not serving (status ${health.status})` );
@@ -41,9 +42,10 @@ export class ConnectionMonitor {
     } catch ( error ) {
       this.#failures++;
       if ( this.#failures >= this.#MAX_FAILURES ) {
-        this.#connLostCb?.( error );
+        this.#connLostCb?.( this.#wrapError( error ) );
+        return true;
       } else {
-        this.#unhealthyCb?.( { error, failures: this.#failures } );
+        this.#unhealthyCb?.( { error: this.#wrapError( error ), failures: this.#failures } );
       }
     }
 
@@ -55,8 +57,17 @@ export class ConnectionMonitor {
    * Creates a new connection monitor
    * @param {Connection} connection
    */
-  constructor( connection ) {
+  constructor( connection, overrides ) {
     this.#connection = connection;
+    if ( Number.isFinite( overrides?.maxFailures ) ) {
+      this.#MAX_FAILURES = overrides.maxFailures;
+    }
+    if ( Number.isFinite( overrides?.checkIntervalMs ) ) {
+      this.#CHECK_INTERVAL_MS = overrides.checkIntervalMs;
+    }
+    if ( Number.isFinite( overrides?.checkTimeoutMs ) ) {
+      this.#CHECK_TIMEOUT_MS = overrides.checkTimeoutMs;
+    }
   }
 
   /**
