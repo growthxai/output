@@ -54,7 +54,7 @@ activity in the same workflow. Activity names must be unique within a workflow.`
     // Uses a global namespace for shared activities
     const activityKey = `${SHARED_STEP_PREFIX}#${metadata.name}`;
 
-    log.info( metadata.name, { shared: true, type: metadata.type, shared: true, ...( external && { external } ), path } );
+    log.info( metadata.name, { shared: true, type: metadata.type, ...( external && { external } ), path } );
 
     if ( activities[activityKey] ) {
       throw new ValidationError( `Shared activity "${metadata.name}" conflicts with another shared activity. \
