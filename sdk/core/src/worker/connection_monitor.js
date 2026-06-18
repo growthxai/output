@@ -13,7 +13,7 @@ const log = createChildLogger( 'Connection' );
 
 export class TemporalConnectionMonitor {
   #MAX_FAILURES = 3;
-  #CHECK_INTERVAL_MS = 10_000;
+  #CHECK_INTERVAL_MS = 60_000;
   #CHECK_TIMEOUT_MS = 5_000;
 
   #cancellation = new CancellablePromise();
