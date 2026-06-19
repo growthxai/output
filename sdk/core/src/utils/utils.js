@@ -325,3 +325,10 @@ export const runOnce = fn => {
     return state.result;
   };
 };
+
+/**
+ * Escape regexp characters in a string
+ * @param {*} value
+ * @returns
+ */
+export const rxEscape = v => v.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );

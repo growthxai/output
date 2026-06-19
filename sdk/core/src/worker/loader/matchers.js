@@ -1,4 +1,5 @@
 import { sep } from 'node:path';
+import { rxEscape } from '#utils';
 
 /**
  * Creates a matcher function that based on "path", matches:
@@ -10,7 +11,7 @@ import { sep } from 'node:path';
  * @returns {function(string): boolean}
  */
 export const buildActivityMatcher = path => {
-  const exp = new RegExp( `^${RegExp.escape( `${path}${sep}` )}(?:steps|evaluators)(?:\\.js$|${RegExp.escape( sep )})` );
+  const exp = new RegExp( `^${rxEscape( `${path}${sep}` )}(?:steps|evaluators)(?:\\.js$|${rxEscape( sep )})` );
   return v => exp.test( v );
 };
 

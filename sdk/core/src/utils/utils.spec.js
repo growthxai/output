@@ -10,7 +10,8 @@ import {
   toUrlSafeBase64,
   allSettledWithTimeout,
   CancellablePromise,
-  runOnce
+  runOnce,
+  rxEscape
 } from './utils.js';
 
 describe( 'clone', () => {
@@ -220,6 +221,28 @@ describe( 'runOnce', () => {
     expect( () => once() ).toThrow( error );
     expect( once() ).toBeUndefined();
     expect( fn ).toHaveBeenCalledOnce();
+  } );
+} );
+
+describe( 'rxEscape', () => {
+  it( 'escapes all regexp metacharacters', () => {
+    expect( rxEscape( '.*+?^${}()|[]\\' ) ).toBe( '\\.\\*\\+\\?\\^\\$\\{\\}\\(\\)\\|\\[\\]\\\\' );
+  } );
+
+  it( 'keeps file URL paths matchable as literal regexp input', () => {
+    const path = 'file://foo/bar';
+    const rx = new RegExp( `^${rxEscape( path )}$` );
+
+    expect( rx.test( path ) ).toBe( true );
+    expect( rx.test( 'file://foo/bar/baz' ) ).toBe( false );
+  } );
+
+  it( 'keeps Windows paths matchable as literal regexp input', () => {
+    const path = String.raw`C:\foo\bar`;
+    const rx = new RegExp( `^${rxEscape( path )}$` );
+
+    expect( rx.test( path ) ).toBe( true );
+    expect( rx.test( String.raw`C:\foo\bar\baz` ) ).toBe( false );
   } );
 } );
 
