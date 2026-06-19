@@ -1,32 +1,16 @@
 import { createChildLogger } from './index.js';
-import { Storage } from '#async_storage';
-import { serializedActivityFields } from './context_fields.js';
 
 const log = createChildLogger( 'Step' );
 
 /**
- * Reads the current step execution context from AsyncLocalStorage at call time
- * and returns its flat fields, or {} when there is no active context (called
- * outside a step, or in tests).
- *
- * @returns {object}
- */
-const contextFields = () => {
-  const ctx = Storage.load();
-  return ctx?.activityInfo ? serializedActivityFields( ctx.activityInfo ) : {};
-};
-
-const emit = level => ( message, meta ) =>
-  log[level]( message, { ...contextFields(), ...meta } );
-
-/**
- * Step logger that auto-attaches the current workflow execution context
- * (workflowId, runId, activityId, activityType, workflowType) to every line.
+ * Step logger — a drop-in for `console.*` inside steps. The current workflow
+ * execution context (workflowId, runId, activityId, activityType, workflowType)
+ * is attached automatically by the root logger's context format.
  */
 export const logger = {
-  info: emit( 'info' ),
-  warn: emit( 'warn' ),
-  error: emit( 'error' ),
-  debug: emit( 'debug' ),
-  log: emit( 'info' )
+  info: ( message, meta ) => log.info( message, meta ),
+  warn: ( message, meta ) => log.warn( message, meta ),
+  error: ( message, meta ) => log.error( message, meta ),
+  debug: ( message, meta ) => log.debug( message, meta ),
+  log: ( message, meta ) => log.info( message, meta )
 };
