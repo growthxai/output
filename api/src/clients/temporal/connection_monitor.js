@@ -25,32 +25,33 @@ export class ConnectionMonitor {
   }
 
   #check = async () => {
-    const deadline = Date.now() + this.#CHECK_TIMEOUT_MS;
-    try {
-      const health = await this.#connection.withDeadline( deadline, () => this.#connection.healthService.check( {} ) );
+    while ( true ) {
+      try {
+        const deadline = Date.now() + this.#CHECK_TIMEOUT_MS;
+        const health = await this.#connection.withDeadline( deadline, () => this.#connection.healthService.check( {} ) );
 
-      if ( health.status !== ServingStatus.SERVING ) {
-        throw new Error( `Connection not serving (status ${health.status})` );
+        if ( health.status !== ServingStatus.SERVING ) {
+          throw new Error( `Connection not serving (status ${health.status})` );
+        }
+
+        if ( this.#failures > 0 ) {
+          this.#recoverCb?.();
+        } else {
+          this.#heartbeatCb?.();
+        }
+        this.#failures = 0;
+      } catch ( error ) {
+        this.#failures++;
+        if ( this.#failures >= this.#MAX_FAILURES ) {
+          this.#connLostCb?.( this.#wrapError( error ) );
+          break;
+        } else {
+          this.#unhealthyCb?.( { error: this.#wrapError( error ), failures: this.#failures } );
+        }
       }
 
-      if ( this.#failures > 0 ) {
-        this.#recoverCb?.();
-      } else {
-        this.#heartbeatCb?.();
-      }
-      this.#failures = 0;
-    } catch ( error ) {
-      this.#failures++;
-      if ( this.#failures >= this.#MAX_FAILURES ) {
-        this.#connLostCb?.( this.#wrapError( error ) );
-        return true;
-      } else {
-        this.#unhealthyCb?.( { error: this.#wrapError( error ), failures: this.#failures } );
-      }
+      await delay( this.#CHECK_INTERVAL_MS, 0, { ref: false } );
     }
-
-    await delay( this.#CHECK_INTERVAL_MS, 0, { ref: false } );
-    return this.#check();
   };
 
   /**

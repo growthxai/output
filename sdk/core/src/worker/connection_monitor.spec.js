@@ -116,7 +116,7 @@ describe( 'TemporalConnectionMonitor', () => {
     const monitor = createMonitor( check );
 
     monitor.onConnectionLost( connectionLost );
-    const run = monitor.start();
+    monitor.start();
 
     await flushPromises();
     resolveNextDelay( CHECK_INTERVAL_MS );
@@ -124,7 +124,6 @@ describe( 'TemporalConnectionMonitor', () => {
     resolveNextDelay( CHECK_INTERVAL_MS );
     await flushPromises();
 
-    await expect( run ).resolves.toBe( true );
     expect( mockLogger.warn ).toHaveBeenCalledTimes( 3 );
     expect( mockLogger.warn ).toHaveBeenCalledWith( 'Connection lost', {
       error: 'connection refused',
@@ -161,7 +160,6 @@ describe( 'TemporalConnectionMonitor', () => {
     expect( check ).toHaveBeenCalledOnce();
 
     await monitor.stop();
-    await expect( firstRun ).resolves.toBe( true );
   } );
 
   it( 'stops without calling connection lost callback for in-flight health checks', async () => {
@@ -170,12 +168,11 @@ describe( 'TemporalConnectionMonitor', () => {
     const monitor = createMonitor( check, { maxFailures: 1 } );
 
     monitor.onConnectionLost( connectionLost );
-    const run = monitor.start();
+    monitor.start();
 
     expect( monitor.running ).toBe( true );
 
     await monitor.stop();
-    await expect( run ).resolves.toBe( true );
 
     expect( connectionLost ).not.toHaveBeenCalled();
     expect( monitor.connectionLossError ).toBeNull();

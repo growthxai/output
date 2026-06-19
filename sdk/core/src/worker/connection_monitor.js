@@ -33,41 +33,40 @@ export class TemporalConnectionMonitor {
   #sleep = async () => delay( this.#CHECK_INTERVAL_MS, 0, { ref: false } );
 
   #watch = async () => {
-    try {
-      const health = await Promise.race( [ this.#healthcheck(), this.#getTimeout(), this.#cancellation.promise ] );
+    while ( !this.#cancellation.completed ) {
+      try {
+        const health = await Promise.race( [ this.#healthcheck(), this.#getTimeout(), this.#cancellation.promise ] );
 
-      // cancellation won the race
-      if ( this.#cancellation.completed ) {
-        return true;
+        // cancellation won the race
+        if ( this.#cancellation.completed ) {
+          break;
+        }
+
+        if ( health?.status !== ServingStatus.SERVING ) {
+          throw new Error( `Connection not serving (status ${health?.status})` );
+        }
+
+        log.info( this.#failures === 0 ? 'Healthy' : 'Recovered' );
+        this.#failures = 0;
+      } catch ( error ) {
+        // cancellation will ignore warnings and not throw errors;
+        if ( this.#cancellation.completed ) {
+          break;
+        }
+
+        if ( ++this.#failures >= this.#MAX_FAILURES ) {
+          log.warn( 'Connection lost', { error: error.message, failures: this.#failures } );
+          this.#error = error;
+          this.#connectionLostCb?.( error );
+          this.#cancellation.complete();
+          break;
+        } else {
+          log.warn( 'Connection unhealthy', { error: error.message, failures: this.#failures } );
+        }
       }
 
-      if ( health?.status !== ServingStatus.SERVING ) {
-        throw new Error( `Connection not serving (status ${health?.status})` );
-      }
-
-      log.info( this.#failures === 0 ? 'Healthy' : 'Recovered' );
-      this.#failures = 0;
-    } catch ( error ) {
-      // cancellation will ignore warnings and not throw errors;
-      if ( this.#cancellation.completed ) {
-        return true;
-      }
-
-      if ( ++this.#failures >= this.#MAX_FAILURES ) {
-        log.warn( 'Connection lost', { error: error.message, failures: this.#failures } );
-        this.#error = error;
-        this.#connectionLostCb?.( error );
-        return true;
-      } else {
-        log.warn( 'Connection unhealthy', { error: error.message, failures: this.#failures } );
-      }
+      await Promise.race( [ this.#sleep(), this.#cancellation.promise ] );
     }
-
-    await Promise.race( [ this.#sleep(), this.#cancellation.promise ] );
-    if ( this.#cancellation.completed ) {
-      return true;
-    }
-    return this.#watch();
   };
 
   constructor( connection, overrides = {} ) {
