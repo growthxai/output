@@ -12,6 +12,10 @@
       "types": "./src/hooks/index.d.ts",
       "import": "./src/hooks/index.js"
     },
+    "./logger": {
+      "types": "./src/logger/public.d.ts",
+      "import": "./src/logger/public.js"
+    },
     "./sdk_activity_integration": {
       "types": "./src/activity_integration/index.d.ts",
       "import": "./src/activity_integration/index.js"

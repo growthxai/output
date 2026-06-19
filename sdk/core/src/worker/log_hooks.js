@@ -1,6 +1,7 @@
 import { messageBus } from '#bus';
 import { createChildLogger } from '#logger';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, BusEventType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
+import { serializedActivityFields } from '../logger/context_fields.js';
 
 const activityLog = createChildLogger( 'Activity' );
 const workflowLog = createChildLogger( 'Workflow' );
@@ -14,14 +15,6 @@ const workflowLog = createChildLogger( 'Workflow' );
 ║ Activity events ║
 ╚═════════════════╝
 */
-
-const serializedActivityFields = activityInfo => ( {
-  activityId: activityInfo.activityId,
-  activityType: activityInfo.activityType,
-  workflowId: activityInfo.workflowExecution.workflowId,
-  workflowType: activityInfo.workflowType,
-  runId: activityInfo.workflowExecution.runId
-} );
 
 const shouldLogActivity = activityInfo => activityInfo.activityType !== ACTIVITY_GET_TRACE_DESTINATIONS;
 
