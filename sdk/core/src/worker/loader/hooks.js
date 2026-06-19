@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { createChildLogger } from '#logger';
 
-const log = createChildLogger( 'Scanner' );
+const log = createChildLogger( 'Hooks Loader' );
 
 /**
  * Loads the hook files from package.json's "outputai" section.
