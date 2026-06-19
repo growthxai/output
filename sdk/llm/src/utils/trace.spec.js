@@ -1,19 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => ( {
+vi.mock( '@outputai/core/internal/activity', () => ( {
   Tracing: {
     addEventStart: vi.fn(),
     addEventError: vi.fn(),
     addEventAttribute: vi.fn(),
     addEventEnd: vi.fn()
   },
-  emitEvent: vi.fn()
+  Event: {
+    emit: vi.fn()
+  }
 } ) );
 
-import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Tracing, Event } from '@outputai/core/internal/activity';
 import { startTrace, endTraceWithError, endTraceWithSuccess } from './trace.js';
 
 const tracing = vi.mocked( Tracing, true );
+const event = vi.mocked( Event, true );
 
 describe( 'trace utils', () => {
   beforeEach( () => {
@@ -69,7 +72,7 @@ describe( 'trace utils', () => {
         eventId: 'trace-a',
         attribute: cost
       } );
-      expect( emitEvent ).toHaveBeenCalledWith( 'cost:llm:request', cost );
+      expect( event.emit ).toHaveBeenCalledWith( 'cost:llm:request', cost );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'trace-a',
         details: {
@@ -94,7 +97,7 @@ describe( 'trace utils', () => {
       } );
 
       expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
-      expect( emitEvent ).not.toHaveBeenCalled();
+      expect( event.emit ).not.toHaveBeenCalled();
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'trace-no-cost',
         details: {

@@ -1,6 +1,6 @@
 import { workflow, executeInParallel, z } from '@outputai/core';
 import type { EvaluationResult } from '@outputai/core';
-import { getMetadata } from '@outputai/core/sdk_utils';
+import { Component } from '@outputai/core/internal/workflow';
 import { VERDICT, CRITICALITY, DatasetSchema, EvalOutputSchema } from './schemas.js';
 import { interpretResult } from './interpret.js';
 import { aggregateCaseVerdict } from './aggregate.js';
@@ -40,12 +40,12 @@ export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOpti
   const concurrency = config.concurrency ?? 10;
 
   const evalDefs: ResolvedEvalDef[] = evals.map( def => {
-    const meta = getMetadata( def.evaluator as Function & Record<symbol, unknown> );
-    if ( !meta ) {
-      throw new Error( 'Evaluator passed to evalWorkflow is missing metadata. Ensure it was created with evaluator().' );
+    if ( !Component.isComponent( def.evaluator ) ) {
+      throw new Error( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
     }
+    const { name } = Component.readAttributes( def.evaluator ) as Component.Attribute;
     return {
-      name: meta.name,
+      name,
       criticality: def.criticality ?? CRITICALITY.REQUIRED,
       interpret: def.interpret
     };

@@ -21,7 +21,7 @@ const defaultIgnorePaths = [
  * Return the directory of the file invoking the code that called this function
  * Excludes some internal paths and the sdk itself
  */
-export default ( additionalIgnorePaths = [] ) => {
+export const resolveInvocationDir = ( additionalIgnorePaths = [] ) => {
   const stack = new Error().stack;
   const lines = stackTraceParser.parse( stack );
   const ignorePaths = [ ...additionalIgnorePaths, ...defaultIgnorePaths ].map( transformSeparators );

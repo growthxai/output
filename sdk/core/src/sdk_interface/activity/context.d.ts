@@ -1,6 +1,6 @@
 import type { Info } from '@temporalio/activity';
 /**
- * Context returned by {@link getContext} when running inside a Temporal Activity (step or evaluator).
+ * Context returned by {@link getActivityContext} when running inside a Temporal Activity (step or evaluator).
  */
 export type Context = {
   /** Temporal info about the current activity */
@@ -20,4 +20,4 @@ export type Context = {
  *
  * @returns The workflow context, or `null` if unavailable or incomplete.
  */
-export declare function getExecutionContext(): Context | null;
+export declare function getActivityContext(): Context | null;

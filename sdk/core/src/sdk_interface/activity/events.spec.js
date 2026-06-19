@@ -11,12 +11,12 @@ vi.mock( '#bus', () => ( {
   messageBus: { emit: emitMock }
 } ) );
 
-import { emitEvent } from './events.js';
+import { emit } from './events.js';
 
 // `eventId` stamping is the bus layer's responsibility (see bus.spec.js + the
 // integration tests in event_id_integration.spec.js). Assertions here use
 // `objectContaining` so they don't have to know about that enrichment.
-describe( 'emitEvent', () => {
+describe( 'emit', () => {
   beforeEach( () => {
     vi.clearAllMocks();
   } );
@@ -39,7 +39,7 @@ describe( 'emitEvent', () => {
       outputActivityKind: 'step'
     } );
 
-    emitEvent( 'cost:llm:request', { modelId: 'gpt-4o' } );
+    emit( 'cost:llm:request', { modelId: 'gpt-4o' } );
 
     expect( emitMock ).toHaveBeenCalledWith( 'external:cost:llm:request', expect.objectContaining( {
       activityInfo,
@@ -52,7 +52,7 @@ describe( 'emitEvent', () => {
   it( 'emits payload without context when storage is missing', () => {
     loadMock.mockReturnValue( undefined );
 
-    emitEvent( 'foo:bar', { x: 1 } );
+    emit( 'foo:bar', { x: 1 } );
 
     expect( emitMock ).toHaveBeenCalledWith( 'external:foo:bar', { x: 1 } );
   } );
@@ -75,7 +75,7 @@ describe( 'emitEvent', () => {
       outputActivityKind: 'step'
     } );
 
-    emitEvent( 'lifecycle:start' );
+    emit( 'lifecycle:start' );
 
     expect( emitMock ).toHaveBeenCalledWith( 'external:lifecycle:start', expect.objectContaining( {
       activityInfo,
@@ -102,7 +102,7 @@ describe( 'emitEvent', () => {
       outputActivityKind: 'step'
     } );
 
-    emitEvent( 'cost:http:request', {
+    emit( 'cost:http:request', {
       activityInfo: { activityId: 'should-be-overridden' },
       workflowDetails: { workflowId: 'should-be-overridden' },
       outputActivityKind: 'should-be-overridden',

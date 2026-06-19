@@ -7,8 +7,10 @@ import { tmpdir } from 'node:os';
 const state = vi.hoisted( () => ( { dir: '', entries: {} } ) );
 
 // Mock core utils to control resolveInvocationDir
-vi.mock( '@outputai/core/sdk_utils', () => ( {
-  resolveInvocationDir: () => state.dir
+vi.mock( '@outputai/core/internal/activity', () => ( {
+  Path: {
+    resolveInvocationDir: () => state.dir
+  }
 } ) );
 
 // Mock node:fs.readFileSync for directory scans while delegating file reads

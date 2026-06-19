@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Response } from 'undici';
 import { requestIdSymbol } from './consts.js';
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => {
+vi.mock( '@outputai/core/internal/activity', () => {
   class HTTPRequestCost {
     static TYPE = 'http:request:cost';
     type = HTTPRequestCost.TYPE;
@@ -24,21 +24,23 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
         HTTPRequestCost
       }
     },
-    emitEvent: vi.fn()
+    Event: {
+      emit: vi.fn()
+    }
   };
 } );
 
-import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Tracing, Event } from '@outputai/core/internal/activity';
 import { addRequestCost } from './cost.js';
 import { addRequestIdToResponse } from './fetch/utils.js';
 
 const tracing = vi.mocked( Tracing, true );
-const emit = vi.mocked( emitEvent, true );
+const event = vi.mocked( Event, true );
 
 describe( 'addRequestCost', () => {
   beforeEach( () => {
     tracing.addEventAttribute.mockClear();
-    emit.mockClear();
+    event.emit.mockClear();
     vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
   } );
 
@@ -56,7 +58,7 @@ describe( 'addRequestCost', () => {
       'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.'
     );
     expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
-    expect( emit ).not.toHaveBeenCalled();
+    expect( event.emit ).not.toHaveBeenCalled();
   } );
 
   it( 'records cost on the trace event when the response carries the request id', () => {
@@ -77,7 +79,7 @@ describe( 'addRequestCost', () => {
       } )
     } );
     const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
+    expect( event.emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
   } );
 
   it( 'records zero cost on the trace event', () => {
@@ -97,7 +99,7 @@ describe( 'addRequestCost', () => {
       } )
     } );
     const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
+    expect( event.emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
   } );
 
   // ky clones the response before passing it to afterResponse hooks. Without
@@ -121,6 +123,6 @@ describe( 'addRequestCost', () => {
       } )
     } );
     const attribute = tracing.addEventAttribute.mock.calls[0][0].attribute;
-    expect( emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
+    expect( event.emit ).toHaveBeenCalledWith( 'cost:http:request', attribute );
   } );
 } );

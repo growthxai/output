@@ -1,10 +1,10 @@
 import { step } from '@outputai/core';
-import { emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Event } from '@outputai/core/internal/activity';
 
-export const emitEventStep = step( {
+export const emitEvent = step( {
   name: 'emit_event',
   description: 'Event hub',
   fn: async () => {
-    emitEvent( 'custom_event', { hi: 'mark' } );
+    Event.emit( 'custom_event', { hi: 'mark' } );
   }
 } );

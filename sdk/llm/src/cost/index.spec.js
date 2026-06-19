@@ -6,7 +6,7 @@ vi.mock( './fetch_models_pricing.js', () => ( {
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => {
+vi.mock( '@outputai/core/internal/activity', () => {
   class LLMUsage {
     static TYPE = 'llm:usage';
     type = LLMUsage.TYPE;
@@ -44,7 +44,7 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
   };
 } );
 
-import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { Tracing } from '@outputai/core/internal/activity';
 import { calculateLLMCallCost } from './index.js';
 
 const expectLLMUsage = ( result, { modelId, usage, total, tokensUsed } ) => {

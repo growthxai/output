@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Response, Request } from 'undici';
 
-vi.mock( '@outputai/core/sdk_activity_integration', () => {
+vi.mock( '@outputai/core/internal/activity', () => {
   class HTTPRequestCount {
     static TYPE = 'http:request:count';
     type = HTTPRequestCount.TYPE;
@@ -24,14 +24,16 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
         HTTPRequestCount
       }
     },
-    emitEvent: vi.fn()
+    Event: {
+      emit: vi.fn()
+    }
   };
 } );
 
-import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Tracing, Event } from '@outputai/core/internal/activity';
 
 const tracing = vi.mocked( Tracing, true );
-const emit = vi.mocked( emitEvent, true );
+const event = vi.mocked( Event, true );
 
 /** Loads logger with optional verbose tracing env so `config.js` is evaluated fresh. */
 async function logLogger( verbose: boolean ): Promise<typeof import( './logger.js' )> {
@@ -49,7 +51,7 @@ beforeEach( () => {
   tracing.addEventEnd.mockClear();
   tracing.addEventError.mockClear();
   tracing.addEventAttribute.mockClear();
-  emit.mockClear();
+  event.emit.mockClear();
 } );
 
 describe( 'fetch/logger', () => {
@@ -265,7 +267,7 @@ describe( 'fetch/logger', () => {
         durationMs: 42
       } );
 
-      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+      expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
         requestId: 'r-ok',
         method: 'GET',
         url: 'https://api.example.com/ok',
@@ -287,7 +289,7 @@ describe( 'fetch/logger', () => {
         durationMs: 15
       } );
 
-      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+      expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
         requestId: 'r-err',
         method: 'POST',
         url: 'https://api.example.com/err',
@@ -309,7 +311,7 @@ describe( 'fetch/logger', () => {
         durationMs: 9
       } );
 
-      expect( emit ).toHaveBeenCalledWith( 'http:request', {
+      expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
         requestId: 'r-net',
         method: 'GET',
         url: 'https://api.example.com/net',

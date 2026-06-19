@@ -5,7 +5,7 @@ import { Storage } from '#async_storage';
  *
  * @returns {object}
  */
-export const getExecutionContext = () => {
+export const getActivityContext = () => {
   const ctx = Storage.load();
   if ( !ctx ) {
     return null;

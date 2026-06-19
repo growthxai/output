@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'node:fs';
-import { resolveInvocationDir } from '@outputai/core/sdk_utils';
+import { Path } from '@outputai/core/internal/activity';
 import { FatalError } from '@outputai/core';
 
 const scanDir = dir => {
@@ -41,5 +41,5 @@ const findContent = ( name, dir ) => {
  * @param {string} [dir] - Directory to search, defaults to invocation directory
  * @returns {{ content: string, dir: string } | null}
  */
-export const loadContent = ( name, dir = resolveInvocationDir() ) =>
+export const loadContent = ( name, dir = Path.resolveInvocationDir() ) =>
   findContent( name, dir ) ?? null;

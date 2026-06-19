@@ -1,20 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { verify } from './verify.js';
-import { getMetadata } from '@outputai/core/sdk_utils';
 import { EvaluationBooleanResult, z } from '@outputai/core';
 import { Verdict } from './verdict.js';
 import type { CheckContext } from './verify.js';
 
 describe( 'verify', () => {
-
-  it( 'returns a function with metadata matching the given name', () => {
-    const ev = verify( { name: 'my_eval' }, () => Verdict.isTrue( true ) );
-    const meta = getMetadata( ev as unknown as Function );
-    expect( meta ).not.toBeNull();
-    expect( meta!.name ).toBe( 'my_eval' );
-    expect( meta!.description ).toBe( 'my_eval' );
-  } );
-
   it( 'passes input and output to the user function', async () => {
     const captured: CheckContext[] = [];
 

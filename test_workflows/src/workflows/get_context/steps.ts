@@ -1,11 +1,11 @@
 import { step } from '@outputai/core';
-import { getExecutionContext } from '@outputai/core/sdk_activity_integration';
+import { Context } from '@outputai/core/internal/activity';
 
 export const demoContext = step( {
   name: 'demo_context',
   description: 'Show get context',
   fn: async () => {
-    const context = getExecutionContext();
+    const context = Context.getActivityContext();
     console.log( { context } );
   }
 } );

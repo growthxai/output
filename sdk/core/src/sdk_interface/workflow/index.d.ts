@@ -4,6 +4,5 @@
  *
  * @packageDocumentation
  */
-export { getExecutionContext } from './context';
-export { emitEvent } from './events';
-export * as Tracing from './tracing';
+export * as Component from '../workflow/component.js';
+

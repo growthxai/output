@@ -1,7 +1,7 @@
 import { messageBus } from '#bus';
 import { Storage } from '#async_storage';
 
-export const emitEvent = ( eventName, payload ) => {
+export const emit = ( eventName, payload ) => {
   const ctx = Storage.load();
 
   messageBus.emit( `external:${eventName}`, {

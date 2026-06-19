@@ -1,5 +1,5 @@
 import { ValidationError } from '@outputai/core';
-import { resolveInvocationDir } from '@outputai/core/sdk_utils';
+import { Path } from '@outputai/core/internal/activity';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
@@ -38,8 +38,8 @@ export class Agent extends AIToolLoopAgent {
     }
 
     // Must be captured synchronously — Temporal async activity execution
-    // breaks the call stack, so resolveInvocationDir() fails if called lazily.
-    const resolvedPromptDir = promptDir ?? resolveInvocationDir();
+    // breaks the call stack, so Path.resolveInvocationDir() fails if called lazily.
+    const resolvedPromptDir = promptDir ?? Path.resolveInvocationDir();
 
     const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir: resolvedPromptDir, skills, tools: toolsArg } );
 

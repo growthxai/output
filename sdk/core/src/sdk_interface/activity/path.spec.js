@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import resolveInvocationDir from './resolve_invocation_dir';
+import { resolveInvocationDir } from './path.js';
 
 const OriginalError = Error;
 

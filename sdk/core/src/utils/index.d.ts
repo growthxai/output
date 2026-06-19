@@ -6,13 +6,6 @@
  */
 
 /**
- * Return the first immediate directory of the file invoking the code that called this function.
- *
- * Excludes `@outputai/core`, node, and other internal paths.
- */
-export function resolveInvocationDir(): string;
-
-/**
  * Node safe clone implementation that doesn't use global structuredClone().
  *
  * Returns a cloned version of the object.
@@ -22,31 +15,6 @@ export function resolveInvocationDir(): string;
  * @param object
  */
 export function clone( object: object ): object;
-
-/**
- * Receives an error as argument and throws it.
- *
- * @param error
- * @throws {Error}
- */
-export function throws( error: Error ): void;
-
-/**
- * Attach given value to an object with the METADATA_ACCESS_SYMBOL symbol as key.
- *
- * @param target
- * @param value
- * @returns
- */
-export function setMetadata( target: object, value: object ): void;
-
-/**
- * Read metadata previously attached via setMetadata.
- *
- * @param target - The function or object to read metadata from.
- * @returns The metadata object, or null if none is attached.
- */
-export function getMetadata( target: Function ): { name: string; description?: string; type?: string } | null;
 
 /** Represents a {Response} serialized to plain object  */
 export type SerializedFetchResponse = {

@@ -1,8 +1,9 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
 import { WorkflowValidator } from './validations/index.js';
-import { deepMerge, setMetadata, toUrlSafeBase64 } from '#utils';
+import { deepMerge, toUrlSafeBase64 } from '#utils';
 import { WorkflowContext } from '#internal_utils/workflow_context';
+import { setMetadata } from '#internal_utils/component';
 import { TraceInfo } from '#internal_utils/trace_info';
 import { defaultOptions } from './workflow_activity_options.js';
 import {

@@ -1,5 +1,3 @@
-import { METADATA_ACCESS_SYMBOL } from '#consts';
-
 /**
  * Node safe clone implementation that doesn't use global structuredClone()
  * @param {object} v
@@ -24,31 +22,6 @@ export const isPlainObject = v =>
     !Array.isArray( v ) &&
     v !== null &&
     [ Object.prototype, null ].includes( Object.getPrototypeOf( v ) );
-
-/**
- * Throw given error
- * @param {Error} e
- * @throws {e}
- */
-export const throws = e => {
-  throw e;
-};
-
-/**
- * Add metadata "values" property to a given object
- * @param {object} target
- * @param {object} values
- * @returns
- */
-export const setMetadata = ( target, values ) =>
-  Object.defineProperty( target, METADATA_ACCESS_SYMBOL, { value: values, writable: false, enumerable: false, configurable: false } );
-
-/**
- * Read metadata previously attached via setMetadata
- * @param {Function} target
- * @returns {object|null}
- */
-export const getMetadata = target => target[METADATA_ACCESS_SYMBOL] ?? null;
 
 /**
  * Returns true if string value is stringbool and true

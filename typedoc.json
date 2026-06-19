@@ -5,7 +5,8 @@
     "./sdk/credentials/src/index.ts",
     "./sdk/evals/src/index.ts",
     "./sdk/http/src/index.ts",
-    "./sdk/core/src/activity_integration/index.d.ts",
+    "./sdk/core/src/sdk_interface/activity/index.d.ts",
+    "./sdk/core/src/sdk_interface/workflow/index.d.ts",
     "./sdk/core/src/utils/index.d.ts",
     "./sdk/llm/src/index.d.ts"
   ],

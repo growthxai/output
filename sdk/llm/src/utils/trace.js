@@ -1,4 +1,4 @@
-import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Tracing, Event } from '@outputai/core/internal/activity';
 
 export const startTrace = ( { name, ...details } ) => {
   const traceId = `${name}-${Date.now()}`;
@@ -13,7 +13,7 @@ export const endTraceWithError = ( { traceId, error } ) => {
 export const endTraceWithSuccess = ( { traceId, result, cost, ...extra } ) => {
   if ( cost ) {
     Tracing.addEventAttribute( { eventId: traceId, attribute: cost } );
-    emitEvent( 'cost:llm:request', cost );
+    Event.emit( 'cost:llm:request', cost );
   }
   Tracing.addEventEnd( { id: traceId, details: { result, ...extra } } );
 };

@@ -1,6 +1,7 @@
 import { FatalError } from '#errors';
 import { fetch } from 'undici';
-import { setMetadata, serializeFetchResponse, serializeBodyAndInferContentType } from '#utils';
+import { serializeFetchResponse, serializeBodyAndInferContentType } from '#utils';
+import { setMetadata } from '#internal_utils/component';
 import { ComponentType } from '#consts';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
