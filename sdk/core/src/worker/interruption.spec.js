@@ -29,11 +29,12 @@ describe( 'setupInterruptionHandler', () => {
     process.exit = originalExit;
   } );
 
-  it( 'registers SIGTERM and SIGINT handlers', () => {
+  it( 'registers interruption signal handlers', () => {
     setupInterruptionHandler( callback );
 
     expect( process.on ).toHaveBeenCalledWith( 'SIGTERM', expect.any( Function ) );
     expect( process.on ).toHaveBeenCalledWith( 'SIGINT', expect.any( Function ) );
+    expect( process.on ).toHaveBeenCalledWith( 'SIGUSR2', expect.any( Function ) );
   } );
 
   it( 'logs and invokes callback on first SIGTERM', () => {
@@ -53,6 +54,17 @@ describe( 'setupInterruptionHandler', () => {
     onHandlers.SIGINT();
 
     expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGINT' } );
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
+    expect( callback ).toHaveBeenCalledOnce();
+    expect( exitMock ).not.toHaveBeenCalled();
+  } );
+
+  it( 'logs and invokes callback on first SIGUSR2', () => {
+    setupInterruptionHandler( callback );
+
+    onHandlers.SIGUSR2();
+
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGUSR2' } );
     expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
     expect( callback ).toHaveBeenCalledOnce();
     expect( exitMock ).not.toHaveBeenCalled();
