@@ -5,7 +5,6 @@ const {
   configValues,
   connectionMonitorInstance,
   createCatalogMock,
-  createWorkflowsEntryPointMock,
   initInterceptorsMock,
   messageBusMock,
   mockConnection,
@@ -122,7 +121,8 @@ vi.mock( '#consts', async importOriginal => {
   const actual = await importOriginal();
   return { ...actual };
 } );
-vi.mock( '#tracing', () => ( { init: vi.fn().mockResolvedValue( undefined ) } ) );
+const initTracing = vi.fn().mockResolvedValue( undefined );
+vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
 
 const loadWorkflowsMock = vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } );
@@ -131,6 +131,7 @@ const loadHooksMock = vi.fn().mockResolvedValue( undefined );
 vi.mock( './loader/workflows.js', () => ( { loadWorkflows: loadWorkflowsMock } ) );
 vi.mock( './loader/activities.js', () => ( { loadActivities: loadActivitiesMock } ) );
 vi.mock( './loader/hooks.js', () => ( { loadHooks: loadHooksMock } ) );
+vi.mock( './configs.js', () => configValues );
 
 const hashSourceCodeMock = vi.fn().mockResolvedValue( 'catalog-hash' );
 vi.mock( './loader/tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
