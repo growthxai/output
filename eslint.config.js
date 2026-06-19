@@ -151,21 +151,6 @@ export default [
     }
   },
 
-  // JS files using import attributes (parser supports; default Espree does not)
-  // eg: await import( file, options );
-  // @TODO when eslint updates, this can be removed
-  {
-    files: [ 'sdk/core/src/worker/loader.js' ],
-    languageOptions: {
-      ...commonLanguageOptions,
-      parser: tsEslint.parser,
-      parserOptions: {
-        ...commonLanguageOptions.parserOptions,
-        project: false
-      }
-    }
-  },
-
   // TypeScript files
   {
     files: [ '**/*.{ts,tsx}' ],

@@ -5,12 +5,7 @@ const {
   configValues,
   connectionMonitorInstance,
   createCatalogMock,
-  createWorkflowsEntryPointMock,
-  hashSourceCodeMock,
   initInterceptorsMock,
-  loadActivitiesMock,
-  loadHooksMock,
-  loadWorkflowsMock,
   messageBusMock,
   mockConnection,
   mockLog,
@@ -126,16 +121,21 @@ vi.mock( '#consts', async importOriginal => {
   const actual = await importOriginal();
   return { ...actual };
 } );
-vi.mock( '#tracing', () => ( { init: vi.fn().mockResolvedValue( undefined ) } ) );
+const initTracing = vi.fn().mockResolvedValue( undefined );
+vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+
+const loadWorkflowsMock = vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } );
+const loadActivitiesMock = vi.fn().mockResolvedValue( { activities: {} } );
+const loadHooksMock = vi.fn().mockResolvedValue( undefined );
+vi.mock( './loader/workflows.js', () => ( { loadWorkflows: loadWorkflowsMock } ) );
+vi.mock( './loader/activities.js', () => ( { loadActivities: loadActivitiesMock } ) );
+vi.mock( './loader/hooks.js', () => ( { loadHooks: loadHooksMock } ) );
 vi.mock( './configs.js', () => configValues );
-vi.mock( './loader.js', () => ( {
-  createWorkflowsEntryPoint: createWorkflowsEntryPointMock,
-  loadActivities: loadActivitiesMock,
-  loadHooks: loadHooksMock,
-  loadWorkflows: loadWorkflowsMock
-} ) );
-vi.mock( './loader_tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
+
+const hashSourceCodeMock = vi.fn().mockResolvedValue( 'catalog-hash' );
+vi.mock( './loader/tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
+
 vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
@@ -209,7 +209,7 @@ describe( 'worker/index', () => {
     expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
-    expect( createWorkflowsEntryPointMock ).toHaveBeenCalledWith( [] );
+    expect( initTracing ).toHaveBeenCalled();
     expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
     expect( hashSourceCodeMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( NativeConnection.connect ).toHaveBeenCalledWith( {
