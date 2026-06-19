@@ -7,7 +7,11 @@ const {
   mockConnection,
   mockTemporalWorkflow,
   mockLoggerInfo,
+  mockLoggerWarn,
   mockGetWorkflowMethods,
+  MockConnectionMonitor,
+  mockConnectionMonitorCtor,
+  mockMonitor,
   workflowMethods
 } = vi.hoisted( () => {
   const mockConnection = {
@@ -32,11 +36,27 @@ const {
     executeUpdate: vi.fn()
   };
   const mockClientCtor = vi.fn();
+  const mockMonitor = {
+    onConnectionLost: vi.fn(),
+    onHeartbeat: vi.fn(),
+    onRecover: vi.fn(),
+    onUnhealthy: vi.fn(),
+    start: vi.fn(),
+    failing: false
+  };
+  const mockConnectionMonitorCtor = vi.fn();
 
   class MockClient {
     constructor( options ) {
       mockClientCtor( options );
       return { workflow: mockTemporalWorkflow };
+    }
+  }
+
+  class MockConnectionMonitor {
+    constructor( connection ) {
+      mockConnectionMonitorCtor( connection );
+      return mockMonitor;
     }
   }
 
@@ -47,7 +67,11 @@ const {
     mockConnection,
     mockTemporalWorkflow,
     mockLoggerInfo: vi.fn(),
+    mockLoggerWarn: vi.fn(),
     mockGetWorkflowMethods: vi.fn( () => workflowMethods ),
+    MockConnectionMonitor,
+    mockConnectionMonitorCtor,
+    mockMonitor,
     workflowMethods
   };
 } );
@@ -67,16 +91,21 @@ vi.mock( '#configs', () => ( {
 } ) );
 
 vi.mock( '#logger', () => ( {
-  logger: { info: mockLoggerInfo }
+  logger: { info: mockLoggerInfo, warn: mockLoggerWarn }
 } ) );
 
 vi.mock( './workflow/index.js', () => ( {
   getWorkflowMethods: mockGetWorkflowMethods
 } ) );
 
+vi.mock( './connection_monitor.js', () => ( {
+  ConnectionMonitor: MockConnectionMonitor
+} ) );
+
 describe( 'temporal client', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    mockMonitor.failing = false;
     mockConnection.close.mockResolvedValue( undefined );
     mockConnect.mockResolvedValue( mockConnection );
   } );
@@ -98,7 +127,8 @@ describe( 'temporal client', () => {
       channelArgs: {
         'grpc.max_receive_message_length': 32 * 1024 * 1024,
         'grpc.max_send_message_length': 32 * 1024 * 1024
-      }
+      },
+      connectTimeout: 15_000
     } );
     expect( mockClientCtor ).toHaveBeenCalledWith( {
       connection: mockConnection,
@@ -120,6 +150,33 @@ describe( 'temporal client', () => {
       connection: mockConnection
     } );
     expect( client.workflow ).toBe( workflowMethods );
+  } );
+
+  it( 'starts a connection monitor and exposes readiness', async () => {
+    const temporalClient = ( await import( './index.js' ) ).default;
+
+    const client = await temporalClient.init();
+
+    expect( mockConnectionMonitorCtor ).toHaveBeenCalledWith( mockConnection );
+    expect( mockMonitor.onHeartbeat ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( mockMonitor.onRecover ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( mockMonitor.onUnhealthy ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( mockMonitor.start ).toHaveBeenCalled();
+    expect( client.isReady() ).toBe( true );
+
+    mockMonitor.failing = true;
+
+    expect( client.isReady() ).toBe( false );
+  } );
+
+  it( 'registers a connection lost callback after initialization', async () => {
+    const onConnectionLost = vi.fn();
+    const temporalClient = ( await import( './index.js' ) ).default;
+
+    const client = await temporalClient.init();
+    client.onConnectionLost( onConnectionLost );
+
+    expect( mockMonitor.onConnectionLost ).toHaveBeenCalledWith( onConnectionLost );
   } );
 
   it( 'closes the Temporal connection', async () => {

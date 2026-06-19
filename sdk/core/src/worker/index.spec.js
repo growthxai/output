@@ -1,125 +1,232 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+const {
+  catalogJobInstance,
+  configValues,
+  connectionMonitorInstance,
+  createCatalogMock,
+  createWorkflowsEntryPointMock,
+  hashSourceCodeMock,
+  initInterceptorsMock,
+  loadActivitiesMock,
+  loadHooksMock,
+  loadWorkflowsMock,
+  messageBusMock,
+  mockConnection,
+  mockLog,
+  mockWorker,
+  promises,
+  resetPromises,
+  setupInterruptionHandlerMock,
+  setupTelemetryMock
+} = vi.hoisted( () => {
+  const createDeferred = () => {
+    const state = {};
+    state.promise = new Promise( ( resolve, reject ) => {
+      state.resolve = resolve;
+      state.reject = reject;
+    } );
+    return state;
+  };
+
+  const promises = {};
+  const resetPromises = () => {
+    promises.workerRun = createDeferred();
+    promises.connectionMonitor = createDeferred();
+    promises.catalogJob = createDeferred();
+  };
+  resetPromises();
+
+  const configValues = {
+    address: 'localhost:7233',
+    apiKey: undefined,
+    namespace: 'default',
+    taskQueue: 'test-queue',
+    catalogId: 'test-catalog',
+    grpcProxy: undefined,
+    maxConcurrentWorkflowTaskExecutions: 200,
+    maxConcurrentActivityTaskExecutions: 40,
+    maxCachedWorkflows: 1000,
+    maxConcurrentActivityTaskPolls: 5,
+    maxConcurrentWorkflowTaskPolls: 5,
+    processFailureShutdownDelay: 0
+  };
+
+  const connectionMonitorInstance = {
+    running: false,
+    connectionLossError: null,
+    onConnectionLost: vi.fn( cb => {
+      connectionMonitorInstance.connectionLostCb = cb;
+    } ),
+    start: vi.fn( () => {
+      connectionMonitorInstance.running = true;
+      return promises.connectionMonitor.promise.finally( () => {
+        connectionMonitorInstance.running = false;
+      } );
+    } ),
+    stop: vi.fn( () => {
+      connectionMonitorInstance.running = false;
+      promises.connectionMonitor.resolve();
+      return promises.connectionMonitor.promise;
+    } ),
+    connectionLostCb: null
+  };
+
+  const catalogJobInstance = {
+    running: false,
+    error: null,
+    onError: vi.fn( cb => {
+      catalogJobInstance.errorCb = cb;
+    } ),
+    run: vi.fn( () => {
+      catalogJobInstance.running = true;
+      return promises.catalogJob.promise.finally( () => {
+        catalogJobInstance.running = false;
+      } );
+    } ),
+    interrupt: vi.fn( () => {
+      catalogJobInstance.running = false;
+      promises.catalogJob.resolve();
+      return promises.catalogJob.promise;
+    } ),
+    errorCb: null
+  };
+
+  const mockWorker = {
+    getStatus: vi.fn( () => ( { runState: mockWorker.runState } ) ),
+    run: vi.fn( () => promises.workerRun.promise ),
+    runState: 'RUNNING',
+    shutdown: vi.fn()
+  };
+
+  return {
+    catalogJobInstance,
+    configValues,
+    connectionMonitorInstance,
+    createCatalogMock: vi.fn().mockReturnValue( { workflows: [], activities: {} } ),
+    createWorkflowsEntryPointMock: vi.fn().mockReturnValue( '/fake/workflows/path.js' ),
+    hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
+    initInterceptorsMock: vi.fn().mockReturnValue( [] ),
+    loadActivitiesMock: vi.fn().mockResolvedValue( {} ),
+    loadHooksMock: vi.fn().mockResolvedValue( undefined ),
+    loadWorkflowsMock: vi.fn().mockResolvedValue( [] ),
+    messageBusMock: { emit: vi.fn(), on: vi.fn() },
+    mockConnection: { close: vi.fn().mockResolvedValue( undefined ) },
+    mockLog: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+    mockWorker,
+    promises,
+    resetPromises,
+    setupInterruptionHandlerMock: vi.fn(),
+    setupTelemetryMock: vi.fn()
+  };
+} );
+
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
-
 vi.mock( '#consts', async importOriginal => {
   const actual = await importOriginal();
   return { ...actual };
 } );
-
 vi.mock( '#tracing', () => ( { init: vi.fn().mockResolvedValue( undefined ) } ) );
-
-const configValues = {
-  address: 'localhost:7233',
-  apiKey: undefined,
-  namespace: 'default',
-  taskQueue: 'test-queue',
-  catalogId: 'test-catalog',
-  grpcProxy: undefined,
-  maxConcurrentWorkflowTaskExecutions: 200,
-  maxConcurrentActivityTaskExecutions: 40,
-  maxCachedWorkflows: 1000,
-  maxConcurrentActivityTaskPolls: 5,
-  maxConcurrentWorkflowTaskPolls: 5,
-  processFailureShutdownDelay: 0
-};
-vi.mock( './configs.js', () => configValues );
-
-const messageBusMock = { on: vi.fn(), emit: vi.fn() };
 vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
-
-const loadWorkflowsMock = vi.fn().mockResolvedValue( [] );
-const loadActivitiesMock = vi.fn().mockResolvedValue( {} );
-const loadHooksMock = vi.fn().mockResolvedValue( undefined );
-const createWorkflowsEntryPointMock = vi.fn().mockReturnValue( '/fake/workflows/path.js' );
+vi.mock( './configs.js', () => configValues );
 vi.mock( './loader.js', () => ( {
-  loadWorkflows: loadWorkflowsMock,
+  createWorkflowsEntryPoint: createWorkflowsEntryPointMock,
   loadActivities: loadActivitiesMock,
   loadHooks: loadHooksMock,
-  createWorkflowsEntryPoint: createWorkflowsEntryPointMock
+  loadWorkflows: loadWorkflowsMock
 } ) );
-
-const hashSourceCodeMock = vi.fn().mockResolvedValue( 'catalog-hash' );
 vi.mock( './loader_tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
-
 vi.mock( './sinks.js', () => ( { sinks: {} } ) );
-
-const createCatalogMock = vi.fn().mockReturnValue( { workflows: [], activities: {} } );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
-
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
-
-const initInterceptorsMock = vi.fn().mockReturnValue( [] );
 vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
-
-const startCatalogMock = vi.fn().mockResolvedValue( undefined );
-vi.mock( './start_catalog.js', () => ( { startCatalog: startCatalogMock } ) );
-
-const bootstrapFetchProxyMock = vi.fn();
-vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: bootstrapFetchProxyMock } ) );
-
-const registerShutdownMock = vi.fn();
-vi.mock( './shutdown.js', () => ( { registerShutdown: registerShutdownMock } ) );
-
-const setupTelemetryMock = vi.fn();
-vi.mock( './setup_telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
-
-vi.mock( './log_hooks.js', () => ( {} ) );
-
-const runState = { resolve: null };
-const runPromise = new Promise( r => {
-  runState.resolve = r;
-} );
-const shutdownMock = vi.fn();
-const mockConnection = { close: vi.fn().mockResolvedValue( undefined ) };
-const mockWorker = { run: () => runPromise, shutdown: shutdownMock };
-
-vi.mock( '@temporalio/worker', () => ( {
-  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) },
-  NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) }
+vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: vi.fn() } ) );
+vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
+vi.mock( './interruption.js', () => ( { setupInterruptionHandler: setupInterruptionHandlerMock } ) );
+vi.mock( './connection_monitor.js', () => ( {
+  TemporalConnectionMonitor: vi.fn( function () {
+    return connectionMonitorInstance;
+  } )
 } ) );
+vi.mock( './catalog_workflow/catalog_job.js', () => ( {
+  CatalogJob: vi.fn( function () {
+    return catalogJobInstance;
+  } )
+} ) );
+vi.mock( './log_hooks.js', () => ( {} ) );
+vi.mock( '@temporalio/worker', () => ( {
+  NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
+  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
+} ) );
+
+const importWorker = async () => {
+  vi.resetModules();
+  await import( './index.js' );
+};
+
+const settleWorker = async () => {
+  promises.catalogJob.resolve();
+  promises.connectionMonitor.resolve();
+  promises.workerRun.resolve();
+  await vi.waitFor( () => expect( mockConnection.close ).toHaveBeenCalled() );
+};
 
 describe( 'worker/index', () => {
   const exitMock = vi.fn();
   const originalArgv = process.argv;
-  const originalExit = process.exit;
 
   beforeEach( () => {
     vi.clearAllMocks();
+    resetPromises();
+    configValues.apiKey = undefined;
+    configValues.grpcProxy = undefined;
+    catalogJobInstance.error = null;
+    catalogJobInstance.errorCb = null;
+    catalogJobInstance.running = false;
+    connectionMonitorInstance.connectionLossError = null;
+    connectionMonitorInstance.connectionLostCb = null;
+    connectionMonitorInstance.running = false;
+    mockConnection.close.mockResolvedValue( undefined );
+    mockWorker.runState = 'RUNNING';
     process.argv = [ ...originalArgv.slice( 0, 2 ), '/test/caller/dir' ];
-    process.exit = exitMock;
+    vi.spyOn( process, 'exit' ).mockImplementation( exitMock );
   } );
 
   afterEach( () => {
     process.argv = originalArgv;
-    process.exit = originalExit;
-    configValues.apiKey = undefined;
+    vi.restoreAllMocks();
   } );
 
-  it( 'loads configs, workflows, activities and creates worker with correct options', async () => {
-    const { Worker, NativeConnection } = await import( '@temporalio/worker' );
-    const { init: initTracing } = await import( '#tracing' );
+  it( 'creates the worker lifecycle jobs with expected dependencies', async () => {
+    const { NativeConnection, Worker } = await import( '@temporalio/worker' );
+    const { TemporalConnectionMonitor } = await import( './connection_monitor.js' );
+    const { CatalogJob } = await import( './catalog_workflow/catalog_job.js' );
 
-    import( './index.js' );
+    await importWorker();
 
-    await vi.waitFor( () => {
-      expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
-    } );
+    await vi.waitFor( () => expect( Worker.create ).toHaveBeenCalled() );
+
+    expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
     expect( createWorkflowsEntryPointMock ).toHaveBeenCalledWith( [] );
-    expect( initTracing ).toHaveBeenCalled();
     expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
     expect( hashSourceCodeMock ).toHaveBeenCalledWith( '/test/caller/dir' );
-    expect( bootstrapFetchProxyMock ).toHaveBeenCalled();
     expect( NativeConnection.connect ).toHaveBeenCalledWith( {
       address: configValues.address,
       tls: false,
       apiKey: undefined,
       proxy: undefined
     } );
+    expect( TemporalConnectionMonitor ).toHaveBeenCalledWith( mockConnection );
+    expect( CatalogJob ).toHaveBeenCalledWith( {
+      connection: mockConnection,
+      namespace: configValues.namespace,
+      catalog: { workflows: [], activities: {} },
+      catalogHash: 'catalog-hash'
+    } );
     expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
+      connection: mockConnection,
       namespace: configValues.namespace,
       taskQueue: configValues.taskQueue,
       workflowsPath: '/fake/workflows/path.js',
@@ -131,62 +238,127 @@ describe( 'worker/index', () => {
       maxConcurrentWorkflowTaskPolls: configValues.maxConcurrentWorkflowTaskPolls
     } ) );
     expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [] } );
-    expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
     expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
-    expect( startCatalogMock ).toHaveBeenCalledWith( {
-      connection: mockConnection,
-      namespace: configValues.namespace,
-      catalog: { workflows: [], activities: {} },
-      catalogHash: 'catalog-hash'
-    } );
+    expect( setupInterruptionHandlerMock ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( connectionMonitorInstance.onConnectionLost ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( catalogJobInstance.onError ).toHaveBeenCalledWith( expect.any( Function ) );
+    expect( mockWorker.run ).toHaveBeenCalled();
+    expect( connectionMonitorInstance.start ).toHaveBeenCalled();
+    expect( catalogJobInstance.run ).toHaveBeenCalled();
 
-    runState.resolve();
-    await vi.waitFor( () => {
-      expect( mockConnection.close ).toHaveBeenCalled();
-    } );
-    expect( exitMock ).toHaveBeenCalledWith( 0 );
+    await settleWorker();
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
   } );
 
   it( 'enables TLS when apiKey is set', async () => {
     configValues.apiKey = 'secret';
-    vi.resetModules();
-
     const { NativeConnection } = await import( '@temporalio/worker' );
-    import( './index.js' );
+
+    await importWorker();
+
+    await vi.waitFor( () => expect( NativeConnection.connect ).toHaveBeenCalledWith( expect.objectContaining( {
+      apiKey: 'secret',
+      tls: true
+    } ) ) );
+
+    await settleWorker();
+  } );
+
+  it( 'runs graceful shutdown when interrupted', async () => {
+    await importWorker();
+
+    await vi.waitFor( () => expect( setupInterruptionHandlerMock ).toHaveBeenCalled() );
+    const [ shutdown ] = setupInterruptionHandlerMock.mock.calls[0];
+
+    shutdown();
+
+    expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
+    expect( connectionMonitorInstance.stop ).toHaveBeenCalledOnce();
+    expect( catalogJobInstance.interrupt ).toHaveBeenCalledOnce();
+
+    promises.workerRun.resolve();
+    await vi.waitFor( () => expect( mockConnection.close ).toHaveBeenCalled() );
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
+  } );
+
+  it( 'does not call worker.shutdown when worker has already failed', async () => {
+    const error = new Error( 'Big Failure' );
+
+    await importWorker();
+    await vi.waitFor( () => expect( mockWorker.run ).toHaveBeenCalled() );
+
+    mockWorker.runState = 'FAILED';
+    promises.workerRun.reject( error );
+
+    await vi.waitFor( () => expect( connectionMonitorInstance.stop ).toHaveBeenCalled() );
+    expect( mockWorker.shutdown ).not.toHaveBeenCalled();
+
+    promises.connectionMonitor.resolve();
+    promises.catalogJob.resolve();
 
     await vi.waitFor( () => {
-      expect( NativeConnection.connect ).toHaveBeenCalledWith( expect.objectContaining( {
-        tls: true,
-        apiKey: 'secret'
+      expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
+        error: 'Big Failure'
       } ) );
     } );
-    runState.resolve();
-    await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );
+    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
+    await vi.waitFor( () => expect( exitMock ).toHaveBeenCalledWith( 1 ) );
   } );
 
-  it( 'calls registerShutdown with worker and log', async () => {
-    vi.resetModules();
+  it( 'throws connection monitor errors after graceful shutdown', async () => {
+    const error = new Error( 'connection lost' );
 
-    import( './index.js' );
+    await importWorker();
+    await vi.waitFor( () => expect( connectionMonitorInstance.onConnectionLost ).toHaveBeenCalled() );
+
+    connectionMonitorInstance.connectionLossError = error;
+    connectionMonitorInstance.connectionLostCb( error );
+    promises.workerRun.resolve();
 
     await vi.waitFor( () => {
-      expect( registerShutdownMock ).toHaveBeenCalledWith( { worker: mockWorker, log: mockLog } );
+      expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
+        error: 'connection lost'
+      } ) );
     } );
-    runState.resolve();
-    await vi.waitFor( () => expect( exitMock ).toHaveBeenCalled() );
+    expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
+    expect( catalogJobInstance.interrupt ).toHaveBeenCalledOnce();
+    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
   } );
 
-  it( 'calls process.exit(1) on fatal error', async () => {
-    loadWorkflowsMock.mockRejectedValueOnce( new Error( 'load failed' ) );
-    vi.resetModules();
+  it( 'throws catalog job errors after graceful shutdown', async () => {
+    const error = new Error( 'catalog failed' );
 
-    import( './index.js' );
+    await importWorker();
+    await vi.waitFor( () => expect( catalogJobInstance.onError ).toHaveBeenCalled() );
+
+    catalogJobInstance.error = error;
+    catalogJobInstance.errorCb( error );
+    promises.workerRun.resolve();
 
     await vi.waitFor( () => {
-      expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.any( Object ) );
+      expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
+        error: 'catalog failed'
+      } ) );
     } );
+    expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
+    expect( connectionMonitorInstance.stop ).toHaveBeenCalledOnce();
+    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
+  } );
+
+  it( 'cleans up partial startup failures after connecting', async () => {
+    const { Worker } = await import( '@temporalio/worker' );
+    const error = new Error( 'worker create failed' );
+    Worker.create.mockRejectedValueOnce( error );
+
+    await importWorker();
+
+    await vi.waitFor( () => expect( mockConnection.close ).toHaveBeenCalled() );
+    expect( connectionMonitorInstance.stop ).not.toHaveBeenCalled();
+    expect( catalogJobInstance.interrupt ).not.toHaveBeenCalled();
     await vi.waitFor( () => {
-      expect( exitMock ).toHaveBeenCalledWith( 1 );
+      expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
+        error: 'worker create failed'
+      } ) );
     } );
   } );
 } );

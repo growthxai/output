@@ -4,8 +4,11 @@ import { workerTelemetryIntervalMs } from './configs.js';
 const log = createChildLogger( 'Telemetry' );
 
 export const setupTelemetry = ( { worker } ) => {
-  if ( workerTelemetryIntervalMs > 0 ) {
-    setInterval( () => {
+  if ( workerTelemetryIntervalMs <= 0 ) {
+    return;
+  }
+  setInterval( () => {
+    try {
       log.info( 'Worker', {
         status: worker.getStatus(),
         memory: {
@@ -14,6 +17,8 @@ export const setupTelemetry = ( { worker } ) => {
           memoryUsage: process.memoryUsage()
         }
       } );
-    }, workerTelemetryIntervalMs ).unref();
-  }
+    } catch ( error ) {
+      log.warn( 'Failure', { error: error.message } );
+    }
+  }, workerTelemetryIntervalMs ).unref();
 };

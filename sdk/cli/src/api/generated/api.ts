@@ -598,6 +598,49 @@ export const getHealth = async ( options?: ApiRequestOptions): Promise<getHealth
 
 
 /**
+ * @summary Check if the API is ready to answer requests
+ */
+export type getReadyResponse200 = {
+  data: void
+  status: 200
+}
+
+export type getReadyResponse503 = {
+  data: void
+  status: 503
+}
+
+export type getReadyResponseSuccess = (getReadyResponse200) & {
+  headers: Headers;
+};
+export type getReadyResponseError = (getReadyResponse503) & {
+  headers: Headers;
+};
+
+export type getReadyResponse = (getReadyResponseSuccess | getReadyResponseError)
+
+export const getGetReadyUrl = () => {
+
+
+
+
+  return `/ready`
+}
+
+export const getReady = async ( options?: ApiRequestOptions): Promise<getReadyResponse> => {
+
+  return customFetchInstance<getReadyResponse>(getGetReadyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
  * Executes a workflow and waits for it to complete before returning the result
  * @summary Execute a workflow synchronously
  */

@@ -11,6 +11,8 @@ import { createTraceLogHandler } from './handlers/trace_log.js';
 import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
 import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
 import { readPinnedRunId } from './handlers/utils.js';
+import { runOnce } from '#utils';
+import { promisify } from 'node:util';
 
 // Sunset date for the three deprecated `/workflow/:id/{stop,terminate,reset}` shortcuts.
 // 90 days after the PR that introduces the pinned-run scheme.
@@ -74,9 +76,24 @@ app.get( '/health', ( _req, res ) => {
   res.sendStatus( 200 );
 } );
 
+/**
+ * @swagger
+ * /ready:
+ *   get:
+ *     summary: Check if the API is ready to answer requests
+ *     responses:
+ *       200:
+ *         description: It is ready
+ *       503:
+ *         description: It is having problems
+ */
+app.get( '/ready', ( _req, res ) => {
+  res.sendStatus( client.isReady() ? 200 : 503 );
+} );
+
 // Auth logic (skip in development mode or for /health endpoint)
 app.use( ( req, res, next ) => {
-  if ( !isProduction || req.url === '/health' ) {
+  if ( !isProduction || [ '/health', '/ready' ].includes( req.path ) ) {
     return next();
   }
 
@@ -1476,20 +1493,28 @@ const server = app.listen( apiConfig.port, () => {
   logger.info( 'API server started', { port: apiConfig.port, environment: apiConfig.envName } );
 } );
 
-const shutdown = async signal => {
+const closeServer = promisify( server.close.bind( server ) );
+
+const shutdown = runOnce( async () => {
+  logger.info( 'Closing HTTP server...' );
+  await closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
+
+  logger.info( 'Closing Temporal client...' );
+  await client.close().catch( e => logger.warn( 'Error closing Temporal client', { error: e.message } ) );
+} );
+
+const handleInterruption = async signal => {
   logger.info( `${signal} received, shutting down gracefully` );
-
-  server.close( () => {
-    logger.info( 'HTTP server closed' );
-
-    client.close().then( () => {
-      logger.info( 'Temporal client closed' );
-    } ).catch( e => {
-      logger.error( 'Error closing Temporal client', { error: e.message, errorType: e.constructor.name, stack: e.stack } );
-      process.exit( 1 );
-    } );
-  } );
+  await shutdown();
+  logger.info( 'Bye' );
 };
 
-process.on( 'SIGTERM', () => shutdown( 'SIGTERM' ) );
-process.on( 'SIGINT', () => shutdown( 'SIGINT' ) );
+client.onConnectionLost( async e => {
+  logger.error( 'Temporal connection lost', { error: e.message } );
+  await shutdown();
+  logger.error( 'Exiting with code 1' );
+  process.exit( 1 );
+} );
+
+process.on( 'SIGTERM', () => handleInterruption( 'SIGTERM' ) );
+process.on( 'SIGINT', () => handleInterruption( 'SIGINT' ) );

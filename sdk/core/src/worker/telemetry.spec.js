@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const configMock = vi.hoisted( () => ( { workerTelemetryIntervalMs: 0 } ) );
-const logMock = vi.hoisted( () => ( { info: vi.fn() } ) );
+const logMock = vi.hoisted( () => ( { info: vi.fn(), warn: vi.fn() } ) );
 const createChildLoggerMock = vi.hoisted( () => vi.fn( () => logMock ) );
 
 vi.mock( './configs.js', () => ( {
@@ -14,13 +14,13 @@ vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
 
 const loadSetupTelemetry = async () => {
   vi.resetModules();
-  return import( './setup_telemetry.js' );
+  return import( './telemetry.js' );
 };
 
 const mockSetInterval = unrefMock =>
   vi.spyOn( globalThis, 'setInterval' ).mockReturnValue( { unref: unrefMock } );
 
-describe( 'worker/setup_telemetry', () => {
+describe( 'worker/telemetry', () => {
   const availableMemoryMock = vi.fn();
   const constrainedMemoryMock = vi.fn();
   const memoryUsageMock = vi.fn();

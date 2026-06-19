@@ -159,3 +159,22 @@ export function allSettledWithTimeout<T>(
   promises: Array<T | PromiseLike<T>>,
   timeoutMs: number
 ): Promise<PromiseSettledResult<Awaited<T>>[]>;
+
+/**
+ * Promise wrapper that can be resolved externally.
+ */
+export class CancellablePromise {
+  /** The internal promise */
+  readonly promise: Promise<void>;
+  /** Whether the promise is already resolved or not */
+  readonly completed: boolean;
+  /** Resolves the promise */
+  complete(): void;
+}
+
+/**
+ * Returns a function that invokes the wrapped function once.
+ */
+export function runOnce<Args extends unknown[], Return>(
+  fn: ( ...args: Args ) => Return
+): ( ...args: Args ) => Return;
