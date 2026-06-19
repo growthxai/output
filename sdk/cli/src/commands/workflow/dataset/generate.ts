@@ -125,7 +125,7 @@ export default class DatasetGenerate extends Command {
       executionTimeMs
     );
 
-    const dir = resolveDefaultDatasetsDir( workflowName );
+    const dir = await resolveDefaultDatasetsDir( workflowName );
     const filePath = join( dir, `${datasetName}.yml` );
     await writeDataset( dataset, filePath );
 
@@ -152,7 +152,7 @@ export default class DatasetGenerate extends Command {
       extracted.executionTimeMs
     );
 
-    const dir = resolveDefaultDatasetsDir( workflowName );
+    const dir = await resolveDefaultDatasetsDir( workflowName );
     const filePath = join( dir, `${datasetName}.yml` );
     await writeDataset( dataset, filePath );
 
@@ -173,7 +173,7 @@ export default class DatasetGenerate extends Command {
 
     this.log( `Found ${traces.length} trace(s). Downloading...` );
 
-    const dir = resolveDefaultDatasetsDir( workflowName );
+    const dir = await resolveDefaultDatasetsDir( workflowName );
 
     for ( const trace of traces ) {
       const traceData = await downloadRemoteTrace( trace.key );
