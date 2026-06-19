@@ -3,6 +3,7 @@ import { createChildLogger } from '#logger';
 const log = createChildLogger( 'Interruption' );
 
 const FORCE_QUIT_GRACE_MS = 1000;
+const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
 
 export const setupInterruptionHandler = cb => {
   const state = { interruptionReceivedAt: null };
@@ -28,6 +29,5 @@ export const setupInterruptionHandler = cb => {
     cb();
   };
 
-  process.on( 'SIGTERM', () => handle( 'SIGTERM' ) );
-  process.on( 'SIGINT', () => handle( 'SIGINT' ) );
+  INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handle( signal ) ) );
 };

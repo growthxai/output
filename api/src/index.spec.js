@@ -78,8 +78,19 @@ vi.mock( '#logger', () => ( { logger: mockLogger } ) );
 const PORT = 3000;
 
 describe( 'API endpoints', () => {
+  const processHandlers = {};
+
   beforeAll( async () => {
+    const originalProcessOn = process.on.bind( process );
+    const processOn = vi.spyOn( process, 'on' ).mockImplementation( ( signal, handler ) => {
+      if ( [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ].includes( signal ) ) {
+        processHandlers[signal] = handler;
+      }
+      return originalProcessOn( signal, handler );
+    } );
+
     await import( './index.js' );
+    processOn.mockRestore();
   } );
 
   beforeEach( () => {
@@ -121,6 +132,14 @@ describe( 'API endpoints', () => {
   it( 'registers a Temporal connection lost handler', () => {
     expect( temporalInitState.options ).toBeUndefined();
     expect( temporalInitState.connectionLostCb ).toEqual( expect.any( Function ) );
+  } );
+
+  it( 'registers interruption handlers', () => {
+    expect( processHandlers ).toEqual( {
+      SIGTERM: expect.any( Function ),
+      SIGINT: expect.any( Function ),
+      SIGUSR2: expect.any( Function )
+    } );
   } );
 
   describe( 'POST /heartbeat', () => {

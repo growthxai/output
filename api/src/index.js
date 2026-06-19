@@ -1494,6 +1494,7 @@ const server = app.listen( apiConfig.port, () => {
 } );
 
 const closeServer = promisify( server.close.bind( server ) );
+const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
 
 const shutdown = runOnce( async () => {
   logger.info( 'Closing HTTP server...' );
@@ -1516,5 +1517,4 @@ client.onConnectionLost( async e => {
   process.exit( 1 );
 } );
 
-process.on( 'SIGTERM', () => handleInterruption( 'SIGTERM' ) );
-process.on( 'SIGINT', () => handleInterruption( 'SIGINT' ) );
+INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handleInterruption( signal ) ) );
