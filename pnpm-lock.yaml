@@ -40,8 +40,8 @@ catalogs:
       specifier: 7.7.4
       version: 7.7.4
     undici:
-      specifier: 8.1.0
-      version: 8.1.0
+      specifier: 8.5.0
+      version: 8.5.0
     winston:
       specifier: 3.19.0
       version: 3.19.0
@@ -242,7 +242,7 @@ importers:
         version: 7.7.4
       undici:
         specifier: 'catalog:'
-        version: 8.1.0
+        version: 8.5.0
       yaml:
         specifier: ^2.8.3
         version: 2.9.0
@@ -321,7 +321,7 @@ importers:
         version: 0.1.11
       undici:
         specifier: 'catalog:'
-        version: 8.1.0
+        version: 8.5.0
       winston:
         specifier: 'catalog:'
         version: 3.19.0
@@ -386,7 +386,7 @@ importers:
         version: 1.14.3
       undici:
         specifier: 'catalog:'
-        version: 8.1.0
+        version: 8.5.0
 
   sdk/llm:
     dependencies:
@@ -404,7 +404,7 @@ importers:
         version: 10.27.0
       undici:
         specifier: 'catalog:'
-        version: 8.1.0
+        version: 8.5.0
     devDependencies:
       '@ai-sdk/amazon-bedrock':
         specifier: 4.0.111
@@ -7396,6 +7396,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -7516,8 +7517,8 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
-  undici@8.1.0:
-    resolution: {integrity: sha512-E9MkTS4xXLnRPYqxH2e6Hr2/49e7WFDKczKcCaFH4VaZs2iNvHMqeIkyUAD9vM8kujy9TjVrRlQ5KkdEJxB2pw==}
+  undici@8.5.0:
+    resolution: {integrity: sha512-xamtWoB1EshgjpmlXd7GGm2VfdDtw1+rD8uhry8pSNW3If6S8E0m2T2+orSKeZXEn/aPJMviCpDBA65WJt8zhg==}
     engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
@@ -17186,7 +17187,7 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici@8.1.0: {}
+  undici@8.5.0: {}
 
   unicorn-magic@0.3.0: {}
 
