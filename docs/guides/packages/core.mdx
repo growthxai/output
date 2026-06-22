@@ -259,6 +259,8 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | Temporal SDK default | Time to let in-flight work drain after worker shutdown starts. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | Temporal SDK default | Extra time before forceful worker shutdown. Accepts milliseconds or duration strings like `15s`. |
 
 ## Logging
 
