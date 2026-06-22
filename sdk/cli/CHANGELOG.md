@@ -1,32 +1,5 @@
 # @outputai/cli
 
-## 0.8.0
-
-### Minor Changes
-
-- 930738c: - Updated workflow result API responses to return workflow output and trace metadata without workflow-level `aggregations`.
-  - Regenerated CLI API types to match the workflow result response shape.
-
-### Patch Changes
-
-- d67ad85: Faster CLI startup: ship `oclif.manifest.json` in the published package so only the invoked command module is loaded (instead of importing every command on every invocation), move the update check off the critical path (the init hook now only reads the local cache and refreshes it via a detached background process with a 5s registry timeout, instead of awaiting an unbounded `npm view` subprocess), and load `undici` only when a proxy env var is configured.
-- bd6bd49: `workflow cost` now calculates costs from the trace events themselves (the as-charged "Original" cost) and applies `costs.yml` as an override layer (the "Adjusted" cost), displaying both per model and per host. This fixes models with no `costs.yml` entry (e.g. `gpt-5.5`) and HTTP hosts (e.g. `api.exa.ai`, `api.firecrawl.dev`) previously reporting $0, and surfaces where the configured `costs.yml` rate diverges from what was actually charged. The bottom line shows the adjusted total with the as-charged total alongside.
-
-  Costs come exclusively from trace cost attributes: LLM nodes with an `llm:usage` event and HTTP calls with an `http:request:cost` event are counted as-charged (even on error responses — the event proves a charge); calls without events are not priced. Traces from SDK versions that predate cost attributes (< 0.5) report no costs. Only exact (`computed`) recomputes override an event cost — estimates and failed recomputes never do, and a configured `$0` price is now honored. Body-dependent `costs.yml` service rules require traces recorded with `OUTPUT_TRACE_HTTP_VERBOSE=true` (the dev default).
-
-  **`--format json` field changes** (the report shape changed; update any scripts parsing it): `llmTotalCost` → `llmOriginalCost`/`llmAdjustedCost`; `services[]`/`serviceTotalCost` → `httpCosts[]` (grouped by `host`) with `httpOriginalCost`/`httpAdjustedCost`; `unknownModels` removed; per-call `cost`/`warning` → `originalCost`/`adjustedCost`; new `originalTotalCost`; `totalCost` is now the adjusted total.
-
-- de30052: Surface workflow aliases and honor `OUTPUT_CATALOG_ID` in `output workflow list`.
-
-  - The default list output now appends `(aliases: ...)` to workflows that have registered aliases, which previously only appeared in `--format table`/`--format json` (OUT-444).
-  - Add a `--catalog` flag (env `OUTPUT_CATALOG_ID`) that resolves workflows from a specific catalog, falling back to the server-default catalog — matching the existing behavior of `run` and `start` (OUT-489).
-
-- Updated dependencies [66f1583]
-- Updated dependencies [ae5bab4]
-  - @outputai/llm@0.8.0
-  - @outputai/credentials@0.8.0
-  - @outputai/evals@0.8.0
-
 ## 0.7.0
 
 ### Patch Changes
