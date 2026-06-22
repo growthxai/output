@@ -35,48 +35,49 @@ const hook: Hook<'init'> = async function ( opts ) {
     setNonInteractive( true );
   }
 
-  try {
-    // Only the local cache is read here; the registry roundtrip happens in a
-    // detached child so it never delays the invoked command.
-    const result = await readCachedResult( this.config.version, this.config.cacheDir );
+  // Guard only the version-check IO: a broken or unreadable cache must never
+  // block CLI execution, so a failure is treated as "no cached result". Banner
+  // rendering below is intentionally left unguarded — a fault there is a real
+  // bug that should surface, not fail dark.
+  const result = await readCachedResult( this.config.version, this.config.cacheDir )
+    .catch( ( error: unknown ) => {
+      debug( 'Version check failed: %O', error );
+      return null;
+    } );
 
-    if ( !result ) {
-      spawnBackgroundRefresh( this.config.version, this.config.cacheDir );
-      return;
-    }
-
-    if ( !result.updateAvailable ) {
-      return;
-    }
-
-    // Skip the banner entirely in JSON mode: even on stderr it is pure noise to
-    // a script consuming the command's structured output.
-    if ( hasJsonFlag( opts.argv ) || hasJsonFlag( process.argv ) ) {
-      return;
-    }
-
-    const border = ux.colorize( 'dim', '─'.repeat( 80 ) );
-    const warning = ux.colorize( 'yellow', 'Uhoh! Your Output.ai CLI is behind!' );
-    const latestVer = ux.colorize( 'green', `v${result.latestVersion}` );
-    const currentVer = ux.colorize( 'yellow', `v${result.currentVersion}` );
-    const updateCmd = ux.colorize( 'cyan', 'npx output update' );
-
-    // Advisory notice goes to stderr so stdout stays clean for piping in every mode.
-    ux.stderr( '' );
-    ux.stderr( border );
-    ux.stderr( '' );
-    ux.stderr( `  ⚠️  ${warning}` );
-    ux.stderr( '' );
-    ux.stderr( `     Latest is ${latestVer}, and you're using ${currentVer}` );
-    ux.stderr( '' );
-    ux.stderr( `     Run \`${updateCmd}\` to update` );
-    ux.stderr( '' );
-    ux.stderr( border );
-    ux.stderr( '' );
-  } catch ( error ) {
-    // Never block CLI execution
-    debug( 'Version banner failed: %O', error );
+  if ( !result ) {
+    spawnBackgroundRefresh( this.config.version, this.config.cacheDir );
+    return;
   }
+
+  if ( !result.updateAvailable ) {
+    return;
+  }
+
+  // Skip the banner entirely in JSON mode: even on stderr it is pure noise to
+  // a script consuming the command's structured output.
+  if ( hasJsonFlag( opts.argv ) || hasJsonFlag( process.argv ) ) {
+    return;
+  }
+
+  const border = ux.colorize( 'dim', '─'.repeat( 80 ) );
+  const warning = ux.colorize( 'yellow', 'Uhoh! Your Output.ai CLI is behind!' );
+  const latestVer = ux.colorize( 'green', `v${result.latestVersion}` );
+  const currentVer = ux.colorize( 'yellow', `v${result.currentVersion}` );
+  const updateCmd = ux.colorize( 'cyan', 'npx output update' );
+
+  // Advisory notice goes to stderr so stdout stays clean for piping in every mode.
+  ux.stderr( '' );
+  ux.stderr( border );
+  ux.stderr( '' );
+  ux.stderr( `  ⚠️  ${warning}` );
+  ux.stderr( '' );
+  ux.stderr( `     Latest is ${latestVer}, and you're using ${currentVer}` );
+  ux.stderr( '' );
+  ux.stderr( `     Run \`${updateCmd}\` to update` );
+  ux.stderr( '' );
+  ux.stderr( border );
+  ux.stderr( '' );
 };
 
 export default hook;
