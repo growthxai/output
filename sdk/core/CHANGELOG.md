@@ -1,5 +1,14 @@
 # @outputai/core
 
+## 0.8.1
+
+### Patch Changes
+
+- aa8ed5e: - Updating connection monitor strategy to ping workflowService instead of healthService.
+  - Adding new env vars to configure Temporal worker shutdownForceTime and shutdownGraceTime:
+    - TEMPORAL_SHUTDOWN_FORCE_TIME
+    - TEMPORAL_SHUTDOWN_GRACE_TIME
+
 ## 0.8.0
 
 ### Minor Changes
