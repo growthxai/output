@@ -1,5 +1,27 @@
 # @outputai/core
 
+## 0.8.0
+
+### Minor Changes
+
+- 5485680: - Removed workflow-level usage aggregation from `@outputai/core`; workflows no longer collect activity attributes into final `aggregations` totals or expose those totals in workflow run results.
+  - Reworked workflow-to-workflow invocation so direct workflow calls made from workflow code now consistently execute as Temporal child workflows, including calls made through helper functions outside the parent workflow handler.
+  - Removed workflow call rewriting from the workflow webpack loader while preserving activity, step, and evaluator call rewriting.
+  - Renamed workflow invocation configuration types from `WorkflowInvocationConfiguration` to `WorkflowInvocationOptions`.
+  - Updated workflow invocation options so activity overrides are passed as top-level `activityOptions` instead of the previous `options` property.
+  - Refactored workflow validation internals around centralized schemas and explicit validator classes for workflows, steps, and evaluators.
+  - Hardened Zod schema detection for multi-package or multi-realm Zod v4 environments.
+
+### Patch Changes
+
+- 5485680: improve worker startup time by only calculating workflow sources
+- 0e958f3: Added Temporal connection monitoring. When connection is lost, graceful shuts down the worker.
+- 5485680: Fixed missing eventDate fields on hook types.
+- 5485680: Add an opt-in `output-worker --check` workflow bundle check that reproduces the worker's webpack bundling without a Temporal server, catching bad workflow imports — e.g. a transitive `node:` built-in — before they crash-loop the worker at startup. `tsc` cannot detect these; only the Temporal bundle can.
+
+  - `output-worker --check` bundles workflows via the same `bundleWorkflowCode` path `Worker.create` uses, exits non-zero with the offending module named, and needs no Temporal connection or worker env.
+  - Scaffolded projects gain an opt-in `output:worker:check` script plus README/CI guidance (not wired into any build).
+
 ## 0.7.0
 
 ### Minor Changes
