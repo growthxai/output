@@ -1,5 +1,16 @@
 # @outputai/http
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [5485680]
+- Updated dependencies [0e958f3]
+- Updated dependencies [5485680]
+- Updated dependencies [5485680]
+- Updated dependencies [5485680]
+  - @outputai/core@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes
