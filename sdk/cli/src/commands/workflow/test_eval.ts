@@ -17,12 +17,14 @@ export default class WorkflowTest extends Command {
 
   static override description = 'Run evaluations against a workflow using its datasets';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple',
     '<%= config.bin %> <%= command.id %> simple --cached',
     '<%= config.bin %> <%= command.id %> simple --save',
     '<%= config.bin %> <%= command.id %> simple --dataset basic_input,edge_case',
-    '<%= config.bin %> <%= command.id %> simple --format json'
+    '<%= config.bin %> <%= command.id %> simple --json'
   ];
 
   static override args = {
@@ -46,16 +48,10 @@ export default class WorkflowTest extends Command {
     dataset: Flags.string( {
       description: 'Comma-separated list of dataset names to run',
       char: 'd'
-    } ),
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ 'json', 'text' ],
-      default: 'text'
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<EvalOutput> {
     const { args, flags } = await this.parse( WorkflowTest );
     const filterNames = flags.dataset?.split( ',' ).map( s => s.trim() );
 
@@ -94,16 +90,13 @@ export default class WorkflowTest extends Command {
       await this.saveEvalResults( evalOutput, preparedDatasets, dir );
     }
 
-    if ( flags.format === 'json' ) {
-      this.log( JSON.stringify( evalOutput, null, 2 ) );
-    } else {
+    if ( !this.jsonEnabled() ) {
       this.log( renderEvalOutput( evalOutput, evalName ) );
     }
 
-    const exitCode = computeExitCode( evalOutput );
-    if ( exitCode !== 0 ) {
-      this.exit( exitCode );
-    }
+    process.exitCode = computeExitCode( evalOutput );
+
+    return evalOutput;
   }
 
   private validateDatasets( datasets: Dataset[] ): Dataset[] {

@@ -211,7 +211,7 @@ When a workflow fails, the output includes the workflow ID. Use it to get the fu
 npx output workflow run my-workflow --input src/my_workflow/scenarios/test.json
 # Output: Workflow failed. ID: abc123xyz
 
-npx output workflow debug abc123xyz --format json
+npx output workflow debug abc123xyz --json
 ```
 
 ## Input Schema Tips

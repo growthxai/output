@@ -33,7 +33,8 @@ By default, this shows the 100 most recent workflow executions across all workfl
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--limit <n>` | Number of runs to display | 100 |
-| `--format <type>` | Output format: table, json, text | table |
+| `--format <type>` | Output format: table, text | table |
+| `--json` | Output machine-readable JSON | false |
 
 ### Filter by Workflow Name
 
@@ -46,7 +47,7 @@ This shows only runs for the specified workflow type.
 ### Get Detailed JSON Output
 
 ```bash
-npx output workflow runs list --format json
+npx output workflow runs list --json
 ```
 
 Use JSON format for programmatic analysis or when you need full details.
@@ -82,7 +83,7 @@ When viewing runs, pay attention to:
 npx output workflow runs list --limit 20
 
 # Or use JSON format with jq to filter
-npx output workflow runs list --format json | jq '.[] | select(.status == "FAILED")'
+npx output workflow runs list --json | jq '.[] | select(.status == "FAILED")'
 ```
 
 **Scenario**: Get workflow ID for debugging
@@ -93,7 +94,7 @@ npx output workflow runs list my-workflow --limit 5
 
 # Note the workflow ID from the output (e.g., "abc123xyz")
 # Then debug it
-npx output workflow debug abc123xyz --format json
+npx output workflow debug abc123xyz --json
 ```
 
 **Scenario**: Review recent activity for a specific workflow
@@ -107,14 +108,14 @@ npx output workflow runs list data-pipeline --limit 10
 
 ```bash
 # Get all recent runs as JSON for external analysis
-npx output workflow runs list --format json > workflow-runs.json
+npx output workflow runs list --json > workflow-runs.json
 ```
 
 **Scenario**: Find when failures started
 
 ```bash
 # Look at more history to find patterns
-npx output workflow runs list --limit 50 --format json | jq 'group_by(.status) | map({status: .[0].status, count: length})'
+npx output workflow runs list --limit 50 --json | jq 'group_by(.status) | map({status: .[0].status, count: length})'
 ```
 
 ## Identifying Problems
@@ -129,7 +130,7 @@ npx output workflow runs list --limit 50 --format json | jq 'group_by(.status) |
 ### Next Steps After Finding a Failed Run
 
 1. Copy the workflow ID from the run
-2. Get the execution trace: `npx output workflow debug <workflowId> --format json`
+2. Get the execution trace: `npx output workflow debug <workflowId> --json`
 3. Analyze the trace to identify the failure
 4. Apply the appropriate fix based on the error pattern
 

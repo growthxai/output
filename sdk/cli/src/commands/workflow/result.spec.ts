@@ -15,13 +15,11 @@ describe( 'workflow result command', () => {
       expect( WorkflowResult ).toBeDefined();
       expect( WorkflowResult.description ).toContain( 'Get workflow execution result' );
       expect( WorkflowResult.args ).toHaveProperty( 'workflowId' );
-      expect( WorkflowResult.flags ).toHaveProperty( 'format' );
     } );
 
-    it( 'should have correct flag configuration', async () => {
+    it( 'enables the built-in --json flag', async () => {
       const WorkflowResult = ( await import( './result.js' ) ).default;
-      expect( WorkflowResult.flags.format.options ).toEqual( [ 'json', 'text' ] );
-      expect( WorkflowResult.flags.format.default ).toBe( 'text' );
+      expect( WorkflowResult.enableJsonFlag ).toBe( true );
     } );
   } );
 } );

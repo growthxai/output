@@ -15,12 +15,13 @@ vi.mock( '#utils/interactive.js', () => ( {
 vi.mock( '@oclif/core', () => ( {
   ux: {
     stdout: vi.fn(),
+    stderr: vi.fn(),
     colorize: vi.fn( ( _color: string, text: string ) => text )
   }
 } ) );
 
 import { ux } from '@oclif/core';
-import hook, { hasInteractiveFlag, stripGlobalFlags } from './init.js';
+import hook, { hasInteractiveFlag, hasJsonFlag, stripGlobalFlags } from './init.js';
 
 describe( 'init hook', () => {
   beforeEach( () => {
@@ -31,7 +32,7 @@ describe( 'init hook', () => {
     config: { version, cacheDir: '/tmp/test-cache' }
   } );
 
-  it( 'should display warning when cached result says an update is available', async () => {
+  it( 'should display warning on stderr when cached result says an update is available', async () => {
     vi.mocked( readCachedResult ).mockResolvedValue( {
       updateAvailable: true,
       currentVersion: '0.8.4',
@@ -43,13 +44,28 @@ describe( 'init hook', () => {
 
     expect( readCachedResult ).toHaveBeenCalledWith( '0.8.4', '/tmp/test-cache' );
     expect( spawnBackgroundRefresh ).not.toHaveBeenCalled();
-    expect( ux.stdout ).toHaveBeenCalled();
+    expect( ux.stderr ).toHaveBeenCalled();
+    expect( ux.stdout ).not.toHaveBeenCalled();
 
-    const output = vi.mocked( ux.stdout ).mock.calls.map( c => c[0] ).join( '\n' );
+    const output = vi.mocked( ux.stderr ).mock.calls.map( c => c[0] ).join( '\n' );
     expect( output ).toContain( 'Uhoh' );
     expect( output ).toContain( 'v1.0.0' );
     expect( output ).toContain( 'v0.8.4' );
     expect( output ).toContain( 'npx output update' );
+  } );
+
+  it( 'should suppress the warning entirely in JSON mode', async () => {
+    vi.mocked( readCachedResult ).mockResolvedValue( {
+      updateAvailable: true,
+      currentVersion: '0.8.4',
+      latestVersion: '1.0.0'
+    } );
+
+    const ctx = createHookContext();
+    await hook.call( ctx as any, { argv: [ '--json' ], id: undefined } as any );
+
+    expect( ux.stderr ).not.toHaveBeenCalled();
+    expect( ux.stdout ).not.toHaveBeenCalled();
   } );
 
   it( 'should not display anything when up to date', async () => {
@@ -154,6 +170,20 @@ describe( 'init hook', () => {
 
     it( 'returns false for an empty argv', () => {
       expect( hasInteractiveFlag( [] ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'hasJsonFlag', () => {
+    it( 'returns true when --json is present', () => {
+      expect( hasJsonFlag( [ 'workflow', 'runs', 'list', '--json' ] ) ).toBe( true );
+    } );
+
+    it( 'returns false when --json is absent', () => {
+      expect( hasJsonFlag( [ 'workflow', 'runs', 'list', '--format', 'table' ] ) ).toBe( false );
+    } );
+
+    it( 'returns false for an empty argv', () => {
+      expect( hasJsonFlag( [] ) ).toBe( false );
     } );
   } );
 

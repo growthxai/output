@@ -371,7 +371,7 @@ Runs evaluations against all datasets for a workflow.
 | `--cached` | Use cached output from dataset files (skip workflow execution) |
 | `--save` | Run workflow fresh and save output + eval results back to dataset files |
 | `--dataset <names>` | Comma-separated list of dataset names to run (default: all) |
-| `--format <type>` | Output format: `text` (default) or `json` |
+| `--json` | Output machine-readable JSON instead of the rendered report |
 
 **Execution flow:**
 1. Loads all dataset YAML files from `tests/datasets/`
@@ -386,7 +386,8 @@ Lists all datasets for a workflow with their cached status.
 
 | Flag | Description |
 |------|-------------|
-| `--format <type>` | Output format: `table` (default), `text`, or `json` |
+| `--format <type>` | Output format: `table` (default) or `text` |
+| `--json` | Output machine-readable JSON |
 
 ### `output workflow dataset generate <workflow_name> [scenario]`
 
