@@ -322,7 +322,8 @@ export function correlate( events: HistoryEvent[], workflowStartTimeMs: number |
     .map( ( [ id, slot ] ) => buildActivitySpan( id, slot, workflowStartTimeMs ) );
 
   const childSpans = [ ...children.entries() ]
-    .map( ( [ id, slot ] ) => buildChildSpan( id, slot, workflowStartTimeMs ) );
+    .map( ( [ id, slot ] ) => buildChildSpan( id, slot, workflowStartTimeMs ) )
+    .filter( span => !isNoise( span.technicalName ) );
 
   return [ ...activitySpans, ...childSpans ].sort( ( a, b ) => a.startOffsetMs - b.startOffsetMs );
 }

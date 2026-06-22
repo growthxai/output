@@ -49,6 +49,12 @@ describe( 'formatDurationLabel', () => {
     expect( formatDurationLabel( 1_000 ) ).toBe( '1s' );
     expect( formatDurationLabel( 27_000 ) ).toBe( '27s' );
   } );
+
+  it( 'carries a rounded-up remainder instead of rendering 60s/60m', () => {
+    expect( formatDurationLabel( 59_500 ) ).toBe( '1m' );
+    expect( formatDurationLabel( 119_500 ) ).toBe( '2m' );
+    expect( formatDurationLabel( 3_599_500 ) ).toBe( '1h' );
+  } );
 } );
 
 describe( 'computeBar', () => {
@@ -86,5 +92,17 @@ describe( 'renderWaterfall', () => {
   it( 'shows a friendly message when there are no steps', () => {
     const out = renderWaterfall( [], 1, { width: 70, color: false, header: 'wf-1' } );
     expect( out ).toContain( 'No steps found for this run.' );
+  } );
+
+  it( 'lists the reason under the chart for failed steps that carry a message', () => {
+    const failed = { ...span( 'c', 'Scrape Serp Page', 'failed', 10_000, 2_000 ), failureMessage: 'connection reset' };
+    const out = renderWaterfall( [ ...spans, failed ], 40_000, { width: 70, color: false } );
+    expect( out ).toContain( 'Failures' );
+    expect( out ).toContain( '✗ Scrape Serp Page: connection reset' );
+  } );
+
+  it( 'omits the failures section when no failed step has a message', () => {
+    const out = renderWaterfall( spans, 40_000, { width: 70, color: false } );
+    expect( out ).not.toContain( 'Failures' );
   } );
 } );

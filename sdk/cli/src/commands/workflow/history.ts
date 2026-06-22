@@ -83,7 +83,8 @@ export default class WorkflowHistory extends Command {
 
     const labels = buildSpanLabels( result.spans );
     const width = flags.width ?? process.stdout.columns ?? DEFAULT_WIDTH;
-    const color = flags.color && process.stdout.isTTY === true && !process.env.NO_COLOR;
+    const color = flags.color && !process.env.NO_COLOR &&
+      ( !!process.env.FORCE_COLOR || process.stdout.isTTY === true );
 
     this.log( renderWaterfall( result.spans, result.totalDurationMs, {
       width,
@@ -91,6 +92,12 @@ export default class WorkflowHistory extends Command {
       labels,
       header: this.buildHeader( args.workflowId, result.runId, result.workflow?.status, result.totalDurationMs )
     } ) );
+
+    // Failure reasons live in the payloads the server strips by default, so a
+    // failed run shows red bars but no messages until payloads are requested.
+    if ( !flags['include-payloads'] && result.spans.some( span => span.status === 'failed' ) ) {
+      this.log( '\nSome steps failed — re-run with --include-payloads to see their error messages.' );
+    }
   }
 
   private buildHeader( workflowId: string, runId: string | null, status: string | undefined, totalDurationMs: number ): string {

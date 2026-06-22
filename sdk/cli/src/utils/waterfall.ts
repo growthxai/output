@@ -66,17 +66,21 @@ export function buildTicks( totalMs: number ): number[] {
   return Array.from( { length: count + 1 }, ( _, i ) => i * step );
 }
 
+// Round to whole units *before* splitting so a remainder that rounds up to a
+// full unit carries instead of rendering "1m60s" / "1h60m".
 function formatClock( ms: number ): string {
-  if ( ms < 60_000 ) {
-    return `${Math.round( ms / 1_000 )}s`;
+  const totalSec = Math.round( ms / 1_000 );
+  if ( totalSec < 60 ) {
+    return `${totalSec}s`;
   }
-  if ( ms < 3_600_000 ) {
-    const m = Math.floor( ms / 60_000 );
-    const s = Math.round( ( ms % 60_000 ) / 1_000 );
+  if ( totalSec < 3_600 ) {
+    const m = Math.floor( totalSec / 60 );
+    const s = totalSec % 60;
     return s === 0 ? `${m}m` : `${m}m${s}s`;
   }
-  const h = Math.floor( ms / 3_600_000 );
-  const m = Math.round( ( ms % 3_600_000 ) / 60_000 );
+  const totalMin = Math.round( ms / 60_000 );
+  const h = Math.floor( totalMin / 60 );
+  const m = totalMin % 60;
   return m === 0 ? `${h}h` : `${h}h${m}m`;
 }
 
@@ -117,6 +121,10 @@ function padOrTruncate( text: string, width: number ): string {
     return text.padEnd( width );
   }
   return `${text.slice( 0, width - 1 )}…`;
+}
+
+function truncate( text: string, width: number ): string {
+  return text.length <= width ? text : `${text.slice( 0, Math.max( 0, width - 1 ) )}…`;
 }
 
 // First tick aligns left, last tick aligns right, middle ticks center on their
@@ -173,6 +181,27 @@ function renderLegend( tint: ( text: string, code: string ) => string ): string 
   return tint( entries.join( '   ' ), ANSI.dim );
 }
 
+// The bars only encode failure as a red lane; surface the reason underneath so a
+// failed run is actionable from the chart alone. `failureMessage` is only
+// populated when the history was fetched with payloads (the server strips it
+// otherwise), so spans without one are simply omitted here.
+function buildFailureLines(
+  spans: Span[],
+  labelFor: ( span: Span ) => string,
+  width: number,
+  tint: ( text: string, code: string ) => string
+): string[] {
+  const failed = spans.filter( span => span.status === 'failed' && span.failureMessage );
+  if ( failed.length === 0 ) {
+    return [];
+  }
+  const lines = failed.map( span => {
+    const message = ( span.failureMessage ?? '' ).replace( /\s+/g, ' ' ).trim();
+    return tint( truncate( `✗ ${labelFor( span )}: ${message}`, width ), ANSI.failed );
+  } );
+  return [ '', tint( 'Failures', ANSI.dim ), ...lines ];
+}
+
 export default function renderWaterfall( spans: Span[], totalDurationMs: number, options: WaterfallOptions ): string {
   const { width, color, header, labels } = options;
   if ( spans.length === 0 ) {
@@ -200,6 +229,13 @@ export default function renderWaterfall( spans: Span[], totalDurationMs: number,
   } );
 
   const headerLines = header ? [ header, '' ] : [];
+  const failureLines = buildFailureLines( spans, labelFor, width, tint );
   const legendLines = color ? [ '', renderLegend( tint ) ] : [];
-  return [ ...headerLines, renderRuler( totalDurationMs, labelW, trackW, tint ), ...rows, ...legendLines ].join( '\n' );
+  return [
+    ...headerLines,
+    renderRuler( totalDurationMs, labelW, trackW, tint ),
+    ...rows,
+    ...failureLines,
+    ...legendLines
+  ].join( '\n' );
 }
