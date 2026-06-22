@@ -1,5 +1,11 @@
 # output-api
 
+## 0.8.1
+
+### Patch Changes
+
+- aa8ed5e: Updating connection monitor strategy to ping workflowService instead of healthService.
+
 ## 0.8.0
 
 ### Minor Changes
