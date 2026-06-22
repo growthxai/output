@@ -198,6 +198,7 @@ const DetailPane: React.FC<{
 export const RUNS_HINTS = [
   { key: '↑/↓', label: 'navigate' },
   { key: 'enter', label: 'open' },
+  { key: 'g', label: 'graph' },
   { key: '←/→', label: 'switch pane' },
   { key: 'e', label: 'expand' },
   { key: 'o', label: 'temporal' }
@@ -261,6 +262,10 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[]; height: number }> = ( { 
       ui.setRunsView( 'detail' );
       return;
     }
+    if ( input === 'g' && selectedRun?.workflowId ) {
+      ui.openStepGraph( selectedRun );
+      return;
+    }
     if ( key.leftArrow || key.rightArrow ) {
       ui.setRunListPaneTab( cycleValue( RUN_INFO_TAB_ORDER, ui.runListPaneTab, key.rightArrow ? 1 : -1 ) );
       return;
@@ -271,7 +276,7 @@ export const RunsPanel: React.FC<{ runs: WorkflowRun[]; height: number }> = ( { 
       const title = formatContentTitle( [ 'Recent Runs', `Workflow "${selectedRun?.workflowType ?? ''}"`, capitalize( activePane ) ] );
       ui.openExpandedJson( content, title );
     }
-  }, { isActive: ui.tab === 'runs' && ui.runsView === 'list' && !ui.search.open } );
+  }, { isActive: ui.tab === 'runs' && ui.runsView === 'list' && !ui.search.open && !ui.stepGraph.open } );
 
   if ( runs.length === 0 ) {
     return (

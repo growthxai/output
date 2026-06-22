@@ -33,6 +33,7 @@ import { HELP_HINTS, HELP_SECTION_COUNT, HelpPanel } from '#views/dev/panels/hel
 import { RunModal } from '#views/dev/modals/run_modal.js';
 import { ExpandedJsonModal } from '#views/dev/modals/expanded_json_modal.js';
 import { StepsModal } from '#views/dev/modals/steps_modal.js';
+import { StepGraphModal } from '#views/dev/modals/step_graph_modal.js';
 import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/constants.js';
 
 export type Phase = 'waiting' | 'running' | 'failed';
@@ -110,7 +111,7 @@ const useGlobalInput = ( opts: {
       return;
     }
 
-    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || opts.runDetailOpen ) {
+    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || ui.stepGraph.open || opts.runDetailOpen ) {
       return;
     }
 
@@ -196,6 +197,9 @@ const overlayFor = ( opts: {
   runDetailOpen: boolean;
   rows: number;
 } ): React.ReactNode => {
+  if ( opts.ui.stepGraph.open && opts.ui.stepGraph.run ) {
+    return <StepGraphModal run={opts.ui.stepGraph.run} height={opts.rows} />;
+  }
   if ( opts.ui.expandedJson.open ) {
     return <ExpandedJsonModal />;
   }
