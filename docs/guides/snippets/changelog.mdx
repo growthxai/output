@@ -1,5 +1,83 @@
 {/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}
 
+<Update label="v0.8.0" description="2026-06-18 · minor release">
+
+**`output-api`** — `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
+
+**`@outputai/core`** — improve worker startup time by only calculating workflow sources
+
+**`output-api`, `@outputai/cli`** — - Updated workflow result API responses to return workflow output and trace metadata without workflow-level `aggregations`.
+- Regenerated CLI API types to match the workflow result response shape.
+
+**`@outputai/cli`** — Faster CLI startup: ship `oclif.manifest.json` in the published package so only the invoked command module is loaded (instead of importing every command on every invocation), move the update check off the critical path (the init hook now only reads the local cache and refreshes it via a detached background process with a 5s registry timeout, instead of awaiting an unbounded `npm view` subprocess), and load `undici` only when a proxy env var is configured.
+
+**`@outputai/cli`** — `workflow cost` now calculates costs from the trace events themselves (the as-charged "Original" cost) and applies `costs.yml` as an override layer (the "Adjusted" cost), displaying both per model and per host. This fixes models with no `costs.yml` entry (e.g. `gpt-5.5`) and HTTP hosts (e.g. `api.exa.ai`, `api.firecrawl.dev`) previously reporting $0, and surfaces where the configured `costs.yml` rate diverges from what was actually charged. The bottom line shows the adjusted total with the as-charged total alongside.
+
+Costs come exclusively from trace cost attributes: LLM nodes with an `llm:usage` event and HTTP calls with an `http:request:cost` event are counted as-charged (even on error responses — the event proves a charge); calls without events are not priced. Traces from SDK versions that predate cost attributes (< 0.5) report no costs. Only exact (`computed`) recomputes override an event cost — estimates and failed recomputes never do, and a configured `$0` price is now honored. Body-dependent `costs.yml` service rules require traces recorded with `OUTPUT_TRACE_HTTP_VERBOSE=true` (the dev default).
+
+**`--format json` field changes** (the report shape changed; update any scripts parsing it): `llmTotalCost` → `llmOriginalCost`/`llmAdjustedCost`; `services[]`/`serviceTotalCost` → `httpCosts[]` (grouped by `host`) with `httpOriginalCost`/`httpAdjustedCost`; `unknownModels` removed; per-call `cost`/`warning` → `originalCost`/`adjustedCost`; new `originalTotalCost`; `totalCost` is now the adjusted total.
+
+**`@outputai/core`** — Fixed missing eventDate fields on hook types.
+
+**`output-api`** — Expose structured workflow failure details (`failure` object with `message`, `type`, `retryable`, and a sanitized `cause` chain) in `/workflow/run` and `/workflow/:id/result` responses, alongside the existing `error` string. Also log Temporal/gRPC client errors with full nested context (cause chain, gRPC `code`/`details`, redacted metadata keys, `workflowId`/`runId`/`taskQueue`/query) while keeping client-facing HTTP responses sanitized.
+
+**`@outputai/cli`** — Surface workflow aliases and honor `OUTPUT_CATALOG_ID` in `output workflow list`.
+
+- The default list output now appends `(aliases: ...)` to workflows that have registered aliases, which previously only appeared in `--format table`/`--format json` (OUT-444).
+- Add a `--catalog` flag (env `OUTPUT_CATALOG_ID`) that resolves workflows from a specific catalog, falling back to the server-default catalog — matching the existing behavior of `run` and `start` (OUT-489).
+
+**`@outputai/core`** — Add an opt-in `output-worker --check` workflow bundle check that reproduces the worker's webpack bundling without a Temporal server, catching bad workflow imports — e.g. a transitive `node:` built-in — before they crash-loop the worker at startup. `tsc` cannot detect these; only the Temporal bundle can.
+
+- `output-worker --check` bundles workflows via the same `bundleWorkflowCode` path `Worker.create` uses, exits non-zero with the offending module named, and needs no Temporal connection or worker env.
+- Scaffolded projects gain an opt-in `output:worker:check` script plus README/CI guidance (not wired into any build).
+
+**`@outputai/llm`** — Route `<system>` blocks to the AI SDK `system` option instead of leaving them in the `messages` array.
+
+- `loadAiSdkTextOptions` now splits resolved messages: system blocks go to the top-level `system` option (as `SystemModelMessage[]`, so per-message `cacheControl`/`providerOptions` are preserved); only user/assistant/tool messages stay in `messages`. `Agent` consumes the split `system` directly as its `instructions`.
+- Silences the AI SDK warning that system messages in `messages` are a prompt-injection risk; `generateText`/`streamText`/`Agent` also set `allowSystemInMessages: true` as defense-in-depth for caller-supplied message histories.
+
+**`@outputai/llm`** — Add per-message provider options to `.prompt` files via `messageOptions`.
+
+- Define named `messageOptions` sets in front matter and attach them to message blocks with `options="<name>"` (e.g. `<system options="cached">`); each set is a provider-namespaced `providerOptions` object merged onto that message.
+- Enables Anthropic prompt caching (`{ anthropic: { cacheControl: { type: ephemeral } } }`) and any other per-message provider option, on any provider.
+- Cost tracking now reports cached input tokens (`input_cached`) even for models whose pricing record lacks a `cache_read` rate, so cache savings are visible in usage aggregations instead of silently disappearing.
+
+**`@outputai/core`** — - Removed workflow-level usage aggregation from `@outputai/core`; workflows no longer collect activity attributes into final `aggregations` totals or expose those totals in workflow run results.
+- Reworked workflow-to-workflow invocation so direct workflow calls made from workflow code now consistently execute as Temporal child workflows, including calls made through helper functions outside the parent workflow handler.
+- Removed workflow call rewriting from the workflow webpack loader while preserving activity, step, and evaluator call rewriting.
+- Renamed workflow invocation configuration types from `WorkflowInvocationConfiguration` to `WorkflowInvocationOptions`.
+- Updated workflow invocation options so activity overrides are passed as top-level `activityOptions` instead of the previous `options` property.
+- Refactored workflow validation internals around centralized schemas and explicit validator classes for workflows, steps, and evaluators.
+- Hardened Zod schema detection for multi-package or multi-realm Zod v4 environments.
+
+**`output-api`** — The `continued` workflow status was renamed to `continued_as_new` in API responses.
+
+## Explicit Status Fields
+
+| Endpoint | HTTP response JSON path | Generated client path |
+| --- | --- | --- |
+| `POST /workflow/run` | `status` | `response.data.status` |
+| `GET /workflow/{id}/result` | `status` | `response.data.status` |
+| `GET /workflow/{id}/runs/{rid}/result` | `status` | `response.data.status` |
+| `GET /workflow/{id}/status` | `status` | `response.data.status` |
+| `GET /workflow/{id}/runs/{rid}/status` | `status` | `response.data.status` |
+| `GET /workflow/runs` | `runs[].status` | `response.data.runs[].status` |
+
+## History Metadata Status Fields
+
+These endpoints also return workflow status in the history metadata object. The OpenAPI schema currently leaves this nested object unexpanded.
+
+| Endpoint | HTTP response JSON path | Generated client path |
+| --- | --- | --- |
+| `GET /workflow/{id}/history` | `workflow.status` | `response.data.workflow.status` |
+| `GET /workflow/{id}/runs/{rid}/history` | `workflow.status` | `response.data.workflow.status` |
+
+## Backwards support
+
+In the CLI, the old value is still supported.
+
+</Update>
+
 <Update label="v0.7.0" description="2026-06-10 · minor release">
 
 **`@outputai/core`** — ## Workflow hooks
