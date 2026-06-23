@@ -185,7 +185,7 @@ describe( 'interface validators', () => {
     it( 'accepts valid log arguments and rejects invalid log arguments', () => {
       expect( () => validateLogArguments( {
         message: 'Completed step',
-        metadata: { workflowId: 'workflow-1' }
+        metadata: { color: 'red' }
       } ) ).not.toThrow();
 
       expect( () => validateLogArguments( {

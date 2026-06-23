@@ -120,7 +120,12 @@ const reservedLogMetadataFields = new Set( [
   'namespace',
   'splat',
   'stack',
-  'timestamp'
+  'timestamp',
+  'workflowId',
+  'workflowType',
+  'runId',
+  'activityId',
+  'activityType'
 ] );
 
 export const logArgumentsSchema = z.object( {
