@@ -34,6 +34,9 @@ jobs:
       - name: Regenerate MDX
         run: ./ops/regenerate_docs.sh
 
+      - name: Assert changelog is populated
+        run: ./ops/assert_changelog_synced.sh
+
       - name: Commit regenerated MDX
         run: |
           if git diff --quiet; then
@@ -60,6 +63,9 @@ jobs:
 
       - name: Regenerate MDX
         run: ./ops/regenerate_docs.sh
+
+      - name: Assert changelog is populated
+        run: ./ops/assert_changelog_synced.sh
 
       - name: Fail if MDX drifted
         run: |
