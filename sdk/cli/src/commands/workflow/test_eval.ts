@@ -3,6 +3,8 @@ import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
 import type { WorkflowResultResponse } from '#api/generated/api.js';
 import { readAllDatasets, writeDataset } from '#services/datasets.js';
+import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
+import { diagnoseMissingEvalWorkflow } from '#utils/eval_diagnostics.js';
 import { handleApiError } from '#utils/error_handler.js';
 import {
   getEvalWorkflowName,
@@ -59,6 +61,9 @@ export default class WorkflowTest extends Command {
     const { args, flags } = await this.parse( WorkflowTest );
     const filterNames = flags.dataset?.split( ',' ).map( s => s.trim() );
 
+    const evalName = getEvalWorkflowName( args.workflowName );
+    await this.ensureEvalWorkflowRegistered( args.workflowName, evalName );
+
     const { datasets, dir } = await readAllDatasets( args.workflowName, filterNames );
 
     if ( datasets.length === 0 ) {
@@ -73,7 +78,6 @@ export default class WorkflowTest extends Command {
       this.validateDatasets( datasets ) :
       await this.runWorkflowForDatasets( args.workflowName, datasets, flags.save, dir );
 
-    const evalName = getEvalWorkflowName( args.workflowName );
     this.log( `Running eval workflow "${evalName}"...\n` );
 
     const response = await postWorkflowRun( {
@@ -103,6 +107,16 @@ export default class WorkflowTest extends Command {
     const exitCode = computeExitCode( evalOutput );
     if ( exitCode !== 0 ) {
       this.exit( exitCode );
+    }
+  }
+
+  private async ensureEvalWorkflowRegistered(
+    workflowName: string,
+    evalName: string
+  ): Promise<void> {
+    const catalog = await fetchWorkflowCatalog().catch( () => null );
+    if ( catalog && !catalog.some( w => w.name === evalName ) ) {
+      this.error( await diagnoseMissingEvalWorkflow( workflowName ), { exit: 1 } );
     }
   }
 

@@ -1,14 +1,23 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
-import { readDatasetFile, readAllDatasets, writeDataset, listDatasets } from './datasets.js';
+import { readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir } from './datasets.js';
+import * as catalog from '#api/workflow_catalog.js';
+
+vi.mock( '#api/workflow_catalog.js', () => ( {
+  fetchWorkflowCatalog: vi.fn()
+} ) );
 
 const ctx = { tmpDir: '' };
 
 beforeEach( async () => {
   ctx.tmpDir = await mkdtemp( join( tmpdir(), 'output-datasets-test-' ) );
+  // Default: no API. Flat-layout cases resolve offline before this is hit;
+  // nested cases override with a resolved catalog.
+  vi.mocked( catalog.fetchWorkflowCatalog ).mockReset();
+  vi.mocked( catalog.fetchWorkflowCatalog ).mockRejectedValue( new Error( 'API unavailable' ) );
 } );
 
 afterEach( async () => {
@@ -132,6 +141,23 @@ describe( 'readAllDatasets', () => {
 
     expect( datasets ).toHaveLength( 2 );
     expect( datasets.map( d => d.name ).sort() ).toEqual( [ 'case_2', 'case_3' ] );
+  } );
+
+  it( 'resolves a nested workflow folder via the catalog', async () => {
+    const datasetsDir = join( ctx.tmpDir, 'src', 'workflows', 'a', 'b', 'c', 'tests', 'datasets' );
+    await mkdir( datasetsDir, { recursive: true } );
+    await writeYaml( join( datasetsDir, 'cases.yml' ), {
+      nested_case: { input: { x: 1 } }
+    } );
+
+    vi.mocked( catalog.fetchWorkflowCatalog ).mockResolvedValue(
+      [ { name: 'a_b_c', path: '/app/dist/workflows/a/b/c/workflow.js' } ] as never
+    );
+
+    const { datasets, dir } = await readAllDatasets( 'a_b_c', undefined, ctx.tmpDir );
+
+    expect( datasets.map( d => d.name ) ).toEqual( [ 'nested_case' ] );
+    expect( dir ).toBe( datasetsDir );
   } );
 
   it( 'returns empty datasets and a default dir when workflow has no datasets dir', async () => {
@@ -270,5 +296,30 @@ describe( 'listDatasets', () => {
   it( 'returns empty array when no datasets directory exists', async () => {
     const infos = await listDatasets( 'nonexistent_workflow', ctx.tmpDir );
     expect( infos ).toHaveLength( 0 );
+  } );
+} );
+
+// ---------------------------------------------------------------------------
+// resolveDefaultDatasetsDir
+// ---------------------------------------------------------------------------
+
+describe( 'resolveDefaultDatasetsDir', () => {
+  it( 'returns the nested workflow tests/datasets for first-time generation via catalog', async () => {
+    // Workflow dir exists; its tests/datasets does not yet (first generation).
+    await mkdir( join( ctx.tmpDir, 'src', 'workflows', 'a', 'b', 'c' ), { recursive: true } );
+
+    vi.mocked( catalog.fetchWorkflowCatalog ).mockResolvedValue(
+      [ { name: 'a_b_c', path: '/app/dist/workflows/a/b/c/workflow.js' } ] as never
+    );
+
+    const dir = await resolveDefaultDatasetsDir( 'a_b_c', ctx.tmpDir );
+
+    expect( dir ).toBe( join( ctx.tmpDir, 'src', 'workflows', 'a', 'b', 'c', 'tests', 'datasets' ) );
+  } );
+
+  it( 'falls back to the flat convention when the workflow cannot be resolved', async () => {
+    const dir = await resolveDefaultDatasetsDir( 'unknown_flow', ctx.tmpDir );
+
+    expect( dir ).toBe( join( ctx.tmpDir, 'src', 'workflows', 'unknown_flow', 'tests', 'datasets' ) );
   } );
 } );

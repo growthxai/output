@@ -6,9 +6,10 @@ import { DatasetSchema } from '@outputai/evals';
 import type { Dataset } from '@outputai/evals';
 import { getTrace } from '#services/trace_reader.js';
 import { sanitizeSecrets } from '#utils/secret_sanitizer.js';
+import { resolveWorkflowDir, WORKFLOWS_PATHS } from '#utils/workflow_dir.js';
+import { getWorkflowsBasePath } from '#utils/paths.js';
 
 const DATASETS_DIR = 'tests/datasets';
-const WORKFLOWS_PATHS = [ 'src/workflows', 'workflows' ];
 
 export interface DatasetInfo {
   name: string;
@@ -18,30 +19,33 @@ export interface DatasetInfo {
   lastEvalDate?: string;
 }
 
-export function resolveDatasetsDir(
+export async function resolveDatasetsDir(
   workflowName: string,
-  basePath: string = process.cwd()
-): string | null {
-  for ( const workflowsDir of WORKFLOWS_PATHS ) {
-    const candidate = resolve( basePath, workflowsDir, workflowName, DATASETS_DIR );
-    if ( existsSync( candidate ) ) {
-      return candidate;
-    }
+  basePath?: string,
+  workflowPath?: string
+): Promise<string | null> {
+  const workflowDir = await resolveWorkflowDir( workflowName, basePath, workflowPath );
+  if ( !workflowDir ) {
+    return null;
   }
-  return null;
+  const datasetsDir = resolve( workflowDir, DATASETS_DIR );
+  return existsSync( datasetsDir ) ? datasetsDir : null;
 }
 
-export function resolveDefaultDatasetsDir(
+export async function resolveDefaultDatasetsDir(
   workflowName: string,
-  basePath: string = process.cwd()
-): string {
-  const existing = resolveDatasetsDir( workflowName, basePath );
-  if ( existing ) {
-    return existing;
+  basePath?: string,
+  workflowPath?: string
+): Promise<string> {
+  // Write into the resolved workflow's tests/datasets — even when it doesn't
+  // exist yet (first generation) — so nested workflows get the right location.
+  const workflowDir = await resolveWorkflowDir( workflowName, basePath, workflowPath );
+  if ( workflowDir ) {
+    return resolve( workflowDir, DATASETS_DIR );
   }
 
-  // Default to first workflows path
-  return resolve( basePath, WORKFLOWS_PATHS[0], workflowName, DATASETS_DIR );
+  // Workflow not found (unknown name / API unavailable): flat convention.
+  return resolve( basePath ?? getWorkflowsBasePath(), WORKFLOWS_PATHS[0], workflowName, DATASETS_DIR );
 }
 
 export async function readDatasetFile( filePath: string ): Promise<Dataset[]> {
@@ -66,9 +70,9 @@ export async function readAllDatasets(
   filterNames?: string[],
   basePath?: string
 ): Promise<{ datasets: Dataset[]; dir: string }> {
-  const dir = resolveDatasetsDir( workflowName, basePath );
+  const dir = await resolveDatasetsDir( workflowName, basePath );
   if ( !dir ) {
-    return { datasets: [], dir: resolveDefaultDatasetsDir( workflowName, basePath ) };
+    return { datasets: [], dir: await resolveDefaultDatasetsDir( workflowName, basePath ) };
   }
 
   const files = await readdir( dir );
@@ -115,7 +119,7 @@ export async function listDatasets(
   workflowName: string,
   basePath?: string
 ): Promise<DatasetInfo[]> {
-  const dir = resolveDatasetsDir( workflowName, basePath );
+  const dir = await resolveDatasetsDir( workflowName, basePath );
   if ( !dir ) {
     return [];
   }

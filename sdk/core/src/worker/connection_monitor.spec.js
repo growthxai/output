@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 
-const SERVING = 1;
-const NOT_SERVING = 2;
 const CHECK_TIMEOUT_MS = 50;
 const CHECK_INTERVAL_MS = 100;
 
@@ -26,7 +24,7 @@ vi.mock( 'node:timers/promises', () => ( { setTimeout: delayMock } ) );
 vi.mock( '#logger', () => ( { createChildLogger: vi.fn( () => mockLogger ) } ) );
 
 const createConnection = check => ( {
-  healthService: { check }
+  workflowService: { getSystemInfo: check }
 } );
 
 const createMonitor = ( check, overrides = {} ) => new TemporalConnectionMonitor( createConnection( check ), {
@@ -52,8 +50,8 @@ describe( 'TemporalConnectionMonitor', () => {
     scheduledDelays.length = 0;
   } );
 
-  it( 'logs healthy when the connection is serving', async () => {
-    const check = vi.fn().mockResolvedValue( { status: SERVING } );
+  it( 'logs healthy when the workflow service is reachable', async () => {
+    const check = vi.fn().mockResolvedValue( {} );
     const monitor = createMonitor( check );
 
     const run = monitor.start();
@@ -90,7 +88,7 @@ describe( 'TemporalConnectionMonitor', () => {
   it( 'logs recovered after a transient failure succeeds', async () => {
     const check = vi.fn()
       .mockRejectedValueOnce( new Error( 'temporary outage' ) )
-      .mockResolvedValueOnce( { status: SERVING } );
+      .mockResolvedValueOnce( {} );
     const monitor = createMonitor( check );
 
     monitor.start();
@@ -132,21 +130,6 @@ describe( 'TemporalConnectionMonitor', () => {
     expect( connectionLost ).toHaveBeenCalledWith( error );
     expect( monitor.connectionLossError ).toBe( error );
     expect( monitor.running ).toBe( false );
-  } );
-
-  it( 'treats non-serving health status as a failure', async () => {
-    const check = vi.fn().mockResolvedValue( { status: NOT_SERVING } );
-    const monitor = createMonitor( check );
-
-    monitor.start();
-    await flushPromises();
-
-    expect( mockLogger.warn ).toHaveBeenCalledWith( 'Connection unhealthy', {
-      error: `Connection not serving (status ${NOT_SERVING})`,
-      failures: 1
-    } );
-
-    await monitor.stop();
   } );
 
   it( 'returns the same lifecycle promise when started more than once', async () => {

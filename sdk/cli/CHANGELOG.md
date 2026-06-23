@@ -1,5 +1,14 @@
 # @outputai/cli
 
+## 0.8.1
+
+### Patch Changes
+
+- c2347a6: Resolve datasets and evals for nested workflow folders by the workflow's registered name (via the worker catalog), keeping the flat-path lookup as an offline fast path. `output workflow test`, `dataset generate`, and `dataset list` now work for workflows in nested directories (e.g. `src/workflows/a/b/c` registered as `a_b_c`) without a symlink. `output workflow test` also fails fast with an actionable message when a `<wf>_eval` workflow's source exists but didn't compile to `dist`.
+  - @outputai/credentials@0.8.1
+  - @outputai/evals@0.8.1
+  - @outputai/llm@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes

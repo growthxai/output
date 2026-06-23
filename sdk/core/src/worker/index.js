@@ -33,7 +33,9 @@ const {
   maxConcurrentActivityTaskExecutions,
   maxCachedWorkflows,
   maxConcurrentActivityTaskPolls,
-  maxConcurrentWorkflowTaskPolls
+  maxConcurrentWorkflowTaskPolls,
+  shutdownForceTime,
+  shutdownGraceTime
 } = configs;
 
 const state = {
@@ -73,6 +75,7 @@ const execute = async () => {
   if ( proxy ) {
     log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
   }
+
   state.connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
   log.info( 'Creating connection monitor...' );
@@ -95,7 +98,9 @@ const execute = async () => {
     maxCachedWorkflows,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
-    bundlerOptions: { webpackConfigHook }
+    bundlerOptions: { webpackConfigHook },
+    ...( shutdownForceTime !== undefined && { shutdownForceTime } ),
+    ...( shutdownGraceTime !== undefined && { shutdownGraceTime } )
   } );
 
   log.info( 'Setting up telemetry...' );

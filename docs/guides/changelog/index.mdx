@@ -9,6 +9,19 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.8.1" description="2026-06-22 · patch release">
+
+**`@outputai/core`** — - Updating connection monitor strategy to ping workflowService instead of healthService.
+- Adding new env vars to configure Temporal worker shutdownForceTime and shutdownGraceTime:
+  - TEMPORAL_SHUTDOWN_FORCE_TIME
+  - TEMPORAL_SHUTDOWN_GRACE_TIME
+
+**`@outputai/cli`** — Resolve datasets and evals for nested workflow folders by the workflow's registered name (via the worker catalog), keeping the flat-path lookup as an offline fast path. `output workflow test`, `dataset generate`, and `dataset list` now work for workflows in nested directories (e.g. `src/workflows/a/b/c` registered as `a_b_c`) without a symlink. `output workflow test` also fails fast with an actionable message when a `<wf>_eval` workflow's source exists but didn't compile to `dist`.
+
+**`output-api`** — Updating connection monitor strategy to ping workflowService instead of healthService.
+
+</Update>
+
 <Update label="v0.8.0" description="2026-06-22 · minor release">
 
 **`output-api`** — `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.

@@ -1,13 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { isGrpcDeadlineError } from '@temporalio/client';
 
-const ServingStatus = {
-  UNKNOWN: 0,
-  SERVING: 1,
-  NOT_SERVING: 2,
-  SERVICE_UNKNOWN: 3
-};
-
 export class ConnectionMonitor {
   #MAX_FAILURES = 3;
   #CHECK_INTERVAL_MS = 60_000;
@@ -28,11 +21,7 @@ export class ConnectionMonitor {
     while ( true ) {
       try {
         const deadline = Date.now() + this.#CHECK_TIMEOUT_MS;
-        const health = await this.#connection.withDeadline( deadline, () => this.#connection.healthService.check( {} ) );
-
-        if ( health.status !== ServingStatus.SERVING ) {
-          throw new Error( `Connection not serving (status ${health.status})` );
-        }
+        await this.#connection.withDeadline( deadline, () => this.#connection.workflowService.getSystemInfo( {} ) );
 
         if ( this.#failures > 0 ) {
           this.#recoverCb?.();

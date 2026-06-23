@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionMonitor } from './connection_monitor.js';
 
-const SERVING = 1;
-const NOT_SERVING = 2;
 const MAX_FAILURES = 3;
 const CHECK_INTERVAL_MS = 10;
 const CHECK_TIMEOUT_MS = 5;
@@ -26,7 +24,7 @@ vi.mock( '@temporalio/client', () => ( { isGrpcDeadlineError: error => error ===
 
 const createMonitor = check => {
   const connection = {
-    healthService: { check },
+    workflowService: { getSystemInfo: check },
     withDeadline: vi.fn( ( _deadline, fn ) => fn() )
   };
 
@@ -55,8 +53,8 @@ describe( 'ConnectionMonitor', () => {
     scheduledDelays.length = 0;
   } );
 
-  it( 'reports heartbeat when the connection is serving', async () => {
-    const check = vi.fn().mockResolvedValue( { status: SERVING } );
+  it( 'reports heartbeat when the workflow service is reachable', async () => {
+    const check = vi.fn().mockResolvedValue( {} );
     const heartbeat = vi.fn();
     const { connection, monitor } = createMonitor( check );
 
@@ -90,7 +88,7 @@ describe( 'ConnectionMonitor', () => {
   it( 'reports recovery after a transient failure', async () => {
     const check = vi.fn()
       .mockRejectedValueOnce( new Error( 'temporary outage' ) )
-      .mockResolvedValueOnce( { status: SERVING } );
+      .mockResolvedValueOnce( {} );
     const unhealthy = vi.fn();
     const recover = vi.fn();
     const heartbeat = vi.fn();
@@ -142,19 +140,4 @@ describe( 'ConnectionMonitor', () => {
     expect( monitor.failing ).toBe( true );
   } );
 
-  it( 'treats non-serving health status as a failure', async () => {
-    const check = vi.fn().mockResolvedValue( { status: NOT_SERVING } );
-    const unhealthy = vi.fn();
-    const { monitor } = createMonitor( check );
-
-    monitor.onUnhealthy( unhealthy );
-    monitor.start();
-    await flushPromises();
-
-    expect( unhealthy ).toHaveBeenCalledWith( {
-      error: expect.objectContaining( { message: `Connection not serving (status ${NOT_SERVING})` } ),
-      failures: 1
-    } );
-    expect( monitor.failing ).toBe( true );
-  } );
 } );
