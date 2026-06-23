@@ -3,8 +3,8 @@
  */
 export type Attribute = {
   name: string,
-  inputSchema: object,
-  outputSchema: object,
+  inputSchema?: object,
+  outputSchema?: object,
   type: string,
   options: object
 };
@@ -14,10 +14,10 @@ export type Attribute = {
  * @param fn
  * @returns
  */
-export declare function readAttributes( Function: fn ): Attribute | undefined;
+export declare function readAttributes( fn: Function ): Attribute | undefined;
 
 /**
  * Check if a function is an Outputai component
  * @param fn
  */
-export declare function isComponent( fn: Function ): Boolean;
+export declare function isComponent( fn: Function ): boolean;

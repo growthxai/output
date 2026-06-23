@@ -29,7 +29,7 @@
  * is fixed to generate output from the modified AST even when rewriteFnBodies() returns
  * false — i.e. when collectTargetImports() stripped imports but no fn bodies needed
  * rewriting. This also requires injecting metadata stubs for the stripped evaluator
- * references, since evalWorkflow() calls Context.readAttributes(def.evaluator) at module
+ * references, since evalWorkflow() calls Component.readAttributes(def.evaluator) at module
  * init time and the identifiers would otherwise be undefined. Once the rewriter properly
  * strips the evaluator → judge → @outputai/llm chain, this file and the
  * "output-workflow-bundle" export condition in package.json can be deleted.

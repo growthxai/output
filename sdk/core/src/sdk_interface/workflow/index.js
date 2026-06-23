@@ -1,1 +1,1 @@
-export * as Component from '../workflow/component.js';
+export * as Component from './component.js';
