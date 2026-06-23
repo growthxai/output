@@ -38,9 +38,9 @@ export function findWorkflowDirectoryFromPath(
   return candidateWorkflowDirsFromPath( workflowPath, basePath ).find( existsSync ) ?? null;
 }
 
-export async function fetchWorkflowPath( workflowName: string ): Promise<string | null> {
+export async function fetchWorkflowPath( workflowName: string, catalog?: string ): Promise<string | null> {
   try {
-    const workflows = await fetchWorkflowCatalog();
+    const workflows = await fetchWorkflowCatalog( catalog );
     const workflow = workflows.find( w => w.name === workflowName );
     return workflow?.path ?? null;
   } catch {

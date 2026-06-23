@@ -79,6 +79,7 @@ describe( 'workflow run command', () => {
 
       await cmd.run();
 
+      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', undefined, undefined, 'run', undefined );
       expect( postWorkflowRun ).toHaveBeenCalledTimes( 1 );
       expect( postWorkflowRun ).toHaveBeenCalledWith(
         { workflowName: 'my_workflow', input: { key: 'value' }, catalog: undefined },
@@ -86,6 +87,28 @@ describe( 'workflow run command', () => {
       );
       expect( cmd.log ).toHaveBeenCalledWith( 'Executing workflow: my_workflow...' );
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringMatching( /\n/ ) );
+    } );
+
+    it( 'threads the resolved catalog to resolveInput and postWorkflowRun', async () => {
+      const { cmd, postWorkflowRun, resolveInput } = await createCommand();
+      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+        args: { workflowName: 'my_workflow', scenario: 'basic' },
+        flags: { input: undefined, catalog: 'my-catalog', format: 'text' }
+      } );
+      resolveInput.mockResolvedValue( { key: 'value' } );
+      postWorkflowRun.mockResolvedValue( {
+        data: { status: 'completed', result: {} },
+        status: 200,
+        headers: new Headers()
+      } as any );
+
+      await cmd.run();
+
+      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', 'basic', undefined, 'run', 'my-catalog' );
+      expect( postWorkflowRun ).toHaveBeenCalledWith(
+        expect.objectContaining( { catalog: 'my-catalog' } ),
+        expect.anything()
+      );
     } );
 
     it( 'retries when response has Retry-After and succeeds on second attempt', async () => {

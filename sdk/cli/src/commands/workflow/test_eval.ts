@@ -35,6 +35,14 @@ export default class WorkflowTest extends Command {
   };
 
   static override flags = {
+    catalog: Flags.string( {
+      char: 'c',
+      aliases: [ 'task-queue' ],
+      charAliases: [ 'q' ],
+      deprecateAliases: true,
+      description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
+      env: 'OUTPUT_CATALOG_ID'
+    } ),
     cached: Flags.boolean( {
       description: 'Use cached output from dataset files (skip workflow execution)',
       default: false,
@@ -62,7 +70,7 @@ export default class WorkflowTest extends Command {
     const filterNames = flags.dataset?.split( ',' ).map( s => s.trim() );
 
     const evalName = getEvalWorkflowName( args.workflowName );
-    await this.ensureEvalWorkflowRegistered( args.workflowName, evalName );
+    await this.ensureEvalWorkflowRegistered( args.workflowName, evalName, flags.catalog );
 
     const { datasets, dir } = await readAllDatasets( args.workflowName, filterNames );
 
@@ -76,13 +84,14 @@ export default class WorkflowTest extends Command {
 
     const preparedDatasets = flags.cached ?
       this.validateDatasets( datasets ) :
-      await this.runWorkflowForDatasets( args.workflowName, datasets, flags.save, dir );
+      await this.runWorkflowForDatasets( args.workflowName, datasets, flags.save, dir, flags.catalog );
 
     this.log( `Running eval workflow "${evalName}"...\n` );
 
     const response = await postWorkflowRun( {
       workflowName: evalName,
-      input: { datasets: preparedDatasets }
+      input: { datasets: preparedDatasets },
+      catalog: flags.catalog
     }, {
       config: { timeout: 600000 }
     } );
@@ -112,10 +121,11 @@ export default class WorkflowTest extends Command {
 
   private async ensureEvalWorkflowRegistered(
     workflowName: string,
-    evalName: string
+    evalName: string,
+    catalog?: string
   ): Promise<void> {
-    const catalog = await fetchWorkflowCatalog().catch( () => null );
-    if ( catalog && !catalog.some( w => w.name === evalName ) ) {
+    const workflows = await fetchWorkflowCatalog( catalog ).catch( () => null );
+    if ( workflows && !workflows.some( w => w.name === evalName ) ) {
       this.error( await diagnoseMissingEvalWorkflow( workflowName ), { exit: 1 } );
     }
   }
@@ -137,7 +147,8 @@ export default class WorkflowTest extends Command {
     workflowName: string,
     datasets: Dataset[],
     save: boolean,
-    dir: string
+    dir: string,
+    catalog?: string
   ): Promise<Dataset[]> {
     this.log( `Running workflow "${workflowName}" for ${datasets.length} dataset(s)...\n` );
 
@@ -149,7 +160,8 @@ export default class WorkflowTest extends Command {
       const startMs = Date.now();
       const response = await postWorkflowRun( {
         workflowName,
-        input: dataset.input
+        input: dataset.input,
+        catalog
       }, {
         config: { timeout: 600000 }
       } );
