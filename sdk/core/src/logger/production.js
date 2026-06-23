@@ -1,7 +1,7 @@
 import { transports, format } from 'winston';
 
 export const options = {
-  level: 'info',
+  level: process.env.OUTPUT_LOG_LEVEL ?? 'info',
   transports: [ new transports.Console() ],
   defaultMeta: {
     service: 'output-worker',

@@ -47,7 +47,7 @@ const getColor = v =>
   assignedColors.get( v ) ?? assignedColors.set( v, COLORS[assignedColors.size % COLORS.length] ).get( v );
 
 export const options = {
-  level: 'debug',
+  level: process.env.OUTPUT_LOG_LEVEL ?? 'debug',
   transports: [ new transports.Console() ],
   format: format.combine(
     format.colorize(),

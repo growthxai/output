@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   catalogJobInstance,
+  bindGlobalFunctionsMock,
   configValues,
   connectionMonitorInstance,
   createCatalogMock,
@@ -98,6 +99,7 @@ const {
 
   return {
     catalogJobInstance,
+    bindGlobalFunctionsMock: vi.fn(),
     configValues,
     connectionMonitorInstance,
     createCatalogMock: vi.fn().mockReturnValue( { workflows: [], activities: {} } ),
@@ -145,6 +147,7 @@ vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptors
 vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: vi.fn() } ) );
 vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
 vi.mock( './interruption.js', () => ( { setupInterruptionHandler: setupInterruptionHandlerMock } ) );
+vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );
 vi.mock( './connection_monitor.js', () => ( {
   TemporalConnectionMonitor: vi.fn( function () {
     return connectionMonitorInstance;
@@ -222,6 +225,10 @@ describe( 'worker/index', () => {
       apiKey: undefined,
       proxy: undefined
     } );
+    expect( bindGlobalFunctionsMock ).toHaveBeenCalledTimes( 1 );
+    expect( bindGlobalFunctionsMock.mock.invocationCallOrder[0] ).toBeLessThan(
+      NativeConnection.connect.mock.invocationCallOrder[0]
+    );
     expect( TemporalConnectionMonitor ).toHaveBeenCalledWith( mockConnection );
     expect( CatalogJob ).toHaveBeenCalledWith( {
       connection: mockConnection,

@@ -7,6 +7,7 @@ import {
   executeInParallelSchema,
   httpRequestSchema,
   isZodSchema,
+  logArgumentsSchema,
   stepSchema,
   workflowInvocationOptionsSchema,
   workflowSchema
@@ -204,6 +205,65 @@ describe( 'validation schemas', () => {
       expect( executeInParallelSchema.safeParse( { jobs: [], concurrency: 0 } ).success ).toBe( false );
       expect( executeInParallelSchema.safeParse( { jobs: [ 'not-a-function' ], concurrency: 1 } ).success ).toBe( false );
       expect( executeInParallelSchema.safeParse( { jobs: [ fn ], concurrency: 1, onJobCompleted: 'nope' } ).success ).toBe( false );
+    } );
+  } );
+
+  describe( 'logArgumentsSchema', () => {
+    it( 'accepts valid log arguments', () => {
+      expect( logArgumentsSchema.safeParse( {
+        message: 'Completed step'
+      } ).success ).toBe( true );
+
+      expect( logArgumentsSchema.safeParse( {
+        message: 'Completed step',
+        metadata: {
+          durationMs: 100,
+          nested: { ok: true },
+          tags: [ 'workflow', 'step' ]
+        }
+      } ).success ).toBe( true );
+    } );
+
+    it( 'rejects missing or invalid messages', () => {
+      expect( logArgumentsSchema.safeParse( {} ).success ).toBe( false );
+      expect( logArgumentsSchema.safeParse( {
+        message: 123
+      } ).success ).toBe( false );
+    } );
+
+    it( 'rejects non-object metadata', () => {
+      expect( logArgumentsSchema.safeParse( {
+        message: 'Completed step',
+        metadata: 'metadata'
+      } ).success ).toBe( false );
+
+      expect( logArgumentsSchema.safeParse( {
+        message: 'Completed step',
+        metadata: null
+      } ).success ).toBe( false );
+    } );
+
+    it( 'rejects reserved metadata fields', () => {
+      const reservedFields = [
+        'label',
+        'level',
+        'message',
+        'metadata',
+        'namespace',
+        'splat',
+        'stack',
+        'timestamp'
+      ];
+
+      reservedFields.forEach( field => {
+        const result = logArgumentsSchema.safeParse( {
+          message: 'Completed step',
+          metadata: { [field]: 'reserved' }
+        } );
+
+        expect( result.success ).toBe( false );
+        expect( result.error?.issues[0].message ).toBe( `Log metadata field "${field}" is reserved` );
+      } );
     } );
   } );
 } );

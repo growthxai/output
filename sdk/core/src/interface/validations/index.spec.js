@@ -7,6 +7,7 @@ import {
   StepValidator,
   WorkflowValidator,
   validateExecuteInParallel,
+  validateLogArguments,
   validateRequestPayload
 } from './index.js';
 
@@ -177,6 +178,20 @@ describe( 'interface validators', () => {
         jobs: [ 'not-a-function' ],
         concurrency: 1
       } ) ).toThrow( ValidationError );
+    } );
+  } );
+
+  describe( 'validateLogArguments()', () => {
+    it( 'accepts valid log arguments and rejects invalid log arguments', () => {
+      expect( () => validateLogArguments( {
+        message: 'Completed step',
+        metadata: { workflowId: 'workflow-1' }
+      } ) ).not.toThrow();
+
+      expect( () => validateLogArguments( {
+        message: 'Completed step',
+        metadata: { level: 'info' }
+      } ) ).toThrow( /Log Arguments validation failed/ );
     } );
   } );
 } );

@@ -111,3 +111,25 @@ export const executeInParallelSchema = z.object( {
   concurrency: z.number().min( 1 ).or( z.literal( Infinity ) ),
   onJobCompleted: z.function().optional()
 } );
+
+const reservedLogMetadataFields = new Set( [
+  'label',
+  'level',
+  'message',
+  'metadata',
+  'namespace',
+  'splat',
+  'stack',
+  'timestamp'
+] );
+
+export const logArgumentsSchema = z.object( {
+  message: z.string(),
+  metadata: z
+    .looseObject( {} )
+    .superRefine( ( v, ctx ) =>
+      Object.keys( v ).filter( k => reservedLogMetadataFields.has( k ) ).forEach( k => {
+        ctx.addIssue( { code: 'custom', message: `Log metadata field "${k}" is reserved`, path: [ k ] } );
+      } )
+    ).optional()
+} );
