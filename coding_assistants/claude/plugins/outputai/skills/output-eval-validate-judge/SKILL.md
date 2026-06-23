@@ -86,10 +86,10 @@ Save the output. You need the judge's verdict for each dataset to compare agains
 
 ### Extracting results
 
-Use `--format json` to get machine-readable results:
+Use `--json` to get machine-readable results:
 
 ```bash
-npx output workflow test <workflowName> --cached --dataset <dev_datasets> --format json
+npx output workflow test <workflowName> --cached --dataset <dev_datasets> --json
 ```
 
 The output includes per-dataset, per-evaluator verdicts that you can compare against `ground_truth.evals.<evaluator_name>.verdict`.
@@ -203,7 +203,7 @@ Each iteration:
 Once dev metrics meet the target, run the judge on the held-out test set **exactly once**:
 
 ```bash
-npx output workflow test <workflowName> --cached --dataset <test_datasets> --format json
+npx output workflow test <workflowName> --cached --dataset <test_datasets> --json
 ```
 
 Compute TPR and TNR on the test results. Record these as the final metrics.

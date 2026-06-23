@@ -25,13 +25,11 @@ describe( 'workflow status command', () => {
       expect( WorkflowStatus ).toBeDefined();
       expect( WorkflowStatus.description ).toContain( 'Get workflow execution status' );
       expect( WorkflowStatus.args ).toHaveProperty( 'workflowId' );
-      expect( WorkflowStatus.flags ).toHaveProperty( 'format' );
     } );
 
-    it( 'should have correct flag configuration', async () => {
+    it( 'enables the built-in --json flag', async () => {
       const WorkflowStatus = ( await import( './status.js' ) ).default;
-      expect( WorkflowStatus.flags.format.options ).toEqual( [ 'json', 'text' ] );
-      expect( WorkflowStatus.flags.format.default ).toBe( 'text' );
+      expect( WorkflowStatus.enableJsonFlag ).toBe( true );
     } );
   } );
 } );

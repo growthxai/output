@@ -197,7 +197,7 @@ npx output workflow result <id>              # Get async result
 
 # Debug
 npx output workflow debug <id>               # Debug failed workflow
-npx output workflow debug <id> --format json # Machine-readable output
+npx output workflow debug <id> --json # Machine-readable output
 
 # Rerun from a step (replays up to <stepName>, re-executes everything after)
 npx output workflow reset <id> --step <stepName>
@@ -411,6 +411,6 @@ See `output-dev-prompt-file` for comprehensive patterns.
 
 ### Debugging Workflow Failures
 1. Get the workflow ID from error output
-2. Run `npx output workflow debug <id> --format json`
+2. Run `npx output workflow debug <id> --json`
 3. Look for: failed step name, error message, input that caused failure
 4. Check if issue is determinism, schema validation, or external API

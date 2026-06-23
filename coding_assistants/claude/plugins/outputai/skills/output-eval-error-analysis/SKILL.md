@@ -30,7 +30,7 @@ List recent workflow executions and pull their traces:
 npx output workflow runs list <workflowName>
 
 # Pull a specific trace as JSON
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 
 ### From production (bulk download)

@@ -78,7 +78,7 @@ while true; do
     break
   elif [[ "$STATUS" == *"FAILED"* ]]; then
     echo "Workflow failed!"
-    npx output workflow debug $WORKFLOW_ID --format json
+    npx output workflow debug $WORKFLOW_ID --json
     break
   fi
 
@@ -96,7 +96,7 @@ npx output workflow status my-workflow-123
 npx output workflow result my-workflow-123
 
 # If FAILED, debug instead
-npx output workflow debug my-workflow-123 --format json
+npx output workflow debug my-workflow-123 --json
 ```
 
 **Scenario**: Batch status check

@@ -8,8 +8,7 @@ import { listScenariosForWorkflow } from '#utils/scenario_resolver.js';
 
 const OUTPUT_FORMAT = {
   LIST: 'list',
-  TABLE: 'table',
-  JSON: 'json'
+  TABLE: 'table'
 } as const;
 
 type OutputFormat = typeof OUTPUT_FORMAT[keyof typeof OUTPUT_FORMAT];
@@ -98,8 +97,8 @@ export function formatWorkflowsAsList( workflows: Workflow[] ): string {
   return `\nWorkflows:\n\n${lines.join( '\n' )}`;
 }
 
-function formatWorkflowsAsJson( workflows: Workflow[] ): string {
-  const output = {
+function formatWorkflowsAsJson( workflows: Workflow[] ): { workflows: unknown[] } {
+  return {
     workflows: workflows.map( w => {
       const display = parseWorkflowForDisplay( w );
       return {
@@ -113,14 +112,9 @@ function formatWorkflowsAsJson( workflows: Workflow[] ): string {
       };
     } )
   };
-
-  return JSON.stringify( output, null, 2 );
 }
 
 function formatWorkflows( workflows: Workflow[], format: OutputFormat, detailed: boolean ): string {
-  if ( format === OUTPUT_FORMAT.JSON ) {
-    return formatWorkflowsAsJson( workflows );
-  }
   if ( format === OUTPUT_FORMAT.TABLE ) {
     return createWorkflowTable( workflows, detailed );
   }
@@ -130,10 +124,12 @@ function formatWorkflows( workflows: Workflow[], format: OutputFormat, detailed:
 export default class WorkflowList extends Command {
   static override description = 'List available workflows from the catalog';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --format table',
-    '<%= config.bin %> <%= command.id %> --format json',
+    '<%= config.bin %> <%= command.id %> --json',
     '<%= config.bin %> <%= command.id %> --detailed',
     '<%= config.bin %> <%= command.id %> --filter simple',
     '<%= config.bin %> <%= command.id %> --catalog my-catalog'
@@ -150,8 +146,8 @@ export default class WorkflowList extends Command {
     } ),
     format: Flags.string( {
       char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.LIST, OUTPUT_FORMAT.TABLE, OUTPUT_FORMAT.JSON ],
+      description: 'Output format (use --json for JSON output)',
+      options: [ OUTPUT_FORMAT.LIST, OUTPUT_FORMAT.TABLE ],
       default: OUTPUT_FORMAT.LIST
     } ),
     detailed: Flags.boolean( {
@@ -164,30 +160,26 @@ export default class WorkflowList extends Command {
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<{ workflows: unknown[] }> {
     const { flags } = await this.parse( WorkflowList );
 
     this.log( flags.catalog ? `Fetching workflow catalog: ${flags.catalog}...` : 'Fetching workflow catalog...' );
     const catalogWorkflows = await fetchWorkflowCatalog( flags.catalog );
 
-    if ( catalogWorkflows.length === 0 ) {
-      this.log( 'No workflows found in catalog.' );
-      return;
-    }
-
     const workflows = flags.filter ?
       catalogWorkflows.filter( matchName( flags.filter ) ) :
       catalogWorkflows;
 
-    if ( workflows.length === 0 && flags.filter ) {
+    if ( catalogWorkflows.length === 0 ) {
+      this.log( 'No workflows found in catalog.' );
+    } else if ( workflows.length === 0 && flags.filter ) {
       this.log( `No workflows matching filter: ${flags.filter}` );
-      return;
+    } else {
+      this.log( formatWorkflows( workflows, flags.format as OutputFormat, flags.detailed ) );
+      this.log( `\nFound ${workflows.length} workflow(s)` );
     }
 
-    const output = formatWorkflows( workflows, flags.format as OutputFormat, flags.detailed );
-
-    this.log( output );
-    this.log( `\nFound ${workflows.length} workflow(s)` );
+    return formatWorkflowsAsJson( workflows );
   }
 
   async catch( error: Error ): Promise<void> {

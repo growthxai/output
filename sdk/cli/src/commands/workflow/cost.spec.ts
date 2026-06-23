@@ -25,7 +25,6 @@ describe( 'workflow cost command', () => {
       expect( WorkflowCost ).toBeDefined();
       expect( WorkflowCost.description ).toBeDefined();
       expect( WorkflowCost.args ).toHaveProperty( 'workflowId' );
-      expect( WorkflowCost.flags ).toHaveProperty( 'format' );
       expect( WorkflowCost.flags ).toHaveProperty( 'verbose' );
     } );
 
@@ -43,8 +42,7 @@ describe( 'workflow cost command', () => {
     it( 'should have correct flag configuration', async () => {
       const WorkflowCost = ( await import( './cost.js' ) ).default;
 
-      expect( WorkflowCost.flags.format.options ).toEqual( [ 'json', 'text' ] );
-      expect( WorkflowCost.flags.format.default ).toBe( 'text' );
+      expect( WorkflowCost.enableJsonFlag ).toBe( true );
       expect( WorkflowCost.flags.verbose.default ).toBe( false );
     } );
 

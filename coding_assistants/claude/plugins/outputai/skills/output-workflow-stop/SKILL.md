@@ -78,7 +78,7 @@ npx output workflow start expensive-job '{"correct": "input"}'
 
 ```bash
 # Get list of running workflows
-npx output workflow runs list --format json | jq '.[] | select(.status == "RUNNING") | .workflowId'
+npx output workflow runs list --json | jq '.[] | select(.status == "RUNNING") | .workflowId'
 
 # Stop each one (carefully review first!)
 for id in abc123 def456; do
@@ -99,7 +99,7 @@ npx output workflow status <workflowId>
 ### Review What Happened
 
 ```bash
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 
 This shows:

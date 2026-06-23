@@ -35,7 +35,8 @@ describe( 'workflow list command', () => {
 
     it( 'should have correct flag configuration', async () => {
       const WorkflowList = ( await import( './list.js' ) ).default;
-      expect( WorkflowList.flags.format.options ).toEqual( [ 'list', 'table', 'json' ] );
+      expect( WorkflowList.enableJsonFlag ).toBe( true );
+      expect( WorkflowList.flags.format.options ).toEqual( [ 'list', 'table' ] );
       expect( WorkflowList.flags.format.default ).toBe( 'list' );
       expect( WorkflowList.flags.detailed.default ).toBe( false );
     } );

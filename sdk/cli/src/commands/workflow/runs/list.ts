@@ -6,7 +6,6 @@ import { handleApiError } from '#utils/error_handler.js';
 
 const OUTPUT_FORMAT = {
   TABLE: 'table',
-  JSON: 'json',
   TEXT: 'text'
 } as const;
 
@@ -46,14 +45,7 @@ function formatRunsAsText( runs: WorkflowRun[] ): string {
   } ).join( '\n' );
 }
 
-function formatRunsAsJson( runs: WorkflowRun[] ): string {
-  return JSON.stringify( runs, null, 2 );
-}
-
 function formatRuns( runs: WorkflowRun[], format: OutputFormat ): string {
-  if ( format === OUTPUT_FORMAT.JSON ) {
-    return formatRunsAsJson( runs );
-  }
   if ( format === OUTPUT_FORMAT.TABLE ) {
     return createRunsTable( runs );
   }
@@ -63,12 +55,14 @@ function formatRuns( runs: WorkflowRun[], format: OutputFormat ): string {
 export default class WorkflowRunsList extends Command {
   static override description = 'List workflow runs with optional filtering by workflow type';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> simple',
     '<%= config.bin %> <%= command.id %> simple --limit 10',
     '<%= config.bin %> <%= command.id %> --catalog my-catalog',
-    '<%= config.bin %> <%= command.id %> --format json',
+    '<%= config.bin %> <%= command.id %> --json',
     '<%= config.bin %> <%= command.id %> --format table'
   ];
 
@@ -92,13 +86,13 @@ export default class WorkflowRunsList extends Command {
     } ),
     format: Flags.string( {
       char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.TABLE, OUTPUT_FORMAT.JSON, OUTPUT_FORMAT.TEXT ],
+      description: 'Output format (use --json for JSON output)',
+      options: [ OUTPUT_FORMAT.TABLE, OUTPUT_FORMAT.TEXT ],
       default: OUTPUT_FORMAT.TABLE
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<WorkflowRun[]> {
     const { args, flags } = await this.parse( WorkflowRunsList );
 
     const { runs, count } = await fetchWorkflowRuns( {
@@ -107,19 +101,23 @@ export default class WorkflowRunsList extends Command {
       limit: flags.limit
     } );
 
+    if ( this.jsonEnabled() ) {
+      return runs;
+    }
+
     if ( runs.length === 0 ) {
       const filterMsg = args.workflowName ? ` for workflow type "${args.workflowName}"` : '';
       this.log( `No workflow runs found${filterMsg}.` );
-      return;
+      return runs;
     }
 
     const output = formatRuns( runs, flags.format as OutputFormat );
     this.log( output );
 
-    if ( flags.format !== OUTPUT_FORMAT.JSON ) {
-      const filterMsg = args.workflowName ? ` of type "${args.workflowName}"` : '';
-      this.log( `\nFound ${count} run(s)${filterMsg}` );
-    }
+    const filterMsg = args.workflowName ? ` of type "${args.workflowName}"` : '';
+    this.log( `\nFound ${count} run(s)${filterMsg}` );
+
+    return runs;
   }
 
   async catch( error: Error ): Promise<void> {
