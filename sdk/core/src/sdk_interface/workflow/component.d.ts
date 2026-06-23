@@ -3,10 +3,11 @@
  */
 export type Attribute = {
   name: string,
+  type: string,
+  description?: string,
   inputSchema?: object,
   outputSchema?: object,
-  type: string,
-  options: object
+  options?: object
 };
 
 /**

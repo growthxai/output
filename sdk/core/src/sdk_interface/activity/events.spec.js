@@ -13,9 +13,8 @@ vi.mock( '#bus', () => ( {
 
 import { emit } from './events.js';
 
-// `eventId` stamping is the bus layer's responsibility (see bus.spec.js + the
-// integration tests in event_id_integration.spec.js). Assertions here use
-// `objectContaining` so they don't have to know about that enrichment.
+// `eventId` stamping is the bus layer's responsibility (see bus.spec.js).
+// Assertions here use `objectContaining` so they don't have to know about that enrichment.
 describe( 'emit', () => {
   beforeEach( () => {
     vi.clearAllMocks();

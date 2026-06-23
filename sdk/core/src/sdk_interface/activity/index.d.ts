@@ -4,7 +4,7 @@
  *
  * @packageDocumentation
  */
-export * as Context from './context.d.ts';
-export * as Event from './events.d.ts';
-export * as Tracing from './tracing.d.ts';
-export * as Path from './path.d.ts';
+export * as Context from './context.js';
+export * as Event from './events.js';
+export * as Tracing from './tracing.js';
+export * as Path from './path.js';
