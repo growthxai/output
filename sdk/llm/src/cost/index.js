@@ -1,5 +1,8 @@
 import { fetchModelsPricing } from './fetch_models_pricing.js';
 import { Tracing } from '@outputai/core/sdk_activity_integration';
+import { createLogger } from '@outputai/core/logger';
+
+const log = createLogger( 'LLM Cost' );
 
 /**
  * Calculates the cost of an llm call based on the model and usage.
@@ -13,13 +16,13 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
     const models = await fetchModelsPricing();
 
     if ( !models ) {
-      console.warn( 'Failed to fetch models pricing' );
+      log.warn( 'Failed to fetch models pricing' );
       return null;
     }
 
     const pricing = models.get( modelId );
     if ( !pricing ) {
-      console.warn( 'Missing cost reference for model' );
+      log.warn( 'Missing cost reference for model' );
       return null;
     }
 
@@ -50,7 +53,7 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
 
     return llmUsage;
   } catch ( error ) {
-    console.error( 'Error calculating LLM call costs', error );
+    log.error( 'Error calculating LLM call costs', { error: error.message } );
     return null;
   }
 };

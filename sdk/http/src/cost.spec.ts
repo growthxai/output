@@ -28,6 +28,14 @@ vi.mock( '@outputai/core/sdk_activity_integration', () => {
   };
 } );
 
+const mockLogger = vi.hoisted( () => ( {
+  info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn()
+} ) );
+
+vi.mock( '@outputai/core/logger', () => ( {
+  createLogger: () => mockLogger
+} ) );
+
 import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
 import { addRequestCost } from './cost.js';
 import { addRequestIdToResponse } from './fetch/utils.js';
@@ -39,7 +47,7 @@ describe( 'addRequestCost', () => {
   beforeEach( () => {
     tracing.addEventAttribute.mockClear();
     emit.mockClear();
-    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
+    mockLogger.warn.mockClear();
   } );
 
   afterEach( () => {
@@ -52,7 +60,7 @@ describe( 'addRequestCost', () => {
 
     addRequestCost( response, cost );
 
-    expect( console.warn ).toHaveBeenCalledWith(
+    expect( mockLogger.warn ).toHaveBeenCalledWith(
       'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.'
     );
     expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
@@ -66,7 +74,7 @@ describe( 'addRequestCost', () => {
 
     addRequestCost( response, cost );
 
-    expect( console.warn ).not.toHaveBeenCalled();
+    expect( mockLogger.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-1',
       attribute: expect.objectContaining( {
@@ -111,7 +119,7 @@ describe( 'addRequestCost', () => {
     const cloned = response.clone();
     addRequestCost( cloned, 4.2 );
 
-    expect( console.warn ).not.toHaveBeenCalled();
+    expect( mockLogger.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-clone-1',
       attribute: expect.objectContaining( {

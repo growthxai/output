@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { ValidationError } from '@outputai/core';
 import { validatePrompt } from './validations.js';
 
+const mockLogger = vi.hoisted( () => ( {
+  info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn()
+} ) );
+
+vi.mock( '@outputai/core/logger', () => ( {
+  createLogger: () => mockLogger
+} ) );
+
 describe( 'validatePrompt', () => {
   it( 'should validate a correct prompt with all required fields', () => {
     const validPrompt = {
@@ -548,7 +556,7 @@ describe( 'validatePrompt', () => {
   } );
 
   it( 'should pass through budget_tokens in thinking and warn about snake_case', () => {
-    const warnSpy = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
+    mockLogger.warn.mockClear();
 
     const promptWithBudgetTokensSnake = {
       name: 'thinking-budget-snake',
@@ -571,11 +579,9 @@ describe( 'validatePrompt', () => {
     };
 
     expect( () => validatePrompt( promptWithBudgetTokensSnake ) ).not.toThrow();
-    expect( warnSpy ).toHaveBeenCalledWith(
-      '[output-llm] "budget_tokens" found in providerOptions.thinking. Did you mean "budgetTokens"?'
+    expect( mockLogger.warn ).toHaveBeenCalledWith(
+      '"budget_tokens" found in providerOptions.thinking. Did you mean "budgetTokens"?'
     );
-
-    warnSpy.mockRestore();
   } );
 
   it( 'should allow snake_case fields in config via passthrough (no longer strict)', () => {

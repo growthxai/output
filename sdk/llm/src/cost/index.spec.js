@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
+const mockLogger = vi.hoisted( () => ( {
+  info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn()
+} ) );
 
 vi.mock( './fetch_models_pricing.js', () => ( {
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
+} ) );
+
+vi.mock( '@outputai/core/logger', () => ( {
+  createLogger: () => mockLogger
 } ) );
 
 vi.mock( '@outputai/core/sdk_activity_integration', () => {
@@ -61,8 +68,6 @@ const expectLLMUsage = ( result, { modelId, usage, total, tokensUsed } ) => {
 describe( 'calculateLLMCallCost', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
-    vi.spyOn( console, 'error' ).mockImplementation( () => {} );
   } );
 
   afterEach( () => {
@@ -78,7 +83,7 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing' );
+    expect( mockLogger.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing' );
   } );
 
   it( 'returns null when model is missing from cost table', async () => {
@@ -90,7 +95,7 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.warn ).toHaveBeenCalledWith( 'Missing cost reference for model' );
+    expect( mockLogger.warn ).toHaveBeenCalledWith( 'Missing cost reference for model' );
   } );
 
   it( 'calculates input and output usage from model pricing', async () => {
@@ -283,6 +288,6 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.error ).toHaveBeenCalledWith( 'Error calculating LLM call costs', error );
+    expect( mockLogger.error ).toHaveBeenCalledWith( 'Error calculating LLM call costs', { error: error.message } );
   } );
 } );

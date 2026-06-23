@@ -1,3 +1,7 @@
+import { createLogger } from '@outputai/core/logger';
+
+const log = createLogger( 'LLM Cost' );
+
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day
 
@@ -26,10 +30,10 @@ export const fetchModelsPricing = async () => {
   const res = await fetch( costTableUrl );
   if ( !res.ok ) {
     if ( cache.content ) {
-      console.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache` );
+      log.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache` );
       return cache.content;
     }
-    console.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}` );
+    log.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}` );
     return null;
   }
   cache.content = buildModelMap( await res.json() );

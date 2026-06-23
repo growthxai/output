@@ -49,4 +49,12 @@ export interface Logger {
   log( message: string, meta?: LogMeta ): void;
 }
 
+/**
+ * Create a namespaced logger with the same behavior as {@link logger}. Use this
+ * to give a module or package its own label (e.g. `createLogger( 'LLM Cost' )`).
+ *
+ * @param namespace - Label shown on each line.
+ */
+export declare function createLogger( namespace: string ): Logger;
+
 export declare const logger: Logger;

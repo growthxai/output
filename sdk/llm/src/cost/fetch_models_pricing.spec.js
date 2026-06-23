@@ -4,6 +4,14 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
 
+const mockLogger = vi.hoisted( () => ( {
+  info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), log: vi.fn()
+} ) );
+
+vi.mock( '@outputai/core/logger', () => ( {
+  createLogger: () => mockLogger
+} ) );
+
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const fixturePath = join( __dirname, 'fixtures', 'models_api_light.json' );
 const fixture = JSON.parse( readFileSync( fixturePath, 'utf8' ) );
@@ -16,6 +24,7 @@ describe( 'fetchModelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
     cache.expiresAt = 0;
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   } );
 
@@ -55,14 +64,12 @@ describe( 'fetchModelsPricing', () => {
 
   it( 'returns null when response is not ok and no cache', async () => {
     const status = 500;
-    const err = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, status } ) );
 
     const result = await fetchModelsPricing();
 
     expect( result ).toBeNull();
-    expect( err ).toHaveBeenCalledWith( errNoCache( status ) );
-    err.mockRestore();
+    expect( mockLogger.error ).toHaveBeenCalledWith( errNoCache( status ) );
   } );
 
   it( 'returns stale cache when response is not ok but cache exists', async () => {
@@ -74,15 +81,13 @@ describe( 'fetchModelsPricing', () => {
     cache.expiresAt = 0; // force refetch so we hit the !res.ok path
 
     const status = 404;
-    const warn = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, status } ) );
 
     const result = await fetchModelsPricing();
 
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
-    expect( warn ).toHaveBeenCalledWith( warnStaleCache( status ) );
-    warn.mockRestore();
+    expect( mockLogger.warn ).toHaveBeenCalledWith( warnStaleCache( status ) );
   } );
 
   it( 'returns cached Map when cache is still valid', async () => {

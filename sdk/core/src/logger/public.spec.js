@@ -4,41 +4,61 @@ const infoMock = vi.fn();
 const warnMock = vi.fn();
 const errorMock = vi.fn();
 const debugMock = vi.fn();
-
-vi.mock( './index.js', () => ( {
-  createChildLogger: () => ( {
-    info: infoMock,
-    warn: warnMock,
-    error: errorMock,
-    debug: debugMock
-  } )
+const createChildLoggerMock = vi.fn( () => ( {
+  info: infoMock,
+  warn: warnMock,
+  error: errorMock,
+  debug: debugMock
 } ) );
 
-describe( 'logger (public step logger)', () => {
+vi.mock( './index.js', () => ( {
+  createChildLogger: createChildLoggerMock
+} ) );
+
+describe( 'createLogger', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.resetModules();
   } );
 
-  it( 'routes each level to the underlying child logger with message and meta', async () => {
-    const { logger } = await import( './public.js' );
+  it( 'creates a child logger under the given namespace', async () => {
+    const { createLogger } = await import( './public.js' );
 
-    logger.info( 'i', { a: 1 } );
-    logger.warn( 'w' );
-    logger.error( 'e' );
-    logger.debug( 'd' );
+    createLogger( 'LLM Cost' );
+
+    expect( createChildLoggerMock ).toHaveBeenCalledWith( 'LLM Cost' );
+  } );
+
+  it( 'routes each level to the child logger, with log() aliased to info', async () => {
+    const { createLogger } = await import( './public.js' );
+    const log = createLogger( 'X' );
+
+    log.info( 'i', { a: 1 } );
+    log.warn( 'w' );
+    log.error( 'e' );
+    log.debug( 'd' );
+    log.log( 'aliased', { b: 2 } );
 
     expect( infoMock ).toHaveBeenCalledWith( 'i', { a: 1 } );
     expect( warnMock ).toHaveBeenCalledWith( 'w', undefined );
     expect( errorMock ).toHaveBeenCalledWith( 'e', undefined );
     expect( debugMock ).toHaveBeenCalledWith( 'd', undefined );
+    expect( infoMock ).toHaveBeenCalledWith( 'aliased', { b: 2 } );
+  } );
+} );
+
+describe( 'logger (default step logger)', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+    vi.resetModules();
   } );
 
-  it( 'routes log() to the info level', async () => {
+  it( 'is created under the "Step" namespace and routes to info', async () => {
     const { logger } = await import( './public.js' );
 
-    logger.log( 'aliased', { b: 2 } );
+    logger.info( 'hi' );
 
-    expect( infoMock ).toHaveBeenCalledWith( 'aliased', { b: 2 } );
+    expect( createChildLoggerMock ).toHaveBeenCalledWith( 'Step' );
+    expect( infoMock ).toHaveBeenCalledWith( 'hi', undefined );
   } );
 } );
