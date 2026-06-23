@@ -43,7 +43,10 @@ export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOpti
     if ( !Component.isComponent( def.evaluator ) ) {
       throw new Error( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
     }
-    const { name } = Component.readAttributes( def.evaluator ) as Component.Attribute;
+    const name = Component.getComponentName( def.evaluator );
+    if ( !name ) {
+      throw new Error( 'Evaluator component doesn\'t have a name.' );
+    }
     return {
       name,
       criticality: def.criticality ?? CRITICALITY.REQUIRED,
