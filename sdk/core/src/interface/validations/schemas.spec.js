@@ -8,6 +8,7 @@ import {
   httpRequestSchema,
   isZodSchema,
   logArgumentsSchema,
+  reservedLogMetadataFields,
   stepSchema,
   workflowInvocationOptionsSchema,
   workflowSchema
@@ -244,18 +245,7 @@ describe( 'validation schemas', () => {
     } );
 
     it( 'rejects reserved metadata fields', () => {
-      const reservedFields = [
-        'label',
-        'level',
-        'message',
-        'metadata',
-        'namespace',
-        'splat',
-        'stack',
-        'timestamp'
-      ];
-
-      reservedFields.forEach( field => {
+      reservedLogMetadataFields.forEach( field => {
         const result = logArgumentsSchema.safeParse( {
           message: 'Completed step',
           metadata: { [field]: 'reserved' }

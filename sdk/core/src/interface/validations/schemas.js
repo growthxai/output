@@ -112,7 +112,8 @@ export const executeInParallelSchema = z.object( {
   onJobCompleted: z.function().optional()
 } );
 
-const reservedLogMetadataFields = new Set( [
+export const reservedLogMetadataFields = new Set( [
+  // Winston fields
   'label',
   'level',
   'message',
@@ -121,11 +122,14 @@ const reservedLogMetadataFields = new Set( [
   'splat',
   'stack',
   'timestamp',
+  // reserved fields enriched by us
   'workflowId',
   'workflowType',
   'runId',
   'activityId',
-  'activityType'
+  'activityType',
+  'service',
+  'environment'
 ] );
 
 export const logArgumentsSchema = z.object( {
