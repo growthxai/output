@@ -16,6 +16,13 @@ const TERMINAL_EVENT_TYPES = new Set( [
   EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW
 ] );
 
+// The closed set of `reason` strings a `done` chunk can carry. Both the fast-path
+// (status -> event type) and the streaming path (terminal event type) resolve `reason`
+// through `EventTypeName`, so derive the valid set from the same source to keep them aligned.
+export const TERMINAL_REASONS = new Set(
+  [ ...TERMINAL_EVENT_TYPES ].map( type => EventTypeName[type] )
+);
+
 const NEW_RUN_ID_ATTRS = {
   [EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW]: 'workflowExecutionContinuedAsNewEventAttributes',
   [EventType.WORKFLOW_EXECUTION_COMPLETED]: 'workflowExecutionCompletedEventAttributes',
@@ -45,14 +52,18 @@ const STATUS_HAS_NEW_RUN_ID = new Set( [
   WorkflowStatus.CONTINUED_AS_NEW
 ] );
 
+// Single constructor for the terminal `done` chunk so its shape lives in one place.
+// `newRunId` is undefined unless the terminal event carried a follow-on run.
+const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } );
+
 /**
  * Streams workflow history events as an async generator, long-polling Temporal for
  * new events until the workflow reaches a terminal state. Designed to back a
  * Server-Sent Events endpoint with reconnect support via `lastEventId`.
  *
- * Yields chunks of shape:
+ * Yields chunks of shape (the `type` discriminant matches the SSE wire event name):
  *   - `{ type: 'workflow', workflow }`              metadata, emitted once first
- *   - `{ type: 'events', events, lastEventId }`     batches of serialized events
+ *   - `{ type: 'history', events, lastEventId }`    batches of serialized events
  *   - `{ type: 'done', reason, newRunId }`          terminal state reached
  *
  * @param {{ client: import('@temporalio/client').Client, connection: import('@temporalio/client').Connection }} context
@@ -101,7 +112,8 @@ export const streamHistory = async function *( { client, connection }, workflowI
     lastEventId >= historyLength &&
     !STATUS_HAS_NEW_RUN_ID.has( workflowStatus )
   ) {
-    yield { type: 'done', reason: EventTypeName[STATUS_TO_TERMINAL_EVENT_TYPE[workflowStatus]] };
+    // Fast-path: status excluded above guarantees no newRunId is possible here.
+    yield doneChunk( EventTypeName[STATUS_TO_TERMINAL_EVENT_TYPE[workflowStatus]] );
     return;
   }
 
@@ -170,7 +182,7 @@ export const streamHistory = async function *( { client, connection }, workflowI
 
     if ( batch.length > 0 ) {
       const lastSerializedId = Number( batch[batch.length - 1].eventId );
-      yield { type: 'events', events: batch, lastEventId: lastSerializedId };
+      yield { type: 'history', events: batch, lastEventId: lastSerializedId };
       // Advance the filter to the last delivered id (high-water mark) rather than
       // clearing it. An empty long-poll can reset nextPageToken to undefined, making
       // the next fetch re-read history from the start; keeping the filter armed at the
@@ -182,7 +194,7 @@ export const streamHistory = async function *( { client, connection }, workflowI
     // Replay complete: all pages drained, terminal event was already seen by the
     // client (reconnect cursor past it), so nothing new was emitted this stream.
     if ( !state.nextPageToken && !state.emittedAny && state.sawTerminalEvent ) {
-      yield { type: 'done', reason: state.sawTerminalReason, newRunId: state.sawTerminalNewRunId };
+      yield doneChunk( state.sawTerminalReason, state.sawTerminalNewRunId );
       return;
     }
 
@@ -199,11 +211,11 @@ export const streamHistory = async function *( { client, connection }, workflowI
         if ( drainEvents.length > 0 ) {
           const drainBatch = drainEvents.map( processEvent );
           const drainLastId = Number( drainBatch[drainBatch.length - 1].eventId );
-          yield { type: 'events', events: drainBatch, lastEventId: drainLastId };
+          yield { type: 'history', events: drainBatch, lastEventId: drainLastId };
         }
       }
 
-      yield { type: 'done', reason: state.sawTerminalReason, newRunId: state.sawTerminalNewRunId };
+      yield doneChunk( state.sawTerminalReason, state.sawTerminalNewRunId );
       return;
     }
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { streamHistory } from './stream_history.js';
+import { streamHistory, TERMINAL_REASONS } from './stream_history.js';
 
 const { mockIsGrpcCancelledError } = vi.hoisted( () => ( {
   mockIsGrpcCancelledError: vi.fn( err => err?._cancelled === true )
@@ -97,7 +97,7 @@ describe( 'streamHistory', () => {
     const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     expect( chunks[0].type ).toBe( 'workflow' );
-    expect( chunks[1].type ).toBe( 'events' );
+    expect( chunks[1].type ).toBe( 'history' );
     expect( chunks[1].events ).toHaveLength( 2 );
     expect( chunks[1].lastEventId ).toBe( 2 );
     expect( chunks[2] ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED', newRunId: undefined } );
@@ -112,7 +112,7 @@ describe( 'streamHistory', () => {
 
     const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 2 } ) );
 
-    const eventChunk = chunks.find( c => c.type === 'events' );
+    const eventChunk = chunks.find( c => c.type === 'history' );
     expect( eventChunk.events ).toHaveLength( 1 );
     expect( Number( eventChunk.events[0].eventId ) ).toBe( 3 );
   } );
@@ -131,7 +131,7 @@ describe( 'streamHistory', () => {
 
     const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 2 } ) );
 
-    const eventChunks = chunks.filter( c => c.type === 'events' );
+    const eventChunks = chunks.filter( c => c.type === 'history' );
     expect( eventChunks ).toHaveLength( 1 );
     expect( Number( eventChunks[0].events[0].eventId ) ).toBe( 3 );
   } );
@@ -150,7 +150,7 @@ describe( 'streamHistory', () => {
 
     const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
-    const eventChunks = chunks.filter( c => c.type === 'events' );
+    const eventChunks = chunks.filter( c => c.type === 'history' );
     expect( eventChunks ).toHaveLength( 2 );
     const done = chunks.find( c => c.type === 'done' );
     expect( done.reason ).toBe( 'WORKFLOW_EXECUTION_COMPLETED' );
@@ -176,6 +176,7 @@ describe( 'streamHistory', () => {
     const done = chunks.find( c => c.type === 'done' );
     expect( done.type ).toBe( 'done' );
     expect( done.reason ).toBe( reason );
+    expect( TERMINAL_REASONS.has( done.reason ) ).toBe( true );
     if ( attrKey ) {
       expect( done.newRunId ).toBe( 'next-run-id' );
     } else {
@@ -252,7 +253,7 @@ describe( 'streamHistory', () => {
     const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     const emitted = chunks
-      .filter( c => c.type === 'events' )
+      .filter( c => c.type === 'history' )
       .flatMap( c => c.events.map( e => Number( e.eventId ) ) );
     expect( emitted ).toEqual( [ 1, 2, 3 ] );
   } );
@@ -309,6 +310,7 @@ describe( 'streamHistory', () => {
     expect( chunks ).toHaveLength( 2 );
     expect( chunks[0].type ).toBe( 'workflow' );
     expect( chunks[1] ).toEqual( { type: 'done', reason: expectedReason } );
+    expect( TERMINAL_REASONS.has( chunks[1].reason ) ).toBe( true );
   } );
 
   it.each( [

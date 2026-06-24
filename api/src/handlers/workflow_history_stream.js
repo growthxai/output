@@ -74,7 +74,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
 
     try {
       for await ( const chunk of stream ) {
-        if ( chunk.type === 'events' ) {
+        if ( chunk.type === 'history' ) {
           res.write( `id: ${chunk.lastEventId}\nevent: history\ndata: ${JSON.stringify( chunk.events )}\n\n` );
         } else if ( chunk.type === 'done' ) {
           const payload = { reason: chunk.reason };

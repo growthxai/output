@@ -48,7 +48,7 @@ const makeEvent = ( eventId, eventTypeName = 'WORKFLOW_EXECUTION_STARTED' ) => (
 async function *simpleStream( workflow, eventBatches = [], done = { reason: 'WORKFLOW_EXECUTION_COMPLETED' } ) {
   yield { type: 'workflow', workflow };
   for ( const batch of eventBatches ) {
-    yield { type: 'events', events: batch, lastEventId: Number( batch[batch.length - 1].eventId ) };
+    yield { type: 'history', events: batch, lastEventId: Number( batch[batch.length - 1].eventId ) };
   }
   yield { type: 'done', ...done };
 }
