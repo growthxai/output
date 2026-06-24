@@ -1,6 +1,7 @@
 import { KyResponse } from 'ky';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { requestIdSymbol } from './consts.js';
+import { Logger } from '@outputai/core';
 
 /**
  * Attach cost information to the trace of an HTTP Request using the response
@@ -12,7 +13,7 @@ import { requestIdSymbol } from './consts.js';
 export const addRequestCost = ( response: KyResponse | Response, value: number ) : void => {
   const eventId = Reflect.get( response, requestIdSymbol ) as string;
   if ( !eventId ) {
-    console.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.' );
+    Logger.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.' );
     return;
   }
 

@@ -1,3 +1,5 @@
+import { Logger } from '@outputai/core';
+
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day
 
@@ -26,10 +28,10 @@ export const fetchModelsPricing = async () => {
   const res = await fetch( costTableUrl );
   if ( !res.ok ) {
     if ( cache.content ) {
-      console.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache` );
+      Logger.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache` );
       return cache.content;
     }
-    console.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}` );
+    Logger.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}` );
     return null;
   }
   cache.content = buildModelMap( await res.json() );

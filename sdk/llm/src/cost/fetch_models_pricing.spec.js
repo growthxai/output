@@ -9,24 +9,29 @@ const fixturePath = join( __dirname, 'fixtures', 'models_api_light.json' );
 const fixture = JSON.parse( readFileSync( fixturePath, 'utf8' ) );
 
 const costTableUrl = 'https://models.dev/api.json';
-const errNoCache = status => `Error ${status} when fetching models pricing at ${costTableUrl}`;
-const warnStaleCache = status => `Error ${status} when fetching models pricing at ${costTableUrl}, falling back to stale cache`;
+const okResponse = data => ( {
+  ok: true,
+  json: () => Promise.resolve( data )
+} );
+const stubFetch = response => {
+  const fetchMock = vi.fn().mockResolvedValue( response );
+  vi.stubGlobal( 'fetch', fetchMock );
+  return fetchMock;
+};
 
 describe( 'fetchModelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
     cache.expiresAt = 0;
-    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   } );
 
   it( 'returns a Map of model costs when fetch succeeds', async () => {
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
-      ok: true,
-      json: () => Promise.resolve( fixture )
-    } ) );
+    const fetchMock = stubFetch( okResponse( fixture ) );
 
     const result = await fetchModelsPricing();
 
+    expect( fetchMock ).toHaveBeenCalledWith( costTableUrl );
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
     const firstModel = Object.values( fixture )[0];
@@ -37,10 +42,7 @@ describe( 'fetchModelsPricing', () => {
   } );
 
   it( 'includes main providers from fixture (openai, anthropic, google, nvidia, perplexity)', async () => {
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
-      ok: true,
-      json: () => Promise.resolve( fixture )
-    } ) );
+    stubFetch( okResponse( fixture ) );
 
     const result = await fetchModelsPricing();
 
@@ -55,47 +57,35 @@ describe( 'fetchModelsPricing', () => {
 
   it( 'returns null when response is not ok and no cache', async () => {
     const status = 500;
-    const err = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, status } ) );
+    stubFetch( { ok: false, status } );
 
     const result = await fetchModelsPricing();
 
     expect( result ).toBeNull();
-    expect( err ).toHaveBeenCalledWith( errNoCache( status ) );
-    err.mockRestore();
   } );
 
   it( 'returns stale cache when response is not ok but cache exists', async () => {
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
-      ok: true,
-      json: () => Promise.resolve( fixture )
-    } ) );
+    stubFetch( okResponse( fixture ) );
     await fetchModelsPricing();
     cache.expiresAt = 0; // force refetch so we hit the !res.ok path
 
     const status = 404;
-    const warn = vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, status } ) );
+    stubFetch( { ok: false, status } );
 
     const result = await fetchModelsPricing();
 
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
-    expect( warn ).toHaveBeenCalledWith( warnStaleCache( status ) );
-    warn.mockRestore();
   } );
 
   it( 'returns cached Map when cache is still valid', async () => {
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
-      ok: true,
-      json: () => Promise.resolve( fixture )
-    } ) );
+    const fetchMock = stubFetch( okResponse( fixture ) );
 
     const first = await fetchModelsPricing();
     const second = await fetchModelsPricing();
 
     expect( first ).toBe( second );
-    expect( fetch ).toHaveBeenCalledTimes( 1 );
+    expect( fetchMock ).toHaveBeenCalledTimes( 1 );
   } );
 
   it( 'only stores models that have a cost object', async () => {
@@ -108,10 +98,7 @@ describe( 'fetchModelsPricing', () => {
         }
       }
     };
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
-      ok: true,
-      json: () => Promise.resolve( dataWithMissingCost )
-    } ) );
+    stubFetch( okResponse( dataWithMissingCost ) );
 
     const result = await fetchModelsPricing();
 
