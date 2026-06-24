@@ -225,4 +225,24 @@ describe( 'error_handler', () => {
     expect( res.locals.error ).toBe( error );
     expect( logger.error ).not.toHaveBeenCalled();
   } );
+
+  it( 'should not write a response when headers are already sent (SSE guard)', () => {
+    const error = new Error( 'post-flush error' );
+    const fakeReq = { id: 'req-123' };
+    const fakeRes = {
+      headersSent: true,
+      locals: {},
+      status: vi.fn(),
+      json: vi.fn()
+    };
+
+    errorHandler( error, fakeReq, fakeRes, vi.fn() );
+
+    expect( fakeRes.status ).not.toHaveBeenCalled();
+    expect( fakeRes.json ).not.toHaveBeenCalled();
+    expect( logger.error ).toHaveBeenCalledWith(
+      expect.stringContaining( 'Post-flush error' ),
+      expect.objectContaining( { requestId: 'req-123' } )
+    );
+  } );
 } );

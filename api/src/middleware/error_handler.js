@@ -5,6 +5,7 @@ import {
 } from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
+import { isProduction } from '#configs';
 import { serializeErrorChain } from '#utils';
 import { ZodError } from 'zod';
 
@@ -45,6 +46,14 @@ const grpcHttpStatus = err =>
   ( err ? directGrpcHttpStatus( err ) ?? grpcHttpStatus( err.cause ) : undefined );
 
 export default function errorHandler( error, req, res, _next ) {
+  if ( res.headersSent ) {
+    logger.error( `Post-flush error (headers already sent): ${error.constructor.name}: ${error.message}`, {
+      requestId: req?.id,
+      stack: isProduction ? undefined : error.stack
+    } );
+    return;
+  }
+
   res.locals.error = error; // Adds the error to locals for further processing by the logger
 
   const response = error instanceof ZodError ?

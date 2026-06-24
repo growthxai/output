@@ -1492,6 +1492,126 @@
         }
       }
     },
+    "/workflow/{id}/history/stream": {
+      "get": {
+        "summary": "Stream workflow history events via Server-Sent Events",
+        "description": "Opens a persistent SSE connection that delivers Temporal workflow history events in real time. Emits named events: `workflow` (metadata, once), `history` (event batches), `done` (terminal state), `server_error` (post-flush errors). Supports reconnect via `Last-Event-ID` header or `lastEventId` query param.\n",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The workflow execution ID"
+          },
+          {
+            "in": "query",
+            "name": "includePayloads",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include decoded input/output payloads in events"
+          },
+          {
+            "in": "query",
+            "name": "lastEventId",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Resume from this event ID (alternative to Last-Event-ID header)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of workflow history events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/workflow/{id}/runs/{rid}/history/stream": {
+      "get": {
+        "summary": "Stream pinned-run workflow history events via Server-Sent Events",
+        "description": "Same as /workflow/{id}/history/stream but targets a specific run ID.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The workflow execution ID"
+          },
+          {
+            "in": "path",
+            "name": "rid",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The specific run ID to target"
+          },
+          {
+            "in": "query",
+            "name": "includePayloads",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Include decoded input/output payloads in events"
+          },
+          {
+            "in": "query",
+            "name": "lastEventId",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Resume from this event ID (alternative to Last-Event-ID header)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of workflow history events",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/workflow/catalog/{id}": {
       "get": {
         "summary": "Get a specific workflow catalog by ID",
