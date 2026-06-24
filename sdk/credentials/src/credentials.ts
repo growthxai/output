@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import { MissingCredentialError } from './errors.js';
-import { getExecutionContext } from '@outputai/core/sdk_activity_integration';
+import { Context } from '@outputai/core/sdk/runtime';
 import { deepMerge } from '@outputai/core/sdk_utils';
 import { getProvider } from './provider_registry.js';
 
@@ -43,7 +43,7 @@ const loadForWorkflow = ( workflowName: string, workflowDir: string | undefined 
 };
 
 const getWorkflowContext = () => {
-  const ctx = getExecutionContext();
+  const ctx = Context.getActivityContext();
   if ( !ctx ) {
     return { workflowName: undefined, workflowDir: undefined };
   }

@@ -1,5 +1,5 @@
 import { EvaluatorValidator } from './validations/index.js';
-import { setMetadata } from '#utils';
+import { setMetadata } from '#internal_utils/component';
 import { ComponentType } from '#consts';
 
 /**

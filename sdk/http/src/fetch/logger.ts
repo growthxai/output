@@ -1,4 +1,4 @@
-import { Tracing, emitEvent } from '@outputai/core/sdk_activity_integration';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { config } from '../config.js';
 import type { Request, Response } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';
@@ -14,7 +14,7 @@ const emitHttpRequestEvent = ( payload: {
   durationMs: number,
   outcome: HttpRequestOutcome
 } ) : void => {
-  emitEvent( 'http:request', payload );
+  Event.emit( 'http:request', payload );
 };
 
 /**

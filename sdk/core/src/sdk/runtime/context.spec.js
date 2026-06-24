@@ -5,7 +5,7 @@ vi.mock( '#async_storage', () => ( {
   Storage: { load: loadMock }
 } ) );
 
-describe( 'getExecutionContext', () => {
+describe( 'Context.getActivityContext', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.resetModules();
@@ -13,8 +13,8 @@ describe( 'getExecutionContext', () => {
 
   it( 'returns null when no context is stored', async () => {
     loadMock.mockReturnValue( undefined );
-    const { getExecutionContext } = await import( './index.js' );
-    expect( getExecutionContext() ).toBeNull();
+    const { Context } = await import( './index.js' );
+    expect( Context.getActivityContext() ).toBeNull();
   } );
 
   it( 'returns activity execution context from storage', async () => {
@@ -28,8 +28,8 @@ describe( 'getExecutionContext', () => {
       activityInfo,
       workflowFilename: '/workflows/myWorkflow.js'
     } );
-    const { getExecutionContext } = await import( './index.js' );
-    expect( getExecutionContext() ).toEqual( {
+    const { Context } = await import( './index.js' );
+    expect( Context.getActivityContext() ).toEqual( {
       activityInfo,
       workflowFilename: '/workflows/myWorkflow.js'
     } );
