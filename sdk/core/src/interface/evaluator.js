@@ -1,6 +1,6 @@
 import { EvaluatorValidator } from './validations/index.js';
-import { setMetadata } from '#internal_utils/component';
-import { ComponentType } from '#consts';
+import { assignImmutableProperty } from '#helpers/object';
+import { ComponentType, METADATA_ACCESS_SYMBOL } from '#consts';
 
 /**
  * Create a new evaluator (activity flavor) and return a wrapper function around its fn handler
@@ -16,6 +16,6 @@ export function evaluator( { name, description, inputSchema, fn, options } ) {
     return output;
   };
 
-  setMetadata( wrapper, { name, description, inputSchema, type: ComponentType.EVALUATOR, options } );
+  assignImmutableProperty( wrapper, METADATA_ACCESS_SYMBOL, { name, description, inputSchema, type: ComponentType.EVALUATOR, options } );
   return wrapper;
 };

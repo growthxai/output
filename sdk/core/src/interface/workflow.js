@@ -1,10 +1,10 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
 import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
 import { WorkflowValidator } from './validations/index.js';
-import { deepMerge, toUrlSafeBase64 } from '#utils';
-import { WorkflowContext } from '#internal_utils/workflow_context';
-import { setMetadata } from '#internal_utils/component';
-import { TraceInfo } from '#internal_utils/trace_info';
+import { toUrlSafeBase64 } from '#helpers/string';
+import { WorkflowContext } from '#helpers/workflow_context';
+import { TraceInfo } from '#helpers/trace_info';
+import { assignImmutableProperty, deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import {
   ACTIVITY_WRAPPER_VERSION_FIELD,
@@ -113,6 +113,6 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     }
   };
 
-  setMetadata( wrapper, { name, description, inputSchema, outputSchema, aliases } );
+  assignImmutableProperty( wrapper, METADATA_ACCESS_SYMBOL, { name, description, inputSchema, outputSchema, aliases } );
   return wrapper;
 };

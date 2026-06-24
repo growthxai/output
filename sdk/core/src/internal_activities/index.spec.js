@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { FatalError } from '#errors';
-import { serializeBodyAndInferContentType, serializeFetchResponse } from '#utils';
+import { serializeBodyAndInferContentType, serializeFetchResponse } from '#helpers/fetch';
 import { getTraceDestinations, sendHttpRequest } from './index.js';
 
 const getDestinationsMock = vi.hoisted( () => vi.fn() );
@@ -15,9 +15,15 @@ vi.mock( '#logger', () => {
   return { createChildLogger: vi.fn( () => log ) };
 } );
 
-vi.mock( '#utils', () => ( {
-  setMetadata: vi.fn(),
-  isStringboolTrue: vi.fn( () => false ),
+vi.mock( '#helpers/object', () => ( {
+  assignImmutableProperty: vi.fn()
+} ) );
+
+vi.mock( '#helpers/string', () => ( {
+  isStringboolTrue: vi.fn( () => false )
+} ) );
+
+vi.mock( '#helpers/fetch', () => ( {
   serializeBodyAndInferContentType: vi.fn(),
   serializeFetchResponse: vi.fn()
 } ) );

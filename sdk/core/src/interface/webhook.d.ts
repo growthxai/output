@@ -1,9 +1,28 @@
-import type { SerializedFetchResponse } from '../utils/index.d.ts';
-
 /**
  * Allowed HTTP methods for request helpers.
  */
 export type HttpMethod = 'HEAD' | 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+/** Represents a {Response} serialized to plain object */
+export type SerializedFetchResponse = {
+  /** The response url */
+  url: string,
+
+  /** The response status code */
+  status: number,
+
+  /** The response status text */
+  statusText: string,
+
+  /** Flag indicating if the request succeeded */
+  ok: boolean,
+
+  /** Object with response headers */
+  headers: Record<string, string>,
+
+  /** Response body, either JSON, text, or an arrayBuffer converted to base64 */
+  body: object | string
+};
 
 /**
  * Send an POST HTTP request to a URL, optionally with a payload, then wait for a webhook response.

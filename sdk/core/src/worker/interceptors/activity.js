@@ -5,8 +5,8 @@ import { headersToObject } from './headers.js';
 import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { messageBus } from '#bus';
-import { aggregateAttributes } from '#internal_utils/aggregations';
-import { buildApplicationFailureWithDetails } from '#internal_utils/errors';
+import { aggregateAttributes } from '#helpers/aggregations';
+import { buildApplicationFailureWithDetails } from '#helpers/errors';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:

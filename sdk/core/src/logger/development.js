@@ -1,5 +1,5 @@
 import { format, transports } from 'winston';
-import { isPlainObject, shuffleArray } from '#utils';
+import { shuffleArray, isPlainObject } from '#helpers/object';
 
 /** Available colors enum */
 const Color = {

@@ -1,6 +1,6 @@
 import { StepValidator } from './validations/index.js';
-import { setMetadata } from '#internal_utils/component';
-import { ComponentType } from '#consts';
+import { assignImmutableProperty } from '#helpers/object';
+import { ComponentType, METADATA_ACCESS_SYMBOL } from '#consts';
 
 /**
  * Create a new step (activity flavor) and return a wrapper function around its fn handler
@@ -16,6 +16,6 @@ export function step( { name, description, inputSchema, outputSchema, fn, option
     return output;
   };
 
-  setMetadata( wrapper, { name, description, inputSchema, outputSchema, type: ComponentType.STEP, options } );
+  assignImmutableProperty( wrapper, METADATA_ACCESS_SYMBOL, { name, description, inputSchema, outputSchema, type: ComponentType.STEP, options } );
   return wrapper;
 };

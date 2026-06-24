@@ -1,8 +1,8 @@
 import { FatalError } from '#errors';
 import { fetch } from 'undici';
-import { serializeFetchResponse, serializeBodyAndInferContentType } from '#utils';
-import { setMetadata } from '#internal_utils/component';
-import { ComponentType } from '#consts';
+import { serializeFetchResponse, serializeBodyAndInferContentType } from '#helpers/fetch';
+import { assignImmutableProperty } from '#helpers/object';
+import { ComponentType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
 
@@ -54,7 +54,7 @@ export const sendHttpRequest = async ( { url, method, payload = undefined, heade
   return serializeFetchResponse( response );
 };
 
-setMetadata( sendHttpRequest, { type: ComponentType.INTERNAL_STEP } );
+assignImmutableProperty( sendHttpRequest, METADATA_ACCESS_SYMBOL, { type: ComponentType.INTERNAL_STEP } );
 
 /**
  * Invokes a trace method that resolves all trace output paths based on the traceInfo
@@ -64,4 +64,4 @@ setMetadata( sendHttpRequest, { type: ComponentType.INTERNAL_STEP } );
  */
 export const getTraceDestinations = traceInfo => getDestinations( traceInfo );
 
-setMetadata( getTraceDestinations, { type: ComponentType.INTERNAL_STEP } );
+assignImmutableProperty( getTraceDestinations, METADATA_ACCESS_SYMBOL, { type: ComponentType.INTERNAL_STEP } );

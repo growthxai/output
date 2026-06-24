@@ -54,7 +54,7 @@ const memoToHeadersMock = vi.fn( memo => ( memo ? { ...memo, __asHeaders: true }
 vi.mock( './headers.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMock( ...args ) } ) );
 
 const deepMergeMock = vi.fn( ( a, b ) => ( { ...( a || {} ), ...( b || {} ) } ) );
-vi.mock( '#utils', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
+vi.mock( '#helpers/object', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
 
 const stepOptionsDefault = {};
 vi.mock( '../temp/__activity_options.js', () => ( { default: stepOptionsDefault } ) );

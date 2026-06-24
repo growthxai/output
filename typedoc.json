@@ -7,7 +7,6 @@
     "./sdk/http/src/index.ts",
     "./sdk/core/src/sdk/runtime/index.d.ts",
     "./sdk/core/src/sdk/helpers/index.d.ts",
-    "./sdk/core/src/utils/index.d.ts",
     "./sdk/llm/src/index.d.ts"
   ],
   "entryPointStrategy": "resolve",

@@ -1,7 +1,7 @@
 import { Storage } from '#async_storage';
 import { EventEmitter } from 'node:events';
 import { serializeError } from './tools/utils.js';
-import { isStringboolTrue } from '#utils';
+import { isStringboolTrue } from '#helpers/string';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
 import { ComponentType } from '#consts';
