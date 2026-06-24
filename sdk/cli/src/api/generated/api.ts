@@ -1607,7 +1607,7 @@ export const getWorkflowIdRunsRidHistory = async (id: string,
 
 
 /**
- * Opens a persistent SSE connection that delivers Temporal workflow history events in real time. Emits named events: `workflow` (metadata, once), `history` (event batches), `done` (terminal state), `server_error` (post-flush errors). Supports reconnect via `Last-Event-ID` header or `lastEventId` query param.
+ * Opens a persistent SSE connection that delivers Temporal workflow history events in real time. Emits named events: `workflow` (metadata, once), `history` (event batches), `done` (terminal state), `server_error` (post-flush errors). The `done` event carries `{ reason, newRunId? }` where `reason` is the terminal Temporal event type (`WORKFLOW_EXECUTION_COMPLETED`, `WORKFLOW_EXECUTION_FAILED`, `WORKFLOW_EXECUTION_TIMED_OUT`, `WORKFLOW_EXECUTION_CANCELED`, `WORKFLOW_EXECUTION_TERMINATED`, `WORKFLOW_EXECUTION_CONTINUED_AS_NEW`) and `newRunId` is present only when the terminal event chains a follow-on run. `server_error` carries `{ error, message, workflowId, runId }`. Errors before the stream opens are returned as JSON HTTP responses (400/404); once open, failures arrive as a `server_error` event. Supports reconnect via `Last-Event-ID` header or `lastEventId` query param.
 
  * @summary Stream workflow history events via Server-Sent Events
  */
