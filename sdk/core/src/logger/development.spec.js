@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const LEVEL = Symbol.for( 'level' );
 const MESSAGE = Symbol.for( 'message' );
@@ -14,6 +14,10 @@ const loadDevelopmentLogger = async () => {
 };
 
 describe( 'logger/development', () => {
+  afterEach( () => {
+    vi.unstubAllEnvs();
+  } );
+
   describe( 'formatJson', () => {
     it( 'formats nested plain objects and arrays', async () => {
       const { formatJson } = await loadDevelopmentLogger();
@@ -40,6 +44,19 @@ describe( 'logger/development', () => {
   } );
 
   describe( 'options.format', () => {
+    it( 'uses debug level by default', async () => {
+      const { options } = await loadDevelopmentLogger();
+
+      expect( options.level ).toBe( 'debug' );
+    } );
+
+    it( 'uses OUTPUT_LOG_LEVEL when configured', async () => {
+      vi.stubEnv( 'OUTPUT_LOG_LEVEL', 'http' );
+      const { options } = await loadDevelopmentLogger();
+
+      expect( options.level ).toBe( 'http' );
+    } );
+
     it( 'formats level, namespace, message, and metadata fields', async () => {
       const { options } = await loadDevelopmentLogger();
       const info = options.format.transform( {

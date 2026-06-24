@@ -10,6 +10,12 @@ export const sinks = {
    * Workflow lifecycle sinks
    */
   workflow: {
+    log: {
+      fn: ( workflowInfo, { level, message, metadata } ) => {
+        messageBus.emit( BusEventType.WORKFLOW_LOG, { level, message, metadata, workflowDetails: createWorkflowDetails( workflowInfo ) } );
+      },
+      callDuringReplay: false
+    },
     start: {
       fn: ( workflowInfo, input ) => {
         const { runId, workflowType, memo: { traceInfo }, parent } = workflowInfo;

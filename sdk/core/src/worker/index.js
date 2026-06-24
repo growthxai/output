@@ -17,6 +17,7 @@ import { messageBus } from '#bus';
 import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
+import { bindGlobalFunctions } from './global_functions.js';
 import { runOnce } from '#utils';
 
 import './log_hooks.js';
@@ -75,6 +76,8 @@ const execute = async () => {
   if ( proxy ) {
     log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
   }
+
+  bindGlobalFunctions();
 
   state.connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
