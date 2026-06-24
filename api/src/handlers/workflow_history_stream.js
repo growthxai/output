@@ -37,7 +37,10 @@ export function createWorkflowHistoryStreamHandler( client ) {
 
     const { value: firstChunk, done } = await stream.next();
     if ( done || firstChunk?.type !== 'workflow' ) {
-      throw new Error( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` );
+      throw Object.assign(
+        new Error( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` ),
+        { workflowId }
+      );
     }
 
     res.set( {

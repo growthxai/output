@@ -216,6 +216,47 @@ describe( 'streamHistory', () => {
     expect( chunks.find( c => c.type === 'done' ) ).toBeDefined();
   } );
 
+  it( 'keeps long-polling across multiple empty responses until a terminal event', async () => {
+    mockDescribe.mockResolvedValue( baseDescription );
+    mockGetWorkflowExecutionHistory
+      .mockResolvedValueOnce( { history: { events: [] }, nextPageToken: undefined } )
+      .mockResolvedValueOnce( { history: { events: [] }, nextPageToken: undefined } )
+      .mockResolvedValueOnce( { history: { events: [] }, nextPageToken: undefined } )
+      .mockResolvedValueOnce( { history: { events: [ makeEvent( 1, 2 ) ] }, nextPageToken: undefined } );
+
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
+
+    expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledTimes( 4 );
+    expect( chunks.find( c => c.type === 'done' ).reason ).toBe( 'WORKFLOW_EXECUTION_COMPLETED' );
+  } );
+
+  it( 'does not re-emit delivered events when an empty long-poll resets the page token', async () => {
+    mockDescribe.mockResolvedValue( baseDescription );
+    mockGetWorkflowExecutionHistory
+      // first poll delivers events 1-2 (open workflow, no terminal yet)
+      .mockResolvedValueOnce( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 1 ) ] },
+        nextPageToken: undefined
+      } )
+      // empty long-poll timeout: token stays empty, next fetch re-reads from the start
+      .mockResolvedValueOnce( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 1 ) ] },
+        nextPageToken: undefined
+      } )
+      // new event 3 arrives and terminates the workflow
+      .mockResolvedValueOnce( {
+        history: { events: [ makeEvent( 1, 1 ), makeEvent( 2, 1 ), makeEvent( 3, 2 ) ] },
+        nextPageToken: undefined
+      } );
+
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
+
+    const emitted = chunks
+      .filter( c => c.type === 'events' )
+      .flatMap( c => c.events.map( e => Number( e.eventId ) ) );
+    expect( emitted ).toEqual( [ 1, 2, 3 ] );
+  } );
+
   it( 'wraps gRPC calls with abortSignal via connection.withAbortSignal', async () => {
     mockDescribe.mockResolvedValue( baseDescription );
     mockGetWorkflowExecutionHistory.mockResolvedValue( {

@@ -122,7 +122,11 @@ The stream emits four named events:
 | `workflow` | Once on connect | `{ workflowId, runId, status, startTime, closeTime, historyLength, taskQueue }` |
 | `history` | Each batch of new events | Array of serialized history events |
 | `done` | Workflow reaches terminal state | `{ reason, newRunId? }` |
-| `server_error` | Post-connect server error | `{ error, message }` |
+| `server_error` | Post-connect server error | `{ error, message, workflowId, runId }` |
+
+`reason` is the terminal Temporal event type, one of: `WORKFLOW_EXECUTION_COMPLETED`, `WORKFLOW_EXECUTION_FAILED`, `WORKFLOW_EXECUTION_TIMED_OUT`, `WORKFLOW_EXECUTION_CANCELED`, `WORKFLOW_EXECUTION_TERMINATED`, `WORKFLOW_EXECUTION_CONTINUED_AS_NEW`. `newRunId` is present only when the terminal event carries a follow-on run (continue-as-new, and the completed/failed/timed-out cases that chain a new run).
+
+Errors raised before the stream starts (invalid `lastEventId`, unknown workflow) are returned as normal JSON HTTP responses (`400`/`404`). Once the stream is open, failures arrive as a `server_error` event instead — the connection has already committed to `200 text/event-stream`.
 
 `EventSource` reconnects automatically after network drops. On reconnect it sends `Last-Event-ID` and the server replays only events the client hasn't seen.
 

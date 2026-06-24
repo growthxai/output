@@ -118,6 +118,7 @@ export const streamHistory = async function *( { client, connection }, workflowI
   const state = {
     nextPageToken: undefined,
     filterEventId: lastEventId,
+    emittedAny: false,
     sawTerminalEvent: false,
     sawTerminalReason: undefined,
     sawTerminalNewRunId: undefined
@@ -170,11 +171,17 @@ export const streamHistory = async function *( { client, connection }, workflowI
     if ( batch.length > 0 ) {
       const lastSerializedId = Number( batch[batch.length - 1].eventId );
       yield { type: 'events', events: batch, lastEventId: lastSerializedId };
-      state.filterEventId = undefined;
+      // Advance the filter to the last delivered id (high-water mark) rather than
+      // clearing it. An empty long-poll can reset nextPageToken to undefined, making
+      // the next fetch re-read history from the start; keeping the filter armed at the
+      // last emitted id prevents re-emitting events the client already received.
+      state.filterEventId = lastSerializedId;
+      state.emittedAny = true;
     }
 
-    // Replay complete: all pages drained, terminal event was filtered out
-    if ( !state.nextPageToken && state.filterEventId !== undefined && state.sawTerminalEvent ) {
+    // Replay complete: all pages drained, terminal event was already seen by the
+    // client (reconnect cursor past it), so nothing new was emitted this stream.
+    if ( !state.nextPageToken && !state.emittedAny && state.sawTerminalEvent ) {
       yield { type: 'done', reason: state.sawTerminalReason, newRunId: state.sawTerminalNewRunId };
       return;
     }
