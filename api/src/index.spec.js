@@ -14,7 +14,7 @@ const { mockClient, mockLogger, temporalInitState, mockTemporalInit } = vi.hoist
       terminate: vi.fn(),
       getResult: vi.fn(),
       getHistory: vi.fn(),
-      streamWorkflowHistory: vi.fn(),
+      streamHistory: vi.fn(),
       reset: vi.fn(),
       query: vi.fn(),
       listRuns: vi.fn(),
@@ -485,7 +485,7 @@ describe( 'API endpoints', () => {
     } )();
 
     it( 'returns 200 with text/event-stream content type', async () => {
-      mockClient.workflow.streamWorkflowHistory.mockReturnValue( makeStreamGen( {
+      mockClient.workflow.streamHistory.mockReturnValue( makeStreamGen( {
         workflowId: 'w1', runId: 'r1', status: 'completed',
         startTime: null, closeTime: null, historyLength: 1, taskQueue: 'default'
       } ) );
@@ -495,26 +495,26 @@ describe( 'API endpoints', () => {
       expect( res.headers['content-type'] ).toMatch( /text\/event-stream/ );
     } );
 
-    it( 'calls streamWorkflowHistory with correct workflowId', async () => {
-      mockClient.workflow.streamWorkflowHistory.mockReturnValue( makeStreamGen( {
+    it( 'calls streamHistory with correct workflowId', async () => {
+      mockClient.workflow.streamHistory.mockReturnValue( makeStreamGen( {
         workflowId: 'w1', runId: 'r1', status: 'completed',
         startTime: null, closeTime: null, historyLength: 1, taskQueue: 'default'
       } ) );
       await request( `http://localhost:${PORT}` )
         .get( '/workflow/w1/history/stream' )
         .expect( 200 );
-      expect( mockClient.workflow.streamWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.any( Object ) );
+      expect( mockClient.workflow.streamHistory ).toHaveBeenCalledWith( 'w1', expect.any( Object ) );
     } );
 
-    it( 'pinned run variant calls streamWorkflowHistory with path runId', async () => {
-      mockClient.workflow.streamWorkflowHistory.mockReturnValue( makeStreamGen( {
+    it( 'pinned run variant calls streamHistory with path runId', async () => {
+      mockClient.workflow.streamHistory.mockReturnValue( makeStreamGen( {
         workflowId: 'w1', runId: RID, status: 'running',
         startTime: null, closeTime: null, historyLength: 1, taskQueue: 'default'
       } ) );
       await request( `http://localhost:${PORT}` )
         .get( `/workflow/w1/runs/${RID}/history/stream` )
         .expect( 200 );
-      expect( mockClient.workflow.streamWorkflowHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( { runId: RID } ) );
+      expect( mockClient.workflow.streamHistory ).toHaveBeenCalledWith( 'w1', expect.objectContaining( { runId: RID } ) );
     } );
   } );
 

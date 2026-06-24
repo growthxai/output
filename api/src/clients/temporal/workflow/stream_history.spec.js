@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { streamWorkflowHistory } from './stream_history.js';
+import { streamHistory } from './stream_history.js';
 
 const { mockIsGrpcCancelledError } = vi.hoisted( () => ( {
   mockIsGrpcCancelledError: vi.fn( err => err?._cancelled === true )
@@ -42,7 +42,7 @@ beforeEach( () => {
   mockGetHandle.mockReturnValue( { describe: mockDescribe } );
 } );
 
-describe( 'streamWorkflowHistory', () => {
+describe( 'streamHistory', () => {
   const baseDescription = {
     runId: 'run-abc',
     status: { code: 1, name: 'RUNNING' },
@@ -74,7 +74,7 @@ describe( 'streamWorkflowHistory', () => {
       nextPageToken: undefined
     } );
 
-    const gen = streamWorkflowHistory( context, 'wf-1' );
+    const gen = streamHistory( context, 'wf-1' );
 
     const first = await gen.next();
     expect( first.value.type ).toBe( 'workflow' );
@@ -94,7 +94,7 @@ describe( 'streamWorkflowHistory', () => {
       nextPageToken: undefined
     } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1' ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     expect( chunks[0].type ).toBe( 'workflow' );
     expect( chunks[1].type ).toBe( 'events' );
@@ -110,7 +110,7 @@ describe( 'streamWorkflowHistory', () => {
       nextPageToken: undefined
     } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1', { lastEventId: 2 } ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 2 } ) );
 
     const eventChunk = chunks.find( c => c.type === 'events' );
     expect( eventChunk.events ).toHaveLength( 1 );
@@ -129,7 +129,7 @@ describe( 'streamWorkflowHistory', () => {
         nextPageToken: undefined
       } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1', { lastEventId: 2 } ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 2 } ) );
 
     const eventChunks = chunks.filter( c => c.type === 'events' );
     expect( eventChunks ).toHaveLength( 1 );
@@ -148,7 +148,7 @@ describe( 'streamWorkflowHistory', () => {
         nextPageToken: undefined
       } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1' ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     const eventChunks = chunks.filter( c => c.type === 'events' );
     expect( eventChunks ).toHaveLength( 2 );
@@ -171,7 +171,7 @@ describe( 'streamWorkflowHistory', () => {
       nextPageToken: undefined
     } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1' ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     const done = chunks.find( c => c.type === 'done' );
     expect( done.type ).toBe( 'done' );
@@ -188,7 +188,7 @@ describe( 'streamWorkflowHistory', () => {
     const cancelledError = Object.assign( new Error( 'Cancelled' ), { _cancelled: true } );
     mockGetWorkflowExecutionHistory.mockRejectedValue( cancelledError );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1' ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     expect( chunks ).toHaveLength( 1 );
     expect( chunks[0].type ).toBe( 'workflow' );
@@ -199,7 +199,7 @@ describe( 'streamWorkflowHistory', () => {
     const grpcError = new Error( 'Unavailable' );
     mockGetWorkflowExecutionHistory.mockRejectedValue( grpcError );
 
-    await expect( collectStream( streamWorkflowHistory( context, 'wf-1' ) ) )
+    await expect( collectStream( streamHistory( context, 'wf-1' ) ) )
       .rejects
       .toThrow( 'Unavailable' );
   } );
@@ -210,7 +210,7 @@ describe( 'streamWorkflowHistory', () => {
       .mockResolvedValueOnce( { history: { events: [] }, nextPageToken: undefined } )
       .mockResolvedValueOnce( { history: { events: [ makeEvent( 1, 2 ) ] }, nextPageToken: undefined } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1' ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1' ) );
 
     expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalledTimes( 2 );
     expect( chunks.find( c => c.type === 'done' ) ).toBeDefined();
@@ -224,7 +224,7 @@ describe( 'streamWorkflowHistory', () => {
     } );
 
     const ctrl = new AbortController();
-    await collectStream( streamWorkflowHistory( context, 'wf-1', { abortSignal: ctrl.signal } ) );
+    await collectStream( streamHistory( context, 'wf-1', { abortSignal: ctrl.signal } ) );
 
     expect( mockWithAbortSignal ).toHaveBeenCalledWith( ctrl.signal, expect.any( Function ) );
   } );
@@ -233,7 +233,7 @@ describe( 'streamWorkflowHistory', () => {
     const notFoundError = Object.assign( new Error( 'Not found' ), { code: 5 } );
     mockDescribe.mockRejectedValue( notFoundError );
 
-    await expect( streamWorkflowHistory( context, 'wf-missing' ).next() )
+    await expect( streamHistory( context, 'wf-missing' ).next() )
       .rejects
       .toMatchObject( { name: 'WorkflowNotFoundError' } );
   } );
@@ -246,7 +246,7 @@ describe( 'streamWorkflowHistory', () => {
     } );
 
     // lastEventId=2 filters out both events (including the terminal COMPLETED); should still get done
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1', { lastEventId: 2 } ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 2 } ) );
 
     const done = chunks.find( c => c.type === 'done' );
     expect( done ).toEqual( { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED', newRunId: undefined } );
@@ -262,7 +262,7 @@ describe( 'streamWorkflowHistory', () => {
       historyLength: 5
     } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1', { lastEventId: 5 } ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 5 } ) );
 
     expect( mockGetWorkflowExecutionHistory ).not.toHaveBeenCalled();
     expect( chunks ).toHaveLength( 2 );
@@ -286,7 +286,7 @@ describe( 'streamWorkflowHistory', () => {
       nextPageToken: undefined
     } );
 
-    const chunks = await collectStream( streamWorkflowHistory( context, 'wf-1', { lastEventId: 5 } ) );
+    const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 5 } ) );
 
     expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalled();
     const done = chunks.find( c => c.type === 'done' );

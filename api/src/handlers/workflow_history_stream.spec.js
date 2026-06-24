@@ -54,7 +54,7 @@ async function *simpleStream( workflow, eventBatches = [], done = { reason: 'WOR
 }
 
 const createApp = mockStream => {
-  const mockClient = { workflow: { streamWorkflowHistory: mockStream } };
+  const mockClient = { workflow: { streamHistory: mockStream } };
   const app = express();
   const handler = createWorkflowHistoryStreamHandler( mockClient );
   app.get( '/workflow/:id/history/stream', handler );
@@ -264,7 +264,7 @@ describe( 'workflow_history_stream handler', () => {
         throw realError;
       } )();
 
-      const mockClient = { workflow: { streamWorkflowHistory: vi.fn( () => stream ) } };
+      const mockClient = { workflow: { streamHistory: vi.fn( () => stream ) } };
       const handler = createWorkflowHistoryStreamHandler( mockClient );
 
       const handlerPromise = handler( fakeReq, fakeRes );
@@ -439,7 +439,7 @@ describe( 'workflow_history_stream handler', () => {
       const capturedSignals = [];
       const mockClient = {
         workflow: {
-          streamWorkflowHistory: vi.fn( ( _id, opts ) => {
+          streamHistory: vi.fn( ( _id, opts ) => {
             capturedSignals.push( opts.abortSignal );
             return slowStream;
           } )
@@ -505,7 +505,7 @@ describe( 'workflow_history_stream handler', () => {
         yield { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' };
       } )();
 
-      const mockClient = { workflow: { streamWorkflowHistory: vi.fn( () => slowStream ) } };
+      const mockClient = { workflow: { streamHistory: vi.fn( () => slowStream ) } };
       const handler = createWorkflowHistoryStreamHandler( mockClient );
 
       const handlerPromise = handler( fakeReq, fakeRes );
@@ -565,7 +565,7 @@ describe( 'workflow_history_stream handler', () => {
       const capturedSignals = [];
       const mockClient = {
         workflow: {
-          streamWorkflowHistory: vi.fn( ( _id, opts ) => {
+          streamHistory: vi.fn( ( _id, opts ) => {
             capturedSignals.push( opts.abortSignal );
             return slowStream;
           } )

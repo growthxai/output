@@ -28,7 +28,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
     const ctrl = new AbortController();
     req.on( 'close', () => ctrl.abort() );
 
-    const stream = client.workflow.streamWorkflowHistory( workflowId, {
+    const stream = client.workflow.streamHistory( workflowId, {
       runId,
       includePayloads,
       lastEventId,
@@ -37,7 +37,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
 
     const { value: firstChunk, done } = await stream.next();
     if ( done || firstChunk?.type !== 'workflow' ) {
-      throw new Error( `streamWorkflowHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` );
+      throw new Error( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` );
     }
 
     res.set( {

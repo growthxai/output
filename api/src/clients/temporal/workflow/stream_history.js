@@ -63,7 +63,7 @@ const STATUS_HAS_NEW_RUN_ID = new Set( [
  * @param {number} [options.lastEventId] - Resume after this event id (reconnect)
  * @param {AbortSignal} [options.abortSignal] - Cancels in-flight gRPC calls
  */
-export const streamWorkflowHistory = async function *( { client, connection }, workflowId, options = {} ) {
+export const streamHistory = async function *( { client, connection }, workflowId, options = {} ) {
   const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
   const handle = client.workflow.getHandle( workflowId, runId );
   const description = await connection.withAbortSignal( abortSignal, () => handle.describe() ).catch( error => {
@@ -123,21 +123,25 @@ export const streamWorkflowHistory = async function *( { client, connection }, w
     sawTerminalNewRunId: undefined
   };
 
+  // Fetch the next page; long-poll for new events only while the workflow is still
+  // open (waitNewEvent), and drain already-buffered pages without blocking otherwise.
+  const fetchPage = waitNewEvent => connection.withAbortSignal( abortSignal, () =>
+    connection.workflowService.getWorkflowExecutionHistory( {
+      namespace,
+      execution: { workflowId, runId: resolvedRunId },
+      maximumPageSize: 50,
+      nextPageToken: state.nextPageToken,
+      ...( waitNewEvent ? { waitNewEvent: true } : {} )
+    } )
+  ).catch( error => {
+    if ( isGrpcCancelledError( error ) ) {
+      return null;
+    }
+    throw error;
+  } );
+
   while ( true ) {
-    const response = await connection.withAbortSignal( abortSignal, () =>
-      connection.workflowService.getWorkflowExecutionHistory( {
-        namespace,
-        execution: { workflowId, runId: resolvedRunId },
-        maximumPageSize: 50,
-        nextPageToken: state.nextPageToken,
-        waitNewEvent: true
-      } )
-    ).catch( error => {
-      if ( isGrpcCancelledError( error ) ) {
-        return null;
-      }
-      throw error;
-    } );
+    const response = await fetchPage( true );
 
     if ( response === null ) {
       return;
@@ -177,19 +181,7 @@ export const streamWorkflowHistory = async function *( { client, connection }, w
 
     if ( terminalEvent ) {
       while ( state.nextPageToken ) {
-        const drainResponse = await connection.withAbortSignal( abortSignal, () =>
-          connection.workflowService.getWorkflowExecutionHistory( {
-            namespace,
-            execution: { workflowId, runId: resolvedRunId },
-            maximumPageSize: 50,
-            nextPageToken: state.nextPageToken
-          } )
-        ).catch( error => {
-          if ( isGrpcCancelledError( error ) ) {
-            return null;
-          }
-          throw error;
-        } );
+        const drainResponse = await fetchPage( false );
 
         if ( drainResponse === null ) {
           return;
