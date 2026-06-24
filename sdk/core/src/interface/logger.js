@@ -1,7 +1,7 @@
 import { inWorkflowContext } from '@temporalio/workflow';
 import { proxySinks } from '@temporalio/workflow';
 import { ACTIVITY_LOGGER_SYMBOL } from '#consts';
-import { isPlainObject } from '#utils';
+import { isPlainObject } from '#helpers/object';
 
 const reservedMetadataFields = new Set( [
   // Winston fields
