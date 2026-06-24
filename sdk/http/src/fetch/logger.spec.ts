@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Response, Request } from 'undici';
 
-vi.mock( '@outputai/core/internal/activity', () => {
+vi.mock( '@outputai/core/sdk/runtime', () => {
   class HTTPRequestCount {
     static TYPE = 'http:request:count';
     type = HTTPRequestCount.TYPE;
@@ -30,7 +30,7 @@ vi.mock( '@outputai/core/internal/activity', () => {
   };
 } );
 
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 
 const tracing = vi.mocked( Tracing, true );
 const event = vi.mocked( Event, true );

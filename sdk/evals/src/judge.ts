@@ -5,7 +5,7 @@ import {
   EvaluationStringResult,
   z
 } from '@outputai/core';
-import { Path } from '@outputai/core/internal/activity';
+import { Path } from '@outputai/core/sdk/helpers';
 import { generateText, Output } from '@outputai/llm';
 
 export type JudgeArgs = {

@@ -46,7 +46,7 @@ vi.mock( '@outputai/core', () => ( {
   ValidationError: coreMocks.ValidationError
 } ) );
 
-vi.mock( '@outputai/core/internal/activity', () => ( {
+vi.mock( '@outputai/core/sdk/helpers', () => ( {
   Path: {
     resolveInvocationDir: () => state.invocationDir
   }

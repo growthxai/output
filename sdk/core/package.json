@@ -12,13 +12,13 @@
       "types": "./src/hooks/index.d.ts",
       "import": "./src/hooks/index.js"
     },
-    "./internal/workflow": {
-      "types": "./src/sdk_interface/workflow/index.d.ts",
-      "import": "./src/sdk_interface/workflow/index.js"
+    "./sdk/helpers": {
+      "types": "./src/sdk/helpers/index.d.ts",
+      "import": "./src/sdk/helpers/index.js"
     },
-    "./internal/activity": {
-      "types": "./src/sdk_interface/activity/index.d.ts",
-      "import": "./src/sdk_interface/activity/index.js"
+    "./sdk/runtime": {
+      "types": "./src/sdk/runtime/index.d.ts",
+      "import": "./src/sdk/runtime/index.js"
     },
     "./sdk_utils": {
       "types": "./src/utils/index.d.ts",

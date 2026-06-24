@@ -1,5 +1,5 @@
 import { fetchModelsPricing } from './fetch_models_pricing.js';
-import { Tracing } from '@outputai/core/internal/activity';
+import { Tracing } from '@outputai/core/sdk/runtime';
 
 /**
  * Calculates the cost of an llm call based on the model and usage.

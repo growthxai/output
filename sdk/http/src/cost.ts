@@ -1,5 +1,5 @@
 import { KyResponse } from 'ky';
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { requestIdSymbol } from './consts.js';
 
 /**

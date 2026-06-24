@@ -1,4 +1,4 @@
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 
 export const startTrace = ( { name, ...details } ) => {
   const traceId = `${name}-${Date.now()}`;

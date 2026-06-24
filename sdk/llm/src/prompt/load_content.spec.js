@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 // Hoisted state so mocks can read dynamic values set in tests
 const state = vi.hoisted( () => ( { dir: '', entries: {} } ) );
 
-// Mock core utils to control resolveInvocationDir
-vi.mock( '@outputai/core/internal/activity', () => ( {
+// Mock SDK helpers to control resolveInvocationDir
+vi.mock( '@outputai/core/sdk/helpers', () => ( {
   Path: {
     resolveInvocationDir: () => state.dir
   }

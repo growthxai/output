@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Response } from 'undici';
 import { requestIdSymbol } from './consts.js';
 
-vi.mock( '@outputai/core/internal/activity', () => {
+vi.mock( '@outputai/core/sdk/runtime', () => {
   class HTTPRequestCost {
     static TYPE = 'http:request:cost';
     type = HTTPRequestCost.TYPE;
@@ -30,7 +30,7 @@ vi.mock( '@outputai/core/internal/activity', () => {
   };
 } );
 
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { addRequestCost } from './cost.js';
 import { addRequestIdToResponse } from './fetch/utils.js';
 

@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import { MissingCredentialError } from './errors.js';
-import { Context } from '@outputai/core/internal/activity';
+import { Context } from '@outputai/core/sdk/runtime';
 import { deepMerge } from '@outputai/core/sdk_utils';
 import { getProvider } from './provider_registry.js';
 

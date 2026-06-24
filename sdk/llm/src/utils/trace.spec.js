@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock( '@outputai/core/internal/activity', () => ( {
+vi.mock( '@outputai/core/sdk/runtime', () => ( {
   Tracing: {
     addEventStart: vi.fn(),
     addEventError: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock( '@outputai/core/internal/activity', () => ( {
   }
 } ) );
 
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { startTrace, endTraceWithError, endTraceWithSuccess } from './trace.js';
 
 const tracing = vi.mocked( Tracing, true );

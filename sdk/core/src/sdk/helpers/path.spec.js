@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveInvocationDir } from './path.js';
+import { Path } from './path.js';
 
 const OriginalError = Error;
 
@@ -10,7 +10,7 @@ describe( 'Resolve Invocation Dir', () => {
 
   it( 'Should detect the invocation dir from the tests workflow', () => {
     const stack = `Error
-    at resolveInvocationDir (file:///app/sdk/core/src/utils/resolve_invocation_dir.js)
+    at resolveInvocationDir (file:///app/sdk/core/src/sdk/helpers/path.js)
     at fn (file:///app/test_workflows/dist/simple/steps.js:8:21)
     at wrapper (file:///app/sdk/core/src/interface/step.js:12:26)
     at executeNextHandler (/app/node_modules/@temporalio/worker/lib/activity.js:99:54)
@@ -29,12 +29,12 @@ describe( 'Resolve Invocation Dir', () => {
       }
     };
 
-    expect( resolveInvocationDir() ).toBe( '/app/test_workflows/dist/simple' );
+    expect( Path.resolveInvocationDir() ).toBe( '/app/test_workflows/dist/simple' );
   } );
 
   it( 'Should detect the invocation dir from the sandbox environment at sdk/core', () => {
     const stack = `Error
-    at resolveInvocationDir (file:///app/sdk/core/src/utils/resolve_invocation_dir.js)
+    at resolveInvocationDir (file:///app/sdk/core/src/sdk/helpers/path.js)
     at workflow (file:///app/sdk/core/src/interface/workflow.js:25:16)
     at file:///app/test_workflows/dist/nested/workflow.js:4:16
     at ModuleJob.run (node:internal/modules/esm/module_job:365:25)
@@ -50,12 +50,12 @@ describe( 'Resolve Invocation Dir', () => {
       }
     };
 
-    expect( resolveInvocationDir() ).toBe( '/app/test_workflows/dist/nested' );
+    expect( Path.resolveInvocationDir() ).toBe( '/app/test_workflows/dist/nested' );
   } );
 
   it( 'Should detect the invocation dir from workflow loading at core', () => {
     const stack = `Error
-    at __WEBPACK_DEFAULT_EXPORT__ (/app/sdk/core/src/utils/resolve_invocation_dir.js:13:0)
+    at resolveInvocationDir (/app/sdk/core/src/sdk/helpers/path.js:21:0)
     at workflow (/app/sdk/core/src/interface/workflow.js:22:43)
     at ../../test_workflows/dist/nested/workflow.js (/app/test_workflows/dist/nested/workflow.js:4:24)
     at __webpack_require__ (webpack/bootstrap:19:0)
@@ -73,12 +73,12 @@ describe( 'Resolve Invocation Dir', () => {
       }
     };
 
-    expect( resolveInvocationDir() ).toBe( '/app/test_workflows/dist/nested' );
+    expect( Path.resolveInvocationDir() ).toBe( '/app/test_workflows/dist/nested' );
   } );
 
   it( 'Should detect the invocation dir from a workflow using core installed via NPM', () => {
     const stack = `Error
-    at resolveInvocationDir (file:///app/node_modules/@outputai/core/src/utils/resolve_invocation_dir.js)
+    at resolveInvocationDir (file:///app/node_modules/@outputai/core/src/sdk/helpers/path.js)
     at fn (file:///app/dist/simple/steps.js:8:21)
     at wrapper (file:///app/node_modules/@outputai/core/src/interface/step.js:12:26)
     at executeNextHandler (/app/node_modules/@temporalio/worker/lib/activity.js:99:54)
@@ -97,6 +97,6 @@ describe( 'Resolve Invocation Dir', () => {
       }
     };
 
-    expect( resolveInvocationDir() ).toBe( '/app/dist/simple' );
+    expect( Path.resolveInvocationDir() ).toBe( '/app/dist/simple' );
   } );
 } );

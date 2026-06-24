@@ -1,4 +1,4 @@
-import { Tracing, Event } from '@outputai/core/internal/activity';
+import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { config } from '../config.js';
 import type { Request, Response } from 'undici';
 import { parseBody, redactHeaders, serializeError } from './utils.js';

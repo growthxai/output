@@ -1,5 +1,5 @@
 import { step } from '@outputai/core';
-import { Context } from '@outputai/core/internal/activity';
+import { Context } from '@outputai/core/sdk/runtime';
 
 export const demoContext = step( {
   name: 'demo_context',

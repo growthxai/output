@@ -1,5 +1,5 @@
 import { ValidationError } from '@outputai/core';
-import { Path } from '@outputai/core/internal/activity';
+import { Path } from '@outputai/core/sdk/helpers';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';

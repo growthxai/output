@@ -1,6 +1,6 @@
 import { workflow, executeInParallel, z } from '@outputai/core';
 import type { EvaluationResult } from '@outputai/core';
-import { Component } from '@outputai/core/internal/workflow';
+import { ComponentMetadata } from '@outputai/core/sdk/helpers';
 import { VERDICT, CRITICALITY, DatasetSchema, EvalOutputSchema } from './schemas.js';
 import { interpretResult } from './interpret.js';
 import { aggregateCaseVerdict } from './aggregate.js';
@@ -40,10 +40,10 @@ export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOpti
   const concurrency = config.concurrency ?? 10;
 
   const evalDefs: ResolvedEvalDef[] = evals.map( def => {
-    if ( !Component.isComponent( def.evaluator ) ) {
+    if ( !ComponentMetadata.has( def.evaluator ) ) {
       throw new Error( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
     }
-    const name = Component.getComponentName( def.evaluator );
+    const name = ComponentMetadata.getName( def.evaluator );
     if ( !name ) {
       throw new Error( 'Evaluator component doesn\'t have a name.' );
     }

@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'node:fs';
-import { Path } from '@outputai/core/internal/activity';
+import { Path } from '@outputai/core/sdk/helpers';
 import { FatalError } from '@outputai/core';
 
 const scanDir = dir => {
