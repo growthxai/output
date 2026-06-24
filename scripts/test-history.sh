@@ -45,13 +45,19 @@ while true; do
   # Print events
   EVENT_COUNT=$(echo "$RESPONSE" | jq '.events | length')
   echo "${EVENT_COUNT} events:"
-  echo "$RESPONSE" | jq -r '
+  echo "$RESPONSE" | jq -r --argjson payloads "$INCLUDE_PAYLOADS" '
     .events[] |
     # extract stepName and scheduledEventId from whichever attributes object exists
     ([to_entries[] | select(.key | endswith("EventAttributes")) | .value] | first // {}) as $attrs |
+    # results/outputs are wrapped by the Output runtime; unwrap to the inner value when present
+    ( ( $attrs.result[0]? | objects | .output ) // $attrs.result ) as $result |
     "  [\(.eventId)] \(.eventTime) \(.eventTypeName)" +
     (if $attrs.stepName then " (\($attrs.stepName))" else "" end) +
-    (if $attrs.scheduledEventId then " -> scheduled:[\($attrs.scheduledEventId)]" else "" end)
+    (if $attrs.scheduledEventId then " -> scheduled:[\($attrs.scheduledEventId)]" else "" end) +
+    (if $payloads then
+      (if $attrs.input != null then "\n        input:  \($attrs.input | tojson)" else "" end) +
+      (if $result != null then "\n        result: \($result | tojson)" else "" end)
+    else "" end)
   '
 
   # Check for next page
