@@ -15,6 +15,7 @@ export const getWord = step( {
     Logger.verbose( 'Generating a word based on the current date', { date } );
     Logger.debug( 'Generating a word based on the current date', { date } );
     Logger.silly( 'Generating a word based on the current date', { date } );
+    Logger.info( 'drop a reserved word', { message: 'foo' } );
     const index = Math.floor( date % words.length );
 
     return words[index];

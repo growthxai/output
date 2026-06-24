@@ -14,12 +14,6 @@ vi.mock( '@temporalio/workflow', () => ( {
   proxySinks: proxySinksMock
 } ) );
 
-const validateLogArgumentsMock = vi.fn();
-
-vi.mock( './validations/index.js', () => ( {
-  validateLogArguments: validateLogArgumentsMock
-} ) );
-
 const logLevels = [
   'error',
   'warn',
@@ -29,6 +23,16 @@ const logLevels = [
   'debug',
   'silly'
 ];
+
+const consoleMethodsByLevel = {
+  error: 'error',
+  warn: 'warn',
+  info: 'info',
+  http: 'log',
+  verbose: 'log',
+  debug: 'debug',
+  silly: 'log'
+};
 
 const loadLogger = async () => import( './logger.js' );
 
@@ -65,11 +69,24 @@ describe( 'interface/logger', () => {
         metadata: { requestId: level }
       };
 
-      expect( validateLogArgumentsMock ).toHaveBeenNthCalledWith( index + 1, {
-        message: payload.message,
-        metadata: payload.metadata
-      } );
       expect( workflowLogMock ).toHaveBeenNthCalledWith( index + 1, payload );
+    } );
+  } );
+
+  it( 'sanitizes messages and metadata before logging', async () => {
+    const logger = await loadLogger();
+    inWorkflowContextMock.mockReturnValue( true );
+
+    logger.info( 123, {
+      requestId: 'req-1',
+      level: 'error',
+      message: 'metadata message'
+    } );
+
+    expect( workflowLogMock ).toHaveBeenCalledWith( {
+      level: 'info',
+      message: '123',
+      metadata: { requestId: 'req-1' }
     } );
   } );
 
@@ -92,22 +109,30 @@ describe( 'interface/logger', () => {
     expect( workflowLogMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'logs every level to console when no workflow or activity logger is available', async () => {
+  it( 'logs every level to its native console method when no workflow or activity logger is available', async () => {
     const logger = await loadLogger();
-    const consoleLogMock = vi.spyOn( console, 'log' ).mockImplementation( () => {} );
+    const consoleMocks = Object.fromEntries(
+      [ 'debug', 'error', 'info', 'log', 'warn' ].map( method => [
+        method,
+        vi.spyOn( console, method ).mockImplementation( () => {} )
+      ] )
+    );
 
     logLevels.forEach( level => {
       logger[level]( `${level} message`, { requestId: level } );
     } );
 
-    logLevels.forEach( ( level, index ) => {
-      expect( consoleLogMock ).toHaveBeenNthCalledWith(
-        index + 1,
-        `logger.${level}`,
+    logLevels.forEach( level => {
+      expect( consoleMocks[consoleMethodsByLevel[level]] ).toHaveBeenCalledWith(
         `${level} message`,
         { requestId: level }
       );
     } );
+    expect( consoleMocks.error ).toHaveBeenCalledTimes( 1 );
+    expect( consoleMocks.warn ).toHaveBeenCalledTimes( 1 );
+    expect( consoleMocks.info ).toHaveBeenCalledTimes( 1 );
+    expect( consoleMocks.debug ).toHaveBeenCalledTimes( 1 );
+    expect( consoleMocks.log ).toHaveBeenCalledTimes( 3 );
     expect( workflowLogMock ).not.toHaveBeenCalled();
   } );
 } );

@@ -343,15 +343,17 @@ Logger.warn('Retrying provider request', {
 
 Output automatically adds execution fields such as `workflowId`, `workflowType`, `runId`, `activityId`, and `activityType` when it writes the log.
 
-Some metadata field names are reserved because Winston, Output log hooks, or log formatting use them internally. Do not use these keys in logger metadata:
+Some metadata field names are reserved because Winston, Output log hooks, or log formatting use them internally. Output drops these fields from logger metadata before building the final log message:
 - `activityId`
 - `activityType`
-- `label`,
+- `environment`
+- `label`
 - `level`
 - `message`
 - `metadata`
 - `namespace`
 - `runId`
+- `service`
 - `splat`
 - `stack`
 - `timestamp`

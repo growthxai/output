@@ -7,8 +7,7 @@ import {
   executeInParallelSchema,
   stepSchema,
   workflowInvocationOptionsSchema,
-  workflowSchema,
-  logArgumentsSchema
+  workflowSchema
 } from './schemas.js';
 
 /**
@@ -106,8 +105,4 @@ export function validateRequestPayload( args ) {
  */
 export function validateExecuteInParallel( args ) {
   validate( args, executeInParallelSchema, 'ExecuteInParallel' );
-};
-
-export function validateLogArguments( args ) {
-  validate( args, logArgumentsSchema, 'Log Arguments' );
 };

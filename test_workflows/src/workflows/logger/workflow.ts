@@ -16,6 +16,7 @@ export default workflow( {
     Logger.verbose( 'generate word', { word } );
     Logger.debug( 'generate word', { word } );
     Logger.silly( 'generate word', { word } );
+    Logger.info( 'drop a reserved word', { message: 'foo' } );
     return { word };
   }
 } );
