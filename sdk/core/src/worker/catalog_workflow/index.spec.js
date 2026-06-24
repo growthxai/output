@@ -7,9 +7,6 @@ vi.mock( '#consts', () => ( {
   METADATA_ACCESS_SYMBOL
 } ) );
 
-const setMetadata = ( target, values ) =>
-  Object.defineProperty( target, METADATA_ACCESS_SYMBOL, { value: values, writable: false, enumerable: false, configurable: false } );
-
 describe( 'createCatalog', () => {
   it( 'builds catalog with activities grouped by workflow path and returns Catalog with CatalogWorkflow entries', async () => {
     const { createCatalog } = await import( './index.js' );
@@ -32,40 +29,40 @@ describe( 'createCatalog', () => {
     ];
 
     const activity1 = () => {};
-    setMetadata( activity1, {
+    activity1[METADATA_ACCESS_SYMBOL] = {
       name: 'A1',
       path: '/flows/flow1#A1',
       description: 'desc-a1',
       inputSchema: z.object( { in: z.literal( 'a1' ) } ),
       outputSchema: z.object( { out: z.literal( 'a1' ) } )
-    } );
+    };
 
     const activity2 = () => {};
-    setMetadata( activity2, {
+    activity2[METADATA_ACCESS_SYMBOL] = {
       name: 'A2',
       path: '/flows/flow1#A2',
       description: 'desc-a2',
       inputSchema: z.object( { in: z.literal( 'a2' ) } ),
       outputSchema: z.object( { out: z.literal( 'a2' ) } )
-    } );
+    };
 
     const activity3 = () => {};
-    setMetadata( activity3, {
+    activity3[METADATA_ACCESS_SYMBOL] = {
       name: 'B1',
       path: '/flows/flow2#B1',
       description: 'desc-b1',
       inputSchema: z.object( { in: z.literal( 'b1' ) } ),
       outputSchema: z.object( { out: z.literal( 'b1' ) } )
-    } );
+    };
 
     const activity4 = () => {};
-    setMetadata( activity4, {
+    activity4[METADATA_ACCESS_SYMBOL] = {
       name: 'X',
       path: '/other#X',
       description: 'desc-x',
       inputSchema: z.object( { in: z.literal( 'x' ) } ),
       outputSchema: z.object( { out: z.literal( 'x' ) } )
-    } );
+    };
 
     const activities = {
       '/flows/flow1#A1': activity1,
