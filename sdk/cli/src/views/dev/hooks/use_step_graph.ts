@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { fetchWorkflowHistory, type WorkflowMeta } from '#services/workflow_history.js';
 import type { Span } from '#services/workflow_history/correlator.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { isTerminalRunStatus } from '#views/dev/hooks/use_run_detail.js';
+import { usePoll, POLL_INTERVAL_MS } from '#views/dev/hooks/use_poll.js';
 
 export interface StepGraph {
   spans: Span[];
@@ -27,10 +28,13 @@ const stepGraphCache = new Map<string, StepGraph>();
 /**
  * Fetches a run's correlated step spans for the dev TUI's waterfall overlay,
  * reusing the same `fetchWorkflowHistory` path as the `workflow history` CLI
- * command. Mirrors `useRunDetail`: a stale-fetch guard, terminal-status caching,
- * and `status` in the dep array so a still-running run's bars finalise on the
- * 2s runs poll. Unlike `useRunDetail` (which tolerates partial traces), a hard
- * fetch failure is surfaced as `error` since the whole overlay is this fetch.
+ * command. Driven by `usePoll`: while the run is still advancing it re-pulls
+ * every tick so newly scheduled / finished steps appear, then stops and caches
+ * once terminal. The modal ticks the time axis between polls so the right edge
+ * tracks elapsed time.
+ *
+ * A hard fetch failure surfaces as `error` only when nothing has loaded yet — a
+ * transient poll blip keeps the last good chart on screen.
  */
 export const useStepGraph = (
   workflowId: string | undefined,
@@ -38,51 +42,55 @@ export const useStepGraph = (
   status?: string
 ): StepGraph => {
   const [ graph, setGraph ] = useState<StepGraph>( EMPTY_GRAPH );
-  const fetchIdRef = useRef( 0 );
+  const terminal = isTerminalRunStatus( status );
+  const requestKeyRef = useRef( '' );
 
-  useEffect( () => {
+  usePoll( Boolean( workflowId ), POLL_INTERVAL_MS, async () => {
     if ( !workflowId ) {
-      setGraph( EMPTY_GRAPH );
-      return;
+      return 'done';
     }
 
     const key = `${workflowId}:${runId ?? 'latest'}`;
+    requestKeyRef.current = key;
+
     const cached = stepGraphCache.get( key );
     if ( cached ) {
       setGraph( cached );
-      return;
+      return 'done';
     }
 
-    const id = ++fetchIdRef.current;
-    setGraph( { ...EMPTY_GRAPH, loading: true } );
+    setGraph( current => ( current.spans.length === 0 ? { ...current, loading: true } : current ) );
+    try {
+      const result = await fetchWorkflowHistory( { workflowId, runId } );
+      if ( requestKeyRef.current !== key ) {
+        return 'done'; // a different run was selected mid-flight
+      }
+      const next: StepGraph = {
+        spans: result.spans,
+        totalDurationMs: result.totalDurationMs,
+        workflow: result.workflow,
+        labels: buildSpanLabels( result.spans ),
+        loading: false,
+        error: null
+      };
+      // Cache only terminal runs — a running run's history is still growing.
+      if ( terminal ) {
+        stepGraphCache.set( key, next );
+      }
+      setGraph( next );
+    } catch ( err: unknown ) {
+      if ( requestKeyRef.current !== key ) {
+        return 'done';
+      }
+      const message = err instanceof Error ? err.message : String( err );
+      // Keep the last good chart if a poll blips; only surface a cold failure.
+      setGraph( current => ( current.spans.length > 0 ?
+        { ...current, loading: false } :
+        { ...EMPTY_GRAPH, error: message } ) );
+    }
 
-    void fetchWorkflowHistory( { workflowId, runId } )
-      .then( result => {
-        if ( fetchIdRef.current !== id ) {
-          return;
-        }
-        const next: StepGraph = {
-          spans: result.spans,
-          totalDurationMs: result.totalDurationMs,
-          workflow: result.workflow,
-          labels: buildSpanLabels( result.spans ),
-          loading: false,
-          error: null
-        };
-        // Only cache once the run has stopped advancing — a running run's
-        // history is partial and the status-change refetch keeps it fresh.
-        if ( isTerminalRunStatus( status ) ) {
-          stepGraphCache.set( key, next );
-        }
-        setGraph( next );
-      } )
-      .catch( ( err: unknown ) => {
-        if ( fetchIdRef.current !== id ) {
-          return;
-        }
-        setGraph( { ...EMPTY_GRAPH, error: err instanceof Error ? err.message : String( err ) } );
-      } );
-  }, [ workflowId, runId, status ] );
+    return terminal ? 'done' : 'continue';
+  } );
 
   return graph;
 };

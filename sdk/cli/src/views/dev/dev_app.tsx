@@ -194,11 +194,12 @@ const footerFor = ( opts: {
 const overlayFor = ( opts: {
   ui: UiState;
   detailRun: WorkflowRun | undefined;
+  stepGraphRun: WorkflowRun | undefined;
   runDetailOpen: boolean;
   rows: number;
 } ): React.ReactNode => {
-  if ( opts.ui.stepGraph.open && opts.ui.stepGraph.run ) {
-    return <StepGraphModal run={opts.ui.stepGraph.run} height={opts.rows} />;
+  if ( opts.ui.stepGraph.open && opts.stepGraphRun ) {
+    return <StepGraphModal run={opts.stepGraphRun} height={opts.rows} />;
   }
   if ( opts.ui.expandedJson.open ) {
     return <ExpandedJsonModal />;
@@ -260,6 +261,14 @@ const Shell: React.FC<{
     runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) :
     undefined;
   const runDetailOpen = ui.runsView === 'detail' && detailRun !== undefined;
+  // Re-resolve the step-graph run from the polled list each render so its
+  // status/duration stay live; fall back to the snapshot captured at open.
+  const stepGraphRun = useMemo( () => {
+    const captured = ui.stepGraph.open ? ui.stepGraph.run : null;
+    return captured ?
+      ( runs.find( r => r.runId === captured.runId && r.workflowId === captured.workflowId ) ?? captured ) :
+      undefined;
+  }, [ ui.stepGraph.open, ui.stepGraph.run, runs ] );
 
   useGlobalInput( { onCleanup, runDetailOpen } );
   const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
@@ -295,7 +304,7 @@ const Shell: React.FC<{
     serviceCount: services.length,
     phase
   } );
-  const overlay = overlayFor( { ui, detailRun, runDetailOpen, rows } );
+  const overlay = overlayFor( { ui, detailRun, stepGraphRun, runDetailOpen, rows } );
 
   if ( terminalTooSmall ) {
     return <TerminalTooSmall rows={rows} cols={cols} />;
