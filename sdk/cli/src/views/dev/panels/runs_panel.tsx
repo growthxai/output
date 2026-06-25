@@ -22,7 +22,7 @@ import {
   truncate,
   useListSelection
 } from '#views/dev/utils/panel_helpers.js';
-import { CATALOG_WORKFLOW_NAME, RUNS_VISIBLE_ROWS } from '#views/dev/utils/constants.js';
+import { CATALOG_WORKFLOW_NAME, RUNS_VISIBLE_ROWS } from '#views/dev/utils/ui_constants.js';
 
 const TEMPORAL_UI_BASE = 'http://localhost:8080';
 

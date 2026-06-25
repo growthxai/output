@@ -34,7 +34,7 @@ import { RunModal } from '#views/dev/modals/run_modal.js';
 import { ExpandedJsonModal } from '#views/dev/modals/expanded_json_modal.js';
 import { StepsModal } from '#views/dev/modals/steps_modal.js';
 import { StepGraphModal } from '#views/dev/modals/step_graph_modal.js';
-import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/constants.js';
+import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/ui_constants.js';
 
 export type Phase = 'waiting' | 'running' | 'failed';
 

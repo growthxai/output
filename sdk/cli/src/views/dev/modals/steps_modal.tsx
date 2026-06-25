@@ -12,7 +12,7 @@ import { JsonView } from '#views/dev/utils/json_render.js';
 import { cycleValue, formatContentTitle, truncate, useListSelection } from '#views/dev/utils/panel_helpers.js';
 import {
   RUN_DETAIL_VISIBLE_STEPS
-} from '#views/dev/utils/constants.js';
+} from '#views/dev/utils/ui_constants.js';
 import { ContentTitle, getHeight as getContentTitleHeight } from '#views/dev/components/content_title.js';
 import { MasterDetailPanel } from '#views/dev/components/master_detail_panel.js';
 import { ModalFrame, getHeight as getModalFrameHeight } from '#views/dev/modals/modal_frame.js';
