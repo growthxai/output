@@ -63,7 +63,7 @@
   },
   "imports": {
     "#*": {
-      "types": "./src/*",
+      "@outputai/source": "./src/*",
       "default": "./dist/*"
     }
   },

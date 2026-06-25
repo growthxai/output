@@ -18,7 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "#*": ["src/*"]
-    }
+    },
+    "customConditions": ["@outputai/source"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "orval.config.ts"]
