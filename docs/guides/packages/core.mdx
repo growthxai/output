@@ -373,6 +373,23 @@ The namespace can be customized by setting it in the metadata:
 Logger.warn('My awesome message', { namespace: 'Custom' });
 ```
 
+Use `Logger.createLogger()` when several logs should share the same namespace:
+
+```js
+const log = Logger.createLogger('LLM');
+
+log.info('Generating completion', { model: 'claude-sonnet-4' });
+log.warn('Provider request retrying', { attempt: 2 });
+```
+
+Metadata on an individual log call can still override the logger's default namespace:
+
+```js
+const log = Logger.createLogger('LLM');
+
+log.info('Using fallback provider', { namespace: 'LLM Fallback' });
+```
+
 ### Worker output
 
 The worker uses Winston for structured logging.

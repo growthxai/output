@@ -15,7 +15,16 @@ export const getWord = step( {
     Logger.verbose( 'Generating a word based on the current date', { date } );
     Logger.debug( 'Generating a word based on the current date', { date } );
     Logger.silly( 'Generating a word based on the current date', { date } );
-    Logger.info( 'drop a reserved word', { message: 'foo' } );
+    Logger.info( 'Inline namespace overwrite', { namespace: 'Inline namespace' } );
+    const l = Logger.createLogger( 'Namespace overwrite' );
+    l.error( 'Generating a word based on the current date', { date } );
+    l.warn( 'Generating a word based on the current date', { date } );
+    l.info( 'Generating a word based on the current date', { date } );
+    l.http( 'Generating a word based on the current date', { date } );
+    l.verbose( 'Generating a word based on the current date', { date } );
+    l.debug( 'Generating a word based on the current date', { date } );
+    l.silly( 'Generating a word based on the current date', { date } );
+    l.info( 'Inline namespace overwrite', { namespace: 'Inline namespace' } );
     const index = Math.floor( date % words.length );
 
     return words[index];

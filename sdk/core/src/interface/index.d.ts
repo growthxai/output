@@ -7,4 +7,4 @@ export * from './step.js';
 export * from './evaluator.js';
 export * from './workflow.js';
 export * from './evaluation_result.js';
-export * as Logger from './logger.js';
+export * from './logger.js';

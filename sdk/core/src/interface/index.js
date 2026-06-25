@@ -10,7 +10,7 @@ import { step } from './step.js';
 import { workflow } from './workflow.js';
 import { executeInParallel } from './workflow_utils.js';
 import { sendHttpRequest, sendPostRequestAndAwaitWebhook } from './webhook.js';
-import * as Logger from './logger.js';
+import { Logger } from './logger.js';
 
 export {
   evaluator,
