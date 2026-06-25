@@ -37,6 +37,14 @@ export default class DatasetGenerate extends Command {
   };
 
   static override flags = {
+    catalog: Flags.string( {
+      char: 'c',
+      aliases: [ 'task-queue' ],
+      charAliases: [ 'q' ],
+      deprecateAliases: true,
+      description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
+      env: 'OUTPUT_CATALOG_ID'
+    } ),
     trace: Flags.string( {
       char: 't',
       description: 'Path to a local trace file to extract dataset from',
@@ -84,7 +92,8 @@ export default class DatasetGenerate extends Command {
       args.workflowName,
       args.scenario,
       flags.input,
-      flags.name
+      flags.name,
+      flags.catalog
     );
   }
 
@@ -92,12 +101,14 @@ export default class DatasetGenerate extends Command {
     workflowName: string,
     scenario: string | undefined,
     inputFlag: string | undefined,
-    nameOverride: string | undefined
+    nameOverride: string | undefined,
+    catalog: string | undefined
   ): Promise<void> {
     const resolvedInput = await this.resolveScenarioInput(
       workflowName,
       scenario,
-      inputFlag
+      inputFlag,
+      catalog
     );
 
     const datasetName = nameOverride ?? scenario ?? 'dataset';
@@ -106,7 +117,8 @@ export default class DatasetGenerate extends Command {
 
     const response = await postWorkflowRun( {
       workflowName,
-      input: resolvedInput
+      input: resolvedInput,
+      catalog
     }, {
       config: { timeout: 600000 }
     } );
@@ -199,7 +211,8 @@ export default class DatasetGenerate extends Command {
   private async resolveScenarioInput(
     workflowName: string,
     scenario: string | undefined,
-    inputFlag: string | undefined
+    inputFlag: string | undefined,
+    catalog: string | undefined
   ): Promise<unknown> {
     if ( inputFlag && scenario ) {
       return ux.error(
@@ -213,7 +226,7 @@ export default class DatasetGenerate extends Command {
     }
 
     if ( scenario ) {
-      const resolution = await resolveScenarioPath( workflowName, scenario );
+      const resolution = await resolveScenarioPath( workflowName, scenario, undefined, undefined, catalog );
       if ( !resolution.found ) {
         return ux.error(
           getScenarioNotFoundMessage( workflowName, scenario, resolution.searchedPaths ),

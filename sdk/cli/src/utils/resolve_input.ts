@@ -6,7 +6,8 @@ export async function resolveInput(
   workflowName: string,
   scenario: string | undefined,
   inputFlag: string | undefined,
-  commandName: string
+  commandName: string,
+  catalog?: string
 ): Promise<unknown> {
   if ( inputFlag && scenario ) {
     return ux.error(
@@ -20,7 +21,7 @@ export async function resolveInput(
   }
 
   if ( scenario ) {
-    const resolution = await resolveScenarioPath( workflowName, scenario );
+    const resolution = await resolveScenarioPath( workflowName, scenario, undefined, undefined, catalog );
     if ( !resolution.found ) {
       return ux.error(
         getScenarioNotFoundMessage( workflowName, scenario, resolution.searchedPaths ),

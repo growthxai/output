@@ -62,7 +62,8 @@ export async function resolveScenarioPath(
   workflowName: string,
   scenarioName: string,
   basePath: string = getWorkflowsBasePath(),
-  workflowPath?: string
+  workflowPath?: string,
+  catalog?: string
 ): Promise<ScenarioResolutionResult> {
   const scenarioFileName = scenarioName.endsWith( '.json' ) ?
     scenarioName :
@@ -78,7 +79,7 @@ export async function resolveScenarioPath(
     }
   }
 
-  const catalogPath = workflowPath ? null : await fetchWorkflowPath( workflowName );
+  const catalogPath = workflowPath ? null : await fetchWorkflowPath( workflowName, catalog );
 
   if ( catalogPath ) {
     const result = resolveScenarioFromScenarioDirs(

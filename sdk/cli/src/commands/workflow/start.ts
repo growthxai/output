@@ -43,7 +43,7 @@ export default class WorkflowStart extends Command {
   async run(): Promise<void> {
     const { args, flags } = await this.parse( WorkflowStart );
 
-    const input = await resolveInput( args.workflowName, args.scenario, flags.input, 'start' );
+    const input = await resolveInput( args.workflowName, args.scenario, flags.input, 'start', flags.catalog );
 
     this.log( `Starting workflow: ${args.workflowName}...` );
 
