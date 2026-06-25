@@ -28,10 +28,10 @@ export const fetchModelsPricing = async () => {
   const res = await fetch( costTableUrl );
   if ( !res.ok ) {
     if ( cache.content ) {
-      Logger.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache` );
+      Logger.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache`, { namespace: 'LLM' } );
       return cache.content;
     }
-    Logger.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}` );
+    Logger.error( `Error ${res.status} when fetching models pricing at ${costTableUrl}`, { namespace: 'LLM' } );
     return null;
   }
   cache.content = buildModelMap( await res.json() );

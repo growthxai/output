@@ -351,7 +351,6 @@ Some metadata field names are reserved because Winston, Output log hooks, or log
 - `level`
 - `message`
 - `metadata`
-- `namespace`
 - `runId`
 - `service`
 - `splat`
@@ -361,6 +360,18 @@ Some metadata field names are reserved because Winston, Output log hooks, or log
 - `workflowType`
 
 If you need to include a value with one of those meanings, use a domain-specific name instead, such as `providerMessage`, `errorStack`, or `sourceTimestamp`.
+
+### Namespace
+
+Logs from within workflows have the "Workflow" namespace, while those from activity context have "Activity".
+
+Namespace is a discrete field in the JSON output in production, and a prefix for the string message in development.
+
+The namespace can be customized by setting it in the metadata:
+
+```js
+Logger.warn('My awesome message', { namespace: 'Custom' });
+```
 
 ### Worker output
 

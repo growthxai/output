@@ -13,7 +13,7 @@ import { Logger } from '@outputai/core';
 export const addRequestCost = ( response: KyResponse | Response, value: number ) : void => {
   const eventId = Reflect.get( response, requestIdSymbol ) as string;
   if ( !eventId ) {
-    Logger.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.' );
+    Logger.warn( 'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.', { namespace: 'HTTP' } );
     return;
   }
 

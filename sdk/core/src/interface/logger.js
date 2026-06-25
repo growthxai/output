@@ -9,7 +9,6 @@ const reservedMetadataFields = new Set( [
   'level',
   'message',
   'metadata',
-  'namespace',
   'splat',
   'stack',
   'timestamp',

@@ -14,13 +14,13 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
     const models = await fetchModelsPricing();
 
     if ( !models ) {
-      Logger.warn( 'Failed to fetch models pricing' );
+      Logger.warn( 'Failed to fetch models pricing', { namespace: 'LLM' } );
       return null;
     }
 
     const pricing = models.get( modelId );
     if ( !pricing ) {
-      Logger.warn( 'Missing cost reference for model' );
+      Logger.warn( 'Missing cost reference for model', { namespace: 'LLM' } );
       return null;
     }
 
@@ -51,7 +51,7 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
 
     return llmUsage;
   } catch ( error ) {
-    Logger.error( 'Error calculating LLM call costs', { error: error.message } );
+    Logger.error( 'Error calculating LLM call costs', { error: error.message, namespace: 'LLM' } );
     return null;
   }
 };
