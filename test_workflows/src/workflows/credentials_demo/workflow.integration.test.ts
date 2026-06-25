@@ -3,7 +3,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { encryptedYamlProvider, getNestedValue, credentials, resolveCredentialRefs } from '@outputai/credentials';
-import { deepMerge } from '@outputai/core/sdk_utils';
+import { Objects } from '@outputai/core/sdk/helpers';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const TEST_WORKFLOWS_ROOT = resolve( __dirname, '../../..' );
@@ -60,7 +60,7 @@ describe( 'credentials_demo - real encrypted credentials', () => {
       environment: undefined
     } );
 
-    const merged = deepMerge( global, workflow! ) as Record<string, unknown>;
+    const merged = Objects.deepMerge( global, workflow! ) as Record<string, unknown>;
 
     // Workflow-specific value overrides global
     expect( getNestedValue( merged, 'test.secret' ) ).toBe( 'workflow_specific_secret' );

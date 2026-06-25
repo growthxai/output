@@ -78,7 +78,7 @@ Match error symptoms to solutions and verify the fix.
 **Agent**: Let me help you debug this workflow. First, let's get the execution trace:
 
 ```bash
-npx output workflow debug abc123 --format json
+npx output workflow debug abc123 --json
 ```
 
 This will show us exactly where the workflow failed and what error occurred. While I analyze the trace, you can also check the Temporal UI at http://localhost:8080 for a visual timeline of the execution.

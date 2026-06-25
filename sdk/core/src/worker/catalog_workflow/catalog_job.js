@@ -3,7 +3,7 @@ import { WorkflowExecutionAlreadyStartedError, WorkflowIdConflictPolicy } from '
 import { WORKFLOW_CATALOG } from '#consts';
 import { catalogId, taskQueue } from '../configs.js';
 import { createChildLogger } from '#logger';
-import { CancellablePromise } from '#utils';
+import { CancellablePromise } from '#helpers/promise';
 
 const log = createChildLogger( 'Catalog' );
 

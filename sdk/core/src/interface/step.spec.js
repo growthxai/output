@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ValidationError } from '#errors';
-import { ComponentType } from '#consts';
 
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
 const validateInputMock = vi.hoisted( () => vi.fn() );
 const validateOutputMock = vi.hoisted( () => vi.fn() );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
+const createStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
 vi.mock( './validations/index.js', () => {
   class StepValidator {
@@ -23,12 +23,16 @@ vi.mock( './validations/index.js', () => {
   return { StepValidator };
 } );
 
+vi.mock( '#helpers/component', () => ( {
+  createStep: createStepMock
+} ) );
+
 describe( 'step()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
   } );
 
-  it( 'validates the definition, creates a runtime validator, and attaches metadata', async () => {
+  it( 'validates the definition, creates a runtime validator, and creates a step component', async () => {
     const { step } = await import( './step.js' );
     const inputSchema = { safeParse: vi.fn() };
     const outputSchema = { safeParse: vi.fn() };
@@ -58,15 +62,15 @@ describe( 'step()', () => {
       outputSchema
     } );
 
-    const [ metadataSymbol ] = Object.getOwnPropertySymbols( wrapper );
-    expect( wrapper[metadataSymbol] ).toEqual( {
+    expect( createStepMock ).toHaveBeenCalledWith( {
       name: 'test_step',
       description: 'Test step',
       inputSchema,
       outputSchema,
-      type: ComponentType.STEP,
-      options
+      options,
+      handler: expect.any( Function )
     } );
+    expect( wrapper ).toBe( createStepMock.mock.calls[0][0].handler );
   } );
 
   it( 'validates input and output around the step function', async () => {

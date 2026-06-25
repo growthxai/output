@@ -1,7 +1,5 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowRun, type WorkflowResultResponse } from '#api/generated/api.js';
-import { OUTPUT_FORMAT, OutputFormat } from '../../utils/constants.js';
-import { formatOutput } from '#utils/output_formatter.js';
 import { formatWorkflowResult, ERROR_STATUSES } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { resolveInput } from '#utils/resolve_input.js';
@@ -43,9 +41,11 @@ async function executeWorkflow( args: ExecuteWorkflowParams ): Promise<Awaited<R
 export default class WorkflowRun extends Command {
   static override description = 'Execute a workflow synchronously and wait for completion';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple basic_input',
-    '<%= config.bin %> <%= command.id %> simple my_scenario --format json',
+    '<%= config.bin %> <%= command.id %> simple my_scenario --json',
     '<%= config.bin %> <%= command.id %> simple --input \'{"values":[1,2,3]}\'',
     '<%= config.bin %> <%= command.id %> simple --input input.json',
     '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog'
@@ -75,16 +75,10 @@ export default class WorkflowRun extends Command {
       deprecateAliases: true,
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
-    } ),
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.JSON, OUTPUT_FORMAT.TEXT ],
-      default: OUTPUT_FORMAT.TEXT
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<WorkflowResultResponse> {
     const { args, flags } = await this.parse( WorkflowRun );
 
     const input = await resolveInput( args.workflowName, args.scenario, flags.input, 'run' );
@@ -106,17 +100,14 @@ export default class WorkflowRun extends Command {
     }
 
     const data = response.data as WorkflowResultResponse;
-    const output = formatOutput(
-      data,
-      flags.format as OutputFormat,
-      formatWorkflowResult
-    );
 
-    this.log( `\n${output}` );
+    this.log( `\n${formatWorkflowResult( data )}` );
 
     if ( ERROR_STATUSES.has( data.status ) ) {
       process.exitCode = 1;
     }
+
+    return data;
   }
 
   async catch( error: Error ): Promise<void> {

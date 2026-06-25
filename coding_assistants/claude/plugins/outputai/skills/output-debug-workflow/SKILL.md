@@ -76,7 +76,7 @@ npx output workflow runs list
 npx output workflow runs list <workflowName>
 
 # Get detailed JSON output for analysis
-npx output workflow runs list --format json
+npx output workflow runs list --json
 
 # Limit results to most recent
 npx output workflow runs list --limit 10
@@ -121,11 +121,11 @@ Retrieve and analyze the execution trace for the identified workflow. The `outpu
 npx output workflow debug <workflowId>
 
 # Display full untruncated trace (JSON format) - recommended for detailed analysis
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 </debug_commands>
 
-**Tip**: Use `--format json` for complete trace data without truncation.
+**Tip**: Use `--json` for complete trace data without truncation.
 
 <analysis_checklist>
 1. Identify which step failed

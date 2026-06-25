@@ -1,5 +1,13 @@
 # @outputai/evals
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [aa8ed5e]
+  - @outputai/core@0.8.1
+  - @outputai/llm@0.8.1
+
 ## 0.8.0
 
 ### Patch Changes

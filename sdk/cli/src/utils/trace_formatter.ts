@@ -1,6 +1,5 @@
 import Table from 'cli-table3';
 import { ux } from '@oclif/core';
-import { formatOutput } from '#utils/output_formatter.js';
 import { formatDuration } from '#utils/date_formatter.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import type {
@@ -451,7 +450,7 @@ const formatAsText = ( trace: TraceStructure ): string => {
 export function format( traceData: string | object, outputFormat: 'json' | 'text' = 'text' ): string {
   const trace = typeof traceData === 'string' ? JSON.parse( traceData ) : traceData;
   if ( outputFormat === 'json' ) {
-    return formatOutput( trace, 'json' );
+    return JSON.stringify( trace, null, 2 );
   }
   return formatAsText( trace );
 }

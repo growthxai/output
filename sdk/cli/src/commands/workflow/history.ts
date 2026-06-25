@@ -2,10 +2,10 @@ import { Args, Command, Flags } from '@oclif/core';
 import { fetchWorkflowHistory } from '#services/workflow_history.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import renderWaterfall, { formatDurationLabel } from '#utils/waterfall.js';
-import { OUTPUT_FORMAT } from '../../utils/constants.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 const DEFAULT_WIDTH = 80;
+const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
 
 export default class WorkflowHistory extends Command {
   static override description = 'Show a workflow run\'s step timeline as a waterfall (durations and start times)';

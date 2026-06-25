@@ -17,7 +17,8 @@ import { messageBus } from '#bus';
 import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
-import { runOnce } from '#utils';
+import { bindGlobalFunctions } from './global_functions.js';
+import { runOnce } from '#helpers/function';
 
 import './log_hooks.js';
 
@@ -33,7 +34,9 @@ const {
   maxConcurrentActivityTaskExecutions,
   maxCachedWorkflows,
   maxConcurrentActivityTaskPolls,
-  maxConcurrentWorkflowTaskPolls
+  maxConcurrentWorkflowTaskPolls,
+  shutdownForceTime,
+  shutdownGraceTime
 } = configs;
 
 const state = {
@@ -73,6 +76,9 @@ const execute = async () => {
   if ( proxy ) {
     log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
   }
+
+  bindGlobalFunctions();
+
   state.connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
   log.info( 'Creating connection monitor...' );
@@ -95,7 +101,9 @@ const execute = async () => {
     maxCachedWorkflows,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,
-    bundlerOptions: { webpackConfigHook }
+    bundlerOptions: { webpackConfigHook },
+    ...( shutdownForceTime !== undefined && { shutdownForceTime } ),
+    ...( shutdownGraceTime !== undefined && { shutdownGraceTime } )
   } );
 
   log.info( 'Setting up telemetry...' );

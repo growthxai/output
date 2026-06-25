@@ -47,7 +47,7 @@ The `workflowId` argument is required. The step name is the step function name a
 Step names come from the workflow's execution trace:
 
 ```bash
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 
 Look for step entries with `status: "completed"`. The step name is the one you pass to `--step`.
@@ -74,7 +74,7 @@ Use the new `runId` (via the pinned `workflow runs list`) to inspect the new exe
 ```bash
 # The workflow failed at `generateBlogPost`, but `consolidateCompetitors`
 # (the step before it) completed successfully.
-npx output workflow debug lead_enrichment-a1b2c3d4 --format json
+npx output workflow debug lead_enrichment-a1b2c3d4 --json
 # ... confirms consolidateCompetitors completed
 
 # Edit src/workflows/lead_enrichment/prompts/generate_blog_post@v1.prompt

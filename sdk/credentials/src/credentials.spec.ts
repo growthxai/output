@@ -43,6 +43,14 @@ const activityContext = ( workflowType: string, workflowFilename: string ) => ( 
   workflowFilename
 } );
 
+const mockCoreInternalContext = ( getActivityContext: () => ReturnType<typeof activityContext> | null ) => {
+  vi.doMock( '@outputai/core/sdk/runtime', () => ( {
+    Context: {
+      getActivityContext
+    }
+  } ) );
+};
+
 describe( 'credentials module', () => {
   const key = generateKey();
   const ciphertext = encrypt( YAML_CONTENT, key );
@@ -302,9 +310,7 @@ describe( 'credentials module', () => {
           path.includes( '/workflows/my_workflow/credentials.key' )
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' ) );
 
       const credentials = await loadCredentials();
 
@@ -322,9 +328,7 @@ describe( 'credentials module', () => {
           path.endsWith( 'credentials.yml.enc' ) && !path.includes( '/workflows/' )
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'simple', '/app/src/workflows/simple/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'simple', '/app/src/workflows/simple/workflow.ts' ) );
 
       const credentials = await loadCredentials();
       expect( credentials.get( 'anthropic.api_key' ) ).toBe( 'sk-ant-test' );
@@ -349,9 +353,7 @@ describe( 'credentials module', () => {
         }
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' ) );
 
       const credentials = await loadCredentials();
       expect( credentials.get( 'stripe.secret_key' ) ).toBe( 'sk-stripe-wf' );
@@ -371,9 +373,7 @@ describe( 'credentials module', () => {
         existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'my_workflow', '/app/src/workflows/my_workflow/workflow.ts' ) );
 
       const credentials = await loadCredentials();
       expect( credentials.get( 'stripe.secret_key' ) ).toBe( 'sk-stripe-wf' );
@@ -403,9 +403,7 @@ describe( 'credentials module', () => {
         workflowFilename: undefined
       };
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => ctx.workflowType && ctx.workflowFilename ? activityContext( ctx.workflowType, ctx.workflowFilename ) : null
-      } ) );
+      mockCoreInternalContext( () => ctx.workflowType && ctx.workflowFilename ? activityContext( ctx.workflowType, ctx.workflowFilename ) : null );
 
       const credentials = await loadCredentials();
 
@@ -426,9 +424,7 @@ describe( 'credentials module', () => {
         existsSync: ( path: string ) => path.endsWith( 'credentials.yml.enc' )
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => null
-      } ) );
+      mockCoreInternalContext( () => null );
 
       const credentials = await loadCredentials();
       expect( credentials.get( 'anthropic.api_key' ) ).toBe( 'sk-ant-test' );
@@ -444,9 +440,7 @@ describe( 'credentials module', () => {
           path.endsWith( 'credentials.yml.enc' ) && !path.includes( '/workflows/' )
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'test_wf', '/app/src/workflows/test_wf/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'test_wf', '/app/src/workflows/test_wf/workflow.ts' ) );
 
       const credentials = await loadCredentials();
       credentials.get( 'anthropic.api_key' );
@@ -565,9 +559,7 @@ describe( 'credentials module', () => {
         encryptedYamlProvider: customProvider
       } ) );
 
-      vi.doMock( '@outputai/core/sdk_activity_integration', () => ( {
-        getExecutionContext: () => activityContext( 'test', '/app/workflows/test/workflow.ts' )
-      } ) );
+      mockCoreInternalContext( () => activityContext( 'test', '/app/workflows/test/workflow.ts' ) );
 
       const credentials = await loadCredentials();
       expect( credentials.get( 'shared' ) ).toBe( 'global' );

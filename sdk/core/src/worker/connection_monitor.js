@@ -1,13 +1,6 @@
 import { createChildLogger } from '#logger';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CancellablePromise } from '#utils';
-
-const ServingStatus = {
-  UNKNOWN: 0,
-  SERVING: 1,
-  NOT_SERVING: 2,
-  SERVICE_UNKNOWN: 3
-};
+import { CancellablePromise } from '#helpers/promise';
 
 const log = createChildLogger( 'Connection' );
 
@@ -28,22 +21,18 @@ export class TemporalConnectionMonitor {
     throw new Error( 'Connection health check timed out' );
   } );
 
-  #healthcheck = async () => this.#connection.healthService.check( {} );
+  #healthcheck = async () => this.#connection.workflowService.getSystemInfo( {} );
 
   #sleep = async () => delay( this.#CHECK_INTERVAL_MS, 0, { ref: false } );
 
   #watch = async () => {
     while ( !this.#cancellation.completed ) {
       try {
-        const health = await Promise.race( [ this.#healthcheck(), this.#getTimeout(), this.#cancellation.promise ] );
+        await Promise.race( [ this.#healthcheck(), this.#getTimeout(), this.#cancellation.promise ] );
 
         // cancellation won the race
         if ( this.#cancellation.completed ) {
           break;
-        }
-
-        if ( health?.status !== ServingStatus.SERVING ) {
-          throw new Error( `Connection not serving (status ${health?.status})` );
         }
 
         log.info( this.#failures === 0 ? 'Healthy' : 'Recovered' );

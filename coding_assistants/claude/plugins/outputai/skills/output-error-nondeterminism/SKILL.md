@@ -241,7 +241,7 @@ If unsure whether code is causing issues:
 npx output workflow start my-workflow '{"input": "test"}'
 
 # Get the workflow ID and run debug to see replay behavior
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 
 Look for errors or warnings about non-determinism in the trace.

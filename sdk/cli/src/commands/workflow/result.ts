@@ -1,16 +1,16 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args, Command } from '@oclif/core';
 import { getWorkflowIdResult, type WorkflowResultResponse } from '#api/generated/api.js';
-import { OUTPUT_FORMAT, OutputFormat } from '../../utils/constants.js';
-import { formatOutput } from '#utils/output_formatter.js';
 import { formatWorkflowResult, ERROR_STATUSES } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowResult extends Command {
   static override description = 'Get workflow execution result';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> wf-12345',
-    '<%= config.bin %> <%= command.id %> wf-12345 --format json'
+    '<%= config.bin %> <%= command.id %> wf-12345 --json'
   ];
 
   static override args = {
@@ -20,17 +20,8 @@ export default class WorkflowResult extends Command {
     } )
   };
 
-  static override flags = {
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.JSON, OUTPUT_FORMAT.TEXT ],
-      default: OUTPUT_FORMAT.TEXT
-    } )
-  };
-
-  async run(): Promise<void> {
-    const { args, flags } = await this.parse( WorkflowResult );
+  async run(): Promise<WorkflowResultResponse> {
+    const { args } = await this.parse( WorkflowResult );
 
     this.log( `Fetching result for workflow: ${args.workflowId}...` );
 
@@ -41,17 +32,14 @@ export default class WorkflowResult extends Command {
     }
 
     const data = response.data as WorkflowResultResponse;
-    const output = formatOutput(
-      data,
-      flags.format as OutputFormat,
-      formatWorkflowResult
-    );
 
-    this.log( `\n${output}` );
+    this.log( `\n${formatWorkflowResult( data )}` );
 
     if ( ERROR_STATUSES.has( data.status ) ) {
       process.exitCode = 1;
     }
+
+    return data;
   }
 
   async catch( error: Error ): Promise<void> {

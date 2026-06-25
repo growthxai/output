@@ -12,7 +12,9 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
   'OUTPUT_WORKER_TELEMETRY_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
-  'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED'
+  'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED',
+  'TEMPORAL_SHUTDOWN_FORCE_TIME',
+  'TEMPORAL_SHUTDOWN_GRACE_TIME'
 ];
 
 const setEnv = ( overrides = {} ) => {
@@ -65,6 +67,8 @@ describe( 'worker/configs', () => {
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
+    expect( configs.shutdownForceTime ).toBeUndefined();
+    expect( configs.shutdownGraceTime ).toBeUndefined();
     expect( configs.taskQueue ).toBe( 'test-catalog' );
     expect( configs.catalogId ).toBe( 'test-catalog' );
   } );
@@ -98,6 +102,35 @@ describe( 'worker/configs', () => {
     expect( configs.maxCachedWorkflows ).toBe( 500 );
     expect( configs.workerTelemetryIntervalMs ).toBe( 30000 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 60000 );
+  } );
+
+  it( 'parses Temporal shutdown durations', async () => {
+    setEnv( {
+      TEMPORAL_SHUTDOWN_FORCE_TIME: '15000',
+      TEMPORAL_SHUTDOWN_GRACE_TIME: '15s'
+    } );
+    const configs = await loadConfigs();
+
+    expect( configs.shutdownForceTime ).toBe( '15000' );
+    expect( configs.shutdownGraceTime ).toBe( '15s' );
+  } );
+
+  it( 'treats empty Temporal shutdown durations as unset', async () => {
+    setEnv( {
+      TEMPORAL_SHUTDOWN_FORCE_TIME: '',
+      TEMPORAL_SHUTDOWN_GRACE_TIME: ''
+    } );
+    const configs = await loadConfigs();
+
+    expect( configs.shutdownForceTime ).toBeUndefined();
+    expect( configs.shutdownGraceTime ).toBeUndefined();
+  } );
+
+  it( 'throws when Temporal shutdown durations are invalid', async () => {
+    setEnv( { TEMPORAL_SHUTDOWN_FORCE_TIME: 'soon' } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'allows zero for worker telemetry interval', async () => {

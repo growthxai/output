@@ -1,6 +1,6 @@
 {
   "name": "@outputai/llm",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Framework abstraction to interact with LLM models",
   "type": "module",
   "main": "src/index.js",
@@ -16,22 +16,22 @@
     "undici": "catalog:"
   },
   "devDependencies": {
-    "ai": "6.0.168",
     "@ai-sdk/amazon-bedrock": "4.0.111",
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/azure": "3.0.68",
     "@ai-sdk/google-vertex": "4.0.140",
     "@ai-sdk/openai": "3.0.67",
-    "@ai-sdk/perplexity": "3.0.33"
+    "@ai-sdk/perplexity": "3.0.33",
+    "ai": "6.0.168"
   },
   "peerDependencies": {
-    "ai": ">=6 <7",
     "@ai-sdk/amazon-bedrock": ">=4 <5",
     "@ai-sdk/anthropic": ">=3 <4",
     "@ai-sdk/azure": ">=3 <4",
     "@ai-sdk/google-vertex": ">=4 <5",
     "@ai-sdk/openai": ">=3 <4",
-    "@ai-sdk/perplexity": ">=3 <4"
+    "@ai-sdk/perplexity": ">=3 <4",
+    "ai": ">=6 <7"
   },
   "license": "Apache-2.0",
   "publishConfig": {

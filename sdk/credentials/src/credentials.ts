@@ -1,7 +1,7 @@
 import { dirname } from 'node:path';
 import { MissingCredentialError } from './errors.js';
-import { getExecutionContext } from '@outputai/core/sdk_activity_integration';
-import { deepMerge } from '@outputai/core/sdk_utils';
+import { Context } from '@outputai/core/sdk/runtime';
+import { Objects } from '@outputai/core/sdk/helpers';
 import { getProvider } from './provider_registry.js';
 
 const getNestedValue = ( obj: Record<string, unknown>, dotPath: string ): unknown =>
@@ -37,13 +37,13 @@ const loadForWorkflow = ( workflowName: string, workflowDir: string | undefined 
     workflowDir,
     environment: detectEnvironment()
   } );
-  const merged = workflowData ? deepMerge( globalData, workflowData ) as Record<string, unknown> : globalData;
+  const merged = workflowData ? Objects.deepMerge( globalData, workflowData ) as Record<string, unknown> : globalData;
   cache.set( workflowName, merged );
   return merged;
 };
 
 const getWorkflowContext = () => {
-  const ctx = getExecutionContext();
+  const ctx = Context.getActivityContext();
   if ( !ctx ) {
     return { workflowName: undefined, workflowDir: undefined };
   }

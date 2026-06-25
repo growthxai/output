@@ -5,7 +5,6 @@ import type { DatasetInfo } from '#services/datasets.js';
 
 const OutputFormat = {
   TABLE: 'table',
-  JSON: 'json',
   TEXT: 'text'
 } as const;
 
@@ -47,14 +46,7 @@ function formatDatasetsAsText( datasets: DatasetInfo[] ): string {
   } ).join( '\n' );
 }
 
-function formatDatasetsAsJson( datasets: DatasetInfo[] ): string {
-  return JSON.stringify( datasets, null, 2 );
-}
-
 function formatDatasets( datasets: DatasetInfo[], format: OutputFormatValue ): string {
-  if ( format === OutputFormat.JSON ) {
-    return formatDatasetsAsJson( datasets );
-  }
   if ( format === OutputFormat.TABLE ) {
     return createDatasetsTable( datasets );
   }
@@ -64,9 +56,11 @@ function formatDatasets( datasets: DatasetInfo[], format: OutputFormatValue ): s
 export default class DatasetList extends Command {
   static override description = 'List datasets for a workflow';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple',
-    '<%= config.bin %> <%= command.id %> simple --format json',
+    '<%= config.bin %> <%= command.id %> simple --json',
     '<%= config.bin %> <%= command.id %> simple --format table'
   ];
 
@@ -80,28 +74,32 @@ export default class DatasetList extends Command {
   static override flags = {
     format: Flags.string( {
       char: 'f',
-      description: 'Output format',
-      options: [ OutputFormat.TABLE, OutputFormat.JSON, OutputFormat.TEXT ],
+      description: 'Output format (use --json for JSON output)',
+      options: [ OutputFormat.TABLE, OutputFormat.TEXT ],
       default: OutputFormat.TABLE
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<DatasetInfo[]> {
     const { args, flags } = await this.parse( DatasetList );
 
     const datasets = await listDatasets( args.workflowName );
 
+    if ( this.jsonEnabled() ) {
+      return datasets;
+    }
+
     if ( datasets.length === 0 ) {
       this.log( `No datasets found for workflow "${args.workflowName}".` );
       this.log( 'Generate datasets with: output workflow dataset generate' );
-      return;
+      return datasets;
     }
 
     const output = formatDatasets( datasets, flags.format as OutputFormatValue );
     this.log( output );
 
-    if ( flags.format !== OutputFormat.JSON ) {
-      this.log( `\nFound ${datasets.length} dataset(s) for "${args.workflowName}"` );
-    }
+    this.log( `\nFound ${datasets.length} dataset(s) for "${args.workflowName}"` );
+
+    return datasets;
   }
 }

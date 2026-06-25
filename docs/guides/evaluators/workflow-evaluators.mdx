@@ -50,6 +50,22 @@ src/workflows/
 
 The eval workflow file (`tests/evals/workflow.ts`) is discovered automatically by the worker alongside your regular workflow.
 
+### Nested workflow folders
+
+Workflow folders nest to any depth. A workflow at `src/workflows/content/writing/style_anchor/` registered as `content_writing_style_anchor` keeps its evals and datasets in its own `tests/` directory, and the CLI resolves them by the registered name — no symlink and no flat folder required.
+
+<Warning>
+The eval workflow only registers if `tests/evals/workflow.ts` compiles to `dist` — the worker loads workflows from the compiled output, not from source. A `tsconfig` that excludes the whole `src/**/tests` tree silently drops it, and `output workflow test` then can't find `<workflow>_eval`. Exclude test files individually instead:
+
+```json tsconfig.json
+{
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+}
+```
+
+When the eval source exists but isn't registered, `output workflow test` says so and points at this fix instead of failing with a generic "workflow not found".
+</Warning>
+
 ## Writing Evaluators with verify()
 
 `verify()` creates a typed evaluator that receives the workflow's input, output, and optional ground truth from the dataset. It wraps `evaluator()` from `@outputai/core`, so it integrates with both the eval workflow and the Temporal worker.

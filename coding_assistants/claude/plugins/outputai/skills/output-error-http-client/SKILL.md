@@ -288,7 +288,7 @@ grep -rn "got\|node-fetch\|request\|superagent" src/
 After migrating to httpClient:
 
 1. **Run the workflow**: `npx output workflow run <name> '<input>'`
-2. **Check the trace**: `npx output workflow debug <id> --format json`
+2. **Check the trace**: `npx output workflow debug <id> --json`
 3. **Verify tracing**: HTTP requests should appear in the step trace
 4. **Test retries**: Simulate failures to verify retry behavior
 

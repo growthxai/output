@@ -1,10 +1,15 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
+import { resolve } from 'node:path';
 import { getWorkflowsBasePath } from '#utils/paths.js';
+import {
+  WORKFLOWS_PATHS,
+  candidateWorkflowDirsFromPath,
+  fetchWorkflowPath
+} from '#utils/workflow_dir.js';
+
+export { extractWorkflowRelativePath, findWorkflowDirectoryFromPath } from '#utils/workflow_dir.js';
 
 const SCENARIOS_DIR = 'scenarios';
-const WORKFLOWS_PATHS = [ 'src/workflows', 'workflows' ];
 
 export interface ScenarioResolutionResult {
   found: boolean;
@@ -12,52 +17,9 @@ export interface ScenarioResolutionResult {
   searchedPaths: string[];
 }
 
-export function extractWorkflowRelativePath( path: string ): string | null {
-  const match = path.match( /(?:^|\/)workflows\/(.+)\/workflow\.[jt]s$/ );
-  return match ? match[1] : null;
-}
-
-function unique( values: string[] ): string[] {
-  return [ ...new Set( values ) ];
-}
-
-function workflowPathSuffixes( workflowPath: string ): string[][] {
-  const parts = dirname( workflowPath ).split( /[/\\]+/ ).filter( Boolean );
-  return parts.map( ( _, index ) => parts.slice( index ) );
-}
-
-function candidateWorkflowDirsFromPath( workflowPath: string, basePath: string ): string[] {
-  return unique(
-    workflowPathSuffixes( workflowPath ).flatMap( suffix =>
-      WORKFLOWS_PATHS.map( workflowsDir => resolve( basePath, workflowsDir, ...suffix ) )
-    )
-  );
-}
-
 function candidateScenarioDirsFromPath( workflowPath: string, basePath: string ): string[] {
   return candidateWorkflowDirsFromPath( workflowPath, basePath )
     .map( workflowDir => resolve( workflowDir, SCENARIOS_DIR ) );
-}
-
-export function findWorkflowDirectoryFromPath(
-  workflowPath: string | undefined,
-  basePath: string = getWorkflowsBasePath()
-): string | null {
-  if ( !workflowPath ) {
-    return null;
-  }
-
-  return candidateWorkflowDirsFromPath( workflowPath, basePath ).find( existsSync ) ?? null;
-}
-
-async function fetchWorkflowPath( workflowName: string ): Promise<string | null> {
-  try {
-    const workflows = await fetchWorkflowCatalog();
-    const workflow = workflows.find( w => w.name === workflowName );
-    return workflow?.path ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function resolveScenarioFromDirectory(

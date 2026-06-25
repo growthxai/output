@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   catalogJobInstance,
+  bindGlobalFunctionsMock,
   configValues,
   connectionMonitorInstance,
   createCatalogMock,
@@ -44,7 +45,9 @@ const {
     maxCachedWorkflows: 1000,
     maxConcurrentActivityTaskPolls: 5,
     maxConcurrentWorkflowTaskPolls: 5,
-    processFailureShutdownDelay: 0
+    processFailureShutdownDelay: 0,
+    shutdownForceTime: undefined,
+    shutdownGraceTime: undefined
   };
 
   const connectionMonitorInstance = {
@@ -96,6 +99,7 @@ const {
 
   return {
     catalogJobInstance,
+    bindGlobalFunctionsMock: vi.fn(),
     configValues,
     connectionMonitorInstance,
     createCatalogMock: vi.fn().mockReturnValue( { workflows: [], activities: {} } ),
@@ -143,6 +147,7 @@ vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptors
 vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: vi.fn() } ) );
 vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
 vi.mock( './interruption.js', () => ( { setupInterruptionHandler: setupInterruptionHandlerMock } ) );
+vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );
 vi.mock( './connection_monitor.js', () => ( {
   TemporalConnectionMonitor: vi.fn( function () {
     return connectionMonitorInstance;
@@ -180,6 +185,8 @@ describe( 'worker/index', () => {
     resetPromises();
     configValues.apiKey = undefined;
     configValues.grpcProxy = undefined;
+    configValues.shutdownForceTime = undefined;
+    configValues.shutdownGraceTime = undefined;
     catalogJobInstance.error = null;
     catalogJobInstance.errorCb = null;
     catalogJobInstance.running = false;
@@ -218,6 +225,10 @@ describe( 'worker/index', () => {
       apiKey: undefined,
       proxy: undefined
     } );
+    expect( bindGlobalFunctionsMock ).toHaveBeenCalledTimes( 1 );
+    expect( bindGlobalFunctionsMock.mock.invocationCallOrder[0] ).toBeLessThan(
+      NativeConnection.connect.mock.invocationCallOrder[0]
+    );
     expect( TemporalConnectionMonitor ).toHaveBeenCalledWith( mockConnection );
     expect( CatalogJob ).toHaveBeenCalledWith( {
       connection: mockConnection,
@@ -237,6 +248,8 @@ describe( 'worker/index', () => {
       maxConcurrentActivityTaskPolls: configValues.maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls: configValues.maxConcurrentWorkflowTaskPolls
     } ) );
+    expect( Worker.create.mock.calls[0][0] ).not.toHaveProperty( 'shutdownForceTime' );
+    expect( Worker.create.mock.calls[0][0] ).not.toHaveProperty( 'shutdownGraceTime' );
     expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [] } );
     expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
     expect( setupInterruptionHandlerMock ).toHaveBeenCalledWith( expect.any( Function ) );
@@ -259,6 +272,21 @@ describe( 'worker/index', () => {
     await vi.waitFor( () => expect( NativeConnection.connect ).toHaveBeenCalledWith( expect.objectContaining( {
       apiKey: 'secret',
       tls: true
+    } ) ) );
+
+    await settleWorker();
+  } );
+
+  it( 'passes configured shutdown durations to the worker', async () => {
+    configValues.shutdownForceTime = '30s';
+    configValues.shutdownGraceTime = '10s';
+    const { Worker } = await import( '@temporalio/worker' );
+
+    await importWorker();
+
+    await vi.waitFor( () => expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
+      shutdownForceTime: '30s',
+      shutdownGraceTime: '10s'
     } ) ) );
 
     await settleWorker();

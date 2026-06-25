@@ -1,5 +1,4 @@
-import { Args, Command, Flags } from '@oclif/core';
-import { OUTPUT_FORMAT } from '../../utils/constants.js';
+import { Args, Command } from '@oclif/core';
 import { displayDebugTree } from '#utils/trace_formatter.js';
 import { getTrace } from '#services/trace_reader.js';
 import { handleApiError } from '#utils/error_handler.js';
@@ -7,10 +6,11 @@ import { handleApiError } from '#utils/error_handler.js';
 export default class WorkflowDebug extends Command {
   static override description = 'Get and display workflow execution trace for debugging';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> wf-12345',
-    '<%= config.bin %> <%= command.id %> wf-12345 --format json',
-    '<%= config.bin %> <%= command.id %> wf-12345 --format text'
+    '<%= config.bin %> <%= command.id %> wf-12345 --json'
   ];
 
   static override args = {
@@ -20,42 +20,21 @@ export default class WorkflowDebug extends Command {
     } )
   };
 
-  static override flags = {
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.JSON, OUTPUT_FORMAT.TEXT ],
-      default: OUTPUT_FORMAT.TEXT
-    } )
-  };
+  async run(): Promise<unknown> {
+    const { args } = await this.parse( WorkflowDebug );
 
-  async run(): Promise<void> {
-    const { args, flags } = await this.parse( WorkflowDebug );
-    const isJsonFormat = flags.format === OUTPUT_FORMAT.JSON;
-
-    this.conditionalLog( `Fetching debug information for workflow: ${args.workflowId}...`, isJsonFormat );
+    this.log( `Fetching debug information for workflow: ${args.workflowId}...` );
 
     const { data: traceData, location } = await getTrace( args.workflowId );
     const source = location.isRemote ? 'remote' : 'local';
 
-    this.conditionalLog( `Trace source: ${source}${!location.isRemote ? ` (${location.path})` : ''}`, isJsonFormat );
+    this.log( `Trace source: ${source}${!location.isRemote ? ` (${location.path})` : ''}` );
 
-    if ( isJsonFormat ) {
-      this.outputJson( traceData );
-      return;
+    if ( !this.jsonEnabled() ) {
+      this.displayTextTrace( traceData );
     }
 
-    this.displayTextTrace( traceData );
-  }
-
-  private conditionalLog( message: string, disabled: boolean ): void {
-    if ( !disabled ) {
-      this.log( message );
-    }
-  }
-
-  private outputJson( data: unknown ): void {
-    this.log( JSON.stringify( data, null, 2 ) );
+    return traceData;
   }
 
   private displayTextTrace( traceData: unknown ): void {
@@ -63,7 +42,7 @@ export default class WorkflowDebug extends Command {
     this.log( '─'.repeat( 80 ) );
     this.log( displayDebugTree( traceData ) );
     this.log( '\n' + '─'.repeat( 80 ) );
-    this.log( 'Tip: Use --format json for the full untruncated trace' );
+    this.log( 'Tip: Use --json for the full untruncated trace' );
   }
 
   async catch( error: Error ): Promise<void> {

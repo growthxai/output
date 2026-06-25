@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { formatWorkflowResult } from './format_workflow_result.js';
-import { formatOutput } from './output_formatter.js';
 
 describe( 'formatWorkflowResult', () => {
   it( 'should display output for completed workflows', () => {
@@ -89,19 +88,5 @@ describe( 'formatWorkflowResult', () => {
 
     expect( result ).toContain( 'Status: failed' );
     expect( result ).not.toContain( 'Error:' );
-  } );
-
-  it( 'should work with formatOutput for json format', () => {
-    const data = {
-      workflowId: 'wf-456',
-      status: 'failed' as const,
-      output: null,
-      error: 'Activity task failed'
-    };
-
-    const output = formatOutput( data, 'json', formatWorkflowResult );
-    const parsed = JSON.parse( output );
-    expect( parsed.status ).toBe( 'failed' );
-    expect( parsed.error ).toBe( 'Activity task failed' );
   } );
 } );

@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "version": "0.8.1",
+      "date": "2026-06-22",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "major-wombats-wait",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "- Updating connection monitor strategy to ping workflowService instead of healthService.\n- Adding new env vars to configure Temporal worker shutdownForceTime and shutdownGraceTime:\n  - TEMPORAL_SHUTDOWN_FORCE_TIME\n  - TEMPORAL_SHUTDOWN_GRACE_TIME"
+        },
+        {
+          "id": "out-496-recursive-dataset-discovery",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Resolve datasets and evals for nested workflow folders by the workflow's registered name (via the worker catalog), keeping the flat-path lookup as an offline fast path. `output workflow test`, `dataset generate`, and `dataset list` now work for workflows in nested directories (e.g. `src/workflows/a/b/c` registered as `a_b_c`) without a symlink. `output workflow test` also fails fast with an actionable message when a `<wf>_eval` workflow's source exists but didn't compile to `dist`."
+        },
+        {
+          "id": "thin-trains-juggle",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Updating connection monitor strategy to ping workflowService instead of healthService."
+        }
+      ]
+    },
+    {
       "version": "0.8.0",
       "date": "2026-06-22",
       "level": "minor",

@@ -24,6 +24,9 @@ import {
   sendHttpRequest,
   sendPostRequestAndAwaitWebhook,
 
+  // Logging from workflows and steps
+  Logger,
+
   // Error types
   FatalError,
   ValidationError,
@@ -44,6 +47,7 @@ import {
 | `EvaluationFeedback` | Structured feedback (issue + suggestion + priority) |
 | `sendHttpRequest` | Send HTTP requests from within workflows |
 | `sendPostRequestAndAwaitWebhook` | Send a POST and pause until a webhook responds |
+| `Logger` | Structured logger that works from both workflows and steps |
 | `FatalError` | Non-retryable error — stops immediately |
 | `ValidationError` | Schema validation failure — stops immediately |
 | `z` | Zod schema library for input/output validation |
@@ -259,8 +263,106 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | Temporal SDK default | Time to let in-flight work drain after worker shutdown starts. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | Temporal SDK default | Extra time before forceful worker shutdown. Accepts milliseconds or duration strings like `15s`. |
 
 ## Logging
+
+`@outputai/core` exports a `Logger` object that you can call from both workflows and steps. Use the same shape as the internal worker logger: a string message plus an optional metadata object.
+
+Under the hood, Output routes all logs into the worker's Winston logger. Workflow logs cross the Temporal sandbox through workflow sinks, while step logs use an activity-scoped bridge. Both paths end up in the same worker log hooks, so the output format, namespaces, and log level filtering stay consistent with the rest of the runtime.
+
+```typescript workflow.ts
+import { workflow, Logger, z } from '@outputai/core';
+
+export default workflow({
+  name: 'lead_enrichment',
+  outputSchema: z.object({
+    summary: z.string()
+  }),
+  fn: async () => {
+    Logger.info('Starting enrichment', { source: 'crm' });
+
+    // ...
+
+    Logger.debug('Generated summary', { tokenCount: 842 });
+    return { summary: 'Acme Corp is a B2B SaaS company...' };
+  }
+});
+```
+
+```typescript steps.ts
+import { step, Logger, z } from '@outputai/core';
+
+export const lookupCompany = step({
+  name: 'lookup_company',
+  inputSchema: z.object({
+    domain: z.string()
+  }),
+  outputSchema: z.object({
+    name: z.string()
+  }),
+  fn: async ({ domain }) => {
+    Logger.info('Looking up company', { domain });
+
+    const response = await fetch(`https://api.example.com/companies/${domain}`);
+    Logger.http('Company lookup response', { status: response.status });
+
+    return response.json();
+  }
+});
+```
+
+### Log levels
+
+Output exposes Winston's default npm log levels:
+
+`error`, `warn`, `info`, `http`, `verbose`, `debug`, and `silly`.
+
+See Winston's [logging levels](https://github.com/winstonjs/winston#logging-levels) documentation for the priority order. Lower-priority logs are filtered according to the configured worker log level.
+
+Use `OUTPUT_LOG_LEVEL` to control what the worker emits:
+
+```bash
+OUTPUT_LOG_LEVEL=debug
+```
+
+When unset, development defaults to `debug` and production defaults to `info`.
+
+### Metadata
+
+The second logger argument is metadata. It should be a plain object with fields you want attached to the log record:
+
+```typescript
+Logger.warn('Retrying provider request', {
+  provider: 'anthropic',
+  attempt: 2,
+  requestId: 'lead-enrichment-123'
+});
+```
+
+Output automatically adds execution fields such as `workflowId`, `workflowType`, `runId`, `activityId`, and `activityType` when it writes the log.
+
+Some metadata field names are reserved because Winston, Output log hooks, or log formatting use them internally. Output drops these fields from logger metadata before building the final log message:
+- `activityId`
+- `activityType`
+- `environment`
+- `label`
+- `level`
+- `message`
+- `metadata`
+- `namespace`
+- `runId`
+- `service`
+- `splat`
+- `stack`
+- `timestamp`
+- `workflowId`
+- `workflowType`
+
+If you need to include a value with one of those meanings, use a domain-specific name instead, such as `providerMessage`, `errorStack`, or `sourceTimestamp`.
+
+### Worker output
 
 The worker uses Winston for structured logging.
 
@@ -275,14 +377,7 @@ The worker uses Winston for structured logging.
 {"level":"info","message":"Loading workflows...","namespace":"Worker","service":"output-worker","environment":"production","timestamp":"..."}
 ```
 
-### Emitted log levels:
-| Level | Production | Development |
-|-------|------------|-------------|
-| error | Yes | Yes |
-| warn  | Yes | Yes |
-| info  | Yes | Yes |
-| http  | — | Yes |
-| debug | — | Yes |
+The same logger calls are formatted as human-readable logs in development and JSON logs in production.
 
 ## API Reference
 

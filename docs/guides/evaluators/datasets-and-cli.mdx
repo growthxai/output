@@ -135,6 +135,10 @@ output workflow test blog_generator --dataset happy_path,edge_case
 
 Use `--cached` during development when iterating on evaluators — it's fast because it skips the workflow entirely. Use `--save` when you want to capture fresh output and eval results.
 
+<Note>
+Nested workflow folders work without any extra setup. `output workflow test content_writing_style_anchor` resolves datasets by the workflow's registered name — `src/workflows/content/writing/style_anchor/tests/datasets/` — and `output workflow dataset generate` writes new datasets to that same folder. Keep the worker running so the CLI can map the registered name to its folder; flat layouts resolve offline exactly as before.
+</Note>
+
 ## Putting It All Together
 
 Here's the complete setup for a blog generator workflow:

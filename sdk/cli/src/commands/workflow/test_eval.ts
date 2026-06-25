@@ -3,6 +3,8 @@ import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
 import type { WorkflowResultResponse } from '#api/generated/api.js';
 import { readAllDatasets, writeDataset } from '#services/datasets.js';
+import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
+import { diagnoseMissingEvalWorkflow } from '#utils/eval_diagnostics.js';
 import { handleApiError } from '#utils/error_handler.js';
 import {
   getEvalWorkflowName,
@@ -17,12 +19,14 @@ export default class WorkflowTest extends Command {
 
   static override description = 'Run evaluations against a workflow using its datasets';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple',
     '<%= config.bin %> <%= command.id %> simple --cached',
     '<%= config.bin %> <%= command.id %> simple --save',
     '<%= config.bin %> <%= command.id %> simple --dataset basic_input,edge_case',
-    '<%= config.bin %> <%= command.id %> simple --format json'
+    '<%= config.bin %> <%= command.id %> simple --json'
   ];
 
   static override args = {
@@ -46,18 +50,15 @@ export default class WorkflowTest extends Command {
     dataset: Flags.string( {
       description: 'Comma-separated list of dataset names to run',
       char: 'd'
-    } ),
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ 'json', 'text' ],
-      default: 'text'
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<EvalOutput> {
     const { args, flags } = await this.parse( WorkflowTest );
     const filterNames = flags.dataset?.split( ',' ).map( s => s.trim() );
+
+    const evalName = getEvalWorkflowName( args.workflowName );
+    await this.ensureEvalWorkflowRegistered( args.workflowName, evalName );
 
     const { datasets, dir } = await readAllDatasets( args.workflowName, filterNames );
 
@@ -73,7 +74,6 @@ export default class WorkflowTest extends Command {
       this.validateDatasets( datasets ) :
       await this.runWorkflowForDatasets( args.workflowName, datasets, flags.save, dir );
 
-    const evalName = getEvalWorkflowName( args.workflowName );
     this.log( `Running eval workflow "${evalName}"...\n` );
 
     const response = await postWorkflowRun( {
@@ -94,15 +94,22 @@ export default class WorkflowTest extends Command {
       await this.saveEvalResults( evalOutput, preparedDatasets, dir );
     }
 
-    if ( flags.format === 'json' ) {
-      this.log( JSON.stringify( evalOutput, null, 2 ) );
-    } else {
+    if ( !this.jsonEnabled() ) {
       this.log( renderEvalOutput( evalOutput, evalName ) );
     }
 
-    const exitCode = computeExitCode( evalOutput );
-    if ( exitCode !== 0 ) {
-      this.exit( exitCode );
+    process.exitCode = computeExitCode( evalOutput );
+
+    return evalOutput;
+  }
+
+  private async ensureEvalWorkflowRegistered(
+    workflowName: string,
+    evalName: string
+  ): Promise<void> {
+    const catalog = await fetchWorkflowCatalog().catch( () => null );
+    if ( catalog && !catalog.some( w => w.name === evalName ) ) {
+      this.error( await diagnoseMissingEvalWorkflow( workflowName ), { exit: 1 } );
     }
   }
 
