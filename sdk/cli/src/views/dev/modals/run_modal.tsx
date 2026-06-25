@@ -9,7 +9,7 @@ import { readScenario, writeScenario } from '#views/dev/services/scenario_io.js'
 import { JsonEditor } from '#views/dev/utils/json_editor.js';
 import { ModalFrame, type ModalShortcut } from '#views/dev/modals/modal_frame.js';
 
-type Mode = 'select' | 'edit_name' | 'edit_content' | 'submitting' | 'error';
+type Mode = 'select' | 'edit_content' | 'name_for_save' | 'submitting' | 'error';
 
 type EntryKind = 'scenario' | 'custom';
 
@@ -19,17 +19,30 @@ interface Entry {
   scenarioName?: string;
 }
 
-const CUSTOM_SEED: unknown = { '': '' };
 const SCENARIO_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
-const buildEntries = ( scenarios: string[] ): Entry[] => {
+export const buildEntries = ( scenarios: string[] ): Entry[] => {
   const list: Entry[] = scenarios.map( s => ( {
     kind: 'scenario' as const,
     label: s,
     scenarioName: s
   } ) );
-  list.push( { kind: 'custom', label: '[Create new scenario]' } );
+  list.push( { kind: 'custom', label: '[Run custom JSON]' } );
   return list;
+};
+
+export const validateScenarioName = ( raw: string, existing: string[] ): string | null => {
+  const name = raw.trim();
+  if ( !name ) {
+    return 'Scenario name cannot be empty.';
+  }
+  if ( !SCENARIO_NAME_RE.test( name ) ) {
+    return 'Use letters, numbers, dashes, and underscores only.';
+  }
+  if ( existing.includes( name ) ) {
+    return `A scenario named '${name}' already exists.`;
+  }
+  return null;
 };
 
 const SELECT_SHORTCUTS: ModalShortcut[] = [
@@ -39,9 +52,9 @@ const SELECT_SHORTCUTS: ModalShortcut[] = [
   [ 'esc', 'cancel' ]
 ];
 
-const NAME_SHORTCUTS: ModalShortcut[] = [
-  [ 'enter', 'next' ],
-  [ 'esc', 'back' ]
+const SAVE_SHORTCUTS: ModalShortcut[] = [
+  [ 'enter', 'save & run' ],
+  [ 'esc', 'back to editor' ]
 ];
 
 const ERROR_SHORTCUTS: ModalShortcut[] = [
@@ -67,9 +80,11 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
 
   const [ mode, setMode ] = useState<Mode>( 'select' );
   const [ index, setIndex ] = useState( 0 );
-  const [ editName, setEditName ] = useState( '' );
-  const [ editSeed, setEditSeed ] = useState<unknown>( CUSTOM_SEED );
+  const [ editSeed, setEditSeed ] = useState<unknown>( {} );
   const [ editFrameTitle, setEditFrameTitle ] = useState( '' );
+  const [ defaultSaveName, setDefaultSaveName ] = useState( '' );
+  const [ editName, setEditName ] = useState( '' );
+  const [ pendingValue, setPendingValue ] = useState<unknown>( null );
   const [ nameError, setNameError ] = useState<string | null>( null );
   const [ errorMessage, setErrorMessage ] = useState<string | null>( null );
 
@@ -104,64 +119,56 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
     }
   };
 
+  // Custom + duplicate both open the editor first; saving a scenario is opt-in (ctrl+w).
+  const startCustom = (): void => {
+    setEditSeed( {} );
+    setDefaultSaveName( '' );
+    setEditFrameTitle( 'Run custom JSON' );
+    setMode( 'edit_content' );
+  };
+
   const startDuplicate = async ( scenarioName: string ): Promise<void> => {
     try {
       const sourceContent = await readScenario( workflowName, scenarioName, workflowPath );
-      setEditName( `${scenarioName}_copy` );
       setEditSeed( sourceContent );
+      setDefaultSaveName( `${scenarioName}_copy` );
       setEditFrameTitle( `Duplicate '${scenarioName}'` );
-      setNameError( null );
-      setMode( 'edit_name' );
+      setMode( 'edit_content' );
     } catch ( err ) {
       setErrorMessage( err instanceof Error ? err.message : String( err ) );
       setMode( 'error' );
     }
   };
 
-  const startCustom = (): void => {
-    setEditName( '' );
-    setEditSeed( CUSTOM_SEED );
-    setEditFrameTitle( 'New scenario' );
+  // ctrl+s in the editor: run the payload as-is, nothing written to disk.
+  const runEphemeral = ( value: unknown ): void => {
+    void submit( value, defaultSaveName || 'custom' );
+  };
+
+  // ctrl+w in the editor: keep the payload and ask for a name before saving + running.
+  const beginSave = ( value: unknown ): void => {
+    setPendingValue( value );
+    setEditSeed( value );
+    setEditName( defaultSaveName );
     setNameError( null );
-    setMode( 'edit_name' );
+    setMode( 'name_for_save' );
   };
 
-  const validateName = ( raw: string ): string | null => {
-    const name = raw.trim();
-    if ( !name ) {
-      return 'Scenario name cannot be empty.';
-    }
-    if ( !SCENARIO_NAME_RE.test( name ) ) {
-      return 'Use letters, numbers, dashes, and underscores only.';
-    }
-    if ( scenarios.includes( name ) ) {
-      return `A scenario named '${name}' already exists.`;
-    }
-    return null;
-  };
-
-  const handleEditorSubmit = async ( value: unknown ): Promise<void> => {
-    const name = editName.trim();
-    const writeError = validateName( editName );
-    if ( writeError ) {
-      setNameError( writeError );
-      setMode( 'edit_name' );
+  const confirmSave = async (): Promise<void> => {
+    const validationError = validateScenarioName( editName, scenarios );
+    if ( validationError ) {
+      setNameError( validationError );
       return;
     }
     setMode( 'submitting' );
     try {
-      const writtenPath = await writeScenario( workflowName, name, value, workflowPath );
+      const writtenPath = await writeScenario( workflowName, editName.trim(), pendingValue, workflowPath );
       ui.pushToast( `Saved scenario at ${writtenPath}`, 'info' );
-      await submit( value, name );
+      await submit( pendingValue, editName.trim() );
     } catch ( err ) {
       setErrorMessage( err instanceof Error ? err.message : String( err ) );
       setMode( 'error' );
     }
-  };
-
-  const handleEditorCancel = (): void => {
-    // Bring the user back to the name step so they can adjust it or bail.
-    setMode( 'edit_name' );
   };
 
   useInput( ( input, key ) => {
@@ -198,19 +205,13 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
       }
       return;
     }
-    if ( mode === 'edit_name' ) {
+    if ( mode === 'name_for_save' ) {
       if ( key.escape ) {
-        setMode( 'select' );
+        setMode( 'edit_content' );
         return;
       }
       if ( key.return ) {
-        const err = validateName( editName );
-        if ( err ) {
-          setNameError( err );
-          return;
-        }
-        setNameError( null );
-        setMode( 'edit_content' );
+        void confirmSave();
         return;
       }
       if ( key.backspace || key.delete ) {
@@ -241,20 +242,19 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
       <ModalFrame title={editFrameTitle}>
         <JsonEditor
           seed={editSeed}
-          title={`${editName}.json`}
+          title={defaultSaveName ? `${defaultSaveName}.json` : 'custom input'}
           isActive
-          onSubmit={value => {
-            void handleEditorSubmit( value );
-          }}
-          onCancel={handleEditorCancel}
+          onSubmit={runEphemeral}
+          onSave={beginSave}
+          onCancel={() => setMode( 'select' )}
         />
       </ModalFrame>
     );
   }
 
-  if ( mode === 'edit_name' ) {
+  if ( mode === 'name_for_save' ) {
     return (
-      <ModalFrame title={editFrameTitle} shortcuts={NAME_SHORTCUTS}>
+      <ModalFrame title="Save & run" shortcuts={SAVE_SHORTCUTS}>
         <TextPrompt label="Scenario name:" value={editName} />
         {nameError ? (
           <Box marginTop={1}>
@@ -285,7 +285,7 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
   return (
     <ModalFrame title={`Run ${workflowName}`} shortcuts={SELECT_SHORTCUTS}>
       <Box flexDirection="column" gap={1}>
-        <Text dimColor>{scenarios.length === 0 ? 'No scenarios found. Create a new one:' : 'Select scenarios:'}</Text>
+        <Text dimColor>{scenarios.length === 0 ? 'No saved scenarios. Run with custom JSON:' : 'Select a scenario:'}</Text>
         <Box flexDirection="column">
           {entries.map( ( entry, i ) => (
             <Box key={`${entry.kind}-${entry.scenarioName ?? i}`}>

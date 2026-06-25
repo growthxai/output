@@ -39,8 +39,9 @@ export const JsonEditor: React.FC<{
   title: string;
   isActive?: boolean;
   onSubmit: ( value: unknown ) => void;
+  onSave?: ( value: unknown ) => void;
   onCancel: () => void;
-}> = ( { seed, title, isActive = true, onSubmit, onCancel } ) => {
+}> = ( { seed, title, isActive = true, onSubmit, onSave, onCancel } ) => {
   const initial = JSON.stringify( seed ?? {}, null, 2 );
   const [ buffer, setBuffer ] = useState( initial );
   const [ cursor, setCursor ] = useState( initial.length );
@@ -64,22 +65,30 @@ export const JsonEditor: React.FC<{
     setCursor( c => Math.max( 0, c - 1 ) );
   };
 
+  const commit = ( handler: ( value: unknown ) => void ): void => {
+    const parsed = tryParseJson( buffer );
+    if ( !parsed.ok ) {
+      setSubmitMessage( `Invalid JSON — ${parsed.error}` );
+      return;
+    }
+    try {
+      handler( JSON.parse( buffer ) );
+    } catch ( err ) {
+      setSubmitMessage( err instanceof Error ? err.message : String( err ) );
+    }
+  };
+
   useInput( ( input, key ) => {
     if ( key.escape ) {
       onCancel();
       return;
     }
     if ( key.ctrl && input === 's' ) {
-      const parsed = tryParseJson( buffer );
-      if ( !parsed.ok ) {
-        setSubmitMessage( `Cannot submit — ${parsed.error}` );
-        return;
-      }
-      try {
-        onSubmit( JSON.parse( buffer ) );
-      } catch ( err ) {
-        setSubmitMessage( err instanceof Error ? err.message : String( err ) );
-      }
+      commit( onSubmit );
+      return;
+    }
+    if ( key.ctrl && input === 'w' && onSave ) {
+      commit( onSave );
       return;
     }
     if ( key.return ) {
@@ -161,7 +170,10 @@ export const JsonEditor: React.FC<{
       )}
 
       <Box marginTop={1} columnGap={2}>
-        <Box columnGap={1}><Text bold>ctrl+s</Text><Text dimColor>submit</Text></Box>
+        <Box columnGap={1}><Text bold>ctrl+s</Text><Text dimColor>run</Text></Box>
+        {onSave ? (
+          <Box columnGap={1}><Text bold>ctrl+w</Text><Text dimColor>save &amp; run</Text></Box>
+        ) : null}
         <Box columnGap={1}><Text bold>esc</Text><Text dimColor>cancel</Text></Box>
         <Box columnGap={1}><Text bold>↑↓←→</Text><Text dimColor>move</Text></Box>
         <Box columnGap={1}><Text bold>tab</Text><Text dimColor>indent</Text></Box>
