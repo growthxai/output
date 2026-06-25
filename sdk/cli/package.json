@@ -62,7 +62,10 @@
     "access": "public"
   },
   "imports": {
-    "#*": "./dist/*"
+    "#*": {
+      "types": "./src/*",
+      "default": "./dist/*"
+    }
   },
   "oclif": {
     "bin": "output",
