@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { calculateCost, loadPricingConfig } from '#services/cost_calculator.js';
 import { getTrace } from '#services/trace_reader.js';
 import type { TraceNode } from '#types/cost.js';
-import { OUTPUT_FORMAT, type OutputFormat } from '#utils/constants.js';
+import { OUTPUT_FORMAT, type OutputFormat } from '../../utils/constants.js';
 import { formatCostReport } from '#utils/cost_formatter.js';
 import { getErrorCode } from '#utils/error_utils.js';
 import { handleApiError } from '#utils/error_handler.js';

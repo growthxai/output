@@ -1,5 +1,5 @@
 import { Args, Command, Flags } from '@oclif/core';
-import { OUTPUT_FORMAT } from '#utils/constants.js';
+import { OUTPUT_FORMAT } from '../../utils/constants.js';
 import { displayDebugTree } from '#utils/trace_formatter.js';
 import { getTrace } from '#services/trace_reader.js';
 import { handleApiError } from '#utils/error_handler.js';

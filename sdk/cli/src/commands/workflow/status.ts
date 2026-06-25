@@ -1,6 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { getWorkflowIdStatus, WorkflowStatusResponse } from '#api/generated/api.js';
-import { OUTPUT_FORMAT, OutputFormat } from '#utils/constants.js';
+import { OUTPUT_FORMAT, OutputFormat } from '../../utils/constants.js';
 import { formatOutput } from '#utils/output_formatter.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';

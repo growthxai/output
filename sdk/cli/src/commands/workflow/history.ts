@@ -2,7 +2,7 @@ import { Args, Command, Flags } from '@oclif/core';
 import { fetchWorkflowHistory } from '#services/workflow_history.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import renderWaterfall, { formatDurationLabel } from '#utils/waterfall.js';
-import { OUTPUT_FORMAT } from '#utils/constants.js';
+import { OUTPUT_FORMAT } from '../../utils/constants.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 const DEFAULT_WIDTH = 80;
