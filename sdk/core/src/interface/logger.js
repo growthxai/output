@@ -41,6 +41,7 @@ const levels = Object.keys( levelToConsole );
 /** Drops reserved keys from object */
 const removeReservedFields = obj => Object.fromEntries( Object.entries( obj ).filter( ( [ k ] ) => !reservedMetadataFields.has( k ) ) );
 
+/** Dispatch the log message downstream */
 const log = ( level, namespace, message, metadata ) => {
   const baseMetadata = namespace ? { namespace } : {};
   const sanitized = {
@@ -60,11 +61,13 @@ const log = ( level, namespace, message, metadata ) => {
   }
 };
 
+/** Creates a new logger. It uses the npm levels, and for each level, bind the log function */
 const createLogger = namespace => ( {
   ...Object.fromEntries( levels.map( l => [ l, log.bind( null, l, namespace ) ] ) ),
   createLogger
 } );
 
+/** This is the default logger instance */
 const logger = createLogger( null );
 
 export { logger as Logger };
