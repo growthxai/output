@@ -209,6 +209,9 @@ describe( 'workflow_history_stream handler', () => {
 
       expect( res.text ).toContain( 'event: server_error\n' );
       expect( res.text ).toContain( '"error":"ServiceUnavailableError"' );
+      // runId is absent from the query on the bare route; the payload must still carry the
+      // resolved run from the workflow metadata, not undefined.
+      expect( res.text ).toContain( '"runId":"run-abc"' );
     } );
 
     it( 'ends silently on gRPC cancelled error (client disconnect)', async () => {
@@ -268,8 +271,9 @@ describe( 'workflow_history_stream handler', () => {
       const handler = createWorkflowHistoryStreamHandler( mockClient );
 
       const handlerPromise = handler( fakeReq, fakeRes );
-      await Promise.resolve();
-      await Promise.resolve();
+      while ( gateRef.resolve === null ) {
+        await Promise.resolve();
+      }
 
       closeHandlers[0]();
 
@@ -458,6 +462,9 @@ describe( 'workflow_history_stream handler', () => {
 
       expect( capturedSignals[0].aborted ).toBe( true );
 
+      while ( resolverRef.resolve === null ) {
+        await Promise.resolve();
+      }
       resolverRef.resolve();
       await handlerPromise;
     } );

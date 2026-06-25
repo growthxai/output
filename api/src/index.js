@@ -1594,6 +1594,10 @@ const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
 
 const shutdown = runOnce( async () => {
   logger.info( 'Closing HTTP server...' );
+  // SSE responses never drain on their own (parked in a long poll, 15s keepalive holding
+  // the socket), so server.close() alone would wait forever for them. Force open sockets
+  // shut so closeServer() resolves and teardown can proceed.
+  server.closeAllConnections();
   await closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
 
   logger.info( 'Closing Temporal client...' );

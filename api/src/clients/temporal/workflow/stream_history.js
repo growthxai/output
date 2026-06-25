@@ -78,6 +78,11 @@ export const streamHistory = async function *( { client, connection }, workflowI
   const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
   const handle = client.workflow.getHandle( workflowId, runId );
   const description = await connection.withAbortSignal( abortSignal, () => handle.describe() ).catch( error => {
+    if ( isGrpcCancelledError( error ) ) {
+      // Benign abort from client disconnect; rethrow bare so callers treat it as a
+      // cancellation rather than a real error (matches fetchPage's handling below).
+      throw error;
+    }
     if ( error?.code === GrpcStatus.NOT_FOUND ) {
       throw new WorkflowNotFoundError( runId ?
         `Run "${runId}" not found for workflow "${workflowId}"` :
@@ -160,7 +165,6 @@ export const streamHistory = async function *( { client, connection }, workflowI
       return;
     }
 
-    state.nextPageToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
     const rawEvents = response.history?.events || [];
 
     const terminalEvent = rawEvents.find( event => TERMINAL_EVENT_TYPES.has( normalizeEventType( event ) ) );
@@ -172,6 +176,16 @@ export const streamHistory = async function *( { client, connection }, workflowI
       state.sawTerminalReason = EventTypeName[eventType];
       state.sawTerminalNewRunId = attrKey ? terminalEvent[attrKey]?.newExecutionRunId || undefined : undefined;
     }
+
+    // Preserve the continuation token across empty long-polls while the workflow is still
+    // open. Temporal can return an empty token at the live tip; dropping it to undefined
+    // restarts the next fetch at FirstEventID=1, re-reading the whole history every idle
+    // cycle (filterEventId stops us re-sending those events, not re-fetching them). Once the
+    // terminal event is in hand the history is fixed, so an empty token then means genuinely
+    // exhausted and must fall through to undefined to end draining/replay. Mirrors the SDK's
+    // follow loop (@temporalio/client workflow-client.js), which keeps res.nextPageToken.
+    const responseToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
+    state.nextPageToken = responseToken ?? ( state.sawTerminalEvent ? undefined : state.nextPageToken );
 
     const batch = rawEvents
       .filter( event => {

@@ -35,13 +35,31 @@ export function createWorkflowHistoryStreamHandler( client ) {
       abortSignal: ctrl.signal
     } );
 
-    const { value: firstChunk, done } = await stream.next();
+    // The first next() resolves describe() before any header is sent. A client that drops
+    // here aborts the describe, surfacing as CANCELLED. Bail quietly rather than letting it
+    // escape to the global error handler as a 500 written to an already-closed socket.
+    const firstResult = await stream.next().catch( error => {
+      if ( isGrpcCancelledError( error ) || ctrl.signal.aborted ) {
+        return { aborted: true };
+      }
+      throw error;
+    } );
+    if ( firstResult.aborted ) {
+      return;
+    }
+
+    const { value: firstChunk, done } = firstResult;
     if ( done || firstChunk?.type !== 'workflow' ) {
       throw Object.assign(
         new Error( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` ),
         { workflowId }
       );
     }
+
+    // runId from the query is only present on the /runs/:rid route; on the bare history
+    // stream route it is undefined. Use the run Temporal actually resolved so logs and the
+    // server_error payload always carry it.
+    const resolvedRunId = firstChunk.workflow.runId;
 
     res.set( {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -51,7 +69,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
     } );
     res.flushHeaders();
     res.on( 'error', err => {
-      logger.info( 'SSE response stream error', { workflowId, runId, message: err.message } );
+      logger.info( 'SSE response stream error', { workflowId, runId: resolvedRunId, message: err.message } );
       ctrl.abort();
     } );
 
@@ -66,7 +84,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
         // res.write can throw synchronously (e.g. ERR_STREAM_DESTROYED) in the
         // window between socket destruction and writableEnded being set. A throw
         // from a setInterval callback would otherwise become uncaughtException.
-        logger.info( 'SSE keepalive write failed', { workflowId, runId, message: err.message } );
+        logger.info( 'SSE keepalive write failed', { workflowId, runId: resolvedRunId, message: err.message } );
         ctrl.abort();
         clearInterval( keepalive );
       }
@@ -91,13 +109,13 @@ export function createWorkflowHistoryStreamHandler( client ) {
       } else if ( ctrl.signal.aborted ) {
         // Real error masked by client disconnect — log at info so it stays observable.
         logger.info( 'SSE stream error suppressed by client disconnect', {
-          workflowId, runId, error: error.constructor.name, message: error.message
+          workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message
         } );
       } else {
         logger.error( 'SSE stream error', {
-          workflowId, runId, error: error.constructor.name, message: error.message, stack: error.stack
+          workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message, stack: error.stack
         } );
-        const payload = { error: error.constructor.name, message: error.message, workflowId, runId };
+        const payload = { error: error.constructor.name, message: error.message, workflowId, runId: resolvedRunId };
         res.write( `event: server_error\ndata: ${JSON.stringify( payload )}\n\n` );
       }
     } finally {
