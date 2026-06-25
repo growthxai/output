@@ -17,9 +17,13 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "#api/*": ["src/api/*"],
+      "#services/*": ["src/services/*"],
+      "#types/*": ["src/types/*"],
+      "#utils/*": ["src/utils/*"],
+      "#views/*": ["src/views/*"],
       "#*": ["src/*"]
-    },
-    "customConditions": ["@outputai/source"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "orval.config.ts"]

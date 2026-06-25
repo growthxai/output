@@ -62,10 +62,7 @@
     "access": "public"
   },
   "imports": {
-    "#*": {
-      "@outputai/source": "./src/*",
-      "default": "./dist/*"
-    }
+    "#*": "./dist/*"
   },
   "oclif": {
     "bin": "output",
