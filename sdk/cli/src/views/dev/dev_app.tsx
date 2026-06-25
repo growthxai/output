@@ -198,11 +198,13 @@ const overlayFor = ( opts: {
   runDetailOpen: boolean;
   rows: number;
 } ): React.ReactNode => {
-  if ( opts.ui.stepGraph.open && opts.stepGraphRun ) {
-    return <StepGraphModal run={opts.stepGraphRun} height={opts.rows} />;
-  }
+  // expandedJson sits on top of everything — it's popped from another overlay
+  // (e.g. the step graph's `e`), so it must win when both are open.
   if ( opts.ui.expandedJson.open ) {
     return <ExpandedJsonModal />;
+  }
+  if ( opts.ui.stepGraph.open && opts.stepGraphRun ) {
+    return <StepGraphModal run={opts.stepGraphRun} height={opts.rows} />;
   }
   if ( opts.ui.runModal.open ) {
     return <RunModal workflowName={opts.ui.runModal.workflowName} workflowPath={opts.ui.runModal.workflowPath} />;

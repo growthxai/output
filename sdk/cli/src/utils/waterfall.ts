@@ -26,8 +26,8 @@ export interface BarGeometry {
 const LABEL_MIN = 14;
 const LABEL_MAX = 28;
 const MIN_TRACK = 10;
-const FULL_BLOCK = '█';
-const THIN_BLOCK = '▏';
+export const FULL_BLOCK = '█';
+export const THIN_BLOCK = '▏';
 
 // Human-friendly step sizes, smallest → largest. Pick the smallest step that
 // yields ~TARGET_TICKS or fewer labels.
@@ -101,15 +101,18 @@ export function formatDurationLabel( ms: number ): string {
   return formatClock( ms );
 }
 
-// Map a span's [startOffset, endOffset] onto integer columns of a track that is
-// `trackW` wide. Mirrors StepGantt's leftPct/widthPct, including the min-width
-// floor and the clamp that keeps a bar from overflowing the lane.
+// Map a span's [startOffset, endOffset] onto integer columns of a `trackW`-wide
+// lane. Both edges are positioned by their own offset and the length is the gap
+// between them — so the bar always spans start→end. (Rounding a separate width
+// off the start, as before, let the right edge drift past the true end time.)
+// A zero-width span still draws a 1-col marker, clamped to stay inside the lane.
 export function computeBar( startOffsetMs: number, endOffsetMs: number, totalMs: number, trackW: number ): BarGeometry {
   const safeTotal = Math.max( totalMs, 1 );
-  const rawLen = Math.round( ( ( endOffsetMs - startOffsetMs ) / safeTotal ) * trackW );
-  const instantaneous = rawLen <= 0;
-  const barLen = Math.min( Math.max( rawLen, 1 ), trackW );
-  const startCol = clamp( Math.round( ( startOffsetMs / safeTotal ) * trackW ), 0, trackW - barLen );
+  const startCol = clamp( Math.round( ( startOffsetMs / safeTotal ) * trackW ), 0, Math.max( 0, trackW - 1 ) );
+  const endCol = clamp( Math.round( ( endOffsetMs / safeTotal ) * trackW ), startCol, trackW );
+  const span = endCol - startCol;
+  const instantaneous = span <= 0;
+  const barLen = Math.min( Math.max( span, 1 ), trackW - startCol );
   return { startCol, barLen, instantaneous };
 }
 
@@ -143,7 +146,9 @@ function tickStart( idx: number, count: number, col: number, labelLen: number, t
   return clamp( tickRawStart( idx, count, col, labelLen, trackW ), 0, trackW - labelLen );
 }
 
-function renderRuler( totalMs: number, labelW: number, trackW: number, tint: ( text: string, code: string ) => string ): string {
+// The trackW-wide time-axis ruler (no label gutter, no colour). Exported so the
+// TUI overlay header can render the same ticks the CLI string renderer uses.
+export function buildRulerLine( totalMs: number, trackW: number ): string {
   const safeTotal = Math.max( totalMs, 1 );
   const ticks = buildTicks( safeTotal );
 
@@ -167,7 +172,11 @@ function renderRuler( totalMs: number, labelW: number, trackW: number, tint: ( t
     } );
   }
 
-  return `${' '.repeat( labelW + 1 )}${tint( chars.join( '' ), ANSI.dim )}`;
+  return chars.join( '' );
+}
+
+function renderRuler( totalMs: number, labelW: number, trackW: number, tint: ( text: string, code: string ) => string ): string {
+  return `${' '.repeat( labelW + 1 )}${tint( buildRulerLine( totalMs, trackW ), ANSI.dim )}`;
 }
 
 function renderLegend( tint: ( text: string, code: string ) => string ): string {

@@ -61,7 +61,9 @@ export const useStepGraph = (
 
     setGraph( current => ( current.spans.length === 0 ? { ...current, loading: true } : current ) );
     try {
-      const result = await fetchWorkflowHistory( { workflowId, runId } );
+      // Pull payloads so the detail pane can show each step's input/output and
+      // a failed step's reason.
+      const result = await fetchWorkflowHistory( { workflowId, runId, includePayloads: true } );
       if ( requestKeyRef.current !== key ) {
         return 'done'; // a different run was selected mid-flight
       }

@@ -65,6 +65,14 @@ describe( 'computeBar', () => {
     // A short step at the very end is clamped so it stays inside the lane
     expect( computeBar( 99_000, 100_000, 100_000, 50 ) ).toEqual( { startCol: 49, barLen: 1, instantaneous: false } );
   } );
+
+  it( 'sizes the bar to span start→end without right-edge drift', () => {
+    // Full-span step fills the lane exactly.
+    expect( computeBar( 0, 100_000, 100_000, 50 ) ).toEqual( { startCol: 0, barLen: 50, instantaneous: false } );
+    // End column is rounded from the true end offset (33), not start + a
+    // separately-rounded width (which used to overshoot to col 34).
+    expect( computeBar( 33_000, 66_000, 100_000, 50 ) ).toEqual( { startCol: 17, barLen: 16, instantaneous: false } );
+  } );
 } );
 
 describe( 'renderWaterfall', () => {
