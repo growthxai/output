@@ -1,6 +1,6 @@
 import { createChildLogger } from '#logger';
 import { setTimeout as delay } from 'node:timers/promises';
-import { CancellablePromise } from '#utils';
+import { CancellablePromise } from '#helpers/promise';
 
 const log = createChildLogger( 'Connection' );
 

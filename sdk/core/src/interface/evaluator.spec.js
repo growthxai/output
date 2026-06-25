@@ -7,12 +7,12 @@ import {
   EvaluationFeedback
 } from './evaluation_result.js';
 import { ValidationError } from '#errors';
-import { ComponentType } from '#consts';
 
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
 const validateInputMock = vi.hoisted( () => vi.fn() );
 const validateOutputMock = vi.hoisted( () => vi.fn() );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
+const createEvaluatorMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
 vi.mock( './validations/index.js', () => {
   class EvaluatorValidator {
@@ -30,12 +30,16 @@ vi.mock( './validations/index.js', () => {
   return { EvaluatorValidator };
 } );
 
+vi.mock( '#helpers/component', () => ( {
+  createEvaluator: createEvaluatorMock
+} ) );
+
 describe( 'evaluator()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
   } );
 
-  it( 'validates the definition, creates a runtime validator, and attaches metadata', async () => {
+  it( 'validates the definition, creates a runtime validator, and creates an evaluator component', async () => {
     const { evaluator } = await import( './evaluator.js' );
     const inputSchema = { safeParse: vi.fn() };
     const fn = vi.fn().mockResolvedValue( new EvaluationResult( { value: 'ok', confidence: 1 } ) );
@@ -61,14 +65,14 @@ describe( 'evaluator()', () => {
       inputSchema
     } );
 
-    const [ metadataSymbol ] = Object.getOwnPropertySymbols( wrapper );
-    expect( wrapper[metadataSymbol] ).toEqual( {
+    expect( createEvaluatorMock ).toHaveBeenCalledWith( {
       name: 'test_evaluator',
       description: 'Test evaluator',
       inputSchema,
-      type: ComponentType.EVALUATOR,
-      options
+      options,
+      handler: expect.any( Function )
     } );
+    expect( wrapper ).toBe( createEvaluatorMock.mock.calls[0][0].handler );
   } );
 
   it( 'validates input and output around the evaluator function', async () => {

@@ -6,8 +6,17 @@ import {
   WORKFLOW_CATALOG
 } from '#consts';
 
-const activityLogMock = vi.hoisted( () => ( { info: vi.fn(), error: vi.fn() } ) );
-const workflowLogMock = vi.hoisted( () => ( { info: vi.fn(), error: vi.fn() } ) );
+const createLoggerMock = vi.hoisted( () => () => ( {
+  error: vi.fn(),
+  warn: vi.fn(),
+  info: vi.fn(),
+  http: vi.fn(),
+  verbose: vi.fn(),
+  debug: vi.fn(),
+  silly: vi.fn()
+} ) );
+const activityLogMock = vi.hoisted( () => createLoggerMock() );
+const workflowLogMock = vi.hoisted( () => createLoggerMock() );
 const createChildLoggerMock = vi.hoisted( () =>
   vi.fn( name => ( name === 'Activity' ? activityLogMock : workflowLogMock ) )
 );
@@ -125,6 +134,44 @@ describe( 'log_hooks', () => {
 
       expect( activityLogMock.error ).not.toHaveBeenCalled();
     } );
+
+    it( 'ACTIVITY_LOG logs dynamic levels with metadata and serialized activity fields', () => {
+      onHandlers[BusEventType.ACTIVITY_LOG]( {
+        activityInfo,
+        level: 'debug',
+        message: 'activity detail',
+        metadata: {
+          custom: 'value',
+          workflowId: 'metadata-workflow-id'
+        }
+      } );
+
+      expect( activityLogMock.debug ).toHaveBeenCalledTimes( 1 );
+      expect( activityLogMock.debug ).toHaveBeenCalledWith( 'activity detail', {
+        custom: 'value',
+        activityId: 'act-1',
+        activityType: 'myWorkflow#myStep',
+        workflowId: 'wf-1',
+        workflowType: 'myWorkflow',
+        runId: 'run-1'
+      } );
+    } );
+
+    it( 'ACTIVITY_LOG accepts omitted metadata', () => {
+      onHandlers[BusEventType.ACTIVITY_LOG]( {
+        activityInfo,
+        level: 'info',
+        message: 'activity detail'
+      } );
+
+      expect( activityLogMock.info ).toHaveBeenCalledWith( 'activity detail', {
+        activityId: 'act-1',
+        activityType: 'myWorkflow#myStep',
+        workflowId: 'wf-1',
+        workflowType: 'myWorkflow',
+        runId: 'run-1'
+      } );
+    } );
   } );
 
   describe( 'workflow events', () => {
@@ -209,6 +256,40 @@ describe( 'log_hooks', () => {
       } );
 
       expect( workflowLogMock.error ).not.toHaveBeenCalled();
+    } );
+
+    it( 'WORKFLOW_LOG logs dynamic levels with metadata and serialized workflow fields', () => {
+      onHandlers[BusEventType.WORKFLOW_LOG]( {
+        workflowDetails,
+        level: 'warn',
+        message: 'workflow detail',
+        metadata: {
+          custom: 'value',
+          runId: 'metadata-run-id'
+        }
+      } );
+
+      expect( workflowLogMock.warn ).toHaveBeenCalledTimes( 1 );
+      expect( workflowLogMock.warn ).toHaveBeenCalledWith( 'workflow detail', {
+        custom: 'value',
+        workflowId: 'wf-1',
+        workflowType: 'myWorkflow',
+        runId: 'run-1'
+      } );
+    } );
+
+    it( 'WORKFLOW_LOG accepts omitted metadata', () => {
+      onHandlers[BusEventType.WORKFLOW_LOG]( {
+        workflowDetails,
+        level: 'info',
+        message: 'workflow detail'
+      } );
+
+      expect( workflowLogMock.info ).toHaveBeenCalledWith( 'workflow detail', {
+        workflowId: 'wf-1',
+        workflowType: 'myWorkflow',
+        runId: 'run-1'
+      } );
     } );
   } );
 } );

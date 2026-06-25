@@ -68,7 +68,7 @@ npx output workflow cost <runId> path/to/trace.json
 
 ### JSON output (for programmatic use or display):
 ```bash
-npx output workflow cost <runId> --format json
+npx output workflow cost <runId> --json
 ```
 
 ### Verbose — show per-call breakdown:
@@ -80,7 +80,7 @@ npx output workflow cost <runId> --verbose
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--format <type>` | Output format: `text` or `json` | `text` |
+| `--json` | Output machine-readable JSON instead of the text report | `false` |
 | `--verbose` | Show detailed per-LLM-call breakdown | `false` |
 
 ---
@@ -142,7 +142,7 @@ Per-call entries in `llmCalls` and `httpCosts[].calls` carry `originalCost` and
 **Get cost of the last run:**
 ```bash
 # First get the run ID
-npx output workflow runs list process_transcripts --limit 1 --format json
+npx output workflow runs list process_transcripts --limit 1 --json
 
 # Then get the cost
 npx output workflow cost process_transcripts_2026-03-23T19:35:17.000Z_abc123
@@ -150,7 +150,7 @@ npx output workflow cost process_transcripts_2026-03-23T19:35:17.000Z_abc123
 
 **Get cost as JSON and extract total:**
 ```bash
-npx output workflow cost <runId> --format json | jq '.totalCost'
+npx output workflow cost <runId> --json | jq '.totalCost'
 ```
 
 **Show full per-call breakdown:**

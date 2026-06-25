@@ -1,7 +1,7 @@
 import { BusEventType, ComponentType } from '#consts';
 import * as Tracing from '#tracing';
 import { messageBus } from '#bus';
-import { createWorkflowDetails } from '#internal_utils/temporal_context';
+import { createWorkflowDetails } from '#helpers/temporal_context';
 
 // This sink allow for sandbox Temporal environment to send trace logs back to the main thread.
 export const sinks = {
@@ -10,6 +10,12 @@ export const sinks = {
    * Workflow lifecycle sinks
    */
   workflow: {
+    log: {
+      fn: ( workflowInfo, { level, message, metadata } ) => {
+        messageBus.emit( BusEventType.WORKFLOW_LOG, { level, message, metadata, workflowDetails: createWorkflowDetails( workflowInfo ) } );
+      },
+      callDuringReplay: false
+    },
     start: {
       fn: ( workflowInfo, input ) => {
         const { runId, workflowType, memo: { traceInfo }, parent } = workflowInfo;

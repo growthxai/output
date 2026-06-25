@@ -574,7 +574,7 @@ describe( 'hashSourceCode', () => {
 
     // The cruft tree is identical source plus large excluded artifacts that
     // boot must not walk: local trace dumps under logs/ and build output under dist/.
-    for ( const excluded of [ 'logs', 'logs/runs', 'dist', 'node_modules' ] ) {
+    for ( const excluded of [ 'logs', 'logs/runs', 'node_modules' ] ) {
       const dir = join( withCruft, excluded );
       mkdirSync( dir, { recursive: true } );
       writeFileSync( join( dir, 'dump.json' ), JSON.stringify( { blob: 'x'.repeat( 50_000 ) } ) );

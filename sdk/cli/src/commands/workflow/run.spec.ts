@@ -31,14 +31,12 @@ describe( 'workflow run command', () => {
       expect( WorkflowRun.description ).toContain( 'Execute a workflow' );
       expect( WorkflowRun.args ).toHaveProperty( 'workflowName' );
       expect( WorkflowRun.flags ).toHaveProperty( 'input' );
-      expect( WorkflowRun.flags ).toHaveProperty( 'format' );
       expect( WorkflowRun.flags ).toHaveProperty( 'catalog' );
     } );
 
     it( 'should have correct flag configuration', async () => {
       const WorkflowRun = ( await import( './run.js' ) ).default;
-      expect( WorkflowRun.flags.format.options ).toEqual( [ 'json', 'text' ] );
-      expect( WorkflowRun.flags.format.default ).toBe( 'text' );
+      expect( WorkflowRun.enableJsonFlag ).toBe( true );
       expect( WorkflowRun.flags.input.required ).toBe( false );
     } );
 

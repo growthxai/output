@@ -35,7 +35,7 @@ trap cleanup EXIT
 # Ensure .env exists (worker reads it via env_file in the compose)
 if [ ! -f test_workflows/.env ]; then
   print "Creating minimal test_workflows/.env..."
-  printf 'ANTHROPIC_API_KEY=dummy\nOPENAI_API_KEY=dummy\n' > test_workflows/.env
+  printf 'ANTHROPIC_API_KEY=dummy\nOPENAI_API_KEY=dummy\n' >test_workflows/.env
 fi
 
 # Install dependencies and build all SDK packages.
@@ -56,7 +56,7 @@ npm run dev:up -- --detached
 
 # Run the simple workflow using the CLI since everything is up
 print "Executing test workflow..."
-CLI_OUTPUT=$(npx --prefix=sdk/cli output workflow run simple --input '{"values":[1,2,3,4,5]}' --format json) || {
+CLI_OUTPUT=$(npx --prefix=sdk/cli output workflow run simple --input '{"values":[1,2,3,4,5]}' --json) || {
   printf "\e[36m\n[CLI output]\n\e[90m$CLI_OUTPUT\n"
   printf "\e[36m\n[Worker container tail]\n\e[90m...\n"
   docker compose -p output-sdk logs --no-color --no-log-prefix --tail 50 worker | sed -r 's/\x1B\[[0-9;]*[mK]//g'

@@ -30,10 +30,10 @@ npx output workflow debug <workflowId>
 
 **Full trace (JSON format, recommended for detailed analysis):**
 ```bash
-npx output workflow debug <workflowId> --format json
+npx output workflow debug <workflowId> --json
 ```
 
-**Tip**: Always use `--format json` when you need complete trace data. The text format truncates long values which can hide important debugging information.
+**Tip**: Always use `--json` when you need complete trace data. The text format truncates long values which can hide important debugging information.
 
 ### Step 2: Analyze the Trace
 
@@ -96,10 +96,10 @@ When examining JSON traces, focus on these fields:
 
 ```bash
 # Get the workflow ID from runs list
-npx output workflow runs list --limit 5 --format json
+npx output workflow runs list --limit 5 --json
 
 # Get detailed trace
-npx output workflow debug abc123xyz --format json
+npx output workflow debug abc123xyz --json
 
 # Look for the failing step in the output
 # Example output structure:
@@ -116,13 +116,13 @@ npx output workflow debug abc123xyz --format json
 **Scenario**: Investigate retry behavior
 
 ```bash
-npx output workflow debug abc123xyz --format json | jq '.steps[] | select(.attempts > 1)'
+npx output workflow debug abc123xyz --json | jq '.steps[] | select(.attempts > 1)'
 ```
 
 **Scenario**: Check inputs to a specific step
 
 ```bash
-npx output workflow debug abc123xyz --format json | jq '.steps[] | select(.name == "processData") | .input'
+npx output workflow debug abc123xyz --json | jq '.steps[] | select(.name == "processData") | .input'
 ```
 
 ## Next Steps After Analysis

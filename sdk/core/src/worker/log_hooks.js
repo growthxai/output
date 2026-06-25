@@ -47,6 +47,13 @@ messageBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind
   } )
 );
 
+messageBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activityInfo } ) =>
+  activityLog[level]( message, {
+    ...metadata ?? {},
+    ...serializedActivityFields( activityInfo )
+  } )
+);
+
 /*
 ╔═════════════════╗
 ║ Workflow events ║
@@ -80,5 +87,12 @@ messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
     event: LifecycleEvent.ERROR,
     ...serializeWorkflowFields( workflowDetails ),
     error: error.message
+  } )
+);
+
+messageBus.on( BusEventType.WORKFLOW_LOG, ( { level, message, metadata, workflowDetails } ) =>
+  workflowLog[level]( message, {
+    ...metadata ?? {},
+    ...serializeWorkflowFields( workflowDetails )
   } )
 );

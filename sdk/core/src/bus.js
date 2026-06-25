@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { isPlainObject } from '#utils';
+import { isPlainObject } from '#helpers/object';
 
 const emitter = new EventEmitter();
 

@@ -1,16 +1,34 @@
-import { Args, Command, Flags } from '@oclif/core';
+import { Args, Command } from '@oclif/core';
 import { getWorkflowIdStatus, WorkflowStatusResponse } from '#api/generated/api.js';
-import { OUTPUT_FORMAT, OutputFormat } from '#utils/constants.js';
-import { formatOutput } from '#utils/output_formatter.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
+
+function formatStatusText( result: WorkflowStatusResponse ): string {
+  const lines = [
+    `Workflow ID: ${result.workflowId || 'unknown'}`,
+    `Status: ${result.status || 'unknown'}`,
+    ''
+  ];
+
+  if ( result.startedAt ) {
+    lines.push( `Started At: ${new Date( result.startedAt ).toISOString()}` );
+  }
+
+  if ( result.completedAt ) {
+    lines.push( `Completed At: ${new Date( result.completedAt ).toISOString()}` );
+  }
+
+  return lines.join( '\n' );
+}
 
 export default class WorkflowStatus extends Command {
   static override description = 'Get workflow execution status';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> wf-12345',
-    '<%= config.bin %> <%= command.id %> wf-12345 --format json'
+    '<%= config.bin %> <%= command.id %> wf-12345 --json'
   ];
 
   static override args = {
@@ -20,17 +38,8 @@ export default class WorkflowStatus extends Command {
     } )
   };
 
-  static override flags = {
-    format: Flags.string( {
-      char: 'f',
-      description: 'Output format',
-      options: [ OUTPUT_FORMAT.JSON, OUTPUT_FORMAT.TEXT ],
-      default: OUTPUT_FORMAT.TEXT
-    } )
-  };
-
-  async run(): Promise<void> {
-    const { args, flags } = await this.parse( WorkflowStatus );
+  async run(): Promise<WorkflowStatusResponse> {
+    const { args } = await this.parse( WorkflowStatus );
 
     this.log( `Fetching status for workflow: ${args.workflowId}...` );
 
@@ -45,31 +54,10 @@ export default class WorkflowStatus extends Command {
       ...rawData,
       status: normalizeWorkflowStatus( rawData.status )
     } as WorkflowStatusResponse;
-    const output = formatOutput(
-      data,
-      flags.format as OutputFormat,
-      ( result: WorkflowStatusResponse ) => {
-        const lines = [
-          `Workflow ID: ${result.workflowId || 'unknown'}`,
-          `Status: ${result.status || 'unknown'}`,
-          ''
-        ];
 
-        if ( result.startedAt ) {
-          const startDate = new Date( result.startedAt );
-          lines.push( `Started At: ${startDate.toISOString()}` );
-        }
+    this.log( `\n${formatStatusText( data )}` );
 
-        if ( result.completedAt ) {
-          const completedDate = new Date( result.completedAt );
-          lines.push( `Completed At: ${completedDate.toISOString()}` );
-        }
-
-        return lines.join( '\n' );
-      }
-    );
-
-    this.log( `\n${output}` );
+    return data;
   }
 
   async catch( error: Error ): Promise<void> {

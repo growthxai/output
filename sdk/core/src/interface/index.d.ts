@@ -1,9 +1,10 @@
 /**
  * Exports all public methods from the interface
  */
-export * from './webhook.d.ts';
-export * from './workflow_utils.d.ts';
-export * from './step.d.ts';
-export * from './evaluator.d.ts';
-export * from './workflow.d.ts';
-export * from './evaluation_result.d.ts';
+export * from './webhook.js';
+export * from './workflow_utils.js';
+export * from './step.js';
+export * from './evaluator.js';
+export * from './workflow.js';
+export * from './evaluation_result.js';
+export * as Logger from './logger.js';

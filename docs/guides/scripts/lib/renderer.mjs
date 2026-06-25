@@ -1,18 +1,31 @@
 /**
- * Pure rendering functions — turn releases.json data into MDX snippet strings.
+ * Pure rendering functions — turn releases.json data into MDX strings.
  *
- * Only the changelog is generated. Migration guides are hand-authored
- * under docs/guides/migrations/ and linked from the hand-written
- * migrations/index.mdx page.
+ * renderChangelogBody() returns the <Update> blocks that get spliced into the
+ * hand-written changelog page (docs/guides/changelog/index.mdx) between its
+ * AUTO-GENERATED markers. Migration guides are hand-authored under
+ * docs/guides/migrations/ and are not generated.
  */
 
-const AUTO_GENERATED_HEADER = '{/* AUTO-GENERATED from docs/guides/data/releases.json. Run `./ops/regenerate_docs.sh` to update. */}';
+// MDX reads a bare `<` as the start of a JSX tag and `{` as an expression, so
+// arbitrary changeset prose (e.g. `hono@<4.12.12`, `</style>`) breaks parsing
+// and drops the whole page. Escape those two characters in the prose parts of
+// the summary, leaving inline-code spans and fenced code blocks verbatim.
+function escapeMdxText( text ) {
+  const codeSpans = /(```[\s\S]*?```|`[^`]*`)/g;
+  return text
+    .split( codeSpans )
+    .map( ( segment, i ) => i % 2 === 1
+      ? segment
+      : segment.replace( /</g, '&lt;' ).replace( /\{/g, '&#123;' ) )
+    .join( '' );
+}
 
 function renderChangeBlock( change ) {
   const inner = change.packages.length === 0
     ? 'All packages'
     : change.packages.map( p => `\`${p.name}\`` ).join( ', ' );
-  return `**${inner}** — ${change.summary}`;
+  return `**${inner}** — ${escapeMdxText( change.summary )}`;
 }
 
 function renderUpdateBlock( release ) {
@@ -29,20 +42,12 @@ function renderUpdateBlock( release ) {
   return lines.join( '\n' );
 }
 
-export function renderChangelogSnippet( data ) {
+export function renderChangelogBody( data ) {
   const updateBlocks = ( data.releases ?? [] ).map( renderUpdateBlock );
-  const parts = [ AUTO_GENERATED_HEADER, '' ];
 
   if ( updateBlocks.length === 0 ) {
-    parts.push(
-      '<Note>',
-      'No releases yet.',
-      '</Note>',
-      ''
-    );
-    return parts.join( '\n' );
+    return [ '<Note>', 'No releases yet.', '</Note>' ].join( '\n' );
   }
 
-  parts.push( updateBlocks.join( '\n\n' ), '' );
-  return parts.join( '\n' );
+  return updateBlocks.join( '\n\n' );
 }

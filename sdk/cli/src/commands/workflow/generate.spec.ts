@@ -5,8 +5,8 @@ import { generateWorkflow } from '#services/workflow_generator.js';
 import { parseWorkflowDir } from '#utils/workflow_dir_parser.js';
 import { InvalidNameError, WorkflowExistsError } from '#types/errors.js';
 
-vi.mock( '../../services/workflow_generator.js' );
-vi.mock( '../../utils/workflow_dir_parser.js' );
+vi.mock( '#services/workflow_generator.js' );
+vi.mock( '#utils/workflow_dir_parser.js' );
 
 describe( 'Generate Command', () => {
   let mockGenerateWorkflow: any;

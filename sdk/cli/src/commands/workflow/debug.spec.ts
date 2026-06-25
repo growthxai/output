@@ -21,15 +21,11 @@ describe( 'workflow debug command', () => {
       expect( WorkflowDebug ).toBeDefined();
       expect( WorkflowDebug.description ).toContain( 'Get and display workflow execution trace for debugging' );
       expect( WorkflowDebug.args ).toHaveProperty( 'workflowId' );
-      expect( WorkflowDebug.flags ).toHaveProperty( 'format' );
     } );
 
-    it( 'should have correct flag configuration', async () => {
+    it( 'enables the built-in --json flag', async () => {
       const WorkflowDebug = ( await import( './debug.js' ) ).default;
-
-      // Format flag
-      expect( WorkflowDebug.flags.format.options ).toEqual( [ 'json', 'text' ] );
-      expect( WorkflowDebug.flags.format.default ).toBe( 'text' );
+      expect( WorkflowDebug.enableJsonFlag ).toBe( true );
     } );
 
     it( 'should have correct examples', async () => {
