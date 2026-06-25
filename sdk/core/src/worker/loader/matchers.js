@@ -1,5 +1,5 @@
 import { sep } from 'node:path';
-import { rxEscape } from '#utils';
+import { rxEscape } from '#helpers/string';
 
 /**
  * Creates a matcher function that based on "path", matches:

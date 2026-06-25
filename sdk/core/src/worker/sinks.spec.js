@@ -21,7 +21,7 @@ vi.mock( '#tracing', () => ( {
   addEventEnd: addEventEndMock,
   addEventError: addEventErrorMock
 } ) );
-vi.mock( '#internal_utils/temporal_context', () => ( {
+vi.mock( '#helpers/temporal_context', () => ( {
   createWorkflowDetails: createWorkflowDetailsMock
 } ) );
 

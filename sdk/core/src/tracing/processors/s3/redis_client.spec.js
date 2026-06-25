@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock( '#utils', () => ( {
-  throws: e => {
-    throw e;
-  }
-} ) );
-
 const logCalls = { warn: [], error: [] };
 vi.mock( '#logger', () => ( {
   createChildLogger: () => ( {

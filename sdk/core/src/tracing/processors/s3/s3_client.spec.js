@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock( '#utils', () => ( {
-  throws: e => {
-    throw e;
-  }
-} ) );
-
 const getVarsMock = vi.fn();
 vi.mock( './configs', () => ( { getVars: () => getVarsMock() } ) );
 

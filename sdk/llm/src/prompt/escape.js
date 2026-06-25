@@ -1,5 +1,5 @@
 import { encodeXML, decodeXML } from 'entities';
-import { isPlainObject } from '@outputai/core/sdk_utils';
+import { Objects } from '@outputai/core/sdk/helpers';
 
 const VAR_SAFE_FILTER = '__var_safe';
 
@@ -56,7 +56,7 @@ export const decode = value => {
   if ( Array.isArray( value ) ) {
     return value.map( decode );
   }
-  if ( isPlainObject( value ) ) {
+  if ( Objects.isPlainObject( value ) ) {
     return Object.fromEntries(
       Object.entries( value ).map( ( [ k, v ] ) => [ k, decode( v ) ] )
     );

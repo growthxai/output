@@ -18,7 +18,7 @@ import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
-import { runOnce } from '#utils';
+import { runOnce } from '#helpers/function';
 
 import './log_hooks.js';
 

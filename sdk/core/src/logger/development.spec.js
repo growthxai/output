@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const LEVEL = Symbol.for( 'level' );
 const MESSAGE = Symbol.for( 'message' );
 
-vi.mock( '#utils', () => ( {
+vi.mock( '#helpers/object', () => ( {
   isPlainObject: v => Object.prototype.toString.call( v ) === '[object Object]',
   shuffleArray: v => v
 } ) );

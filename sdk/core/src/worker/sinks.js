@@ -1,7 +1,7 @@
 import { BusEventType, ComponentType } from '#consts';
 import * as Tracing from '#tracing';
 import { messageBus } from '#bus';
-import { createWorkflowDetails } from '#internal_utils/temporal_context';
+import { createWorkflowDetails } from '#helpers/temporal_context';
 
 // This sink allow for sandbox Temporal environment to send trace logs back to the main thread.
 export const sinks = {
