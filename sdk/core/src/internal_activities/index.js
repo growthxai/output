@@ -1,10 +1,10 @@
 import { FatalError } from '#errors';
 import { fetch } from 'undici';
 import { serializeFetchResponse, serializeBodyAndInferContentType } from '#helpers/fetch';
-import { assignImmutableProperty } from '#helpers/object';
-import { ComponentType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
+import { createInternalStep } from '#helpers/component';
+import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 
 const log = createChildLogger( 'HttpClient' );
 
@@ -20,41 +20,42 @@ const log = createChildLogger( 'HttpClient' );
  * @returns {object} The serialized HTTP response
  * @throws {FatalError}
  */
-export const sendHttpRequest = async ( { url, method, payload = undefined, headers = undefined, timeout = 30_000 } ) => {
-  const args = {
-    method,
-    headers: new Headers( headers ?? {} ),
-    signal: AbortSignal.timeout( timeout )
-  };
+export const sendHttpRequest = createInternalStep( {
+  name: ACTIVITY_SEND_HTTP_REQUEST,
+  handler: async ( { url, method, payload = undefined, headers = undefined, timeout = 30_000 } ) => {
+    const args = {
+      method,
+      headers: new Headers( headers ?? {} ),
+      signal: AbortSignal.timeout( timeout )
+    };
 
-  const methodsWithBody = [ 'DELETE', 'PATCH', 'POST', 'PUT', 'OPTIONS' ];
-  const hasBodyPayload = ![ undefined, null ].includes( payload );
-  if ( methodsWithBody.includes( method ) && hasBodyPayload ) {
-    const { body, contentType } = serializeBodyAndInferContentType( payload );
-    if ( contentType && !args.headers.has( 'content-type' ) ) {
-      args.headers.set( 'Content-Type', contentType );
+    const methodsWithBody = [ 'DELETE', 'PATCH', 'POST', 'PUT', 'OPTIONS' ];
+    const hasBodyPayload = ![ undefined, null ].includes( payload );
+    if ( methodsWithBody.includes( method ) && hasBodyPayload ) {
+      const { body, contentType } = serializeBodyAndInferContentType( payload );
+      if ( contentType && !args.headers.has( 'content-type' ) ) {
+        args.headers.set( 'Content-Type', contentType );
+      }
+      Object.assign( args, { body } );
+    };
+
+    const response = await ( async () => {
+      try {
+        return await fetch( url, args );
+      } catch ( e ) {
+        throw new FatalError( `${method} ${url} ${e.cause ?? e.message}` );
+      }
+    } )();
+
+    log.info( 'HTTP request completed', { url, method, status: response.status, statusText: response.statusText } );
+
+    if ( !response.ok ) {
+      throw new FatalError( `${method} ${url} ${response.status}` );
     }
-    Object.assign( args, { body } );
-  };
 
-  const response = await ( async () => {
-    try {
-      return await fetch( url, args );
-    } catch ( e ) {
-      throw new FatalError( `${method} ${url} ${e.cause ?? e.message}` );
-    }
-  } )();
-
-  log.info( 'HTTP request completed', { url, method, status: response.status, statusText: response.statusText } );
-
-  if ( !response.ok ) {
-    throw new FatalError( `${method} ${url} ${response.status}` );
+    return serializeFetchResponse( response );
   }
-
-  return serializeFetchResponse( response );
-};
-
-assignImmutableProperty( sendHttpRequest, METADATA_ACCESS_SYMBOL, { type: ComponentType.INTERNAL_STEP } );
+} );
 
 /**
  * Invokes a trace method that resolves all trace output paths based on the traceInfo
@@ -62,6 +63,7 @@ assignImmutableProperty( sendHttpRequest, METADATA_ACCESS_SYMBOL, { type: Compon
  * @param {object} traceInfo
  * @returns {object} Information about enabled destinations
  */
-export const getTraceDestinations = traceInfo => getDestinations( traceInfo );
-
-assignImmutableProperty( getTraceDestinations, METADATA_ACCESS_SYMBOL, { type: ComponentType.INTERNAL_STEP } );
+export const getTraceDestinations = createInternalStep( {
+  name: ACTIVITY_GET_TRACE_DESTINATIONS,
+  handler: traceInfo => getDestinations( traceInfo )
+} );

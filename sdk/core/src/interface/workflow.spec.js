@@ -19,6 +19,7 @@ const validateInputMock = vi.hoisted( () => vi.fn() );
 const validateOutputMock = vi.hoisted( () => vi.fn() );
 const validateInvocationOptionsMock = vi.hoisted( () => vi.fn() );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
+const createWorkflowMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
 vi.mock( './validations/index.js', () => {
   class WorkflowValidator {
@@ -36,6 +37,10 @@ vi.mock( './validations/index.js', () => {
 
   return { WorkflowValidator };
 } );
+
+vi.mock( '#helpers/component', () => ( {
+  createWorkflow: createWorkflowMock
+} ) );
 
 vi.mock( '@temporalio/workflow', async importOriginal => {
   const actual = await importOriginal();
@@ -151,7 +156,7 @@ describe( 'workflow()', () => {
     expect( () => workflow( workflowDefinition( { name: 'invalid_name' } ) ) ).toThrow( error );
   } );
 
-  it( 'attaches workflow metadata to the wrapper', async () => {
+  it( 'creates a workflow component with definition metadata', async () => {
     const { workflow } = await import( './workflow.js' );
     const inputSchema = z.object( { value: z.string() } );
     const outputSchema = z.object( { ok: z.boolean() } );
@@ -165,14 +170,16 @@ describe( 'workflow()', () => {
       fn: async () => ( { ok: true } )
     } ) );
 
-    const [ metadataSymbol ] = Object.getOwnPropertySymbols( wf );
-    expect( wf[metadataSymbol] ).toEqual( {
+    expect( createWorkflowMock ).toHaveBeenCalledWith( {
       name: 'metadata_wf',
       description: 'Metadata workflow',
       inputSchema,
       outputSchema,
-      aliases: [ 'metadata_alias' ]
+      options: {},
+      aliases: [ 'metadata_alias' ],
+      handler: expect.any( Function )
     } );
+    expect( wf ).toBe( createWorkflowMock.mock.calls[0][0].handler );
   } );
 
   describe( 'outside Temporal workflow context', () => {

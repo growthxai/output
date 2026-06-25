@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MockAgent, setGlobalDispatcher } from 'undici';
 import { FatalError } from '#errors';
+import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 import { serializeBodyAndInferContentType, serializeFetchResponse } from '#helpers/fetch';
 import { getTraceDestinations, sendHttpRequest } from './index.js';
 
 const getDestinationsMock = vi.hoisted( () => vi.fn() );
+const createInternalStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
 vi.mock( '#tracing', () => ( {
   getDestinations: getDestinationsMock
@@ -15,8 +17,8 @@ vi.mock( '#logger', () => {
   return { createChildLogger: vi.fn( () => log ) };
 } );
 
-vi.mock( '#helpers/object', () => ( {
-  assignImmutableProperty: vi.fn()
+vi.mock( '#helpers/component', () => ( {
+  createInternalStep: createInternalStepMock
 } ) );
 
 vi.mock( '#helpers/string', () => ( {
@@ -35,6 +37,21 @@ setGlobalDispatcher( mockAgent );
 
 const url = 'https://growthx.ai';
 const method = 'GET';
+
+describe( 'internal_activities component registration', () => {
+  it( 'creates internal step components for exported activities', () => {
+    expect( createInternalStepMock ).toHaveBeenNthCalledWith( 1, {
+      name: ACTIVITY_SEND_HTTP_REQUEST,
+      handler: expect.any( Function )
+    } );
+    expect( createInternalStepMock ).toHaveBeenNthCalledWith( 2, {
+      name: ACTIVITY_GET_TRACE_DESTINATIONS,
+      handler: expect.any( Function )
+    } );
+    expect( sendHttpRequest ).toBe( createInternalStepMock.mock.calls[0][0].handler );
+    expect( getTraceDestinations ).toBe( createInternalStepMock.mock.calls[1][0].handler );
+  } );
+} );
 
 describe( 'internal_activities/sendHttpRequest', () => {
   beforeEach( async () => {
