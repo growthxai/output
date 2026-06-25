@@ -165,6 +165,7 @@ export const streamHistory = async function *( { client, connection }, workflowI
       return;
     }
 
+    state.nextPageToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
     const rawEvents = response.history?.events || [];
 
     const terminalEvent = rawEvents.find( event => TERMINAL_EVENT_TYPES.has( normalizeEventType( event ) ) );
@@ -177,16 +178,6 @@ export const streamHistory = async function *( { client, connection }, workflowI
       state.sawTerminalNewRunId = attrKey ? terminalEvent[attrKey]?.newExecutionRunId || undefined : undefined;
     }
 
-    // Preserve the continuation token across empty long-polls while the workflow is still
-    // open. Temporal can return an empty token at the live tip; dropping it to undefined
-    // restarts the next fetch at FirstEventID=1, re-reading the whole history every idle
-    // cycle (filterEventId stops us re-sending those events, not re-fetching them). Once the
-    // terminal event is in hand the history is fixed, so an empty token then means genuinely
-    // exhausted and must fall through to undefined to end draining/replay. Mirrors the SDK's
-    // follow loop (@temporalio/client workflow-client.js), which keeps res.nextPageToken.
-    const responseToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
-    state.nextPageToken = responseToken ?? ( state.sawTerminalEvent ? undefined : state.nextPageToken );
-
     const batch = rawEvents
       .filter( event => {
         const eventId = Number( event.eventId?.toString() ?? 0 );
@@ -197,10 +188,9 @@ export const streamHistory = async function *( { client, connection }, workflowI
     if ( batch.length > 0 ) {
       const lastSerializedId = Number( batch[batch.length - 1].eventId );
       yield { type: 'history', events: batch, lastEventId: lastSerializedId };
-      // Advance the filter to the last delivered id (high-water mark) rather than
-      // clearing it. An empty long-poll can reset nextPageToken to undefined, making
-      // the next fetch re-read history from the start; keeping the filter armed at the
-      // last emitted id prevents re-emitting events the client already received.
+      // Advance the filter to the last delivered id (high-water mark). Seeded from the
+      // client's lastEventId on reconnect, it guards against re-emitting events the client
+      // already received if a page is ever re-read; keep it armed at the last emitted id.
       state.filterEventId = lastSerializedId;
       state.emittedAny = true;
     }
