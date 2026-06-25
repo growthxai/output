@@ -10,13 +10,13 @@ import { access } from 'node:fs/promises';
 import fs from 'node:fs/promises';
 
 vi.mock( 'node:fs/promises' );
-vi.mock( '../utils/paths.js', () => ( {
+vi.mock( '#utils/paths.js', () => ( {
   getTemplateDir: vi.fn().mockReturnValue( '/templates' )
 } ) );
-vi.mock( '../utils/template.js', () => ( {
+vi.mock( '#utils/template.js', () => ( {
   processTemplate: vi.fn().mockImplementation( ( content: string ) => content )
 } ) );
-vi.mock( '../utils/claude.js', () => ( {
+vi.mock( '#utils/claude.js', () => ( {
   executeClaudeCommand: vi.fn().mockResolvedValue( undefined )
 } ) );
 vi.mock( '@oclif/core', () => ( {
@@ -199,7 +199,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should call registerPluginMarketplace and installOutputAIPlugin', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
 
       await ensureClaudePlugin( '/test/project' );
 
@@ -219,7 +219,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should show error and prompt user when plugin commands fail', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
@@ -240,7 +240,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should allow user to proceed without plugin setup if they confirm', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
@@ -304,7 +304,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should show error and prompt user when registerPluginMarketplace fails', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
@@ -325,7 +325,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should show error and prompt user when installOutputAIPlugin fails', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
@@ -347,7 +347,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should allow user to proceed without plugin setup if they confirm', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
 
       vi.mocked( executeClaudeCommand )
@@ -364,7 +364,7 @@ describe( 'coding_agents service', () => {
     } );
 
     it( 'should rethrow plugin error in non-interactive mode without prompting', async () => {
-      const { executeClaudeCommand } = await import( '../utils/claude.js' );
+      const { executeClaudeCommand } = await import( '#utils/claude.js' );
       const { confirm } = await import( '#utils/prompt.js' );
       const { isInteractive } = await import( '#utils/interactive.js' );
 
