@@ -32,6 +32,13 @@ export const tryParseJson = ( text: string ): { ok: true } | { ok: false; error:
   }
 };
 
+// Start the cursor inside the first empty "" pair (e.g. the key of a fresh `{ "": "" }`
+// seed) so the user can type immediately; otherwise sit at the end of the buffer.
+export const initialCursor = ( buffer: string ): number => {
+  const emptyPair = buffer.indexOf( '""' );
+  return emptyPair === -1 ? buffer.length : emptyPair + 1;
+};
+
 const VISIBLE_BUFFER = 6;
 
 export const JsonEditor: React.FC<{
@@ -44,7 +51,7 @@ export const JsonEditor: React.FC<{
 }> = ( { seed, title, isActive = true, onSubmit, onSave, onCancel } ) => {
   const initial = JSON.stringify( seed ?? {}, null, 2 );
   const [ buffer, setBuffer ] = useState( initial );
-  const [ cursor, setCursor ] = useState( initial.length );
+  const [ cursor, setCursor ] = useState( () => initialCursor( initial ) );
   const [ status, setStatus ] = useState<{ ok: true } | { ok: false; error: string }>( () => tryParseJson( initial ) );
   const [ submitMessage, setSubmitMessage ] = useState<string | null>( null );
 
@@ -83,11 +90,11 @@ export const JsonEditor: React.FC<{
       onCancel();
       return;
     }
-    if ( key.ctrl && input === 's' ) {
+    if ( key.ctrl && input === 'r' ) {
       commit( onSubmit );
       return;
     }
-    if ( key.ctrl && input === 'w' && onSave ) {
+    if ( key.ctrl && input === 's' && onSave ) {
       commit( onSave );
       return;
     }
@@ -170,9 +177,9 @@ export const JsonEditor: React.FC<{
       )}
 
       <Box marginTop={1} columnGap={2}>
-        <Box columnGap={1}><Text bold>ctrl+s</Text><Text dimColor>run</Text></Box>
+        <Box columnGap={1}><Text bold>ctrl+r</Text><Text dimColor>run</Text></Box>
         {onSave ? (
-          <Box columnGap={1}><Text bold>ctrl+w</Text><Text dimColor>save &amp; run</Text></Box>
+          <Box columnGap={1}><Text bold>ctrl+s</Text><Text dimColor>save &amp; run</Text></Box>
         ) : null}
         <Box columnGap={1}><Text bold>esc</Text><Text dimColor>cancel</Text></Box>
         <Box columnGap={1}><Text bold>↑↓←→</Text><Text dimColor>move</Text></Box>

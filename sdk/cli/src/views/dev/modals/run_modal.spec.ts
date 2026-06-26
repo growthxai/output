@@ -4,7 +4,7 @@ import { buildEntries, validateScenarioName } from './run_modal.js';
 describe( 'buildEntries', () => {
   it( 'lists scenarios then the custom-JSON entry', () => {
     const entries = buildEntries( [ 'basic', 'edge' ] );
-    expect( entries.map( e => e.label ) ).toEqual( [ 'basic', 'edge', '[Run custom JSON]' ] );
+    expect( entries.map( e => e.label ) ).toEqual( [ 'basic', 'edge', '[Enter input]' ] );
     expect( entries[0] ).toMatchObject( { kind: 'scenario', scenarioName: 'basic' } );
     expect( entries.at( -1 ) ).toMatchObject( { kind: 'custom' } );
   } );

@@ -21,13 +21,16 @@ interface Entry {
 
 const SCENARIO_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
+// Seed for a brand-new input — an empty "": "" pair reads friendlier than a bare {}.
+const CUSTOM_SEED: unknown = { '': '' };
+
 export const buildEntries = ( scenarios: string[] ): Entry[] => {
   const list: Entry[] = scenarios.map( s => ( {
     kind: 'scenario' as const,
     label: s,
     scenarioName: s
   } ) );
-  list.push( { kind: 'custom', label: '[Run custom JSON]' } );
+  list.push( { kind: 'custom', label: '[Enter input]' } );
   return list;
 };
 
@@ -119,11 +122,11 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
     }
   };
 
-  // Custom + duplicate both open the editor first; saving a scenario is opt-in (ctrl+w).
+  // Custom + duplicate both open the editor first; saving a scenario is opt-in (ctrl+s).
   const startCustom = (): void => {
-    setEditSeed( {} );
+    setEditSeed( CUSTOM_SEED );
     setDefaultSaveName( '' );
-    setEditFrameTitle( 'Run custom JSON' );
+    setEditFrameTitle( 'Enter input' );
     setMode( 'edit_content' );
   };
 
@@ -140,12 +143,12 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
     }
   };
 
-  // ctrl+s in the editor: run the payload as-is, nothing written to disk.
+  // ctrl+r in the editor: run the payload as-is, nothing written to disk.
   const runEphemeral = ( value: unknown ): void => {
-    void submit( value, defaultSaveName || 'custom' );
+    void submit( value, defaultSaveName || 'input' );
   };
 
-  // ctrl+w in the editor: keep the payload and ask for a name before saving + running.
+  // ctrl+s in the editor: keep the payload and ask for a name before saving + running.
   const beginSave = ( value: unknown ): void => {
     setPendingValue( value );
     setEditSeed( value );
@@ -242,7 +245,7 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
       <ModalFrame title={editFrameTitle}>
         <JsonEditor
           seed={editSeed}
-          title={defaultSaveName ? `${defaultSaveName}.json` : 'custom input'}
+          title={defaultSaveName ? `${defaultSaveName}.json` : 'input'}
           isActive
           onSubmit={runEphemeral}
           onSave={beginSave}
@@ -285,7 +288,7 @@ export const RunModal: React.FC<{ workflowName: string; workflowPath?: string }>
   return (
     <ModalFrame title={`Run ${workflowName}`} shortcuts={SELECT_SHORTCUTS}>
       <Box flexDirection="column" gap={1}>
-        <Text dimColor>{scenarios.length === 0 ? 'No saved scenarios. Run with custom JSON:' : 'Select a scenario:'}</Text>
+        <Text dimColor>{scenarios.length === 0 ? 'No saved scenarios. Enter input to run:' : 'Select a scenario:'}</Text>
         <Box flexDirection="column">
           {entries.map( ( entry, i ) => (
             <Box key={`${entry.kind}-${entry.scenarioName ?? i}`}>
