@@ -1,0 +1,170 @@
+import { isGrpcCancelledError } from '@temporalio/client';
+import { temporal as temporalConfig } from '#configs';
+import { decodeEventPayloads, serializeEvent, normalizeEventType } from '../../event_serialization.js';
+import { EventType, EventTypeName } from '../../event_types.js';
+import { isWorkflowClosed } from '../types.js';
+import { describeWorkflow } from './describe_workflow.js';
+
+const { namespace } = temporalConfig;
+
+const TERMINAL_EVENT_TYPES = new Set( [
+  EventType.WORKFLOW_EXECUTION_COMPLETED,
+  EventType.WORKFLOW_EXECUTION_FAILED,
+  EventType.WORKFLOW_EXECUTION_TIMED_OUT,
+  EventType.WORKFLOW_EXECUTION_CANCELED,
+  EventType.WORKFLOW_EXECUTION_TERMINATED,
+  EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW
+] );
+
+// The closed set of `reason` strings a `done` chunk can carry. The streaming path resolves
+// `reason` from the terminal event type through `EventTypeName`, so derive the valid set from
+// the same source to keep them aligned.
+export const TERMINAL_REASONS = new Set(
+  [ ...TERMINAL_EVENT_TYPES ].map( type => EventTypeName[type] )
+);
+
+const NEW_RUN_ID_ATTRS = {
+  [EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW]: 'workflowExecutionContinuedAsNewEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_COMPLETED]: 'workflowExecutionCompletedEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_FAILED]: 'workflowExecutionFailedEventAttributes',
+  [EventType.WORKFLOW_EXECUTION_TIMED_OUT]: 'workflowExecutionTimedOutEventAttributes'
+};
+
+// Single constructor for the terminal `done` chunk so its shape lives in one place.
+// `newRunId` is undefined unless the terminal event carried a follow-on run.
+const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } );
+
+/**
+ * Streams workflow history events as an async generator, long-polling Temporal for
+ * new events until the workflow reaches a terminal state. Designed to back a
+ * Server-Sent Events endpoint with reconnect support via `lastEventId`.
+ *
+ * Yields chunks of shape (the `type` discriminant matches the SSE wire event name):
+ *   - `{ type: 'workflow', workflow }`              metadata (incl. `closed`), emitted once first
+ *   - `{ type: 'history', events, lastEventId }`    batches of serialized events
+ *   - `{ type: 'done', reason, newRunId }`          terminal state reached
+ *
+ * @param {{ client: import('@temporalio/client').Client, connection: import('@temporalio/client').Connection }} context
+ * @param {string} workflowId
+ * @param {object} options
+ * @param {string} [options.runId] - Specific run to target, defaults to latest
+ * @param {boolean} [options.includePayloads=false] - Decode input/output payloads
+ * @param {number} [options.lastEventId] - Resume after this event id (reconnect)
+ * @param {AbortSignal} [options.abortSignal] - Cancels in-flight gRPC calls
+ */
+export const streamHistory = async function *( { client, connection }, workflowId, options = {} ) {
+  const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
+  const { workflow, description } = await describeWorkflow( { client }, workflowId, {
+    runId,
+    // Route describe through the abort signal so a client disconnect cancels it. The helper
+    // rethrows the cancellation bare so the handler's first-next() catch can bail quietly;
+    // fetchPage below instead converts the same cancellation into a null sentinel.
+    invoke: fn => connection.withAbortSignal( abortSignal, fn )
+  } );
+
+  const resolvedRunId = workflow.runId;
+  if ( !resolvedRunId ) {
+    throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+  }
+
+  // `closed` lets the handler answer 204 to a reconnect already past a closed workflow's
+  // terminal event (nothing left to stream) instead of looping an EventSource client.
+  yield { type: 'workflow', workflow: { ...workflow, closed: isWorkflowClosed( description.status.code ) } };
+
+  const processEvent = event => serializeEvent(
+    includePayloads ? decodeEventPayloads( event ) : event,
+    { includePayloads }
+  );
+
+  const state = {
+    nextPageToken: undefined,
+    filterEventId: lastEventId,
+    emittedAny: false,
+    sawTerminalEvent: false,
+    sawTerminalReason: undefined,
+    sawTerminalNewRunId: undefined
+  };
+
+  // Fetch the next page; long-poll for new events only while the workflow is still
+  // open (waitNewEvent), and drain already-buffered pages without blocking otherwise.
+  const fetchPage = waitNewEvent => connection.withAbortSignal( abortSignal, () =>
+    connection.workflowService.getWorkflowExecutionHistory( {
+      namespace,
+      execution: { workflowId, runId: resolvedRunId },
+      maximumPageSize: 50,
+      nextPageToken: state.nextPageToken,
+      ...( waitNewEvent ? { waitNewEvent: true } : {} )
+    } )
+  ).catch( error => {
+    if ( isGrpcCancelledError( error ) ) {
+      return null;
+    }
+    throw error;
+  } );
+
+  while ( true ) {
+    const response = await fetchPage( true );
+
+    if ( response === null ) {
+      return;
+    }
+
+    state.nextPageToken = response.nextPageToken?.length ? response.nextPageToken : undefined;
+    const rawEvents = response.history?.events || [];
+
+    const terminalEvent = rawEvents.find( event => TERMINAL_EVENT_TYPES.has( normalizeEventType( event ) ) );
+
+    if ( terminalEvent && !state.sawTerminalEvent ) {
+      const eventType = normalizeEventType( terminalEvent );
+      const attrKey = NEW_RUN_ID_ATTRS[eventType];
+      state.sawTerminalEvent = true;
+      state.sawTerminalReason = EventTypeName[eventType];
+      state.sawTerminalNewRunId = attrKey ? terminalEvent[attrKey]?.newExecutionRunId || undefined : undefined;
+    }
+
+    const batch = rawEvents
+      .filter( event => {
+        const eventId = Number( event.eventId?.toString() ?? 0 );
+        return state.filterEventId === undefined || eventId > state.filterEventId;
+      } )
+      .map( processEvent );
+
+    if ( batch.length > 0 ) {
+      const lastSerializedId = Number( batch[batch.length - 1].eventId );
+      yield { type: 'history', events: batch, lastEventId: lastSerializedId };
+      // Advance the filter to the last delivered id (high-water mark). Seeded from the
+      // client's lastEventId on reconnect, it guards against re-emitting events the client
+      // already received if a page is ever re-read; keep it armed at the last emitted id.
+      state.filterEventId = lastSerializedId;
+      state.emittedAny = true;
+    }
+
+    // Replay complete: all pages drained, terminal event was already seen by the
+    // client (reconnect cursor past it), so nothing new was emitted this stream.
+    if ( !state.nextPageToken && !state.emittedAny && state.sawTerminalEvent ) {
+      yield doneChunk( state.sawTerminalReason, state.sawTerminalNewRunId );
+      return;
+    }
+
+    if ( terminalEvent ) {
+      while ( state.nextPageToken ) {
+        const drainResponse = await fetchPage( false );
+
+        if ( drainResponse === null ) {
+          return;
+        }
+
+        state.nextPageToken = drainResponse.nextPageToken?.length ? drainResponse.nextPageToken : undefined;
+        const drainEvents = drainResponse.history?.events || [];
+        if ( drainEvents.length > 0 ) {
+          const drainBatch = drainEvents.map( processEvent );
+          const drainLastId = Number( drainBatch[drainBatch.length - 1].eventId );
+          yield { type: 'history', events: drainBatch, lastEventId: drainLastId };
+        }
+      }
+
+      yield doneChunk( state.sawTerminalReason, state.sawTerminalNewRunId );
+      return;
+    }
+  }
+};

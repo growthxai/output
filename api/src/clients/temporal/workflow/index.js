@@ -6,6 +6,7 @@ import { reset } from './reset.js';
 import { run } from './run.js';
 import { start } from './start.js';
 import { stop } from './stop.js';
+import { streamHistory } from './stream_history.js';
 import { terminate } from './terminate.js';
 import { signal, query, executeUpdate } from './communication.js';
 
@@ -22,6 +23,7 @@ export const getWorkflowMethods = context => Object.fromEntries(
     signal,
     start,
     stop,
+    streamHistory,
     terminate
   } ).map( ( [ k, v ] ) => [ k, v.bind( null, context ) ] )
 );

@@ -44,8 +44,21 @@ const directGrpcHttpStatus = err =>
 const grpcHttpStatus = err =>
   ( err ? directGrpcHttpStatus( err ) ?? grpcHttpStatus( err.cause ) : undefined );
 
-export default function errorHandler( error, req, res, _next ) {
-  res.locals.error = error; // Adds the error to locals for further processing by the logger
+export default function errorHandler( error, req, res, next ) {
+  res.locals.error = error; // Surface the error to the access logger (morgan) on every path.
+
+  // Response already flushed (e.g. an SSE endpoint mid-stream): we can no longer write a JSON
+  // error body. Streaming endpoints own their own post-flush error handling, so reaching here
+  // is unexpected — surface it through the structured logger (it would otherwise only hit
+  // Express's default stderr handler and bypass alerting), then delegate to Express's default
+  // handler, which aborts the connection.
+  if ( res.headersSent ) {
+    logger.error( `Error after response headers sent: ${error.constructor.name}: ${error.message}`, {
+      requestId: req?.id,
+      ...( error.workflowId && { workflowId: error.workflowId } )
+    } );
+    return next( error );
+  }
 
   const response = error instanceof ZodError ?
     { error: 'ValidationError', message: 'Invalid Payload', issues: error.issues } :
@@ -75,5 +88,5 @@ export default function errorHandler( error, req, res, _next ) {
     } );
   }
 
-  res.status( status ).json( response );
+  return res.status( status ).json( response );
 }
