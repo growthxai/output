@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isGrpcCancelledError } from '@temporalio/client';
 import { logger } from '#logger';
+import { WorkflowStreamProtocolError } from '../clients/errors.js';
 import { readPinnedRunId } from './utils.js';
 
 export function createWorkflowHistoryStreamHandler( client ) {
@@ -56,10 +57,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
 
     const { value: firstChunk, done } = firstResult;
     if ( done || firstChunk?.type !== 'workflow' ) {
-      throw Object.assign(
-        new Error( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` ),
-        { workflowId }
-      );
+      throw new WorkflowStreamProtocolError( workflowId );
     }
 
     // runId from the query is only present on the /runs/:rid route; on the bare history
@@ -134,7 +132,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
         } );
       } else {
         logger.error( 'SSE stream error', {
-          workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message, stack: error.stack
+          workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message
         } );
         const payload = { error: error.constructor.name, message: error.message, workflowId, runId: resolvedRunId };
         safeWrite( `event: server_error\ndata: ${JSON.stringify( payload )}\n\n` );

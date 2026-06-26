@@ -1,4 +1,21 @@
+import { WorkflowNotFoundError } from '@temporalio/client';
+
 export { WorkflowNotFoundError, WorkflowFailedError } from '@temporalio/client';
+
+/** Build a run-aware WorkflowNotFoundError. Shared by the describe and history paths. */
+export const workflowNotFoundError = ( workflowId, runId ) => new WorkflowNotFoundError( runId ?
+  `Run "${runId}" not found for workflow "${workflowId}"` :
+  `Workflow "${workflowId}" not found`
+);
+
+/** Thrown when streamHistory does not yield workflow metadata as its first chunk. */
+export class WorkflowStreamProtocolError extends Error {
+  /** @param {string} workflowId */
+  constructor( workflowId ) {
+    super( `streamHistory did not yield workflow metadata as first chunk (workflowId: ${workflowId})` );
+    this.workflowId = workflowId;
+  }
+}
 
 /** Thrown when the catalog workflow is not available (e.g. worker not running). */
 export class CatalogNotAvailableError extends Error {

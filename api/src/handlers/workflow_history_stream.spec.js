@@ -170,6 +170,20 @@ describe( 'workflow_history_stream handler', () => {
       expect( res.body.error ).toBe( 'WorkflowNotFoundError' );
     } );
 
+    it( 'throws WorkflowStreamProtocolError when the first chunk is not workflow metadata', async () => {
+      const mockStream = vi.fn( () => ( async function *() {
+        yield { type: 'history', events: [], lastEventId: 1 };
+      } )() );
+
+      const res = await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream' )
+        .expect( 500 );
+
+      // Pre-flush guard: the message carries the workflowId so the global handler surfaces it.
+      expect( res.body.error ).toContain( 'did not yield workflow metadata' );
+      expect( res.body.error ).toContain( 'wf-1' );
+    } );
+
     it( 'returns 400 for invalid includePayloads value', async () => {
       const mockStream = vi.fn();
 

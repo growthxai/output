@@ -67,10 +67,16 @@ export const decodeEventPayloads = event => {
   return event;
 };
 
-export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
-  const eventType = typeof event.eventType === 'object' ?
+// Temporal sends eventType as a numeric enum or, over gRPC, a Long-like object.
+// Coerce to a plain number so terminal-detection and serialization agree on the value.
+export const normalizeEventType = event => (
+  typeof event.eventType === 'object' ?
     Number( event.eventType.toString() ) :
-    event.eventType;
+    event.eventType
+);
+
+export const serializeEvent = ( event, { includePayloads = false } = {} ) => {
+  const eventType = normalizeEventType( event );
 
   if ( EventTypeName[eventType] === undefined && !warnedUnknownEventTypes.has( eventType ) ) {
     logger.warn( 'Unknown Temporal event type encountered', { eventType } );

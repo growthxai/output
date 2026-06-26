@@ -1,9 +1,9 @@
 import { isGrpcCancelledError } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
-import { WorkflowNotFoundError } from '../../errors.js';
-import { decodeEventPayloads, serializeEvent } from '../../event_serialization.js';
+import { decodeEventPayloads, serializeEvent, normalizeEventType } from '../../event_serialization.js';
 import { EventType, EventTypeName } from '../../event_types.js';
-import { WorkflowStatus, isWorkflowClosed, GrpcStatus, formatStatus } from '../types.js';
+import { WorkflowStatus, isWorkflowClosed } from '../types.js';
+import { describeWorkflow } from './describe_workflow.js';
 
 const { namespace } = temporalConfig;
 
@@ -76,39 +76,20 @@ const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } )
  */
 export const streamHistory = async function *( { client, connection }, workflowId, options = {} ) {
   const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
-  const handle = client.workflow.getHandle( workflowId, runId );
-  const description = await connection.withAbortSignal( abortSignal, () => handle.describe() ).catch( error => {
-    if ( isGrpcCancelledError( error ) ) {
-      // Benign abort from client disconnect; rethrow bare so callers treat it as a
-      // cancellation rather than a real error (matches fetchPage's handling below).
-      throw error;
-    }
-    if ( error?.code === GrpcStatus.NOT_FOUND ) {
-      throw new WorkflowNotFoundError( runId ?
-        `Run "${runId}" not found for workflow "${workflowId}"` :
-        `Workflow "${workflowId}" not found`
-      );
-    }
-    error.workflowId = workflowId;
-    throw error;
+  const { workflow, description } = await describeWorkflow( { client }, workflowId, {
+    runId,
+    // Route describe through the abort signal so a client disconnect cancels it; the helper
+    // rethrows the resulting cancellation bare (matches fetchPage's handling below).
+    invoke: fn => connection.withAbortSignal( abortSignal, fn )
   } );
 
-  const resolvedRunId = description.runId;
+  const resolvedRunId = workflow.runId;
   if ( !resolvedRunId ) {
     throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
   }
   const workflowStatus = description.status.code;
-  const historyLength = description.historyLength;
+  const historyLength = workflow.historyLength;
 
-  const workflow = {
-    workflowId,
-    runId: resolvedRunId,
-    status: formatStatus( description.status.name ),
-    startTime: description.startTime?.toISOString() ?? null,
-    closeTime: description.closeTime?.toISOString() ?? null,
-    historyLength,
-    taskQueue: description.taskQueue
-  };
   yield { type: 'workflow', workflow };
 
   if (
@@ -122,11 +103,6 @@ export const streamHistory = async function *( { client, connection }, workflowI
     return;
   }
 
-  const normalizeEventType = event => (
-    typeof event.eventType === 'object' ?
-      Number( event.eventType.toString() ) :
-      event.eventType
-  );
   const processEvent = event => serializeEvent(
     includePayloads ? decodeEventPayloads( event ) : event,
     { includePayloads }
