@@ -83,8 +83,21 @@ describe( 'streamHistory', () => {
       runId: 'run-abc',
       status: 'running',
       historyLength: 10,
-      taskQueue: 'default'
+      taskQueue: 'default',
+      closed: false
     } );
+  } );
+
+  it( 'marks the workflow chunk closed for a terminal status', async () => {
+    mockDescribe.mockResolvedValue( { ...baseDescription, status: { code: 2, name: 'COMPLETED' } } );
+    mockGetWorkflowExecutionHistory.mockResolvedValue( {
+      history: { events: [ makeEvent( 1, 2 ) ] },
+      nextPageToken: undefined
+    } );
+
+    const first = await streamHistory( context, 'wf-1' ).next();
+
+    expect( first.value.workflow.closed ).toBe( true );
   } );
 
   it( 'yields events in batches and ends with done on terminal event', async () => {

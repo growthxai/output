@@ -239,11 +239,15 @@ describe( 'error_handler', () => {
 
     errorHandler( error, fakeReq, fakeRes, next );
 
-    // Can't write a body post-flush; hand off to Express's default handler and don't log here.
+    // Can't write a body post-flush; surface it through the logger, then hand off to Express's
+    // default handler (which aborts the connection) rather than re-heading the response.
     expect( fakeRes.status ).not.toHaveBeenCalled();
     expect( fakeRes.json ).not.toHaveBeenCalled();
     expect( next ).toHaveBeenCalledWith( error );
     expect( fakeRes.locals.error ).toBe( error );
-    expect( logger.error ).not.toHaveBeenCalled();
+    expect( logger.error ).toHaveBeenCalledWith(
+      expect.stringContaining( 'Error after response headers sent' ),
+      expect.objectContaining( { requestId: 'req-123' } )
+    );
   } );
 } );

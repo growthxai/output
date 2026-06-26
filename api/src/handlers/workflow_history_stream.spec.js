@@ -351,6 +351,65 @@ describe( 'workflow_history_stream handler', () => {
       );
       expect( mockLoggerError ).not.toHaveBeenCalled();
     } );
+
+    it( 'logs a programming error at error level even when masked by client disconnect', async () => {
+      const closeHandlers = [];
+      const fakeReq = {
+        params: { id: 'wf-1' },
+        query: {},
+        headers: {},
+        on: vi.fn( ( evt, cb ) => {
+          if ( evt === 'close' ) {
+            closeHandlers.push( cb );
+          }
+        } )
+      };
+      const fakeRes = {
+        headersSent: false,
+        writableEnded: false,
+        set: vi.fn(),
+        flushHeaders: vi.fn( () => {
+          fakeRes.headersSent = true;
+        } ),
+        write: vi.fn(),
+        end: vi.fn( () => {
+          fakeRes.writableEnded = true;
+        } ),
+        on: vi.fn()
+      };
+
+      const gateRef = { resolve: null };
+      const bug = new TypeError( 'cannot read properties of undefined' );
+      const stream = ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow() };
+        await new Promise( resolve => {
+          gateRef.resolve = resolve;
+        } );
+        throw bug;
+      } )();
+
+      const mockClient = { workflow: { streamHistory: vi.fn( () => stream ) } };
+      const handler = createWorkflowHistoryStreamHandler( mockClient );
+
+      const handlerPromise = handler( fakeReq, fakeRes );
+      while ( gateRef.resolve === null ) {
+        await Promise.resolve();
+      }
+
+      closeHandlers[0]();
+      gateRef.resolve();
+      await handlerPromise;
+
+      // A TypeError is a bug regardless of the disconnect — it must not be downgraded to info.
+      expect( mockLoggerError ).toHaveBeenCalledWith(
+        'SSE stream error',
+        expect.objectContaining( { workflowId: 'wf-1', error: 'TypeError' } )
+      );
+      expect( mockLoggerInfo ).not.toHaveBeenCalledWith(
+        'SSE stream error suppressed by client disconnect',
+        expect.anything()
+      );
+    } );
   } );
 
   describe( 'query params and client call args', () => {
@@ -456,6 +515,44 @@ describe( 'workflow_history_stream handler', () => {
       expect( mockStream ).toHaveBeenCalledWith( 'wf-1', expect.objectContaining( {
         lastEventId: undefined
       } ) );
+    } );
+  } );
+
+  describe( 'reconnect past terminal event', () => {
+    it( 'returns 204 (no stream) when reconnecting at/after a closed workflow terminal event', async () => {
+      const mockStream = vi.fn( () => ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow( { closed: true, historyLength: 5 } ) };
+        yield { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' };
+      } )() );
+
+      const res = await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream?lastEventId=5' )
+        .expect( 204 );
+
+      // 204 stops a browser EventSource from reconnecting; no SSE body is written.
+      expect( res.text ).toBe( '' );
+      expect( res.headers['content-type'] ).toBeUndefined();
+    } );
+
+    it( 'streams normally (200) when the cursor is behind a closed workflow tip', async () => {
+      const mockStream = vi.fn( () => simpleStream( makeWorkflow( { closed: true, historyLength: 5 } ) ) );
+
+      const res = await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream?lastEventId=2' )
+        .expect( 200 );
+
+      expect( res.headers['content-type'] ).toMatch( /event-stream/ );
+      expect( res.text ).toContain( 'event: workflow' );
+    } );
+
+    it( 'streams normally (200) for an open workflow even when the cursor is at the tip', async () => {
+      const mockStream = vi.fn( () => simpleStream( makeWorkflow( { historyLength: 5 } ) ) );
+
+      const res = await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream?lastEventId=5' )
+        .expect( 200 );
+
+      expect( res.headers['content-type'] ).toMatch( /event-stream/ );
     } );
   } );
 

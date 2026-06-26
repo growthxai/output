@@ -59,7 +59,11 @@ describe( 'describeWorkflow', () => {
     const notFound = Object.assign( new Error( 'nope' ), { code: 5 } );
 
     await expect( describeWorkflow( makeContext( vi.fn().mockRejectedValue( notFound ) ), 'wf-x', { runId: 'r' } ) )
-      .rejects.toMatchObject( { name: 'WorkflowNotFoundError', message: 'Run "r" not found for workflow "wf-x"' } );
+      .rejects.toMatchObject( {
+        name: 'WorkflowNotFoundError',
+        message: 'Run "r" not found for workflow "wf-x"',
+        workflowId: 'wf-x'
+      } );
   } );
 
   it( 'rethrows a cancellation bare and annotates other errors with workflowId', async () => {

@@ -1591,14 +1591,21 @@ const server = app.listen( apiConfig.port, () => {
 
 const closeServer = promisify( server.close.bind( server ) );
 const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
+// Grace window for normal in-flight requests to finish before open sockets are force-closed.
+const SHUTDOWN_GRACE_MS = 5_000;
 
 const shutdown = runOnce( async () => {
   logger.info( 'Closing HTTP server...' );
-  // SSE responses never drain on their own (parked in a long poll, 15s keepalive holding
-  // the socket), so server.close() alone would wait forever for them. Force open sockets
-  // shut so closeServer() resolves and teardown can proceed.
-  server.closeAllConnections();
-  await closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
+  // Stop accepting new connections, then free idle keep-alive sockets immediately so they
+  // don't hold the server open. Normal in-flight requests get up to SHUTDOWN_GRACE_MS to
+  // drain; only then do we force the rest shut — SSE responses never drain on their own
+  // (parked in a long poll, 15s keepalive holding the socket), so they always hit the grace
+  // deadline. Force-closing everything up front would drop ordinary requests mid-response.
+  const closed = closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
+  server.closeIdleConnections();
+  const graceTimer = setTimeout( () => server.closeAllConnections(), SHUTDOWN_GRACE_MS );
+  await closed;
+  clearTimeout( graceTimer );
 
   logger.info( 'Closing Temporal client...' );
   await client.close().catch( e => logger.warn( 'Error closing Temporal client', { error: e.message } ) );

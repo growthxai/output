@@ -2,6 +2,7 @@ import { isGrpcCancelledError } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { decodeEventPayloads, serializeEvent, normalizeEventType } from '../../event_serialization.js';
 import { EventType, EventTypeName } from '../../event_types.js';
+import { isWorkflowClosed } from '../types.js';
 import { describeWorkflow } from './describe_workflow.js';
 
 const { namespace } = temporalConfig;
@@ -39,7 +40,7 @@ const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } )
  * Server-Sent Events endpoint with reconnect support via `lastEventId`.
  *
  * Yields chunks of shape (the `type` discriminant matches the SSE wire event name):
- *   - `{ type: 'workflow', workflow }`              metadata, emitted once first
+ *   - `{ type: 'workflow', workflow }`              metadata (incl. `closed`), emitted once first
  *   - `{ type: 'history', events, lastEventId }`    batches of serialized events
  *   - `{ type: 'done', reason, newRunId }`          terminal state reached
  *
@@ -53,10 +54,11 @@ const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } )
  */
 export const streamHistory = async function *( { client, connection }, workflowId, options = {} ) {
   const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
-  const { workflow } = await describeWorkflow( { client }, workflowId, {
+  const { workflow, description } = await describeWorkflow( { client }, workflowId, {
     runId,
-    // Route describe through the abort signal so a client disconnect cancels it; the helper
-    // rethrows the resulting cancellation bare (matches fetchPage's handling below).
+    // Route describe through the abort signal so a client disconnect cancels it. The helper
+    // rethrows the cancellation bare so the handler's first-next() catch can bail quietly;
+    // fetchPage below instead converts the same cancellation into a null sentinel.
     invoke: fn => connection.withAbortSignal( abortSignal, fn )
   } );
 
@@ -65,7 +67,9 @@ export const streamHistory = async function *( { client, connection }, workflowI
     throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
   }
 
-  yield { type: 'workflow', workflow };
+  // `closed` lets the handler answer 204 to a reconnect already past a closed workflow's
+  // terminal event (nothing left to stream) instead of looping an EventSource client.
+  yield { type: 'workflow', workflow: { ...workflow, closed: isWorkflowClosed( description.status.code ) } };
 
   const processEvent = event => serializeEvent(
     includePayloads ? decodeEventPayloads( event ) : event,

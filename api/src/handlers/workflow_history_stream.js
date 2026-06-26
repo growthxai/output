@@ -4,6 +4,12 @@ import { logger } from '#logger';
 import { WorkflowStreamProtocolError } from '../clients/errors.js';
 import { readPinnedRunId } from './utils.js';
 
+// A client disconnect can race a genuine fault from the stream. We downgrade such masked
+// errors to `info` (the client can't receive them anyway) — except programming errors, which
+// are bugs regardless of the disconnect and must stay at `error` level so alerting sees them.
+const isProgrammingError = error =>
+  error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError;
+
 export function createWorkflowHistoryStreamHandler( client ) {
   const lastEventIdSchema = z.coerce.number().int().positive();
   const querySchema = z.object( {
@@ -65,6 +71,19 @@ export function createWorkflowHistoryStreamHandler( client ) {
     // server_error payload always carry it.
     const resolvedRunId = firstChunk.workflow.runId;
 
+    // Reconnect at/after the terminal event of an already-closed workflow: nothing left to
+    // stream. Replying 200 text/event-stream and re-sending `done` would make a browser
+    // EventSource reconnect (~3s) and receive `done` again, looping. A 204 (non-200) tells
+    // EventSource to stop. Decided before flushHeaders, while the status can still change.
+    if (
+      firstChunk.workflow.closed &&
+      lastEventId !== undefined &&
+      lastEventId >= firstChunk.workflow.historyLength
+    ) {
+      res.status( 204 ).end();
+      return;
+    }
+
     res.set( {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
@@ -125,8 +144,9 @@ export function createWorkflowHistoryStreamHandler( client ) {
     } catch ( error ) {
       if ( isGrpcCancelledError( error ) ) {
         // Pure cancellation from gRPC client teardown: nothing to log.
-      } else if ( ctrl.signal.aborted ) {
-        // Real error masked by client disconnect — log at info so it stays observable.
+      } else if ( ctrl.signal.aborted && !isProgrammingError( error ) ) {
+        // Real (transport/Temporal) error masked by client disconnect — log at info so it
+        // stays observable without paging on something the client can no longer receive.
         logger.info( 'SSE stream error suppressed by client disconnect', {
           workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message
         } );
