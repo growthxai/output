@@ -73,19 +73,32 @@ export function createWorkflowHistoryStreamHandler( client ) {
       ctrl.abort();
     } );
 
-    res.write( `event: workflow\ndata: ${JSON.stringify( firstChunk.workflow )}\n\n` );
-    const keepalive = setInterval( () => {
+    // Single guarded writer for every SSE frame. res.write can throw synchronously
+    // (e.g. ERR_STREAM_DESTROYED) in the window between socket destruction and
+    // writableEnded being set; unguarded, that throw escapes post-flush to the global
+    // error handler (headers already sent) or, from the keepalive timer, becomes an
+    // uncaughtException. Returns false once the socket can no longer be written so callers
+    // can stop. Treats a failed write as a disconnect: aborts the stream and stops.
+    const safeWrite = frame => {
       if ( res.writableEnded ) {
-        return;
+        return false;
       }
       try {
-        res.write( ': keepalive\n\n' );
+        res.write( frame );
+        return true;
       } catch ( err ) {
-        // res.write can throw synchronously (e.g. ERR_STREAM_DESTROYED) in the
-        // window between socket destruction and writableEnded being set. A throw
-        // from a setInterval callback would otherwise become uncaughtException.
-        logger.info( 'SSE keepalive write failed', { workflowId, runId: resolvedRunId, message: err.message } );
+        logger.info( 'SSE write failed', { workflowId, runId: resolvedRunId, message: err.message } );
         ctrl.abort();
+        return false;
+      }
+    };
+
+    if ( !safeWrite( `event: workflow\ndata: ${JSON.stringify( firstChunk.workflow )}\n\n` ) ) {
+      return;
+    }
+
+    const keepalive = setInterval( () => {
+      if ( !safeWrite( ': keepalive\n\n' ) ) {
         clearInterval( keepalive );
       }
     }, 15_000 );
@@ -93,13 +106,15 @@ export function createWorkflowHistoryStreamHandler( client ) {
     try {
       for await ( const chunk of stream ) {
         if ( chunk.type === 'history' ) {
-          res.write( `id: ${chunk.lastEventId}\nevent: history\ndata: ${JSON.stringify( chunk.events )}\n\n` );
+          if ( !safeWrite( `id: ${chunk.lastEventId}\nevent: history\ndata: ${JSON.stringify( chunk.events )}\n\n` ) ) {
+            break;
+          }
         } else if ( chunk.type === 'done' ) {
           const payload = { reason: chunk.reason };
           if ( chunk.newRunId ) {
             payload.newRunId = chunk.newRunId;
           }
-          res.write( `event: done\ndata: ${JSON.stringify( payload )}\n\n` );
+          safeWrite( `event: done\ndata: ${JSON.stringify( payload )}\n\n` );
           break;
         }
       }
@@ -116,7 +131,7 @@ export function createWorkflowHistoryStreamHandler( client ) {
           workflowId, runId: resolvedRunId, error: error.constructor.name, message: error.message, stack: error.stack
         } );
         const payload = { error: error.constructor.name, message: error.message, workflowId, runId: resolvedRunId };
-        res.write( `event: server_error\ndata: ${JSON.stringify( payload )}\n\n` );
+        safeWrite( `event: server_error\ndata: ${JSON.stringify( payload )}\n\n` );
       }
     } finally {
       clearInterval( keepalive );

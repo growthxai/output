@@ -214,6 +214,56 @@ describe( 'workflow_history_stream handler', () => {
       expect( res.text ).toContain( '"runId":"run-abc"' );
     } );
 
+    it( 'aborts and returns quietly when the initial workflow write throws post-flush', async () => {
+      const fakeReq = { params: { id: 'wf-1' }, query: {}, headers: {}, on: vi.fn() };
+      const fakeRes = {
+        headersSent: false,
+        writableEnded: false,
+        set: vi.fn(),
+        flushHeaders: vi.fn( () => {
+          fakeRes.headersSent = true;
+        } ),
+        write: vi.fn( chunk => {
+          if ( chunk.startsWith( 'event: workflow' ) ) {
+            const err = new Error( 'ERR_STREAM_DESTROYED' );
+            err.code = 'ERR_STREAM_DESTROYED';
+            throw err;
+          }
+        } ),
+        end: vi.fn( () => {
+          fakeRes.writableEnded = true;
+        } ),
+        on: vi.fn()
+      };
+
+      const capturedSignals = [];
+      const stream = ( async function *() {
+        yield { type: 'workflow', workflow: makeWorkflow() };
+        yield { type: 'done', reason: 'WORKFLOW_EXECUTION_COMPLETED' };
+      } )();
+      const mockClient = {
+        workflow: {
+          streamHistory: vi.fn( ( _id, opts ) => {
+            capturedSignals.push( opts.abortSignal );
+            return stream;
+          } )
+        }
+      };
+      const handler = createWorkflowHistoryStreamHandler( mockClient );
+
+      await handler( fakeReq, fakeRes );
+
+      // safeWrite swallows the ERR_STREAM_DESTROYED, aborts the stream, and the handler
+      // returns before the keepalive/loop -- nothing escapes to the global error handler.
+      expect( capturedSignals[0].aborted ).toBe( true );
+      expect( fakeRes.write ).toHaveBeenCalledTimes( 1 );
+      expect( mockLoggerInfo ).toHaveBeenCalledWith(
+        'SSE write failed',
+        expect.objectContaining( { workflowId: 'wf-1', message: 'ERR_STREAM_DESTROYED' } )
+      );
+      expect( mockLoggerError ).not.toHaveBeenCalled();
+    } );
+
     it( 'ends silently on gRPC cancelled error (client disconnect)', async () => {
       const cancelledError = Object.assign( new Error( 'Cancelled' ), { _cancelled: true } );
       const mockStream = vi.fn( () => ( async function *() {
@@ -589,7 +639,7 @@ describe( 'workflow_history_stream handler', () => {
 
       expect( capturedSignals[0].aborted ).toBe( true );
       expect( mockLoggerInfo ).toHaveBeenCalledWith(
-        'SSE keepalive write failed',
+        'SSE write failed',
         expect.objectContaining( { workflowId: 'wf-1', message: 'ERR_STREAM_DESTROYED' } )
       );
 
