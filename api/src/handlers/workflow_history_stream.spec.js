@@ -416,6 +416,21 @@ describe( 'workflow_history_stream handler', () => {
       } ) );
     } );
 
+    it( 'takes the last token of a duplicated Last-Event-ID header', async () => {
+      const mockStream = vi.fn( () => simpleStream( makeWorkflow() ) );
+
+      await request( createApp( mockStream ) )
+        .get( '/workflow/wf-1/history/stream' )
+        .set( 'Last-Event-ID', '15, 15' )
+        .expect( 200 );
+
+      // Node joins repeated headers as "15, 15"; without normalization this fails to parse
+      // and replays from event 1. The fix resolves it to the last token.
+      expect( mockStream ).toHaveBeenCalledWith( 'wf-1', expect.objectContaining( {
+        lastEventId: 15
+      } ) );
+    } );
+
     it( 'ignores Last-Event-ID header value of 0', async () => {
       const mockStream = vi.fn( () => simpleStream( makeWorkflow() ) );
 

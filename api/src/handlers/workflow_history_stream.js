@@ -19,9 +19,15 @@ export function createWorkflowHistoryStreamHandler( client ) {
       pathRunId ? { ...req.query, runId: pathRunId } : req.query
     );
 
+    // Node collapses a repeated Last-Event-ID header into one comma-joined string
+    // ("15, 15"), which fails numeric parsing and would silently replay from event 1.
+    // Take the last token (the freshest high-water mark) before parsing.
     const rawHeaderId = req.headers['last-event-id'];
-    const headerLastEventId = rawHeaderId !== undefined ?
-      lastEventIdSchema.safeParse( rawHeaderId ).data :
+    const lastHeaderToken = Array.isArray( rawHeaderId ) ?
+      rawHeaderId.at( -1 ) :
+      rawHeaderId?.split( ',' ).at( -1 )?.trim();
+    const headerLastEventId = lastHeaderToken !== undefined ?
+      lastEventIdSchema.safeParse( lastHeaderToken ).data :
       undefined;
     const lastEventId = queryLastEventId ?? headerLastEventId;
 
