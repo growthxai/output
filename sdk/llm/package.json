@@ -8,6 +8,9 @@
   "files": [
     "./src"
   ],
+  "scripts": {
+    "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"
+  },
   "dependencies": {
     "@outputai/core": "workspace:",
     "entities": "8.0.0",

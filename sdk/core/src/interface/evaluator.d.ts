@@ -22,7 +22,7 @@ export type EvaluatorOptions = {
  */
 export type EvaluatorFunction<
   InputSchema extends AnyZodSchema | undefined = undefined,
-  Result extends EvaluationResult
+  Result extends EvaluationResult = EvaluationResult
 > = InputSchema extends AnyZodSchema ?
   ( input: z.infer<InputSchema> ) => Promise<Result> :
   () => Promise<Result>;
@@ -34,7 +34,7 @@ export type EvaluatorFunction<
  *
  * It adds input validation based on the `inputSchema`.
  */
-export type EvaluatorFunctionWrapper<EvaluatorFunction> =
+export type EvaluatorFunctionWrapper<EvaluatorFunction extends ( ...args: any ) => any> =
   Parameters<EvaluatorFunction> extends [infer Input] ?
     ( input: Input ) => ReturnType<EvaluatorFunction> :
     () => ReturnType<EvaluatorFunction>;

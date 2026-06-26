@@ -133,7 +133,7 @@ export type WorkflowFunction<
 > = InputSchema extends AnyZodSchema ?
   ( input: z.infer<InputSchema>, context: WorkflowContext<InputSchema, OutputSchema> ) =>
   Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void> :
-  ( input?: undefined | null, context: WorkflowContext<InputSchema, OutputSchema> ) =>
+  ( input: undefined | null, context: WorkflowContext<InputSchema, OutputSchema> ) =>
   Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void>;
 
 /**
@@ -149,7 +149,7 @@ export type WorkflowFunction<
  * @param options - Additional options for the invocation.
  * @returns A value matching the schema defined by `outputSchema`.
  */
-export type WorkflowFunctionWrapper<WorkflowFunction> =
+export type WorkflowFunctionWrapper<WorkflowFunction extends ( ...args: any ) => any> =
   [Parameters<WorkflowFunction>[0]] extends [undefined | null] ?
     ( input?: undefined | null, options?: WorkflowInvocationOptions ) =>
     ReturnType<WorkflowFunction> :
