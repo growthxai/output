@@ -36,7 +36,7 @@ export type StepFunction<
  * @param input - The Step input; it matches the schema defined by `inputSchema`.
  * @returns A value matching the schema defined by `outputSchema`.
  */
-export type StepFunctionWrapper<StepFunction extends ( ...args: any ) => any> =
+export type StepFunctionWrapper<StepFunction extends ( ...args: any ) => any> = // eslint-disable-line @typescript-eslint/no-explicit-any
   Parameters<StepFunction> extends [infer Input] ?
     ( input: Input ) => ReturnType<StepFunction> :
     () => ReturnType<StepFunction>;

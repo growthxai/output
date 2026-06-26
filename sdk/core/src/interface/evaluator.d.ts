@@ -34,7 +34,7 @@ export type EvaluatorFunction<
  *
  * It adds input validation based on the `inputSchema`.
  */
-export type EvaluatorFunctionWrapper<EvaluatorFunction extends ( ...args: any ) => any> =
+export type EvaluatorFunctionWrapper<EvaluatorFunction extends ( ...args: any ) => any> = // eslint-disable-line @typescript-eslint/no-explicit-any
   Parameters<EvaluatorFunction> extends [infer Input] ?
     ( input: Input ) => ReturnType<EvaluatorFunction> :
     () => ReturnType<EvaluatorFunction>;
