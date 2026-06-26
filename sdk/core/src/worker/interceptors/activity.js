@@ -77,20 +77,17 @@ export class ActivityExecutionInterceptor {
 
       const output = await Storage.runWithContext( async _ => next( input ), storageContext );
 
-      messageBus.emit( BusEventType.ACTIVITY_END, { activityInfo, workflowDetails, outputActivityKind } );
+      const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
+
+      messageBus.emit( BusEventType.ACTIVITY_END, { activityInfo, aggregations, workflowDetails, outputActivityKind } );
       Tracing.addEventEnd( { id: activityId, details: output, traceInfo } );
 
-      return {
-        [ACTIVITY_WRAPPER_VERSION_FIELD]: 1,
-        output,
-        aggregations: state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null
-      };
+      return { [ACTIVITY_WRAPPER_VERSION_FIELD]: 1, output, aggregations };
 
     } catch ( error ) {
-      messageBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error } );
-      Tracing.addEventError( { id: activityId, details: error, traceInfo } );
-
       const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
+      messageBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, aggregations, workflowDetails, outputActivityKind, error } );
+      Tracing.addEventError( { id: activityId, details: error, traceInfo } );
 
       throw aggregations ? buildApplicationFailureWithDetails( error, { aggregations } ) : error;
     } finally {

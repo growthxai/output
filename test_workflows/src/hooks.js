@@ -1,4 +1,14 @@
-// import { onError, on, onBeforeWorkerStart, onWorkflowStart, onWorkflowEnd, onWorkflowError } from '@outputai/core/hooks';
+// import {
+//   onError,
+//   on,
+//   onBeforeWorkerStart,
+//   onWorkflowStart,
+//   onWorkflowEnd,
+//   onWorkflowError,
+//   onActivityStart,
+//   onActivityEnd,
+//   onActivityError
+// } from '@outputai/core/hooks';
 
 // const colorize = message => `\x1b[45;30m[HOOK]\x1b[0;35;1m ${message}\x1b[0m`;
 
@@ -17,3 +27,6 @@
 // onWorkflowStart( payload => console.log( colorize( 'onWorkflowStart()' ), payload ) );
 // onWorkflowEnd( payload => console.log( colorize( 'onWorkflowEnd()' ), payload ) );
 // onWorkflowError( payload => console.log( colorize( 'onWorkflowError()' ), payload ) );
+
+// onActivityStart( ( { activityInfo, outputActivityKind } ) => console.log( colorize( 'onActivityStart()' ), { activityInfo, outputActivityKind } ) );
+// onActivityEnd( ( { aggregations } ) => console.log( colorize( 'onActivityStart()' ), { aggregations } ) );
