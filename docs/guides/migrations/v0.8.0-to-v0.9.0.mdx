@@ -1,0 +1,50 @@
+---
+title: "v0.8.0 → v0.9.0"
+description: "Upgrading Output.ai projects from v0.8.0 to v0.9.0: the CLI replaces --format json with the native --json flag."
+---
+
+This guide covers the `@outputai/cli` output flag changes in v0.9.0. It only affects how you invoke the CLI and parse its output — no code changes are required in your workflows.
+
+## What changed
+
+The old `--format json` flag still printed preamble to stdout (the version-check banner and lines like `Fetching result for workflow...`), which broke piping:
+
+```bash
+npx output workflow result <id> --format json | jq
+# jq: parse error: Invalid numeric literal at line 3, column 0
+```
+
+v0.9.0 drops `--format json` for the native `--json` flag from `@oclif` v4+, which guarantees stdout is valid JSON. Informational logs and the update banner now go to stderr, so `--json` pipes cleanly.
+
+## Migration steps
+
+### Replace `--format json` with `--json`
+
+On `workflow result`, `status`, `run`, `cost`, `debug`, and `test`, the `--format` flag is removed. Text stays the default; pass `--json` for JSON.
+
+```bash
+# Before
+npx output workflow result <id> --format json | jq
+
+# After
+npx output workflow result <id> --json | jq
+```
+
+### Update list commands that kept `--format`
+
+`workflow list`, `runs list`, and `dataset list` still accept `--format` for their non-JSON layouts (`list` / `table` / `text`). Only the JSON value moved to `--json`.
+
+```bash
+npx output workflow list --json          # JSON output
+npx output workflow list --format table  # non-JSON layouts still use --format
+```
+
+<Note>
+If a script stripped the banner or `Fetching...` preamble before parsing, you can drop that workaround — `--json` stdout is now pure JSON. The update banner prints to stderr in every mode; redirect with `2>/dev/null` to hide it in interactive use.
+</Note>
+
+## Checklist
+
+- Replace `--format json` with `--json` everywhere (`result`, `status`, `run`, `cost`, `debug`, `test`, `list`, `runs list`, `dataset list`).
+- Keep `--format` on the list commands for their `list` / `table` / `text` layouts.
+- Drop any preamble-stripping workarounds, and update CI jobs, aliases, and docs that reference `--format json`.
