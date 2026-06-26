@@ -226,7 +226,7 @@ describe( 'error_handler', () => {
     expect( logger.error ).not.toHaveBeenCalled();
   } );
 
-  it( 'should not write a response when headers are already sent (SSE guard)', () => {
+  it( 'should delegate to the default handler when headers are already sent (SSE guard)', () => {
     const error = new Error( 'post-flush error' );
     const fakeReq = { id: 'req-123' };
     const fakeRes = {
@@ -235,14 +235,15 @@ describe( 'error_handler', () => {
       status: vi.fn(),
       json: vi.fn()
     };
+    const next = vi.fn();
 
-    errorHandler( error, fakeReq, fakeRes, vi.fn() );
+    errorHandler( error, fakeReq, fakeRes, next );
 
+    // Can't write a body post-flush; hand off to Express's default handler and don't log here.
     expect( fakeRes.status ).not.toHaveBeenCalled();
     expect( fakeRes.json ).not.toHaveBeenCalled();
-    expect( logger.error ).toHaveBeenCalledWith(
-      expect.stringContaining( 'Post-flush error' ),
-      expect.objectContaining( { requestId: 'req-123' } )
-    );
+    expect( next ).toHaveBeenCalledWith( error );
+    expect( fakeRes.locals.error ).toBe( error );
+    expect( logger.error ).not.toHaveBeenCalled();
   } );
 } );

@@ -5,7 +5,6 @@ import {
 } from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
-import { isProduction } from '#configs';
 import { serializeErrorChain } from '#utils';
 import { ZodError } from 'zod';
 
@@ -45,16 +44,16 @@ const directGrpcHttpStatus = err =>
 const grpcHttpStatus = err =>
   ( err ? directGrpcHttpStatus( err ) ?? grpcHttpStatus( err.cause ) : undefined );
 
-export default function errorHandler( error, req, res, _next ) {
-  if ( res.headersSent ) {
-    logger.error( `Post-flush error (headers already sent): ${error.constructor.name}: ${error.message}`, {
-      requestId: req?.id,
-      stack: isProduction ? undefined : error.stack
-    } );
-    return;
-  }
+export default function errorHandler( error, req, res, next ) {
+  res.locals.error = error; // Surface the error to the access logger (morgan) on every path.
 
-  res.locals.error = error; // Adds the error to locals for further processing by the logger
+  // Response already flushed (e.g. an SSE endpoint mid-stream): we can no longer write a JSON
+  // error body. Delegate to Express's default handler, which aborts the connection. Streaming
+  // endpoints own their own post-flush error handling, so this is just the standard
+  // "headers already sent" guard every custom error handler must have.
+  if ( res.headersSent ) {
+    return next( error );
+  }
 
   const response = error instanceof ZodError ?
     { error: 'ValidationError', message: 'Invalid Payload', issues: error.issues } :
@@ -84,5 +83,5 @@ export default function errorHandler( error, req, res, _next ) {
     } );
   }
 
-  res.status( status ).json( response );
+  return res.status( status ).json( response );
 }
