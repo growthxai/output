@@ -295,22 +295,25 @@ describe( 'streamHistory', () => {
   } );
 
   it.each( [
-    { statusCode: 4, statusName: 'CANCELLED', expectedReason: 'WORKFLOW_EXECUTION_CANCELED' },
-    { statusCode: 5, statusName: 'TERMINATED', expectedReason: 'WORKFLOW_EXECUTION_TERMINATED' }
-  ] )( 'fast-path: yields done immediately for $statusName status (no newRunId possible)', async ( { statusCode, statusName, expectedReason } ) => {
+    { statusCode: 4, statusName: 'CANCELLED', eventType: 21, expectedReason: 'WORKFLOW_EXECUTION_CANCELED' },
+    { statusCode: 5, statusName: 'TERMINATED', eventType: 27, expectedReason: 'WORKFLOW_EXECUTION_TERMINATED' }
+  ] )( 'reconnect past a closed $statusName reads history and yields done', async ( { statusCode, statusName, eventType, expectedReason } ) => {
     mockDescribe.mockResolvedValue( {
       ...baseDescription,
       status: { code: statusCode, name: statusName },
       historyLength: 5
     } );
+    mockGetWorkflowExecutionHistory.mockResolvedValue( {
+      history: { events: [ makeEvent( 5, eventType ) ] },
+      nextPageToken: undefined
+    } );
 
     const chunks = await collectStream( streamHistory( context, 'wf-1', { lastEventId: 5 } ) );
 
-    expect( mockGetWorkflowExecutionHistory ).not.toHaveBeenCalled();
-    expect( chunks ).toHaveLength( 2 );
-    expect( chunks[0].type ).toBe( 'workflow' );
-    expect( chunks[1] ).toEqual( { type: 'done', reason: expectedReason } );
-    expect( TERMINAL_REASONS.has( chunks[1].reason ) ).toBe( true );
+    expect( mockGetWorkflowExecutionHistory ).toHaveBeenCalled();
+    const done = chunks.find( c => c.type === 'done' );
+    expect( done ).toEqual( { type: 'done', reason: expectedReason, newRunId: undefined } );
+    expect( TERMINAL_REASONS.has( done.reason ) ).toBe( true );
   } );
 
   it.each( [
@@ -318,7 +321,7 @@ describe( 'streamHistory', () => {
     { statusCode: 3, statusName: 'FAILED', eventType: 3, attrKey: 'workflowExecutionFailedEventAttributes' },
     { statusCode: 7, statusName: 'TIMED_OUT', eventType: 4, attrKey: 'workflowExecutionTimedOutEventAttributes' },
     { statusCode: 6, statusName: 'CONTINUED_AS_NEW', eventType: 28, attrKey: 'workflowExecutionContinuedAsNewEventAttributes' }
-  ] )( 'fast-path skipped for $statusName: fetches history to surface newRunId', async ( { statusCode, statusName, eventType, attrKey } ) => {
+  ] )( 'reconnect past a closed $statusName surfaces newRunId from the terminal event', async ( { statusCode, statusName, eventType, attrKey } ) => {
     mockDescribe.mockResolvedValue( {
       ...baseDescription,
       status: { code: statusCode, name: statusName },

@@ -2,7 +2,6 @@ import { isGrpcCancelledError } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { decodeEventPayloads, serializeEvent, normalizeEventType } from '../../event_serialization.js';
 import { EventType, EventTypeName } from '../../event_types.js';
-import { WorkflowStatus, isWorkflowClosed } from '../types.js';
 import { describeWorkflow } from './describe_workflow.js';
 
 const { namespace } = temporalConfig;
@@ -16,9 +15,9 @@ const TERMINAL_EVENT_TYPES = new Set( [
   EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW
 ] );
 
-// The closed set of `reason` strings a `done` chunk can carry. Both the fast-path
-// (status -> event type) and the streaming path (terminal event type) resolve `reason`
-// through `EventTypeName`, so derive the valid set from the same source to keep them aligned.
+// The closed set of `reason` strings a `done` chunk can carry. The streaming path resolves
+// `reason` from the terminal event type through `EventTypeName`, so derive the valid set from
+// the same source to keep them aligned.
 export const TERMINAL_REASONS = new Set(
   [ ...TERMINAL_EVENT_TYPES ].map( type => EventTypeName[type] )
 );
@@ -29,28 +28,6 @@ const NEW_RUN_ID_ATTRS = {
   [EventType.WORKFLOW_EXECUTION_FAILED]: 'workflowExecutionFailedEventAttributes',
   [EventType.WORKFLOW_EXECUTION_TIMED_OUT]: 'workflowExecutionTimedOutEventAttributes'
 };
-
-// Status codes are returned by `describe()`; event types are returned in history.
-// Temporal uses different spellings for the two (e.g. status name `CANCELLED` vs
-// event type `WORKFLOW_EXECUTION_CANCELED`), so map status code -> event type explicitly.
-const STATUS_TO_TERMINAL_EVENT_TYPE = {
-  [WorkflowStatus.COMPLETED]: EventType.WORKFLOW_EXECUTION_COMPLETED,
-  [WorkflowStatus.FAILED]: EventType.WORKFLOW_EXECUTION_FAILED,
-  [WorkflowStatus.CANCELED]: EventType.WORKFLOW_EXECUTION_CANCELED,
-  [WorkflowStatus.TERMINATED]: EventType.WORKFLOW_EXECUTION_TERMINATED,
-  [WorkflowStatus.CONTINUED_AS_NEW]: EventType.WORKFLOW_EXECUTION_CONTINUED_AS_NEW,
-  [WorkflowStatus.TIMED_OUT]: EventType.WORKFLOW_EXECUTION_TIMED_OUT
-};
-
-// Statuses whose terminal history event can carry `newExecutionRunId`. The fast-path
-// (skip history fetch when reconnect is past historyLength) cannot serve these because
-// `describe()` does not expose `newExecutionRunId` -- only the terminal event does.
-const STATUS_HAS_NEW_RUN_ID = new Set( [
-  WorkflowStatus.COMPLETED,
-  WorkflowStatus.FAILED,
-  WorkflowStatus.TIMED_OUT,
-  WorkflowStatus.CONTINUED_AS_NEW
-] );
 
 // Single constructor for the terminal `done` chunk so its shape lives in one place.
 // `newRunId` is undefined unless the terminal event carried a follow-on run.
@@ -76,7 +53,7 @@ const doneChunk = ( reason, newRunId ) => ( { type: 'done', reason, newRunId } )
  */
 export const streamHistory = async function *( { client, connection }, workflowId, options = {} ) {
   const { runId, includePayloads = false, lastEventId, abortSignal } = options ?? {};
-  const { workflow, description } = await describeWorkflow( { client }, workflowId, {
+  const { workflow } = await describeWorkflow( { client }, workflowId, {
     runId,
     // Route describe through the abort signal so a client disconnect cancels it; the helper
     // rethrows the resulting cancellation bare (matches fetchPage's handling below).
@@ -87,21 +64,8 @@ export const streamHistory = async function *( { client, connection }, workflowI
   if ( !resolvedRunId ) {
     throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
   }
-  const workflowStatus = description.status.code;
-  const historyLength = workflow.historyLength;
 
   yield { type: 'workflow', workflow };
-
-  if (
-    lastEventId !== undefined &&
-    isWorkflowClosed( workflowStatus ) &&
-    lastEventId >= historyLength &&
-    !STATUS_HAS_NEW_RUN_ID.has( workflowStatus )
-  ) {
-    // Fast-path: status excluded above guarantees no newRunId is possible here.
-    yield doneChunk( EventTypeName[STATUS_TO_TERMINAL_EVENT_TYPE[workflowStatus]] );
-    return;
-  }
 
   const processEvent = event => serializeEvent(
     includePayloads ? decodeEventPayloads( event ) : event,
