@@ -1,5 +1,32 @@
 # @outputai/cli
 
+## 0.9.0
+
+### Minor Changes
+
+- c12766f: Replace the custom `--format json` option with oclif's built-in `--json` flag across all workflow commands (OUT-419).
+
+  `--json` suppresses informational logs (e.g. `Fetching result for workflow...`) and emits clean, machine-readable JSON to stdout, fixing output that previously mixed status text into JSON.
+
+  **Breaking change:** `--format json` is no longer accepted. Use `--json` instead.
+
+  - `workflow result`, `workflow status`, `workflow run`, `workflow cost`, `workflow debug`, `workflow test`: the `--format` flag is removed; pass `--json` for JSON output (text remains the default).
+  - `workflow list`, `workflow runs list`, `workflow dataset list`: `--format` keeps its non-JSON options (`list`/`table`/`text`); use `--json` for JSON output.
+
+  The "update available" banner no longer prints to stdout: it now goes to stderr (keeping stdout clean for piping in every mode) and is suppressed entirely under `--json`.
+
+- 7929835: CLI `start`/`run`/`test`/`dataset generate` now resolve scenarios and route execution against `--catalog`/`OUTPUT_CATALOG_ID` instead of the API server's default catalog. This removes the ~30s scenario-resolution stall in worktrees where the default catalog has no worker polling it. `workflow test` and `workflow dataset generate` also gain a `--catalog` flag (env: `OUTPUT_CATALOG_ID`), matching `list`/`start`/`run`.
+- aaa08cc: Add new endpoint for workflow history with server side events
+
+### Patch Changes
+
+- 4b5c049: Updating libraries to fix vulnerabilities
+- e658cc2: Add an "Enter input" option to the `output dev` run pane. Edit a payload and press ctrl+r to run it as-is without saving, or ctrl+s to save it as a scenario first. Previously every ad-hoc run forced you to name and save a scenario file.
+- Updated dependencies [4b5c049]
+  - @outputai/llm@0.9.0
+  - @outputai/credentials@0.9.0
+  - @outputai/evals@0.9.0
+
 ## 0.8.1
 
 ### Patch Changes
