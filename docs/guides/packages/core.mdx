@@ -107,6 +107,9 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 | `onWorkflowStart` | A user workflow execution starts | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowError` | A user workflow execution fails | `eventId`, `eventDate`, `workflowDetails`, `error` |
+| `onActivityStart` | A step or evaluator activity starts | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
+| `onActivityEnd` | A step or evaluator activity completes successfully | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
+| `onActivityError` | A step or evaluator activity fails | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error` |
 | `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Your event payload plus `eventId` and `eventDate`. When emitted from an Output activity, the framework also attaches `activityInfo`, `workflowDetails`, and `outputActivityKind`. |
 
 **Context objects on hook payloads**
@@ -114,6 +117,7 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 - `activityInfo` is Temporal's Activity execution info object. See Temporal's [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) reference for all fields.
 - `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). It includes `workflowId`, `runId`, `workflowType`, `parent`, `root`, `firstExecutionRunId`, `continuedFromExecutionRunId`, `startTime`, `runStartTime`, and `attempt`.
 - `outputActivityKind` is Output metadata for activity hooks and custom events emitted from activities. Possible values are `step`, `evaluator`, and `internal_step`.
+- `aggregations` contains activity-scoped attribute totals collected while the step or evaluator ran. It is `null` when no attributes were collected.
 
 ```typescript
 type WorkflowDetails = {
@@ -130,13 +134,24 @@ type WorkflowDetails = {
 };
 ```
 
+```typescript
+type Aggregations = {
+  cost: { total: number };
+  tokens: {
+    total: number;
+    [tokenType: string]: number | undefined;
+  };
+  httpRequests: { total: number };
+};
+```
+
 **`onError` payload by `source`**
 
-- **`activity`** — `eventId`, `eventDate`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`
+- **`activity`** — `eventId`, `eventDate`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error`
 - **`workflow`** — `eventId`, `eventDate`, `source`, `workflowDetails`, `error`
 - **`runtime`** — `eventId`, `eventDate`, `source`, `error`
 
-`onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onError` can still report failures from any workflow, including catalog, if you need them.
+`onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onActivityStart`, `onActivityEnd`, and `onActivityError` do **not** run for internal activities. `onError` can still report failures from any workflow or activity, including internal ones, if you need them.
 
 ## HTTP from Workflows
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BusEventType, WORKFLOW_CATALOG } from '#consts';
+import { BusEventType, ComponentType, WORKFLOW_CATALOG } from '#consts';
 
 const logErrorMock = vi.hoisted( () => vi.fn() );
 const createChildLoggerMock = vi.hoisted( () =>
@@ -18,6 +18,9 @@ vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
 
 import {
   on,
+  onActivityEnd,
+  onActivityError,
+  onActivityStart,
   onBeforeWorkerStart,
   onError,
   onWorkflowEnd,
@@ -48,6 +51,12 @@ const activityInfo = {
 };
 
 const eventDate = 1710000001234;
+
+const aggregations = {
+  cost: { total: 0 },
+  tokens: { total: 0 },
+  httpRequests: { total: 1 }
+};
 
 describe( 'hooks/index', () => {
   beforeEach( () => {
@@ -194,6 +203,51 @@ describe( 'hooks/index', () => {
       } ) );
       expect( handler ).toHaveBeenCalledWith( {
         eventId: 'evt-err-1', eventDate, workflowDetails, error: err, extra: 'passthrough'
+      } );
+    } );
+  } );
+
+  describe( 'activity lifecycle hooks', () => {
+    const cases = [
+      [ 'onActivityStart', onActivityStart, BusEventType.ACTIVITY_START, undefined ],
+      [ 'onActivityEnd', onActivityEnd, BusEventType.ACTIVITY_END, { aggregations } ],
+      [ 'onActivityError', onActivityError, BusEventType.ACTIVITY_ERROR, { error: new Error( 'activity failed' ) } ]
+    ];
+
+    it.each( cases )( '%s skips internal activities and forwards bus fields', async ( _name, registerHook, eventType, extraFields = {} ) => {
+      const handler = vi.fn().mockResolvedValue( undefined );
+      registerHook( handler );
+
+      expect( messageBusMock.on ).toHaveBeenCalledWith( eventType, expect.any( Function ) );
+
+      await Promise.resolve( onHandlers[eventType]( {
+        eventId: 'evt-ignored',
+        eventDate,
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: ComponentType.INTERNAL_STEP,
+        ...extraFields
+      } ) );
+      expect( handler ).not.toHaveBeenCalled();
+
+      await Promise.resolve( onHandlers[eventType]( {
+        eventId: 'evt-activity-1',
+        eventDate,
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: ComponentType.STEP,
+        extra: 'passthrough',
+        ...extraFields
+      } ) );
+
+      expect( handler ).toHaveBeenCalledWith( {
+        eventId: 'evt-activity-1',
+        eventDate,
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: ComponentType.STEP,
+        extra: 'passthrough',
+        ...extraFields
       } );
     } );
   } );

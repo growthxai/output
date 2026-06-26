@@ -100,6 +100,12 @@ const httpRequestAttribute = {
   requestId: 'req-1'
 };
 
+const httpRequestAggregations = {
+  cost: { total: 0 },
+  tokens: { total: 0 },
+  httpRequests: { total: 1 }
+};
+
 describe( 'ActivityExecutionInterceptor', () => {
   beforeEach( () => {
     vi.clearAllMocks();
@@ -136,7 +142,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     );
     expect( messageBusEmitMock ).toHaveBeenCalledWith(
       BusEventType.ACTIVITY_END,
-      { activityInfo: activityInfoMock, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
+      { activityInfo: activityInfoMock, aggregations: null, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
     );
     expect( addEventStartMock ).toHaveBeenCalledWith( {
       id: 'act-1',
@@ -189,14 +195,16 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( {
       output: { result: 'ok' },
-      aggregations: {
-        cost: { total: 0 },
-        tokens: { total: 0 },
-        httpRequests: { total: 1 }
-      },
+      aggregations: httpRequestAggregations,
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
 
+    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, {
+      activityInfo: activityInfoMock,
+      aggregations: httpRequestAggregations,
+      workflowDetails: workflowDetailsMock,
+      outputActivityKind: 'step'
+    } );
   } );
 
   it( 'stores collected aggregations in ApplicationFailure details after failed execution', async () => {
@@ -215,15 +223,17 @@ describe( 'ActivityExecutionInterceptor', () => {
       message: 'step failed',
       type: 'Error',
       details: [ {
-        aggregations: {
-          cost: { total: 0 },
-          tokens: { total: 0 },
-          httpRequests: { total: 1 }
-        }
+        aggregations: httpRequestAggregations
       } ],
       cause: error
     } );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.objectContaining( { error } ) );
+    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
+      activityInfo: activityInfoMock,
+      aggregations: httpRequestAggregations,
+      workflowDetails: workflowDetailsMock,
+      outputActivityKind: 'step',
+      error
+    } );
     expect( addEventErrorMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).not.toHaveBeenCalled();
   } );
@@ -243,13 +253,7 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     expect( thrown.details ).toEqual( [
       { domain: { reason: 'bad-input' } },
-      {
-        aggregations: {
-          cost: { total: 0 },
-          tokens: { total: 0 },
-          httpRequests: { total: 1 }
-        }
-      }
+      { aggregations: httpRequestAggregations }
     ] );
   } );
 
@@ -300,13 +304,7 @@ describe( 'ActivityExecutionInterceptor', () => {
       nonRetryable: true,
       details: [
         { domain: { reason: 'bad-input' } },
-        {
-          aggregations: {
-            cost: { total: 0 },
-            tokens: { total: 0 },
-            httpRequests: { total: 1 }
-          }
-        }
+        { aggregations: httpRequestAggregations }
       ]
     } );
   } );
@@ -324,6 +322,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.any( Object ) );
     expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
       activityInfo: activityInfoMock,
+      aggregations: null,
       workflowDetails: workflowDetailsMock,
       outputActivityKind: 'step',
       error

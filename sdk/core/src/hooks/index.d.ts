@@ -80,6 +80,47 @@ export interface WorkflowDetails {
 }
 
 /**
+ * Attribute totals collected while an activity executes.
+ */
+export interface Aggregations {
+  /** Cost totals collected from HTTP request cost and LLM usage attributes. */
+  cost: {
+    total: number;
+  };
+  /** Token totals collected from LLM usage attributes. */
+  tokens: {
+    [tokenType: string]: number | undefined;
+    total: number;
+  };
+  /** HTTP request count totals. */
+  httpRequests: {
+    total: number;
+  };
+}
+
+/**
+ * Common lifecycle hook payload fields for events associated with a workflow.
+ */
+export interface HookPayloadBase {
+  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
+  eventId: string;
+  /** Timestamp of the event */
+  eventDate: number;
+  /** Information about the current workflow execution */
+  workflowDetails: WorkflowDetails;
+}
+
+/**
+ * Common hook payload fields for events associated with an activity.
+ */
+export interface ActivityPayloadBase extends HookPayloadBase {
+  /** Temporal's activityInfo(). */
+  activityInfo: Info;
+  /** Output component kind for the activity, e.g. step or evaluator. */
+  outputActivityKind: string;
+}
+
+/**
  * Payload passed to the onError() handler when a workflow, activity or runtime error occurs.
  */
 export interface ErrorHookPayload {
@@ -95,6 +136,8 @@ export interface ErrorHookPayload {
   activityInfo?: Info;
   /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
   outputActivityKind?: string;
+  /** Attribute totals collected during the activity execution. */
+  aggregations?: Aggregations | null;
   /** The error thrown. */
   error: Error;
 }
@@ -102,37 +145,45 @@ export interface ErrorHookPayload {
 /**
  * Payload passed to the onWorkflowStart() handler when a workflow run begins.
  */
-export interface WorkflowStartHookPayload {
-  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
-  eventId: string;
-  /** Timestamp of the event */
-  eventDate: number;
-  /** Information about the current workflow execution */
-  workflowDetails: WorkflowDetails;
-}
+export type WorkflowStartHookPayload = HookPayloadBase;
 
 /**
  * Payload passed to the onWorkflowEnd() handler when a workflow run completes successfully.
  */
-export interface WorkflowEndHookPayload {
-  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
-  eventId: string;
-  /** Timestamp of the event */
-  eventDate: number;
-  /** Information about the current workflow execution */
-  workflowDetails: WorkflowDetails;
-}
+export type WorkflowEndHookPayload = HookPayloadBase;
 
 /**
  * Payload passed to the onWorkflowError() handler when a workflow run fails.
  */
-export interface WorkflowErrorHookPayload {
-  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
-  eventId: string;
-  /** Timestamp of the event */
-  eventDate: number;
-  /** Information about the current workflow execution */
-  workflowDetails: WorkflowDetails;
+export interface WorkflowErrorHookPayload extends HookPayloadBase {
+  /** The error thrown. */
+  error: Error;
+}
+
+/**
+ * Common activity lifecycle hook payload fields.
+ */
+export type ActivityHookPayload = ActivityPayloadBase;
+
+/**
+ * Payload passed to the onActivityStart() handler when an activity starts.
+ */
+export type ActivityStartHookPayload = ActivityHookPayload;
+
+/**
+ * Payload passed to the onActivityEnd() handler when an activity completes successfully.
+ */
+export interface ActivityEndHookPayload extends ActivityHookPayload {
+  /** Attribute totals collected during the activity execution. */
+  aggregations: Aggregations | null;
+}
+
+/**
+ * Payload passed to the onActivityError() handler when an activity fails.
+ */
+export interface ActivityErrorHookPayload extends ActivityHookPayload {
+  /** Attribute totals collected during the activity execution. */
+  aggregations: Aggregations | null;
   /** The error thrown. */
   error: Error;
 }
@@ -180,15 +231,36 @@ export declare function onWorkflowEnd( handler: ( payload: WorkflowEndHookPayloa
 export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPayload ) => void ): void;
 
 /**
+ * Register a handler to be invoked when an activity starts.
+ *
+ * Excludes internal activities.
+ *
+ * @param handler - Function called with the activity start payload.
+ */
+export declare function onActivityStart( handler: ( payload: ActivityStartHookPayload ) => void ): void;
+
+/**
+ * Register a handler to be invoked when an activity completes successfully.
+ *
+ * Excludes internal activities.
+ *
+ * @param handler - Function called with the activity end payload.
+ */
+export declare function onActivityEnd( handler: ( payload: ActivityEndHookPayload ) => void ): void;
+
+/**
+ * Register a handler to be invoked when an activity fails.
+ *
+ * Excludes internal activities.
+ *
+ * @param handler - Function called with the activity error payload.
+ */
+export declare function onActivityError( handler: ( payload: ActivityErrorHookPayload ) => void ): void;
+
+/**
  * Framework-managed envelope added to payloads passed to on() handlers.
  */
-export interface OnHookEnvelope {
-  /** UUID v4 stamped per emit. Stable per-emit idempotency key. */
-  eventId: string;
-  /** Timestamp of the event */
-  eventDate: number;
-  /** Information about the current workflow execution */
-  workflowDetails: WorkflowDetails;
+export interface OnHookEnvelope extends HookPayloadBase {
   /** Temporal's activityInfo(). */
   activityInfo: Info;
   /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
