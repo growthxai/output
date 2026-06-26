@@ -1,5 +1,52 @@
 # @outputai/core
 
+## 0.9.0
+
+### Patch Changes
+
+- ec4c07d: Added activity lifecycle hooks: `onActivityStart`, `onActivityEnd`, `onActivityError`.
+
+  Payload:
+
+  ```ts
+  {
+    eventId: string,
+    eventDate: number,
+    workflowDetails: object, // Serialized and simplified Temporal's workflowInfo() return
+    activityInfo: object, // Temporal's activityInfo() return
+    outputActivityKind: string, // Kind of activity: step, evaluator, etc
+    aggregations: object // Total cost, http calls and tokens used in the activity (only present in End/Error events)
+  }
+  ```
+
+- 4b5c049: Updating libraries to fix vulnerabilities
+- ad732b1: Added a new `Logger` export for structured logging from both workflows and steps. Logs use the same `message` plus `metadata` shape as the internal worker logger and are routed through the worker's Winston logger.
+
+  All log messages are enriched with execution metadata:
+
+  - Workflow logs include `workflowType`, `workflowId`, and `runId`.
+  - Step logs include the same workflow fields, plus `activityType` and `activityId`.
+
+  ```ts
+  import { Logger } from "@outputai/core";
+
+  Logger.info("I am a log", { extraInfo: "none" }); // workflows inside workflow and steps
+  ```
+
+  Supported levels are:
+
+  - error
+  - warn
+  - info
+  - http
+  - verbose
+  - debug
+  - silly
+
+  The default displayed level is debug in development and info in production. Override it with `OUTPUT_LOG_LEVEL` env var. This setting also affects internal worker logs.
+
+- 42a0ddf: Including /dist when calculating catalog hash to define if catalog workflow needs restart. Excluding /temp.
+
 ## 0.8.1
 
 ### Patch Changes

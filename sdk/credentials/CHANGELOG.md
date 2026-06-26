@@ -1,5 +1,15 @@
 # @outputai/credentials
 
+## 0.9.0
+
+### Patch Changes
+
+- Updated dependencies [ec4c07d]
+- Updated dependencies [4b5c049]
+- Updated dependencies [ad732b1]
+- Updated dependencies [42a0ddf]
+  - @outputai/core@0.9.0
+
 ## 0.8.1
 
 ### Patch Changes
