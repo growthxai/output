@@ -1,4 +1,4 @@
-import { ValidationError, z } from '@outputai/core';
+import { Logger, ValidationError, z } from '@outputai/core';
 import { attributesSchema } from './block_options.js';
 
 const toolConfigSchema = z.record( z.string(), z.unknown() );
@@ -70,12 +70,12 @@ const SNAKE_CASE_WARNINGS = {
 function warnSnakeCaseFields( config ) {
   for ( const [ snake, camel ] of Object.entries( SNAKE_CASE_WARNINGS ) ) {
     if ( Object.hasOwn( config, snake ) ) {
-      console.warn( `[output-llm] "${snake}" found in prompt config. Did you mean "${camel}"?` );
+      Logger.warn( `[output-llm] "${snake}" found in prompt config. Did you mean "${camel}"?`, { namespace: 'LLM' } );
     }
   }
   const thinking = config.providerOptions?.thinking;
   if ( thinking && Object.hasOwn( thinking, 'budget_tokens' ) ) {
-    console.warn( '[output-llm] "budget_tokens" found in providerOptions.thinking. Did you mean "budgetTokens"?' );
+    Logger.warn( '[output-llm] "budget_tokens" found in providerOptions.thinking. Did you mean "budgetTokens"?', { namespace: 'LLM' } );
   }
 }
 

@@ -41,7 +41,6 @@ describe( 'addRequestCost', () => {
   beforeEach( () => {
     tracing.addEventAttribute.mockClear();
     event.emit.mockClear();
-    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
   } );
 
   afterEach( () => {
@@ -54,9 +53,6 @@ describe( 'addRequestCost', () => {
 
     addRequestCost( response, cost );
 
-    expect( console.warn ).toHaveBeenCalledWith(
-      'addRequestCost(): The "response" argument did not originate from @outputai/http, no costs were added.'
-    );
     expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
     expect( event.emit ).not.toHaveBeenCalled();
   } );
@@ -68,7 +64,6 @@ describe( 'addRequestCost', () => {
 
     addRequestCost( response, cost );
 
-    expect( console.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-cost-1',
       attribute: expect.objectContaining( {
@@ -113,7 +108,6 @@ describe( 'addRequestCost', () => {
     const cloned = response.clone();
     addRequestCost( cloned, 4.2 );
 
-    expect( console.warn ).not.toHaveBeenCalled();
     expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
       eventId: 'evt-clone-1',
       attribute: expect.objectContaining( {

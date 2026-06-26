@@ -9,7 +9,6 @@ const reservedMetadataFields = new Set( [
   'level',
   'message',
   'metadata',
-  'namespace',
   'splat',
   'stack',
   'timestamp',
@@ -26,6 +25,7 @@ const reservedMetadataFields = new Set( [
 // This is inoffensive and can be used outside workflow sandbox
 const sinks = proxySinks();
 
+// Winston uses npm levels by default: https://github.com/winstonjs/winston#logging-levels
 // Convert npm log levels to console levels
 const levelToConsole = {
   error: 'error',
@@ -36,14 +36,17 @@ const levelToConsole = {
   debug: 'debug',
   silly: 'log'
 };
+const levels = Object.keys( levelToConsole );
 
 /** Drops reserved keys from object */
 const removeReservedFields = obj => Object.fromEntries( Object.entries( obj ).filter( ( [ k ] ) => !reservedMetadataFields.has( k ) ) );
 
-const log = ( level, message, metadata ) => {
+/** Dispatch the log message downstream */
+const log = ( level, namespace, message, metadata ) => {
+  const baseMetadata = namespace ? { namespace } : {};
   const sanitized = {
     message: String( message ),
-    ...( isPlainObject( metadata ) && { metadata: removeReservedFields( metadata ) } )
+    metadata: { ...baseMetadata, ...isPlainObject( metadata ) ? removeReservedFields( metadata ) : {} }
   };
 
   // When inside workflow, use sinks to send logs out
@@ -58,11 +61,13 @@ const log = ( level, message, metadata ) => {
   }
 };
 
-// Winston uses npm levels by default: https://github.com/winstonjs/winston#logging-levels
-export const error = log.bind( null, 'error' );
-export const warn = log.bind( null, 'warn' );
-export const info = log.bind( null, 'info' );
-export const http = log.bind( null, 'http' );
-export const verbose = log.bind( null, 'verbose' );
-export const debug = log.bind( null, 'debug' );
-export const silly = log.bind( null, 'silly' );
+/** Creates a new logger. It uses the npm levels, and for each level, bind the log function */
+const createLogger = namespace => ( {
+  ...Object.fromEntries( levels.map( l => [ l, log.bind( null, l, namespace ) ] ) ),
+  createLogger
+} );
+
+/** This is the default logger instance */
+const logger = createLogger( null );
+
+export { logger as Logger };
