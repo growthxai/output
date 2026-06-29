@@ -5,13 +5,14 @@ import {
   DEPRECATED_WRAPPER_PACKAGE_WARNING,
   getGlobalInstalledVersion,
   hasDeprecatedWrapperPackage,
-  getLocalInstalledPackages,
+  getLocalSdkPackages,
   getLocalInstalledVersion,
   updateGlobal,
   updateLocal,
   updateLocalPackages,
   isOutdated,
-  type LocalInstalledPackage
+  isPackageJsonVersionOutdated,
+  type LocalSdkPackage
 } from '#services/npm_update_service.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { getErrorMessage } from '#utils/error_utils.js';
@@ -117,7 +118,7 @@ export default class Update extends Command {
       this.warn( DEPRECATED_WRAPPER_PACKAGE_WARNING );
     }
 
-    const localPackages = await getLocalInstalledPackages( cwd );
+    const localPackages = await getLocalSdkPackages( cwd );
 
     if ( localPackages.length > 0 ) {
       return this.handleLocalSdkPackageUpdate( cwd, latest, localPackages );
@@ -171,9 +172,10 @@ export default class Update extends Command {
   private async handleLocalSdkPackageUpdate(
     cwd: string,
     latest: string,
-    localPackages: LocalInstalledPackage[]
+    localPackages: LocalSdkPackage[]
   ): Promise<boolean> {
-    const outdatedPackages = localPackages.filter( pkg => this.isLocalSdkPackageOutdated( pkg, latest ) );
+    const outdatedPackages = localPackages.filter( pkg => isPackageJsonVersionOutdated( pkg.version, latest ) );
+    const outdatedPackageNames = new Set( outdatedPackages.map( pkg => pkg.name ) );
 
     if ( outdatedPackages.length === 0 ) {
       this.log( '\nLocal Output SDK packages: up to date' );
@@ -182,8 +184,8 @@ export default class Update extends Command {
 
     this.log( '\nLocal Output SDK packages:' );
     for ( const pkg of localPackages ) {
-      const current = pkg.version ? `v${pkg.version}` : `declared ${pkg.declaredVersion}`;
-      const suffix = this.isLocalSdkPackageOutdated( pkg, latest ) ? ` -> v${latest}` : ' (up to date)';
+      const current = `package.json ${pkg.version}`;
+      const suffix = outdatedPackageNames.has( pkg.name ) ? ` -> v${latest}` : ' (up to date)';
       this.log( `  ${pkg.name}: ${current}${suffix}` );
     }
 
@@ -196,13 +198,13 @@ export default class Update extends Command {
     }
 
     try {
-      await updateLocalPackages( cwd, localPackages, latest );
-      const newLocalPackages = await getLocalInstalledPackages( cwd );
+      await updateLocalPackages( cwd, outdatedPackages, latest );
+      const newLocalPackages = await getLocalSdkPackages( cwd );
 
       if ( newLocalPackages.length > 0 ) {
         this.log( `\nLocal Output SDK packages updated to v${latest}` );
 
-        const stalePackages = newLocalPackages.filter( pkg => pkg.version && isOutdated( pkg.version, latest ) );
+        const stalePackages = newLocalPackages.filter( pkg => isPackageJsonVersionOutdated( pkg.version, latest ) );
         if ( stalePackages.length > 0 ) {
           const staleNames = stalePackages.map( pkg => `${pkg.name}@${pkg.version}` ).join( ', ' );
           this.warn( `Some Output SDK packages are still behind v${latest}: ${staleNames}` );
@@ -216,9 +218,5 @@ export default class Update extends Command {
       this.warn( `Failed to update local install: ${getErrorMessage( error )}` );
       return false;
     }
-  }
-
-  private isLocalSdkPackageOutdated( pkg: LocalInstalledPackage, latest: string ): boolean {
-    return pkg.version ? isOutdated( pkg.version, latest ) : true;
   }
 }

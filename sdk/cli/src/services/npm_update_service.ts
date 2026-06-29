@@ -27,16 +27,15 @@ export const LOCAL_SDK_PACKAGE_NAMES = [
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface LocalInstalledPackage {
+export interface LocalSdkPackage {
   name: string;
-  version: string | null;
-  declaredVersion: string;
+  version: string;
   dependencyType: 'dependencies' | 'devDependencies';
 }
 
-interface DirectOutputDependency {
+interface PackageJsonDependency {
   version: string;
-  dependencyType: LocalInstalledPackage['dependencyType'];
+  dependencyType: LocalSdkPackage['dependencyType'];
 }
 
 function findVersionInTree( deps: Record<string, any> | undefined, packageName: string ): string | null {
@@ -67,24 +66,24 @@ function parseNpmLsVersion( output: string, packageName: string ): string | null
   }
 }
 
-async function readDirectOutputDependencies( cwd: string ): Promise<Map<string, DirectOutputDependency>> {
+async function readPackageJsonDependencies( cwd: string ): Promise<Map<string, PackageJsonDependency>> {
   try {
     const raw = await readFile( path.join( cwd, 'package.json' ), 'utf-8' );
     const pkg = JSON.parse( raw ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
-    const directDeps = new Map<string, DirectOutputDependency>();
+    const packageJsonDeps = new Map<string, PackageJsonDependency>();
 
     for ( const [ name, version ] of Object.entries( pkg.dependencies ?? {} ) ) {
-      directDeps.set( name, { version, dependencyType: 'dependencies' } );
+      packageJsonDeps.set( name, { version, dependencyType: 'dependencies' } );
     }
 
     for ( const [ name, version ] of Object.entries( pkg.devDependencies ?? {} ) ) {
-      directDeps.set( name, { version, dependencyType: 'devDependencies' } );
+      packageJsonDeps.set( name, { version, dependencyType: 'devDependencies' } );
     }
 
-    return directDeps;
+    return packageJsonDeps;
   } catch ( error ) {
     debug( 'Failed to read local package.json: %O', error );
     return new Map();
@@ -128,31 +127,19 @@ export async function getLocalInstalledVersion( cwd: string ): Promise<string | 
   }
 }
 
-export async function getLocalInstalledPackages( cwd: string ): Promise<LocalInstalledPackage[]> {
-  const directDeps = await readDirectOutputDependencies( cwd );
-  const packageNames: string[] = LOCAL_SDK_PACKAGE_NAMES.filter( name => directDeps.has( name ) );
+export async function getLocalSdkPackages( cwd: string ): Promise<LocalSdkPackage[]> {
+  const packageJsonDeps = await readPackageJsonDependencies( cwd );
 
-  return Promise.all(
-    packageNames.map( async name => {
-      const declaredDependency = directDeps.get( name );
-      const declaredVersion = declaredDependency?.version ?? '';
-      const dependencyType = declaredDependency?.dependencyType ?? 'dependencies';
+  return LOCAL_SDK_PACKAGE_NAMES.flatMap( name => {
+    const dependency = packageJsonDeps.get( name );
 
-      try {
-        const { stdout } = await execFile( 'npm', [ 'ls', name, '--json' ], { cwd } );
-        const version = parseNpmLsVersion( stdout, name );
-        return { name, version, declaredVersion, dependencyType };
-      } catch ( error ) {
-        debug( 'Failed to get local version for %s: %O', name, error );
-        return { name, version: null, declaredVersion, dependencyType };
-      }
-    } )
-  );
+    return dependency ? [ { name, ...dependency } ] : [];
+  } );
 }
 
 export async function hasDeprecatedWrapperPackage( cwd: string ): Promise<boolean> {
-  const directDeps = await readDirectOutputDependencies( cwd );
-  return directDeps.has( DEPRECATED_WRAPPER_PACKAGE_NAME );
+  const packageJsonDeps = await readPackageJsonDependencies( cwd );
+  return packageJsonDeps.has( DEPRECATED_WRAPPER_PACKAGE_NAME );
 }
 
 function spawnInherit( command: string, args: string[], cwd?: string ): Promise<void> {
@@ -179,9 +166,13 @@ export async function updateLocal( cwd: string, packageNames: string[], version:
   await spawnInherit( 'npm', [ 'install', '--ignore-scripts', '--save-exact', ...packages ], cwd );
 }
 
-export async function updateLocalPackages( cwd: string, packages: LocalInstalledPackage[], version: string ): Promise<void> {
-  const dependencies = packages.filter( pkg => pkg.dependencyType === 'dependencies' ).map( pkg => `${pkg.name}@${version}` );
-  const devDependencies = packages.filter( pkg => pkg.dependencyType === 'devDependencies' ).map( pkg => `${pkg.name}@${version}` );
+export async function updateLocalPackages( cwd: string, packages: LocalSdkPackage[], version: string ): Promise<void> {
+  const dependencies = packages
+    .filter( pkg => pkg.dependencyType === 'dependencies' )
+    .map( pkg => `${pkg.name}@${version}` );
+  const devDependencies = packages
+    .filter( pkg => pkg.dependencyType === 'devDependencies' )
+    .map( pkg => `${pkg.name}@${version}` );
 
   if ( dependencies.length > 0 ) {
     await spawnInherit( 'npm', [ 'install', '--ignore-scripts', '--save-exact', ...dependencies ], cwd );
@@ -194,4 +185,14 @@ export async function updateLocalPackages( cwd: string, packages: LocalInstalled
 
 export function isOutdated( current: string, latest: string ): boolean {
   return semver.lt( current, latest );
+}
+
+export function isPackageJsonVersionOutdated( version: string, latest: string ): boolean {
+  const range = semver.validRange( version, { includePrerelease: true } );
+
+  if ( !range ) {
+    return false;
+  }
+
+  return !semver.satisfies( latest, range, { includePrerelease: true } );
 }

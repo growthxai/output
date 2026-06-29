@@ -4,11 +4,12 @@ import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
   hasDeprecatedWrapperPackage,
-  getLocalInstalledPackages,
+  getLocalSdkPackages,
   getLocalInstalledVersion,
   updateLocal,
   updateLocalPackages,
-  isOutdated
+  isOutdated,
+  isPackageJsonVersionOutdated
 } from './npm_update_service.js';
 
 const { mockExecFile, mockReadFile, mockSpawn } = vi.hoisted( () => ( {
@@ -145,8 +146,8 @@ describe( 'npm_update_service', () => {
     } );
   } );
 
-  describe( 'getLocalInstalledPackages', () => {
-    it( 'should return directly installed Output SDK package versions', async () => {
+  describe( 'getLocalSdkPackages', () => {
+    it( 'should return directly declared Output SDK packages from package.json', async () => {
       mockReadFile.mockResolvedValue( JSON.stringify( {
         dependencies: {
           '@outputai/cli': '0.8.3',
@@ -157,43 +158,27 @@ describe( 'npm_update_service', () => {
           '@outputai/llm': '0.8.3'
         }
       } ) );
-      mockExecFile.mockImplementation( async ( _command, args ) => {
-        const packageName = args[1];
-        return {
-          stdout: JSON.stringify( {
-            dependencies: { [packageName]: { version: '0.8.3' } }
-          } )
-        };
-      } );
 
-      const result = await getLocalInstalledPackages( '/some/project' );
+      const result = await getLocalSdkPackages( '/some/project' );
 
       expect( result ).toEqual( [
-        { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-        { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-        { name: '@outputai/llm', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'devDependencies' }
+        { name: '@outputai/cli', version: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/llm', version: '0.8.3', dependencyType: 'devDependencies' }
       ] );
-      expect( mockExecFile ).toHaveBeenCalledWith(
-        'npm', [ 'ls', '@outputai/cli', '--json' ], { cwd: '/some/project' }
-      );
-      expect( mockExecFile ).toHaveBeenCalledWith(
-        'npm', [ 'ls', '@outputai/core', '--json' ], { cwd: '/some/project' }
-      );
-      expect( mockExecFile ).toHaveBeenCalledWith(
-        'npm', [ 'ls', '@outputai/llm', '--json' ], { cwd: '/some/project' }
-      );
+      expect( mockExecFile ).not.toHaveBeenCalled();
     } );
 
     it( 'should return an empty list when package.json cannot be read', async () => {
       mockReadFile.mockRejectedValue( new Error( 'missing package.json' ) );
 
-      const result = await getLocalInstalledPackages( '/some/project' );
+      const result = await getLocalSdkPackages( '/some/project' );
 
       expect( result ).toEqual( [] );
       expect( mockExecFile ).not.toHaveBeenCalled();
     } );
 
-    it( 'should return declared packages when npm ls cannot read installed versions', async () => {
+    it( 'should not require installed node_modules to return package.json packages', async () => {
       mockReadFile.mockResolvedValue( JSON.stringify( {
         dependencies: {
           '@outputai/cli': '0.8.3',
@@ -202,12 +187,13 @@ describe( 'npm_update_service', () => {
       } ) );
       mockExecFile.mockRejectedValue( new Error( 'missing node_modules' ) );
 
-      const result = await getLocalInstalledPackages( '/some/project' );
+      const result = await getLocalSdkPackages( '/some/project' );
 
       expect( result ).toEqual( [
-        { name: '@outputai/cli', version: null, declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-        { name: '@outputai/core', version: null, declaredVersion: '^0.8.0', dependencyType: 'dependencies' }
+        { name: '@outputai/cli', version: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: '^0.8.0', dependencyType: 'dependencies' }
       ] );
+      expect( mockExecFile ).not.toHaveBeenCalled();
     } );
   } );
 
@@ -263,8 +249,8 @@ describe( 'npm_update_service', () => {
       } );
 
       await updateLocalPackages( '/some/project', [
-        { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-        { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'devDependencies' }
+        { name: '@outputai/core', version: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/cli', version: '0.8.3', dependencyType: 'devDependencies' }
       ], '1.0.0' );
 
       expect( mockSpawn ).toHaveBeenCalledWith(
@@ -300,6 +286,23 @@ describe( 'npm_update_service', () => {
     it( 'should handle prerelease versions', () => {
       expect( isOutdated( '1.0.0-beta.1', '1.0.0' ) ).toBe( true );
       expect( isOutdated( '1.0.0', '1.0.0-beta.1' ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'isPackageJsonVersionOutdated', () => {
+    it( 'should return false when package.json version satisfies latest', () => {
+      expect( isPackageJsonVersionOutdated( '1.0.0', '1.0.0' ) ).toBe( false );
+      expect( isPackageJsonVersionOutdated( '^1.0.0', '1.0.5' ) ).toBe( false );
+    } );
+
+    it( 'should return true when package.json version does not satisfy latest', () => {
+      expect( isPackageJsonVersionOutdated( '0.8.1', '0.9.0' ) ).toBe( true );
+      expect( isPackageJsonVersionOutdated( '^0.8.0', '0.9.0' ) ).toBe( true );
+    } );
+
+    it( 'should return false when package.json version is not a semver range', () => {
+      expect( isPackageJsonVersionOutdated( 'workspace:', '1.0.0' ) ).toBe( false );
+      expect( isPackageJsonVersionOutdated( 'file:../sdk/cli', '1.0.0' ) ).toBe( false );
     } );
   } );
 } );

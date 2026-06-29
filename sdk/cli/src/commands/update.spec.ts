@@ -5,12 +5,13 @@ import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
   hasDeprecatedWrapperPackage,
-  getLocalInstalledPackages,
+  getLocalSdkPackages,
   getLocalInstalledVersion,
   updateGlobal,
   updateLocal,
   updateLocalPackages,
-  isOutdated
+  isOutdated,
+  isPackageJsonVersionOutdated
 } from '#services/npm_update_service.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { confirm } from '#utils/prompt.js';
@@ -20,12 +21,13 @@ vi.mock( '#services/npm_update_service.js', () => ( {
   fetchLatestVersion: vi.fn(),
   getGlobalInstalledVersion: vi.fn(),
   hasDeprecatedWrapperPackage: vi.fn(),
-  getLocalInstalledPackages: vi.fn(),
+  getLocalSdkPackages: vi.fn(),
   getLocalInstalledVersion: vi.fn(),
   updateGlobal: vi.fn(),
   updateLocal: vi.fn(),
   updateLocalPackages: vi.fn(),
-  isOutdated: vi.fn()
+  isOutdated: vi.fn(),
+  isPackageJsonVersionOutdated: vi.fn()
 } ) );
 
 vi.mock( '#services/coding_agents.js', () => ( {
@@ -52,9 +54,10 @@ describe( 'update command', () => {
     vi.mocked( fetchLatestVersion ).mockResolvedValue( '1.0.0' );
     vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( '0.8.4' );
     vi.mocked( hasDeprecatedWrapperPackage ).mockResolvedValue( false );
-    vi.mocked( getLocalInstalledPackages ).mockResolvedValue( [] );
+    vi.mocked( getLocalSdkPackages ).mockResolvedValue( [] );
     vi.mocked( getLocalInstalledVersion ).mockResolvedValue( null );
     vi.mocked( isOutdated ).mockReturnValue( true );
+    vi.mocked( isPackageJsonVersionOutdated ).mockReturnValue( true );
     vi.mocked( confirm ).mockResolvedValue( true );
     vi.mocked( updateGlobal ).mockResolvedValue();
     vi.mocked( updateLocal ).mockResolvedValue();
@@ -219,18 +222,18 @@ describe( 'update command', () => {
 
     it( 'should prompt and update local SDK packages when outdated', async () => {
       vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
-      vi.mocked( getLocalInstalledPackages )
+      vi.mocked( getLocalSdkPackages )
         .mockResolvedValueOnce( [
-          { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-          { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-          { name: '@outputai/http', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '0.8.3', dependencyType: 'dependencies' },
+          { name: '@outputai/core', version: '0.8.3', dependencyType: 'dependencies' },
+          { name: '@outputai/http', version: '1.0.0', dependencyType: 'dependencies' }
         ] )
         .mockResolvedValueOnce( [
-          { name: '@outputai/cli', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' },
-          { name: '@outputai/core', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' },
-          { name: '@outputai/http', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/http', version: '1.0.0', dependencyType: 'dependencies' }
         ] );
-      vi.mocked( isOutdated ).mockImplementation( ( current, latest ) => current !== latest );
+      vi.mocked( isPackageJsonVersionOutdated ).mockImplementation( ( current, latest ) => current !== latest );
 
       const cmd = createTestCommand( { cli: true } );
       await cmd.run();
@@ -238,9 +241,8 @@ describe( 'update command', () => {
       expect( updateLocalPackages ).toHaveBeenCalledWith(
         process.cwd(),
         [
-          { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-          { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
-          { name: '@outputai/http', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '0.8.3', dependencyType: 'dependencies' },
+          { name: '@outputai/core', version: '0.8.3', dependencyType: 'dependencies' }
         ],
         '1.0.0'
       );
@@ -249,13 +251,43 @@ describe( 'update command', () => {
       );
     } );
 
+    it( 'should update behind SDK packages when CLI is already current', async () => {
+      vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
+      vi.mocked( getLocalSdkPackages )
+        .mockResolvedValueOnce( [
+          { name: '@outputai/cli', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/http', version: '0.8.1', dependencyType: 'dependencies' },
+          { name: '@outputai/llm', version: '0.8.1', dependencyType: 'dependencies' }
+        ] )
+        .mockResolvedValueOnce( [
+          { name: '@outputai/cli', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/http', version: '1.0.0', dependencyType: 'dependencies' },
+          { name: '@outputai/llm', version: '1.0.0', dependencyType: 'dependencies' }
+        ] );
+      vi.mocked( isPackageJsonVersionOutdated ).mockImplementation( ( current, latest ) => current !== latest );
+
+      const cmd = createTestCommand( { cli: true } );
+      await cmd.run();
+
+      expect( updateLocalPackages ).toHaveBeenCalledWith(
+        process.cwd(),
+        [
+          { name: '@outputai/http', version: '0.8.1', dependencyType: 'dependencies' },
+          { name: '@outputai/llm', version: '0.8.1', dependencyType: 'dependencies' }
+        ],
+        '1.0.0'
+      );
+    } );
+
     it( 'should show local SDK packages as up to date', async () => {
       vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
-      vi.mocked( getLocalInstalledPackages ).mockResolvedValue( [
-        { name: '@outputai/cli', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' },
-        { name: '@outputai/core', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' }
+      vi.mocked( getLocalSdkPackages ).mockResolvedValue( [
+        { name: '@outputai/cli', version: '1.0.0', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' }
       ] );
-      vi.mocked( isOutdated ).mockReturnValue( false );
+      vi.mocked( isPackageJsonVersionOutdated ).mockReturnValue( false );
 
       const cmd = createTestCommand( { cli: true } );
       await cmd.run();
@@ -264,16 +296,32 @@ describe( 'update command', () => {
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'up to date' ) );
     } );
 
-    it( 'should update declared SDK packages when installed versions are unknown', async () => {
+    it( 'should show package.json packages as up to date when their versions satisfy latest', async () => {
       vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
-      vi.mocked( getLocalInstalledPackages )
+      vi.mocked( getLocalSdkPackages ).mockResolvedValue( [
+        { name: '@outputai/cli', version: '1.0.0', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' },
+        { name: '@outputai/llm', version: '^1.0.0', dependencyType: 'dependencies' }
+      ] );
+      vi.mocked( isPackageJsonVersionOutdated ).mockReturnValue( false );
+
+      const cmd = createTestCommand( { cli: true } );
+      await cmd.run();
+
+      expect( updateLocalPackages ).not.toHaveBeenCalled();
+      expect( cmd.log ).toHaveBeenCalledWith( '\nLocal Output SDK packages: up to date' );
+    } );
+
+    it( 'should update SDK packages when package.json declarations are outdated', async () => {
+      vi.mocked( getGlobalInstalledVersion ).mockResolvedValue( null );
+      vi.mocked( getLocalSdkPackages )
         .mockResolvedValueOnce( [
-          { name: '@outputai/cli', version: null, declaredVersion: '0.8.3', dependencyType: 'devDependencies' },
-          { name: '@outputai/core', version: null, declaredVersion: '^0.8.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '0.8.3', dependencyType: 'devDependencies' },
+          { name: '@outputai/core', version: '^0.8.0', dependencyType: 'dependencies' }
         ] )
         .mockResolvedValueOnce( [
-          { name: '@outputai/cli', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'devDependencies' },
-          { name: '@outputai/core', version: '1.0.0', declaredVersion: '1.0.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '1.0.0', dependencyType: 'devDependencies' },
+          { name: '@outputai/core', version: '1.0.0', dependencyType: 'dependencies' }
         ] );
 
       const cmd = createTestCommand( { cli: true } );
@@ -282,12 +330,12 @@ describe( 'update command', () => {
       expect( updateLocalPackages ).toHaveBeenCalledWith(
         process.cwd(),
         [
-          { name: '@outputai/cli', version: null, declaredVersion: '0.8.3', dependencyType: 'devDependencies' },
-          { name: '@outputai/core', version: null, declaredVersion: '^0.8.0', dependencyType: 'dependencies' }
+          { name: '@outputai/cli', version: '0.8.3', dependencyType: 'devDependencies' },
+          { name: '@outputai/core', version: '^0.8.0', dependencyType: 'dependencies' }
         ],
         '1.0.0'
       );
-      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'declared 0.8.3' ) );
+      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'package.json 0.8.3' ) );
     } );
 
     it( 'should prompt and update legacy local install when outdated', async () => {
