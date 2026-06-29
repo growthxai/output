@@ -6,11 +6,17 @@ import type { ChildProcess } from 'node:child_process';
 import { render } from 'ink';
 import * as dockerService from '#services/docker.js';
 import * as codingAgentsService from '#services/coding_agents.js';
+import * as npmUpdateService from '#services/npm_update_service.js';
 import * as portAvailability from '#utils/port_availability.js';
 import Dev from './index.js';
 
 vi.mock( '#services/coding_agents.js', () => ( {
   ensureClaudePlugin: vi.fn().mockResolvedValue( undefined )
+} ) );
+
+vi.mock( '#services/npm_update_service.js', () => ( {
+  DEPRECATED_WRAPPER_PACKAGE_WARNING: 'deprecated wrapper warning',
+  hasDeprecatedWrapperPackage: vi.fn().mockResolvedValue( false )
 } ) );
 
 vi.mock( '#utils/port_availability.js', () => ( {
@@ -111,6 +117,8 @@ describe( 'dev command', () => {
     vi.mocked( fs ).access.mockResolvedValue( undefined );
     // By default, ensureClaudePlugin succeeds
     vi.mocked( codingAgentsService.ensureClaudePlugin ).mockResolvedValue( undefined );
+    // By default, project does not use the deprecated wrapper package.
+    vi.mocked( npmUpdateService.hasDeprecatedWrapperPackage ).mockResolvedValue( false );
   } );
 
   afterEach( () => {
@@ -203,6 +211,28 @@ describe( 'dev command', () => {
   } );
 
   describe( 'Claude plugin update', () => {
+    it( 'should warn when the deprecated wrapper package is present', async () => {
+      vi.mocked( npmUpdateService.hasDeprecatedWrapperPackage ).mockResolvedValue( true );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.warn = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      const runPromise = cmd.run();
+
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      expect( cmd.warn ).toHaveBeenCalledWith( 'deprecated wrapper warning' );
+
+      runPromise.catch( () => {} );
+    } );
+
     it( 'should call ensureClaudePlugin on startup', async () => {
       const cmd = new Dev( [], {} as any );
       cmd.log = vi.fn() as any;

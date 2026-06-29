@@ -10,6 +10,10 @@ const execFile = promisify( execFileCb );
 const debug = debugFactory( 'output-cli:npm-update' );
 
 const CLI_PACKAGE_NAME = packageJson.name;
+const DEPRECATED_WRAPPER_PACKAGE_NAME = '@outputai/output';
+export const DEPRECATED_WRAPPER_PACKAGE_WARNING =
+  'This project depends on the deprecated @outputai/output wrapper package, which can hide transitive SDK modules ' +
+  'as ghost dependencies. Run `output migrate`, re-scaffold the project, or install the Output SDK packages you use directly.';
 const REGISTRY_URL = 'https://registry.npmjs.org';
 const REGISTRY_TIMEOUT_MS = 5000;
 export const LOCAL_SDK_PACKAGE_NAMES = [
@@ -25,7 +29,14 @@ export const LOCAL_SDK_PACKAGE_NAMES = [
 
 export interface LocalInstalledPackage {
   name: string;
+  version: string | null;
+  declaredVersion: string;
+  dependencyType: 'dependencies' | 'devDependencies';
+}
+
+interface DirectOutputDependency {
   version: string;
+  dependencyType: LocalInstalledPackage['dependencyType'];
 }
 
 function findVersionInTree( deps: Record<string, any> | undefined, packageName: string ): string | null {
@@ -56,20 +67,27 @@ function parseNpmLsVersion( output: string, packageName: string ): string | null
   }
 }
 
-async function readDirectOutputDependencies( cwd: string ): Promise<Set<string>> {
+async function readDirectOutputDependencies( cwd: string ): Promise<Map<string, DirectOutputDependency>> {
   try {
     const raw = await readFile( path.join( cwd, 'package.json' ), 'utf-8' );
     const pkg = JSON.parse( raw ) as {
       dependencies?: Record<string, string>;
       devDependencies?: Record<string, string>;
     };
-    return new Set( [
-      ...Object.keys( pkg.dependencies ?? {} ),
-      ...Object.keys( pkg.devDependencies ?? {} )
-    ] );
+    const directDeps = new Map<string, DirectOutputDependency>();
+
+    for ( const [ name, version ] of Object.entries( pkg.dependencies ?? {} ) ) {
+      directDeps.set( name, { version, dependencyType: 'dependencies' } );
+    }
+
+    for ( const [ name, version ] of Object.entries( pkg.devDependencies ?? {} ) ) {
+      directDeps.set( name, { version, dependencyType: 'devDependencies' } );
+    }
+
+    return directDeps;
   } catch ( error ) {
     debug( 'Failed to read local package.json: %O', error );
-    return new Set();
+    return new Map();
   }
 }
 
@@ -114,20 +132,27 @@ export async function getLocalInstalledPackages( cwd: string ): Promise<LocalIns
   const directDeps = await readDirectOutputDependencies( cwd );
   const packageNames: string[] = LOCAL_SDK_PACKAGE_NAMES.filter( name => directDeps.has( name ) );
 
-  const versions = await Promise.all(
+  return Promise.all(
     packageNames.map( async name => {
+      const declaredDependency = directDeps.get( name );
+      const declaredVersion = declaredDependency?.version ?? '';
+      const dependencyType = declaredDependency?.dependencyType ?? 'dependencies';
+
       try {
         const { stdout } = await execFile( 'npm', [ 'ls', name, '--json' ], { cwd } );
         const version = parseNpmLsVersion( stdout, name );
-        return version ? { name, version } : null;
+        return { name, version, declaredVersion, dependencyType };
       } catch ( error ) {
         debug( 'Failed to get local version for %s: %O', name, error );
-        return null;
+        return { name, version: null, declaredVersion, dependencyType };
       }
     } )
   );
+}
 
-  return versions.filter( ( item ): item is LocalInstalledPackage => item !== null );
+export async function hasDeprecatedWrapperPackage( cwd: string ): Promise<boolean> {
+  const directDeps = await readDirectOutputDependencies( cwd );
+  return directDeps.has( DEPRECATED_WRAPPER_PACKAGE_NAME );
 }
 
 function spawnInherit( command: string, args: string[], cwd?: string ): Promise<void> {
@@ -152,6 +177,19 @@ export async function updateGlobal(): Promise<void> {
 export async function updateLocal( cwd: string, packageNames: string[], version: string ): Promise<void> {
   const packages = packageNames.map( name => `${name}@${version}` );
   await spawnInherit( 'npm', [ 'install', '--ignore-scripts', '--save-exact', ...packages ], cwd );
+}
+
+export async function updateLocalPackages( cwd: string, packages: LocalInstalledPackage[], version: string ): Promise<void> {
+  const dependencies = packages.filter( pkg => pkg.dependencyType === 'dependencies' ).map( pkg => `${pkg.name}@${version}` );
+  const devDependencies = packages.filter( pkg => pkg.dependencyType === 'devDependencies' ).map( pkg => `${pkg.name}@${version}` );
+
+  if ( dependencies.length > 0 ) {
+    await spawnInherit( 'npm', [ 'install', '--ignore-scripts', '--save-exact', ...dependencies ], cwd );
+  }
+
+  if ( devDependencies.length > 0 ) {
+    await spawnInherit( 'npm', [ 'install', '--ignore-scripts', '--save-dev', '--save-exact', ...devDependencies ], cwd );
+  }
 }
 
 export function isOutdated( current: string, latest: string ): boolean {

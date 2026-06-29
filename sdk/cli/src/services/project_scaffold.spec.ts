@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getProjectConfig, checkDependencies, createSigintHandler } from './project_scaffold.js';
 import { UserCancelledError } from '#types/errors.js';
 
-// Mock the framework version utility
-vi.mock( '#utils/framework_version.js', () => ( {
-  getFrameworkVersion: vi.fn().mockResolvedValue( {
-    framework: '0.1.1'
+// Mock the SDK version utility
+vi.mock( '#utils/sdk_version.js', () => ( {
+  getSdkVersion: vi.fn().mockResolvedValue( {
+    sdk: '0.1.1'
   } )
 } ) );
 

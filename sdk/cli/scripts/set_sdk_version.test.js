@@ -28,11 +28,11 @@ function layoutPaths( root ) {
     root,
     scriptPath: join( scriptsDir, 'set_sdk_version.js' ),
     dockerPath: join( src, 'assets', 'docker', 'docker-compose-dev.yml' ),
-    frameworkPath: join( src, 'generated', 'framework_version.json' )
+    sdkPath: join( src, 'generated', 'sdk_version.json' )
   };
 }
 
-function createFixture( root, { dockerContent, frameworkContent } ) {
+function createFixture( root, { dockerContent, sdkContent } ) {
   const paths = layoutPaths( root );
   mkdirSync( join( root, 'scripts' ), { recursive: true } );
   mkdirSync( join( root, 'src', 'assets', 'docker' ), { recursive: true } );
@@ -41,8 +41,8 @@ function createFixture( root, { dockerContent, frameworkContent } ) {
   copyFileSync( scriptSource, paths.scriptPath );
   writeFileSync( paths.dockerPath, dockerContent ?? '', 'utf-8' );
   writeFileSync(
-    paths.frameworkPath,
-    frameworkContent ?? JSON.stringify( { framework: '0.0.0' }, null, 2 ) + '\n',
+    paths.sdkPath,
+    sdkContent ?? JSON.stringify( { sdk: '0.0.0' }, null, 2 ) + '\n',
     'utf-8'
   );
   return paths;
@@ -89,7 +89,7 @@ describe( 'set_sdk_version.js', () => {
     expect( result.stderr ).toContain( 'Missing version argument' );
   } );
 
-  it( 'exits 1 when framework_version.json is missing', () => {
+  it( 'exits 1 when sdk_version.json is missing', () => {
     fixtureState.tempRoot = mkdtempSync( join( __dirname, 'set_sdk_version-fixture-' ) );
     const paths = layoutPaths( fixtureState.tempRoot );
     mkdirSync( join( fixtureState.tempRoot, 'scripts' ), { recursive: true } );
@@ -97,12 +97,12 @@ describe( 'set_sdk_version.js', () => {
     writeFileSync( join( fixtureState.tempRoot, 'package.json' ), JSON.stringify( { type: 'module' } ) );
     copyFileSync( scriptSource, paths.scriptPath );
     writeFileSync( paths.dockerPath, 'image: x:${OUTPUT_API_VERSION:-1.0.0}\n', 'utf-8' );
-    // no framework_version.json
+    // no sdk_version.json
 
     const result = runScript( fixtureState.tempRoot, [ '1.0.0' ] );
     expect( result.status ).toBe( 1 );
     expect( result.stderr ).toContain( 'Missing file' );
-    expect( result.stderr ).toContain( 'framework_version.json' );
+    expect( result.stderr ).toContain( 'sdk_version.json' );
   } );
 
   it( 'exits 1 when docker-compose-dev.yml is missing', () => {
@@ -112,7 +112,7 @@ describe( 'set_sdk_version.js', () => {
     mkdirSync( join( fixtureState.tempRoot, 'src', 'generated' ), { recursive: true } );
     writeFileSync( join( fixtureState.tempRoot, 'package.json' ), JSON.stringify( { type: 'module' } ) );
     copyFileSync( scriptSource, paths.scriptPath );
-    writeFileSync( paths.frameworkPath, '{}\n', 'utf-8' );
+    writeFileSync( paths.sdkPath, '{}\n', 'utf-8' );
     // no docker-compose-dev.yml
 
     const result = runScript( fixtureState.tempRoot, [ '1.0.0' ] );
@@ -129,7 +129,7 @@ describe( 'set_sdk_version.js', () => {
     expect( result.stderr ).toContain( 'does not have the OUTPUT_API_VERSION env var reference' );
   } );
 
-  it( 'replaces one occurrence and writes framework_version.json', () => {
+  it( 'replaces one occurrence and writes sdk_version.json', () => {
     fixtureState.tempRoot = mkdtempSync( join( __dirname, 'set_sdk_version-fixture-' ) );
     const dockerContent = 'image: outputai/api:${OUTPUT_API_VERSION:-2.0.0}\n';
     createFixture( fixtureState.tempRoot, { dockerContent } );
@@ -145,8 +145,8 @@ describe( 'set_sdk_version.js', () => {
     expect( readFileSync( paths.dockerPath, 'utf-8' ) ).toBe(
       'image: outputai/api:${OUTPUT_API_VERSION:-3.4.5}\n'
     );
-    expect( readFileSync( paths.frameworkPath, 'utf-8' ) ).toBe(
-      JSON.stringify( { framework: '3.4.5' }, null, 2 ) + '\n'
+    expect( readFileSync( paths.sdkPath, 'utf-8' ) ).toBe(
+      JSON.stringify( { sdk: '3.4.5' }, null, 2 ) + '\n'
     );
   } );
 
@@ -187,6 +187,6 @@ describe( 'set_sdk_version.js', () => {
     expect( readFileSync( paths.dockerPath, 'utf-8' ) ).toContain(
       '${OUTPUT_API_VERSION:-1.0.0}'
     );
-    expect( readFileSync( paths.frameworkPath, 'utf-8' ) ).toContain( '"framework": "1.0.0"' );
+    expect( readFileSync( paths.sdkPath, 'utf-8' ) ).toContain( '"sdk": "1.0.0"' );
   } );
 } );

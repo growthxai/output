@@ -17,6 +17,10 @@ import { getErrorMessage } from '#utils/error_utils.js';
 import { formatPortCollisionHint, formatPortCollisionsHint } from '#utils/port_collision.js';
 import { findUnavailablePorts } from '#utils/port_availability.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
+import {
+  DEPRECATED_WRAPPER_PACKAGE_WARNING,
+  hasDeprecatedWrapperPackage
+} from '#services/npm_update_service.js';
 import { DevApp } from '#views/dev/dev_app.js';
 import { config } from '#config.js';
 
@@ -61,9 +65,15 @@ export default class Dev extends Command {
 
   async run(): Promise<void> {
     const { flags } = await this.parse( Dev );
+    const projectRoot = process.cwd();
+    const hasDeprecatedWrapper = await hasDeprecatedWrapperPackage( projectRoot );
 
     // Ensure Claude plugin is configured (fire-and-forget, silent)
-    ensureClaudePlugin( process.cwd(), { silent: true } ).catch( () => {} );
+    ensureClaudePlugin( projectRoot, { silent: true } ).catch( () => {} );
+
+    if ( hasDeprecatedWrapper ) {
+      this.warn( DEPRECATED_WRAPPER_PACKAGE_WARNING );
+    }
 
     validateDockerEnvironment();
 

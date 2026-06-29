@@ -3,9 +3,11 @@ import { EventEmitter } from 'node:events';
 import {
   fetchLatestVersion,
   getGlobalInstalledVersion,
+  hasDeprecatedWrapperPackage,
   getLocalInstalledPackages,
   getLocalInstalledVersion,
   updateLocal,
+  updateLocalPackages,
   isOutdated
 } from './npm_update_service.js';
 
@@ -167,9 +169,9 @@ describe( 'npm_update_service', () => {
       const result = await getLocalInstalledPackages( '/some/project' );
 
       expect( result ).toEqual( [
-        { name: '@outputai/cli', version: '0.8.3' },
-        { name: '@outputai/core', version: '0.8.3' },
-        { name: '@outputai/llm', version: '0.8.3' }
+        { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/llm', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'devDependencies' }
       ] );
       expect( mockExecFile ).toHaveBeenCalledWith(
         'npm', [ 'ls', '@outputai/cli', '--json' ], { cwd: '/some/project' }
@@ -190,6 +192,49 @@ describe( 'npm_update_service', () => {
       expect( result ).toEqual( [] );
       expect( mockExecFile ).not.toHaveBeenCalled();
     } );
+
+    it( 'should return declared packages when npm ls cannot read installed versions', async () => {
+      mockReadFile.mockResolvedValue( JSON.stringify( {
+        dependencies: {
+          '@outputai/cli': '0.8.3',
+          '@outputai/core': '^0.8.0'
+        }
+      } ) );
+      mockExecFile.mockRejectedValue( new Error( 'missing node_modules' ) );
+
+      const result = await getLocalInstalledPackages( '/some/project' );
+
+      expect( result ).toEqual( [
+        { name: '@outputai/cli', version: null, declaredVersion: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/core', version: null, declaredVersion: '^0.8.0', dependencyType: 'dependencies' }
+      ] );
+    } );
+  } );
+
+  describe( 'hasDeprecatedWrapperPackage', () => {
+    it( 'should return true when package.json declares the deprecated wrapper package', async () => {
+      mockReadFile.mockResolvedValue( JSON.stringify( {
+        dependencies: {
+          '@outputai/output': '0.9.0'
+        }
+      } ) );
+
+      const result = await hasDeprecatedWrapperPackage( '/some/project' );
+
+      expect( result ).toBe( true );
+    } );
+
+    it( 'should return false when package.json does not declare the deprecated wrapper package', async () => {
+      mockReadFile.mockResolvedValue( JSON.stringify( {
+        dependencies: {
+          '@outputai/core': '0.9.0'
+        }
+      } ) );
+
+      const result = await hasDeprecatedWrapperPackage( '/some/project' );
+
+      expect( result ).toBe( false );
+    } );
   } );
 
   describe( 'updateLocal', () => {
@@ -204,6 +249,32 @@ describe( 'npm_update_service', () => {
       expect( mockSpawn ).toHaveBeenCalledWith(
         'npm',
         [ 'install', '--ignore-scripts', '--save-exact', '@outputai/cli@1.0.0', '@outputai/core@1.0.0' ],
+        { cwd: '/some/project', stdio: 'inherit' }
+      );
+    } );
+  } );
+
+  describe( 'updateLocalPackages', () => {
+    it( 'should preserve dependency sections when updating packages', async () => {
+      mockSpawn.mockImplementation( () => {
+        const proc = new EventEmitter();
+        queueMicrotask( () => proc.emit( 'close', 0 ) );
+        return proc;
+      } );
+
+      await updateLocalPackages( '/some/project', [
+        { name: '@outputai/core', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'dependencies' },
+        { name: '@outputai/cli', version: '0.8.3', declaredVersion: '0.8.3', dependencyType: 'devDependencies' }
+      ], '1.0.0' );
+
+      expect( mockSpawn ).toHaveBeenCalledWith(
+        'npm',
+        [ 'install', '--ignore-scripts', '--save-exact', '@outputai/core@1.0.0' ],
+        { cwd: '/some/project', stdio: 'inherit' }
+      );
+      expect( mockSpawn ).toHaveBeenCalledWith(
+        'npm',
+        [ 'install', '--ignore-scripts', '--save-dev', '--save-exact', '@outputai/cli@1.0.0' ],
         { cwd: '/some/project', stdio: 'inherit' }
       );
     } );

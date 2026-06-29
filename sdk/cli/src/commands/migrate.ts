@@ -1,6 +1,10 @@
 import { Command, Flags } from '@oclif/core';
 import { ensureOutputAISystem } from '#services/coding_agents.js';
 import { invokeMigrate } from '#services/claude_client.js';
+import {
+  DEPRECATED_WRAPPER_PACKAGE_WARNING,
+  hasDeprecatedWrapperPackage
+} from '#services/npm_update_service.js';
 
 export default class Migrate extends Command {
   static description =
@@ -33,6 +37,11 @@ export default class Migrate extends Command {
   async run(): Promise<void> {
     const { flags } = await this.parse( Migrate );
     const projectRoot = process.cwd();
+    const hasDeprecatedWrapper = await hasDeprecatedWrapperPackage( projectRoot );
+
+    if ( hasDeprecatedWrapper ) {
+      this.warn( DEPRECATED_WRAPPER_PACKAGE_WARNING );
+    }
 
     this.log( 'Checking .outputai directory structure...' );
     await ensureOutputAISystem( projectRoot );
