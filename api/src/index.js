@@ -8,7 +8,7 @@ import { createHttpLoggingMiddleware } from './middleware/http_logger.js';
 import errorHandler from './middleware/error_handler.js';
 import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
-import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
+import { createStopHandler, createTerminateHandler, createResultHandler, createInputHandler } from './handlers/workflow_run.js';
 import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
 import { createWorkflowHistoryStreamHandler } from './handlers/workflow_history_stream.js';
 import { readPinnedRunId } from './handlers/utils.js';
@@ -53,6 +53,7 @@ const client = await temporalClient.init().catch( e => {
 const stopHandler = createStopHandler( client );
 const terminateHandler = createTerminateHandler( client );
 const resultHandler = createResultHandler( client );
+const inputHandler = createInputHandler( client );
 const traceLogHandler = createTraceLogHandler( client );
 
 // Sets payload limit for POST in application/json format. Some workflow have very large payloads
@@ -396,6 +397,17 @@ app.use( ( req, res, next ) => {
  *               nullable: true
  *               additionalProperties: true
  *               description: Sanitized error cause chain (name/message per level, no stack)
+ *     WorkflowInputResponse:
+ *       type: object
+ *       properties:
+ *         workflowId:
+ *           type: string
+ *           description: The workflow execution id
+ *         runId:
+ *           type: string
+ *           description: The specific run id the input was read from
+ *         input:
+ *           description: The original input passed to the workflow, null if unavailable
  *     StopWorkflowResponse:
  *       type: object
  *       properties:
@@ -977,6 +989,64 @@ app.post(
  */
 app.get( '/workflow/:id/result', resultHandler );
 app.get( '/workflow/:id/runs/:rid/result', resultHandler );
+
+/**
+ * @swagger
+ * /workflow/{id}/input:
+ *   get:
+ *     summary: Return the original input of a workflow (latest run)
+ *     description: Returns the original input passed to the latest run of the given workflow. Works for workflows in any state, including running. To pin a specific run, use `/workflow/{id}/runs/{rid}/input`.
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *        description: The id of workflow to retrieve the input
+ *     responses:
+ *       200:
+ *         description: The workflow input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WorkflowInputResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /workflow/{id}/runs/{rid}/input:
+ *   get:
+ *     summary: Return the original input of a specific workflow run
+ *     parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: string
+ *      - in: path
+ *        name: rid
+ *        required: true
+ *        schema:
+ *          type: string
+ *          format: uuid
+ *        description: The specific run id to target
+ *     responses:
+ *       200:
+ *         description: The workflow input
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/WorkflowInputResponse'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+app.get( '/workflow/:id/input', inputHandler );
+app.get( '/workflow/:id/runs/:rid/input', inputHandler );
 
 /**
  * @swagger

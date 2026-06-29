@@ -301,6 +301,15 @@ export interface WorkflowResultResponse {
   errorDetails?: WorkflowResultResponseErrorDetails;
 }
 
+export interface WorkflowInputResponse {
+  /** The workflow execution id */
+  workflowId?: string;
+  /** The specific run id the input was read from */
+  runId?: string;
+  /** The original input passed to the workflow, null if unavailable */
+  input?: unknown;
+}
+
 export interface StopWorkflowResponse {
   workflowId?: string;
   runId?: string;
@@ -1354,6 +1363,110 @@ export const getWorkflowIdRunsRidResult = async (id: string,
     rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidResultResponse> => {
 
   return customFetchInstance<getWorkflowIdRunsRidResultResponse>(getGetWorkflowIdRunsRidResultUrl(id,rid),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Returns the original input passed to the latest run of the given workflow. Works for workflows in any state, including running. To pin a specific run, use `/workflow/{id}/runs/{rid}/input`.
+ * @summary Return the original input of a workflow (latest run)
+ */
+export type getWorkflowIdInputResponse200 = {
+  data: WorkflowInputResponse
+  status: 200
+}
+
+export type getWorkflowIdInputResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdInputResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdInputResponseSuccess = (getWorkflowIdInputResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdInputResponseError = (getWorkflowIdInputResponse404 | getWorkflowIdInputResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdInputResponse = (getWorkflowIdInputResponseSuccess | getWorkflowIdInputResponseError)
+
+export const getGetWorkflowIdInputUrl = (id: string,) => {
+
+
+
+
+  return `/workflow/${id}/input`
+}
+
+export const getWorkflowIdInput = async (id: string, options?: ApiRequestOptions): Promise<getWorkflowIdInputResponse> => {
+
+  return customFetchInstance<getWorkflowIdInputResponse>(getGetWorkflowIdInputUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * @summary Return the original input of a specific workflow run
+ */
+export type getWorkflowIdRunsRidInputResponse200 = {
+  data: WorkflowInputResponse
+  status: 200
+}
+
+export type getWorkflowIdRunsRidInputResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidInputResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidInputResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidInputResponseSuccess = (getWorkflowIdRunsRidInputResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidInputResponseError = (getWorkflowIdRunsRidInputResponse400 | getWorkflowIdRunsRidInputResponse404 | getWorkflowIdRunsRidInputResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidInputResponse = (getWorkflowIdRunsRidInputResponseSuccess | getWorkflowIdRunsRidInputResponseError)
+
+export const getGetWorkflowIdRunsRidInputUrl = (id: string,
+    rid: string,) => {
+
+
+
+
+  return `/workflow/${id}/runs/${rid}/input`
+}
+
+export const getWorkflowIdRunsRidInput = async (id: string,
+    rid: string, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidInputResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidInputResponse>(getGetWorkflowIdRunsRidInputUrl(id,rid),
   {
     ...options,
     method: 'GET'
