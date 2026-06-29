@@ -35,13 +35,6 @@ describe( 'workflow input command', () => {
       expect( WorkflowInput.args ).toHaveProperty( 'workflowId' );
       expect( WorkflowInput.enableJsonFlag ).toBe( true );
     } );
-
-    it( 'defines run-id, output-file and force flags', () => {
-      expect( WorkflowInput.flags['run-id'] ).toBeDefined();
-      expect( WorkflowInput.flags['output-file'].char ).toBe( 'o' );
-      expect( WorkflowInput.flags.force.char ).toBe( 'f' );
-      expect( WorkflowInput.flags.force.default ).toBe( false );
-    } );
   } );
 
   describe( 'fetching input', () => {

@@ -30,14 +30,14 @@ describe( 'getInput', () => {
     mockExtractWorkflowInput.mockReturnValue( { values: [ 1, 2, 3 ] } );
   } );
 
-  const makeFixtures = ( { historyResponse, getHistoryError } = {} ) => {
+  const makeFixtures = ( { getHistoryError } = {} ) => {
     const getWorkflowExecutionHistory = vi.fn();
     if ( getHistoryError !== undefined ) {
       getWorkflowExecutionHistory.mockRejectedValue( getHistoryError );
     } else {
-      getWorkflowExecutionHistory.mockResolvedValue( historyResponse ?? {
-        history: { events: [ { workflowExecutionStartedEventAttributes: { input: { payloads: [ { p: 1 } ] } } } ] }
-      } );
+      // History content is irrelevant: extractWorkflowInput is mocked, so getInput's
+      // return comes from the mock, not from decoding this object.
+      getWorkflowExecutionHistory.mockResolvedValue( { history: {} } );
     }
     return {
       getWorkflowExecutionHistory,
@@ -46,13 +46,13 @@ describe( 'getInput', () => {
     };
   };
 
-  it( 'returns the decoded input for the resolved latest run', async () => {
+  it( 'resolves the latest run via describe and returns the decoded input', async () => {
     const fixtures = makeFixtures();
     const { getInput } = await import( './get_input.js' );
 
     const result = await getInput( fixtures, 'workflow-id' );
 
-    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: undefined } );
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id' );
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
       namespace: 'default',
       execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
@@ -61,14 +61,13 @@ describe( 'getInput', () => {
     expect( result ).toEqual( { workflowId: 'workflow-id', runId: 'resolved-run', input: { values: [ 1, 2, 3 ] } } );
   } );
 
-  it( 'targets the pinned run when a runId is given', async () => {
-    mockDescribeWorkflow.mockResolvedValue( { description: { runId: 'pinned-run' } } );
+  it( 'skips describe and targets the pinned run when a runId is given', async () => {
     const fixtures = makeFixtures();
     const { getInput } = await import( './get_input.js' );
 
     await getInput( fixtures, 'workflow-id', 'pinned-run' );
 
-    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: 'pinned-run' } );
+    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith(
       expect.objectContaining( { execution: { workflowId: 'workflow-id', runId: 'pinned-run' } } )
     );
@@ -76,7 +75,7 @@ describe( 'getInput', () => {
 
   it( 'returns null input when no payloads exist (e.g. a running workflow with empty start input)', async () => {
     mockExtractWorkflowInput.mockReturnValue( null );
-    const fixtures = makeFixtures( { historyResponse: { history: { events: [] } } } );
+    const fixtures = makeFixtures();
     const { getInput } = await import( './get_input.js' );
 
     const result = await getInput( fixtures, 'workflow-id' );

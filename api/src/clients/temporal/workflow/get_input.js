@@ -19,8 +19,9 @@ const { namespace } = temporalConfig;
  * @throws {WorkflowNotFoundError}
  */
 export const getInput = async ( { client, connection }, workflowId, runId ) => {
-  const { description } = await describeWorkflow( { client }, workflowId, { runId } );
-  const resolvedRunId = description.runId;
+  // A caller-supplied runId is already the run to read; only resolve the latest run via
+  // describe when none was pinned, avoiding a needless DescribeWorkflowExecution RPC.
+  const resolvedRunId = runId ?? ( await describeWorkflow( { client }, workflowId ) ).description.runId;
 
   const firstPage = await connection.workflowService.getWorkflowExecutionHistory( {
     namespace,
