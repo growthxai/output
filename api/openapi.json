@@ -407,6 +407,11 @@
       },
       "WorkflowInputResponse": {
         "type": "object",
+        "required": [
+          "workflowId",
+          "runId",
+          "input"
+        ],
         "properties": {
           "workflowId": {
             "type": "string",
@@ -417,7 +422,7 @@
             "description": "The specific run id the input was read from"
           },
           "input": {
-            "description": "The original input passed to the workflow, null if unavailable"
+            "description": "The first input argument the workflow was started with, null if unavailable"
           }
         }
       },
@@ -1260,7 +1265,8 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The id of workflow to retrieve the input"
           },
           {
             "in": "path",

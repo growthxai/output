@@ -42,7 +42,7 @@ export default class WorkflowInput extends Command {
     } )
   };
 
-  async run(): Promise<WorkflowInputResponse> {
+  async run(): Promise<unknown> {
     const { args, flags } = await this.parse( WorkflowInput );
     const runId = flags['run-id'];
     const outputFile = flags['output-file'];
@@ -56,7 +56,8 @@ export default class WorkflowInput extends Command {
     }
 
     const data = response.data as WorkflowInputResponse;
-    const json = JSON.stringify( data.input ?? null, null, 2 );
+    const input = data.input;
+    const json = JSON.stringify( input, null, 2 );
 
     if ( outputFile ) {
       const destPath = path.resolve( process.cwd(), outputFile );
@@ -71,16 +72,17 @@ export default class WorkflowInput extends Command {
 
       await fs.writeFile( destPath, `${json}\n`, 'utf-8' );
       this.logToStderr( `Wrote workflow input to ${destPath}` );
-      return data;
+      return input;
     }
 
-    // Keep stdout pure JSON so it can be piped (e.g. `output workflow input <id> | jq .`).
-    // oclif serializes the returned object itself when --json is set, so skip the manual log.
+    // Emit only the bare input (never the response envelope) so every mode yields the same
+    // pipeable value (e.g. `output workflow input <id> | jq .`). Under --json oclif serializes
+    // run()'s return value, which is also the bare input, so skip the manual log here.
     if ( !this.jsonEnabled() ) {
       this.log( json );
     }
 
-    return data;
+    return input;
   }
 
   async catch( error: Error ): Promise<void> {

@@ -38,17 +38,32 @@ describe( 'workflow input command', () => {
   } );
 
   describe( 'fetching input', () => {
-    it( 'prints the input JSON to stdout for the latest run', async () => {
+    it( 'prints the bare input JSON to stdout and returns it for the latest run', async () => {
       vi.mocked( getWorkflowIdInput ).mockResolvedValue(
         { data: { workflowId: 'wf-1', runId: RID, input: INPUT } } as any
       );
 
       const cmd = makeCmd( [ 'wf-1' ] );
-      await cmd.run();
+      const result = await cmd.run();
 
       expect( getWorkflowIdInput ).toHaveBeenCalledWith( 'wf-1' );
       expect( getWorkflowIdRunsRidInput ).not.toHaveBeenCalled();
       expect( cmd.log ).toHaveBeenCalledWith( JSON.stringify( INPUT, null, 2 ) );
+      // run() returns the bare input (not the envelope), so --json emits the same shape.
+      expect( result ).toEqual( INPUT );
+    } );
+
+    it( 'returns the bare input and skips manual logging in --json mode', async () => {
+      vi.mocked( getWorkflowIdInput ).mockResolvedValue(
+        { data: { workflowId: 'wf-1', runId: RID, input: INPUT } } as any
+      );
+
+      const cmd = makeCmd( [ 'wf-1', '--json' ] );
+      ( cmd.jsonEnabled as any ).mockReturnValue( true );
+      const result = await cmd.run();
+
+      expect( cmd.log ).not.toHaveBeenCalled();
+      expect( result ).toEqual( INPUT );
     } );
 
     it( 'uses the run-pinned endpoint when --run-id is given', async () => {

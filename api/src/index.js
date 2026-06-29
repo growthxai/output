@@ -399,6 +399,7 @@ app.use( ( req, res, next ) => {
  *               description: Sanitized error cause chain (name/message per level, no stack)
  *     WorkflowInputResponse:
  *       type: object
+ *       required: [workflowId, runId, input]
  *       properties:
  *         workflowId:
  *           type: string
@@ -407,7 +408,7 @@ app.use( ( req, res, next ) => {
  *           type: string
  *           description: The specific run id the input was read from
  *         input:
- *           description: The original input passed to the workflow, null if unavailable
+ *           description: The first input argument the workflow was started with, null if unavailable
  *     StopWorkflowResponse:
  *       type: object
  *       properties:
@@ -1024,6 +1025,7 @@ app.get( '/workflow/:id/runs/:rid/result', resultHandler );
  *        required: true
  *        schema:
  *          type: string
+ *        description: The id of workflow to retrieve the input
  *      - in: path
  *        name: rid
  *        required: true

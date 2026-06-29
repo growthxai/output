@@ -303,11 +303,11 @@ export interface WorkflowResultResponse {
 
 export interface WorkflowInputResponse {
   /** The workflow execution id */
-  workflowId?: string;
+  workflowId: string;
   /** The specific run id the input was read from */
-  runId?: string;
-  /** The original input passed to the workflow, null if unavailable */
-  input?: unknown;
+  runId: string;
+  /** The first input argument the workflow was started with, null if unavailable */
+  input: unknown;
 }
 
 export interface StopWorkflowResponse {

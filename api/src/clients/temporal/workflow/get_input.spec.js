@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockDescribeWorkflow, mockExtractWorkflowInput, mockWorkflowNotFoundError } = vi.hoisted( () => ( {
+const { mockDescribeWorkflow, mockExtractWorkflowInput, mockWorkflowNotFoundError, mockLoggerWarn } = vi.hoisted( () => ( {
   mockDescribeWorkflow: vi.fn(),
   mockExtractWorkflowInput: vi.fn(),
   mockWorkflowNotFoundError: vi.fn( ( workflowId, runId ) =>
-    Object.assign( new Error( `not found: ${workflowId}/${runId}` ), { name: 'WorkflowNotFoundError' } ) )
+    Object.assign( new Error( `not found: ${workflowId}/${runId}` ), { name: 'WorkflowNotFoundError' } ) ),
+  mockLoggerWarn: vi.fn()
 } ) );
 
 vi.mock( '#configs', () => ( {
   temporal: { namespace: 'default' }
+} ) );
+
+vi.mock( '#logger', () => ( {
+  logger: { warn: mockLoggerWarn }
 } ) );
 
 vi.mock( '../../errors.js', () => ( {
@@ -30,14 +35,14 @@ describe( 'getInput', () => {
     mockExtractWorkflowInput.mockReturnValue( { values: [ 1, 2, 3 ] } );
   } );
 
-  const makeFixtures = ( { getHistoryError } = {} ) => {
+  const makeFixtures = ( { historyResponse, getHistoryError } = {} ) => {
     const getWorkflowExecutionHistory = vi.fn();
     if ( getHistoryError !== undefined ) {
       getWorkflowExecutionHistory.mockRejectedValue( getHistoryError );
     } else {
       // History content is irrelevant: extractWorkflowInput is mocked, so getInput's
       // return comes from the mock, not from decoding this object.
-      getWorkflowExecutionHistory.mockResolvedValue( { history: {} } );
+      getWorkflowExecutionHistory.mockResolvedValue( historyResponse ?? { history: {} } );
     }
     return {
       getWorkflowExecutionHistory,
@@ -58,7 +63,30 @@ describe( 'getInput', () => {
       execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
       maximumPageSize: 1
     } );
+    // Pin the wiring: the resolved history object is what gets decoded, not the whole page.
+    expect( mockExtractWorkflowInput ).toHaveBeenCalledWith( {} );
     expect( result ).toEqual( { workflowId: 'workflow-id', runId: 'resolved-run', input: { values: [ 1, 2, 3 ] } } );
+  } );
+
+  it( 'throws when describe reports no runId rather than reading the unpinned latest run', async () => {
+    mockDescribeWorkflow.mockResolvedValue( { description: {} } );
+    const fixtures = makeFixtures();
+    const { getInput } = await import( './get_input.js' );
+
+    await expect( getInput( fixtures, 'workflow-id' ) ).rejects.toThrow( /did not report a runId/ );
+    expect( fixtures.getWorkflowExecutionHistory ).not.toHaveBeenCalled();
+  } );
+
+  it( 'warns when the history response has no history field', async () => {
+    const fixtures = makeFixtures( { historyResponse: {} } );
+    const { getInput } = await import( './get_input.js' );
+
+    await getInput( fixtures, 'workflow-id' );
+
+    expect( mockLoggerWarn ).toHaveBeenCalledWith(
+      'Temporal getWorkflowExecutionHistory returned no history field',
+      { workflowId: 'workflow-id', runId: 'resolved-run' }
+    );
   } );
 
   it( 'skips describe and targets the pinned run when a runId is given', async () => {

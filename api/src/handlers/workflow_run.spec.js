@@ -10,6 +10,7 @@ vi.mock( '#logger', () => ( {
 } ) );
 
 import { createStopHandler, createTerminateHandler, createResultHandler, createInputHandler } from './workflow_run.js';
+import { workflowNotFoundError } from '../clients/errors.js';
 import errorHandler from '../middleware/error_handler.js';
 
 describe( 'workflow_run handlers', () => {
@@ -166,6 +167,16 @@ describe( 'workflow_run handlers', () => {
     it( 'returns 400 for an invalid rid', async () => {
       await request( app() ).get( '/workflow/w1/runs/not-a-uuid/input' ).expect( 400 );
       expect( mockGetWorkflowInput ).not.toHaveBeenCalled();
+    } );
+
+    it( 'maps a WorkflowNotFoundError to a 404', async () => {
+      mockGetWorkflowInput.mockRejectedValue( workflowNotFoundError( 'w1' ) );
+
+      await request( app() ).get( '/workflow/w1/input' ).expect( 404, {
+        error: 'WorkflowNotFoundError',
+        message: 'Workflow "w1" not found',
+        workflowId: 'w1'
+      } );
     } );
   } );
 } );
