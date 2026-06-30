@@ -1,4 +1,5 @@
 import { Logger } from '@outputai/core';
+import { fetch } from '@outputai/http';
 
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day

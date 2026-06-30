@@ -1,13 +1,16 @@
 import { FatalError } from '#errors';
-import { fetch } from 'undici';
+import { Agent, EnvHttpProxyAgent, fetch } from 'undici';
 import { serializeFetchResponse, serializeBodyAndInferContentType } from '#helpers/fetch';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
 import { createInternalStep } from '#helpers/component';
+import { getProxyUrl } from '#helpers/proxy';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 
 const log = createChildLogger( 'HttpClient' );
 
+/** Ignore HTTP/2. Check OUT-505 */
+const dispatcher = new ( getProxyUrl() ? EnvHttpProxyAgent : Agent )( { allowH2: false } );
 /**
  * Send a HTTP request.
  *
@@ -26,7 +29,8 @@ export const sendHttpRequest = createInternalStep( {
     const args = {
       method,
       headers: new Headers( headers ?? {} ),
-      signal: AbortSignal.timeout( timeout )
+      signal: AbortSignal.timeout( timeout ),
+      dispatcher
     };
 
     const methodsWithBody = [ 'DELETE', 'PATCH', 'POST', 'PUT', 'OPTIONS' ];

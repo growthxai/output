@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
 import { addRequestIdToResponse } from './utils.js';
+import { Proxy } from '@outputai/core/sdk/runtime';
+
+/** Custom dispatcher to avoid h2 problems [OUT-505]. Preserved proxy if set up */
+const customDispatcher = new undici[Proxy.getProxyUrl() ? 'EnvHttpProxyAgent' : 'Agent']( { allowH2: false } );
 
 /*
  * Unifies undici and nodes realms
@@ -50,8 +54,9 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   await logRequest( { requestId, request } );
 
+  const dispatcher = init?.dispatcher ?? customDispatcher;
   try {
-    const response = await undici.fetch( request );
+    const response = await undici.fetch( request, dispatcher ? { dispatcher } : undefined );
     const durationMs = performance.now() - startedAt;
 
     // This enriches the response of the request id, so it is identifiable later.

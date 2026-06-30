@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MockAgent, setGlobalDispatcher } from 'undici';
 import { FatalError } from '#errors';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 import { serializeBodyAndInferContentType, serializeFetchResponse } from '#helpers/fetch';
@@ -7,6 +6,19 @@ import { getTraceDestinations, sendHttpRequest } from './index.js';
 
 const getDestinationsMock = vi.hoisted( () => vi.fn() );
 const createInternalStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
+const fetchMock = vi.hoisted( () => vi.fn() );
+const AgentMock = vi.hoisted( () => vi.fn( function Agent( options ) {
+  this.options = options;
+} ) );
+const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
+  this.options = options;
+} ) );
+
+vi.mock( 'undici', () => ( {
+  Agent: AgentMock,
+  EnvHttpProxyAgent: EnvHttpProxyAgentMock,
+  fetch: fetchMock
+} ) );
 
 vi.mock( '#tracing', () => ( {
   getDestinations: getDestinationsMock
@@ -25,21 +37,30 @@ vi.mock( '#helpers/string', () => ( {
   isStringboolTrue: vi.fn( () => false )
 } ) );
 
+vi.mock( '#helpers/proxy', () => ( {
+  getProxyUrl: vi.fn( () => null )
+} ) );
+
 vi.mock( '#helpers/fetch', () => ( {
   serializeBodyAndInferContentType: vi.fn(),
   serializeFetchResponse: vi.fn()
 } ) );
 
-const mockAgent = new MockAgent();
-mockAgent.disableNetConnect();
-
-setGlobalDispatcher( mockAgent );
-
 const url = 'https://growthx.ai';
 const method = 'GET';
 
+const response = ( { ok = true, status = 200, statusText = 'OK', headers = {} } = {} ) => ( {
+  ok,
+  status,
+  statusText,
+  headers: new Headers( headers ),
+  text: vi.fn()
+} );
+
 describe( 'internal_activities component registration', () => {
   it( 'creates internal step components for exported activities', () => {
+    expect( AgentMock ).toHaveBeenCalledWith( { allowH2: false } );
+    expect( EnvHttpProxyAgentMock ).not.toHaveBeenCalled();
     expect( createInternalStepMock ).toHaveBeenNthCalledWith( 1, {
       name: ACTIVITY_SEND_HTTP_REQUEST,
       handler: expect.any( Function )
@@ -55,18 +76,19 @@ describe( 'internal_activities component registration', () => {
 
 describe( 'internal_activities/sendHttpRequest', () => {
   beforeEach( async () => {
-    vi.restoreAllMocks();
-    vi.clearAllMocks();
+    fetchMock.mockReset();
+    serializeBodyAndInferContentType.mockReset();
+    serializeFetchResponse.mockReset();
   } );
 
   it( 'succeeds and returns serialized JSON response', async () => {
     const payload = { a: 1 };
     const method = 'POST';
 
-    mockAgent.get( url ).intercept( { path: '/', method } )
-      .reply( 200, JSON.stringify( { ok: true, value: 42 } ), {
-        headers: { 'content-type': 'application/json' }
-      } );
+    fetchMock.mockResolvedValueOnce( response( {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    } ) );
 
     // mock utils
     serializeBodyAndInferContentType.mockReturnValueOnce( {
@@ -81,6 +103,10 @@ describe( 'internal_activities/sendHttpRequest', () => {
     // utils mocked: verify calls and returned value
     expect( serializeBodyAndInferContentType ).toHaveBeenCalledTimes( 1 );
     expect( serializeBodyAndInferContentType ).toHaveBeenCalledWith( payload );
+    expect( fetchMock ).toHaveBeenCalledWith( url, expect.objectContaining( {
+      method,
+      dispatcher: expect.any( AgentMock )
+    } ) );
     expect( serializeFetchResponse ).toHaveBeenCalledTimes( 1 );
     const respArg = serializeFetchResponse.mock.calls[0][0];
     expect( respArg && typeof respArg.text ).toBe( 'function' );
@@ -90,7 +116,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
   } );
 
   it( 'throws FatalError when response.ok is false', async () => {
-    mockAgent.get( url ).intercept( { path: '/', method } ).reply( 500, 'Internal error' );
+    fetchMock.mockResolvedValueOnce( response( { ok: false, status: 500, statusText: 'Internal Server Error' } ) );
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai 500' ) );
@@ -99,9 +125,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
   } );
 
   it( 'throws FatalError on timeout failure', async () => {
-    mockAgent.get( url ).intercept( { path: '/', method } )
-      .reply( 200, 'ok', { headers: { 'content-type': 'text/plain' } } )
-      .delay( 10_000 );
+    fetchMock.mockRejectedValueOnce( new Error( 'The operation was aborted due to timeout' ) );
 
     await expect( sendHttpRequest( { url, method, timeout: 250 } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai The operation was aborted due to timeout' ) );
@@ -110,8 +134,9 @@ describe( 'internal_activities/sendHttpRequest', () => {
   } );
 
   it( 'wraps DNS resolution errors (ENOTFOUND) preserving cause message', async () => {
-    mockAgent.get( url ).intercept( { path: '/', method } )
-      .replyWithError( new Error( 'getaddrinfo ENOTFOUND nonexistent.example.test' ) );
+    fetchMock.mockRejectedValueOnce(
+      Object.assign( new Error( 'fetch failed' ), { cause: new Error( 'getaddrinfo ENOTFOUND nonexistent.example.test' ) } )
+    );
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai Error: getaddrinfo ENOTFOUND nonexistent.example.test' ) );
@@ -120,8 +145,9 @@ describe( 'internal_activities/sendHttpRequest', () => {
   } );
 
   it( 'wraps TCP connection errors (ECONNREFUSED) preserving cause message', async () => {
-    mockAgent.get( url ).intercept( { path: '/', method } )
-      .replyWithError( new Error( 'connect ECONNREFUSED 127.0.0.1:65500' ) );
+    fetchMock.mockRejectedValueOnce(
+      Object.assign( new Error( 'fetch failed' ), { cause: new Error( 'connect ECONNREFUSED 127.0.0.1:65500' ) } )
+    );
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai Error: connect ECONNREFUSED 127.0.0.1:65500' ) );

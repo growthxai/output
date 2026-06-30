@@ -4,6 +4,12 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
 
+const fetchMock = vi.hoisted( () => vi.fn() );
+
+vi.mock( '@outputai/http', () => ( {
+  fetch: fetchMock
+} ) );
+
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const fixturePath = join( __dirname, 'fixtures', 'models_api_light.json' );
 const fixture = JSON.parse( readFileSync( fixturePath, 'utf8' ) );
@@ -14,8 +20,7 @@ const okResponse = data => ( {
   json: () => Promise.resolve( data )
 } );
 const stubFetch = response => {
-  const fetchMock = vi.fn().mockResolvedValue( response );
-  vi.stubGlobal( 'fetch', fetchMock );
+  fetchMock.mockResolvedValueOnce( response );
   return fetchMock;
 };
 
@@ -23,7 +28,7 @@ describe( 'fetchModelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
     cache.expiresAt = 0;
-    vi.unstubAllGlobals();
+    fetchMock.mockReset();
   } );
 
   it( 'returns a Map of model costs when fetch succeeds', async () => {
