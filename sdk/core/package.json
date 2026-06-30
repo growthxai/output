@@ -1,6 +1,6 @@
 {
   "name": "@outputai/core",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "The core module of the output framework",
   "type": "module",
   "exports": {
@@ -32,7 +32,8 @@
     "output-copy-assets": "./bin/copy_assets.js"
   },
   "scripts": {
-    "worker": "node ./src/worker/index.js"
+    "worker": "node ./src/worker/index.js",
+    "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",

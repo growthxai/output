@@ -9,6 +9,68 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.9.0" description="2026-06-26 · minor release">
+
+**`@outputai/core`** — Added activity lifecycle hooks: `onActivityStart`, `onActivityEnd`, `onActivityError`.
+
+Payload:
+```ts
+{
+  eventId: string,
+  eventDate: number,
+  workflowDetails: object, // Serialized and simplified Temporal's workflowInfo() return
+  activityInfo: object, // Temporal's activityInfo() return
+  outputActivityKind: string, // Kind of activity: step, evaluator, etc
+  aggregations: object // Total cost, http calls and tokens used in the activity (only present in End/Error events)
+}
+```
+
+**`@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/core`, `@outputai/http`** — Updating libraries to fix vulnerabilities
+
+**`@outputai/cli`** — Replace the custom `--format json` option with oclif's built-in `--json` flag across all workflow commands (OUT-419).
+
+`--json` suppresses informational logs (e.g. `Fetching result for workflow...`) and emits clean, machine-readable JSON to stdout, fixing output that previously mixed status text into JSON.
+
+**Breaking change:** `--format json` is no longer accepted. Use `--json` instead.
+
+- `workflow result`, `workflow status`, `workflow run`, `workflow cost`, `workflow debug`, `workflow test`: the `--format` flag is removed; pass `--json` for JSON output (text remains the default).
+- `workflow list`, `workflow runs list`, `workflow dataset list`: `--format` keeps its non-JSON options (`list`/`table`/`text`); use `--json` for JSON output.
+
+The "update available" banner no longer prints to stdout: it now goes to stderr (keeping stdout clean for piping in every mode) and is suppressed entirely under `--json`.
+
+**`@outputai/cli`** — CLI `start`/`run`/`test`/`dataset generate` now resolve scenarios and route execution against `--catalog`/`OUTPUT_CATALOG_ID` instead of the API server's default catalog. This removes the ~30s scenario-resolution stall in worktrees where the default catalog has no worker polling it. `workflow test` and `workflow dataset generate` also gain a `--catalog` flag (env: `OUTPUT_CATALOG_ID`), matching `list`/`start`/`run`.
+
+**`@outputai/cli`** — Add an "Enter input" option to the `output dev` run pane. Edit a payload and press ctrl+r to run it as-is without saving, or ctrl+s to save it as a scenario first. Previously every ad-hoc run forced you to name and save a scenario file.
+
+**`@outputai/cli`, `output-api`** — Add new endpoint for workflow history with server side events
+
+**`@outputai/core`** — Added a new `Logger` export for structured logging from both workflows and steps. Logs use the same `message` plus `metadata` shape as the internal worker logger and are routed through the worker's Winston logger.
+
+All log messages are enriched with execution metadata:
+- Workflow logs include `workflowType`, `workflowId`, and `runId`.
+- Step logs include the same workflow fields, plus `activityType` and `activityId`.
+
+```ts
+import { Logger } from '@outputai/core';
+
+Logger.info( 'I am a log', { extraInfo: 'none' } ); // workflows inside workflow and steps
+```
+
+Supported levels are:
+- error
+- warn
+- info
+- http
+- verbose
+- debug
+- silly
+
+The default displayed level is debug in development and info in production. Override it with `OUTPUT_LOG_LEVEL` env var. This setting also affects internal worker logs.
+
+**`@outputai/core`** — Including /dist when calculating catalog hash to define if catalog workflow needs restart. Excluding /temp.
+
+</Update>
+
 <Update label="v0.8.1" description="2026-06-22 · patch release">
 
 **`@outputai/core`** — - Updating connection monitor strategy to ping workflowService instead of healthService.

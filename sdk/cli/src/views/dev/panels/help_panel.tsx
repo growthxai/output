@@ -49,7 +49,8 @@ const RunFromCli: React.FC = () => (
     </SubSection>
     <SubSection title="From the TUI">
       <Text>Open Workflows tab, hover a workflow, press <Text bold>r</Text>.</Text>
-      <Text>Create a custom input from the TUI using the editor with live JSON validation or select an existing scenario.</Text>
+      <Text>Pick a saved scenario, or edit JSON with live validation.</Text>
+      <Text>Press <Text bold>ctrl+r</Text> to run as-is, or <Text bold>ctrl+s</Text> to save it as a scenario first.</Text>
     </SubSection>
   </Section>
 );

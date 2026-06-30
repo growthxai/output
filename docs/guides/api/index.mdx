@@ -88,6 +88,50 @@ Output supports sending data to running workflows and reading their state via si
 
 `GET /workflow/catalog` returns all available workflows with their input and output schemas. Use this to build dynamic UIs or validate inputs before submitting.
 
+## Streaming Workflow Progress
+
+`GET /workflow/:id/history/stream` opens a persistent [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) connection that delivers Temporal history events in real time as the workflow executes. Use this to build live progress UIs without polling.
+
+```js
+const es = new EventSource(`http://localhost:3001/workflow/${workflowId}/history/stream`);
+
+es.addEventListener('workflow', e => {
+  const { status, historyLength, taskQueue } = JSON.parse(e.data);
+  // initial metadata, emitted once on connect
+});
+
+es.addEventListener('history', e => {
+  const events = JSON.parse(e.data);
+  // array of new Temporal history events (same shape as REST endpoint)
+});
+
+es.addEventListener('done', e => {
+  const { reason, newRunId } = JSON.parse(e.data);
+  es.close();
+});
+
+es.addEventListener('server_error', e => {
+  // server-side error after stream started
+});
+```
+
+The stream emits four named events:
+
+| Event | When | Data |
+|-------|------|------|
+| `workflow` | Once on connect | `{ workflowId, runId, status, startTime, closeTime, historyLength, taskQueue }` |
+| `history` | Each batch of new events | Array of serialized history events |
+| `done` | Workflow reaches terminal state | `{ reason, newRunId? }` |
+| `server_error` | Post-connect server error | `{ error, message, workflowId, runId }` |
+
+`reason` is the terminal Temporal event type, one of: `WORKFLOW_EXECUTION_COMPLETED`, `WORKFLOW_EXECUTION_FAILED`, `WORKFLOW_EXECUTION_TIMED_OUT`, `WORKFLOW_EXECUTION_CANCELED`, `WORKFLOW_EXECUTION_TERMINATED`, `WORKFLOW_EXECUTION_CONTINUED_AS_NEW`. `newRunId` is present only when the terminal event carries a follow-on run (continue-as-new, and the completed/failed/timed-out cases that chain a new run).
+
+Errors raised before the stream starts (invalid `lastEventId`, unknown workflow) are returned as normal JSON HTTP responses (`400`/`404`). Once the stream is open, failures arrive as a `server_error` event instead — the connection has already committed to `200 text/event-stream`.
+
+`EventSource` reconnects automatically after network drops. On reconnect it sends `Last-Event-ID` and the server replays only events the client hasn't seen.
+
+To target a specific run, use `GET /workflow/:id/runs/:rid/history/stream`. Pass `?includePayloads=true` to include decoded activity input/output in the events.
+
 ## Debugging
 
 `GET /workflow/:id/trace-log` returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format.

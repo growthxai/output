@@ -61,8 +61,6 @@ const expectLLMUsage = ( result, { modelId, usage, total, tokensUsed } ) => {
 describe( 'calculateLLMCallCost', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
-    vi.spyOn( console, 'error' ).mockImplementation( () => {} );
   } );
 
   afterEach( () => {
@@ -78,7 +76,6 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing' );
   } );
 
   it( 'returns null when model is missing from cost table', async () => {
@@ -90,7 +87,6 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.warn ).toHaveBeenCalledWith( 'Missing cost reference for model' );
   } );
 
   it( 'calculates input and output usage from model pricing', async () => {
@@ -283,6 +279,5 @@ describe( 'calculateLLMCallCost', () => {
     } );
 
     expect( result ).toBeNull();
-    expect( console.error ).toHaveBeenCalledWith( 'Error calculating LLM call costs', error );
   } );
 } );

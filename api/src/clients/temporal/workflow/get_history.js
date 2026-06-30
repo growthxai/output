@@ -1,8 +1,9 @@
 import { temporal as temporalConfig } from '#configs';
 import { logger } from '#logger';
-import { WorkflowNotFoundError, InvalidPageTokenError } from '../../errors.js';
+import { workflowNotFoundError, InvalidPageTokenError } from '../../errors.js';
 import { decodeEventPayloads, serializeEvent } from '../../event_serialization.js';
-import { formatStatus, GrpcStatus } from '../types.js';
+import { GrpcStatus } from '../types.js';
+import { describeWorkflow } from './describe_workflow.js';
 
 const { namespace } = temporalConfig;
 
@@ -46,28 +47,8 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
 
   const isFirstPage = !pageToken;
   const metadata = isFirstPage ? await ( async () => {
-    const handle = client.workflow.getHandle( workflowId, runId );
-    const description = await handle.describe().catch( error => {
-      if ( error?.code === GrpcStatus.NOT_FOUND ) {
-        throw new WorkflowNotFoundError( runId ?
-          `Run "${runId}" not found for workflow "${workflowId}"` :
-          `Workflow "${workflowId}" not found`
-        );
-      }
-      throw error;
-    } );
-    return {
-      workflow: {
-        workflowId,
-        runId: description.runId,
-        status: formatStatus( description.status.name ),
-        startTime: description.startTime?.toISOString() ?? null,
-        closeTime: description.closeTime?.toISOString() ?? null,
-        historyLength: description.historyLength,
-        taskQueue: description.taskQueue
-      },
-      resolvedRunId: description.runId
-    };
+    const { workflow } = await describeWorkflow( { client }, workflowId, { runId } );
+    return { workflow, resolvedRunId: workflow.runId };
   } )() : { workflow: null, resolvedRunId: runId };
 
   const response = await connection.workflowService.getWorkflowExecutionHistory( {
@@ -80,10 +61,7 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
       throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
     }
     if ( error.code === GrpcStatus.NOT_FOUND ) {
-      throw new WorkflowNotFoundError( runId ?
-        `Run "${runId}" not found for workflow "${workflowId}"` :
-        `Workflow "${workflowId}" not found`
-      );
+      throw workflowNotFoundError( workflowId, runId );
     }
     if ( error.code === GrpcStatus.INVALID_ARGUMENT ) {
       throw new InvalidPageTokenError();

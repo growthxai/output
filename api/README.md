@@ -27,6 +27,10 @@ For both scenarios, the server runs on port 3001 by default (or `PORT` env varia
 - `POST /workflow/start` - Start workflow asynchronously
 - `GET /workflow/:id/status` - Get workflow status
 - `GET /workflow/:id/result` - Get workflow result
+- `GET /workflow/:id/history` - Get paginated workflow history events
+- `GET /workflow/:id/history/stream` - Stream workflow history events via SSE
+- `GET /workflow/:id/runs/:rid/history` - Get paginated history for a pinned run
+- `GET /workflow/:id/runs/:rid/history/stream` - Stream history for a pinned run via SSE
 - `GET /workflow/:id/trace-log` - Get workflow execution trace
 - `PATCH /workflow/:id/stop` - Stop workflow execution
 - `GET /workflow/catalog` - Get default workflow catalog

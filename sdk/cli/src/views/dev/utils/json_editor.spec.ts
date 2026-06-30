@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cursorToPosition, positionToCursor, tryParseJson } from './json_editor.js';
+import { cursorToPosition, initialCursor, positionToCursor, tryParseJson } from './json_editor.js';
 
 describe( 'cursorToPosition', () => {
   it( 'returns line 0 col 0 for an empty buffer', () => {
@@ -66,5 +66,23 @@ describe( 'tryParseJson', () => {
     if ( !result.ok ) {
       expect( result.error.length ).toBeGreaterThan( 0 );
     }
+  } );
+} );
+
+describe( 'initialCursor', () => {
+  it( 'lands inside the first empty "" pair so typing starts there', () => {
+    const buffer = JSON.stringify( { '': '' }, null, 2 ); // {\n  "": ""\n}
+    const cursor = initialCursor( buffer );
+    expect( cursor ).toBe( buffer.indexOf( '""' ) + 1 );
+    expect( buffer[cursor - 1] ).toBe( '"' );
+  } );
+
+  it( 'falls back to the end when there is no empty pair', () => {
+    const buffer = JSON.stringify( { values: [ 1, 2, 3 ] }, null, 2 );
+    expect( initialCursor( buffer ) ).toBe( buffer.length );
+  } );
+
+  it( 'returns 0 for an empty buffer', () => {
+    expect( initialCursor( '' ) ).toBe( 0 );
   } );
 } );

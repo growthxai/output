@@ -10,6 +10,7 @@ import deprecated from './middleware/deprecated.js';
 import { createTraceLogHandler } from './handlers/trace_log.js';
 import { createStopHandler, createTerminateHandler, createResultHandler } from './handlers/workflow_run.js';
 import { createWorkflowHistoryHandler } from './handlers/workflow_history.js';
+import { createWorkflowHistoryStreamHandler } from './handlers/workflow_history_stream.js';
 import { readPinnedRunId } from './handlers/utils.js';
 import { runOnce } from '#utils';
 import { promisify } from 'node:util';
@@ -105,7 +106,7 @@ app.use( ( req, res, next ) => {
 app.use( ( req, res, next ) => {
   res.header( 'Access-Control-Allow-Origin', '*' );
   res.header( 'Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS' );
-  res.header( 'Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization' );
+  res.header( 'Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Last-Event-ID' );
 
   return req.method === 'OPTIONS' ? res.sendStatus( 200 ) : next();
 } );
@@ -1181,6 +1182,101 @@ app.get( '/workflow/:id/runs/:rid/history', historyHandler );
 
 /**
  * @swagger
+ * /workflow/{id}/history/stream:
+ *   get:
+ *     summary: Stream workflow history events via Server-Sent Events
+ *     description: >
+ *       Opens a persistent SSE connection that delivers Temporal workflow history
+ *       events in real time. Emits named events: `workflow` (metadata, once),
+ *       `history` (event batches), `done` (terminal state), `server_error` (post-flush errors).
+ *       The `done` event carries `{ reason, newRunId? }` where `reason` is the terminal
+ *       Temporal event type (`WORKFLOW_EXECUTION_COMPLETED`, `WORKFLOW_EXECUTION_FAILED`,
+ *       `WORKFLOW_EXECUTION_TIMED_OUT`, `WORKFLOW_EXECUTION_CANCELED`,
+ *       `WORKFLOW_EXECUTION_TERMINATED`, `WORKFLOW_EXECUTION_CONTINUED_AS_NEW`) and `newRunId`
+ *       is present only when the terminal event chains a follow-on run. `server_error` carries
+ *       `{ error, message, workflowId, runId }`. Errors before the stream opens are returned as
+ *       JSON HTTP responses (400/404); once open, failures arrive as a `server_error` event.
+ *       Supports reconnect via `Last-Event-ID` header or `lastEventId` query param.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The workflow execution ID
+ *       - in: query
+ *         name: includePayloads
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include decoded input/output payloads in events
+ *       - in: query
+ *         name: lastEventId
+ *         schema:
+ *           type: integer
+ *         description: Resume from this event ID (alternative to Last-Event-ID header)
+ *     responses:
+ *       200:
+ *         description: SSE stream of workflow history events
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ * /workflow/{id}/runs/{rid}/history/stream:
+ *   get:
+ *     summary: Stream pinned-run workflow history events via Server-Sent Events
+ *     description: Same as /workflow/{id}/history/stream but targets a specific run ID.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The workflow execution ID
+ *       - in: path
+ *         name: rid
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The specific run ID to target
+ *       - in: query
+ *         name: includePayloads
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: Include decoded input/output payloads in events
+ *       - in: query
+ *         name: lastEventId
+ *         schema:
+ *           type: integer
+ *         description: Resume from this event ID (alternative to Last-Event-ID header)
+ *     responses:
+ *       200:
+ *         description: SSE stream of workflow history events
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+const historyStreamHandler = createWorkflowHistoryStreamHandler( client );
+app.get( '/workflow/:id/history/stream', historyStreamHandler );
+app.get( '/workflow/:id/runs/:rid/history/stream', historyStreamHandler );
+
+/**
+ * @swagger
  * /workflow/catalog/{id}:
  *   get:
  *     summary: Get a specific workflow catalog by ID
@@ -1495,10 +1591,21 @@ const server = app.listen( apiConfig.port, () => {
 
 const closeServer = promisify( server.close.bind( server ) );
 const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
+// Grace window for normal in-flight requests to finish before open sockets are force-closed.
+const SHUTDOWN_GRACE_MS = 5_000;
 
 const shutdown = runOnce( async () => {
   logger.info( 'Closing HTTP server...' );
-  await closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
+  // Stop accepting new connections, then free idle keep-alive sockets immediately so they
+  // don't hold the server open. Normal in-flight requests get up to SHUTDOWN_GRACE_MS to
+  // drain; only then do we force the rest shut — SSE responses never drain on their own
+  // (parked in a long poll, 15s keepalive holding the socket), so they always hit the grace
+  // deadline. Force-closing everything up front would drop ordinary requests mid-response.
+  const closed = closeServer().catch( e => logger.warn( 'Error closing HTTP server', { error: e.message } ) );
+  server.closeIdleConnections();
+  const graceTimer = setTimeout( () => server.closeAllConnections(), SHUTDOWN_GRACE_MS );
+  await closed;
+  clearTimeout( graceTimer );
 
   logger.info( 'Closing Temporal client...' );
   await client.close().catch( e => logger.warn( 'Error closing Temporal client', { error: e.message } ) );

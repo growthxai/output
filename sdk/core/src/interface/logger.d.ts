@@ -1,53 +1,61 @@
-/**
- * Additional structured fields attached to a log record.
- */
-export type LogMetadata = Record<string, unknown>;
+type Logger = {
+  /**
+   * Log an error (level 0)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  error( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log a warn (level 1)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  warn( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log an info (level 2)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  info( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log http (level 3)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  http( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log verbose (level 4)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  verbose( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log debug (level 5)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  debug( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Log silly (level 6)
+   * @param message Log message
+   * @param metadata Additional information to be displayed
+   */
+  silly( message: string, metadata?: Record<string, unknown> ) : void,
+
+  /**
+   * Creates a new Logger with a namespace value preset for all emitted logs.
+   * @param namespace
+   */
+  createLogger( namespace: string ) : Logger
+};
 
 /**
- * Log an error (level 0)
- * @param message Log message
- * @param metadata Additional information to be displayed
+ * Logger tool. Can be used in activities or workflows. Logs together with the framework's own logs.
  */
-export declare function error( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log a warn (level 1)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function warn( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log an info (level 2)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function info( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log http (level 3)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function http( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log verbose (level 4)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function verbose( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log debug (level 5)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function debug( message: string, metadata?: LogMetadata ) : void;
-
-/**
- * Log silly (level 6)
- * @param message Log message
- * @param metadata Additional information to be displayed
- */
-export declare function silly( message: string, metadata?: LogMetadata ) : void;
+export declare const Logger : Logger;

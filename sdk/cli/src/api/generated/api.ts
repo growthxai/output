@@ -494,6 +494,28 @@ export type GetWorkflowIdRunsRidHistory200 = {
   nextPageToken?: string | null;
 };
 
+export type GetWorkflowIdHistoryStreamParams = {
+/**
+ * Include decoded input/output payloads in events
+ */
+includePayloads?: boolean;
+/**
+ * Resume from this event ID (alternative to Last-Event-ID header)
+ */
+lastEventId?: number;
+};
+
+export type GetWorkflowIdRunsRidHistoryStreamParams = {
+/**
+ * Include decoded input/output payloads in events
+ */
+includePayloads?: boolean;
+/**
+ * Resume from this event ID (alternative to Last-Event-ID header)
+ */
+lastEventId?: number;
+};
+
 export type GetWorkflowCatalogId200 = {
   /** Each workflow available in this catalog */
   workflows?: Workflow[];
@@ -1574,6 +1596,135 @@ export const getWorkflowIdRunsRidHistory = async (id: string,
     params?: GetWorkflowIdRunsRidHistoryParams, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidHistoryResponse> => {
 
   return customFetchInstance<getWorkflowIdRunsRidHistoryResponse>(getGetWorkflowIdRunsRidHistoryUrl(id,rid,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Opens a persistent SSE connection that delivers Temporal workflow history events in real time. Emits named events: `workflow` (metadata, once), `history` (event batches), `done` (terminal state), `server_error` (post-flush errors). The `done` event carries `{ reason, newRunId? }` where `reason` is the terminal Temporal event type (`WORKFLOW_EXECUTION_COMPLETED`, `WORKFLOW_EXECUTION_FAILED`, `WORKFLOW_EXECUTION_TIMED_OUT`, `WORKFLOW_EXECUTION_CANCELED`, `WORKFLOW_EXECUTION_TERMINATED`, `WORKFLOW_EXECUTION_CONTINUED_AS_NEW`) and `newRunId` is present only when the terminal event chains a follow-on run. `server_error` carries `{ error, message, workflowId, runId }`. Errors before the stream opens are returned as JSON HTTP responses (400/404); once open, failures arrive as a `server_error` event. Supports reconnect via `Last-Event-ID` header or `lastEventId` query param.
+
+ * @summary Stream workflow history events via Server-Sent Events
+ */
+export type getWorkflowIdHistoryStreamResponse200 = {
+  data: string
+  status: 200
+}
+
+export type getWorkflowIdHistoryStreamResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdHistoryStreamResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdHistoryStreamResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdHistoryStreamResponseSuccess = (getWorkflowIdHistoryStreamResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdHistoryStreamResponseError = (getWorkflowIdHistoryStreamResponse400 | getWorkflowIdHistoryStreamResponse404 | getWorkflowIdHistoryStreamResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdHistoryStreamResponse = (getWorkflowIdHistoryStreamResponseSuccess | getWorkflowIdHistoryStreamResponseError)
+
+export const getGetWorkflowIdHistoryStreamUrl = (id: string,
+    params?: GetWorkflowIdHistoryStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/workflow/${id}/history/stream?${stringifiedParams}` : `/workflow/${id}/history/stream`
+}
+
+export const getWorkflowIdHistoryStream = async (id: string,
+    params?: GetWorkflowIdHistoryStreamParams, options?: ApiRequestOptions): Promise<getWorkflowIdHistoryStreamResponse> => {
+
+  return customFetchInstance<getWorkflowIdHistoryStreamResponse>(getGetWorkflowIdHistoryStreamUrl(id,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+/**
+ * Same as /workflow/{id}/history/stream but targets a specific run ID.
+ * @summary Stream pinned-run workflow history events via Server-Sent Events
+ */
+export type getWorkflowIdRunsRidHistoryStreamResponse200 = {
+  data: string
+  status: 200
+}
+
+export type getWorkflowIdRunsRidHistoryStreamResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type getWorkflowIdRunsRidHistoryStreamResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type getWorkflowIdRunsRidHistoryStreamResponse500 = {
+  data: InternalServerErrorResponse
+  status: 500
+}
+
+export type getWorkflowIdRunsRidHistoryStreamResponseSuccess = (getWorkflowIdRunsRidHistoryStreamResponse200) & {
+  headers: Headers;
+};
+export type getWorkflowIdRunsRidHistoryStreamResponseError = (getWorkflowIdRunsRidHistoryStreamResponse400 | getWorkflowIdRunsRidHistoryStreamResponse404 | getWorkflowIdRunsRidHistoryStreamResponse500) & {
+  headers: Headers;
+};
+
+export type getWorkflowIdRunsRidHistoryStreamResponse = (getWorkflowIdRunsRidHistoryStreamResponseSuccess | getWorkflowIdRunsRidHistoryStreamResponseError)
+
+export const getGetWorkflowIdRunsRidHistoryStreamUrl = (id: string,
+    rid: string,
+    params?: GetWorkflowIdRunsRidHistoryStreamParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/workflow/${id}/runs/${rid}/history/stream?${stringifiedParams}` : `/workflow/${id}/runs/${rid}/history/stream`
+}
+
+export const getWorkflowIdRunsRidHistoryStream = async (id: string,
+    rid: string,
+    params?: GetWorkflowIdRunsRidHistoryStreamParams, options?: ApiRequestOptions): Promise<getWorkflowIdRunsRidHistoryStreamResponse> => {
+
+  return customFetchInstance<getWorkflowIdRunsRidHistoryStreamResponse>(getGetWorkflowIdRunsRidHistoryStreamUrl(id,rid,params),
   {
     ...options,
     method: 'GET'

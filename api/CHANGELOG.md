@@ -1,5 +1,15 @@
 # output-api
 
+## 0.9.0
+
+### Minor Changes
+
+- aaa08cc: Add new endpoint for workflow history with server side events
+
+### Patch Changes
+
+- 4b5c049: Updating libraries to fix vulnerabilities
+
 ## 0.8.1
 
 ### Patch Changes

@@ -211,6 +211,26 @@ describe( 'resolveScenarioPath', () => {
       expect( result.path ).toContain( 'complex/deep_test.json' );
     } );
   } );
+
+  describe( 'catalog routing', () => {
+    it( 'forwards the provided catalog to the catalog lookup', async () => {
+      mockCatalog( [ { name: 'my_workflow', path: '/app/dist/workflows/my_workflow/workflow.js' } ] );
+      vi.mocked( fs.existsSync ).mockReturnValue( false );
+
+      await resolveScenarioPath( 'my_workflow', 'test', '/project', undefined, 'os-workflows' );
+
+      expect( catalog.fetchWorkflowCatalog ).toHaveBeenCalledWith( 'os-workflows' );
+    } );
+
+    it( 'looks up the default catalog when no catalog is provided', async () => {
+      mockCatalog( [ { name: 'my_workflow', path: '/app/dist/workflows/my_workflow/workflow.js' } ] );
+      vi.mocked( fs.existsSync ).mockReturnValue( false );
+
+      await resolveScenarioPath( 'my_workflow', 'test', '/project' );
+
+      expect( catalog.fetchWorkflowCatalog ).toHaveBeenCalledWith( undefined );
+    } );
+  } );
 } );
 
 describe( 'listScenariosForWorkflow', () => {

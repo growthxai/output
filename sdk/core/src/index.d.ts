@@ -2,12 +2,12 @@
  * Export all types from the interface
  *
  */
-export * from './interface/index.d.ts';
+export * from './interface/index.js';
 
 /**
  * Exports all errors
  */
-export * from './errors.d.ts';
+export * from './errors.js';
 
 /**
  * Expose z from Zod as a convenience.

@@ -34,7 +34,7 @@ const consoleMethodsByLevel = {
   silly: 'log'
 };
 
-const loadLogger = async () => import( './logger.js' );
+const loadLogger = async () => ( await import( './logger.js' ) ).Logger;
 
 describe( 'interface/logger', () => {
   beforeEach( () => {
@@ -134,5 +134,39 @@ describe( 'interface/logger', () => {
     expect( consoleMocks.debug ).toHaveBeenCalledTimes( 1 );
     expect( consoleMocks.log ).toHaveBeenCalledTimes( 3 );
     expect( workflowLogMock ).not.toHaveBeenCalled();
+  } );
+
+  it( 'creates a logger with a default namespace for every level', async () => {
+    const logger = await loadLogger();
+    inWorkflowContextMock.mockReturnValue( true );
+
+    const namespacedLogger = logger.createLogger( 'Namespace' );
+    logLevels.forEach( level => {
+      namespacedLogger[level]( `${level} message`, { requestId: level } );
+    } );
+
+    logLevels.forEach( ( level, index ) => {
+      expect( workflowLogMock ).toHaveBeenNthCalledWith( index + 1, {
+        level,
+        message: `${level} message`,
+        metadata: {
+          namespace: 'Namespace',
+          requestId: level
+        }
+      } );
+    } );
+  } );
+
+  it( 'lets log metadata override the default namespace', async () => {
+    const logger = await loadLogger();
+    inWorkflowContextMock.mockReturnValue( true );
+
+    logger.createLogger( 'Default namespace' ).info( 'message', { namespace: 'Inline namespace' } );
+
+    expect( workflowLogMock ).toHaveBeenCalledWith( {
+      level: 'info',
+      message: 'message',
+      metadata: { namespace: 'Inline namespace' }
+    } );
   } );
 } );
