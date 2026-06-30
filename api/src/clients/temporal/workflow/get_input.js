@@ -21,9 +21,11 @@ const { namespace } = temporalConfig;
  * @throws {WorkflowNotFoundError}
  */
 export const getInput = async ( { client, connection }, workflowId, runId ) => {
-  // A caller-supplied runId is already the run to read; only resolve the latest run via
-  // describe when none was pinned, avoiding a needless DescribeWorkflowExecution RPC.
-  const resolvedRunId = runId ?? ( await describeWorkflow( { client }, workflowId ) ).description.runId;
+  // Resolve (and validate) the run via describe, whether or not a runId was pinned. For a
+  // pinned-but-missing/expired run this surfaces a clean WorkflowNotFoundError (404), matching
+  // the latest-run path, instead of the raw INVALID_ARGUMENT the history RPC would return.
+  const { description } = await describeWorkflow( { client }, workflowId, { runId } );
+  const resolvedRunId = description.runId;
   if ( !resolvedRunId ) {
     // Temporal should always report a runId; fail loudly rather than silently fall back to an
     // unpinned (latest-run) read, which would race continueAsNew and drop the runId field.

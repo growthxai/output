@@ -57,7 +57,7 @@ describe( 'getInput', () => {
 
     const result = await getInput( fixtures, 'workflow-id' );
 
-    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id' );
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: undefined } );
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
       namespace: 'default',
       execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
@@ -89,16 +89,27 @@ describe( 'getInput', () => {
     );
   } );
 
-  it( 'skips describe and targets the pinned run when a runId is given', async () => {
+  it( 'resolves a pinned run via describe and reads its history', async () => {
+    mockDescribeWorkflow.mockResolvedValue( { description: { runId: 'pinned-run' } } );
     const fixtures = makeFixtures();
     const { getInput } = await import( './get_input.js' );
 
     await getInput( fixtures, 'workflow-id', 'pinned-run' );
 
-    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: 'pinned-run' } );
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith(
       expect.objectContaining( { execution: { workflowId: 'workflow-id', runId: 'pinned-run' } } )
     );
+  } );
+
+  it( 'propagates a not-found from describe so a missing pinned run becomes a 404', async () => {
+    const notFound = mockWorkflowNotFoundError( 'workflow-id', 'pinned-run' );
+    mockDescribeWorkflow.mockRejectedValue( notFound );
+    const fixtures = makeFixtures();
+    const { getInput } = await import( './get_input.js' );
+
+    await expect( getInput( fixtures, 'workflow-id', 'pinned-run' ) ).rejects.toBe( notFound );
+    expect( fixtures.getWorkflowExecutionHistory ).not.toHaveBeenCalled();
   } );
 
   it( 'returns null input when no payloads exist (e.g. a running workflow with empty start input)', async () => {
