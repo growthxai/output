@@ -174,6 +174,14 @@ export function extractDatasetName( tracePathOrKey: string ): string {
   return tracePathOrKey.replace( /^.*\//, '' ).replace( /\.json$/, '' );
 }
 
+// Resolve the .yml path for a dataset case, sanitizing the name so it can never
+// escape the datasets directory regardless of where the name came from
+// (scenario arg, --name flag, or a workflow ID).
+export function datasetFilePath( dir: string, name: string ): string {
+  const safeName = name.replace( /[^a-zA-Z0-9._-]/g, '_' );
+  return join( dir, `${safeName}.yml` );
+}
+
 export function getExecutionTime( workflowId: string | undefined ): Promise<number | undefined> {
   if ( !workflowId ) {
     return Promise.resolve( undefined );

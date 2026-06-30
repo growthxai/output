@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { Args, Command, Flags, ux } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
 import type { WorkflowResultResponse } from '#api/generated/api.js';
@@ -8,7 +7,8 @@ import {
   resolveDefaultDatasetsDir,
   buildDataset,
   getExecutionTime,
-  extractDatasetName
+  extractDatasetName,
+  datasetFilePath
 } from '#services/datasets.js';
 import { fetchWorkflowRuns } from '#services/workflow_runs.js';
 import { getTrace } from '#services/trace_reader.js';
@@ -139,7 +139,7 @@ export default class DatasetGenerate extends Command {
     );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
-    const filePath = join( dir, `${datasetName}.yml` );
+    const filePath = datasetFilePath( dir, datasetName );
     await writeDataset( dataset, filePath );
 
     this.log( `Dataset saved: ${filePath}` );
@@ -166,7 +166,7 @@ export default class DatasetGenerate extends Command {
     );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
-    const filePath = join( dir, `${datasetName}.yml` );
+    const filePath = datasetFilePath( dir, datasetName );
     await writeDataset( dataset, filePath );
 
     this.log( `Dataset saved: ${filePath}` );
@@ -185,14 +185,18 @@ export default class DatasetGenerate extends Command {
       return;
     }
 
-    const missing = runs.filter( run => !run.workflowId ).length;
+    const ids = runs
+      .map( run => run.workflowId )
+      .filter( ( id ): id is string => Boolean( id ) );
+
+    const missing = runs.length - ids.length;
     if ( missing > 0 ) {
       this.warn( `Skipping ${missing} run(s) with no workflow ID.` );
     }
 
     // The trace-log endpoint always targets a workflow's latest run, so distinct
     // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
-    const workflowIds = [ ...new Set( runs.flatMap( run => run.workflowId ? [ run.workflowId ] : [] ) ) ];
+    const workflowIds = [ ...new Set( ids ) ];
     if ( workflowIds.length === 0 ) {
       this.log( '\nGenerated 0 dataset(s)' );
       return;
@@ -212,21 +216,18 @@ export default class DatasetGenerate extends Command {
   }
 
   private async generateFromRun( workflowId: string, dir: string ): Promise<boolean> {
-    // workflowIds can be user-supplied; strip path separators so they can't
-    // escape the datasets directory when used as a filename.
-    const datasetName = workflowId.replace( /[^a-zA-Z0-9._-]/g, '_' );
     try {
       const { data: traceData } = await getTrace( workflowId );
       const extracted = extractDatasetFromTrace( traceData );
 
       const dataset = buildDataset(
-        datasetName,
+        workflowId,
         extracted.input,
         extracted.output,
         extracted.executionTimeMs
       );
 
-      const filePath = join( dir, `${datasetName}.yml` );
+      const filePath = datasetFilePath( dir, workflowId );
       await writeDataset( dataset, filePath );
       this.log( `  Saved: ${filePath}` );
       return true;

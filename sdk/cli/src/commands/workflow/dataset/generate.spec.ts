@@ -31,7 +31,8 @@ vi.mock( '#services/datasets.js', () => ( {
   resolveDefaultDatasetsDir: vi.fn().mockResolvedValue( '/datasets' ),
   buildDataset: vi.fn().mockReturnValue( { name: 'basic' } ),
   getExecutionTime: vi.fn().mockResolvedValue( 100 ),
-  extractDatasetName: vi.fn()
+  extractDatasetName: vi.fn(),
+  datasetFilePath: vi.fn( ( dir: string, name: string ) => `${dir}/${name.replace( /[^a-zA-Z0-9._-]/g, '_' )}.yml` )
 } ) );
 
 describe( 'workflow dataset generate command', () => {
@@ -39,6 +40,18 @@ describe( 'workflow dataset generate command', () => {
     vi.clearAllMocks();
     delete process.env.OUTPUT_CATALOG_ID;
   } );
+
+  const makeCmd = async ( args: Record<string, unknown>, flags: Record<string, unknown> ) => {
+    const DatasetGenerate = ( await import( './generate.js' ) ).default;
+    const cmd = new DatasetGenerate( [ 'my_workflow' ], {} as any );
+    cmd.log = vi.fn();
+    cmd.warn = vi.fn() as any;
+    cmd.error = vi.fn( () => {
+      throw new Error( 'error called' );
+    } ) as any;
+    ( cmd as any ).parse = vi.fn().mockResolvedValue( { args, flags } );
+    return cmd;
+  };
 
   describe( 'command definition', () => {
     it( 'binds the catalog flag to OUTPUT_CATALOG_ID', async () => {
@@ -51,20 +64,14 @@ describe( 'workflow dataset generate command', () => {
 
   describe( 'run()', () => {
     const createCommand = async ( flagOverrides: Record<string, unknown> = {} ) => {
-      const DatasetGenerate = ( await import( './generate.js' ) ).default;
       const { postWorkflowRun } = await import( '#api/generated/api.js' );
       const { resolveScenarioPath } = await import( '#utils/scenario_resolver.js' );
       const { parseInputFlag } = await import( '#utils/input_parser.js' );
 
-      const cmd = new DatasetGenerate( [ 'my_workflow' ], {} as any );
-      cmd.log = vi.fn();
-      cmd.error = vi.fn( () => {
-        throw new Error( 'error called' );
-      } ) as any;
-      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
-        args: { workflowName: 'my_workflow', scenario: 'basic' },
-        flags: { catalog: undefined, trace: undefined, name: undefined, download: false, limit: 5, input: undefined, ...flagOverrides }
-      } );
+      const cmd = await makeCmd(
+        { workflowName: 'my_workflow', scenario: 'basic' },
+        { catalog: undefined, trace: undefined, name: undefined, download: false, limit: 5, input: undefined, ...flagOverrides }
+      );
 
       return {
         cmd,
@@ -96,21 +103,14 @@ describe( 'workflow dataset generate command', () => {
 
   describe( 'run() --download', () => {
     const createDownloadCommand = async ( flagOverrides: Record<string, unknown> = {} ) => {
-      const DatasetGenerate = ( await import( './generate.js' ) ).default;
       const { fetchWorkflowRuns } = await import( '#services/workflow_runs.js' );
       const { getTrace } = await import( '#services/trace_reader.js' );
       const { writeDataset } = await import( '#services/datasets.js' );
 
-      const cmd = new DatasetGenerate( [ 'my_workflow' ], {} as any );
-      cmd.log = vi.fn();
-      cmd.warn = vi.fn() as any;
-      cmd.error = vi.fn( () => {
-        throw new Error( 'error called' );
-      } ) as any;
-      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
-        args: { workflowName: 'my_workflow', scenario: undefined },
-        flags: { catalog: 'my-catalog', trace: undefined, name: undefined, download: true, limit: 5, input: undefined, ...flagOverrides }
-      } );
+      const cmd = await makeCmd(
+        { workflowName: 'my_workflow', scenario: undefined },
+        { catalog: 'my-catalog', trace: undefined, name: undefined, download: true, limit: 5, input: undefined, ...flagOverrides }
+      );
 
       return {
         cmd,
