@@ -185,34 +185,48 @@ export default class DatasetGenerate extends Command {
       return;
     }
 
-    this.log( `Found ${runs.length} run(s). Fetching traces...` );
+    const missing = runs.filter( run => !run.workflowId ).length;
+    if ( missing > 0 ) {
+      this.warn( `Skipping ${missing} run(s) with no workflow ID.` );
+    }
+
+    // The trace-log endpoint always targets a workflow's latest run, so distinct
+    // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
+    const workflowIds = [ ...new Set( runs.flatMap( run => run.workflowId ? [ run.workflowId ] : [] ) ) ];
+    if ( workflowIds.length === 0 ) {
+      this.log( '\nGenerated 0 dataset(s)' );
+      return;
+    }
+
+    this.log( `Found ${workflowIds.length} run(s). Fetching traces...` );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
 
-    const outcomes: boolean[] = [];
-    for ( const run of runs ) {
-      if ( run.workflowId ) {
-        outcomes.push( await this.generateFromRun( run.workflowId, dir ) );
-      }
-    }
-
+    const outcomes = await Promise.all( workflowIds.map( id => this.generateFromRun( id, dir ) ) );
     const generated = outcomes.filter( Boolean ).length;
     this.log( `\nGenerated ${generated} dataset(s)` );
+
+    if ( generated === 0 ) {
+      this.error( `Failed to generate any datasets from ${workflowIds.length} run(s).`, { exit: 1 } );
+    }
   }
 
   private async generateFromRun( workflowId: string, dir: string ): Promise<boolean> {
+    // workflowIds can be user-supplied; strip path separators so they can't
+    // escape the datasets directory when used as a filename.
+    const datasetName = workflowId.replace( /[^a-zA-Z0-9._-]/g, '_' );
     try {
       const { data: traceData } = await getTrace( workflowId );
       const extracted = extractDatasetFromTrace( traceData );
 
       const dataset = buildDataset(
-        workflowId,
+        datasetName,
         extracted.input,
         extracted.output,
         extracted.executionTimeMs
       );
 
-      const filePath = join( dir, `${workflowId}.yml` );
+      const filePath = join( dir, `${datasetName}.yml` );
       await writeDataset( dataset, filePath );
       this.log( `  Saved: ${filePath}` );
       return true;

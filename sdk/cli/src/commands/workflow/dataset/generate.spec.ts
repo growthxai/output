@@ -162,5 +162,51 @@ describe( 'workflow dataset generate command', () => {
       expect( getTrace ).not.toHaveBeenCalled();
       expect( writeDataset ).not.toHaveBeenCalled();
     } );
+
+    it( 'exits non-zero when every run fails to produce a dataset', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( { runs: [ { workflowId: 'wf-1' } ], count: 1 } as any );
+      getTrace.mockRejectedValue( new Error( 'no trace available' ) );
+
+      await expect( cmd.run() ).rejects.toThrow( 'error called' );
+      expect( cmd.error ).toHaveBeenCalledWith( expect.stringContaining( 'Failed to generate' ), { exit: 1 } );
+    } );
+
+    it( 'warns about and skips runs missing a workflow ID', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( { runs: [ { workflowId: undefined }, { workflowId: 'wf-1' } ], count: 2 } as any );
+      getTrace.mockResolvedValue( { data: {}, location: { path: 'remote', isRemote: true } } as any );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( 'no workflow ID' ) );
+      expect( getTrace ).toHaveBeenCalledTimes( 1 );
+      expect( writeDataset ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'deduplicates runs that share a workflow ID', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( {
+        runs: [ { workflowId: 'wf-1' }, { workflowId: 'wf-1' } ],
+        count: 2
+      } as any );
+      getTrace.mockResolvedValue( { data: {}, location: { path: 'remote', isRemote: true } } as any );
+
+      await cmd.run();
+
+      expect( getTrace ).toHaveBeenCalledTimes( 1 );
+      expect( writeDataset ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'sanitizes path separators in the workflow ID used for the filename', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( { runs: [ { workflowId: '../../escape' } ], count: 1 } as any );
+      getTrace.mockResolvedValue( { data: {}, location: { path: 'remote', isRemote: true } } as any );
+
+      await cmd.run();
+
+      const writtenPath = writeDataset.mock.calls[0][1] as string;
+      expect( writtenPath ).toBe( '/datasets/.._.._escape.yml' );
+    } );
   } );
 } );
