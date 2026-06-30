@@ -12,7 +12,7 @@ import { formatStartedShort, useListSelection } from '#views/dev/utils/panel_hel
 import {
   WORKFLOWS_VISIBLE_ROWS,
   WORKFLOWS_RECENT_RUNS_LIMIT
-} from '#views/dev/utils/constants.js';
+} from '#views/dev/utils/ui_constants.js';
 
 const COL = {
   indicator: 3,

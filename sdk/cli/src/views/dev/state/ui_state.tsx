@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useRef, useState } from 'react';
+import type { WorkflowRun } from '#services/workflow_runs.js';
 
 export type Tab = 'workflows' | 'runs' | 'services' | 'help';
 
@@ -40,6 +41,11 @@ export interface ExpandedJsonState {
   title: string;
 }
 
+export interface StepGraphState {
+  open: boolean;
+  run: WorkflowRun | null;
+}
+
 export interface Toast {
   id: number;
   message: string;
@@ -57,6 +63,7 @@ export interface UiState {
   runsView: RunsView;
   runModal: RunModalState;
   expandedJson: ExpandedJsonState;
+  stepGraph: StepGraphState;
   toasts: Toast[];
   setTab: ( tab: Tab ) => void;
   nextTab: () => void;
@@ -73,6 +80,8 @@ export interface UiState {
   closeRunModal: () => void;
   openExpandedJson: ( value: unknown, title: string ) => void;
   closeExpandedJson: () => void;
+  openStepGraph: ( run: WorkflowRun ) => void;
+  closeStepGraph: () => void;
   pushToast: ( message: string, tone?: Toast['tone'] ) => void;
   dismissToast: ( id: number ) => void;
 }
@@ -88,6 +97,7 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
   const [ runsView, setRunsView ] = useState<RunsView>( 'list' );
   const [ runModal, setRunModal ] = useState<RunModalState>( { open: false, workflowName: '' } );
   const [ expandedJson, setExpandedJson ] = useState<ExpandedJsonState>( { open: false, value: null, title: '' } );
+  const [ stepGraph, setStepGraph ] = useState<StepGraphState>( { open: false, run: null } );
   const [ toasts, setToasts ] = useState<Toast[]>( [] );
   const toastIdRef = useRef( 0 );
 
@@ -100,6 +110,7 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     runsView,
     runModal,
     expandedJson,
+    stepGraph,
     toasts,
     setTab: next => {
       setTab( current => {
@@ -135,12 +146,14 @@ export const UiStateProvider: React.FC<{ children: React.ReactNode }> = ( { chil
     closeRunModal: () => setRunModal( { open: false, workflowName: '' } ),
     openExpandedJson: ( value: unknown, title: string ) => setExpandedJson( { open: true, value, title } ),
     closeExpandedJson: () => setExpandedJson( { open: false, value: null, title: '' } ),
+    openStepGraph: ( run: WorkflowRun ) => setStepGraph( { open: true, run } ),
+    closeStepGraph: () => setStepGraph( { open: false, run: null } ),
     pushToast: ( message: string, tone: Toast['tone'] = 'info' ) => {
       const id = ++toastIdRef.current;
       setToasts( prev => [ ...prev, { id, message, tone } ].slice( -MAX_VISIBLE_TOASTS ) );
     },
     dismissToast: ( id: number ) => setToasts( prev => prev.filter( t => t.id !== id ) )
-  } ), [ tab, search, selection, runListPaneTab, runStepPaneTab, runsView, runModal, expandedJson, toasts ] );
+  } ), [ tab, search, selection, runListPaneTab, runStepPaneTab, runsView, runModal, expandedJson, stepGraph, toasts ] );
 
   return <UiStateContext.Provider value={value}>{children}</UiStateContext.Provider>;
 };

@@ -33,7 +33,8 @@ import { HELP_HINTS, HELP_SECTION_COUNT, HelpPanel } from '#views/dev/panels/hel
 import { RunModal } from '#views/dev/modals/run_modal.js';
 import { ExpandedJsonModal } from '#views/dev/modals/expanded_json_modal.js';
 import { StepsModal } from '#views/dev/modals/steps_modal.js';
-import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/constants.js';
+import { StepGraphModal } from '#views/dev/modals/step_graph_modal.js';
+import { MIN_TERMINAL_COLUMNS, MIN_TERMINAL_ROWS } from '#views/dev/utils/ui_constants.js';
 
 export type Phase = 'waiting' | 'running' | 'failed';
 
@@ -110,7 +111,7 @@ const useGlobalInput = ( opts: {
       return;
     }
 
-    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || opts.runDetailOpen ) {
+    if ( ui.search.open || ui.runModal.open || ui.expandedJson.open || ui.stepGraph.open || opts.runDetailOpen ) {
       return;
     }
 
@@ -193,11 +194,17 @@ const footerFor = ( opts: {
 const overlayFor = ( opts: {
   ui: UiState;
   detailRun: WorkflowRun | undefined;
+  stepGraphRun: WorkflowRun | undefined;
   runDetailOpen: boolean;
   rows: number;
 } ): React.ReactNode => {
+  // expandedJson sits on top of everything — it's popped from another overlay
+  // (e.g. the step graph's `e`), so it must win when both are open.
   if ( opts.ui.expandedJson.open ) {
     return <ExpandedJsonModal />;
+  }
+  if ( opts.ui.stepGraph.open && opts.stepGraphRun ) {
+    return <StepGraphModal run={opts.stepGraphRun} height={opts.rows} />;
   }
   if ( opts.ui.runModal.open ) {
     return <RunModal workflowName={opts.ui.runModal.workflowName} workflowPath={opts.ui.runModal.workflowPath} />;
@@ -256,6 +263,14 @@ const Shell: React.FC<{
     runs.find( r => r.runId === ui.selection.runId && r.workflowId === ui.selection.workflowId ) :
     undefined;
   const runDetailOpen = ui.runsView === 'detail' && detailRun !== undefined;
+  // Re-resolve the step-graph run from the polled list each render so its
+  // status/duration stay live; fall back to the snapshot captured at open.
+  const stepGraphRun = useMemo( () => {
+    const captured = ui.stepGraph.open ? ui.stepGraph.run : null;
+    return captured ?
+      ( runs.find( r => r.runId === captured.runId && r.workflowId === captured.workflowId ) ?? captured ) :
+      undefined;
+  }, [ ui.stepGraph.open, ui.stepGraph.run, runs ] );
 
   useGlobalInput( { onCleanup, runDetailOpen } );
   const failingServices = useMemo( () => services.filter( isServiceFailed ).length, [ services ] );
@@ -291,7 +306,7 @@ const Shell: React.FC<{
     serviceCount: services.length,
     phase
   } );
-  const overlay = overlayFor( { ui, detailRun, runDetailOpen, rows } );
+  const overlay = overlayFor( { ui, detailRun, stepGraphRun, runDetailOpen, rows } );
 
   if ( terminalTooSmall ) {
     return <TerminalTooSmall rows={rows} cols={cols} />;
