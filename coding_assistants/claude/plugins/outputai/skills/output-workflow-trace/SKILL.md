@@ -130,5 +130,5 @@ npx output workflow debug abc123xyz --json | jq '.steps[] | select(.name == "pro
 1. Match the error to common patterns (see error skills)
 2. Consult the `workflow-quality` subagent for best practices
 3. Make code fixes based on identified issues
-4. Re-run the workflow: `npx output workflow run <workflowName> <input>`
+4. Re-run the workflow: `npx output workflow run <workflowName> --input '<input>'`
 5. Verify the fix with a new trace

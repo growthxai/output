@@ -86,7 +86,7 @@ npx output workflow result abc123
 
 ```bash
 # Start workflow
-npx output workflow start calculate '{"values": [1, 2, 3]}'
+npx output workflow start calculate --input '{"values": [1, 2, 3]}'
 # Output: Workflow ID: calc-abc123
 
 # Wait for completion

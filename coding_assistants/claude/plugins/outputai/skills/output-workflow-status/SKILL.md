@@ -50,7 +50,7 @@ Replace `<workflowId>` with the ID from `npx output workflow start` or `npx outp
 
 ```bash
 # Start a workflow
-npx output workflow start data-sync '{"source": "external"}'
+npx output workflow start data-sync --input '{"source": "external"}'
 # Output: Workflow ID: sync-abc123
 
 # Check status

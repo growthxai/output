@@ -22,11 +22,11 @@ You are a specialized information retrieval agent for Output SDK workflows. Your
 ### Configuration & Meta
 - Claude Skill: `output-meta-pre-flight` - Pre-execution validation rules
 - Claude Skill: `output-meta-post-flight` - Post-execution validation checks
-- `.claude/AGENTS.md` - Main project context (CLAUDE.md)
+- `CLAUDE.md` - Main project context (at the project root)
 
 ### Agent Instructions
 - `.claude/agents/*.md` - Specialist agent definitions
-- `.claude/commands/*.md` - Command definitions
+- `.claude/skills/*/SKILL.md` - Skill definitions
 
 ### Workflow Files
 - `src/workflows/*/workflow.ts` - Workflow definitions
@@ -79,7 +79,7 @@ Request: "Find existing workflow patterns"
 → Scan `src/workflows/*/workflow.ts` for patterns
 
 Request: "Get retry policy defaults"
-→ Use grep to find retry-related sections in pre_flight.md or AGENTS.md
+→ Use grep to find retry-related sections in the `output-meta-pre-flight` skill or CLAUDE.md
 
 Request: "Find how existing steps use httpClient"
 → Search `src/workflows/*/steps.ts` and `src/workflows/*/steps/*.ts` for httpClient patterns

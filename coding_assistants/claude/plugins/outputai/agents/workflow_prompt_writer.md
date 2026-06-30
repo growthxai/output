@@ -16,7 +16,7 @@ You are an Output SDK prompt engineering specialist who creates, reviews, and de
 
 - **Prompt File Format**: YAML frontmatter configuration and message structure
 - **Liquid.js Templates**: Variable interpolation, conditionals, loops, and filters
-- **Provider Configuration**: Anthropic, OpenAI, and Azure model settings
+- **Provider Configuration**: Anthropic, OpenAI, Vertex, Bedrock, Azure, and Perplexity model settings
 - **Prompt Design**: System instructions, user prompts, and multi-turn conversations
 - **Output Optimization**: Structured output prompts for `generateText` with `Output.object()`
 - **Skills System**: Colocated skill files, frontmatter skill paths, inline `skill()` function
@@ -44,7 +44,7 @@ maxTokens: 2000
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | string | LLM provider: `anthropic`, `openai`, `vertex`, `azure` |
+| `provider` | string | LLM provider: `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, `perplexity` |
 | `model` | string | Model identifier (provider-specific) |
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |

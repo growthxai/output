@@ -38,7 +38,7 @@ Temporal replays workflow code on failures. If you make an API call directly in 
 
 ## 2. Package Architecture
 
-Output is a monorepo with three packages. When generating documentation, read the source code directly - the READMEs provide only basic overview.
+Output is a monorepo. The core packages for most documentation are below; read the source directly, as the READMEs are only an overview. Other published packages: `@outputai/cli`, `@outputai/credentials`, `@outputai/evals`, `@outputai/output` (framework).
 
 | Package | Purpose | Source Location |
 |---------|---------|-----------------|
@@ -52,7 +52,7 @@ Output is a monorepo with three packages. When generating documentation, read th
 
 ## 3. Target Audience
 
-Output is beginner-friendly but powerful for experienced AI engineers. Documentation serves both. See `persona.md` in the project root for full competitive positioning and messaging.
+Output is beginner-friendly but powerful for experienced AI engineers. Documentation serves both.
 
 ### The Beginner AI Engineer
 

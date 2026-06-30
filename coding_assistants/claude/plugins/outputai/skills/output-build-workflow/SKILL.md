@@ -1,14 +1,11 @@
 ---
 name: output-build-workflow
-argument-hint: "[workflow-plan-file-path] [workflow-name] [workflow-directory]"
 description: Implement an Output SDK workflow from a plan document. Use when the user asks to build, implement, or code a workflow from an existing plan, or after output-plan-workflow has produced a plan and the user is ready to build.
-version: 0.1.3
-model: opus
 ---
 
 Your task is to implement an Output.ai workflow based on a provided plan document.
 
-The workflow skeleton has already been created at: `$3` (if not it should be)
+The workflow directory is provided as an argument (the workflow directory path). The workflow skeleton should already have been created there; if it has not, create it first.
 
 Please read the plan file and implement the workflow according to its specifications.
 
@@ -32,7 +29,7 @@ Implement the workflow described in the plan document, following Output SDK patt
 
 Read and understand the plan document.
 
-1. Read the plan file from: `$1`
+1. Read the plan file from the provided plan file path
 2. Identify the workflow name, description, and purpose
 3. Extract input and output schema definitions
 4. List all required steps and their relationships
@@ -45,7 +42,7 @@ Read and understand the plan document.
 
 ### Step 2: Workflow Implementation
 
-Update `$3/workflow.ts` with the workflow definition.
+Update `workflow.ts` in the workflow directory with the workflow definition.
 
 <implementation_checklist>
   - Import required dependencies (workflow, z from '@outputai/core')
@@ -71,7 +68,7 @@ const outputSchema = z.object( {
 } );
 
 export default workflow( {
-  name: '$2',
+  name: 'workflow-name-from-plan',
   description: 'Description from plan',
   inputSchema,
   outputSchema,
@@ -90,7 +87,7 @@ export default workflow( {
 
 ### Step 3: Steps Implementation
 
-Update `$3/steps.ts` with all step definitions from the plan.
+Update `steps.ts` in the workflow directory with all step definitions from the plan.
 
 <implementation_checklist>
   - Import required dependencies (step, z from '@outputai/core')
@@ -127,7 +124,7 @@ export const stepName = step( {
 
 ### Step 3.5: Evaluators Implementation (if needed)
 
-If the plan includes evaluator functions, implement them in `$3/evaluators.ts`.
+If the plan includes evaluator functions, implement them in `evaluators.ts` in the workflow directory.
 
 <decision_tree>
   IF plan_includes_evaluators:
@@ -176,7 +173,7 @@ export const evaluateName = evaluator( {
 
 ### Step 4: Prompt Templates (if needed)
 
-If the plan includes LLM-based steps, create prompt templates in `$3/prompts/`.
+If the plan includes LLM-based steps, create prompt templates in the `prompts/` subdirectory of the workflow directory.
 
 <decision_tree>
   IF plan_includes_llm_steps:
@@ -234,7 +231,7 @@ You are a helpful assistant.
 
 ### Step 5: README Update
 
-Update `$3/README.md` with workflow-specific documentation.
+Update `README.md` in the workflow directory with workflow-specific documentation.
 
 <documentation_requirements>
   - Update workflow name and description
@@ -252,7 +249,7 @@ Update `$3/README.md` with workflow-specific documentation.
 
 ### Step 6: Scenario File Creation
 
-Create at least one scenario file in `$3/scenarios/` for testing the workflow.
+Create at least one scenario file in the `scenarios/` subdirectory of the workflow directory for testing the workflow.
 
 <scenario_requirements>
   - Create `scenarios/` directory if it doesn't exist
@@ -327,18 +324,6 @@ Verify the implementation is ready for use.
 
 </process_flow>
 
-<post_flight_check>
-  EXECUTE: Claude Skill: `output-meta-post-flight`
-</post_flight_check>
-
 ---- START ----
 
-Workflow Name: $2
-
-Workflow Directory: $3
-
-Plan File Path: $1
-
-Additional Instructions:
-
-$ARGUMENTS
+Use the workflow name, workflow directory, and plan file path provided as arguments, along with any additional instructions the user provided.

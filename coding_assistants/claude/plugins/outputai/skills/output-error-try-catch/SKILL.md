@@ -235,7 +235,7 @@ Do NOT use FatalError to wrap other errors unless you're certain they shouldn't 
 
 After removing try-catch:
 
-1. **Test normal operation**: `npx output workflow run <name> '<valid-input>'`
+1. **Test normal operation**: `npx output workflow run <name> --input '<valid-input>'`
 2. **Test failure scenarios**: Use input that causes step failures
 3. **Check retry behavior**: Look for retry attempts in `npx output workflow debug <id>`
 

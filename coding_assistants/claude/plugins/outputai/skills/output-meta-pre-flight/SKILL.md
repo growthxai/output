@@ -22,8 +22,7 @@ Before proceeding with any workflow operation, verify:
 - **ES Modules**: All imports MUST use `.js` extension for ESM modules
 - **HTTP Client**: NEVER use axios directly - always use @outputai/http wrapper
 - **LLM Client**: NEVER use a direct llm call - always use @outputai/llm wrapper
-- **Worker Restarts**: Remember to restart worker after creating workflows: `overmind restart worker`
-- **Documentation**: Run `yarn g:workflow-doc` after modifications
+- **Worker Restarts**: `npx output dev` auto-restarts the worker on file changes; if the worker runs detached, restart it manually with `docker restart <project>-worker-1`
 
 ## Requirements Gathering Strategy
 
@@ -47,11 +46,11 @@ Only stop to ask for clarification on:
 
 - Use exact templates as provided in each step
 - Replace all template variables with actual values:
-  - `` - The workflow being planned
-  - `` - Root project directory path
-  - `` - User-provided requirements
-  - `` - Current date in YYYY-MM-DD format
-  - `` - Current Output SDK version
+  - `{workflow_name}` - The workflow being planned
+  - `{project_root}` - Root project directory path
+  - `{requirements}` - User-provided requirements
+  - `{current_date}` - Current date in YYYY-MM-DD format
+  - `{sdk_version}` - Current Output SDK version
 
 ## Quality Gates
 

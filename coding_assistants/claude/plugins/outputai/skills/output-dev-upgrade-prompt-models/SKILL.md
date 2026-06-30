@@ -94,7 +94,7 @@ Refreshing the dated comment in the same edit keeps the "as of" convention coher
 After the batch:
 
 - Spot-check a handful of files to confirm the YAML still has a frontmatter delimiter and message body.
-- Run the project's lint and build (`pnpm run lint`, `pnpm run build:packages` from the repo root).
+- Rebuild the worker so the new model strings take effect (`npm run output:worker:build`).
 
 The Output SDK doesn't validate prompt model IDs at build time ([sdk/llm/src/ai_model.js](../../../../../sdk/llm/src/ai_model.js)) — invalid IDs only surface at first run. If smoke-tests are available, run at least one workflow per upgraded family.
 

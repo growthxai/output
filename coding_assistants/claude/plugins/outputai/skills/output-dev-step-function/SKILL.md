@@ -333,6 +333,7 @@ Use FatalError for permanent failures that should not be retried:
 
 ```typescript
 import { FatalError } from '@outputai/core';
+import { credentials } from '@outputai/credentials';
 
 // Authentication failures
 if ( response.status === 401 ) {
@@ -350,8 +351,8 @@ if ( response.status === 404 ) {
 }
 
 // Configuration errors
-if ( !process.env.API_KEY ) {
-  throw new FatalError( 'API_KEY environment variable not set' );
+if ( !credentials.get( 'service.api_key' ) ) {
+  throw new FatalError( 'service.api_key credential not set' );
 }
 ```
 

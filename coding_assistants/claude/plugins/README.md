@@ -10,7 +10,7 @@ claude
 > /plugin install outputai@outputai
 ```
 
-Afterwards you should see slash commands in the Claude Code autocomplete.
+Afterwards the plugin's skills appear in the Claude Code autocomplete (type `/` to invoke them), along with its agents.
 
 ```bash
 /output-plan-workflow
@@ -18,5 +18,3 @@ Afterwards you should see slash commands in the Claude Code autocomplete.
 /output-debug-workflow
 # ... and more
 ```
-
-as well as skills and agents.
