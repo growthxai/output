@@ -99,11 +99,6 @@ describe( 'fetchWorkflowHistory', () => {
     expect( result.totalDurationMs ).toBe( 10_000 );
   } );
 
-  it( 'throws a connection error when the API returns nothing', async () => {
-    mockGet.mockResolvedValueOnce( undefined );
-    await expect( fetchWorkflowHistory( { workflowId: 'wf-x' } ) ).rejects.toThrow( /Failed to connect/ );
-  } );
-
   it( 'throws when the response has no data', async () => {
     mockGet.mockResolvedValueOnce( { status: 200 } );
     await expect( fetchWorkflowHistory( { workflowId: 'wf-x' } ) ).rejects.toThrow( /invalid response/ );

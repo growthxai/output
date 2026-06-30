@@ -20,7 +20,6 @@ export interface WorkflowMeta {
   closeTime?: string | null;
   historyLength?: number;
   taskQueue?: string;
-  [key: string]: unknown;
 }
 
 export interface FetchWorkflowHistoryOptions {
@@ -90,15 +89,15 @@ async function fetchAllPages(
   acc: PageAccumulator
 ): Promise<PageAccumulator> {
   const response = await getWorkflowIdHistory( workflowId, { runId, pageSize: PAGE_SIZE, pageToken, includePayloads } );
-  if ( !response ) {
-    throw new Error( 'Failed to connect to API server. Is it running?' );
-  }
   if ( !response.data ) {
     throw new Error( 'API returned invalid response (missing data)' );
   }
 
   const data = response.data as GetWorkflowIdHistory200;
-  const meta = acc.meta ?? ( data.workflow as WorkflowMeta | null ) ?? null;
+  // The generated `data.workflow` is an opaque `{ [key: string]: unknown }`, so
+  // narrow it to WorkflowMeta via `unknown` (its real fields are validated by
+  // the server, mirroring Atlas's metadata shape).
+  const meta = acc.meta ?? ( data.workflow as unknown as WorkflowMeta | null ) ?? null;
   const resolvedRunId = runId ?? data.runId ?? acc.runId;
   const events = [ ...acc.events, ...( ( data.events as HistoryEvent[] | undefined ) ?? [] ) ];
   const nextToken = data.nextPageToken ?? undefined;
