@@ -14,7 +14,7 @@ import {
   executeCommand,
   executeCommandWithMessages
 } from '#utils/process.js';
-import { getFrameworkVersion } from '#utils/framework_version.js';
+import { getSdkVersion } from '#utils/sdk_version.js';
 import { getErrorMessage, getErrorCode } from '#utils/error_utils.js';
 import { isDockerInstalled } from '#services/docker.js';
 import { isClaudeCliAvailable } from '#utils/claude.js';
@@ -130,14 +130,14 @@ async function scaffoldProjectFiles(
   const __dirname = path.dirname( __filename );
   const templatesDir = path.join( __dirname, '..', 'templates', 'project' );
 
-  // Get framework version for dynamic template injection
-  const frameworkVersion = await getFrameworkVersion();
+  // Get SDK version for dynamic template injection
+  const sdkVersion = await getSdkVersion();
 
   const templateVars = {
     projectName: kebabCase( projectName ),
     ProjectName: pascalCase( projectName ),
     description: description || `An Output.ai workflow for ${projectName}`,
-    frameworkVersion: frameworkVersion.framework
+    sdkVersion: sdkVersion.sdk
   };
 
   const templateFiles = await getTemplateFiles( templatesDir );

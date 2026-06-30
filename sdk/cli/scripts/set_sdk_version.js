@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes the given version into framework_version.json and docker-compose-dev.yml
+ * Writes the given version into sdk_version.json and docker-compose-dev.yml
  * (OUTPUT_API_VERSION default). Pass version as first arg, e.g. v0.1.0 or 0.1.0.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -21,10 +21,10 @@ const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const src = join( __dirname, '..', 'src' );
 
 const dockerComposeFilename = join( src, 'assets', 'docker', 'docker-compose-dev.yml' );
-const frameworkVersionFilename = join( src, 'generated', 'framework_version.json' );
+const sdkVersionFilename = join( src, 'generated', 'sdk_version.json' );
 
-if ( !existsSync( frameworkVersionFilename ) ) {
-  console.error( `Missing file ${frameworkVersionFilename}` );
+if ( !existsSync( sdkVersionFilename ) ) {
+  console.error( `Missing file ${sdkVersionFilename}` );
   process.exit( 1 );
 }
 if ( !existsSync( dockerComposeFilename ) ) {
@@ -45,9 +45,9 @@ if ( !apiVarMatcher.test( dockerComposeContent ) ) {
 // overwrites the docker-compose-dev.yml with the new env var version
 writeFileSync( dockerComposeFilename, dockerComposeContent.replace( apiVarMatcher, `\${${apiVarName}:-${version}}` ) );
 
-console.log( `- Rewriting ${frameworkVersionFilename}` );
+console.log( `- Rewriting ${sdkVersionFilename}` );
 
-// overwrites the framework_version file with the new version
-writeFileSync( frameworkVersionFilename, JSON.stringify( { framework: version }, null, 2 ) + '\n' );
+// overwrites the SDK version file with the new version
+writeFileSync( sdkVersionFilename, JSON.stringify( { sdk: version }, null, 2 ) + '\n' );
 
 console.log( '\x1b[0;32m%s\x1b[0m', '- Rewrite completed' );

@@ -1,0 +1,97 @@
+---
+title: "v0.9.0 → v0.10.0"
+description: "Upgrading Output.ai projects from v0.9.0 to v0.10.0: replace the deprecated @outputai/output wrapper package with explicit SDK packages."
+---
+
+This guide covers the removal of the `@outputai/output` wrapper package in v0.10.0. The wrapper installed all SDK modules at once, but it could hide modules your project was using through transitive dependencies. Explicit package installs make each workflow dependency visible in `package.json`.
+
+## What changed
+
+New projects no longer install `@outputai/output`. They declare the SDK packages they use directly:
+
+```json
+{
+  "dependencies": {
+    "@outputai/core": "0.10.0",
+    "@outputai/cli": "0.10.0",
+    "@outputai/http": "0.10.0",
+    "@outputai/llm": "0.10.0",
+    "@outputai/credentials": "0.10.0",
+    "@outputai/evals": "0.10.0"
+  }
+}
+```
+
+`output update`, `output migrate`, and `output dev` now warn when they detect the deprecated wrapper package.
+
+## Migration steps
+
+### Prefer the migration command
+
+The recommended path is to let the CLI apply this guide:
+
+```bash
+npx output migrate
+```
+
+The migration command reads your current Output SDK version, fetches the matching migration guide, applies the changes, and runs the project checks.
+
+### Manual package.json update
+
+If you migrate manually, remove `@outputai/output` and add the direct SDK packages your project uses.
+
+```json
+{
+  "dependencies": {
+    "@outputai/output": "0.9.0"
+  }
+}
+```
+
+Replace it with explicit packages:
+
+```json
+{
+  "dependencies": {
+    "@outputai/core": "0.10.0",
+    "@outputai/cli": "0.10.0",
+    "@outputai/http": "0.10.0",
+    "@outputai/llm": "0.10.0",
+    "@outputai/credentials": "0.10.0",
+    "@outputai/evals": "0.10.0"
+  }
+}
+```
+
+Install only the packages you actually use. Typical workflow projects need `@outputai/core` and often `@outputai/llm`; projects with HTTP clients need `@outputai/http`; projects using credentials or evals should include `@outputai/credentials` or `@outputai/evals`.
+
+<Note>
+Keep each package in the same dependency section that makes sense for your project. Runtime workflow imports belong in `dependencies`; CLI-only tooling can live in `devDependencies` if your project already keeps it there.
+</Note>
+
+### Reinstall and update
+
+After editing `package.json`, reinstall dependencies and run the update command:
+
+```bash
+npm install
+npx output update --cli
+```
+
+`output update --cli` updates directly declared Output SDK packages and preserves whether each package was declared in `dependencies` or `devDependencies`.
+
+### Re-scaffold if preferred
+
+For small or early projects, it may be faster to scaffold a fresh v0.10.0 project and copy your workflow code over:
+
+```bash
+npx output init my-output-project
+```
+
+## Checklist
+
+- Remove `@outputai/output` from `package.json`.
+- Add explicit `@outputai/*` packages for every SDK module your workflows import.
+- Run `npm install`.
+- Run `npx output update --cli` to align the direct SDK packages.
+- Run your project type checker or test suite.

@@ -14,7 +14,12 @@
     "output:dev": "output dev"
   },
   "dependencies": {
-    "@outputai/output": "{{frameworkVersion}}"
+    "@outputai/core": "{{sdkVersion}}",
+    "@outputai/cli": "{{sdkVersion}}",
+    "@outputai/http": "{{sdkVersion}}",
+    "@outputai/llm": "{{sdkVersion}}",
+    "@outputai/credentials": "{{sdkVersion}}",
+    "@outputai/evals": "{{sdkVersion}}"
   },
   "devDependencies": {
     "@types/node": "24.5.2",

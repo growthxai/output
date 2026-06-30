@@ -98,7 +98,7 @@ export function planFix( projectRoot: string ): FixPlan {
   }
 
   const templateRaw = readFileSync( getTemplatesPackageJsonPath(), 'utf-8' );
-  const templateVars = { projectName: '', description: '', frameworkVersion: '' };
+  const templateVars = { projectName: '', description: '', sdkVersion: '' };
   const processed = processTemplate( templateRaw, templateVars );
   const templatePkg = parseTemplatePackageJson( processed );
   const templateScripts = templatePkg.scripts;

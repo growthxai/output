@@ -356,27 +356,6 @@ importers:
         specifier: 'workspace:'
         version: link:../llm
 
-  sdk/framework:
-    dependencies:
-      '@outputai/cli':
-        specifier: 'workspace:'
-        version: link:../cli
-      '@outputai/core':
-        specifier: 'workspace:'
-        version: link:../core
-      '@outputai/credentials':
-        specifier: 'workspace:'
-        version: link:../credentials
-      '@outputai/evals':
-        specifier: 'workspace:'
-        version: link:../evals
-      '@outputai/http':
-        specifier: 'workspace:'
-        version: link:../http
-      '@outputai/llm':
-        specifier: 'workspace:'
-        version: link:../llm
-
   sdk/http:
     dependencies:
       '@outputai/core':

@@ -14,7 +14,6 @@ This monorepo publishes the following packages to npm:
 | `@outputai/http` | `sdk/http` | HTTP client with tracing |
 | `@outputai/evals` | `sdk/evals` | Evaluation framework (LLM-as-judge) |
 | `@outputai/credentials` | `sdk/credentials` | Encrypted credential management |
-| `@outputai/output` | `sdk/framework` | Umbrella package (re-exports all SDK packages) |
 | `output-api` | `api` | API server (private, Docker image only) |
 
 All `@outputai/*` packages and `output-api` are in a **fixed version group** — they always share the same version number and are bumped together. This is configured in `.changeset/config.json`.
