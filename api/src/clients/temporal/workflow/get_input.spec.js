@@ -57,7 +57,7 @@ describe( 'getInput', () => {
 
     const result = await getInput( fixtures, 'workflow-id' );
 
-    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: undefined } );
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id' );
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
       namespace: 'default',
       execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
@@ -89,27 +89,49 @@ describe( 'getInput', () => {
     );
   } );
 
-  it( 'resolves a pinned run via describe and reads its history', async () => {
-    mockDescribeWorkflow.mockResolvedValue( { description: { runId: 'pinned-run' } } );
+  it( 'reads a pinned run directly without describing it', async () => {
     const fixtures = makeFixtures();
     const { getInput } = await import( './get_input.js' );
 
-    await getInput( fixtures, 'workflow-id', 'pinned-run' );
+    const result = await getInput( fixtures, 'workflow-id', 'pinned-run' );
 
-    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client: fixtures.client }, 'workflow-id', { runId: 'pinned-run' } );
+    // A pinned run is already known, so describe is skipped to save a round-trip.
+    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
     expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith(
       expect.objectContaining( { execution: { workflowId: 'workflow-id', runId: 'pinned-run' } } )
     );
+    expect( result ).toEqual( { workflowId: 'workflow-id', runId: 'pinned-run', input: { values: [ 1, 2, 3 ] } } );
   } );
 
-  it( 'propagates a not-found from describe so a missing pinned run becomes a 404', async () => {
-    const notFound = mockWorkflowNotFoundError( 'workflow-id', 'pinned-run' );
-    mockDescribeWorkflow.mockRejectedValue( notFound );
-    const fixtures = makeFixtures();
+  it( 'maps a malformed/expired pinned run (INVALID_ARGUMENT) to a 404 without describing', async () => {
+    const invalidArg = Object.assign( new Error( 'invalid runId' ), { code: 3 } );
+    const fixtures = makeFixtures( { getHistoryError: invalidArg } );
     const { getInput } = await import( './get_input.js' );
 
-    await expect( getInput( fixtures, 'workflow-id', 'pinned-run' ) ).rejects.toBe( notFound );
-    expect( fixtures.getWorkflowExecutionHistory ).not.toHaveBeenCalled();
+    await expect( getInput( fixtures, 'workflow-id', 'pinned-run' ) ).rejects.toMatchObject( { name: 'WorkflowNotFoundError' } );
+    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
+  } );
+
+  it( 'follows firstExecutionRunId back to the original run for a continue-as-new chain', async () => {
+    const getWorkflowExecutionHistory = vi.fn()
+      .mockResolvedValueOnce( { history: { events: [ { workflowExecutionStartedEventAttributes: { firstExecutionRunId: 'first-run' } } ] } } )
+      .mockResolvedValueOnce( { history: {} } );
+    const fixtures = {
+      getWorkflowExecutionHistory,
+      client: { workflow: {} },
+      connection: { workflowService: { getWorkflowExecutionHistory } }
+    };
+    mockExtractWorkflowInput.mockReturnValue( { values: [ 9 ] } );
+    const { getInput } = await import( './get_input.js' );
+
+    const result = await getInput( fixtures, 'workflow-id' );
+
+    // Latest run resolved to 'resolved-run', but its start event points at 'first-run', so the
+    // original input is re-fetched from the chain's first run.
+    expect( getWorkflowExecutionHistory ).toHaveBeenNthCalledWith(
+      2, expect.objectContaining( { execution: { workflowId: 'workflow-id', runId: 'first-run' } } )
+    );
+    expect( result ).toEqual( { workflowId: 'workflow-id', runId: 'first-run', input: { values: [ 9 ] } } );
   } );
 
   it( 'returns null input when no payloads exist (e.g. a running workflow with empty start input)', async () => {

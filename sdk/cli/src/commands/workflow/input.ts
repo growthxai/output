@@ -72,7 +72,10 @@ export default class WorkflowInput extends Command {
 
       await fs.writeFile( destPath, `${json}\n`, 'utf-8' );
       this.logToStderr( `Wrote workflow input to ${destPath}` );
-      return input;
+      // Don't return the bare input here: under --json oclif serializes run()'s return value to
+      // stdout, which would duplicate the input we just wrote to the file. Return a status object
+      // so --json emits a confirmation instead, and non-json mode keeps stdout empty.
+      return { outputFile: destPath };
     }
 
     // Emit only the bare input (never the response envelope) so every mode yields the same

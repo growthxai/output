@@ -113,6 +113,19 @@ describe( 'workflow input command', () => {
       expect( cmd.logToStderr ).toHaveBeenCalledWith( expect.stringContaining( 'out.json' ) );
     } );
 
+    it( 'does not return the bare input in file mode, so --json never duplicates it to stdout', async () => {
+      vi.mocked( fs.access ).mockRejectedValue( new Error( 'not found' ) );
+      vi.mocked( fs.writeFile ).mockResolvedValue();
+
+      const cmd = makeCmd( [ 'wf-1', '-o', 'out.json', '--json' ] );
+      ( cmd.jsonEnabled as any ).mockReturnValue( true );
+      const result = await cmd.run();
+
+      // The input went to the file; --json must emit a confirmation, not the input again.
+      expect( result ).not.toEqual( INPUT );
+      expect( result ).toMatchObject( { outputFile: expect.stringContaining( 'out.json' ) } );
+    } );
+
     it( 'refuses to overwrite an existing file without --force', async () => {
       vi.mocked( fs.access ).mockResolvedValue();
 
@@ -139,6 +152,16 @@ describe( 'workflow input command', () => {
       const apiError = Object.assign( new Error( 'Not Found' ), { response: { status: 404 } } );
 
       await expect( cmd.catch( apiError ) ).rejects.toThrow( 'Workflow not found' );
+    } );
+
+    it( 'shows the friendly 404 even when the API body carries error/message', async () => {
+      const cmd = makeCmd( [ 'wf-1' ] );
+      // Real API 404 shape: the override must win over this body, not be shadowed by it.
+      const apiError = Object.assign( new Error( 'Not Found' ), {
+        response: { status: 404, data: { error: 'WorkflowNotFoundError', message: 'Workflow "wf-1" not found' } }
+      } );
+
+      await expect( cmd.catch( apiError ) ).rejects.toThrow( 'Workflow not found. Check the workflow ID.' );
     } );
   } );
 } );
