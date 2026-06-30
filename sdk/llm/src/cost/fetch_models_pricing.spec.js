@@ -5,8 +5,12 @@ import { dirname, join } from 'path';
 import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
 
 const fetchMock = vi.hoisted( () => vi.fn() );
+const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
+  this.options = options;
+} ) );
 
-vi.mock( '@outputai/http', () => ( {
+vi.mock( 'undici', () => ( {
+  EnvHttpProxyAgent: EnvHttpProxyAgentMock,
   fetch: fetchMock
 } ) );
 
@@ -36,7 +40,8 @@ describe( 'fetchModelsPricing', () => {
 
     const result = await fetchModelsPricing();
 
-    expect( fetchMock ).toHaveBeenCalledWith( costTableUrl );
+    expect( EnvHttpProxyAgentMock ).toHaveBeenCalledWith( { allowH2: false } );
+    expect( fetchMock ).toHaveBeenCalledWith( costTableUrl, { dispatcher: EnvHttpProxyAgentMock.mock.results[0].value } );
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
     const firstModel = Object.values( fixture )[0];

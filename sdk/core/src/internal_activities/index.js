@@ -1,16 +1,15 @@
 import { FatalError } from '#errors';
-import { Agent, EnvHttpProxyAgent, fetch } from 'undici';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 import { serializeFetchResponse, serializeBodyAndInferContentType } from '#helpers/fetch';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
 import { createInternalStep } from '#helpers/component';
-import { getProxyUrl } from '#helpers/proxy';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 
 const log = createChildLogger( 'HttpClient' );
 
 /** Ignore HTTP/2. Check OUT-505 */
-const dispatcher = new ( getProxyUrl() ? EnvHttpProxyAgent : Agent )( { allowH2: false } );
+const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
 /**
  * Send a HTTP request.
  *

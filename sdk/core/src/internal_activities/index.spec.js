@@ -7,15 +7,11 @@ import { getTraceDestinations, sendHttpRequest } from './index.js';
 const getDestinationsMock = vi.hoisted( () => vi.fn() );
 const createInternalStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 const fetchMock = vi.hoisted( () => vi.fn() );
-const AgentMock = vi.hoisted( () => vi.fn( function Agent( options ) {
-  this.options = options;
-} ) );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
   this.options = options;
 } ) );
 
 vi.mock( 'undici', () => ( {
-  Agent: AgentMock,
   EnvHttpProxyAgent: EnvHttpProxyAgentMock,
   fetch: fetchMock
 } ) );
@@ -37,10 +33,6 @@ vi.mock( '#helpers/string', () => ( {
   isStringboolTrue: vi.fn( () => false )
 } ) );
 
-vi.mock( '#helpers/proxy', () => ( {
-  getProxyUrl: vi.fn( () => null )
-} ) );
-
 vi.mock( '#helpers/fetch', () => ( {
   serializeBodyAndInferContentType: vi.fn(),
   serializeFetchResponse: vi.fn()
@@ -59,8 +51,7 @@ const response = ( { ok = true, status = 200, statusText = 'OK', headers = {} } 
 
 describe( 'internal_activities component registration', () => {
   it( 'creates internal step components for exported activities', () => {
-    expect( AgentMock ).toHaveBeenCalledWith( { allowH2: false } );
-    expect( EnvHttpProxyAgentMock ).not.toHaveBeenCalled();
+    expect( EnvHttpProxyAgentMock ).toHaveBeenCalledWith( { allowH2: false } );
     expect( createInternalStepMock ).toHaveBeenNthCalledWith( 1, {
       name: ACTIVITY_SEND_HTTP_REQUEST,
       handler: expect.any( Function )
@@ -105,7 +96,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
     expect( serializeBodyAndInferContentType ).toHaveBeenCalledWith( payload );
     expect( fetchMock ).toHaveBeenCalledWith( url, expect.objectContaining( {
       method,
-      dispatcher: expect.any( AgentMock )
+      dispatcher: expect.any( EnvHttpProxyAgentMock )
     } ) );
     expect( serializeFetchResponse ).toHaveBeenCalledTimes( 1 );
     const respArg = serializeFetchResponse.mock.calls[0][0];

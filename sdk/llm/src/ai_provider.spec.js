@@ -19,14 +19,12 @@ const makeProviderModules = () => Object.fromEntries(
 );
 
 const undiciSpies = vi.hoisted( () => ( {
-  Agent: vi.fn(),
   EnvHttpProxyAgent: vi.fn(),
   fetch: vi.fn()
 } ) );
 
 const importWithMockedProviders = async ( {
-  modules = makeProviderModules(),
-  proxyUrl = null
+  modules = makeProviderModules()
 } = {} ) => {
   await vi.resetModules();
 
@@ -36,17 +34,8 @@ const importWithMockedProviders = async ( {
     } ) );
   }
 
-  vi.doMock( '@outputai/core/sdk/runtime', () => ( {
-    Proxy: {
-      getProxyUrl: vi.fn( () => proxyUrl )
-    }
-  } ) );
-
   vi.doMock( 'undici', async importOriginal => {
     const actual = await importOriginal();
-    undiciSpies.Agent.mockImplementation( function Agent( options ) {
-      return new actual.Agent( options );
-    } );
     undiciSpies.EnvHttpProxyAgent.mockImplementation( function EnvHttpProxyAgent( options ) {
       return new actual.EnvHttpProxyAgent( options );
     } );
@@ -54,7 +43,6 @@ const importWithMockedProviders = async ( {
 
     return {
       ...actual,
-      Agent: undiciSpies.Agent,
       EnvHttpProxyAgent: undiciSpies.EnvHttpProxyAgent,
       fetch: undiciSpies.fetch
     };
@@ -70,9 +58,7 @@ afterEach( () => {
   for ( const { pkg } of SHIPPED_PROVIDERS ) {
     vi.doUnmock( pkg );
   }
-  vi.doUnmock( '@outputai/core/sdk/runtime' );
   vi.doUnmock( 'undici' );
-  undiciSpies.Agent.mockReset();
   undiciSpies.EnvHttpProxyAgent.mockReset();
   undiciSpies.fetch.mockReset();
   vi.resetModules();
@@ -98,22 +84,6 @@ describe( 'getProvider', () => {
       expect( modules[pkg][exportName] ).toHaveBeenCalledWith( { fetch: expect.any( Function ) } );
     }
 
-    expect( undiciSpies.Agent ).toHaveBeenCalledWith( {
-      headersTimeout: 15 * 60 * 1000,
-      bodyTimeout: 15 * 60 * 1000,
-      allowH2: false
-    } );
-    expect( undiciSpies.EnvHttpProxyAgent ).not.toHaveBeenCalled();
-  } );
-
-  it( 'uses EnvHttpProxyAgent for shipped provider fetch when a proxy is configured', async () => {
-    const { getProvider } = await importWithMockedProviders( {
-      proxyUrl: 'http://proxy:8080/'
-    } );
-
-    getProvider( 'openai' );
-
-    expect( undiciSpies.Agent ).not.toHaveBeenCalled();
     expect( undiciSpies.EnvHttpProxyAgent ).toHaveBeenCalledWith( {
       headersTimeout: 15 * 60 * 1000,
       bodyTimeout: 15 * 60 * 1000,
@@ -132,7 +102,7 @@ describe( 'getProvider', () => {
       'https://api.example.test',
       {
         ...init,
-        dispatcher: undiciSpies.Agent.mock.results[0].value
+        dispatcher: undiciSpies.EnvHttpProxyAgent.mock.results[0].value
       }
     );
   } );

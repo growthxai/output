@@ -1,8 +1,11 @@
 import { Logger } from '@outputai/core';
-import { fetch } from '@outputai/http';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day
+
+/** Custom dispatcher to disable HTTP/2. See [OUT-505] */
+const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
 
 export const cache = {
   content: null,
@@ -26,7 +29,7 @@ export const fetchModelsPricing = async () => {
   if ( cache.content && cache.expiresAt > Date.now() ) {
     return cache.content;
   }
-  const res = await fetch( costTableUrl );
+  const res = await fetch( costTableUrl, { dispatcher } );
   if ( !res.ok ) {
     if ( cache.content ) {
       Logger.warn( `Error ${res.status} when fetching models pricing at ${costTableUrl}, falling back to stale cache`, { namespace: 'LLM' } );

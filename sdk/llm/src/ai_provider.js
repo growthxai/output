@@ -1,6 +1,5 @@
 import { FatalError, ValidationError, z } from '@outputai/core';
-import { Proxy } from '@outputai/core/sdk/runtime';
-import { Agent, EnvHttpProxyAgent, fetch } from 'undici';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 // providers
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createAzure } from '@ai-sdk/azure';
@@ -10,7 +9,7 @@ import { createPerplexity } from '@ai-sdk/perplexity';
 import { createVertex } from '@ai-sdk/google-vertex';
 
 /** This custom dispatcher has longer timeouts. */
-const customDispatcher = new ( Proxy.getProxyUrl() ? EnvHttpProxyAgent : Agent )( {
+const customDispatcher = new EnvHttpProxyAgent( {
   headersTimeout: 15 * 60 * 1000, // 15 min
   bodyTimeout: 15 * 60 * 1000,
   allowH2: false // Ignore HTTP/2. Check OUT-505

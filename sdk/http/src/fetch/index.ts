@@ -3,10 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
 import { addRequestIdToResponse } from './utils.js';
-import { Proxy } from '@outputai/core/sdk/runtime';
 
-/** Custom dispatcher to avoid h2 problems [OUT-505]. Preserved proxy if set up */
-const customDispatcher = new undici[Proxy.getProxyUrl() ? 'EnvHttpProxyAgent' : 'Agent']( { allowH2: false } );
+/** Custom dispatcher to avoid h2 problems [OUT-505] */
+const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
 
 /*
  * Unifies undici and nodes realms

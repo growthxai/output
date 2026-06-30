@@ -1,6 +1,5 @@
 import { EnvHttpProxyAgent, setGlobalDispatcher } from 'undici';
 import { createChildLogger } from '#logger';
-import { getProxyUrl } from '#helpers/proxy';
 
 const log = createChildLogger( 'Proxy' );
 
@@ -10,9 +9,11 @@ const log = createChildLogger( 'Proxy' );
  * No-op when none are set.
  */
 export const bootstrapFetchProxy = () => {
-  const url = getProxyUrl();
-  if ( url ) {
-    log.info( 'Routing fetch() through HTTP proxy', { url } );
+  const httpProxyUrl = process.env.http_proxy ?? process.env.HTTP_PROXY;
+  const httpsProxyUrl = process.env.https_proxy ?? process.env.HTTPS_PROXY;
+
+  if ( httpProxyUrl?.length > 0 || httpsProxyUrl?.length > 0 ) {
+    log.info( 'Proxy env vars detected, setting up global fetch dispatcher EnvHttpProxyAgent', { httpProxyUrl, httpsProxyUrl } );
     /** Ignore HTTP/2. Check OUT-505 */
     setGlobalDispatcher( new EnvHttpProxyAgent( { allowH2: false } ) );
   }
