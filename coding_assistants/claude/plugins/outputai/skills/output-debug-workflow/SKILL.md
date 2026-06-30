@@ -1,14 +1,11 @@
 ---
 name: output-debug-workflow
-argument-hint: [problem-description-and-optional-workflow-id]
 description: Debug Output SDK workflow issues. Use when user reports a workflow failing, erroring, hanging, producing wrong results, or asks to debug, troubleshoot, or investigate a workflow execution.
-version: 0.1.3
-model: opus
 ---
 
 Your task is to systematically debug an Output SDK workflow issue in a local development environment.
 
-The first argument is a textual description of the problem you're experiencing. If you have a specific workflow ID, include it in your description.
+The arguments the user provided describe the problem they're experiencing, and may include a specific workflow ID.
 
 Use the todo tool to track your progress through the debugging process.
 
@@ -175,10 +172,10 @@ Based on the trace analysis, identify the error pattern and suggest targeted fix
 After applying fix:
 ```bash
 # Re-run the workflow to verify
-npx output workflow run <workflowName> <input>
+npx output workflow run <workflowName> --input '<json>'
 
 # Or start asynchronously and check result
-npx output workflow start <workflowName> <input>
+npx output workflow start <workflowName> --input '<json>'
 npx output workflow status <workflowId>
 npx output workflow result <workflowId>
 
@@ -200,6 +197,4 @@ For targeted rerun after fixing a downstream step, see the `output-workflow-rese
 
 ---- START ----
 
-Problem Description and Optional Workflow ID:
-
-$ARGUMENTS
+Use the problem description and any optional workflow ID the user provided.

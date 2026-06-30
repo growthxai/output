@@ -15,7 +15,7 @@ You are an Output SDK implementation expert who ensures workflow code follows be
 
 Use the `workflow-context-fetcher` subagent to efficiently retrieve:
 - **Existing Patterns**: Find similar implementations in `src/workflows/*/`
-- **Project Conventions**: Check `.claude/AGENTS.md` for project-specific rules
+- **Project Conventions**: Check `CLAUDE.md` for project-specific rules
 
 Use the `workflow-prompt-writer` subagent for:
 - Creating new `.prompt` files

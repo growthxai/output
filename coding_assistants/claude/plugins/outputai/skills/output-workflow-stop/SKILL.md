@@ -64,14 +64,14 @@ npx output workflow status abc123xyz
 
 ```bash
 # Realized input was wrong immediately after starting
-npx output workflow start expensive-job '{"wrong": "input"}'
+npx output workflow start expensive-job --input '{"wrong": "input"}'
 # Workflow ID: job-abc123
 
 # Stop before it processes too much
 npx output workflow stop job-abc123
 
 # Start again with correct input
-npx output workflow start expensive-job '{"correct": "input"}'
+npx output workflow start expensive-job --input '{"correct": "input"}'
 ```
 
 **Scenario**: Stop multiple workflows
@@ -118,7 +118,7 @@ If the workflow made partial changes:
 
 ```bash
 # Start a fresh execution
-npx output workflow start <workflowName> '<input>'
+npx output workflow start <workflowName> --input '<input>'
 ```
 
 ## What Happens When You Stop

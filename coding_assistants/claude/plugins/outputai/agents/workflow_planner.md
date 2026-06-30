@@ -90,7 +90,7 @@ Use these skills for detailed implementation patterns. Claude will auto-invoke t
 | `output-dev-workflow-function` | Writing workflow.ts, understanding determinism requirements |
 | `output-dev-step-function` | Writing steps.ts, implementing I/O operations, error handling |
 | `output-dev-evaluator-function` | Writing evaluators.ts, implementing quality assessment, validation logic |
-| `output-dev-http-client-create` | Creating shared HTTP clients in src/clients/ |
+| `output-dev-http-client-create` | Creating shared HTTP clients in src/shared/clients/ |
 | `output-dev-credentials` | Full credentials system reference — API, scopes, merging, custom providers |
 | `output-credentials-init` | Initialize encrypted credentials files for the first time |
 | `output-credentials-edit` | View and edit credential values |

@@ -1,9 +1,6 @@
 ---
 name: output-plan-workflow
-argument-hint: [workflow-description-and-additional-instructions]
 description: Use when the user asks to create, build, generate, scaffold, or plan a new workflow. Orchestrates the full planning process including architecture, steps, prompts, evaluators, and testing strategy using specialized subagents.
-version: 0.1.3
-model: opus
 ---
 
 Your task is to generate a comprehensive Output.ai workflow implementation plan in markdown format.
@@ -30,9 +27,7 @@ All plan outputs go to: `.outputai/plans/YYYY_MM_DD_<workflow_name>_<task_name>/
 
 ### Step 0: Arguments Analysis
 
-Analyze the arguments provided to the command:
-
-{ $ARGUMENTS }
+Analyze the arguments the user provided:
 
 <substep number="0" name="arguments_analysis">
 
@@ -290,7 +285,7 @@ Then instruct the user to:
 
 1. Review the plan
 2. Make any necessary changes
-3. Implement the workflow with the appropriate build command. e.g. `/output-build-workflow <plan_file_path> <workflow_name> <workflow_directory>`
+3. Implement the workflow by invoking the `output-build-workflow` skill, providing the plan file path, workflow name, and workflow directory
 
 </step>
 
@@ -298,6 +293,4 @@ Then instruct the user to:
 
 ---- START ----
 
-Workflow Description and Additional Instructions:
-
-$ARGUMENTS
+Use the workflow description and any additional instructions the user provided.

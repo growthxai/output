@@ -188,6 +188,7 @@ export const createUser = step( {
 ```typescript
 import { z, step } from '@outputai/core';
 import { httpClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
 
 export const createUser = step( {
   name: 'createUser',
@@ -206,7 +207,7 @@ export const createUser = step( {
       timeout: 30000,
       retry: { limit: 3 },
       headers: {
-        'Authorization': `Bearer ${process.env.API_KEY}`
+        'Authorization': `Bearer ${credentials.require( 'service.api_key' )}`
       }
     } );
 
@@ -287,7 +288,7 @@ grep -rn "got\|node-fetch\|request\|superagent" src/
 
 After migrating to httpClient:
 
-1. **Run the workflow**: `npx output workflow run <name> '<input>'`
+1. **Run the workflow**: `npx output workflow run <name> --input '<input>'`
 2. **Check the trace**: `npx output workflow debug <id> --json`
 3. **Verify tracing**: HTTP requests should appear in the step trace
 4. **Test retries**: Simulate failures to verify retry behavior

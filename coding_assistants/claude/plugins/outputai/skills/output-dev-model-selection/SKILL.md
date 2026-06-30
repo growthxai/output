@@ -1,7 +1,7 @@
 ---
 name: output-dev-model-selection
 description: Pick the right LLM model for an Output SDK prompt file. Use when writing a new .prompt file, reviewing a model choice, or upgrading a stale model. Walks through priority (reasoning/balance/speed/cost), provider selection, and a live lookup against the Vercel AI Gateway model index.
-allowed-tools: Bash(curl *) Bash(jq *) Read Glob
+allowed-tools: [Bash(curl *), Bash(jq *), Read, Glob]
 ---
 
 # Picking a Model for an Output SDK Prompt

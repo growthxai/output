@@ -141,6 +141,7 @@ export async function fetchServiceData(query: string): Promise<ServiceResponse> 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
 import { httpClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
 
 export interface ServiceOptions {
   model?: string;
@@ -204,8 +205,9 @@ export class ServiceClient {
 ```typescript
 import { FatalError } from '@outputai/core';
 import { httpClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
 
-const JINA_API_KEY = process.env.JINA_API_KEY || '';
+const JINA_API_KEY = credentials.require('jina.api_key');
 const JINA_BASE_URL = 'https://r.jina.ai';
 
 const jinaClient = httpClient({
@@ -280,6 +282,7 @@ export async function scrapeTextWithJina(url: string): Promise<string> {
 ```typescript
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { FatalError, ValidationError } from '@outputai/core';
+import { credentials } from '@outputai/credentials';
 
 export interface GeminiImageGenerationOptions {
   prompt: string;
@@ -299,10 +302,10 @@ export class GeminiImageService {
   // current as of 2026-05-04 — run output-dev-model-selection for the latest
   private readonly model: string = 'gemini-3-pro-image';
 
-  constructor(apiKey = process.env.GOOGLE_GEMINI_API_KEY || process.env.GOOGLE_CLOUD_API_KEY) {
+  constructor(apiKey = credentials.require('google.api_key')) {
     if (!apiKey) {
       throw new FatalError(
-        'GeminiImageService: No API Key provided (GOOGLE_GEMINI_API_KEY or GOOGLE_CLOUD_API_KEY).'
+        'GeminiImageService: No API Key provided (google.api_key credential).'
       );
     }
     this.client = new GoogleGenerativeAI(apiKey);

@@ -216,7 +216,7 @@ Look at your workflow `fn` functions specifically. Non-deterministic code is onl
 ## Verification Steps
 
 1. **Fix the code** using solutions above
-2. **Run the workflow**: `npx output workflow run <name> '<input>'`
+2. **Run the workflow**: `npx output workflow run <name> --input '<input>'`
 3. **Run again with same input**: Result should be identical
 4. **Check for errors**: No "non-deterministic" messages
 
@@ -238,7 +238,7 @@ If unsure whether code is causing issues:
 
 ```bash
 # Run the workflow
-npx output workflow start my-workflow '{"input": "test"}'
+npx output workflow start my-workflow --input '{"input": "test"}'
 
 # Get the workflow ID and run debug to see replay behavior
 npx output workflow debug <workflowId> --json

@@ -303,14 +303,14 @@ The `.describe()` annotation guides the LLM on expected ranges and counts. The `
 
 ### Confirming the code is valid
 
-- From the root directory, run `npm run lint`
-- From the root directory, run `npm run build:packages`
+- From the root directory, run `pnpm lint`
+- From the root directory, run `pnpm build:packages`
 
 ### Confirming the code is working
 
-- From the root directory, run `npm test`
-- From the root directory, run `npm run start:worker`
-- From the root directory, run `./run.sh validate`
+- From the root directory, run `pnpm test`
+- From the root directory, run `./run.sh validate` (lint + build + test in Docker)
+- To run the worker + API stack, run `./run.sh dev` (docker-compose; worker runs `output:worker:watch` in test_workflows)
 
 ### Confirming the system is working
 

@@ -1,6 +1,6 @@
 ---
 name: output-meta-project-context
-description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and the full inventory of available agents, commands, and skills.
+description: Comprehensive guide to Output.ai Framework for building durable, LLM-powered workflows orchestrated by Temporal. Covers project structure, workflow patterns, steps, LLM integration, HTTP clients, CLI commands, and the full inventory of available agents and skills.
 allowed-tools: [Read]
 ---
 
@@ -108,15 +108,15 @@ src/
 | `workflow-prompt-writer` | Creates and optimizes LLM prompt templates |
 | `workflow-context-fetcher` | Gathers documentation and existing patterns |
 
-### Commands
-
-| Command | Purpose | When to Use |
-|---------|---------|-------------|
-| `/output-plan-workflow` | Plan workflow architecture | **ALWAYS FIRST** - creates implementation blueprint |
-| `/output-build-workflow` | Build/implement workflows | After planning, or for modifications |
-| `/output-debug-workflow` | Debug workflow issues | When workflows fail or behave unexpectedly |
-
 ### Skills
+
+#### Workflow Authoring
+| Skill | Purpose |
+|-------|---------|
+| `output-plan-workflow` | Plan workflow architecture - **ALWAYS FIRST**, creates implementation blueprint |
+| `output-build-workflow` | Build/implement workflows from a plan, or for modifications |
+| `output-debug-workflow` | Debug workflow issues when workflows fail or behave unexpectedly |
+| `output-migrate` | Upgrade a project between Output framework versions |
 
 #### Workflow Operations
 | Skill | Purpose |
@@ -133,6 +133,7 @@ src/
 |-------|---------|
 | `output-workflow-stop` | Stop running workflow |
 | `output-workflow-trace` | Trace workflow execution |
+| `output-workflow-trace-file` | Render a local trace file as readable markdown |
 | `output-workflow-runs-list` | List workflow run history |
 | `output-dev-workflow-cost` | Calculate cost of a workflow run |
 | `output-services-check` | Verify Output services status |
@@ -158,8 +159,10 @@ src/
 | Skill | Purpose |
 |-------|---------|
 | `output-dev-folder-structure` | Project and workflow directory layout |
+| `output-dev-code-style` | Code style conventions for workflow projects |
 | `output-dev-workflow-function` | Writing deterministic workflow files |
 | `output-dev-step-function` | Writing step functions for I/O |
+| `output-dev-agent-class` | Build multi-step tool-loop agents with the Agent class |
 | `output-dev-types-file` | Zod schema definitions |
 | `output-dev-evaluator-function` | Quality assessment functions |
 | `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
@@ -168,7 +171,17 @@ src/
 | `output-dev-upgrade-prompt-models` | Bulk-upgrade `model:` fields across `.prompt` files |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
+| `output-dev-skill-file` | Author `.md` skill files for the framework's lazy-loaded instructions |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
+
+#### Evals
+| Skill | Purpose |
+|-------|---------|
+| `output-eval-error-analysis` | Review traces to identify failure modes before building evaluators |
+| `output-eval-dataset-design` | Design diverse eval datasets via dimension-based variation |
+| `output-eval-judge-prompt` | Design effective LLM judge `.prompt` files |
+| `output-eval-validate-judge` | Validate LLM judges against human labels (TPR/TNR) |
+| `output-eval-audit` | Audit an existing eval suite for trustworthiness |
 
 #### Credentials
 | Skill | Purpose |
@@ -391,7 +404,7 @@ const { result } = await generateText( {
 } );
 ```
 
-**Provider & model selection:** the SDK supports `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, and `perplexity` (see [sdk/llm/src/ai_model.js](../../../../../../sdk/llm/src/ai_model.js) for the registered list). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
+**Provider & model selection:** the SDK supports `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, and `perplexity` (the registered list lives in the SDK's model registry, `sdk/llm/src/ai_model.js`). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 
 See `output-dev-prompt-file` for comprehensive patterns.
 

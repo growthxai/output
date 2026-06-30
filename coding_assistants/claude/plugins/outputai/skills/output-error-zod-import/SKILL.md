@@ -145,7 +145,7 @@ npm run output:worker:build
 ### 3. Run the workflow
 
 ```bash
-npx output workflow run <workflowName> '<input>'
+npx output workflow run <workflowName> --input '<input>'
 ```
 
 ## Prevention

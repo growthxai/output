@@ -23,7 +23,7 @@ This skill helps you calculate the cost of a completed workflow execution using 
 
 The `workflow cost` command requires a **workflow run ID** — not the workflow name.
 
-A run ID looks like: `process_transcripts_2026-03-23-19-35-17-000Z_c2biRk_F9rYktF-wagBf5`
+A run ID looks like: `process_transcripts_2026-03-23T19:35:17.000Z_c2biRk_F9rYktF-wagBf5`
 
 ### If you already have a run ID, skip to Step 2.
 

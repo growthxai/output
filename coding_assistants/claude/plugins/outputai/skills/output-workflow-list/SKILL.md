@@ -85,7 +85,7 @@ npx output workflow list | grep email-sender
 
 # If no output, the workflow doesn't exist
 # If found, proceed with running it
-npx output workflow run email-sender '{"to": "user@example.com"}'
+npx output workflow run email-sender --input '{"to": "user@example.com"}'
 ```
 
 **Scenario**: Explore workflow implementation
