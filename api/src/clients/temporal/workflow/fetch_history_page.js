@@ -31,10 +31,13 @@ export const fetchHistoryPage = async (
     maximumPageSize,
     nextPageToken
   } ).catch( error => {
-    if ( error?.code === GrpcStatus.NOT_FOUND ) {
+    if ( !error ) {
+      throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
+    }
+    if ( error.code === GrpcStatus.NOT_FOUND ) {
       throw workflowNotFoundError( workflowId, runId );
     }
-    if ( mapInvalidArgument && error?.code === GrpcStatus.INVALID_ARGUMENT ) {
+    if ( mapInvalidArgument && error.code === GrpcStatus.INVALID_ARGUMENT ) {
       throw mapInvalidArgument( error );
     }
     throw error;
