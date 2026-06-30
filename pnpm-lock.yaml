@@ -175,9 +175,6 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.2.92
         version: 0.2.92(zod@4.4.3)
-      '@aws-sdk/client-s3':
-        specifier: 'catalog:'
-        version: 3.1038.0
       '@hackylabs/deep-redact':
         specifier: 3.0.5
         version: 3.0.5

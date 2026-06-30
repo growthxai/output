@@ -11,11 +11,7 @@ describe( 'config', () => {
     'OUTPUT_API_AUTH_TOKEN',
     'DOCKER_SERVICE_NAME',
     'OUTPUT_DEBUG',
-    'OUTPUT_CLI_ENV',
-    'OUTPUT_TRACE_REMOTE_S3_BUCKET',
-    'OUTPUT_AWS_REGION',
-    'OUTPUT_AWS_ACCESS_KEY_ID',
-    'OUTPUT_AWS_SECRET_ACCESS_KEY'
+    'OUTPUT_CLI_ENV'
   ] as const;
 
   const saved: Record<string, string | undefined> = {};
@@ -140,20 +136,6 @@ describe( 'config', () => {
 
     process.env.OUTPUT_DEBUG = 'false';
     expect( config.debugMode ).toBe( false );
-  } );
-
-  it( 'reads s3 config lazily', () => {
-    process.env.OUTPUT_TRACE_REMOTE_S3_BUCKET = 'my-bucket';
-    process.env.OUTPUT_AWS_REGION = 'us-west-2';
-    process.env.OUTPUT_AWS_ACCESS_KEY_ID = 'AKIA123';
-    process.env.OUTPUT_AWS_SECRET_ACCESS_KEY = 'secret123';
-
-    expect( config.s3 ).toEqual( {
-      bucket: 'my-bucket',
-      region: 'us-west-2',
-      accessKeyId: 'AKIA123',
-      secretAccessKey: 'secret123'
-    } );
   } );
 
   it( 'has static properties that are not env-derived', () => {

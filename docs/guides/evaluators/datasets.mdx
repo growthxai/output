@@ -124,11 +124,11 @@ output workflow dataset generate blog_generator my_scenario --name new_case
 # Generate from a trace file
 output workflow dataset generate blog_generator --trace path/to/trace.json
 
-# Download recent traces from S3 and generate datasets
+# Generate datasets from the most recent runs (traces fetched via the API)
 output workflow dataset generate blog_generator --download --limit 10
 ```
 
-Generating datasets from traces is useful when you want to test against real production inputs. Download traces from S3, pick interesting ones, and the CLI creates dataset YAML files with the input and output already filled in.
+Generating datasets from traces is useful when you want to test against real production inputs. The `--download` flag asks the Output API for the most recent runs of the workflow and turns each one's trace into a dataset YAML file with the input and output already filled in. The API reads the traces from S3, so the CLI needs no AWS credentials — only a reachable API. See [API Configuration](/api/configuration#aws-credential-permissions) for the S3 read permissions the API requires.
 
 ## What's Next
 

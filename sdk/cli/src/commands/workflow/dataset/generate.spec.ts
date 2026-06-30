@@ -5,6 +5,18 @@ vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowRun: vi.fn()
 } ) );
 
+vi.mock( '#services/workflow_runs.js', () => ( {
+  fetchWorkflowRuns: vi.fn()
+} ) );
+
+vi.mock( '#services/trace_reader.js', () => ( {
+  getTrace: vi.fn()
+} ) );
+
+vi.mock( '#utils/trace_extractor.js', () => ( {
+  extractDatasetFromTrace: vi.fn().mockReturnValue( { input: { a: 1 }, output: { ok: true }, executionTimeMs: 5 } )
+} ) );
+
 vi.mock( '#utils/scenario_resolver.js', () => ( {
   resolveScenarioPath: vi.fn(),
   getScenarioNotFoundMessage: vi.fn().mockReturnValue( 'not found' )
@@ -79,6 +91,76 @@ describe( 'workflow dataset generate command', () => {
         expect.objectContaining( { workflowName: 'my_workflow', catalog: 'my-catalog' } ),
         expect.anything()
       );
+    } );
+  } );
+
+  describe( 'run() --download', () => {
+    const createDownloadCommand = async ( flagOverrides: Record<string, unknown> = {} ) => {
+      const DatasetGenerate = ( await import( './generate.js' ) ).default;
+      const { fetchWorkflowRuns } = await import( '#services/workflow_runs.js' );
+      const { getTrace } = await import( '#services/trace_reader.js' );
+      const { writeDataset } = await import( '#services/datasets.js' );
+
+      const cmd = new DatasetGenerate( [ 'my_workflow' ], {} as any );
+      cmd.log = vi.fn();
+      cmd.warn = vi.fn() as any;
+      cmd.error = vi.fn( () => {
+        throw new Error( 'error called' );
+      } ) as any;
+      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+        args: { workflowName: 'my_workflow', scenario: undefined },
+        flags: { catalog: 'my-catalog', trace: undefined, name: undefined, download: true, limit: 5, input: undefined, ...flagOverrides }
+      } );
+
+      return {
+        cmd,
+        fetchWorkflowRuns: vi.mocked( fetchWorkflowRuns ),
+        getTrace: vi.mocked( getTrace ),
+        writeDataset: vi.mocked( writeDataset )
+      };
+    };
+
+    it( 'fetches recent runs scoped to the catalog and writes a dataset per run', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( {
+        runs: [ { workflowId: 'wf-1' }, { workflowId: 'wf-2' } ],
+        count: 2
+      } as any );
+      getTrace.mockResolvedValue( { data: {}, location: { path: 'remote', isRemote: true } } as any );
+
+      await cmd.run();
+
+      expect( fetchWorkflowRuns ).toHaveBeenCalledWith( { workflowType: 'my_workflow', catalog: 'my-catalog', limit: 5 } );
+      expect( getTrace ).toHaveBeenCalledTimes( 2 );
+      expect( getTrace ).toHaveBeenCalledWith( 'wf-1' );
+      expect( getTrace ).toHaveBeenCalledWith( 'wf-2' );
+      expect( writeDataset ).toHaveBeenCalledTimes( 2 );
+    } );
+
+    it( 'skips runs whose trace cannot be fetched and continues', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( {
+        runs: [ { workflowId: 'wf-1' }, { workflowId: 'wf-2' } ],
+        count: 2
+      } as any );
+      getTrace
+        .mockRejectedValueOnce( new Error( 'no trace available' ) )
+        .mockResolvedValueOnce( { data: {}, location: { path: 'remote', isRemote: true } } as any );
+
+      await cmd.run();
+
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( 'wf-1' ) );
+      expect( writeDataset ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'reports when no recent runs are found', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( { runs: [], count: 0 } as any );
+
+      await cmd.run();
+
+      expect( getTrace ).not.toHaveBeenCalled();
+      expect( writeDataset ).not.toHaveBeenCalled();
     } );
   } );
 } );
