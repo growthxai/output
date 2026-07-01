@@ -4,7 +4,7 @@ import { EnvHttpProxyAgent, fetch } from 'undici';
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day
 
-/** Custom dispatcher to disable HTTP/2. See [OUT-505] */
+/* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
 
 export const cache = {

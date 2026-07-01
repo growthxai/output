@@ -8,8 +8,9 @@ import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#co
 
 const log = createChildLogger( 'HttpClient' );
 
-/** Ignore HTTP/2. Check OUT-505 */
+/* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
+
 /**
  * Send a HTTP request.
  *

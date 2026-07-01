@@ -12,7 +12,7 @@ import { createVertex } from '@ai-sdk/google-vertex';
 const customDispatcher = new EnvHttpProxyAgent( {
   headersTimeout: 15 * 60 * 1000, // 15 min
   bodyTimeout: 15 * 60 * 1000,
-  allowH2: false // Ignore HTTP/2. Check OUT-505
+  allowH2: false // Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299
 } );
 
 /** This custom fetch instance uses the custom dispatcher */

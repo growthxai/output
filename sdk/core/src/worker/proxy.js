@@ -14,7 +14,7 @@ export const bootstrapFetchProxy = () => {
 
   if ( httpProxyUrl?.length > 0 || httpsProxyUrl?.length > 0 ) {
     log.info( 'Proxy env vars detected, setting up global fetch dispatcher EnvHttpProxyAgent', { httpProxyUrl, httpsProxyUrl } );
-    /** Ignore HTTP/2. Check OUT-505 */
+    /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
     setGlobalDispatcher( new EnvHttpProxyAgent( { allowH2: false } ) );
   }
 };

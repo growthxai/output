@@ -4,7 +4,7 @@ import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
 import { addRequestIdToResponse } from './utils.js';
 
-/** Custom dispatcher to avoid h2 problems [OUT-505] */
+/* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
 
 /*
