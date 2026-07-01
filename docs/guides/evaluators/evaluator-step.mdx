@@ -106,6 +106,8 @@ Evaluators are called from workflows like regular async functions — `await jud
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `fn` | `function` | The evaluator implementation (must return an `EvaluationResult`) |
 
+Evaluator names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
+
 ## EvaluationResult Types
 
 Evaluators must return an `EvaluationResult`. Three types are available depending on what you're scoring:

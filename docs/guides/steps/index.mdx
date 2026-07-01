@@ -50,6 +50,8 @@ Steps are called from workflows like regular async functions — `await lookupCo
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `fn` | `function` | The step implementation |
 
+Step names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
+
 ## Steps vs Workflows
 
 <CardGroup cols={2}>
