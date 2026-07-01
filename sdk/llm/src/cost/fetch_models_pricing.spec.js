@@ -88,6 +88,43 @@ describe( 'fetchModelsPricing', () => {
     expect( result.size ).toBeGreaterThan( 0 );
   } );
 
+  it( 'returns null when fetch rejects and no cache', async () => {
+    const error = new Error( 'network failure' );
+    fetchMock.mockRejectedValueOnce( error );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBeNull();
+  } );
+
+  it( 'returns stale cache when fetch rejects but cache exists', async () => {
+    stubFetch( okResponse( fixture ) );
+    const staleCache = await fetchModelsPricing();
+    cache.expiresAt = 0; // force refetch so we hit the catch path
+
+    const error = Object.assign( new Error( 'socket closed' ), { code: 'UND_ERR_SOCKET' } );
+    fetchMock.mockRejectedValueOnce( error );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBe( staleCache );
+  } );
+
+  it( 'returns stale cache when response JSON parsing fails but cache exists', async () => {
+    stubFetch( okResponse( fixture ) );
+    const staleCache = await fetchModelsPricing();
+    cache.expiresAt = 0; // force refetch so parsing errors can fall back to cache
+
+    stubFetch( {
+      ok: true,
+      json: () => Promise.reject( new SyntaxError( 'Unexpected token' ) )
+    } );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBe( staleCache );
+  } );
+
   it( 'returns cached Map when cache is still valid', async () => {
     const fetchMock = stubFetch( okResponse( fixture ) );
 
