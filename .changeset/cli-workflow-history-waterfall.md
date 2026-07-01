@@ -1,7 +1,0 @@
----
-"@outputai/cli": patch
----
-
-Add `output workflow history <workflowId>` — renders a run's step timeline as a terminal waterfall (each step's start offset and duration), mirroring the Agents HQ Timeline view. It pages the `GET /workflow/{id}/history` endpoint and correlates the Temporal events into per-step spans (numbering parallel fan-outs `#1..#N`). `--format json` emits the structured spans, `--raw` prints the endpoint's verbatim response, and `--run-id`, `--include-payloads`, `--width`, and `--no-color` are supported. Failed steps list their error reason beneath the chart (when payloads are included), and `FORCE_COLOR` forces ANSI output through a pipe.
-
-The same waterfall is available in the `output dev` TUI: from the Recent Runs tab, press `g` on any run to open its step graph as a full-width overlay. The overlay shows the run's status, start time, and duration, and live-updates while the run is in progress (the time axis tracks elapsed wall-clock and running bars grow). Select a step with `↑/↓` to inspect its input, output, and timing (start/end/duration) in the detail pane; `←/→` switches tabs and `e` expands a field full-screen.

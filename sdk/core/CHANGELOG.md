@@ -1,5 +1,12 @@
 # @outputai/core
 
+## 0.9.1
+
+### Patch Changes
+
+- 0964a83: - Disabled HTTP/2 (`allowH2: false`) in the global fetch dispatcher configured by `setGlobalDispatcher` when proxy env vars are detected;
+  - Disabled HTTP/2 (`allowH2: false`) in the webhook functions `sendHttpRequest` and `sendPostRequestAndAwaitWebhook` by using a dispatcher (`EnvHttpProxyAgent`).
+
 ## 0.9.0
 
 ### Patch Changes
