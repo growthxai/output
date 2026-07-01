@@ -1,5 +1,14 @@
 # @outputai/http
 
+## 0.9.1
+
+### Patch Changes
+
+- 0964a83: - Added a custom dispatcher that disables HTTP/2 (`allowH2: false`) on fetch, it uses `EnvHttpProxyAgent`;
+  - Added support for dispatcher in the init argument of fetch; it has precedence over the custom dispatcher.
+- Updated dependencies [0964a83]
+  - @outputai/core@0.9.1
+
 ## 0.9.0
 
 ### Patch Changes

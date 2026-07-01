@@ -1,5 +1,14 @@
 # @outputai/llm
 
+## 0.9.1
+
+### Patch Changes
+
+- 0964a83: - Disabled HTTP/2 (`allowH2: false`) in the dispatcher of the fetch client used when consuming the AI SDK and fetching model pricing;
+  - Replaced the `Agent` dispatcher in favor of `EnvHttpProxyAgent` to respect the proxy env vars. [OUT-506].
+- Updated dependencies [0964a83]
+  - @outputai/core@0.9.1
+
 ## 0.9.0
 
 ### Patch Changes
