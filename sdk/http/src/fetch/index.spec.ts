@@ -347,5 +347,21 @@ describe( 'fetch/index', () => {
 
       await dispatcher.close();
     } );
+
+    it( 'allows dispatcher undefined to disable the default dispatcher', async () => {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
+        path: '/undefined-dispatcher',
+        method: 'GET',
+        headers: { 'x-request-trace-id': FIXED_REQUEST_ID }
+      } ).reply( 200, 'ok' );
+
+      const response = await fetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
+        dispatcher: undefined
+      } );
+
+      expect( response.status ).toBe( 200 );
+      expect( await response.text() ).toBe( 'ok' );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
+    } );
   } );
 } );

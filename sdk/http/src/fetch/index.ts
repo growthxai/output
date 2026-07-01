@@ -53,7 +53,8 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   await logRequest( { requestId, request } );
 
-  const dispatcher = init?.dispatcher ?? customDispatcher;
+  // this allows for users not only to override the dispatcher but also to define it as undefined and remove it altogether.
+  const dispatcher = Object.hasOwn( init ?? {}, 'dispatcher' ) ? init?.dispatcher : customDispatcher;
   try {
     const response = await undici.fetch( request, dispatcher ? { dispatcher } : undefined );
     const durationMs = performance.now() - startedAt;
