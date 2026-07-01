@@ -184,6 +184,15 @@ describe( 'workflow dataset generate command', () => {
       expect( writeDataset ).toHaveBeenCalledTimes( 1 );
     } );
 
+    it( 'exits non-zero when every run is missing a workflow ID', async () => {
+      const { cmd, fetchWorkflowRuns, getTrace } = await createDownloadCommand();
+      fetchWorkflowRuns.mockResolvedValue( { runs: [ { workflowId: undefined }, { workflowId: undefined } ], count: 2 } as any );
+
+      await expect( cmd.run() ).rejects.toThrow( 'error called' );
+      expect( getTrace ).not.toHaveBeenCalled();
+      expect( cmd.error ).toHaveBeenCalledWith( expect.stringContaining( 'none had a workflow ID' ), { exit: 1 } );
+    } );
+
     it( 'deduplicates runs that share a workflow ID', async () => {
       const { cmd, fetchWorkflowRuns, getTrace, writeDataset } = await createDownloadCommand();
       fetchWorkflowRuns.mockResolvedValue( {

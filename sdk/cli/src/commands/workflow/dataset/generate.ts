@@ -198,8 +198,7 @@ export default class DatasetGenerate extends Command {
     // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
     const workflowIds = [ ...new Set( ids ) ];
     if ( workflowIds.length === 0 ) {
-      this.log( '\nGenerated 0 dataset(s)' );
-      return;
+      this.error( `Found ${runs.length} run(s) but none had a workflow ID.`, { exit: 1 } );
     }
 
     this.log( `Found ${workflowIds.length} run(s). Fetching traces...` );
