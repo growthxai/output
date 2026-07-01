@@ -97,6 +97,15 @@ export function handleApiError(
   if ( apiError.response?.status ) {
     const status = apiError.response.status;
 
+    // A caller-supplied override for this exact status wins over the raw server body. The API's
+    // 404 body is a bare "WorkflowNotFoundError: ..." that the friendly override is meant to
+    // replace; without this, extractApiErrorDetails consumes the body first and every command's
+    // per-status override is dead code. Defaults are not consulted here, so commands that pass no
+    // override still get the rich server detail below.
+    if ( status in overrides ) {
+      errorFn( overrides[status as keyof ErrorOverrides] as string, { exit: 1 } );
+    }
+
     // Extract error details from response body
     const apiErrorDetails = extractApiErrorDetails( apiError.response.data );
     if ( apiErrorDetails ) {

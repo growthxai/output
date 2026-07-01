@@ -1,11 +1,7 @@
-import { temporal as temporalConfig } from '#configs';
-import { logger } from '#logger';
-import { workflowNotFoundError, InvalidPageTokenError } from '../../errors.js';
+import { InvalidPageTokenError } from '../../errors.js';
 import { decodeEventPayloads, serializeEvent } from '../../event_serialization.js';
-import { GrpcStatus } from '../types.js';
 import { describeWorkflow } from './describe_workflow.js';
-
-const { namespace } = temporalConfig;
+import { fetchHistoryPage } from './fetch_history_page.js';
 
 /**
  * Serialized info about a workflow execution
@@ -51,27 +47,11 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
     return { workflow, resolvedRunId: workflow.runId };
   } )() : { workflow: null, resolvedRunId: runId };
 
-  const response = await connection.workflowService.getWorkflowExecutionHistory( {
-    namespace,
-    execution: { workflowId, runId: metadata.resolvedRunId },
+  const response = await fetchHistoryPage( connection, workflowId, metadata.resolvedRunId, {
     maximumPageSize: Math.min( pageSize, 50 ),
-    nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined
-  } ).catch( error => {
-    if ( !error ) {
-      throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
-    }
-    if ( error.code === GrpcStatus.NOT_FOUND ) {
-      throw workflowNotFoundError( workflowId, runId );
-    }
-    if ( error.code === GrpcStatus.INVALID_ARGUMENT ) {
-      throw new InvalidPageTokenError();
-    }
-    throw error;
+    nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined,
+    mapInvalidArgument: () => new InvalidPageTokenError()
   } );
-
-  if ( !response.history ) {
-    logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: metadata.resolvedRunId } );
-  }
 
   const events = ( response.history?.events || [] ).map( event => {
     const decoded = includePayloads ? decodeEventPayloads( event ) : event;
