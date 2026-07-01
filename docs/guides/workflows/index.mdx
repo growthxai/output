@@ -53,6 +53,8 @@ The `fn` function is your workflow logic. It calls steps in sequence, and each s
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `aliases` | `string[]` | Optional alternative names for backward-compatible renaming (see [Aliases](#aliases)) |
 
+Workflow names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
+
 ## Workflow Rules
 
 Workflows must be **deterministic** — given the same input, they must always follow the same path. This is because Output (via Temporal) replays your workflow code to recover state after failures. If the code produces different results on replay, recovery breaks.
@@ -237,7 +239,7 @@ export default workflow({
 
 Callers using `lead_enrichment` or `enrich_lead` are resolved to `lead_enrichment_v2` before execution. The workflow runs under its canonical name, keeping execution history consistent.
 
-Alias names follow the same naming rules as workflow names (letters, numbers, underscores). Uniqueness is enforced case-insensitively at startup — an alias cannot conflict with any workflow name or another alias.
+Alias names follow the same naming rules as workflow names: start with a letter or underscore, then use only letters, numbers, or underscores. Uniqueness is enforced case-insensitively at startup — an alias cannot conflict with any workflow name or another alias.
 
 ## Workflow Context
 
