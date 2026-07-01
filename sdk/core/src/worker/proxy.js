@@ -5,28 +5,16 @@ const log = createChildLogger( 'Proxy' );
 
 /**
  * Routes all `fetch()` calls (including those inside Temporal activities)
- * through an HTTP/HTTPS proxy when standard proxy env vars are set
- * (`HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `http_proxy`). No-op when
- * none are set. Invalid URLs are logged and skipped so the worker keeps
- * running.
- *
- * Call once at worker startup, before any network activity.
+ * through an HTTP/HTTPS proxy when standard proxy env vars are set.
+ * No-op when none are set.
  */
 export const bootstrapFetchProxy = () => {
-  const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy ||
-    process.env.HTTP_PROXY || process.env.http_proxy;
+  const httpProxyUrl = process.env.http_proxy ?? process.env.HTTP_PROXY;
+  const httpsProxyUrl = process.env.https_proxy ?? process.env.HTTPS_PROXY;
 
-  if ( !proxyUrl ) {
-    return;
+  if ( httpProxyUrl?.length > 0 || httpsProxyUrl?.length > 0 ) {
+    log.info( 'Proxy env vars detected, setting up global fetch dispatcher EnvHttpProxyAgent', { httpProxyUrl, httpsProxyUrl } );
+    /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
+    setGlobalDispatcher( new EnvHttpProxyAgent( { allowH2: false } ) );
   }
-
-  try {
-    new URL( proxyUrl );
-  } catch {
-    log.warn( 'Ignoring invalid proxy URL', { proxyUrl } );
-    return;
-  }
-
-  log.info( 'Routing fetch() through HTTP proxy', { proxyUrl } );
-  setGlobalDispatcher( new EnvHttpProxyAgent() );
 };

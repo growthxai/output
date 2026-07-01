@@ -49,6 +49,11 @@ describe( 'fetch/index', () => {
     previousDispatcher: undefined
   };
 
+  const fetchWithMockDispatcher = (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1]
+  ) => fetch( input, { ...init, dispatcher: undiciCtx.mockAgent! } );
+
   beforeEach( () => {
     undiciCtx.mockAgent = new MockAgent();
     undiciCtx.mockAgent.disableNetConnect();
@@ -80,7 +85,7 @@ describe( 'fetch/index', () => {
         { headers: { 'content-type': 'text/plain' } }
       );
 
-      const response = await fetch( `${MOCK_ORIGIN}/ok` );
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/ok` );
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'hello' );
@@ -112,7 +117,7 @@ describe( 'fetch/index', () => {
         { headers: { 'content-type': 'text/plain' } }
       );
 
-      const response = await fetch( `${MOCK_ORIGIN}/missing` );
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/missing` );
 
       expect( response.status ).toBe( 404 );
 
@@ -132,7 +137,7 @@ describe( 'fetch/index', () => {
         { headers: { 'content-type': 'text/plain' } }
       );
 
-      const response = await fetch( `${MOCK_ORIGIN}/edge` );
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/edge` );
 
       expect( response.status ).toBe( 399 );
       expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
@@ -149,7 +154,7 @@ describe( 'fetch/index', () => {
         }
       } ).reply( 200, 'ok' );
 
-      const response = await fetch( `${MOCK_ORIGIN}/with-plain-headers`, {
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/with-plain-headers`, {
         headers: { 'X-Custom': 'plain-value' }
       } );
 
@@ -172,7 +177,7 @@ describe( 'fetch/index', () => {
       const userHeaders = new Headers();
       userHeaders.set( 'X-From-Headers', 'yes' );
 
-      const response = await fetch( `${MOCK_ORIGIN}/with-headers-instance`, {
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/with-headers-instance`, {
         headers: userHeaders
       } );
 
@@ -187,7 +192,7 @@ describe( 'fetch/index', () => {
         new Error( 'simulated network failure' )
       );
 
-      await expect( fetch( `${MOCK_ORIGIN}/boom` ) ).rejects.toThrow( 'fetch failed' );
+      await expect( fetchWithMockDispatcher( `${MOCK_ORIGIN}/boom` ) ).rejects.toThrow( 'fetch failed' );
 
       expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
       expect( loggerMock.logResponse ).not.toHaveBeenCalled();
@@ -201,7 +206,7 @@ describe( 'fetch/index', () => {
     } );
 
     it( 'fails when no mock matches (disabled net)', async () => {
-      await expect( fetch( `${MOCK_ORIGIN}/unmocked` ) ).rejects.toThrow();
+      await expect( fetchWithMockDispatcher( `${MOCK_ORIGIN}/unmocked` ) ).rejects.toThrow();
 
       expect( loggerMock.logRequest ).toHaveBeenCalledTimes( 1 );
       expect( loggerMock.logResponse ).not.toHaveBeenCalled();
@@ -216,7 +221,7 @@ describe( 'fetch/index', () => {
         { headers: { 'content-type': 'application/json' } }
       );
 
-      const response = await fetch( `${MOCK_ORIGIN}/create`, {
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/create`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify( { name: 'a' } )
@@ -230,7 +235,7 @@ describe( 'fetch/index', () => {
     it( 'works when the second argument is omitted', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/bare', method: 'GET' } ).reply( 204 );
 
-      const response = await fetch( `${MOCK_ORIGIN}/bare` );
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/bare` );
 
       expect( response.status ).toBe( 204 );
       expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
@@ -246,7 +251,7 @@ describe( 'fetch/index', () => {
       );
 
       const href = new URL( '/from-url', `${MOCK_ORIGIN}/` );
-      const response = await fetch( href );
+      const response = await fetchWithMockDispatcher( href );
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'url-ok' );
@@ -257,7 +262,7 @@ describe( 'fetch/index', () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/req-only', method: 'GET' } ).reply( 200, 'r1' );
 
       const input = new Request( `${MOCK_ORIGIN}/req-only`, { method: 'GET' } );
-      const response = await fetch( input );
+      const response = await fetchWithMockDispatcher( input );
 
       expect( response.status ).toBe( 200 );
       expect( await response.text() ).toBe( 'r1' );
@@ -274,7 +279,7 @@ describe( 'fetch/index', () => {
       );
 
       const input = new Request( `${MOCK_ORIGIN}/req-plus-init`, { method: 'GET' } );
-      const response = await fetch( input, {
+      const response = await fetchWithMockDispatcher( input, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify( { name: 'override' } )
@@ -288,7 +293,7 @@ describe( 'fetch/index', () => {
     it( 'accepts string URL with explicit undefined init', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/explicit-undefined', method: 'GET' } ).reply( 200, 'ok' );
 
-      const response = await fetch( `${MOCK_ORIGIN}/explicit-undefined`, undefined );
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/explicit-undefined`, undefined );
 
       expect( response.status ).toBe( 200 );
       expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'GET' );
@@ -302,7 +307,7 @@ describe( 'fetch/index', () => {
       } ).reply( 200, '{}' );
 
       const href = new URL( '/url-post', `${MOCK_ORIGIN}/` );
-      const response = await fetch( href, {
+      const response = await fetchWithMockDispatcher( href, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}'
@@ -310,6 +315,53 @@ describe( 'fetch/index', () => {
 
       expect( response.status ).toBe( 200 );
       expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+    } );
+
+    it( 'uses caller-provided dispatcher without dropping init request options', async () => {
+      const dispatcher = new MockAgent();
+      dispatcher.disableNetConnect();
+      dispatcher.get( MOCK_ORIGIN ).intercept( {
+        path: '/custom-dispatcher',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-request-trace-id': FIXED_REQUEST_ID,
+          'x-custom': 'custom-value'
+        }
+      } ).reply( 200, 'ok' );
+
+      const response = await fetch( `${MOCK_ORIGIN}/custom-dispatcher`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Custom': 'custom-value'
+        },
+        body: '{}',
+        dispatcher
+      } );
+
+      expect( response.status ).toBe( 200 );
+      expect( await response.text() ).toBe( 'ok' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
+
+      await dispatcher.close();
+    } );
+
+    it( 'allows dispatcher undefined to disable the default dispatcher', async () => {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
+        path: '/undefined-dispatcher',
+        method: 'GET',
+        headers: { 'x-request-trace-id': FIXED_REQUEST_ID }
+      } ).reply( 200, 'ok' );
+
+      const response = await fetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
+        dispatcher: undefined
+      } );
+
+      expect( response.status ).toBe( 200 );
+      expect( await response.text() ).toBe( 'ok' );
+      expect( loggerMock.logResponse ).toHaveBeenCalledTimes( 1 );
     } );
   } );
 } );

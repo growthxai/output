@@ -4,6 +4,16 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
 
+const fetchMock = vi.hoisted( () => vi.fn() );
+const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
+  this.options = options;
+} ) );
+
+vi.mock( 'undici', () => ( {
+  EnvHttpProxyAgent: EnvHttpProxyAgentMock,
+  fetch: fetchMock
+} ) );
+
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
 const fixturePath = join( __dirname, 'fixtures', 'models_api_light.json' );
 const fixture = JSON.parse( readFileSync( fixturePath, 'utf8' ) );
@@ -14,8 +24,7 @@ const okResponse = data => ( {
   json: () => Promise.resolve( data )
 } );
 const stubFetch = response => {
-  const fetchMock = vi.fn().mockResolvedValue( response );
-  vi.stubGlobal( 'fetch', fetchMock );
+  fetchMock.mockResolvedValueOnce( response );
   return fetchMock;
 };
 
@@ -23,7 +32,7 @@ describe( 'fetchModelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
     cache.expiresAt = 0;
-    vi.unstubAllGlobals();
+    fetchMock.mockReset();
   } );
 
   it( 'returns a Map of model costs when fetch succeeds', async () => {
@@ -31,7 +40,8 @@ describe( 'fetchModelsPricing', () => {
 
     const result = await fetchModelsPricing();
 
-    expect( fetchMock ).toHaveBeenCalledWith( costTableUrl );
+    expect( EnvHttpProxyAgentMock ).toHaveBeenCalledWith( { allowH2: false } );
+    expect( fetchMock ).toHaveBeenCalledWith( costTableUrl, { dispatcher: EnvHttpProxyAgentMock.mock.results[0].value } );
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
     const firstModel = Object.values( fixture )[0];
@@ -76,6 +86,43 @@ describe( 'fetchModelsPricing', () => {
 
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBeGreaterThan( 0 );
+  } );
+
+  it( 'returns null when fetch rejects and no cache', async () => {
+    const error = new Error( 'network failure' );
+    fetchMock.mockRejectedValueOnce( error );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBeNull();
+  } );
+
+  it( 'returns stale cache when fetch rejects but cache exists', async () => {
+    stubFetch( okResponse( fixture ) );
+    const staleCache = await fetchModelsPricing();
+    cache.expiresAt = 0; // force refetch so we hit the catch path
+
+    const error = Object.assign( new Error( 'socket closed' ), { code: 'UND_ERR_SOCKET' } );
+    fetchMock.mockRejectedValueOnce( error );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBe( staleCache );
+  } );
+
+  it( 'returns stale cache when response JSON parsing fails but cache exists', async () => {
+    stubFetch( okResponse( fixture ) );
+    const staleCache = await fetchModelsPricing();
+    cache.expiresAt = 0; // force refetch so parsing errors can fall back to cache
+
+    stubFetch( {
+      ok: true,
+      json: () => Promise.reject( new SyntaxError( 'Unexpected token' ) )
+    } );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBe( staleCache );
   } );
 
   it( 'returns cached Map when cache is still valid', async () => {

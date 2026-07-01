@@ -1,5 +1,5 @@
 import { FatalError, ValidationError, z } from '@outputai/core';
-import { Agent, fetch } from 'undici';
+import { EnvHttpProxyAgent, fetch } from 'undici';
 // providers
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createAzure } from '@ai-sdk/azure';
@@ -8,10 +8,11 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createPerplexity } from '@ai-sdk/perplexity';
 import { createVertex } from '@ai-sdk/google-vertex';
 
-/** This custom dispatcher has longer timeouts */
-const customDispatcher = new Agent( {
+/** This custom dispatcher has longer timeouts. */
+const customDispatcher = new EnvHttpProxyAgent( {
   headersTimeout: 15 * 60 * 1000, // 15 min
-  bodyTimeout: 15 * 60 * 1000
+  bodyTimeout: 15 * 60 * 1000,
+  allowH2: false // Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299
 } );
 
 /** This custom fetch instance uses the custom dispatcher */

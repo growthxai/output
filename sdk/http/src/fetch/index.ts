@@ -4,6 +4,9 @@ import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import type { RequestInfo, RequestInit } from 'undici';
 import { addRequestIdToResponse } from './utils.js';
 
+/* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
+const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
+
 /*
  * Unifies undici and nodes realms
  * https://github.com/nodejs/undici#keep-fetch-and-formdata-together
@@ -50,8 +53,10 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   await logRequest( { requestId, request } );
 
+  // this allows for users not only to override the dispatcher but also to define it as undefined and remove it altogether.
+  const dispatcher = Object.hasOwn( init ?? {}, 'dispatcher' ) ? init?.dispatcher : customDispatcher;
   try {
-    const response = await undici.fetch( request );
+    const response = await undici.fetch( request, dispatcher ? { dispatcher } : undefined );
     const durationMs = performance.now() - startedAt;
 
     // This enriches the response of the request id, so it is identifiable later.

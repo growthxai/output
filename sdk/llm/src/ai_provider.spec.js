@@ -18,7 +18,14 @@ const makeProviderModules = () => Object.fromEntries(
   ] )
 );
 
-const importWithMockedProviders = async ( modules = makeProviderModules() ) => {
+const undiciSpies = vi.hoisted( () => ( {
+  EnvHttpProxyAgent: vi.fn(),
+  fetch: vi.fn()
+} ) );
+
+const importWithMockedProviders = async ( {
+  modules = makeProviderModules()
+} = {} ) => {
   await vi.resetModules();
 
   for ( const { pkg, exportName } of SHIPPED_PROVIDERS ) {
@@ -26,6 +33,20 @@ const importWithMockedProviders = async ( modules = makeProviderModules() ) => {
       [exportName]: modules[pkg][exportName]
     } ) );
   }
+
+  vi.doMock( 'undici', async importOriginal => {
+    const actual = await importOriginal();
+    undiciSpies.EnvHttpProxyAgent.mockImplementation( function EnvHttpProxyAgent( options ) {
+      return new actual.EnvHttpProxyAgent( options );
+    } );
+    undiciSpies.fetch.mockResolvedValue( new actual.Response( null, { status: 204 } ) );
+
+    return {
+      ...actual,
+      EnvHttpProxyAgent: undiciSpies.EnvHttpProxyAgent,
+      fetch: undiciSpies.fetch
+    };
+  } );
 
   return {
     modules,
@@ -37,6 +58,9 @@ afterEach( () => {
   for ( const { pkg } of SHIPPED_PROVIDERS ) {
     vi.doUnmock( pkg );
   }
+  vi.doUnmock( 'undici' );
+  undiciSpies.EnvHttpProxyAgent.mockReset();
+  undiciSpies.fetch.mockReset();
   vi.resetModules();
   vi.restoreAllMocks();
 } );
@@ -59,6 +83,41 @@ describe( 'getProvider', () => {
       expect( provider ).toMatchObject( { name, options: { fetch: expect.any( Function ) } } );
       expect( modules[pkg][exportName] ).toHaveBeenCalledWith( { fetch: expect.any( Function ) } );
     }
+
+    expect( undiciSpies.EnvHttpProxyAgent ).toHaveBeenCalledWith( {
+      headersTimeout: 15 * 60 * 1000,
+      bodyTimeout: 15 * 60 * 1000,
+      allowH2: false
+    } );
+  } );
+
+  it( 'passes the custom dispatcher through injected fetch', async () => {
+    const { getProvider } = await importWithMockedProviders();
+    const provider = getProvider( 'openai' );
+    const init = { method: 'POST', body: 'body' };
+
+    await provider.options.fetch( 'https://api.example.test', init );
+
+    expect( undiciSpies.fetch ).toHaveBeenCalledWith(
+      'https://api.example.test',
+      {
+        ...init,
+        dispatcher: undiciSpies.EnvHttpProxyAgent.mock.results[0].value
+      }
+    );
+  } );
+
+  it( 'allows injected fetch callers to override the dispatcher', async () => {
+    const { getProvider } = await importWithMockedProviders();
+    const provider = getProvider( 'openai' );
+    const dispatcher = { name: 'custom-dispatcher' };
+
+    await provider.options.fetch( 'https://api.example.test', { dispatcher } );
+
+    expect( undiciSpies.fetch ).toHaveBeenCalledWith(
+      'https://api.example.test',
+      { dispatcher }
+    );
   } );
 
   it( 'can import and initialize all installed shipped providers', async () => {
@@ -100,7 +159,7 @@ describe( 'getProvider', () => {
     modules['@ai-sdk/openai'].createOpenAI.mockImplementation( () => {
       throw new Error( 'Missing OpenAI API key' );
     } );
-    const { getProvider } = await importWithMockedProviders( modules );
+    const { getProvider } = await importWithMockedProviders( { modules } );
 
     expect( () => getProvider( 'openai' ) ).toThrow(
       'Failed to initialize provider "openai": Missing OpenAI API key'
