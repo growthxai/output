@@ -505,7 +505,7 @@ output workflow dataset list simple --format json
 
 ### output workflow dataset generate
 
-Generate a dataset for a workflow from a scenario, inline JSON, trace file, or S3:
+Generate a dataset for a workflow from a scenario, inline JSON, a local trace file, or recent runs:
 
 ```bash
 output workflow dataset generate <workflowName> [scenario]
@@ -524,8 +524,9 @@ output workflow dataset generate <workflowName> [scenario]
 | `--input, -i` | — | Workflow input as JSON string or file path (overrides scenario) |
 | `--name, -n` | — | Dataset name (defaults to scenario name or trace filename) |
 | `--trace, -t` | — | Path to a local trace file to extract dataset from. Exclusive with `--download` |
-| `--download, -d` | false | Download traces from S3 and create datasets. Exclusive with `--trace` |
-| `--limit, -l` | 5 | Maximum number of traces to download from S3 |
+| `--download, -d` | false | Generate datasets from recent workflow runs, fetched via the Output API. Exclusive with `--trace` |
+| `--limit, -l` | 5 | Maximum number of recent runs to fetch |
+| `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog to scope runs to (used with `--download`) |
 
 ```bash
 # Generate from a scenario
@@ -537,7 +538,7 @@ output workflow dataset generate simple --input '{"values": [1, 2, 3]}' --name c
 # Generate from a local trace file
 output workflow dataset generate simple --trace logs/runs/simple/trace.json --name from_trace
 
-# Download recent traces from S3 and create datasets
+# Generate datasets from the most recent runs (traces fetched via the API)
 output workflow dataset generate simple --download --limit 10
 ```
 

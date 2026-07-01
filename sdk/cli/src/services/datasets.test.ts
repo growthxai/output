@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import yaml from 'js-yaml';
-import { readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir } from './datasets.js';
+import { readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir, datasetFilePath } from './datasets.js';
 import * as catalog from '#api/workflow_catalog.js';
 
 vi.mock( '#api/workflow_catalog.js', () => ( {
@@ -321,5 +321,16 @@ describe( 'resolveDefaultDatasetsDir', () => {
     const dir = await resolveDefaultDatasetsDir( 'unknown_flow', ctx.tmpDir );
 
     expect( dir ).toBe( join( ctx.tmpDir, 'src', 'workflows', 'unknown_flow', 'tests', 'datasets' ) );
+  } );
+} );
+
+describe( 'datasetFilePath', () => {
+  it( 'joins the directory with a .yml file named after the case', () => {
+    expect( datasetFilePath( '/datasets', 'basic_input' ) ).toBe( join( '/datasets', 'basic_input.yml' ) );
+  } );
+
+  it( 'replaces path separators and other unsafe characters so the name cannot escape the directory', () => {
+    expect( datasetFilePath( '/datasets', '../../escape' ) ).toBe( join( '/datasets', '.._.._escape.yml' ) );
+    expect( datasetFilePath( '/datasets', 'a/b c' ) ).toBe( join( '/datasets', 'a_b_c.yml' ) );
   } );
 } );
