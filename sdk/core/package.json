@@ -3,6 +3,9 @@
   "version": "0.9.1",
   "description": "The core module of the output framework",
   "type": "module",
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "exports": {
     ".": {
       "types": "./src/index.d.ts",

@@ -22,7 +22,7 @@ Output.ai is an AI framework for building reliable production-ready LLM workflow
 
 ## Tech Stack Context
 
-- Runtime: Node.js 24.3 with ES modules
+- Runtime: Node.js >=24.15.0
 - Workflow orchestration: Temporal
 - LLM providers: Anthropic, OpenAI (via AI SDK)
 - Testing: Vitest

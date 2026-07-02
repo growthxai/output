@@ -3,6 +3,9 @@
   "version": "0.9.1",
   "description": "The Output.ai Framework",
   "type": "module",
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "dependencies": {
     "@outputai/cli": "workspace:",
     "@outputai/core": "workspace:",
