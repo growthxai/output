@@ -35,9 +35,7 @@ The API server reads these environment variables:
 
 ### AWS Credential Permissions
 
-The API reads remote traces from S3 on behalf of the CLI — `output workflow debug`, `output workflow cost`, and `output workflow dataset generate --download` all call the API's trace-log endpoint rather than talking to S3 directly. The CLI itself needs no AWS credentials.
-
-For the API to serve those traces, the credentials in `OUTPUT_AWS_ACCESS_KEY_ID` / `OUTPUT_AWS_SECRET_ACCESS_KEY` must allow **read** access to the trace bucket:
+The API only reads traces — the worker is what uploads them (see [Tracing](/operations/tracing#aws-credential-permissions) for the write-side policy). The credentials in `OUTPUT_AWS_ACCESS_KEY_ID` / `OUTPUT_AWS_SECRET_ACCESS_KEY` must allow **read** access to the trace bucket:
 
 | Action | Resource | Why |
 |--------|----------|-----|
