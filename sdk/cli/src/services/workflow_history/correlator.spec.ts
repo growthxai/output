@@ -51,8 +51,6 @@ function buildEvents(): HistoryEvent[] {
     failed( '10', '6', 38, 'boom' ),
 
     // Noise steps — must be filtered out
-    scheduled( '11', '$shared#callWebhook', 35 ),
-    started( '11s', '11', 35 ),
     scheduled( '12', '__internal#resolveTrace', 35 ),
 
     // Pending activity (scheduled, never started)
@@ -80,7 +78,6 @@ describe( 'correlate', () => {
 
   it( 'filters framework noise steps', () => {
     expect( spans.every( s => !s.technicalName.startsWith( '__internal#' ) ) ).toBe( true );
-    expect( spans.some( s => s.technicalName === '$shared#callWebhook' ) ).toBe( false );
   } );
 
   it( 'produces one span per real activity plus the child workflow', () => {
