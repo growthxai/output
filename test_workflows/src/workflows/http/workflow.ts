@@ -1,6 +1,13 @@
 import { workflow, z } from '@outputai/core';
-import { httpBinResponseSchema } from './types.js';
-import { listClientsStep, createClientStep, exportClientsStep, listContractsStep, createContractStep } from './steps.js';
+import { httpBinResponseSchema, responseMetadataSchema } from './types.js';
+import {
+  listClientsStep,
+  createClientStep,
+  exportClientsStep,
+  exportMetadataStep,
+  listContractsStep,
+  createContractStep
+} from './steps.js';
 
 export default workflow( {
   name: 'http',
@@ -9,6 +16,7 @@ export default workflow( {
     clientsListResponse: httpBinResponseSchema,
     createClientResponse: httpBinResponseSchema,
     exportResponse: httpBinResponseSchema,
+    exportMetadataResponse: responseMetadataSchema,
     contractsListResponse: httpBinResponseSchema,
     createContractResponse: httpBinResponseSchema
   } ),
@@ -19,6 +27,7 @@ export default workflow( {
       email: 'test@example.com'
     } );
     const exportResponse = await exportClientsStep();
+    const exportMetadataResponse = await exportMetadataStep();
     const contractsListResponse = await listContractsStep();
     const createContractResponse = await createContractStep( {
       clientId: 'test-client-123',
@@ -30,6 +39,7 @@ export default workflow( {
       clientsListResponse,
       createClientResponse,
       exportResponse,
+      exportMetadataResponse,
       contractsListResponse,
       createContractResponse
     };

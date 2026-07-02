@@ -1,5 +1,5 @@
 import { httpClient, HttpClientOptions, addRequestCost } from '@outputai/http';
-import type { HttpBinResponse, ClientInput, ContractInput } from './types.js';
+import type { HttpBinResponse, ClientInput, ContractInput, ResponseMetadata } from './types.js';
 
 const httpBinClient = httpClient( {
   prefixUrl: 'https://httpbin.io/anything',
@@ -49,6 +49,26 @@ export async function exportClients(): Promise<HttpBinResponse> {
     headers: {} // This removes inherited headers
   } );
   return response.json() as Promise<HttpBinResponse>;
+}
+
+/**
+ * Get export response metadata without consuming the response body
+ * Drains the unused response body so native buffers can be released
+ */
+export async function getExportMetadata(): Promise<ResponseMetadata> {
+  const response = await clientsClient.get( 'export', {
+    headers: {}
+  } );
+
+  try {
+    return {
+      status: response.status,
+      url: response.url,
+      contentType: response.headers.get( 'content-type' )
+    };
+  } finally {
+    await response.body?.cancel();
+  }
 }
 
 /**

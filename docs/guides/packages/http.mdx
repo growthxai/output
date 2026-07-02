@@ -176,6 +176,8 @@ const inputCost = Number( response.headers.get( 'x-cost-input-usd' ) ?? 0 );
 const outputCost = Number( response.headers.get( 'x-cost-output-usd' ) ?? 0 );
 
 addRequestCost( response, inputCost + outputCost );
+
+response.body?.cancel();
 ```
 
 `addRequestCost` accepts the total request cost as a number.
