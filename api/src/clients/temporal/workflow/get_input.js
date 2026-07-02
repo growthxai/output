@@ -1,4 +1,4 @@
-import { workflowNotFoundError } from '../../errors.js';
+import { workflowNotFoundError, WorkflowMissingRunIdError } from '../../errors.js';
 import { describeWorkflow } from './describe_workflow.js';
 import { extractWorkflowInput } from './get_result.js';
 import { fetchHistoryPage } from './fetch_history_page.js';
@@ -17,6 +17,7 @@ import { fetchHistoryPage } from './fetch_history_page.js';
  * @param {string} [runId] - Optional specific run id; defaults to the original run of the chain
  * @returns {Promise<{ workflowId: string, runId: string, input: any }>}
  * @throws {WorkflowNotFoundError}
+ * @throws {WorkflowMissingRunIdError}
  */
 export const getInput = async ( { client, connection }, workflowId, runId ) => {
   // For a pinned runId the run is already known, so skip the describe round-trip; the history
@@ -27,7 +28,7 @@ export const getInput = async ( { client, connection }, workflowId, runId ) => {
     if ( !description.runId ) {
       // Temporal should always report a runId; fail loudly rather than silently fall back to an
       // unpinned (latest-run) read, which would race continueAsNew and drop the runId field.
-      throw new Error( `Temporal did not report a runId for workflow "${workflowId}"` );
+      throw new WorkflowMissingRunIdError( workflowId );
     }
     return description.runId;
   } )();

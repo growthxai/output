@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WorkflowNotCompletedError, WorkflowNotFoundError } from '../../errors.js';
+import { WorkflowNotCompletedError } from '../../errors.js';
 import { WorkflowStatus } from '../types.js';
 
 const {
@@ -7,30 +7,24 @@ const {
   mockFormatStatus,
   mockBuildWorkflowResult,
   mockLoggerWarn,
-  MockWorkflowFailedError,
-  MockWorkflowNotFoundError
+  mockFetchHistoryPage,
+  MockWorkflowFailedError
 } = vi.hoisted( () => {
   class MockWorkflowFailedError extends Error {}
-  class MockWorkflowNotFoundError extends Error {}
 
   return {
     mockFromPayload: vi.fn(),
     mockFormatStatus: vi.fn(),
     mockBuildWorkflowResult: vi.fn(),
     mockLoggerWarn: vi.fn(),
-    MockWorkflowFailedError,
-    MockWorkflowNotFoundError
+    mockFetchHistoryPage: vi.fn(),
+    MockWorkflowFailedError
   };
 } );
 
 vi.mock( '@temporalio/client', () => ( {
   defaultPayloadConverter: { fromPayload: mockFromPayload },
-  WorkflowFailedError: MockWorkflowFailedError,
-  WorkflowNotFoundError: MockWorkflowNotFoundError
-} ) );
-
-vi.mock( '#configs', () => ( {
-  temporal: { namespace: 'default' }
+  WorkflowFailedError: MockWorkflowFailedError
 } ) );
 
 vi.mock( '#logger', () => ( {
@@ -44,6 +38,10 @@ vi.mock( '../workflow_result.js', () => ( {
 vi.mock( '../types.js', async importOriginal => ( {
   ...( await importOriginal() ),
   formatStatus: mockFormatStatus
+} ) );
+
+vi.mock( './fetch_history_page.js', () => ( {
+  fetchHistoryPage: mockFetchHistoryPage
 } ) );
 
 describe( 'extractWorkflowInput', () => {
@@ -79,7 +77,7 @@ describe( 'getResult', () => {
     mockBuildWorkflowResult.mockImplementation( args => ( { shaped: args } ) );
   } );
 
-  const makeGetResult = ( { describe, result, historyResponse, getHistoryError } = {} ) => {
+  const makeGetResult = ( { describe, result, historyResponse, historyError } = {} ) => {
     const latestHandle = {
       describe: vi.fn().mockResolvedValue( describe ?? {
         runId: 'resolved-run',
@@ -93,12 +91,11 @@ describe( 'getResult', () => {
     const getHandle = vi.fn()
       .mockReturnValueOnce( latestHandle )
       .mockReturnValue( pinnedHandle );
-    const getWorkflowExecutionHistory = vi.fn();
 
-    if ( getHistoryError !== undefined ) {
-      getWorkflowExecutionHistory.mockRejectedValue( getHistoryError );
+    if ( historyError !== undefined ) {
+      mockFetchHistoryPage.mockRejectedValue( historyError );
     } else {
-      getWorkflowExecutionHistory.mockResolvedValue( historyResponse ?? {
+      mockFetchHistoryPage.mockResolvedValue( historyResponse ?? {
         history: {
           events: [ {
             workflowExecutionStartedEventAttributes: { input: { payloads: [ { input: true } ] } }
@@ -111,9 +108,8 @@ describe( 'getResult', () => {
       latestHandle,
       pinnedHandle,
       getHandle,
-      getWorkflowExecutionHistory,
       client: { workflow: { getHandle } },
-      connection: { workflowService: { getWorkflowExecutionHistory } }
+      connection: { workflowService: {} }
     };
   };
 
@@ -124,7 +120,7 @@ describe( 'getResult', () => {
     const { getResult } = await import( './get_result.js' );
 
     await expect( getResult( fixtures, 'workflow-id' ) ).rejects.toBeInstanceOf( WorkflowNotCompletedError );
-    expect( fixtures.getWorkflowExecutionHistory ).not.toHaveBeenCalled();
+    expect( mockFetchHistoryPage ).not.toHaveBeenCalled();
   } );
 
   it( 'throws before history fetch when a terminal describe has no runId', async () => {
@@ -134,7 +130,7 @@ describe( 'getResult', () => {
     const { getResult } = await import( './get_result.js' );
 
     await expect( getResult( fixtures, 'workflow-id' ) ).rejects.toThrow( /did not report a runId/ );
-    expect( fixtures.getWorkflowExecutionHistory ).not.toHaveBeenCalled();
+    expect( mockFetchHistoryPage ).not.toHaveBeenCalled();
   } );
 
   it( 'pins latest-run result reads to the described runId and returns completed output', async () => {
@@ -146,11 +142,7 @@ describe( 'getResult', () => {
 
     expect( fixtures.getHandle ).toHaveBeenNthCalledWith( 1, 'workflow-id', undefined );
     expect( fixtures.getHandle ).toHaveBeenNthCalledWith( 2, 'workflow-id', 'resolved-run' );
-    expect( fixtures.getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
-      namespace: 'default',
-      execution: { workflowId: 'workflow-id', runId: 'resolved-run' },
-      maximumPageSize: 1
-    } );
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( fixtures.connection, 'workflow-id', 'resolved-run', { maximumPageSize: 1 } );
     expect( mockFormatStatus ).toHaveBeenCalledWith( 'COMPLETED' );
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
       workflowId: 'workflow-id',
@@ -171,11 +163,11 @@ describe( 'getResult', () => {
       result: vi.fn().mockResolvedValue( { output: null } )
     };
     const getHandle = vi.fn().mockReturnValue( explicitHandle );
-    const getWorkflowExecutionHistory = vi.fn().mockResolvedValue( { history: { events: [] } } );
+    mockFetchHistoryPage.mockResolvedValue( { history: { events: [] } } );
     const { getResult } = await import( './get_result.js' );
     const internals = {
       client: { workflow: { getHandle } },
-      connection: { workflowService: { getWorkflowExecutionHistory } }
+      connection: { workflowService: {} }
     };
 
     await getResult( internals, 'workflow-id', 'explicit-run' );
@@ -247,27 +239,20 @@ describe( 'getResult', () => {
     } );
   } );
 
-  it( 'maps NOT_FOUND history errors to WorkflowNotFoundError and propagates other history errors', async () => {
-    const notFound = Object.assign( new Error( 'missing' ), { code: 5 } );
-    const unavailable = Object.assign( new Error( 'unavailable' ), { code: 14 } );
+  it( 'propagates errors from fetchHistoryPage unchanged', async () => {
+    const unavailable = new Error( 'unavailable' );
+    const fixtures = makeGetResult( { historyError: unavailable } );
     const { getResult } = await import( './get_result.js' );
 
-    await expect( getResult( makeGetResult( { getHistoryError: notFound } ), 'workflow-id' ) )
-      .rejects.toBeInstanceOf( WorkflowNotFoundError );
-    await expect( getResult( makeGetResult( { getHistoryError: unavailable } ), 'workflow-id' ) )
-      .rejects.toBe( unavailable );
+    await expect( getResult( fixtures, 'workflow-id' ) ).rejects.toBe( unavailable );
   } );
 
-  it( 'warns and returns null input when the history response has no history field', async () => {
+  it( 'returns null input when the history response has no history field', async () => {
     const fixtures = makeGetResult( { historyResponse: {} } );
     const { getResult } = await import( './get_result.js' );
 
     await getResult( fixtures, 'workflow-id' );
 
-    expect( mockLoggerWarn ).toHaveBeenCalledWith(
-      'Temporal getWorkflowExecutionHistory returned no history field',
-      { workflowId: 'workflow-id', runId: 'resolved-run' }
-    );
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( expect.objectContaining( { input: null } ) );
   } );
 } );
