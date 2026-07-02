@@ -59,7 +59,6 @@ interface TerminalFields {
 // Framework-level activities the user doesn't care about — Output's own trace
 // destination resolution and the lifecycle webhook back to Atlas.
 const NOISE_STEP_PREFIXES = [ '__internal#' ];
-const NOISE_STEP_EXACT = [ '$shared#callWebhook' ];
 
 const ACTIVITY_TERMINAL_TYPES = [
   'ACTIVITY_TASK_COMPLETED', 'ACTIVITY_TASK_FAILED',
@@ -135,8 +134,7 @@ function cleanStepName( scheduled: HistoryEvent ): string {
 }
 
 function isNoise( stepName: string ): boolean {
-  return NOISE_STEP_EXACT.includes( stepName ) ||
-    NOISE_STEP_PREFIXES.some( prefix => stepName.startsWith( prefix ) );
+  return NOISE_STEP_PREFIXES.some( prefix => stepName.startsWith( prefix ) );
 }
 
 function failureMessageOf( attrs: Record<string, unknown> ): string | null {
