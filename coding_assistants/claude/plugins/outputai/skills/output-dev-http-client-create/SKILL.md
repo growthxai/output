@@ -456,7 +456,25 @@ timeout: 30000
 timeout: 60000
 ```
 
-### 4. Export TypeScript Interfaces
+### 4. Consume or Cancel Response Bodies
+
+`httpClient` follows fetch semantics: callers own returned response bodies. Prefer body readers like `.json()` or `.text()`
+when the payload is needed. If a request only reads metadata such as `response.url`, `response.status`, or headers, cancel the
+unused body in a `finally` block.
+
+```typescript
+const response = await client.get( url );
+
+try {
+  return response.url;
+} finally {
+  await response.body?.cancel();
+}
+```
+
+`HEAD` requests do not have response bodies, so this is only needed for methods that can return one.
+
+### 5. Export TypeScript Interfaces
 
 ```typescript
 // Export interfaces for consumers
@@ -481,6 +499,7 @@ export interface ServiceResponse {
 - [ ] Retry configuration for appropriate status codes
 - [ ] FatalError used for 401, 403, 404 responses
 - [ ] ValidationError used for 429, 5xx responses
+- [ ] Non-HEAD responses are consumed or cancelled when only metadata is used
 - [ ] JSDoc documentation for exported functions
 - [ ] TypeScript interfaces exported for response types
 

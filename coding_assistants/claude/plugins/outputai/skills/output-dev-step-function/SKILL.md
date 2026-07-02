@@ -244,6 +244,19 @@ const response = await httpClientInstance.head( url );
 const contentType = response.headers.get( 'content-type' );
 ```
 
+When a non-`HEAD` request only uses response metadata, such as `response.url`, `response.status`, or headers, cancel the
+unused body in a `finally` block. Responses read with `.json()`, `.text()`, etc. are already consumed.
+
+```typescript
+const response = await httpClientInstance.get( url );
+
+try {
+  return response.url;
+} finally {
+  await response.body?.cancel();
+}
+```
+
 **Related Skill**: `output-dev-http-client-create` for creating shared clients
 
 ## LLM Operations
@@ -560,6 +573,7 @@ fn: async input => {
 - [ ] Each step has `name`, `description`, `inputSchema`, `outputSchema`, `fn`
 - [ ] FatalError used for non-retryable failures
 - [ ] ValidationError used for retryable failures
+- [ ] Non-HEAD HTTP responses are consumed or cancelled when only metadata is used
 - [ ] No bare try-catch blocks that swallow errors
 - [ ] Steps only import allowed dependencies (local files, shared code)
 - [ ] No imports of other steps, evaluators, or workflows

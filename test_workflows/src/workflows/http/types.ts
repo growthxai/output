@@ -23,6 +23,12 @@ export interface ContractInput {
   value: number;
 }
 
+export interface ResponseMetadata {
+  status: number;
+  url: string;
+  contentType: string | null;
+}
+
 export const httpBinResponseSchema = z.object( {
   args: z.record( z.string(), z.union( [ z.string(), z.array( z.string() ) ] ) ),
   headers: z.record( z.string(), z.array( z.string() ) ),
@@ -33,4 +39,10 @@ export const httpBinResponseSchema = z.object( {
   files: z.record( z.string(), z.unknown() ),
   form: z.record( z.string(), z.union( [ z.string(), z.array( z.string() ) ] ) ),
   json: z.unknown()
+} );
+
+export const responseMetadataSchema = z.object( {
+  status: z.number(),
+  url: z.string(),
+  contentType: z.string().nullable()
 } );

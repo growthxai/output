@@ -152,6 +152,21 @@ const data = await client.get( 'search', {
 } ).json();
 ```
 
+### Metadata-Only Responses
+
+When code only reads metadata from a non-`HEAD` response, such as `response.url`, `response.status`, or headers, cancel the
+unused body. Reading a body with `.json()`, `.text()`, etc. already consumes it.
+
+```typescript
+const response = await client.get( url );
+
+try {
+  return response.url;
+} finally {
+  await response.body?.cancel();
+}
+```
+
 ## Complete Migration Example
 
 ### Before (Wrong - using axios)

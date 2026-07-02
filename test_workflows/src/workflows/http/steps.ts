@@ -1,6 +1,6 @@
 import { step, z } from '@outputai/core';
-import { getClients, createClient, exportClients, getContracts, createContract } from './api_client.js';
-import { ClientInput, ContractInput, httpBinResponseSchema } from './types.js';
+import { getClients, createClient, exportClients, getExportMetadata, getContracts, createContract } from './api_client.js';
+import { ClientInput, ContractInput, httpBinResponseSchema, responseMetadataSchema } from './types.js';
 
 // Test GET request to clients endpoint using API key authentication
 export const listClientsStep = step( {
@@ -35,6 +35,17 @@ export const exportClientsStep = step( {
   outputSchema: httpBinResponseSchema,
   fn: async () => {
     const response = await exportClients();
+    return response;
+  }
+} );
+
+// Test metadata-only response handling and drain the unused response body
+export const exportMetadataStep = step( {
+  name: 'exportMetadataStep',
+  description: 'Test GET request metadata handling with body drain',
+  outputSchema: responseMetadataSchema,
+  fn: async () => {
+    const response = await getExportMetadata();
     return response;
   }
 } );
