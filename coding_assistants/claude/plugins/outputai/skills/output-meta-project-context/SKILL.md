@@ -82,6 +82,7 @@ src/
 |------|---------|-----------|
 | Zod import | `import { z } from '@outputai/core'` | `import { z } from 'zod'` |
 | HTTP client | `import { httpClient } from '@outputai/http'` | `import axios from 'axios'` |
+| HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
 | Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
 | LLM calls | `import { generateText, Output } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
