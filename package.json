@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "description": "The core project that contains the SDK npm modules and the API for the output.ai framework",
   "type": "module",
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "scripts": {
     "prepare": "command -v git > /dev/null && husky || true",
     "lint": "eslint",

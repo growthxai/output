@@ -4,6 +4,9 @@
   "description": "A simple output core abstract",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "scripts": {
     "output:worker:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
     "output:worker:build": "rm -rf dist/* && tsc && output-copy-assets",

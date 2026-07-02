@@ -4,6 +4,9 @@
   "description": "A simple flow core abstract",
   "type": "module",
   "main": "index.js",
+  "engines": {
+    "node": ">=24.15.0"
+  },
   "scripts": {
     "build": "npm run generate:openapi",
     "generate:openapi": "node ./scripts/generate_openapi.js"
