@@ -11,11 +11,6 @@
  * START_CHILD_WORKFLOW_EXECUTION_INITIATED opens the span, then
  * CHILD_WORKFLOW_EXECUTION_STARTED / _COMPLETED / _FAILED / _TIMED_OUT /
  * _CANCELED / _TERMINATED reference it via `initiatedEventId`.
- *
- * Pure function — no I/O. A TypeScript port of Atlas's
- * `OutputWorkflows::WorkflowHistory::Correlator` (Ruby). Kept structurally
- * faithful so the two stay easy to diff. The CLI has no step catalog, so a
- * span's display name is the humanized step name rather than a catalog label.
  */
 import { capitalCase } from 'change-case';
 
@@ -56,9 +51,8 @@ interface TerminalFields {
   failureMessage?: string | null;
 }
 
-// Framework-level activities the user doesn't care about — Output's own trace
-// destination resolution and the lifecycle webhook back to Atlas.
-const NOISE_STEP_PREFIXES = [ '__internal#' ];
+// These are internal activities of the framework
+const INTERNAL_ACTIVITIES_PREFIX = [ '__internal#' ];
 
 const ACTIVITY_TERMINAL_TYPES = [
   'ACTIVITY_TASK_COMPLETED', 'ACTIVITY_TASK_FAILED',
@@ -134,7 +128,7 @@ function cleanStepName( scheduled: HistoryEvent ): string {
 }
 
 function isNoise( stepName: string ): boolean {
-  return NOISE_STEP_PREFIXES.some( prefix => stepName.startsWith( prefix ) );
+  return INTERNAL_ACTIVITIES_PREFIX.some( prefix => stepName.startsWith( prefix ) );
 }
 
 function failureMessageOf( attrs: Record<string, unknown> ): string | null {
@@ -168,8 +162,7 @@ function toMs( iso: string | null ): number | null {
   return Number.isNaN( ms ) ? null : ms;
 }
 
-// Offset math relative to the workflow start (timeline origin). Mirrors
-// Atlas's Span#start_offset_ms / #end_offset_ms / #duration_ms.
+// Offset math relative to the workflow start (timeline origin).
 function withOffsets( span: Omit<Span, 'startOffsetMs' | 'endOffsetMs' | 'durationMs'>, startMs: number | null ): Span {
   const startAnchor = toMs( span.startedAt ) ?? toMs( span.scheduledAt );
   const startOffsetMs = startMs !== null && startAnchor !== null ? Math.round( startAnchor - startMs ) : 0;
