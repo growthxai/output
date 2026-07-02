@@ -1,6 +1,6 @@
 import { buildWorkflowId, extractErrorDetail } from '#utils';
 import { WorkflowFailedError, WorkflowExecutionTimedOutError } from '../../errors.js';
-import { getCatalog, resolveWorkflowName } from '../catalog.js';
+import { resolveWorkflowName } from '../catalog.js';
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { logger } from '#logger';
@@ -25,9 +25,7 @@ const { defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting 
 export const run = async ( { client }, workflowName, input, options = {} ) => {
   const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout } = options;
 
-  // the catalog worker has the same name of the task queue
-  const catalog = await getCatalog( { client, taskQueue } );
-  const resolvedName = resolveWorkflowName( catalog, workflowName, taskQueue );
+  const resolvedName = await resolveWorkflowName( { client, workflowName, taskQueue } );
 
   const workflowId = userWorkflowId ?? buildWorkflowId();
   const executionTimeout = timeout ?? workflowExecutionMaxWaiting;

@@ -7,10 +7,10 @@
  */
 import { customFetchInstance, type ApiRequestOptions } from '../http_client.js';
 /**
- * API error body (WorkflowNotFoundError, WorkflowExecutionTimedOutError, WorkflowNotCompletedError, CatalogNotAvailableError, or server error)
+ * API error body (WorkflowNotFoundError, UnsupportedWorkflowError, WorkflowExecutionTimedOutError, WorkflowNotCompletedError, CatalogNotAvailableError, or server error)
  */
 export interface ErrorResponse {
-  /** Error type name (e.g. WorkflowNotFoundError, CatalogNotAvailableError) */
+  /** Error type name (e.g. WorkflowNotFoundError, UnsupportedWorkflowError, CatalogNotAvailableError) */
   error?: string;
   /** Human-readable error message */
   message?: string;
@@ -342,7 +342,7 @@ export type NotFoundResponse = ErrorResponse;
 export type RequestTimeoutResponse = ErrorResponse;
 
 /**
- * Workflow not in a terminal state (still running)
+ * Workflow dependency failed (e.g. workflow not in a terminal state, or workflow type is unsupported by the selected catalog)
  */
 export type FailedDependencyResponse = ErrorResponse;
 
@@ -686,6 +686,11 @@ export type postWorkflowRunResponse408 = {
   status: 408
 }
 
+export type postWorkflowRunResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
 export type postWorkflowRunResponse500 = {
   data: InternalServerErrorResponse
   status: 500
@@ -699,7 +704,7 @@ export type postWorkflowRunResponse503 = {
 export type postWorkflowRunResponseSuccess = (postWorkflowRunResponse200) & {
   headers: Headers;
 };
-export type postWorkflowRunResponseError = (postWorkflowRunResponse400 | postWorkflowRunResponse404 | postWorkflowRunResponse408 | postWorkflowRunResponse500 | postWorkflowRunResponse503) & {
+export type postWorkflowRunResponseError = (postWorkflowRunResponse400 | postWorkflowRunResponse404 | postWorkflowRunResponse408 | postWorkflowRunResponse424 | postWorkflowRunResponse500 | postWorkflowRunResponse503) & {
   headers: Headers;
 };
 
@@ -745,15 +750,25 @@ export type postWorkflowStartResponse404 = {
   status: 404
 }
 
+export type postWorkflowStartResponse424 = {
+  data: FailedDependencyResponse
+  status: 424
+}
+
 export type postWorkflowStartResponse500 = {
   data: InternalServerErrorResponse
   status: 500
 }
 
+export type postWorkflowStartResponse503 = {
+  data: ServiceUnavailableResponse
+  status: 503
+}
+
 export type postWorkflowStartResponseSuccess = (postWorkflowStartResponse200) & {
   headers: Headers;
 };
-export type postWorkflowStartResponseError = (postWorkflowStartResponse400 | postWorkflowStartResponse404 | postWorkflowStartResponse500) & {
+export type postWorkflowStartResponseError = (postWorkflowStartResponse400 | postWorkflowStartResponse404 | postWorkflowStartResponse424 | postWorkflowStartResponse500 | postWorkflowStartResponse503) & {
   headers: Headers;
 };
 

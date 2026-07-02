@@ -8,7 +8,6 @@ const {
   describeMock,
   executeUpdateMock,
   mockLog,
-  queryMock,
   taskQueue,
   workflowStartMock
 } = vi.hoisted( () => ( {
@@ -16,7 +15,6 @@ const {
   describeMock: vi.fn(),
   executeUpdateMock: vi.fn(),
   mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-  queryMock: vi.fn(),
   taskQueue: 'test-queue',
   workflowStartMock: vi.fn()
 } ) );
@@ -32,7 +30,7 @@ vi.mock( '@temporalio/client', async importOriginal => {
       return {
         workflow: {
           start: workflowStartMock,
-          getHandle: () => ( { describe: describeMock, query: queryMock, executeUpdate: executeUpdateMock } )
+          getHandle: () => ( { describe: describeMock, executeUpdate: executeUpdateMock } )
         }
       };
     } )
@@ -41,8 +39,18 @@ vi.mock( '@temporalio/client', async importOriginal => {
 
 const mockConnection = {};
 const namespace = 'default';
-const catalog = { workflows: [], activities: {} };
+const catalog = { workflows: [], workflowNames: { workflow: 'workflow', alias: 'workflow' }, activities: {} };
 const catalogHash = 'catalog-hash';
+const startArguments = {
+  taskQueue,
+  workflowId: catalogId,
+  workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
+  args: [ catalog ],
+  memo: {
+    workflowNames: catalog.workflowNames,
+    hash: catalogHash
+  }
+};
 
 const createJob = () => new CatalogJob( { connection: mockConnection, namespace, catalog, catalogHash } );
 
@@ -55,38 +63,28 @@ describe( 'CatalogJob', () => {
     vi.clearAllMocks();
     describeMock.mockResolvedValue( { closeTime: '2024-01-01T00:00:00Z' } );
     executeUpdateMock.mockResolvedValue( undefined );
-    queryMock.mockResolvedValue( catalogHash );
     workflowStartMock.mockResolvedValue( undefined );
   } );
 
   it( 'completes a previous running stale catalog before starting the new workflow', async () => {
-    describeMock.mockResolvedValue( { closeTime: undefined } );
-    queryMock.mockResolvedValue( 'old-catalog-hash' );
+    describeMock.mockResolvedValue( { closeTime: undefined, memo: { hash: 'old-catalog-hash' } } );
     const job = createJob();
 
     await job.run();
 
     expect( describeMock ).toHaveBeenCalled();
-    expect( queryMock ).toHaveBeenCalledWith( 'get_hash' );
     expect( executeUpdateMock ).toHaveBeenCalledWith( 'complete', { args: [] } );
-    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
-      taskQueue,
-      workflowId: catalogId,
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
-      args: [ catalog, catalogHash ]
-    } );
+    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', startArguments );
     expect( job.error ).toBeNull();
     expect( job.running ).toBe( false );
   } );
 
   it( 'keeps the existing catalog workflow when the running hash matches', async () => {
-    describeMock.mockResolvedValue( { closeTime: undefined } );
-    queryMock.mockResolvedValue( catalogHash );
+    describeMock.mockResolvedValue( { closeTime: undefined, memo: { hash: catalogHash } } );
     const job = createJob();
 
     await job.run();
 
-    expect( queryMock ).toHaveBeenCalledWith( 'get_hash' );
     expect( executeUpdateMock ).not.toHaveBeenCalled();
     expect( workflowStartMock ).not.toHaveBeenCalled();
     expect( mockLog.info ).toHaveBeenCalledWith( 'Current catalog workflow hash matches worker, restart skipped' );
@@ -100,14 +98,8 @@ describe( 'CatalogJob', () => {
     await job.run();
 
     expect( describeMock ).toHaveBeenCalled();
-    expect( queryMock ).not.toHaveBeenCalled();
     expect( executeUpdateMock ).not.toHaveBeenCalled();
-    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
-      taskQueue,
-      workflowId: catalogId,
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
-      args: [ catalog, catalogHash ]
-    } );
+    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', startArguments );
     expect( mockLog.warn ).not.toHaveBeenCalled();
   } );
 
@@ -117,20 +109,13 @@ describe( 'CatalogJob', () => {
     await job.run();
 
     expect( describeMock ).toHaveBeenCalled();
-    expect( queryMock ).not.toHaveBeenCalled();
     expect( executeUpdateMock ).not.toHaveBeenCalled();
-    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', {
-      taskQueue,
-      workflowId: catalogId,
-      workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
-      args: [ catalog, catalogHash ]
-    } );
+    expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', startArguments );
   } );
 
   it( 'warns and continues when describing or completing the previous catalog fails', async () => {
     const completeError = new Error( 'complete failed' );
-    describeMock.mockResolvedValue( { closeTime: undefined } );
-    queryMock.mockResolvedValue( 'old-catalog-hash' );
+    describeMock.mockResolvedValue( { closeTime: undefined, memo: { hash: 'old-catalog-hash' } } );
     executeUpdateMock.mockRejectedValue( completeError );
     const job = createJob();
 
@@ -143,15 +128,15 @@ describe( 'CatalogJob', () => {
 
   it( 'ignores an already-started error when the running catalog hash matches', async () => {
     const alreadyStartedError = new WorkflowExecutionAlreadyStartedError( 'already started', catalogId, 'catalog' );
-    describeMock.mockRejectedValue( new WorkflowNotFoundError( 'not found' ) );
+    describeMock
+      .mockRejectedValueOnce( new WorkflowNotFoundError( 'not found' ) )
+      .mockResolvedValueOnce( { closeTime: undefined, memo: { hash: catalogHash } } );
     workflowStartMock.mockRejectedValue( alreadyStartedError );
-    queryMock.mockResolvedValue( catalogHash );
     const job = createJob();
 
     await job.run();
 
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', expect.any( Object ) );
-    expect( queryMock ).toHaveBeenCalledWith( 'get_hash' );
     expect( mockLog.info ).toHaveBeenCalledWith(
       'Ignoring start error: it failed because execution already started but catalog hash matches worker'
     );
@@ -175,9 +160,10 @@ describe( 'CatalogJob', () => {
   it( 'stores stale already-started errors and calls the error callback', async () => {
     const alreadyStartedError = new WorkflowExecutionAlreadyStartedError( 'already started', catalogId, 'catalog' );
     const onError = vi.fn();
-    describeMock.mockRejectedValue( new WorkflowNotFoundError( 'not found' ) );
+    describeMock
+      .mockRejectedValueOnce( new WorkflowNotFoundError( 'not found' ) )
+      .mockResolvedValueOnce( { closeTime: undefined, memo: { hash: 'old-catalog-hash' } } );
     workflowStartMock.mockRejectedValue( alreadyStartedError );
-    queryMock.mockResolvedValue( 'old-catalog-hash' );
     const job = createJob();
 
     job.onError( onError );

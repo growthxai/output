@@ -3,7 +3,12 @@ import express from 'express';
 import request from 'supertest';
 import { ZodError } from 'zod';
 
-import { CatalogNotAvailableError, WorkflowNotFoundError, InvalidPageTokenError } from '../clients/errors.js';
+import {
+  CatalogNotAvailableError,
+  InvalidPageTokenError,
+  UnsupportedWorkflowError,
+  WorkflowNotFoundError
+} from '../clients/errors.js';
 
 vi.mock( '#logger', () => ( {
   logger: {
@@ -146,6 +151,19 @@ describe( 'error_handler', () => {
     expect( logger.error ).not.toHaveBeenCalled();
   } );
 
+  it( 'should handle UnsupportedWorkflowError with 424 status', async () => {
+    const error = new UnsupportedWorkflowError( 'missing-workflow', 'queue-a' );
+
+    const { httpRes } = await sendError( error );
+
+    expect( httpRes.status ).toBe( 424 );
+    expect( httpRes.body ).toMatchObject( {
+      error: 'UnsupportedWorkflowError',
+      message: 'Workflow missing-workflow is not supported in the task queue queue-a.'
+    } );
+    expect( logger.error ).not.toHaveBeenCalled();
+  } );
+
   it( 'should include workflowId in response when present on error', async () => {
     const error = new Error( 'Workflow failed' );
     error.workflowId = 'test-workflow-123';
@@ -173,7 +191,7 @@ describe( 'error_handler', () => {
   } );
 
   it( 'should handle CatalogNotAvailableError with 503 and Retry-After header', async () => {
-    const error = new CatalogNotAvailableError( 3 );
+    const error = new CatalogNotAvailableError( 3, 'queue-a' );
 
     const { httpRes } = await sendError( error );
 
@@ -183,6 +201,7 @@ describe( 'error_handler', () => {
       message: 'Catalog workflow is unavailable. This is likely due the worker not running or still starting. Retry in a few seconds.',
       workflowId: undefined
     } );
+    expect( error.taskQueue ).toBe( 'queue-a' );
     expect( httpRes.headers['retry-after'] ).toBe( '3' );
     expect( logger.error ).not.toHaveBeenCalled();
   } );

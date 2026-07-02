@@ -1,12 +1,18 @@
-import {
-  CatalogNotAvailableError, WorkflowNotCompletedError, WorkflowNotFoundError,
-  WorkflowExecutionTimedOutError, StepNotFoundError, StepNotCompletedError,
-  TraceNotAvailableError, InvalidPageTokenError
-} from '../clients/errors.js';
 import { isGrpcServiceError } from '@temporalio/client';
 import { logger } from '#logger';
 import { serializeErrorChain } from '#utils';
 import { ZodError } from 'zod';
+import {
+  CatalogNotAvailableError,
+  InvalidPageTokenError,
+  StepNotCompletedError,
+  StepNotFoundError,
+  TraceNotAvailableError,
+  UnsupportedWorkflowError,
+  WorkflowExecutionTimedOutError,
+  WorkflowNotCompletedError,
+  WorkflowNotFoundError
+} from '../clients/errors.js';
 
 // gRPC status codes we surface as HTTP errors. Keeps the lookup numeric so we don't
 // pull @grpc/grpc-js into the API just for the Status enum.
@@ -28,6 +34,7 @@ const NAMED_ERROR_STATUSES = {
   [TraceNotAvailableError.name]: 404,
   [WorkflowExecutionTimedOutError.name]: 408,
   [StepNotCompletedError.name]: 409,
+  [UnsupportedWorkflowError.name]: 424,
   [WorkflowNotCompletedError.name]: 424,
   [CatalogNotAvailableError.name]: 503
 };

@@ -7,14 +7,11 @@ import { defineQuery, setHandler, condition, defineUpdate } from '@temporalio/wo
  *
  * @param {object} catalog - The catalog information
  */
-export default async function catalogWorkflow( catalog, catalogHash ) {
+export default async function catalogWorkflow( catalog ) {
   const state = { canEnd: false };
 
   // Returns the catalog
   setHandler( defineQuery( 'get' ), () => catalog );
-
-  // Returns the catalog hash
-  setHandler( defineQuery( 'get_hash' ), () => catalogHash );
 
   // Politely respond to a ping
   setHandler( defineQuery( 'ping' ), () => 'pong' );
