@@ -205,8 +205,8 @@ export default class DatasetGenerate extends Command {
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
 
-    const outcomes = await Promise.all( workflowIds.map( id => this.generateFromRun( id, dir ) ) );
-    const generated = outcomes.filter( Boolean ).length;
+    const generated = ( await Promise.all( workflowIds.map( id => this.generateFromRun( id, dir ) ) ) )
+      .filter( Boolean ).length;
     this.log( `\nGenerated ${generated} dataset(s)` );
 
     if ( generated === 0 ) {
