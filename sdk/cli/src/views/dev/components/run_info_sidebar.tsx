@@ -26,7 +26,7 @@ export const RunInfoSidebar: React.FC<{
       <Text bold color={workflowStatusColor( status )}>{status.toUpperCase()}</Text>
     </Box>,
     <SidebarKV key="run-id" label="RUN ID" value={run.runId ?? '-'} />,
-    <SidebarKV key="workflow-id" label="WORKFLOW ID" value={run.workflowId ?? '-'} />,
+    <SidebarKV key="workflow-id" label="WORKFLOW ID" value={run.workflowId} />,
     <SidebarKV key="type" label="TYPE" value={run.workflowType ?? '-'} />,
     <SidebarKV key="duration" label="DURATION" value={duration} />,
     <SidebarKV key="start" label="START" value={formatDate( run.startedAt )} />,

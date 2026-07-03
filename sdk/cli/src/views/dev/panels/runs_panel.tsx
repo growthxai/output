@@ -53,7 +53,7 @@ const matchesFilter = ( run: WorkflowRun, query: string ): boolean => {
   }
   const q = query.toLowerCase();
   return ( run.workflowType ?? '' ).toLowerCase().includes( q ) ||
-    ( run.workflowId ?? '' ).toLowerCase().includes( q ) ||
+    run.workflowId.toLowerCase().includes( q ) ||
     ( run.status ?? '' ).toLowerCase().includes( q );
 };
 
@@ -106,7 +106,7 @@ const RunRow: React.FC<{ run: WorkflowRun; selected: boolean }> = ( { run, selec
       <Box width={COL.icon}><WorkflowStatusIcon status={status} /></Box>
       <Box width={COL.status}><Text color={color}>{status}</Text></Box>
       <Box width={COL.type}><Text bold={selected}>{truncate( run.workflowType ?? '-', COL.type - 1 )}</Text></Box>
-      <Box width={COL.id}><Text dimColor={!selected}>{truncate( run.workflowId ?? '-', COL.id - 1 )}</Text></Box>
+      <Box width={COL.id}><Text dimColor={!selected}>{truncate( run.workflowId, COL.id - 1 )}</Text></Box>
       <Box width={COL.duration} justifyContent="flex-end"><Text dimColor={!selected}>{duration}</Text></Box>
       <Box width={COL.started} marginLeft={2}><Text dimColor={!selected}>{formatStartedShort( run.startedAt )}</Text></Box>
     </Box>

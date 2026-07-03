@@ -179,27 +179,22 @@ export default class DatasetGenerate extends Command {
   ): Promise<void> {
     this.log( `Fetching recent runs for "${workflowName}"...` );
 
-    const { runs } = await fetchWorkflowRuns( { workflowType: workflowName, catalog, limit } );
+    const { runs, skipped } = await fetchWorkflowRuns( { workflowType: workflowName, catalog, limit } );
     if ( runs.length === 0 ) {
+      if ( skipped > 0 ) {
+        this.error( `Found ${skipped} run(s) but none had a workflow ID.`, { exit: 1 } );
+      }
       this.log( 'No recent runs found.' );
       return;
     }
 
-    const ids = runs
-      .map( run => run.workflowId )
-      .filter( ( id ): id is string => Boolean( id ) );
-
-    const missing = runs.length - ids.length;
-    if ( missing > 0 ) {
-      this.warn( `Skipping ${missing} run(s) with no workflow ID.` );
+    if ( skipped > 0 ) {
+      this.warn( `Skipping ${skipped} run(s) with no workflow ID.` );
     }
 
     // The trace-log endpoint always targets a workflow's latest run, so distinct
     // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
-    const workflowIds = [ ...new Set( ids ) ];
-    if ( workflowIds.length === 0 ) {
-      this.error( `Found ${runs.length} run(s) but none had a workflow ID.`, { exit: 1 } );
-    }
+    const workflowIds = [ ...new Set( runs.map( run => run.workflowId ) ) ];
 
     this.log( `Found ${workflowIds.length} run(s). Fetching traces...` );
 
