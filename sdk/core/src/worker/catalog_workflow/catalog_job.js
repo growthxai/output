@@ -33,12 +33,12 @@ export class CatalogJob {
   /** Check if the currently running catalog has the same hash as instance. */
   async #checkCatalogIsTheSame( handle ) {
     log.info( 'Checking running catalog hash against worker hash...' );
-    return this.#runCancellable( handle.query( 'get_hash' ) ).then( h => h === this.#catalogHash ).catch( e => {
+    return this.#runCancellable( handle.describe() ).then( d => d.memo?.hash === this.#catalogHash ).catch( e => {
       if ( e instanceof CancellationError ) {
         throw e;
       }
       if ( !( e instanceof WorkflowNotFoundError ) ) {
-        log.warn( 'Error retrieving catalog hash', { error: e } );
+        log.warn( 'Error describing catalog workflow', { error: e } );
       }
       return false;
     } );
@@ -88,7 +88,11 @@ export class CatalogJob {
       taskQueue,
       workflowId: catalogId,
       workflowIdConflictPolicy: WorkflowIdConflictPolicy.FAIL,
-      args: [ this.#catalog, this.#catalogHash ]
+      args: [ this.#catalog ],
+      memo: {
+        workflowNames: this.#catalog.workflowNames,
+        hash: this.#catalogHash
+      }
     };
 
     log.info( 'Starting catalog workflow...' );

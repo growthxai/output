@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockBuildWorkflowId, mockGetCatalog, mockResolveWorkflowName } = vi.hoisted( () => ( {
+const { mockBuildWorkflowId, mockResolveWorkflowName } = vi.hoisted( () => ( {
   mockBuildWorkflowId: vi.fn(),
-  mockGetCatalog: vi.fn(),
   mockResolveWorkflowName: vi.fn()
 } ) );
 
@@ -18,7 +17,6 @@ vi.mock( '#utils', () => ( {
 } ) );
 
 vi.mock( '../catalog.js', () => ( {
-  getCatalog: mockGetCatalog,
   resolveWorkflowName: mockResolveWorkflowName
 } ) );
 
@@ -26,8 +24,7 @@ describe( 'start', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mockBuildWorkflowId.mockReturnValue( 'generated-id' );
-    mockGetCatalog.mockResolvedValue( { workflows: [] } );
-    mockResolveWorkflowName.mockReturnValue( 'resolved-workflow' );
+    mockResolveWorkflowName.mockResolvedValue( 'resolved-workflow' );
   } );
 
   it( 'resolves the workflow against the default task queue and starts it with a generated workflow id', async () => {
@@ -37,8 +34,11 @@ describe( 'start', () => {
 
     const result = await start( { client }, 'alias-name', { value: 1 } );
 
-    expect( mockGetCatalog ).toHaveBeenCalledWith( { client, taskQueue: 'default-queue' } );
-    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( { workflows: [] }, 'alias-name', 'default-queue' );
+    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( {
+      client,
+      workflowName: 'alias-name',
+      taskQueue: 'default-queue'
+    } );
     expect( temporalStart ).toHaveBeenCalledWith( 'resolved-workflow', {
       args: [ { value: 1 } ],
       taskQueue: 'default-queue',
@@ -56,7 +56,11 @@ describe( 'start', () => {
     const result = await start( { client }, 'workflow', null, { workflowId: 'provided-id', taskQueue: 'custom-queue' } );
 
     expect( mockBuildWorkflowId ).not.toHaveBeenCalled();
-    expect( mockGetCatalog ).toHaveBeenCalledWith( { client, taskQueue: 'custom-queue' } );
+    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( {
+      client,
+      workflowName: 'workflow',
+      taskQueue: 'custom-queue'
+    } );
     expect( temporalStart ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
       workflowId: 'provided-id',
       taskQueue: 'custom-queue'
@@ -68,7 +72,7 @@ describe( 'start', () => {
     const error = new Error( 'catalog unavailable' );
     const temporalStart = vi.fn();
     const client = { workflow: { start: temporalStart } };
-    mockGetCatalog.mockRejectedValue( error );
+    mockResolveWorkflowName.mockRejectedValue( error );
     const { start } = await import( './start.js' );
 
     await expect( start( { client }, 'workflow', {} ) ).rejects.toBe( error );

@@ -5,7 +5,6 @@ const {
   mockBuildWorkflowId,
   mockExtractErrorDetail,
   mockBuildWorkflowResult,
-  mockGetCatalog,
   mockResolveWorkflowName,
   mockLoggerWarn,
   MockWorkflowFailedError
@@ -16,7 +15,6 @@ const {
     mockBuildWorkflowId: vi.fn(),
     mockExtractErrorDetail: vi.fn(),
     mockBuildWorkflowResult: vi.fn(),
-    mockGetCatalog: vi.fn(),
     mockResolveWorkflowName: vi.fn(),
     mockLoggerWarn: vi.fn(),
     MockWorkflowFailedError
@@ -46,7 +44,6 @@ vi.mock( '../../errors.js', async importOriginal => ( {
 } ) );
 
 vi.mock( '../catalog.js', () => ( {
-  getCatalog: mockGetCatalog,
   resolveWorkflowName: mockResolveWorkflowName
 } ) );
 
@@ -60,8 +57,7 @@ describe( 'run', () => {
     vi.useRealTimers();
     mockBuildWorkflowId.mockReturnValue( 'generated-id' );
     mockExtractErrorDetail.mockReturnValue( null );
-    mockGetCatalog.mockResolvedValue( { workflows: [] } );
-    mockResolveWorkflowName.mockReturnValue( 'resolved-workflow' );
+    mockResolveWorkflowName.mockResolvedValue( 'resolved-workflow' );
     mockBuildWorkflowResult.mockImplementation( args => ( { shaped: args } ) );
   } );
 
@@ -78,8 +74,11 @@ describe( 'run', () => {
 
     const result = await run( { client }, 'alias-name', { input: true } );
 
-    expect( mockGetCatalog ).toHaveBeenCalledWith( { client, taskQueue: 'default-queue' } );
-    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( { workflows: [] }, 'alias-name', 'default-queue' );
+    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( {
+      client,
+      workflowName: 'alias-name',
+      taskQueue: 'default-queue'
+    } );
     expect( start ).toHaveBeenCalledWith( 'resolved-workflow', {
       args: [ { input: true } ],
       taskQueue: 'default-queue',
@@ -105,6 +104,11 @@ describe( 'run', () => {
     await run( { client }, 'workflow', 'input', { workflowId: 'provided-id', taskQueue: 'custom-queue', timeout: 1_000 } );
 
     expect( mockBuildWorkflowId ).not.toHaveBeenCalled();
+    expect( mockResolveWorkflowName ).toHaveBeenCalledWith( {
+      client,
+      workflowName: 'workflow',
+      taskQueue: 'custom-queue'
+    } );
     expect( start ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
       taskQueue: 'custom-queue',
       workflowId: 'provided-id'

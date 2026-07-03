@@ -141,11 +141,11 @@ app.use( ( req, res, next ) => {
  *   schemas:
  *     ErrorResponse:
  *       type: object
- *       description: API error body (WorkflowNotFoundError, WorkflowExecutionTimedOutError, WorkflowNotCompletedError, CatalogNotAvailableError, or server error)
+ *       description: API error body (WorkflowNotFoundError, UnsupportedWorkflowError, WorkflowExecutionTimedOutError, WorkflowNotCompletedError, CatalogNotAvailableError, or server error)
  *       properties:
  *         error:
  *           type: string
- *           description: Error type name (e.g. WorkflowNotFoundError, CatalogNotAvailableError)
+ *           description: Error type name (e.g. WorkflowNotFoundError, UnsupportedWorkflowError, CatalogNotAvailableError)
  *         message:
  *           type: string
  *           description: Human-readable error message
@@ -453,7 +453,7 @@ app.use( ( req, res, next ) => {
  *           schema:
  *             $ref: '#/components/schemas/ErrorResponse'
  *     FailedDependency:
- *       description: Workflow not in a terminal state (still running)
+ *       description: Workflow dependency failed (e.g. workflow not in a terminal state, or workflow type is unsupported by the selected catalog)
  *       content:
  *         application/json:
  *           schema:
@@ -525,6 +525,8 @@ app.use( ( req, res, next ) => {
  *         $ref: '#/components/responses/NotFound'
  *       408:
  *         $ref: '#/components/responses/RequestTimeout'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
  *       503:
  *         $ref: '#/components/responses/ServiceUnavailable'
  *       500:
@@ -597,6 +599,10 @@ app.post( '/workflow/run', async ( req, res ) => {
  *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       424:
+ *         $ref: '#/components/responses/FailedDependency'
+ *       503:
+ *         $ref: '#/components/responses/ServiceUnavailable'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */

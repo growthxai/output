@@ -1,46 +1,36 @@
-import { WorkflowNotFoundError, CatalogNotAvailableError } from '../errors.js';
+import { CatalogNotAvailableError, UnsupportedWorkflowError, WorkflowNotFoundError } from '../errors.js';
 import { logger } from '#logger';
 
-/**
- * Returns the catalog object from the catalog workflow
- *
- * @param {Client} client
- * @returns {object}
- * @throws {CatalogNotAvailableError}
- * @throws {Error}
- */
-export const getCatalog = async ( { client, taskQueue } ) => {
-  const catalogHandle = client.workflow.getHandle( taskQueue );
+const getAvailableWorkflows = async ( { client, taskQueue } ) => {
+  const handle = client.workflow.getHandle( taskQueue );
+
   try {
-    return await catalogHandle.query( 'get' );
+    const description = await handle.describe();
+    return description.memo?.workflowNames ?? {};
   } catch ( error ) {
     if ( error instanceof WorkflowNotFoundError ) {
-      throw new CatalogNotAvailableError( 3 );
+      throw new CatalogNotAvailableError( 3, taskQueue );
     }
-    // Annotate the catalog/query context (the only place that knows it) so the error_handler can
-    // surface it when it logs the failure centrally.
+    // Annotate the context so the error_handler can surface it when it logs the failure centrally.
     error.taskQueue = taskQueue;
-    error.query = 'get';
     throw error;
   }
 };
 
 /**
- * Resolves a workflow name (or alias) to the canonical workflow name via the catalog.
- *
- * @param {object} catalog - The catalog object
- * @param {string} workflowName - The workflow name or alias
- * @param {string} taskQueue - The task queue (for error messages)
- * @returns {string} The canonical workflow name
- * @throws {WorkflowNotFoundError}
+ * Read the memo of the catalog (same name as the task queue) and return the resolved name.
  */
-export const resolveWorkflowName = ( catalog, workflowName, taskQueue ) => {
-  const resolved = catalog.workflows.find( w => w.name === workflowName || w.aliases?.includes( workflowName ) );
-  if ( !resolved ) {
-    throw new WorkflowNotFoundError( `Workflow "${workflowName}" is not available at worker "${taskQueue}"` );
+export const resolveWorkflowName = async ( { client, workflowName, taskQueue } ) => {
+  const workflowNames = await getAvailableWorkflows( { client, taskQueue } );
+
+  if ( !workflowNames[workflowName] ) {
+    throw new UnsupportedWorkflowError( workflowName, taskQueue );
   }
-  if ( resolved.name !== workflowName ) {
-    logger.info( 'Workflow alias resolved', { alias: workflowName, resolvedName: resolved.name, taskQueue } );
+
+  const resolvedName = workflowNames[workflowName];
+  if ( workflowName !== resolvedName ) {
+    logger.info( 'Workflow alias resolved', { alias: workflowName, resolvedName, taskQueue } );
   }
-  return resolved.name;
+
+  return resolvedName;
 };

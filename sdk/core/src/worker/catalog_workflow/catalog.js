@@ -8,6 +8,11 @@ export class Catalog {
    */
   workflows;
 
+  /**
+   * Object, where the key is each workflow name and each workflow alias, the value is the resolved workflow name.
+   */
+  workflowNames = {};
+
   constructor() {
     this.workflows = [];
   };
@@ -20,6 +25,11 @@ export class Catalog {
    */
   addWorkflow( workflow ) {
     this.workflows.push( workflow );
+    this.workflowNames[workflow.name] = workflow.name;
+    for ( const alias of workflow.aliases ) {
+      this.workflowNames[alias] = workflow.name;
+    }
+
     return this;
   }
 }

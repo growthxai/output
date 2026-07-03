@@ -26,10 +26,20 @@ export class WorkflowStreamProtocolError extends Error {
 
 /** Thrown when the catalog workflow is not available (e.g. worker not running). */
 export class CatalogNotAvailableError extends Error {
-  /** @param {number} [retryAfter] - Seconds to suggest in Retry-After header. */
-  constructor( retryAfter ) {
+  /** @param {number} retryAfter - Seconds to suggest in Retry-After header. */
+  /** @param {string} taskQueue - The task queue that the catalog was searched */
+  constructor( retryAfter, taskQueue ) {
     super( 'Catalog workflow is unavailable. This is likely due the worker not running or still starting. Retry in a few seconds.' );
     this.retryAfter = retryAfter;
+    this.taskQueue = taskQueue;
+  }
+}
+
+/** Thrown when the workflow name is not supported by the system. */
+export class UnsupportedWorkflowError extends Error {
+  constructor( workflowName, taskQueue ) {
+    super( `Workflow ${workflowName} is not supported in the task queue ${taskQueue}.` );
+    this.taskQueue = taskQueue;
   }
 }
 

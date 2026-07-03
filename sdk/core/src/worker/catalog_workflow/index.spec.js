@@ -212,5 +212,11 @@ describe( 'createCatalog', () => {
 
     expect( catalog.workflows[0].aliases ).toEqual( [ 'flow1_old', 'flow1_legacy' ] );
     expect( catalog.workflows[1].aliases ).toEqual( [] );
+    expect( catalog.workflowNames ).toEqual( {
+      flow1: 'flow1',
+      flow1_old: 'flow1',
+      flow1_legacy: 'flow1',
+      flow2: 'flow2'
+    } );
   } );
 } );
