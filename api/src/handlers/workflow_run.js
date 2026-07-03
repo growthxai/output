@@ -22,3 +22,9 @@ export function createResultHandler( client ) {
     res.json( await client.workflow.getResult( req.params.id, readPinnedRunId( req ) ) );
   };
 }
+
+export function createInputHandler( client ) {
+  return async ( req, res ) => {
+    res.json( await client.workflow.getInput( req.params.id, readPinnedRunId( req ) ) );
+  };
+}

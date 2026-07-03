@@ -1,10 +1,9 @@
 import { defaultPayloadConverter } from '@temporalio/client';
-import { temporal as temporalConfig } from '#configs';
-import { WorkflowNotFoundError, WorkflowFailedError, WorkflowNotCompletedError } from '../../errors.js';
-import { WorkflowStatus, isWorkflowClosed, GrpcStatus, formatStatus } from '../types.js';
+import { WorkflowFailedError, WorkflowNotCompletedError } from '../../errors.js';
+import { WorkflowStatus, isWorkflowClosed, formatStatus } from '../types.js';
 import { buildWorkflowResult } from '../workflow_result.js';
+import { fetchHistoryPage } from './fetch_history_page.js';
 import { logger } from '#logger';
-const { namespace } = temporalConfig;
 
 /**
  * Extracts the workflow input from a Temporal history object.
@@ -46,22 +45,9 @@ export const getResult = async ( { client, connection }, workflowId, runId ) => 
   }
   // Pin a handle to the resolved run so subsequent RPCs can't race against continueAsNew
   const pinnedHandle = runId ? handle : client.workflow.getHandle( workflowId, resolvedRunId );
-  // The input lives in the first event (WorkflowExecutionStarted), so a
-  // single-event page suffices instead of paging through the full history
-  const firstPage = await connection.workflowService.getWorkflowExecutionHistory( {
-    namespace,
-    execution: { workflowId, runId: resolvedRunId },
-    maximumPageSize: 1
-  } ).catch( error => {
-    if ( error?.code === GrpcStatus.NOT_FOUND ) {
-      throw new WorkflowNotFoundError( `Run "${resolvedRunId}" not found for workflow "${workflowId}"` );
-    }
-    throw error;
-  } );
-
-  if ( !firstPage.history ) {
-    logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId: resolvedRunId } );
-  }
+  // The input lives in the first event (WorkflowExecutionStarted), so a single-event page
+  // suffices instead of paging through the full history.
+  const firstPage = await fetchHistoryPage( connection, workflowId, resolvedRunId, { maximumPageSize: 1 } );
 
   const status = formatStatus( description.status.name );
   const input = extractWorkflowInput( firstPage.history );

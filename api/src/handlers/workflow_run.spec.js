@@ -9,18 +9,21 @@ vi.mock( '#logger', () => ( {
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), http: vi.fn() }
 } ) );
 
-import { createStopHandler, createTerminateHandler, createResultHandler } from './workflow_run.js';
+import { createStopHandler, createTerminateHandler, createResultHandler, createInputHandler } from './workflow_run.js';
+import { workflowNotFoundError } from '../clients/errors.js';
 import errorHandler from '../middleware/error_handler.js';
 
 describe( 'workflow_run handlers', () => {
   const mockStopWorkflow = vi.fn();
   const mockTerminateWorkflow = vi.fn();
   const mockGetWorkflowResult = vi.fn();
+  const mockGetWorkflowInput = vi.fn();
   const mockClient = {
     workflow: {
       stop: mockStopWorkflow,
       terminate: mockTerminateWorkflow,
-      getResult: mockGetWorkflowResult
+      getResult: mockGetWorkflowResult,
+      getInput: mockGetWorkflowInput
     }
   };
 
@@ -131,6 +134,49 @@ describe( 'workflow_run handlers', () => {
     it( 'returns 400 for an invalid rid', async () => {
       await request( app() ).get( '/workflow/w1/runs/not-a-uuid/result' ).expect( 400 );
       expect( mockGetWorkflowResult ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'createInputHandler', () => {
+    const app = () => {
+      const handler = createInputHandler( mockClient );
+      const a = express();
+      a.get( '/workflow/:id/input', handler );
+      a.get( '/workflow/:id/runs/:rid/input', handler );
+      a.use( errorHandler );
+      return a;
+    };
+
+    it( 'returns the workflow input', async () => {
+      mockGetWorkflowInput.mockResolvedValue( { workflowId: 'w1', runId: RID, input: { values: [ 1, 2 ] } } );
+
+      const res = await request( app() ).get( '/workflow/w1/input' ).expect( 200 );
+
+      expect( res.body ).toEqual( { workflowId: 'w1', runId: RID, input: { values: [ 1, 2 ] } } );
+      expect( mockGetWorkflowInput ).toHaveBeenCalledWith( 'w1', undefined );
+    } );
+
+    it( 'forwards the pinned rid', async () => {
+      mockGetWorkflowInput.mockResolvedValue( {} );
+
+      await request( app() ).get( `/workflow/w1/runs/${RID}/input` ).expect( 200 );
+
+      expect( mockGetWorkflowInput ).toHaveBeenCalledWith( 'w1', RID );
+    } );
+
+    it( 'returns 400 for an invalid rid', async () => {
+      await request( app() ).get( '/workflow/w1/runs/not-a-uuid/input' ).expect( 400 );
+      expect( mockGetWorkflowInput ).not.toHaveBeenCalled();
+    } );
+
+    it( 'maps a WorkflowNotFoundError to a 404', async () => {
+      mockGetWorkflowInput.mockRejectedValue( workflowNotFoundError( 'w1' ) );
+
+      await request( app() ).get( '/workflow/w1/input' ).expect( 404, {
+        error: 'WorkflowNotFoundError',
+        message: 'Workflow "w1" not found',
+        workflowId: 'w1'
+      } );
     } );
   } );
 } );

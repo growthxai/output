@@ -15,6 +15,15 @@ export const workflowNotFoundError = ( workflowId, runId ) => Object.assign(
   { workflowId }
 );
 
+/** Thrown when Temporal reports no runId for a workflow that should have one (describe result). */
+export class WorkflowMissingRunIdError extends Error {
+  /** @param {string} workflowId */
+  constructor( workflowId ) {
+    super( `Temporal did not report a runId for workflow "${workflowId}"` );
+    this.workflowId = workflowId;
+  }
+}
+
 /** Thrown when streamHistory does not yield workflow metadata as its first chunk. */
 export class WorkflowStreamProtocolError extends Error {
   /** @param {string} workflowId */

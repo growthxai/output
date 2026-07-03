@@ -1,4 +1,5 @@
 import { getHistory } from './get_history.js';
+import { getInput } from './get_input.js';
 import { getResult } from './get_result.js';
 import { getStatus } from './get_status.js';
 import { listRuns } from './list_runs.js';
@@ -14,6 +15,7 @@ export const getWorkflowMethods = context => Object.fromEntries(
   Object.entries( {
     executeUpdate,
     getHistory,
+    getInput,
     getResult,
     getStatus,
     listRuns,
