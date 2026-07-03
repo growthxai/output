@@ -1,5 +1,12 @@
 # output-api
 
+## 0.9.2
+
+### Patch Changes
+
+- 9d7a870: Pinning v24.15.0 as the minimal supported Node version
+- 52c7f0a: Improving start/run workflows performance by not querying an workflow to validate `workflowName` argument.
+
 ## 0.9.1
 
 ## 0.9.0
