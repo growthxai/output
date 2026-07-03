@@ -1,5 +1,19 @@
 # @outputai/output
 
+## 0.9.2
+
+### Patch Changes
+
+- 9d7a870: Pinning v24.15.0 as the minimal supported Node version
+- Updated dependencies [9d7a870]
+- Updated dependencies [52c7f0a]
+  - @outputai/credentials@0.9.2
+  - @outputai/evals@0.9.2
+  - @outputai/core@0.9.2
+  - @outputai/http@0.9.2
+  - @outputai/cli@0.9.2
+  - @outputai/llm@0.9.2
+
 ## 0.9.1
 
 ### Patch Changes

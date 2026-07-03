@@ -9,6 +9,16 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.9.2" description="2026-07-03 · patch release">
+
+**`@outputai/credentials`, `@outputai/output`, `@outputai/evals`, `@outputai/core`, `@outputai/http`, `@outputai/cli`, `@outputai/llm`, `output-api`** — Pinning v24.15.0 as the minimal supported Node version
+
+**`@outputai/core`** — Improving catalog startup performance by storing and reading hash from memo. Storing workflow names in memo.
+
+**`output-api`** — Improving start/run workflows performance by not querying an workflow to validate `workflowName` argument.
+
+</Update>
+
 <Update label="v0.9.1" description="2026-07-01 · patch release">
 
 **`@outputai/cli`** — Add `output workflow history <workflowId>` — renders a run's step timeline as a terminal waterfall (each step's start offset and duration), mirroring the Agents HQ Timeline view. It pages the `GET /workflow/{id}/history` endpoint and correlates the Temporal events into per-step spans (numbering parallel fan-outs `#1..#N`). `--format json` emits the structured spans, `--raw` prints the endpoint's verbatim response, and `--run-id`, `--include-payloads`, `--width`, and `--no-color` are supported. Failed steps list their error reason beneath the chart (when payloads are included), and `FORCE_COLOR` forces ANSI output through a pipe.

@@ -1,6 +1,71 @@
 {
   "releases": [
     {
+      "version": "0.9.2",
+      "date": "2026-07-03",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "fair-buses-doubt",
+          "packages": [
+            {
+              "name": "@outputai/credentials",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/output",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/evals",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/http",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            },
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            },
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Pinning v24.15.0 as the minimal supported Node version"
+        },
+        {
+          "id": "fair-ways-read",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Improving catalog startup performance by storing and reading hash from memo. Storing workflow names in memo."
+        },
+        {
+          "id": "quick-hats-build",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Improving start/run workflows performance by not querying an workflow to validate `workflowName` argument."
+        }
+      ]
+    },
+    {
       "version": "0.9.1",
       "date": "2026-07-01",
       "level": "patch",
