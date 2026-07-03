@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { Args, Command, Flags, ux } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
 import type { WorkflowResultResponse } from '#api/generated/api.js';
@@ -8,16 +7,18 @@ import {
   resolveDefaultDatasetsDir,
   buildDataset,
   getExecutionTime,
-  extractDatasetName
+  extractDatasetName,
+  datasetFilePath
 } from '#services/datasets.js';
-import { listRemoteTraces, downloadRemoteTrace } from '#services/s3_trace_downloader.js';
+import { fetchWorkflowRuns } from '#services/workflow_runs.js';
+import { getTrace } from '#services/trace_reader.js';
 import { extractDatasetFromTrace } from '#utils/trace_extractor.js';
 import { resolveScenarioPath, getScenarioNotFoundMessage } from '#utils/scenario_resolver.js';
 import { parseInputFlag } from '#utils/input_parser.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 export default class DatasetGenerate extends Command {
-  static override description = 'Generate a dataset for a workflow from a scenario, trace file, or S3';
+  static override description = 'Generate a dataset for a workflow from a scenario, trace file, or recent runs';
 
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple basic_input',
@@ -56,13 +57,13 @@ export default class DatasetGenerate extends Command {
     } ),
     download: Flags.boolean( {
       char: 'd',
-      description: 'Download traces from S3 and create datasets',
+      description: 'Generate datasets from recent workflow runs fetched via the Output API',
       default: false,
       exclusive: [ 'trace' ]
     } ),
     limit: Flags.integer( {
       char: 'l',
-      description: 'Maximum number of traces to download from S3',
+      description: 'Maximum number of recent runs to fetch',
       default: 5
     } ),
     input: Flags.string( {
@@ -75,7 +76,7 @@ export default class DatasetGenerate extends Command {
     const { args, flags } = await this.parse( DatasetGenerate );
 
     if ( flags.download ) {
-      await this.generateFromS3( args.workflowName, flags.limit );
+      await this.generateFromRuns( args.workflowName, flags.limit, flags.catalog );
       return;
     }
 
@@ -138,7 +139,7 @@ export default class DatasetGenerate extends Command {
     );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
-    const filePath = join( dir, `${datasetName}.yml` );
+    const filePath = datasetFilePath( dir, datasetName );
     await writeDataset( dataset, filePath );
 
     this.log( `Dataset saved: ${filePath}` );
@@ -165,47 +166,70 @@ export default class DatasetGenerate extends Command {
     );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
-    const filePath = join( dir, `${datasetName}.yml` );
+    const filePath = datasetFilePath( dir, datasetName );
     await writeDataset( dataset, filePath );
 
     this.log( `Dataset saved: ${filePath}` );
   }
 
-  private async generateFromS3(
+  private async generateFromRuns(
     workflowName: string,
-    limit: number
+    limit: number,
+    catalog: string | undefined
   ): Promise<void> {
-    this.log( `Listing remote traces for "${workflowName}"...` );
+    this.log( `Fetching recent runs for "${workflowName}"...` );
 
-    const traces = await listRemoteTraces( workflowName, { limit } );
-    if ( traces.length === 0 ) {
-      this.log( 'No remote traces found.' );
+    const { runs, skipped } = await fetchWorkflowRuns( { workflowType: workflowName, catalog, limit } );
+    if ( runs.length === 0 ) {
+      if ( skipped > 0 ) {
+        this.error( `Found ${skipped} run(s) but none had a workflow ID.`, { exit: 1 } );
+      }
+      this.log( 'No recent runs found.' );
       return;
     }
 
-    this.log( `Found ${traces.length} trace(s). Downloading...` );
+    if ( skipped > 0 ) {
+      this.warn( `Skipping ${skipped} run(s) with no workflow ID.` );
+    }
+
+    // The trace-log endpoint always targets a workflow's latest run, so distinct
+    // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
+    const workflowIds = [ ...new Set( runs.map( run => run.workflowId ) ) ];
+
+    this.log( `Found ${workflowIds.length} run(s). Fetching traces...` );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
 
-    for ( const trace of traces ) {
-      const traceData = await downloadRemoteTrace( trace.key );
+    const generated = ( await Promise.all( workflowIds.map( id => this.generateFromRun( id, dir ) ) ) )
+      .filter( Boolean ).length;
+    this.log( `\nGenerated ${generated} dataset(s)` );
+
+    if ( generated === 0 ) {
+      this.error( `Failed to generate any datasets from ${workflowIds.length} run(s).`, { exit: 1 } );
+    }
+  }
+
+  private async generateFromRun( workflowId: string, dir: string ): Promise<boolean> {
+    try {
+      const { data: traceData } = await getTrace( workflowId );
       const extracted = extractDatasetFromTrace( traceData );
 
-      const datasetName = extractDatasetName( trace.key );
-
       const dataset = buildDataset(
-        datasetName,
+        workflowId,
         extracted.input,
         extracted.output,
         extracted.executionTimeMs
       );
 
-      const filePath = join( dir, `${datasetName}.yml` );
+      const filePath = datasetFilePath( dir, workflowId );
       await writeDataset( dataset, filePath );
       this.log( `  Saved: ${filePath}` );
+      return true;
+    } catch ( error ) {
+      const message = error instanceof Error ? error.message : String( error );
+      this.warn( `  Skipped ${workflowId}: ${message}` );
+      return false;
     }
-
-    this.log( `\nGenerated ${traces.length} dataset(s)` );
   }
 
   private async resolveScenarioInput(

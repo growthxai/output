@@ -4,10 +4,11 @@
 import { getWorkflowRuns, type WorkflowRunInfo, type WorkflowRunsResponse } from '#api/generated/api.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
-export type WorkflowRun = WorkflowRunInfo;
+export type WorkflowRun = Omit<WorkflowRunInfo, 'workflowId'> & { workflowId: string };
 
 export interface WorkflowRunsResult {
   runs: WorkflowRun[];
+  skipped: number;
   count: number;
 }
 
@@ -43,12 +44,15 @@ export async function fetchWorkflowRuns( options: FetchWorkflowRunsOptions = {} 
   }
 
   const data = response.data as WorkflowRunsResponse;
-  const runs = ( data.runs || [] ).map( run => ( {
+  const allRuns = ( data.runs || [] ).map( run => ( {
     ...run,
     status: normalizeWorkflowStatus( run.status )
   } ) );
+  const runs = allRuns.filter( run => Boolean( run.workflowId ) ) as WorkflowRun[];
+
   return {
     runs,
+    skipped: allRuns.length - runs.length,
     count: data.count || 0
   };
 }

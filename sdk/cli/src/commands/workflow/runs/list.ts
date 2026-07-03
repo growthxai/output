@@ -23,7 +23,7 @@ function createRunsTable( runs: WorkflowRun[] ): string {
 
   runs.forEach( run => {
     table.push( [
-      run.workflowId || '-',
+      run.workflowId,
       run.workflowType || '-',
       run.status || '-',
       formatDate( run.startedAt ),
@@ -95,11 +95,15 @@ export default class WorkflowRunsList extends Command {
   async run(): Promise<WorkflowRun[]> {
     const { args, flags } = await this.parse( WorkflowRunsList );
 
-    const { runs, count } = await fetchWorkflowRuns( {
+    const { runs, skipped } = await fetchWorkflowRuns( {
       workflowType: args.workflowName,
       catalog: flags.catalog,
       limit: flags.limit
     } );
+
+    if ( skipped > 0 ) {
+      this.warn( `Skipping ${skipped} run(s) with no workflow ID.` );
+    }
 
     if ( this.jsonEnabled() ) {
       return runs;
@@ -115,7 +119,7 @@ export default class WorkflowRunsList extends Command {
     this.log( output );
 
     const filterMsg = args.workflowName ? ` of type "${args.workflowName}"` : '';
-    this.log( `\nFound ${count} run(s)${filterMsg}` );
+    this.log( `\nFound ${runs.length} run(s)${filterMsg}` );
 
     return runs;
   }

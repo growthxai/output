@@ -31,13 +31,5 @@ export const config = {
   get envFile() {
     return process.env.OUTPUT_CLI_ENV || '.env';
   },
-  agentConfigDir: '.outputai',
-  get s3() {
-    return {
-      bucket: process.env.OUTPUT_TRACE_REMOTE_S3_BUCKET,
-      region: process.env.OUTPUT_AWS_REGION,
-      accessKeyId: process.env.OUTPUT_AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.OUTPUT_AWS_SECRET_ACCESS_KEY
-    };
-  }
+  agentConfigDir: '.outputai'
 };

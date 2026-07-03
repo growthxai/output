@@ -28,6 +28,36 @@ The API server reads these environment variables:
 | `TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT` | `24h` | Max workflow execution duration |
 | `TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING` | `300000` | Max wait for workflow result (ms, 5 min) |
 | `TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES` | `33554432` (32 MiB) | Max gRPC message size (send + receive) for the Temporal client. Raise if large workflow results hit `RESOURCE_EXHAUSTED`. |
-| `OUTPUT_AWS_REGION` | `us-west-1` | AWS region for S3 trace uploads |
-| `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key for remote traces |
-| `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key for remote traces |
+| `OUTPUT_TRACE_REMOTE_S3_BUCKET` | — | S3 bucket holding remote traces. Required for the API to serve traces from S3 |
+| `OUTPUT_AWS_REGION` | `us-west-1` | AWS region for the trace bucket |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | — | AWS access key for reading remote traces |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | — | AWS secret key for reading remote traces |
+
+### AWS Credential Permissions
+
+The API only reads traces — the worker is what uploads them (see [Tracing](/operations/tracing#aws-credential-permissions) for the write-side policy). The credentials in `OUTPUT_AWS_ACCESS_KEY_ID` / `OUTPUT_AWS_SECRET_ACCESS_KEY` must allow **read** access to the trace bucket:
+
+| Action | Resource | Why |
+|--------|----------|-----|
+| `s3:GetObject` | `arn:aws:s3:::<bucket>/*` | Fetch individual trace objects |
+| `s3:ListBucket` | `arn:aws:s3:::<bucket>` | List traces for a workflow |
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [ "s3:GetObject", "s3:ListBucket" ],
+      "Resource": [
+        "arn:aws:s3:::my-traces",
+        "arn:aws:s3:::my-traces/*"
+      ]
+    }
+  ]
+}
+```
+
+<Warning>
+If these read permissions are missing, trace fetches fail with a generic download error. A misconfigured bucket policy — granting the worker write access but not granting the API identity `s3:GetObject` / `s3:ListBucket` — is the most common cause of `output workflow debug` and `dataset generate --download` failing against production runs.
+</Warning>

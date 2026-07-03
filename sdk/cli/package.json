@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.92",
-    "@aws-sdk/client-s3": "catalog:",
     "@hackylabs/deep-redact": "3.0.5",
     "@inquirer/prompts": "8.4.2",
     "@oclif/core": "4.10.6",

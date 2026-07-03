@@ -56,6 +56,30 @@ OUTPUT_AWS_SECRET_ACCESS_KEY=...
 | `OUTPUT_AWS_SECRET_ACCESS_KEY` | Remote tracing | AWS secret key |
 | `OUTPUT_TRACE_HOST_PATH` | Docker setups | Host path where trace files are mounted. The worker writes inside the container; this tells the API and CLI what path to report so you can open files on the host |
 
+### AWS Credential Permissions
+
+The worker uploads each trace to S3 when the run completes, so its credentials (`OUTPUT_AWS_ACCESS_KEY_ID` / `OUTPUT_AWS_SECRET_ACCESS_KEY`) must allow **write** access to the trace bucket:
+
+| Action | Resource | Why |
+|--------|----------|-----|
+| `s3:PutObject` | `arn:aws:s3:::<bucket>/*` | Upload the trace file |
+| `s3:AbortMultipartUpload` | `arn:aws:s3:::<bucket>/*` | Clean up an incomplete multipart upload if one fails partway |
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [ "s3:PutObject", "s3:AbortMultipartUpload" ],
+      "Resource": "arn:aws:s3:::my-traces/*"
+    }
+  ]
+}
+```
+
+The API server reads those same traces back to serve `output workflow debug`, `cost`, and `dataset generate --download` — see [API Configuration](/api/configuration#aws-credential-permissions) for the read-side policy. The worker and API can share one key pair or use two identities each scoped to their own actions.
+
 ## Reading a Trace
 
 Each trace file is a single JSON object — the root workflow node. Every node in the tree has the same shape:
@@ -213,3 +237,5 @@ You can access traces in three ways:
 - **Directly** — Open the JSON files at `logs/runs/<workflowName>/`
 - **Via API** — See [Get workflow trace log](/api#get-workflow-trace-log)
 - **Via CLI** — See [output workflow debug](/packages/cli#output-workflow-debug)
+
+The CLI never reads S3 itself. `output workflow debug`, `output workflow cost`, and `output workflow dataset generate --download` all fetch traces through the API's trace-log endpoint, and the API reads remote traces from S3. The API's AWS credentials therefore need `s3:GetObject` and `s3:ListBucket` on the trace bucket — see [API Configuration](/api/configuration#aws-credential-permissions).
