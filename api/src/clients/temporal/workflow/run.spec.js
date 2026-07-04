@@ -3,7 +3,6 @@ import { WorkflowExecutionTimedOutError } from '../../errors.js';
 
 const {
   mockBuildWorkflowId,
-  mockExtractErrorDetail,
   mockBuildWorkflowResult,
   mockResolveWorkflowName,
   mockLoggerWarn,
@@ -13,7 +12,6 @@ const {
 
   return {
     mockBuildWorkflowId: vi.fn(),
-    mockExtractErrorDetail: vi.fn(),
     mockBuildWorkflowResult: vi.fn(),
     mockResolveWorkflowName: vi.fn(),
     mockLoggerWarn: vi.fn(),
@@ -30,8 +28,7 @@ vi.mock( '#configs', () => ( {
 } ) );
 
 vi.mock( '#utils', () => ( {
-  buildWorkflowId: mockBuildWorkflowId,
-  extractErrorDetail: mockExtractErrorDetail
+  buildWorkflowId: mockBuildWorkflowId
 } ) );
 
 vi.mock( '#logger', () => ( {
@@ -56,7 +53,6 @@ describe( 'run', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     mockBuildWorkflowId.mockReturnValue( 'generated-id' );
-    mockExtractErrorDetail.mockReturnValue( null );
     mockResolveWorkflowName.mockResolvedValue( 'resolved-workflow' );
     mockBuildWorkflowResult.mockImplementation( args => ( { shaped: args } ) );
   } );
@@ -123,7 +119,6 @@ describe( 'run', () => {
     const workflowError = new MockWorkflowFailedError( 'workflow failed' );
     const handle = { firstExecutionRunId: 'run-failed', result: vi.fn().mockRejectedValue( workflowError ) };
     const start = vi.fn().mockResolvedValue( handle );
-    mockExtractErrorDetail.mockReturnValue( { trace: true } );
     const client = { workflow: { start } };
     const { run } = await import( './run.js' );
 
@@ -131,8 +126,7 @@ describe( 'run', () => {
 
     expect( mockLoggerWarn ).toHaveBeenCalledWith( 'Workflow execution failed', {
       workflowId: 'generated-id',
-      errorMessage: 'workflow failed',
-      hasTrace: true
+      errorMessage: 'workflow failed'
     } );
     expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
       workflowId: 'generated-id',

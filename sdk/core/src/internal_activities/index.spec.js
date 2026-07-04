@@ -157,12 +157,10 @@ describe( 'internal_activities/getTraceDestinations', () => {
       workflowId: 'workflow-id',
       runId: 'run-id',
       workflowType: 'workflow',
-      startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
-      disableTrace: false
+      startTime: Date.parse( '2026-06-02T09:00:00.000Z' )
     };
     const destinations = {
-      local: '/tmp/project/logs/runs/workflow/trace.json',
-      remote: null
+      local: '/tmp/project/logs/runs/workflow/trace.json'
     };
     getDestinationsMock.mockReturnValueOnce( destinations );
 

@@ -4,7 +4,6 @@ import { serializeError } from './tools/utils.js';
 import { isStringboolTrue } from '#helpers/string';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
-import { ComponentType } from '#consts';
 import { createChildLogger } from '#logger';
 import { EventAction } from './trace_consts.js';
 import { BaseAttribute } from './trace_attribute.js';
@@ -36,9 +35,11 @@ const processors = [
  * @returns {object} A trace destinations object: { [dest-name]: 'path' }
  */
 export const getDestinations = traceInfo =>
-  processors.reduce( ( o, p ) =>
-    Object.assign( o, { [p.name.toLowerCase()]: p.enabled && !traceInfo.disableTrace ? p.getDestination( traceInfo ) : null } )
-  , {} );
+  Object.fromEntries(
+    processors
+      .filter( p => p.enabled )
+      .map( p => [ p.name.toLowerCase(), p.getDestination( traceInfo ) ] )
+  );
 
 /**
  * Starts processors based on env vars and attach them to the main bus to listen trace events
@@ -69,12 +70,9 @@ const serializeDetails = details => details instanceof Error ? serializeError( d
  * @returns {void}
  */
 export const addEventAction = ( action, { kind, name, id, parentId, details, traceInfo } ) => {
-  // Ignores internal steps in the actual trace files, ignore trace if the flag is true
-  if ( kind !== ComponentType.INTERNAL_STEP && !traceInfo.disableTrace ) {
-    traceBus.emit( 'entry', {
-      traceInfo,
-      entry: { kind, action, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) }
-    } );
+  if ( traceInfo ) {
+    const entry = { kind, action, name, id, parentId, timestamp: Date.now(), details: serializeDetails( details ) };
+    traceBus.emit( 'entry', { entry, traceInfo } );
   }
 };
 

@@ -23,24 +23,22 @@ describe( 'TraceInfo', () => {
       startTime: new Date( '2026-06-02T09:00:00.000Z' )
     } );
 
-    expect( TraceInfo.build( { disableTrace: false } ) ).toEqual( {
+    expect( TraceInfo.build() ).toEqual( {
       workflowId: 'workflow-id',
       workflowType: 'workflow-type',
       runId: 'run-id',
-      startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
-      disableTrace: false
+      startTime: Date.parse( '2026-06-02T09:00:00.000Z' )
     } );
   } );
 
   it( 'builds trace info without Temporal fields outside workflow context', () => {
     inWorkflowContextMock.mockReturnValue( false );
 
-    expect( TraceInfo.build( { disableTrace: true } ) ).toEqual( {
+    expect( TraceInfo.build() ).toEqual( {
       workflowId: undefined,
       workflowType: undefined,
       runId: undefined,
-      startTime: undefined,
-      disableTrace: true
+      startTime: undefined
     } );
     expect( workflowInfoMock ).not.toHaveBeenCalled();
   } );

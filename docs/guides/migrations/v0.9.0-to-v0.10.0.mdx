@@ -1,0 +1,146 @@
+---
+title: "v0.9.0 → v0.10.0"
+description: "Upgrading Output.ai projects from v0.9.0 to v0.10.0: trace destinations now omit unavailable outputs instead of returning null values."
+---
+
+This guide covers the trace destination shape changes in v0.10.0. It affects workflow result payloads returned by `@outputai/core`, the API workflow result endpoints, and CLI JSON output.
+
+## What changed
+
+Trace destinations are now sparse. When a trace destination is unavailable, Output.ai omits that key instead of returning it as `null`.
+
+Before, workflow results always included both `local` and `remote` destination keys:
+
+```json
+{
+  "output": { "ok": true },
+  "trace": {
+    "destinations": {
+      "local": null,
+      "remote": "https://bucket.s3.amazonaws.com/runs/example.json"
+    }
+  }
+}
+```
+
+In v0.10.0, only available destinations are present:
+
+```json
+{
+  "output": { "ok": true },
+  "trace": {
+    "destinations": {
+      "remote": "https://bucket.s3.amazonaws.com/runs/example.json"
+    }
+  }
+}
+```
+
+When tracing is disabled, or when no trace destinations are available, results now use an empty object:
+
+```json
+{
+  "output": { "ok": true },
+  "trace": {
+    "destinations": {}
+  }
+}
+```
+
+This shape appears in:
+
+- `@outputai/core` workflow result envelopes
+- `POST /workflow/run`
+- `GET /workflow/{id}/result`
+- `GET /workflow/{id}/runs/{rid}/result`
+- `output workflow run ... --json`
+- `output workflow result <workflow-id> --json`
+
+## Migration steps
+
+### Stop checking for `null` destinations
+
+If your code checks for `null`, switch to checking whether a destination key exists or has a truthy value.
+
+#### Before
+
+```ts
+const destinations = result.trace?.destinations;
+
+if ( destinations?.remote !== null ) {
+  await fetchRemoteTrace( destinations.remote );
+}
+
+if ( destinations?.local !== null ) {
+  console.log( destinations.local );
+}
+```
+
+#### After
+
+```ts
+const destinations = result.trace?.destinations ?? {};
+
+if ( destinations.remote ) {
+  await fetchRemoteTrace( destinations.remote );
+}
+
+if ( destinations.local ) {
+  console.log( destinations.local );
+}
+```
+
+### Treat an empty destination object as "no trace destination"
+
+If your UI or automation previously expected `{ local: null, remote: null }`, update it to treat `{}` the same way.
+
+#### Before
+
+```ts
+const hasTraceDestination =
+  result.trace?.destinations?.local !== null ||
+  result.trace?.destinations?.remote !== null;
+```
+
+#### After
+
+```ts
+const destinations = result.trace?.destinations ?? {};
+const hasTraceDestination = Object.keys( destinations ).length > 0;
+```
+
+### Update API and CLI JSON consumers
+
+Scripts that parse API responses or CLI JSON output should not assume that `local` and `remote` are always present.
+
+```bash
+# These commands can now return trace.destinations as {}
+npx output workflow run simple basic_input --json
+npx output workflow result <workflow-id> --json
+```
+
+For example, update `jq` filters to handle missing keys:
+
+```bash
+# Before
+npx output workflow result <workflow-id> --json | jq -e '.trace.destinations.remote != null'
+
+# After
+npx output workflow result <workflow-id> --json | jq -r '.trace.destinations.remote // empty'
+```
+
+The `// empty` filter works with both old `null` values and new omitted keys. If your script checks for exact object equality, update that assertion to accept `{}`.
+
+## Other trace behavior changes
+
+When a workflow has `disableTrace: true`, Output.ai no longer invokes the internal `getTraceDestinations` activity. The result still includes `trace.destinations: {}`, but avoids scheduling work that cannot produce a trace destination.
+
+Trace files can now include internal activities such as `getTraceDestinations` and `sendHttpRequest`. These activities are visible in Temporal and can affect workflow behavior, so they are now represented in trace output.
+
+## Checklist
+
+- Replace `destination === null` checks with truthy or key-existence checks.
+- Treat `trace.destinations: {}` as "no trace destination available."
+- Update API response assertions that expected both `local` and `remote` keys.
+- Update CLI `--json` parsing scripts that assumed `trace.destinations.local` and `trace.destinations.remote` always existed.
+- If you inspect trace files directly, expect internal activities to appear.

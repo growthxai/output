@@ -16,8 +16,7 @@ const traceInfoMock = vi.hoisted( () => ( {
   workflowId: 'wf-1',
   runId: 'run-1',
   workflowType: 'myWorkflow',
-  startTime: 1710000000000,
-  disableTrace: false
+  startTime: 1710000000000
 } ) );
 const workflowDetailsMock = vi.hoisted( () => ( {
   workflowId: 'wf-1',

@@ -229,19 +229,14 @@ app.use( ( req, res, next ) => {
  *       properties:
  *         destinations:
  *           type: object
- *           description: File destinations for trace data
- *           required:
- *             - local
- *             - remote
+ *           description: Available destinations for trace data
  *           properties:
  *             local:
  *               type: string
- *               nullable: true
- *               description: Absolute path to local trace file, or null if not saved locally
+ *               description: Absolute path to local trace file, omitted if not saved locally
  *             remote:
  *               type: string
- *               nullable: true
- *               description: Remote trace location (e.g., S3 URI), or null if not saved remotely
+ *               description: Remote trace location (e.g., S3 URI), omitted if not saved remotely
  *     TraceData:
  *       type: object
  *       description: Trace data containing workflow execution details

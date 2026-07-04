@@ -67,13 +67,14 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       memo.stack = [ ...memo.stack ?? [], workflowId ];
       // Parent options have prevalence on nested calls, child will be overwritten
       memo.activityOptions = deepMerge( activityOptions, memo.activityOptions );
-      // Trace info is only added in the root workflow
-      if ( isRoot ) {
-        memo.traceInfo = TraceInfo.build( { disableTrace } );
+      // Trace info is only added in the root and only when trace is not disabled
+      if ( isRoot && !disableTrace ) {
+        memo.traceInfo = TraceInfo.build();
       }
 
       const steps = proxyActivities( memo.activityOptions );
-      const traceDest = isRoot && ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output;
+      const destinations = isRoot && ( disableTrace ? {} : ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output );
+      const traceDestinations = destinations && { trace: { destinations } };
 
       try {
         validator.validateInput( input );
@@ -93,15 +94,11 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
         const output = await fn.call( dispatchers, input, WorkflowContext.build() );
         validator.validateOutput( output );
 
-        return {
-          [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-          output,
-          ...( traceDest && { trace: { destinations: traceDest } } )
-        };
+        return { [WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
       } catch ( error ) {
-        if ( isRoot && traceDest ) {
+        if ( traceDestinations ) {
           // Append the trace destinations so it is carried to interceptor
-          error[METADATA_ACCESS_SYMBOL] = { trace: { destinations: traceDest } };
+          error[METADATA_ACCESS_SYMBOL] = traceDestinations;
         }
         throw error;
       }
