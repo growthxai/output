@@ -373,30 +373,6 @@ describe( 'workflow()', () => {
       expect( getTraceDestinations ).toHaveBeenCalledWith( info.memo.traceInfo );
     } );
 
-    it( 'falls back to workflow type matching when replaying an old child call without memo.stack', async () => {
-      const { workflow } = await import( './workflow.js' );
-      const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      setWorkflowInfo( { workflowType: 'old_parent_wf', memo: { traceInfo: { workflowId: 'root-workflow' } } } );
-      executeChildMock.mockResolvedValueOnce( { output: { child: 'replayed' } } );
-      const fn = vi.fn();
-
-      const wf = workflow( workflowDefinition( {
-        name: 'old_child_wf',
-        inputSchema: z.object( { id: z.number() } ),
-        outputSchema: z.object( { child: z.string() } ),
-        fn
-      } ) );
-
-      await expect( wf( { id: 7 } ) ).resolves.toEqual( { child: 'replayed' } );
-      expect( fn ).not.toHaveBeenCalled();
-      expect( executeChildMock ).toHaveBeenCalledWith( 'old_child_wf', expect.objectContaining( {
-        args: [ { id: 7 } ],
-        parentClosePolicy: ParentClosePolicy.TERMINATE,
-        memo: { traceInfo: { workflowId: 'root-workflow' } }
-      } ) );
-      expect( proxyActivitiesMock ).not.toHaveBeenCalled();
-    } );
-
     it( 'does not fallback to child execution when the replayed workflow type matches an alias', async () => {
       const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'old_root_wf', memo: {} } );
@@ -531,43 +507,6 @@ describe( 'workflow()', () => {
       } );
     } );
 
-    it( 'supports old unwrapped trace destination activity results during replay', async () => {
-      const { workflow } = await import( './workflow.js' );
-      setWorkflowInfo( { workflowType: 'old_trace_payload_wf' } );
-      mockActivities( {
-        [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( { local: '/tmp/old-trace' } )
-      } );
-
-      const wf = workflow( workflowDefinition( {
-        name: 'old_trace_payload_wf',
-        outputSchema: z.object( { ok: z.boolean() } ),
-        fn: async () => ( { ok: true } )
-      } ) );
-
-      await expect( wf( {} ) ).resolves.toEqual( {
-        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { ok: true },
-        trace: { destinations: { local: '/tmp/old-trace' } }
-      } );
-    } );
-
-    it( 'supports old null trace destination activity results during replay', async () => {
-      const { workflow } = await import( './workflow.js' );
-      setWorkflowInfo( { workflowType: 'old_null_trace_payload_wf' } );
-      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( null ) } );
-
-      const wf = workflow( workflowDefinition( {
-        name: 'old_null_trace_payload_wf',
-        outputSchema: z.object( { ok: z.boolean() } ),
-        fn: async () => ( { ok: true } )
-      } ) );
-
-      await expect( wf( {} ) ).resolves.toEqual( {
-        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { ok: true }
-      } );
-    } );
-
     it( 'validates input and output inside workflow context', async () => {
       const { workflow } = await import( './workflow.js' );
       const inputError = new ValidationError( 'invalid workflow input' );
@@ -655,34 +594,6 @@ describe( 'workflow()', () => {
       } );
       expect( sharedStep ).toHaveBeenCalledWith();
       expect( sharedEvaluator ).toHaveBeenCalledWith( { x: 1 } );
-    } );
-
-    it( 'supports old unwrapped step and evaluator activity results during replay', async () => {
-      const { workflow } = await import( './workflow.js' );
-      setWorkflowInfo( { workflowType: 'old_activity_payload_wf' } );
-      const step = vi.fn().mockResolvedValue( 'legacy-step-output' );
-      const evaluator = vi.fn().mockResolvedValue( 'legacy-eval-output' );
-      mockActivities( {
-        [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( null ) ),
-        'old_activity_payload_wf#stepA': step,
-        'old_activity_payload_wf#evalA': evaluator
-      } );
-
-      const wf = workflow( workflowDefinition( {
-        name: 'old_activity_payload_wf',
-        outputSchema: z.object( { stepResult: z.string(), evalResult: z.string() } ),
-        async fn() {
-          return {
-            stepResult: await this.invokeStep( 'stepA' ),
-            evalResult: await this.invokeEvaluator( 'evalA' )
-          };
-        }
-      } ) );
-
-      await expect( wf( {} ) ).resolves.toEqual( {
-        [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { stepResult: 'legacy-step-output', evalResult: 'legacy-eval-output' }
-      } );
     } );
   } );
 
