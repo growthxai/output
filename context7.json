@@ -6,9 +6,12 @@
     "docs/guides"
   ],
   "excludeFiles": [
-    "docs/guides/README.md",
-    "docs/guides/CLAUDE.md",
-    "docs/guides/TODO_pages.md"
+    "CLAUDE.md",
+    "TODO_pages.md",
+    "CODE_OF_CONDUCT.md",
+    "RELEASING.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md"
   ],
   "rules": [
     "Output has two primitives: workflow() for orchestration (no I/O, must be deterministic) and step() for I/O (API calls, LLM calls, database queries). Never call an API or LLM directly inside a workflow function.",
