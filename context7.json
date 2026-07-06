@@ -1,0 +1,19 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Output",
+  "description": "Open-source TypeScript framework for building AI workflows and agents, with prompts, evals, tracing, cost tracking, credentials, and durable orchestration built in.",
+  "folders": [
+    "docs/guides"
+  ],
+  "excludeFiles": [
+    "docs/guides/README.md",
+    "docs/guides/CLAUDE.md",
+    "docs/guides/TODO_pages.md"
+  ],
+  "rules": [
+    "Output has two primitives: workflow() for orchestration (no I/O, must be deterministic) and step() for I/O (API calls, LLM calls, database queries). Never call an API or LLM directly inside a workflow function.",
+    "Prompts live in version-controlled .prompt files using LiquidJS templating, not inline strings.",
+    "Output is a framework, not an SDK.",
+    "Temporal powers durable execution under the hood: workflow code may be replayed on failure, which is why workflows must have no direct I/O."
+  ]
+}
