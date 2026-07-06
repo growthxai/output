@@ -1,9 +1,136 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import { serializeBodyAndInferContentType, serializeFetchResponse } from './fetch.js';
+import { hydrateHeaders, redactHeaders, serializeBodyAndInferContentType, serializeResponse } from './fetch.js';
 
-describe( 'serializeFetchResponse', () => {
-  it( 'serializes JSON response body and flattens headers', async () => {
+describe( 'redactHeaders', () => {
+  it( 'redacts sensitive header names', () => {
+    const result = redactHeaders( {
+      Authorization: 'Bearer token',
+      'X-Api-Key': 'api-key',
+      Cookie: 'session=id',
+      'x-client-secret': 'secret'
+    } );
+
+    expect( result ).toEqual( {
+      Authorization: '[REDACTED]',
+      'X-Api-Key': '[REDACTED]',
+      Cookie: '[REDACTED]',
+      'x-client-secret': '[REDACTED]'
+    } );
+  } );
+
+  it( 'preserves non-sensitive header names and ignored false positives', () => {
+    const result = redactHeaders( {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-csrf-token': 'csrf-token',
+      'public-key-pins': 'pin'
+    } );
+
+    expect( result ).toEqual( {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-csrf-token': 'csrf-token',
+      'public-key-pins': 'pin'
+    } );
+  } );
+
+  it( 'handles empty headers', () => {
+    expect( redactHeaders( {} ) ).toEqual( {} );
+  } );
+} );
+
+describe( 'hydrateHeaders', () => {
+  afterEach( () => {
+    delete process.env.TOKEN;
+    delete process.env.API_KEY;
+  } );
+
+  it( 'replaces environment variable tokens in header values', () => {
+    process.env.TOKEN = 'secret-token';
+
+    expect( hydrateHeaders( {
+      Authorization: 'Bearer $TOKEN'
+    } ) ).toEqual( {
+      Authorization: 'Bearer secret-token'
+    } );
+  } );
+
+  it( 'replaces repeated and multiple environment variable tokens', () => {
+    process.env.TOKEN = 'secret-token';
+    process.env.API_KEY = 'api-key';
+
+    expect( hydrateHeaders( {
+      Authorization: 'Bearer $TOKEN',
+      'X-Composite': '$TOKEN:$API_KEY:$TOKEN'
+    } ) ).toEqual( {
+      Authorization: 'Bearer secret-token',
+      'X-Composite': 'secret-token:api-key:secret-token'
+    } );
+  } );
+
+  it( 'preserves headers without environment variable tokens', () => {
+    expect( hydrateHeaders( {
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    } ) ).toEqual( {
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    } );
+  } );
+
+  it( 'handles missing headers', () => {
+    expect( hydrateHeaders() ).toEqual( {} );
+  } );
+
+  it( 'throws when an environment variable token is missing', () => {
+    expect( () => hydrateHeaders( {
+      Authorization: 'Bearer $TOKEN'
+    } ) ).toThrow( 'Missing environment variable "TOKEN" while hydrating headers.' );
+  } );
+} );
+
+describe( 'serializeResponse', () => {
+  it( 'serializes response metadata by default', async () => {
+    const response = new Response( '{not json', {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'content-type': 'application/json' }
+    } );
+
+    await expect( serializeResponse( response ) ).resolves.toEqual( {
+      url: '',
+      status: 200,
+      statusText: 'OK',
+      ok: true
+    } );
+  } );
+
+  it( 'includes redacted headers when requested', async () => {
+    const response = new Response( null, {
+      status: 204,
+      statusText: 'No Content',
+      headers: {
+        authorization: 'Bearer token',
+        'content-type': 'application/json'
+      }
+    } );
+
+    const result = await serializeResponse( response, { includeHeaders: true } );
+
+    expect( result ).toEqual( {
+      url: '',
+      status: 204,
+      statusText: 'No Content',
+      ok: true,
+      headers: {
+        authorization: '[REDACTED]',
+        'content-type': 'application/json'
+      }
+    } );
+  } );
+
+  it( 'includes JSON body when requested', async () => {
     const payload = { a: 1, b: 'two' };
     const response = new Response( JSON.stringify( payload ), {
       status: 200,
@@ -11,32 +138,39 @@ describe( 'serializeFetchResponse', () => {
       headers: { 'content-type': 'application/json' }
     } );
 
-    const result = await serializeFetchResponse( response );
-    expect( result.status ).toBe( 200 );
-    expect( result.ok ).toBe( true );
-    expect( result.statusText ).toBe( 'OK' );
-    expect( result.headers['content-type'] ).toContain( 'application/json' );
+    const result = await serializeResponse( response, { includeBody: true } );
+
     expect( result.body ).toEqual( payload );
   } );
 
-  it( 'serializes text/* response via text()', async () => {
+  it( 'includes structured syntax JSON body when requested', async () => {
+    const payload = { error: 'Invalid input' };
+    const response = new Response( JSON.stringify( payload ), {
+      status: 400,
+      statusText: 'Bad Request',
+      headers: { 'content-type': 'application/problem+json; charset=utf-8' }
+    } );
+
+    const result = await serializeResponse( response, { includeBody: true } );
+
+    expect( result.body ).toEqual( payload );
+  } );
+
+  it( 'includes text body when requested', async () => {
     const bodyText = 'hello world';
     const response = new Response( bodyText, {
       status: 201,
       statusText: 'Created',
-      headers: { 'content-type': 'text/plain; charset=utf-8' }
+      headers: { 'content-type': 'Text/Plain; charset=utf-8' }
     } );
 
-    const result = await serializeFetchResponse( response );
-    expect( result.status ).toBe( 201 );
-    expect( result.ok ).toBe( true );
-    expect( result.statusText ).toBe( 'Created' );
-    expect( result.headers['content-type'] ).toContain( 'text/plain' );
+    const result = await serializeResponse( response, { includeBody: true } );
+
     expect( result.body ).toBe( bodyText );
   } );
 
   if ( typeof ReadableStream !== 'undefined' ) {
-    it( 'serializes ReadableStream body for text/* via text()', async () => {
+    it( 'includes ReadableStream text body when requested', async () => {
       const encoder = new TextEncoder();
       const chunk = encoder.encode( 'streamed text' );
       const stream = new ReadableStream( {
@@ -51,16 +185,13 @@ describe( 'serializeFetchResponse', () => {
         headers: { 'content-type': 'text/plain; charset=utf-8' }
       } );
 
-      const result = await serializeFetchResponse( response );
-      expect( result.status ).toBe( 200 );
-      expect( result.ok ).toBe( true );
-      expect( result.statusText ).toBe( 'OK' );
-      expect( result.headers['content-type'] ).toContain( 'text/plain' );
+      const result = await serializeResponse( response, { includeBody: true } );
+
       expect( result.body ).toBe( 'streamed text' );
     } );
   }
 
-  it( 'serializes non-text/non-json response as base64 from arrayBuffer()', async () => {
+  it( 'includes non-text non-json response as base64 when requested', async () => {
     const bytes = Uint8Array.from( [ 0, 1, 2, 3 ] );
     const response = new Response( bytes, {
       status: 200,
@@ -68,21 +199,17 @@ describe( 'serializeFetchResponse', () => {
       headers: { 'content-type': 'application/octet-stream' }
     } );
 
-    const result = await serializeFetchResponse( response );
-    expect( result.status ).toBe( 200 );
-    expect( result.ok ).toBe( true );
-    expect( result.statusText ).toBe( 'OK' );
-    expect( result.headers['content-type'] ).toBe( 'application/octet-stream' );
+    const result = await serializeResponse( response, { includeBody: true } );
+
     expect( result.body ).toBe( Buffer.from( bytes ).toString( 'base64' ) );
   } );
 
-  it( 'defaults to base64 when content-type header is missing', async () => {
+  it( 'defaults to base64 body when content-type header is missing and body is requested', async () => {
     const bytes = Uint8Array.from( [ 0, 1, 2, 3 ] );
     const response = new Response( bytes, { status: 200 } );
-    // No headers set; content-type resolves to ''
 
-    const result = await serializeFetchResponse( response );
-    expect( result.headers['content-type'] ?? '' ).toBe( '' );
+    const result = await serializeResponse( response, { includeBody: true } );
+
     expect( result.body ).toBe( Buffer.from( bytes ).toString( 'base64' ) );
   } );
 } );

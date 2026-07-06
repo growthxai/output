@@ -141,7 +141,8 @@ describe( 'interface validators', () => {
         url: 'https://example.com',
         method: 'POST',
         payload: { ok: true },
-        headers: { authorization: 'Bearer token' }
+        headers: { authorization: 'Bearer token' },
+        responseOptions: { includeHeaders: true, includeBody: true }
       } ) ).not.toThrow();
     } );
 
@@ -154,6 +155,12 @@ describe( 'interface validators', () => {
       expect( () => validateRequestPayload( {
         url: 'https://example.com',
         method: 'OPTIONS'
+      } ) ).toThrow( ValidationError );
+
+      expect( () => validateRequestPayload( {
+        url: 'https://example.com',
+        method: 'GET',
+        responseOptions: { includeHeaders: 'yes' }
       } ) ).toThrow( ValidationError );
     } );
   } );

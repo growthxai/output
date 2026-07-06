@@ -1,32 +1,79 @@
+import { FatalError } from '#errors';
+
+/** Matches red int "hot-red-pie", but not int "redact" */
+const wordMatcher = term => new RegExp( `(?<![a-z\\d])${term}(?![a-z\\d])`, 'i' );
+
+/** Matches red in "acquired", but not in "redact" */
+const wordEndMatcher = term => new RegExp( `${term}(?![a-z\\d])`, 'i' );
+
+/**
+ * Redacts sensitive headers
+ * @param {object} headers
+ * @returns {object} The redacted headers
+ */
+export const redactHeaders = headers => {
+  /** Header names that look sensitive by substring rules but are not secret material. */
+  const ignoreHeaders = new Set( [
+    'x-csrf-token',
+    'public-key-pins'
+  ] );
+
+  /** * Sensitive header patterns for redaction (case-insensitive). */
+  const sensitiveHeadersPatterns = [
+    // matches headers that contain these exact words
+    wordMatcher( 'authorization' ),
+    wordMatcher( 'token' ),
+    wordMatcher( 'secret' ),
+    wordMatcher( 'password' ),
+    wordMatcher( 'pwd' ),
+    wordMatcher( 'cookie' ),
+    // matches header that contain words ending with these sequences
+    wordEndMatcher( 'key' )
+  ];
+
+  return Object.entries( headers ).reduce( ( redacted, [ key, value ] ) => {
+    const lowKey = key.toLowerCase();
+    const isSensitive = !ignoreHeaders.has( lowKey ) && sensitiveHeadersPatterns.some( rx => rx.test( lowKey ) );
+    return Object.assign( redacted, { [key]: isSensitive ? '[REDACTED]' : value } );
+  }, {} );
+};
+
+/**
+ * Consume the body of a Response according it its content-type and returns it
+ * @param {Response} response
+ * @returns {string|object|undefined|null} The response body content
+ */
+const consumeBody = async response => {
+  const headers = Object.fromEntries( response.headers ) ?? {};
+  const contentType = ( headers['content-type'] ?? '' ).trim().toLowerCase();
+  const jsonMatcher = /^application\/(?:json|[^;\s]+?\+json)(?:\s*;.*)?$/i;
+  if ( jsonMatcher.test( contentType ) ) {
+    return response.json();
+  }
+  if ( contentType.startsWith( 'text/' ) ) {
+    return response.text();
+  }
+  return response.arrayBuffer().then( buf => Buffer.from( buf ).toString( 'base64' ) );
+};
+
 /**
  * Consume Fetch's HTTP Response and return a serialized version of it;
  *
  * @param {Response} response
+ * @param {options} responseOptions
+ * @param {boolean} responseOptions.includeBody - If the body must be included in the response (default false)
+ * @param {boolean} responseOptions.includeHeaders - If the redacted headers must be included in the response - headers are always redacted (default false)
  * @returns {object} Serialized response
  */
-export const serializeFetchResponse = async response => {
-  const headers = Object.fromEntries( response.headers );
-  const contentType = headers['content-type'] || '';
+export const serializeResponse = async ( response, { includeHeaders = false, includeBody = false } = {} ) => ( {
+  url: response.url,
+  status: response.status,
+  statusText: response.statusText,
+  ok: response.ok,
+  ...( includeHeaders && { headers: redactHeaders( Object.fromEntries( response.headers ) ) } ),
+  ...( includeBody && { body: await consumeBody( response ) } )
+} );
 
-  const body = await ( async () => {
-    if ( contentType.includes( 'application/json' ) ) {
-      return response.json();
-    }
-    if ( contentType.startsWith( 'text/' ) ) {
-      return response.text();
-    }
-    return response.arrayBuffer().then( buf => Buffer.from( buf ).toString( 'base64' ) );
-  } )();
-
-  return {
-    url: response.url,
-    status: response.status,
-    statusText: response.statusText,
-    ok: response.ok,
-    headers,
-    body
-  };
-};
 /**
  * Duck-typing to detect a Node Readable (Stream) without importing anything
  *
@@ -103,3 +150,21 @@ export const serializeBodyAndInferContentType = payload => {
 
   return { body: String( payload ), contentType: 'text/plain; charset=UTF-8' };
 };
+
+const getSecretFromEnv = varName => {
+  const value = process.env[varName];
+  if ( value === undefined ) {
+    throw new FatalError( `Missing environment variable "${varName}" while hydrating headers.` );
+  }
+  return value;
+};
+
+/**
+ * Replaces $VAR_NAME tokens in header values
+ * @param {object} headers
+ * @returns {object} Hydrated headers
+ */
+export const hydrateHeaders = headers =>
+  Object.entries( headers ?? {} ).reduce( ( o, [ key, value ] ) =>
+    Object.assign( o, { [key]: ( '' + value ).replace( /\$([A-Z_][A-Z0-9_]*)/g, ( _, _var ) => getSecretFromEnv( _var ) ) } )
+  , {} );

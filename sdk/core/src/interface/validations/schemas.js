@@ -88,7 +88,11 @@ export const httpRequestSchema = z.object( {
   url: z.url( { protocol: /^https?$/ } ),
   method: z.enum( [ 'GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE' ] ),
   payload: z.any().optional(),
-  headers: z.record( z.string(), z.string() ).optional()
+  headers: z.record( z.string(), z.string() ).optional(),
+  responseOptions: z.strictObject( {
+    includeHeaders: z.boolean().optional().default( false ),
+    includeBody: z.boolean().optional().default( false )
+  } ).optional()
 } );
 
 export const workflowInvocationOptionsSchema = z.strictObject( {

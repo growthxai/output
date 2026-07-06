@@ -3,6 +3,17 @@
  */
 export type HttpMethod = 'HEAD' | 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
+/**
+ * Controls which response fields are included in the serialized HTTP response.
+ */
+export type ResponseOptions = {
+  /** Include redacted response headers in the returned value. */
+  includeHeaders?: boolean,
+
+  /** Include the response body in the returned value. */
+  includeBody?: boolean
+};
+
 /** Represents a {Response} serialized to plain object */
 export type SerializedFetchResponse = {
   /** The response url */
@@ -18,10 +29,10 @@ export type SerializedFetchResponse = {
   ok: boolean,
 
   /** Object with response headers */
-  headers: Record<string, string>,
+  headers?: Record<string, string>,
 
   /** Response body, either JSON, text, or an arrayBuffer converted to base64 */
-  body: object | string
+  body?: unknown
 };
 
 /**
@@ -93,6 +104,7 @@ export declare function sendPostRequestAndAwaitWebhook( params: {
  * @param params.method - The HTTP method (default: 'GET')
  * @param params.payload - Request payload (only for POST/PUT)
  * @param params.headers - Headers for the request
+ * @param params.responseOptions - Controls which response fields are included
  * @returns Resolves with an HTTP response serialized to a plain object
  */
 export declare function sendHttpRequest( params: {
@@ -100,4 +112,5 @@ export declare function sendHttpRequest( params: {
   method?: HttpMethod;
   payload?: object;
   headers?: Record<string, string>;
+  responseOptions?: ResponseOptions;
 } ): Promise<SerializedFetchResponse>;

@@ -1,9 +1,9 @@
 ---
 title: "v0.9.0 → v0.10.0"
-description: "Upgrading Output.ai projects from v0.9.0 to v0.10.0: trace destinations now omit unavailable outputs instead of returning null values."
+description: "Upgrading Output.ai projects from v0.9.0 to v0.10.0: trace destinations now omit unavailable outputs and sendHttpRequest returns metadata by default."
 ---
 
-This guide covers the trace destination shape changes in v0.10.0. It affects workflow result payloads returned by `@outputai/core`, the API workflow result endpoints, and CLI JSON output.
+This guide covers the trace destination shape changes in v0.10.0 and the `sendHttpRequest` output change. Trace destination changes affect workflow result payloads returned by `@outputai/core`, the API workflow result endpoints, and CLI JSON output.
 
 ## What changed
 
@@ -57,6 +57,40 @@ This shape appears in:
 - `output workflow result <workflow-id> --json`
 
 ## Migration steps
+
+### Opt into `sendHttpRequest` response headers and body
+
+Breaking change: `sendHttpRequest` no longer returns response headers or body by default. The default response now includes only `url`, `status`, `statusText`, and `ok`.
+
+If your workflow reads `response.headers` or `response.body`, pass `responseOptions`.
+
+#### Before
+
+```ts
+const response = await sendHttpRequest( {
+  url: 'https://api.example.com/data',
+  method: 'GET'
+} );
+
+return response.body;
+```
+
+#### After
+
+```ts
+const response = await sendHttpRequest( {
+  url: 'https://api.example.com/data',
+  method: 'GET',
+  responseOptions: {
+    includeBody: true,
+    includeHeaders: true
+  }
+} );
+
+return response.body;
+```
+
+Response headers included with `includeHeaders: true` are redacted by header name. Response bodies are returned as-is, so only opt into `includeBody` when the body is safe to store in workflow history and trace files.
 
 ### Stop checking for `null` destinations
 
@@ -139,6 +173,7 @@ Trace files can now include internal activities such as `getTraceDestinations` a
 
 ## Checklist
 
+- Add `responseOptions.includeBody` and/or `responseOptions.includeHeaders` anywhere workflow code reads `sendHttpRequest` response body or headers.
 - Replace `destination === null` checks with truthy or key-existence checks.
 - Treat `trace.destinations: {}` as "no trace destination available."
 - Update API response assertions that expected both `local` and `remote` keys.

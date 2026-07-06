@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FatalError } from '#errors';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
-import { serializeBodyAndInferContentType, serializeFetchResponse } from '#helpers/fetch';
+import { serializeBodyAndInferContentType, serializeResponse } from '#helpers/fetch';
 import { getTraceDestinations, sendHttpRequest } from './index.js';
 
 const getDestinationsMock = vi.hoisted( () => vi.fn() );
@@ -34,8 +34,9 @@ vi.mock( '#helpers/string', () => ( {
 } ) );
 
 vi.mock( '#helpers/fetch', () => ( {
+  hydrateHeaders: vi.fn( headers => headers ?? {} ),
   serializeBodyAndInferContentType: vi.fn(),
-  serializeFetchResponse: vi.fn()
+  serializeResponse: vi.fn()
 } ) );
 
 const url = 'https://growthx.ai';
@@ -69,7 +70,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
   beforeEach( async () => {
     fetchMock.mockReset();
     serializeBodyAndInferContentType.mockReset();
-    serializeFetchResponse.mockReset();
+    serializeResponse.mockReset();
   } );
 
   it( 'succeeds and returns serialized JSON response', async () => {
@@ -87,7 +88,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
       contentType: 'application/json; charset=UTF-8'
     } );
     const fakeSerialized = { sentinel: true };
-    serializeFetchResponse.mockResolvedValueOnce( fakeSerialized );
+    serializeResponse.mockResolvedValueOnce( fakeSerialized );
 
     const result = await sendHttpRequest( { url, method, payload } );
 
@@ -98,11 +99,26 @@ describe( 'internal_activities/sendHttpRequest', () => {
       method,
       dispatcher: expect.any( EnvHttpProxyAgentMock )
     } ) );
-    expect( serializeFetchResponse ).toHaveBeenCalledTimes( 1 );
-    const respArg = serializeFetchResponse.mock.calls[0][0];
+    expect( serializeResponse ).toHaveBeenCalledTimes( 1 );
+    const respArg = serializeResponse.mock.calls[0][0];
     expect( respArg && typeof respArg.text ).toBe( 'function' );
     expect( respArg.status ).toBe( 200 );
     expect( respArg.headers.get( 'content-type' ) ).toContain( 'application/json' );
+    expect( serializeResponse.mock.calls[0][1] ).toEqual( {} );
+    expect( result ).toBe( fakeSerialized );
+  } );
+
+  it( 'passes response options to response serialization', async () => {
+    const responseOptions = { includeHeaders: true, includeBody: true };
+    const fakeSerialized = { sentinel: true };
+
+    fetchMock.mockResolvedValueOnce( response( { status: 200 } ) );
+    serializeResponse.mockResolvedValueOnce( fakeSerialized );
+
+    const result = await sendHttpRequest( { url, method, responseOptions } );
+
+    expect( serializeResponse ).toHaveBeenCalledTimes( 1 );
+    expect( serializeResponse.mock.calls[0][1] ).toBe( responseOptions );
     expect( result ).toBe( fakeSerialized );
   } );
 
@@ -111,7 +127,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai 500' ) );
-    expect( serializeFetchResponse ).not.toHaveBeenCalled();
+    expect( serializeResponse ).not.toHaveBeenCalled();
     expect( serializeBodyAndInferContentType ).not.toHaveBeenCalled();
   } );
 
@@ -120,7 +136,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
 
     await expect( sendHttpRequest( { url, method, timeout: 250 } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai The operation was aborted due to timeout' ) );
-    expect( serializeFetchResponse ).not.toHaveBeenCalled();
+    expect( serializeResponse ).not.toHaveBeenCalled();
     expect( serializeBodyAndInferContentType ).not.toHaveBeenCalled();
   } );
 
@@ -131,7 +147,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai Error: getaddrinfo ENOTFOUND nonexistent.example.test' ) );
-    expect( serializeFetchResponse ).not.toHaveBeenCalled();
+    expect( serializeResponse ).not.toHaveBeenCalled();
     expect( serializeBodyAndInferContentType ).not.toHaveBeenCalled();
   } );
 
@@ -142,7 +158,7 @@ describe( 'internal_activities/sendHttpRequest', () => {
 
     await expect( sendHttpRequest( { url, method } ) ).rejects
       .toThrow( new FatalError( 'GET https://growthx.ai Error: connect ECONNREFUSED 127.0.0.1:65500' ) );
-    expect( serializeFetchResponse ).not.toHaveBeenCalled();
+    expect( serializeResponse ).not.toHaveBeenCalled();
     expect( serializeBodyAndInferContentType ).not.toHaveBeenCalled();
   } );
 } );
