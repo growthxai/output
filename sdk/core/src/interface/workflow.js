@@ -8,24 +8,11 @@ import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import { createWorkflow } from '#helpers/component';
 import {
-  ACTIVITY_WRAPPER_VERSION_FIELD,
   ACTIVITY_GET_TRACE_DESTINATIONS,
   METADATA_ACCESS_SYMBOL,
   SHARED_STEP_PREFIX,
   WORKFLOW_WRAPPER_VERSION_FIELD
 } from '#consts';
-
-/**
- * @temp
- * This is to keep backwards compatibility [OUT-468]
- */
-const parseActivityOutput = p => Object.hasOwn( p ?? {}, ACTIVITY_WRAPPER_VERSION_FIELD ) ? p.output : p;
-
-/**
- * @temp This is a TEMP fallback method to allow workflow child checks on replays without memo. [OUT-468]
- * This workflows for most scenarios, only does not supports recursion with the same name.
- */
-const checkChildFallback = ( { workflowType, name, aliases } ) => workflowType !== name && !aliases.includes( workflowType );
 
 /**
  * Create a new workflow and return a wrapper function around its fn handler
@@ -54,12 +41,11 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
         return output;
       }
 
-      const { workflowId, workflowType, memo, root } = workflowInfo();
+      const { workflowId, memo, root } = workflowInfo();
 
       // if the stack already includes this workflowId, means the workflow() function was called
       // from within a running workflow, meaning it is suppose to start a child workflow
-      const isChild = Array.isArray( memo.stack ) ? memo.stack.includes( workflowId ) :
-        checkChildFallback( { workflowType, aliases, name } );
+      const isChild = Array.isArray( memo.stack ) ? memo.stack.includes( workflowId ) : false;
 
       if ( isChild ) {
         const result = await executeChild( name, {
@@ -87,13 +73,13 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       }
 
       const steps = proxyActivities( memo.activityOptions );
-      const traceDest = isRoot && parseActivityOutput( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) );
+      const traceDest = isRoot && ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output;
 
       try {
         validator.validateInput( input );
 
         // Creates an activity caller based on a prefix
-        const createCaller = prefix => async ( t, ...args ) => parseActivityOutput( await steps[`${prefix}#${t}`]( ...args ) );
+        const createCaller = prefix => async ( t, ...args ) => ( await steps[`${prefix}#${t}`]( ...args ) ).output;
 
         // This are functions used by the AST to replace direct activity (step/evaluator) calls
         const dispatchers = {
