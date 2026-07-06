@@ -215,7 +215,7 @@ await sendHttpRequest({
 The worker resolves `$ENRICHMENT_API_TOKEN` from `process.env.ENRICHMENT_API_TOKEN` inside the activity. Workflow history and trace files store the placeholder, not the token value.
 
 <Warning>
-Avoid putting secrets in workflow HTTP requests. Values in `url`, `payload`, literal `headers`, and activity responses can be stored in Temporal history and trace files. Use `$ENV_VAR_NAME` placeholders for request header secrets, avoid secrets in URLs and payloads, and only set `responseOptions.includeBody: true` when the response body is safe to persist.
+`sendHttpRequest` is not primarily designed for secure or sensitive HTTP exchanges. Misconfigured requests can leak keys, tokens, cookies, signed URLs, payload data, or response bodies into Temporal history and trace files. Use `$ENV_VAR_NAME` placeholders for request header secrets, avoid secrets in URLs and payloads, and only set `responseOptions.includeBody: true` when the response body is safe to persist.
 </Warning>
 
 ### sendPostRequestAndAwaitWebhook
@@ -233,6 +233,10 @@ const response = await sendPostRequestAndAwaitWebhook({
 ```
 
 The workflow pauses after sending the request and waits for a response at `/workflow/:id/feedback`. Once the external system sends feedback via the API, the workflow resumes with the received payload.
+
+<Warning>
+`sendPostRequestAndAwaitWebhook` is not primarily designed for secure or sensitive HTTP exchanges. Its request arguments are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, or literal headers. Use `$ENV_VAR_NAME` placeholders for request header secrets and avoid secrets in URLs and payloads.
+</Warning>
 
 ## File Structure
 

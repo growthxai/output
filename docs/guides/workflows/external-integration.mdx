@@ -97,7 +97,7 @@ await sendHttpRequest({
 The workflow history and trace files store `Bearer $API_TOKEN`, not the resolved token. The worker reads `process.env.API_TOKEN` at activity execution time. If the environment variable is missing, the request fails before it is sent.
 
 <Warning>
-Do not put keys, tokens, passwords, cookies, signed URLs, or other secrets directly in `url`, `headers`, `payload`, or `responseOptions.includeBody` responses. Workflow activity inputs and outputs are durable history and may be visible in Temporal tooling and trace files. Response headers are redacted when included, but request headers are only protected if you use `$ENV_VAR_NAME` placeholders.
+`sendHttpRequest` and `sendPostRequestAndAwaitWebhook` are not primarily designed for secure or sensitive HTTP exchanges. Misconfigured requests can leak keys, tokens, cookies, signed URLs, payload data, or response bodies into Temporal history and trace files. Use `$ENV_VAR_NAME` placeholders for request header secrets, avoid secrets in URLs and payloads, and only opt into response bodies when they are safe to persist.
 </Warning>
 
 ### Signed Webhooks
@@ -739,10 +739,12 @@ Both are imported from `@outputai/core` and used inside workflow `fn`.
 | `url` | `string` | Yes |
 | `payload` | `object` | No |
 | `headers` | `Record<string, string>` | No |
-| `responseOptions.includeHeaders` | `boolean` | No (default: `false`) |
-| `responseOptions.includeBody` | `boolean` | No (default: `false`) |
 
-Header values can reference worker environment variables with `$ENV_VAR_NAME`, for example `Authorization: 'Bearer $API_TOKEN'`. Response headers are redacted when included. Response bodies are not redacted, so only set `includeBody: true` when the body is safe to store in workflow history and trace files.
+Header values can reference worker environment variables with `$ENV_VAR_NAME`, for example `Authorization: 'Bearer $API_TOKEN'`. Response headers are redacted when included by `sendHttpRequest`. Response bodies are not redacted, so only set `includeBody: true` when the body is safe to store in workflow history and trace files.
+
+<Warning>
+These helpers are not primarily designed for secure or sensitive HTTP exchanges. Activity inputs and outputs are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, literal headers, or opt-in response bodies.
+</Warning>
 
 Callback endpoint: `POST /workflow/:id/feedback` with `{ "payload": {...} }`.
 
