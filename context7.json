@@ -1,4 +1,6 @@
 {
+  "url": "https://context7.com/growthxai/output",
+  "public_key": "pk_JkuIXKBz5KSGvCXnTSX00",
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Output",
   "description": "Open-source TypeScript framework for building AI workflows and agents, with prompts, evals, tracing, cost tracking, credentials, and durable orchestration built in.",
