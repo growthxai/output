@@ -3,20 +3,25 @@ title: "Tracing: Full Visibility"
 description: "How workflow execution is traced, where traces are stored, and how to enable local or remote tracing"
 ---
 
-When an LLM workflow fails or produces bad output, you need to understand what happened — what data each step received, what the LLM returned, and where things went wrong. Tracing gives you that visibility. Every workflow run produces a trace: a tree of events showing the workflow and every step, evaluator, child workflow, LLM call, and HTTP call with their inputs, outputs, errors, and timing.
+When an LLM workflow fails or produces bad output, you need to understand what happened — what data each step received, what the LLM returned, and where things went wrong. Tracing gives you that visibility. When tracing is enabled, each workflow run produces a trace: a tree of events showing the workflow and every step, evaluator, child workflow, LLM call, and HTTP call with their inputs, outputs, errors, and timing.
 
 Traces are written automatically when the worker runs. You don't need to add any instrumentation to your code — just turn tracing on and tell it where to write.
 
 ## What Gets Traced
 
-Each workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
+Each traced workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
 
-- **Steps and evaluators** — input, output (or error), start/end timestamps
-- **LLM calls** — the prompt name, variables, loaded config, the result, and token usage (`inputTokens`, `outputTokens`, `totalTokens`)
-- **HTTP calls** — method, URL, status code
+- **Steps and evaluators** — input, output (or error), start/end timestamps;
+- **LLM calls** — the prompt name, variables, loaded config, the result, and token usage (`inputTokens`, `outputTokens`, `totalTokens`);
+- **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
+- **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
 - **Child workflows** — nested as their own trees with the same structure
 
 This means you can open a trace file and see the full picture: which steps ran, what the LLM received and returned, how many tokens it used, and exactly where a failure happened.
+
+<Warning>
+Trace files are not a secure storage boundary. They can include workflow inputs and outputs, step inputs and outputs, LLM prompts and results, activity inputs and outputs, URLs, payloads, and opt-in HTTP response bodies. Misconfigured HTTP requests can leak keys, tokens, cookies, signed URLs, or other sensitive data into trace files and Temporal history. Avoid putting secrets directly in workflow inputs, URLs, payloads, or literal headers; use the documented `$ENV_VAR_NAME` header placeholders for `sendHttpRequest` request header secrets.
+</Warning>
 
 ## Enabling Tracing
 
@@ -55,6 +60,7 @@ OUTPUT_AWS_SECRET_ACCESS_KEY=...
 | `OUTPUT_AWS_ACCESS_KEY_ID` | Remote tracing | AWS access key |
 | `OUTPUT_AWS_SECRET_ACCESS_KEY` | Remote tracing | AWS secret key |
 | `OUTPUT_TRACE_HOST_PATH` | Docker setups | Host path where trace files are mounted. The worker writes inside the container; this tells the API and CLI what path to report so you can open files on the host |
+| `OUTPUT_TRACE_HTTP_VERBOSE` | HTTP client tracing | Set to `true` or `1` to include request/response headers and bodies for `@outputai/http` trace events. Headers are redacted by header name, but bodies are recorded as-is. |
 
 ### AWS Credential Permissions
 
@@ -87,7 +93,7 @@ Each trace file is a single JSON object — the root workflow node. Every node i
 | Field | Description |
 |-------|-------------|
 | `id` | Unique identifier for this node |
-| `kind` | `workflow`, `step`, `evaluator`, `llm`, or `http` |
+| `kind` | Event kind. Common values include `workflow`, `step`, `evaluator`, `llm`, `http`, and `internal_step`. Other event kinds, such as `webhook`, can appear for specific workflow helpers. |
 | `name` | Workflow name or activity type |
 | `startedAt` / `endedAt` | Unix timestamps (ms) |
 | `input` | What the node received |
@@ -171,8 +177,7 @@ A complete trace puts it all together — the workflow root with all its step ch
     "output": { "company": "Acme Corp", "summary": "Acme Corp is a B2B SaaS company..." },
     "trace": {
       "destinations": {
-        "local": "/path/to/logs/runs/lead_enrichment/2026-01-27_lead_enrichment-758d51b8-....json",
-        "remote": null
+        "local": "/path/to/logs/runs/lead_enrichment/2026-01-27_lead_enrichment-758d51b8-....json"
       }
     }
   },
