@@ -86,30 +86,6 @@ The worker uploads each trace to S3 when the run completes, so its credentials (
 
 The API server reads those same traces back to serve `output workflow debug`, `cost`, and `dataset generate --download` — see [API Configuration](/api/configuration#aws-credential-permissions) for the read-side policy. The worker and API can share one key pair or use two identities each scoped to their own actions.
 
-### AWS Credential Permissions
-
-The worker uploads each trace to S3 when the run completes, so its credentials (`OUTPUT_AWS_ACCESS_KEY_ID` / `OUTPUT_AWS_SECRET_ACCESS_KEY`) must allow **write** access to the trace bucket:
-
-| Action | Resource | Why |
-|--------|----------|-----|
-| `s3:PutObject` | `arn:aws:s3:::<bucket>/*` | Upload the trace file |
-| `s3:AbortMultipartUpload` | `arn:aws:s3:::<bucket>/*` | Clean up an incomplete multipart upload if one fails partway |
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [ "s3:PutObject", "s3:AbortMultipartUpload" ],
-      "Resource": "arn:aws:s3:::my-traces/*"
-    }
-  ]
-}
-```
-
-The API server reads those same traces back to serve `output workflow debug`, `cost`, and `dataset generate --download` — see [API Configuration](/api/configuration#aws-credential-permissions) for the read-side policy. The worker and API can share one key pair or use two identities each scoped to their own actions.
-
 ## Reading a Trace
 
 Each trace file is a single JSON object — the root workflow node. Every node in the tree has the same shape:
