@@ -41,7 +41,6 @@ export async function sendHttpRequest( { url, method = 'GET', payload = undefine
  * @param {string} url
  * @param {unknown} [payload]
  * @param {object} [headers]
- * @param {object} [options.responseOptions] - Response options
  * @returns {Promise<unknown>} The response received by the webhook
  */
 export async function sendPostRequestAndAwaitWebhook( { url, payload = undefined, headers = undefined } ) {
