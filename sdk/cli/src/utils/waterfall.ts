@@ -39,7 +39,7 @@ const TICK_STEPS_MS = [
 ];
 const TARGET_TICKS = 8;
 
-const ANSI: Record<SpanStatus | 'dim' | 'reset', string> = {
+export const ANSI: Record<SpanStatus | 'dim' | 'reset', string> = {
   completed: '[92m',
   running: '[33m',
   failed: '[31m',

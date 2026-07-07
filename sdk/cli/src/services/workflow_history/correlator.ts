@@ -65,7 +65,7 @@ const CHILD_TERMINAL_TYPES = [
   'CHILD_WORKFLOW_EXECUTION_TERMINATED', 'START_CHILD_WORKFLOW_EXECUTION_FAILED'
 ];
 
-function eventTypeName( event: HistoryEvent ): string {
+export function eventTypeName( event: HistoryEvent ): string {
   return ( event.eventTypeName as string | undefined ) ?? '';
 }
 
@@ -73,7 +73,7 @@ function eventId( event: HistoryEvent ): string {
   return String( event.eventId );
 }
 
-function eventAttributes( event?: HistoryEvent ): Record<string, unknown> | undefined {
+export function eventAttributes( event?: HistoryEvent ): Record<string, unknown> | undefined {
   const key = event && Object.keys( event ).find( k => k.endsWith( 'EventAttributes' ) );
   return key ? ( ( event as HistoryEvent )[key] as Record<string, unknown> ) : undefined;
 }

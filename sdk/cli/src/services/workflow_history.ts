@@ -8,7 +8,7 @@
  * the `nextPageToken` (the endpoint requires runId once a pageToken is used).
  */
 import { getWorkflowIdHistory, type GetWorkflowIdHistory200 } from '#api/generated/api.js';
-import { correlate, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
+import { correlate, eventAttributes, eventTypeName, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
 
 const PAGE_SIZE = 50;
 
@@ -34,6 +34,7 @@ export interface WorkflowHistoryResult {
   events: HistoryEvent[];
   spans: Span[];
   totalDurationMs: number;
+  continuedAsNewRunId: string | null;
 }
 
 interface PageAccumulator {
@@ -70,6 +71,14 @@ function workflowStartMs( meta: WorkflowMeta | null, events: HistoryEvent[] ): n
     return fromStarted;
   }
   return earliestEventMs( events );
+}
+
+// The paginated history endpoint doesn't surface a resolved `newRunId` the way
+// the SSE stream endpoint does (see `stream_history.js`'s `doneChunk`), so pull
+// it directly off the WORKFLOW_EXECUTION_CONTINUED_AS_NEW event when present.
+function continuedAsNewRunId( events: HistoryEvent[] ): string | null {
+  const terminal = events.find( e => eventTypeName( e ) === 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW' );
+  return ( eventAttributes( terminal )?.newExecutionRunId as string | undefined ) ?? null;
 }
 
 function totalDuration( meta: WorkflowMeta | null, spans: Span[], startMs: number | null ): number {
@@ -124,6 +133,9 @@ export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions
     runId: resolvedRunId ?? meta?.runId ?? null,
     events,
     spans,
-    totalDurationMs: totalDuration( meta, spans, startMs )
+    totalDurationMs: totalDuration( meta, spans, startMs ),
+    // Only the common case (a workflow that continued as new) pays for the
+    // scan; every other status skips it entirely.
+    continuedAsNewRunId: meta?.status === 'continued_as_new' ? continuedAsNewRunId( events ) : null
   };
 }

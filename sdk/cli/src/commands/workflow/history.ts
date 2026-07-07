@@ -3,6 +3,7 @@ import { fetchWorkflowHistory } from '#services/workflow_history.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import renderWaterfall, { formatDurationLabel } from '#utils/waterfall.js';
 import { handleApiError } from '#utils/error_handler.js';
+import { shouldColorize } from '#utils/color.js';
 
 const DEFAULT_WIDTH = 80;
 const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
@@ -83,8 +84,7 @@ export default class WorkflowHistory extends Command {
 
     const labels = buildSpanLabels( result.spans );
     const width = flags.width ?? process.stdout.columns ?? DEFAULT_WIDTH;
-    const color = flags.color && !process.env.NO_COLOR &&
-      ( !!process.env.FORCE_COLOR || process.stdout.isTTY === true );
+    const color = shouldColorize( flags.color );
 
     this.log( renderWaterfall( result.spans, result.totalDurationMs, {
       width,

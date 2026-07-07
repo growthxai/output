@@ -103,4 +103,32 @@ describe( 'fetchWorkflowHistory', () => {
     mockGet.mockResolvedValueOnce( { status: 200 } );
     await expect( fetchWorkflowHistory( { workflowId: 'wf-x' } ) ).rejects.toThrow( /invalid response/ );
   } );
+
+  it( 'extracts the chained run id from a WORKFLOW_EXECUTION_CONTINUED_AS_NEW event', async () => {
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-4', runId: 'run-4', status: 'continued_as_new', startTime: at( 0 ) },
+      runId: 'run-4',
+      events: [
+        workflowStarted( 0 ),
+        {
+          eventId: '9', eventTypeName: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW', eventTime: at( 60 ),
+          workflowExecutionContinuedAsNewEventAttributes: { newExecutionRunId: 'run-5' }
+        }
+      ],
+      nextPageToken: null
+    } ) );
+
+    const result = await fetchWorkflowHistory( { workflowId: 'wf-4' } );
+    expect( result.continuedAsNewRunId ).toBe( 'run-5' );
+  } );
+
+  it( 'returns null continuedAsNewRunId when there is no continue-as-new event', async () => {
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-5', runId: 'run-5', status: 'completed', startTime: at( 0 ), closeTime: at( 1 ) },
+      runId: 'run-5', events: [ workflowStarted( 0 ) ], nextPageToken: null
+    } ) );
+
+    const result = await fetchWorkflowHistory( { workflowId: 'wf-5' } );
+    expect( result.continuedAsNewRunId ).toBeNull();
+  } );
 } );
