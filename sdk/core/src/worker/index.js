@@ -36,7 +36,8 @@ const {
   maxConcurrentActivityTaskPolls,
   maxConcurrentWorkflowTaskPolls,
   shutdownForceTime,
-  shutdownGraceTime
+  shutdownGraceTime,
+  workerTuner
 } = configs;
 
 const state = {
@@ -88,6 +89,9 @@ const execute = async () => {
   state.catalogJob = new CatalogJob( { connection: state.connection, namespace, catalog, catalogHash } );
 
   log.info( 'Creating worker...' );
+  if ( workerTuner ) {
+    log.info( 'Using worker tuner options', { ...workerTuner } );
+  }
   const worker = await Worker.create( {
     connection: state.connection,
     namespace,
@@ -96,8 +100,13 @@ const execute = async () => {
     activities,
     sinks,
     interceptors: initInterceptors( { activities, workflows } ),
-    maxConcurrentWorkflowTaskExecutions,
-    maxConcurrentActivityTaskExecutions,
+    // tuner isn't compatible with concurrent task executions configs
+    ...( workerTuner ? {
+      tuner: workerTuner
+    } : {
+      maxConcurrentWorkflowTaskExecutions,
+      maxConcurrentActivityTaskExecutions
+    } ),
     maxCachedWorkflows,
     maxConcurrentActivityTaskPolls,
     maxConcurrentWorkflowTaskPolls,

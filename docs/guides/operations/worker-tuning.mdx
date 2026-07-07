@@ -1,0 +1,163 @@
+---
+title: "Worker Tuning"
+description: "Configure Temporal worker concurrency, polling, cache size, and Worker tuners"
+---
+
+Output workers run workflows and activities through Temporal. These settings control compute, memory, and IO behavior:
+
+- **Compute:** how many Workflow and Activity Tasks can execute concurrently.
+- **Memory:** how many Workflow Executions stay in the sticky cache.
+- **IO:** how many pollers long-poll Temporal for new tasks.
+
+Start with the defaults. Tune only when you see backlog in Temporal, high memory use, underused CPU, or task timeouts.
+
+## Concurrency and Polling
+
+These env vars map to Temporal worker execution slots, cache, and pollers. See Temporal's [Worker performance guide](https://docs.temporal.io/develop/worker-performance), [Worker tuning quick reference](https://docs.temporal.io/develop/worker-tuning-reference), and [`WorkerOptions`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions).
+
+| Variable | Default | Resource | Effect |
+|----------|---------|----------|--------|
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Compute | Maximum Activity Task executions running at once. Each Output step, evaluator, LLM call wrapper, or API call is usually an activity. Raise this to process more activities concurrently; lower it to reduce memory, CPU, or outbound API pressure. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Compute | Maximum Workflow Task executions running at once. Workflow Tasks are usually lightweight state-machine work. Raise this if Workflow Task backlog grows and CPU is low; lower it if Workflow Task timeouts increase. |
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Memory | Maximum Workflow Executions kept in Temporal's [sticky workflow cache](https://docs.temporal.io/sticky-execution). Higher values reduce workflow replay work; lower values free memory sooner after traffic spikes. |
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | IO | Number of concurrent Activity Task pollers. Raise this if activity execution slots are available but the worker is not fetching tasks fast enough. Keep it lower than activity execution slots. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS` | `5` | IO | Number of concurrent Workflow Task pollers. Raise this if workflow execution slots are available but polling is the bottleneck. Keep it lower than workflow execution slots. |
+
+Example:
+
+```bash
+TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS=150
+TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=600
+TEMPORAL_MAX_CACHED_WORKFLOWS=50
+TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS=10
+TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS=10
+```
+
+## Worker Tuner
+
+`TEMPORAL_WORKER_TUNER` accepts a JSON-encoded Temporal [`WorkerOptions.tuner`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#tuner). Use it when fixed concurrency limits are too rigid and you want Temporal's slot suppliers to control how many tasks the worker accepts.
+
+Resource-based auto-tuning is most useful for avoiding out-of-memory failures and absorbing bursts of low-resource work, such as Activities that spend most of their time waiting on external HTTP or I/O. Temporal recommends validating it by monitoring host CPU and memory under full load and confirming they settle near your configured targets. See Temporal's [resource-based auto-tuning announcement](https://temporal.io/blog/resource-based-auto-tuning-for-workers) for the model behind the feature.
+
+When `TEMPORAL_WORKER_TUNER` is set, Output passes it to Temporal as `tuner` and does not pass these incompatible execution options:
+
+- `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS`
+- `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS`
+
+Polling and cache settings still apply:
+
+- `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS`
+- `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS`
+- `TEMPORAL_MAX_CACHED_WORKFLOWS`
+
+### Resource-Based Tuner
+
+Use a [`ResourceBasedTuner`](https://typescript.temporal.io/api/interfaces/worker.ResourceBasedTuner) to let Temporal adjust slots based on target CPU and memory usage. This is the simpler tuner shape. You can provide only workflow and activity slot options; Temporal applies defaults for local activity and Nexus slots.
+
+```bash
+TEMPORAL_WORKER_TUNER='{
+  "tunerOptions": {
+    "targetMemoryUsage": 0.8,
+    "targetCpuUsage": 0.9
+  },
+  "workflowTaskSlotOptions": {
+    "minimumSlots": 2,
+    "maximumSlots": 1000,
+    "rampThrottle": "10ms"
+  },
+  "activityTaskSlotOptions": {
+    "minimumSlots": 1,
+    "maximumSlots": 100,
+    "rampThrottle": "50ms"
+  }
+}'
+```
+
+Resource-based fields:
+
+| Field | Effect |
+|-------|--------|
+| `targetMemoryUsage` | Target process memory usage as a fraction from `0` to `1`. |
+| `targetCpuUsage` | Target process CPU usage as a fraction from `0` to `1`. |
+| `minimumSlots` | Slots issued regardless of current resource checks. |
+| `maximumSlots` | Upper bound for slots of that task type. |
+| `rampThrottle` | Minimum delay before issuing another slot after `minimumSlots` is reached. |
+
+### Mixed Slot Suppliers
+
+Use a [`TunerHolder`](https://typescript.temporal.io/api/interfaces/worker.TunerHolder) to choose a slot supplier per task type. This is useful when workflow tasks should remain fixed but activities should scale with CPU and memory.
+
+```bash
+TEMPORAL_WORKER_TUNER='{
+  "workflowTaskSlotSupplier": {
+    "type": "fixed-size",
+    "numSlots": 10
+  },
+  "activityTaskSlotSupplier": {
+    "type": "resource-based",
+    "tunerOptions": {
+      "targetMemoryUsage": 0.8,
+      "targetCpuUsage": 0.9
+    },
+    "minimumSlots": 1,
+    "maximumSlots": 100,
+    "rampThrottle": "50ms"
+  },
+  "localActivityTaskSlotSupplier": {
+    "type": "fixed-size",
+    "numSlots": 10
+  },
+  "nexusTaskSlotSupplier": {
+    "type": "fixed-size",
+    "numSlots": 10
+  }
+}'
+```
+
+<Note>
+When using the per-task supplier form, Temporal requires all four supplier fields: `workflowTaskSlotSupplier`, `activityTaskSlotSupplier`, `localActivityTaskSlotSupplier`, and `nexusTaskSlotSupplier`. Omitting local activity or Nexus suppliers can fail worker startup.
+</Note>
+
+Supplier types:
+
+| Type | Fields | Effect |
+|------|--------|--------|
+| `fixed-size` | `numSlots` | Always allows up to a fixed number of slots for that task type. |
+| `resource-based` | `tunerOptions`, `minimumSlots`, `maximumSlots`, `rampThrottle` | Dynamically adjusts slots based on CPU and memory targets. |
+
+Temporal also supports custom slot suppliers in code, but `TEMPORAL_WORKER_TUNER` is JSON and should be used only for fixed-size and resource-based suppliers.
+
+## What to Watch
+
+Use Temporal metrics before changing values. The main question is whether the worker has no execution capacity left, or whether it has capacity but is not polling fast enough. See Temporal's [SDK metrics reference](https://docs.temporal.io/references/sdk-metrics), [Worker health](https://docs.temporal.io/cloud/worker-health), and [performance bottlenecks guide](https://docs.temporal.io/troubleshooting/performance-bottlenecks).
+
+| Signal | Meaning | Tuning response |
+|--------|---------|-----------------|
+| High `temporal_workflow_task_schedule_to_start_latency` or `temporal_activity_schedule_to_start_latency` | Tasks are waiting in the queue before a worker starts them. | Check slots, pollers, worker count, and host CPU/memory. |
+| `temporal_worker_task_slots_available` near zero | Worker execution slots are full. | Increase execution slots, add workers, or use resource-based slots if host resources are available. |
+| High schedule-to-start latency while slots are often available | The worker may not be polling fast enough. | Increase the matching poller count. |
+| High host memory | Worker process or workflow cache is too large for the host. | Lower activity slots, lower `TEMPORAL_MAX_CACHED_WORKFLOWS`, or use a resource-based tuner with a lower `targetMemoryUsage`. |
+| Low CPU/memory with growing backlog | The worker has host capacity but is not accepting enough work. | Raise execution slots, raise pollers, or add resource-based activity slots with a higher `maximumSlots`. |
+
+## Choosing Values
+
+If memory is high, lower activity slots first. Activities usually hold network responses, LLM payloads, browser state, or other heavier objects.
+
+If Temporal shows activity backlog and the worker has spare CPU and memory, raise activity execution slots or use a resource-based tuner with a higher `maximumSlots`.
+
+If workflow task backlog grows while CPU is low, check `temporal_worker_task_slots_available` first. If workflow slots are depleted, raise workflow task execution slots. If slots are available but schedule-to-start latency is high, raise workflow task pollers. If workflow task timeouts increase, lower workflow task execution slots.
+
+If CPU and memory vary heavily by workload, prefer `TEMPORAL_WORKER_TUNER` with resource-based activity slots over a large fixed activity concurrency.
+
+Tune incrementally and load test before applying large production changes. Temporal's [Introduction to Worker Tuning](https://temporal.io/blog/an-introduction-to-worker-tuning) is a good overview of when to scale workers horizontally versus increasing per-worker slots or pollers.
+
+## Useful Links
+
+- [Worker performance](https://docs.temporal.io/develop/worker-performance) — Temporal's main guide for slots, pollers, task queue metrics, and tuning process.
+- [Worker tuning quick reference](https://docs.temporal.io/develop/worker-tuning-reference) — compute, memory, and IO settings by SDK.
+- [Resource-based auto-tuning for Workers](https://temporal.io/blog/resource-based-auto-tuning-for-workers) — explanation of resource-based slot suppliers and when to use them.
+- [An introduction to Worker tuning](https://temporal.io/blog/an-introduction-to-worker-tuning) — conceptual guide to worker capacity, schedule-to-start latency, pollers, and slots.
+- [Worker deployment and performance](https://docs.temporal.io/best-practices/worker) — production worker best practices and monitoring guidance.
+- [Temporal SDK metrics reference](https://docs.temporal.io/references/sdk-metrics) — metric names for slots, pollers, request latency, and schedule-to-start latency.
+- [Performance bottlenecks troubleshooting](https://docs.temporal.io/troubleshooting/performance-bottlenecks) — how to diagnose worker capacity and schedule-to-start issues.
+- [Monitor worker health](https://docs.temporal.io/cloud/worker-health) — Temporal Cloud monitoring signals for workers and task queues.

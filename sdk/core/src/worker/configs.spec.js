@@ -10,6 +10,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CACHED_WORKFLOWS',
   'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS',
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
+  'TEMPORAL_WORKER_TUNER',
   'OUTPUT_WORKER_TELEMETRY_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED',
@@ -64,6 +65,7 @@ describe( 'worker/configs', () => {
     expect( configs.maxCachedWorkflows ).toBe( 1000 );
     expect( configs.maxConcurrentActivityTaskPolls ).toBe( 5 );
     expect( configs.maxConcurrentWorkflowTaskPolls ).toBe( 5 );
+    expect( configs.workerTuner ).toBeUndefined();
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
@@ -85,6 +87,46 @@ describe( 'worker/configs', () => {
     const configs = await loadConfigs();
 
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
+  } );
+
+  it( 'treats empty string for worker tuner as unset', async () => {
+    setEnv( { TEMPORAL_WORKER_TUNER: '' } );
+    const configs = await loadConfigs();
+
+    expect( configs.workerTuner ).toBeUndefined();
+  } );
+
+  it( 'parses Temporal worker tuner JSON', async () => {
+    const workerTuner = {
+      tunerOptions: {
+        targetMemoryUsage: 0.8,
+        targetCpuUsage: 0.9
+      },
+      activityTaskSlotOptions: {
+        minimumSlots: 1,
+        maximumSlots: 100,
+        rampThrottle: '50ms'
+      }
+    };
+
+    setEnv( { TEMPORAL_WORKER_TUNER: JSON.stringify( workerTuner ) } );
+    const configs = await loadConfigs();
+
+    expect( configs.workerTuner ).toEqual( workerTuner );
+  } );
+
+  it( 'throws when Temporal worker tuner is not valid JSON', async () => {
+    setEnv( { TEMPORAL_WORKER_TUNER: '{invalid' } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
+  } );
+
+  it( 'throws when Temporal worker tuner is not a JSON object', async () => {
+    setEnv( { TEMPORAL_WORKER_TUNER: '[]' } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'parses custom numeric env vars', async () => {
