@@ -14,7 +14,15 @@ export default workflow( {
       userId: 5
     };
 
-    const response = await sendHttpRequest( { method, url, payload } );
+    const response = await sendHttpRequest( {
+      method,
+      url,
+      payload,
+      responseOptions: {
+        includeBody: true,
+        includeHeaders: true
+      }
+    } );
 
     return { status: response.status };
   }

@@ -12,10 +12,13 @@ import { validateRequestPayload } from './validations/index.js';
  * @param {string} method
  * @param {unknown} [payload]
  * @param {object} [headers]
+ * @param {object} [options.responseOptions] - Response options
+ * @param {boolean} [options.responseOptions.includeHeaders] - If the response will include the headers - Headers are always redacted (default false)
+ * @param {boolean} [options.responseOptions.includeBody] - If the response will include the body (default false)
  * @returns {Promise<object>} The serialized HTTP response
  */
-export async function sendHttpRequest( { url, method = 'GET', payload = undefined, headers = undefined } ) {
-  validateRequestPayload( { method, url, payload, headers } );
+export async function sendHttpRequest( { url, method = 'GET', payload = undefined, headers = undefined, responseOptions = {} } ) {
+  validateRequestPayload( { method, url, payload, headers, responseOptions } );
   const res = await proxyActivities( {
     startToCloseTimeout: '3m',
     retry: {
@@ -23,7 +26,7 @@ export async function sendHttpRequest( { url, method = 'GET', payload = undefine
       maximumAttempts: 3,
       nonRetryableErrorTypes: [ FatalError.name ]
     }
-  } )[ACTIVITY_SEND_HTTP_REQUEST]( { method, url, payload, headers } );
+  } )[ACTIVITY_SEND_HTTP_REQUEST]( { method, url, payload, headers, responseOptions } );
   return res.output;
 };
 

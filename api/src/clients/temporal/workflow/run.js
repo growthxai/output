@@ -1,4 +1,4 @@
-import { buildWorkflowId, extractErrorDetail } from '#utils';
+import { buildWorkflowId } from '#utils';
 import { WorkflowFailedError, WorkflowExecutionTimedOutError } from '../../errors.js';
 import { resolveWorkflowName } from '../catalog.js';
 import { temporal as temporalConfig } from '#configs';
@@ -41,11 +41,7 @@ export const run = async ( { client }, workflowName, input, options = {} ) => {
   } catch ( error ) {
     // Workflow failures are returned as data, not thrown
     if ( error instanceof WorkflowFailedError ) {
-      logger.warn( 'Workflow execution failed', {
-        workflowId,
-        errorMessage: error.message,
-        hasTrace: Boolean( extractErrorDetail( error, 'trace' ) )
-      } );
+      logger.warn( 'Workflow execution failed', { workflowId, errorMessage: error.message } );
       return buildWorkflowResult( { workflowId, status: 'failed', runId, input, error } );
     }
     // Other errors (timeout, not found, etc.) are still thrown

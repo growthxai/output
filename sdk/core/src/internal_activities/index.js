@@ -1,6 +1,6 @@
 import { FatalError } from '#errors';
 import { EnvHttpProxyAgent, fetch } from 'undici';
-import { serializeFetchResponse, serializeBodyAndInferContentType } from '#helpers/fetch';
+import { serializeResponse, serializeBodyAndInferContentType, hydrateHeaders } from '#helpers/fetch';
 import { createChildLogger } from '#logger';
 import { getDestinations } from '#tracing';
 import { createInternalStep } from '#helpers/component';
@@ -18,17 +18,20 @@ const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
  * @param {string} options.url - The target url
  * @param {string} options.method - The HTTP method
  * @param {unknown} [options.payload] - The payload to send url
- * @param {object} [options.headers] - The headers for the request
+ * @param {object} [options.headers] - The headers for the request.
  * @param {number} [options.timeout] - The timeout for the request (default 30s)
+ * @param {object} [options.responseOptions] - Options regarding the response
+ * @param {boolean} [options.responseOptions.includeHeaders] - If the response will include the headers - Headers are always redacted (default false)
+ * @param {boolean} [options.responseOptions.includeBody] - If the response will include the body (default false)
  * @returns {object} The serialized HTTP response
  * @throws {FatalError}
  */
 export const sendHttpRequest = createInternalStep( {
   name: ACTIVITY_SEND_HTTP_REQUEST,
-  handler: async ( { url, method, payload = undefined, headers = undefined, timeout = 30_000 } ) => {
+  handler: async ( { url, method, payload = undefined, headers = undefined, timeout = 30_000, responseOptions = {} } ) => {
     const args = {
       method,
-      headers: new Headers( headers ?? {} ),
+      headers: new Headers( hydrateHeaders( headers ) ),
       signal: AbortSignal.timeout( timeout ),
       dispatcher
     };
@@ -57,7 +60,7 @@ export const sendHttpRequest = createInternalStep( {
       throw new FatalError( `${method} ${url} ${response.status}` );
     }
 
-    return serializeFetchResponse( response );
+    return serializeResponse( response, responseOptions );
   }
 } );
 

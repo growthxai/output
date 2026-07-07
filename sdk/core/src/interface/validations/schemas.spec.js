@@ -143,17 +143,37 @@ describe( 'validation schemas', () => {
         url: 'https://example.com',
         method: 'POST',
         payload: { ok: true },
-        headers: { authorization: 'Bearer token' }
+        headers: { authorization: 'Bearer token' },
+        responseOptions: { includeHeaders: true, includeBody: true }
       } ).success ).toBe( true );
     } );
 
-    it( 'rejects invalid URL protocols, methods, and header values', () => {
+    it( 'defaults omitted response options to false', () => {
+      const result = httpRequestSchema.safeParse( {
+        url: 'https://example.com',
+        method: 'GET',
+        responseOptions: {}
+      } );
+
+      expect( result.success ).toBe( true );
+      expect( result.data.responseOptions ).toEqual( {
+        includeHeaders: false,
+        includeBody: false
+      } );
+    } );
+
+    it( 'rejects invalid URL protocols, methods, header values, and response options', () => {
       expect( httpRequestSchema.safeParse( { url: 'ftp://example.com', method: 'GET' } ).success ).toBe( false );
       expect( httpRequestSchema.safeParse( { url: 'https://example.com', method: 'OPTIONS' } ).success ).toBe( false );
       expect( httpRequestSchema.safeParse( {
         url: 'https://example.com',
         method: 'GET',
         headers: { count: 1 }
+      } ).success ).toBe( false );
+      expect( httpRequestSchema.safeParse( {
+        url: 'https://example.com',
+        method: 'GET',
+        responseOptions: { includeBody: 'yes' }
       } ).success ).toBe( false );
     } );
   } );

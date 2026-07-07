@@ -171,10 +171,14 @@ export default workflow({
     const response = await sendHttpRequest({
       url: 'https://api.example.com/companies',
       method: 'GET',
-      headers: { 'Authorization': 'Bearer token' }
+      headers: { Authorization: 'Bearer $ENRICHMENT_API_TOKEN' },
+      responseOptions: { includeBody: true }
     });
 
-    return { company: response.name, summary: response.description };
+    return {
+      company: response.body.name,
+      summary: response.body.description
+    };
   }
 });
 ```
@@ -185,12 +189,33 @@ For POST or PUT requests, include a `payload`:
 const response = await sendHttpRequest({
   url: 'https://api.example.com/companies',
   method: 'POST',
-  payload: { domain: 'acme.com' }
+  payload: { domain: 'acme.com' },
+  responseOptions: { includeBody: true }
 });
 ```
 
 <Warning>
 `sendHttpRequest` is only callable from within workflows. Steps and evaluators can make HTTP requests directly using fetch or any HTTP client.
+</Warning>
+
+By default, `sendHttpRequest` returns only response metadata: `url`, `status`, `statusText`, and `ok`. Use `responseOptions.includeHeaders` to include response headers and `responseOptions.includeBody` to include the body. Included response headers are redacted automatically; response bodies are returned as-is.
+
+Use `$ENV_VAR_NAME` placeholders for secret header values:
+
+```typescript
+await sendHttpRequest({
+  url: 'https://api.example.com/companies',
+  method: 'GET',
+  headers: {
+    Authorization: 'Bearer $ENRICHMENT_API_TOKEN'
+  }
+});
+```
+
+The worker resolves `$ENRICHMENT_API_TOKEN` from `process.env.ENRICHMENT_API_TOKEN` inside the activity. Workflow history and trace files store the placeholder, not the token value.
+
+<Warning>
+`sendHttpRequest` is not primarily designed for secure or sensitive HTTP exchanges. Misconfigured requests can leak keys, tokens, cookies, signed URLs, payload data, or response bodies into Temporal history and trace files. Use `$ENV_VAR_NAME` placeholders for request header secrets, avoid secrets in URLs and payloads, and only set `responseOptions.includeBody: true` when the response body is safe to persist.
 </Warning>
 
 ### sendPostRequestAndAwaitWebhook
@@ -202,11 +227,16 @@ import { sendPostRequestAndAwaitWebhook } from '@outputai/core';
 
 const response = await sendPostRequestAndAwaitWebhook({
   url: 'https://your-app.com/callback',
-  payload: { data: 'value' }
+  payload: { data: 'value' },
+  headers: { Authorization: 'Bearer $CALLBACK_API_TOKEN' }
 });
 ```
 
 The workflow pauses after sending the request and waits for a response at `/workflow/:id/feedback`. Once the external system sends feedback via the API, the workflow resumes with the received payload.
+
+<Warning>
+`sendPostRequestAndAwaitWebhook` is not primarily designed for secure or sensitive HTTP exchanges. Its request arguments are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, or literal headers. Use `$ENV_VAR_NAME` placeholders for request header secrets and avoid secrets in URLs and payloads.
+</Warning>
 
 ## File Structure
 

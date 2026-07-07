@@ -72,9 +72,33 @@ Each `sendHttpRequest` fires and continues — the workflow doesn't wait for a r
 | `url` | `string` | The request URL (required) |
 | `method` | `'GET' \| 'POST' \| 'PUT' \| 'DELETE' \| 'PATCH'` | HTTP method (default: `GET`) |
 | `payload` | `object` | Request body for POST/PUT (optional) |
-| `headers` | `Record<string, string>` | HTTP headers (optional) |
+| `headers` | `Record<string, string>` | HTTP headers (optional). Use `$ENV_VAR_NAME` placeholders for secret values. |
+| `responseOptions.includeHeaders` | `boolean` | Include response headers in the returned value. Headers are redacted when included. Default: `false`. |
+| `responseOptions.includeBody` | `boolean` | Include the response body in the returned value. Default: `false`. |
 
-The response includes `status`, `statusText`, `headers`, `body`, and `ok`.
+By default, the response includes only `url`, `status`, `statusText`, and `ok`. Response headers and body are opt-in because activity inputs and outputs are stored in workflow history and can appear in trace files.
+
+### Headers and Secrets
+
+Workflows should not read secret values directly. If a header needs a token, pass an environment variable placeholder and the activity worker replaces it immediately before sending the request:
+
+```typescript
+await sendHttpRequest({
+  url: 'https://api.example.com/events',
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer $API_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  payload: { event: 'step_complete' }
+});
+```
+
+The workflow history and trace files store `Bearer $API_TOKEN`, not the resolved token. The worker reads `process.env.API_TOKEN` at activity execution time. If the environment variable is missing, the request fails before it is sent.
+
+<Warning>
+`sendHttpRequest` and `sendPostRequestAndAwaitWebhook` are not primarily designed for secure or sensitive HTTP exchanges. Misconfigured requests can leak keys, tokens, cookies, signed URLs, payload data, or response bodies into Temporal history and trace files. Use `$ENV_VAR_NAME` placeholders for request header secrets, avoid secrets in URLs and payloads, and only opt into response bodies when they are safe to persist.
+</Warning>
 
 ### Signed Webhooks
 
@@ -705,6 +729,8 @@ Both are imported from `@outputai/core` and used inside workflow `fn`.
 | `method` | `'GET' \| 'POST' \| 'PUT' \| 'DELETE' \| 'PATCH'` | No (default: `GET`) |
 | `payload` | `object` | No |
 | `headers` | `Record<string, string>` | No |
+| `responseOptions.includeHeaders` | `boolean` | No (default: `false`) |
+| `responseOptions.includeBody` | `boolean` | No (default: `false`) |
 
 **`sendPostRequestAndAwaitWebhook(options)`** — POST then pause until callback.
 
@@ -713,6 +739,12 @@ Both are imported from `@outputai/core` and used inside workflow `fn`.
 | `url` | `string` | Yes |
 | `payload` | `object` | No |
 | `headers` | `Record<string, string>` | No |
+
+Header values can reference worker environment variables with `$ENV_VAR_NAME`, for example `Authorization: 'Bearer $API_TOKEN'`. Response headers are redacted when included by `sendHttpRequest`. Response bodies are not redacted, so only set `includeBody: true` when the body is safe to store in workflow history and trace files.
+
+<Warning>
+These helpers are not primarily designed for secure or sensitive HTTP exchanges. Activity inputs and outputs are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, literal headers, or opt-in response bodies.
+</Warning>
 
 Callback endpoint: `POST /workflow/:id/feedback` with `{ "payload": {...} }`.
 

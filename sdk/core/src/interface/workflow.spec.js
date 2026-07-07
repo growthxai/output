@@ -356,7 +356,8 @@ describe( 'workflow()', () => {
 
       await expect( parentWorkflow( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { child: 'ok' }
+        output: { child: 'ok' },
+        trace: { destinations: {} }
       } );
       expect( childFn ).not.toHaveBeenCalled();
       expect( executeChildMock ).toHaveBeenCalledWith( 'indirect_child_wf', expect.objectContaining( {
@@ -405,7 +406,7 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'workflow execution path', () => {
-    it( 'initializes root memo, gets trace destinations, validates output, and returns an envelope', async () => {
+    it( 'initializes root memo, skips trace destinations when trace is disabled, validates output, and returns an envelope', async () => {
       const { workflow } = await import( './workflow.js' );
       const getTraceDestinations = vi.fn().mockResolvedValue( activityOutput( { local: '/tmp/root-trace' } ) );
       const info = setWorkflowInfo( { workflowType: 'root_wf', memo: {} } );
@@ -427,23 +428,17 @@ describe( 'workflow()', () => {
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { ok: true },
-        trace: { destinations: { local: '/tmp/root-trace' } }
+        trace: { destinations: {} }
       } );
       expect( info.memo.stack ).toEqual( [ 'workflow-123' ] );
-      expect( info.memo.traceInfo ).toEqual( {
-        workflowId: 'workflow-123',
-        workflowType: 'root_wf',
-        runId: 'run-123',
-        startTime: new Date( '2025-01-01T00:00:00.000Z' ).getTime(),
-        disableTrace: true
-      } );
+      expect( info.memo.traceInfo ).toBeUndefined();
       expect( info.memo.activityOptions ).toEqual( expect.objectContaining( {
         startToCloseTimeout: '5m',
         heartbeatTimeout: '5m',
         retry: expect.objectContaining( { maximumAttempts: 5 } )
       } ) );
       expect( proxyActivitiesMock ).toHaveBeenCalledWith( info.memo.activityOptions );
-      expect( getTraceDestinations ).toHaveBeenCalledWith( info.memo.traceInfo );
+      expect( getTraceDestinations ).not.toHaveBeenCalled();
     } );
 
     it( 'runs non-root workflow execution without rebuilding trace info or fetching trace destinations', async () => {
@@ -490,10 +485,10 @@ describe( 'workflow()', () => {
       expect( getTraceDestinations ).not.toHaveBeenCalled();
     } );
 
-    it( 'omits trace from the root result when getTraceDestinations returns no destinations', async () => {
+    it( 'returns empty trace destinations when getTraceDestinations returns no destinations', async () => {
       const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'no_trace_dest_wf' } );
-      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( null ) ) } );
+      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( {} ) ) } );
 
       const wf = workflow( workflowDefinition( {
         name: 'no_trace_dest_wf',
@@ -503,7 +498,8 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { ok: true }
+        output: { ok: true },
+        trace: { destinations: {} }
       } );
     } );
 
@@ -560,7 +556,8 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { stepResult: 'step-output', evalResult: 'eval-output' }
+        output: { stepResult: 'step-output', evalResult: 'eval-output' },
+        trace: { destinations: {} }
       } );
       expect( step ).toHaveBeenCalledWith( { a: 1 }, { b: 2 } );
       expect( evaluator ).toHaveBeenCalledWith( { c: 3 } );
@@ -590,7 +587,8 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { stepResult: 'shared-step-output', evalResult: 'shared-eval-output' }
+        output: { stepResult: 'shared-step-output', evalResult: 'shared-eval-output' },
+        trace: { destinations: {} }
       } );
       expect( sharedStep ).toHaveBeenCalledWith();
       expect( sharedEvaluator ).toHaveBeenCalledWith( { x: 1 } );
@@ -633,10 +631,10 @@ describe( 'workflow()', () => {
       expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: { local: '/tmp/trace' } } } );
     } );
 
-    it( 'rethrows root workflow errors without metadata when trace destinations are unavailable', async () => {
+    it( 'attaches empty trace destinations to root workflow errors when no destinations are available', async () => {
       const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'root_error_no_trace_wf' } );
-      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( null ) ) } );
+      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( {} ) ) } );
       const error = new Error( 'root failed without trace' );
 
       const wf = workflow( workflowDefinition( {
@@ -647,13 +645,13 @@ describe( 'workflow()', () => {
       } ) );
 
       await expect( wf( {} ) ).rejects.toBe( error );
-      expect( error[METADATA_ACCESS_SYMBOL] ).toBeUndefined();
+      expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: {} } } );
     } );
 
-    it( 'preserves existing error details when trace destinations are unavailable', async () => {
+    it( 'preserves existing error details when no trace destinations are available', async () => {
       const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'root_error_existing_details_no_trace_wf' } );
-      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( null ) ) } );
+      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( {} ) ) } );
       const error = new Error( 'root failed without trace' );
       error.details = [ { domain: { reason: 'bad-input' } } ];
 
@@ -666,7 +664,7 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).rejects.toBe( error );
       expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
-      expect( error[METADATA_ACCESS_SYMBOL] ).toBeUndefined();
+      expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: {} } } );
     } );
 
     it( 'attaches trace metadata to existing root ApplicationFailure without wrapping it', async () => {

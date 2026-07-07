@@ -82,7 +82,12 @@ describe( 'interface/webhook', () => {
     const res = await sendHttpRequest( args );
 
     // validated
-    expect( validateRequestPayloadMock ).toHaveBeenCalledWith( { ...args, payload: undefined, headers: undefined } );
+    expect( validateRequestPayloadMock ).toHaveBeenCalledWith( {
+      ...args,
+      payload: undefined,
+      headers: undefined,
+      responseOptions: {}
+    } );
 
     // activity proxied with specified options
     expect( proxyActivitiesMock ).toHaveBeenCalledTimes( 1 );
@@ -95,8 +100,38 @@ describe( 'interface/webhook', () => {
     } ) );
 
     // activity invoked with the same args
-    expect( activityFnMock ).toHaveBeenCalledWith( { ...args, payload: undefined, headers: undefined } );
+    expect( activityFnMock ).toHaveBeenCalledWith( {
+      ...args,
+      payload: undefined,
+      headers: undefined,
+      responseOptions: {}
+    } );
     expect( res ).toEqual( fakeSerializedResponse );
+  } );
+
+  it( 'sendHttpRequest forwards response options', async () => {
+    const { sendHttpRequest } = await import( './webhook.js' );
+
+    activityFnMock.mockResolvedValueOnce( activityEnvelope( { ok: true } ) );
+
+    const args = {
+      url: 'https://example.com/api',
+      method: 'GET',
+      responseOptions: { includeHeaders: true, includeBody: true }
+    };
+
+    await sendHttpRequest( args );
+
+    expect( validateRequestPayloadMock ).toHaveBeenCalledWith( {
+      ...args,
+      payload: undefined,
+      headers: undefined
+    } );
+    expect( activityFnMock ).toHaveBeenCalledWith( {
+      ...args,
+      payload: undefined,
+      headers: undefined
+    } );
   } );
 
   it( 'sendPostRequestAndAwaitWebhook posts wrapped payload and resolves on resume signal', async () => {
@@ -121,6 +156,7 @@ describe( 'interface/webhook', () => {
     expect( callArgs.url ).toBe( url );
     expect( callArgs.payload ).toEqual( { workflowId: 'wf-123', payload: { x: 1 } } );
     expect( callArgs.headers ).toEqual( { a: 'b' } );
+    expect( callArgs.responseOptions ).toEqual( {} );
 
     // Returns a promise (async function) for the eventual webhook result
     expect( typeof promise.then ).toBe( 'function' );
