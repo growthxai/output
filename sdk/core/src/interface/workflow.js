@@ -73,8 +73,11 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       }
 
       const steps = proxyActivities( memo.activityOptions );
-      const destinations = isRoot && ( disableTrace ? {} : ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output );
-      const traceDestinations = destinations && { trace: { destinations } };
+      const traceDestinations = isRoot && {
+        trace: {
+          destinations: disableTrace ? {} : ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output ?? {}
+        }
+      };
 
       try {
         validator.validateInput( input );

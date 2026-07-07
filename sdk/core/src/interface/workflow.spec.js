@@ -356,7 +356,8 @@ describe( 'workflow()', () => {
 
       await expect( parentWorkflow( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { child: 'ok' }
+        output: { child: 'ok' },
+        trace: { destinations: {} }
       } );
       expect( childFn ).not.toHaveBeenCalled();
       expect( executeChildMock ).toHaveBeenCalledWith( 'indirect_child_wf', expect.objectContaining( {
@@ -555,7 +556,8 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { stepResult: 'step-output', evalResult: 'eval-output' }
+        output: { stepResult: 'step-output', evalResult: 'eval-output' },
+        trace: { destinations: {} }
       } );
       expect( step ).toHaveBeenCalledWith( { a: 1 }, { b: 2 } );
       expect( evaluator ).toHaveBeenCalledWith( { c: 3 } );
@@ -585,7 +587,8 @@ describe( 'workflow()', () => {
 
       await expect( wf( {} ) ).resolves.toEqual( {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
-        output: { stepResult: 'shared-step-output', evalResult: 'shared-eval-output' }
+        output: { stepResult: 'shared-step-output', evalResult: 'shared-eval-output' },
+        trace: { destinations: {} }
       } );
       expect( sharedStep ).toHaveBeenCalledWith();
       expect( sharedEvaluator ).toHaveBeenCalledWith( { x: 1 } );
