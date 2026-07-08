@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockWorkflowNotFoundError, mockLoggerWarn } = vi.hoisted( () => ( {
+const { mockWorkflowNotFoundError, mockLoggerWarn, mockIsGrpcDeadlineError } = vi.hoisted( () => ( {
   mockWorkflowNotFoundError: vi.fn( ( workflowId, runId ) =>
     Object.assign( new Error( `not found: ${workflowId}/${runId}` ), { name: 'WorkflowNotFoundError' } ) ),
-  mockLoggerWarn: vi.fn()
+  mockLoggerWarn: vi.fn(),
+  mockIsGrpcDeadlineError: vi.fn( err => err?.code === 4 )
+} ) );
+
+vi.mock( '@temporalio/client', () => ( {
+  isGrpcDeadlineError: mockIsGrpcDeadlineError
 } ) );
 
 vi.mock( '#configs', () => ( {
@@ -20,7 +25,10 @@ vi.mock( '../../errors.js', () => ( {
 
 const { fetchHistoryPage } = await import( './fetch_history_page.js' );
 
-const makeConnection = getWorkflowExecutionHistory => ( { workflowService: { getWorkflowExecutionHistory } } );
+const makeConnection = ( getWorkflowExecutionHistory, withDeadline ) => ( {
+  workflowService: { getWorkflowExecutionHistory },
+  withDeadline: withDeadline ?? vi.fn( ( _deadline, fn ) => fn() )
+} );
 
 describe( 'fetchHistoryPage', () => {
   beforeEach( () => vi.clearAllMocks() );
@@ -109,5 +117,61 @@ describe( 'fetchHistoryPage', () => {
     await fetchHistoryPage( makeConnection( getWorkflowExecutionHistory ), 'wf-1', 'run-1' );
 
     expect( mockLoggerWarn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'passes waitNewEvent and applies a deadline when requested', async () => {
+    const response = { history: { events: [] } };
+    const getWorkflowExecutionHistory = vi.fn().mockResolvedValue( response );
+    const withDeadline = vi.fn( ( _deadline, fn ) => fn() );
+
+    const result = await fetchHistoryPage(
+      makeConnection( getWorkflowExecutionHistory, withDeadline ), 'wf-1', 'run-1',
+      { maximumPageSize: 10, waitNewEvent: true, deadlineMs: 15_000 }
+    );
+
+    expect( withDeadline ).toHaveBeenCalledWith( expect.any( Number ), expect.any( Function ) );
+    expect( getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
+      namespace: 'default',
+      execution: { workflowId: 'wf-1', runId: 'run-1' },
+      maximumPageSize: 10,
+      nextPageToken: undefined,
+      waitNewEvent: true
+    } );
+    expect( result ).toBe( response );
+  } );
+
+  it( 'does not apply a deadline or waitNewEvent when not requested', async () => {
+    const getWorkflowExecutionHistory = vi.fn().mockResolvedValue( { history: { events: [] } } );
+    const withDeadline = vi.fn( ( _deadline, fn ) => fn() );
+
+    await fetchHistoryPage( makeConnection( getWorkflowExecutionHistory, withDeadline ), 'wf-1', 'run-1' );
+
+    expect( withDeadline ).not.toHaveBeenCalled();
+    expect( getWorkflowExecutionHistory ).toHaveBeenCalledWith( {
+      namespace: 'default',
+      execution: { workflowId: 'wf-1', runId: 'run-1' },
+      maximumPageSize: undefined,
+      nextPageToken: undefined
+    } );
+  } );
+
+  it( 'returns null when a waitNewEvent call hits its deadline with no new events', async () => {
+    const deadlineError = Object.assign( new Error( 'deadline exceeded' ), { code: 4 } );
+    const getWorkflowExecutionHistory = vi.fn().mockRejectedValue( deadlineError );
+
+    const result = await fetchHistoryPage(
+      makeConnection( getWorkflowExecutionHistory ), 'wf-1', 'run-1',
+      { waitNewEvent: true, deadlineMs: 15_000 }
+    );
+
+    expect( result ).toBeNull();
+  } );
+
+  it( 'propagates a deadline error unchanged when waitNewEvent was not requested', async () => {
+    const deadlineError = Object.assign( new Error( 'deadline exceeded' ), { code: 4 } );
+    const getWorkflowExecutionHistory = vi.fn().mockRejectedValue( deadlineError );
+
+    await expect( fetchHistoryPage( makeConnection( getWorkflowExecutionHistory ), 'wf-1', 'run-1' ) )
+      .rejects.toBe( deadlineError );
   } );
 } );

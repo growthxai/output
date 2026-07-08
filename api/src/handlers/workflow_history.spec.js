@@ -51,7 +51,8 @@ describe( 'workflow_history handler', () => {
       runId: undefined,
       pageSize: 20,
       pageToken: undefined,
-      includePayloads: false
+      includePayloads: false,
+      wait: false
     } );
   } );
 
@@ -60,15 +61,32 @@ describe( 'workflow_history handler', () => {
     const token = Buffer.from( 'page-data' ).toString( 'base64' );
 
     await request( createApp() )
-      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true` )
+      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true&wait=true` )
       .expect( 200 );
 
     expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', {
       runId: 'run-abc',
       pageSize: 30,
       pageToken: token,
-      includePayloads: true
+      includePayloads: true,
+      wait: true
     } );
+  } );
+
+  it( 'defaults wait to false', async () => {
+    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+    await request( createApp() )
+      .get( '/workflow/wf-123/history' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { wait: false } ) );
+  } );
+
+  it( 'rejects non-boolean wait values', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?wait=yes' )
+      .expect( 400 );
   } );
 
   it( 'defaults pageSize to 20 and includePayloads to false', async () => {

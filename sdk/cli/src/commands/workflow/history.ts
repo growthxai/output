@@ -65,7 +65,7 @@ export default class WorkflowHistory extends Command {
 
     if ( flags.raw ) {
       this.log( JSON.stringify( {
-        workflow: result.workflow,
+        workflow: result.rawWorkflow,
         runId: result.runId,
         events: result.events
       }, null, 2 ) );

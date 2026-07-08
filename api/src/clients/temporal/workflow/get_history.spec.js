@@ -17,6 +17,10 @@ vi.mock( '#logger', () => ( {
   logger: { warn: mockLoggerWarn }
 } ) );
 
+vi.mock( '#configs', () => ( {
+  temporal: { historyWaitTimeoutMs: 15_000 }
+} ) );
+
 vi.mock( '../../event_serialization.js', () => ( {
   decodeEventPayloads: mockDecodeEventPayloads,
   serializeEvent: mockSerializeEvent
@@ -154,5 +158,53 @@ describe( 'getHistory', () => {
 
     expect( result.events ).toEqual( [] );
     expect( result.nextPageToken ).toBeNull();
+  } );
+
+  it( 'passes waitNewEvent and the configured deadline through when wait is requested', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'run-id', {
+      maximumPageSize: 20,
+      nextPageToken: Buffer.from( pageToken, 'base64' ),
+      mapInvalidArgument: expect.any( Function ),
+      waitNewEvent: true,
+      deadlineMs: 15_000
+    } );
+  } );
+
+  it( 'does not pass waitNewEvent/deadlineMs when wait is not requested', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { pageSize: 30 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
+      maximumPageSize: 30,
+      nextPageToken: undefined,
+      mapInvalidArgument: expect.any( Function )
+    } );
+  } );
+
+  it( 'returns the unchanged cursor and empty events when a wait call times out', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+    mockFetchHistoryPage.mockResolvedValue( null );
+
+    const result = await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+
+    expect( result ).toEqual( {
+      workflow: null,
+      events: [],
+      runId: 'run-id',
+      nextPageToken: pageToken
+    } );
+    expect( mockSerializeEvent ).not.toHaveBeenCalled();
+  } );
+
+  it( 'returns a null nextPageToken when a first-page wait call times out', async () => {
+    mockFetchHistoryPage.mockResolvedValue( null );
+
+    const result = await getHistory( { client, connection }, 'workflow-id', { wait: true } );
+
+    expect( result.nextPageToken ).toBeNull();
+    expect( result.workflow ).toEqual( expect.objectContaining( { workflowId: 'workflow-id' } ) );
   } );
 } );

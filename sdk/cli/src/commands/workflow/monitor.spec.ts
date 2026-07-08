@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock( '#services/workflow_history.js', () => ( { fetchWorkflowHistory: vi.fn() } ) );
+vi.mock( '#services/workflow_history.js', () => ( { fetchWorkflowHistory: vi.fn(), fetchWorkflowHistoryUpdates: vi.fn() } ) );
 vi.mock( '#utils/sleep.js', () => ( { sleep: vi.fn().mockResolvedValue( undefined ) } ) );
 
 const span = ( id: string, status: string, overrides: Record<string, unknown> = {} ): Record<string, unknown> => ( {
@@ -29,7 +29,17 @@ const history = ( status: string, overrides: Record<string, unknown> = {} ): Rec
   spans: [],
   totalDurationMs: 0,
   continuedAsNewRunId: null,
+  // Every result carries a cursor now (see workflow_history.ts) — `poll()` uses its
+  // presence to decide fetchWorkflowHistory vs. fetchWorkflowHistoryUpdates on the next tick.
+  cursor: { pageToken: 'token', lastEventId: 1, meta: null, runId: 'run-1', events: [] },
   ...overrides
+} );
+
+// `fetchWorkflowHistoryUpdates` (used from the second poll onward) wraps the same result
+// shape with a resume cursor; tests don't care about cursor contents, only that it's threaded.
+const update = ( status: string, overrides: Record<string, unknown> = {} ): Record<string, unknown> => ( {
+  result: history( status, overrides ),
+  cursor: { pageToken: 'token', lastEventId: 1, meta: null, runId: 'run-1', events: [] }
 } );
 
 describe( 'workflow monitor command', () => {
@@ -64,7 +74,7 @@ describe( 'workflow monitor command', () => {
   describe( 'run()', () => {
     const createCommand = async ( flagOverrides: Record<string, unknown> = {} ) => {
       const WorkflowMonitor = ( await import( './monitor.js' ) ).default;
-      const { fetchWorkflowHistory } = await import( '#services/workflow_history.js' );
+      const { fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await import( '#services/workflow_history.js' );
 
       const cmd = new WorkflowMonitor( [ 'wf-1' ], {} as any );
       cmd.log = vi.fn();
@@ -84,7 +94,11 @@ describe( 'workflow monitor command', () => {
         }
       } );
 
-      return { cmd, fetchWorkflowHistory: vi.mocked( fetchWorkflowHistory ) };
+      return {
+        cmd,
+        fetchWorkflowHistory: vi.mocked( fetchWorkflowHistory ),
+        fetchWorkflowHistoryUpdates: vi.mocked( fetchWorkflowHistoryUpdates )
+      };
     };
 
     it( 'prints span updates and exits cleanly when the workflow is already completed on the first poll', async () => {
@@ -113,28 +127,53 @@ describe( 'workflow monitor command', () => {
     } );
 
     it( 'polls again while the workflow is running, then stops once it completes', async () => {
-      const { cmd, fetchWorkflowHistory } = await createCommand();
-      fetchWorkflowHistory
-        .mockResolvedValueOnce( history( 'running', { spans: [ span( '1', 'running' ) ] } ) as any )
-        .mockResolvedValueOnce( history( 'completed', {
-          spans: [ span( '1', 'completed' ) ], totalDurationMs: 2000
-        } ) as any );
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'running', { spans: [ span( '1', 'running' ) ] } ) as any );
+      fetchWorkflowHistoryUpdates.mockResolvedValueOnce( update( 'completed', {
+        spans: [ span( '1', 'completed' ) ], totalDurationMs: 2000
+      } ) as any );
 
       await cmd.run();
 
-      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 2 );
+      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 1 );
+      expect( fetchWorkflowHistoryUpdates ).toHaveBeenCalledTimes( 1 );
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'running' ) );
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '1s' ) );
       expect( process.exitCode ).toBeUndefined();
     } );
 
+    it( 'keeps a span label stable once printed, even when a same-named span appears on a later poll', async () => {
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce(
+        history( 'running', { spans: [ span( '1', 'running', { name: 'Scrape Page' } ) ] } ) as any
+      );
+      // Span 2 shares span 1's name, only showing up on the second poll — buildSpanLabels
+      // would number both "#1"/"#2" if recomputed fresh, retroactively relabeling span 1's
+      // already-printed "running" line.
+      fetchWorkflowHistoryUpdates.mockResolvedValueOnce( update( 'completed', {
+        spans: [
+          span( '1', 'completed', { name: 'Scrape Page' } ),
+          span( '2', 'completed', { name: 'Scrape Page' } )
+        ]
+      } ) as any );
+
+      await cmd.run();
+
+      const lines: string[] = ( cmd.log as any ).mock.calls.map( ( [ line ]: [ string ] ) => line );
+      expect( lines.some( ( line: string ) => line.includes( 'Scrape Page running' ) ) ).toBe( true );
+      // Span 1's completion line keeps its original unnumbered label...
+      expect( lines.some( ( line: string ) => line.includes( 'Scrape Page  ' ) ) ).toBe( true );
+      expect( lines.some( ( line: string ) => line.includes( 'Scrape Page #1' ) ) ).toBe( false );
+      // ...while span 2, new this tick, is free to be numbered.
+      expect( lines.some( ( line: string ) => line.includes( 'Scrape Page #2' ) ) ).toBe( true );
+    } );
+
     it( 'does not re-print a span whose status has not changed between polls', async () => {
-      const { cmd, fetchWorkflowHistory } = await createCommand();
-      fetchWorkflowHistory
-        .mockResolvedValueOnce( history( 'running', { spans: [ span( '1', 'running' ) ] } ) as any )
-        .mockResolvedValueOnce( history( 'completed', {
-          spans: [ span( '1', 'running' ), span( '2', 'completed' ) ], totalDurationMs: 1000
-        } ) as any );
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'running', { spans: [ span( '1', 'running' ) ] } ) as any );
+      fetchWorkflowHistoryUpdates.mockResolvedValueOnce( update( 'completed', {
+        spans: [ span( '1', 'running' ), span( '2', 'completed' ) ], totalDurationMs: 1000
+      } ) as any );
 
       await cmd.run();
 
@@ -143,15 +182,18 @@ describe( 'workflow monitor command', () => {
     } );
 
     it( 'follows a continue-as-new chain by re-polling with the new run id', async () => {
-      const { cmd, fetchWorkflowHistory } = await createCommand();
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
       fetchWorkflowHistory
         .mockResolvedValueOnce( history( 'continued_as_new', { continuedAsNewRunId: 'run-2' } ) as any )
+        // The new run's cursor was reset, so its first poll takes the same fast,
+        // non-waiting path as the very first poll of the command — not a resumed one.
         .mockResolvedValueOnce( history( 'completed', { runId: 'run-2', totalDurationMs: 500 } ) as any );
 
       await cmd.run();
 
       expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 2 );
       expect( fetchWorkflowHistory ).toHaveBeenNthCalledWith( 2, expect.objectContaining( { runId: 'run-2' } ) );
+      expect( fetchWorkflowHistoryUpdates ).not.toHaveBeenCalled();
       expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'continued as new run run-2' ) );
       expect( process.exitCode ).toBeUndefined();
     } );
@@ -172,15 +214,16 @@ describe( 'workflow monitor command', () => {
     } );
 
     it( 'retries a transient failure after the first successful poll instead of crashing', async () => {
-      const { cmd, fetchWorkflowHistory } = await createCommand();
-      fetchWorkflowHistory
-        .mockResolvedValueOnce( history( 'running' ) as any )
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'running' ) as any );
+      fetchWorkflowHistoryUpdates
         .mockRejectedValueOnce( new Error( 'blip' ) )
-        .mockResolvedValueOnce( history( 'completed', { totalDurationMs: 1000 } ) as any );
+        .mockResolvedValueOnce( update( 'completed', { totalDurationMs: 1000 } ) as any );
 
       await cmd.run();
 
-      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 3 );
+      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 1 );
+      expect( fetchWorkflowHistoryUpdates ).toHaveBeenCalledTimes( 2 );
       expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( '(1/5)' ) );
       expect( process.exitCode ).toBeUndefined();
     } );

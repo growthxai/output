@@ -5,7 +5,7 @@
  * transitions as they're observed on each poll.
  */
 import type { Span, SpanStatus } from '#services/workflow_history/correlator.js';
-import { ANSI, formatDurationLabel } from '#utils/waterfall.js';
+import { ANSI, formatDurationLabel, makeTint } from '#utils/waterfall.js';
 
 const GLYPH: Record<SpanStatus, string> = {
   pending: '·',
@@ -43,16 +43,17 @@ export function diffSpanUpdates(
 export function formatSpanUpdate( update: SpanUpdate, color: boolean ): string {
   const { span, label } = update;
   const glyph = GLYPH[span.status];
-  const tint = ( text: string ): string => ( color ? `${ANSI[span.status]}${text}${ANSI.reset}` : text );
+  const tint = makeTint( color );
+  const tintStatus = ( text: string ): string => tint( text, ANSI[span.status] );
 
   switch ( span.status ) {
     case 'running':
-      return `${tint( glyph )} ${label} running…`;
+      return `${tintStatus( glyph )} ${label} running…`;
     case 'completed':
-      return `${tint( glyph )} ${label}  ${formatDurationLabel( Math.max( 0, span.durationMs ) )}`;
+      return `${tintStatus( glyph )} ${label}  ${formatDurationLabel( Math.max( 0, span.durationMs ) )}`;
     case 'failed': {
       const reason = span.failureMessage ? `: ${span.failureMessage}` : '';
-      return `${tint( glyph )} ${label} failed${reason}`;
+      return `${tintStatus( glyph )} ${label} failed${reason}`;
     }
     default:
       return `${glyph} ${label} ${span.status}`;

@@ -9,6 +9,7 @@ import {
 } from '#api/generated/api.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
+import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 
 export interface RunStep {
   index: number;
@@ -134,14 +135,9 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
   }
 };
 
-/**
- * Statuses that mean the workflow has stopped advancing. The cache is
- * intentionally only populated for these — partial results from a still-
- * running workflow would otherwise stick and stall the UI when the run
- * eventually finishes.
- */
-const TERMINAL_STATUSES = new Set( [ 'completed', 'failed', 'canceled', 'terminated', 'timed_out' ] );
-
+// The cache is intentionally only populated for terminal statuses — partial results
+// from a still-running workflow would otherwise stick and stall the UI when the run
+// eventually finishes. `TERMINAL_STATUSES` is shared with `workflow monitor`.
 export const isTerminalRunStatus = ( status: string | null | undefined ): boolean =>
   Boolean( status && TERMINAL_STATUSES.has( status ) );
 

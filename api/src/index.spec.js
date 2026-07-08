@@ -446,7 +446,8 @@ describe( 'API endpoints', () => {
         runId: undefined,
         pageSize: 20,
         pageToken: undefined,
-        includePayloads: false
+        includePayloads: false,
+        wait: false
       } );
     } );
 

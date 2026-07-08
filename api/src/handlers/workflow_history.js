@@ -10,7 +10,10 @@ export function createWorkflowHistoryHandler( client ) {
       // pageToken is a base64-encoded Temporal pagination cursor
       z.string().max( 4096 ).regex( /^[A-Za-z0-9+/]+={0,2}$/, 'Invalid pageToken format' ).optional()
     ),
-    includePayloads: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' )
+    includePayloads: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' ),
+    // Long-poll for a new event when already caught up to the end of history, instead of
+    // returning immediately. Lets a resumable poller avoid restarting from page 1 every tick.
+    wait: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' )
   } ).refine(
     data => !data.pageToken || data.runId,
     { message: 'runId is required when using pageToken', path: [ 'runId' ] }
@@ -19,7 +22,7 @@ export function createWorkflowHistoryHandler( client ) {
   return async ( req, res ) => {
     const workflowId = req.params.id;
     const pathRunId = readPinnedRunId( req );
-    const { runId, pageSize, pageToken, includePayloads } = querySchema.parse(
+    const { runId, pageSize, pageToken, includePayloads, wait } = querySchema.parse(
       pathRunId ? { ...req.query, runId: pathRunId } : req.query
     );
 
@@ -27,7 +30,8 @@ export function createWorkflowHistoryHandler( client ) {
       runId,
       pageSize,
       pageToken,
-      includePayloads
+      includePayloads,
+      wait
     } );
 
     res.json( result );

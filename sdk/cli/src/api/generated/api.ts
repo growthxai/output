@@ -436,6 +436,11 @@ pageToken?: string;
  * Include decoded input/output payloads in events
  */
 includePayloads?: boolean;
+/**
+ * Long-poll for a new event when already caught up to the end of history, instead of returning immediately. Bounded server-side; on timeout returns the same page's cursor unchanged with an empty events array so the caller can retry.
+
+ */
+wait?: boolean;
 };
 
 /**
@@ -474,6 +479,11 @@ pageToken?: string;
  * Include decoded input/output payloads in events
  */
 includePayloads?: boolean;
+/**
+ * Long-poll for a new event when already caught up to the end of history, instead of returning immediately. Bounded server-side; on timeout returns the same page's cursor unchanged with an empty events array so the caller can retry.
+
+ */
+wait?: boolean;
 };
 
 /**

@@ -7,6 +7,11 @@ export const ERROR_STATUSES: ReadonlySet<WorkflowResultResponseStatus | undefine
   [ 'failed', 'canceled', 'terminated', 'timed_out' ] as const
 );
 
+// Every error status plus the one success status — derived so the two sets can't
+// silently drift apart as error statuses evolve. Shared by `workflow monitor` and
+// the dev TUI's `useRunDetail`/`useStepGraph` so both agree on what "done" means.
+export const TERMINAL_STATUSES: ReadonlySet<string> = new Set( [ 'completed', ...ERROR_STATUSES ] as string[] );
+
 export function formatWorkflowResult( result: WorkflowResult ): string {
   const status = normalizeWorkflowStatus( result.status );
   const lines = [

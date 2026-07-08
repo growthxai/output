@@ -1,20 +1,20 @@
 import { Args, Command, Flags } from '@oclif/core';
-import { fetchWorkflowHistory } from '#services/workflow_history.js';
+import {
+  fetchWorkflowHistory, fetchWorkflowHistoryUpdates,
+  type WorkflowHistoryCursor, type WorkflowHistoryResult
+} from '#services/workflow_history.js';
 import type { SpanStatus } from '#services/workflow_history/correlator.js';
 import type { WorkflowResultResponseStatus } from '#api/generated/api.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { formatDurationLabel } from '#utils/waterfall.js';
 import { diffSpanUpdates, formatSpanUpdate } from '#utils/monitor_log.js';
-import { ERROR_STATUSES } from '#utils/format_workflow_result.js';
+import { ERROR_STATUSES, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { sleep } from '#utils/sleep.js';
 import { shouldColorize } from '#utils/color.js';
 
 const DEFAULT_INTERVAL_MS = 2500;
 const MAX_CONSECUTIVE_ERRORS = 5;
-// "Terminal" is every error status plus the one success status — derived so
-// the two sets can't silently drift apart as error statuses evolve.
-const TERMINAL_STATUSES: ReadonlySet<string> = new Set( [ 'completed', ...( Array.from( ERROR_STATUSES ) as string[] ) ] );
 const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
 const SIGINT_EXIT_CODE = 130;
 
@@ -84,9 +84,19 @@ export default class WorkflowMonitor extends Command {
     const state = {
       runId: flags['run-id'],
       consecutiveErrors: 0,
-      firstTick: true
+      firstTick: true,
+      // Undefined until a resumable cursor is established (see `poll` and
+      // `fetchWorkflowHistoryUpdates`); reset on continue-as-new since a new run's
+      // cursor position is meaningless carried over from the old one.
+      cursor: undefined as WorkflowHistoryCursor | undefined
     };
     const seen = new Map<string, SpanStatus>();
+    // Assigned once per span id and never overwritten: `buildSpanLabels` numbers
+    // same-named spans by how many are in the array *at call time*, so recomputing
+    // it fresh every poll could retroactively change a label already printed to
+    // the user (e.g. an unnumbered "Scrape Page" becoming "Scrape Page #1" once a
+    // second instance appears). Freezing on first sight keeps printed labels stable.
+    const labels = new Map<string, string>();
 
     // One emit point for both output formats: json mode wraps `fields` (plus
     // the ambient workflow/run id) as a line of NDJSON, text mode prints `text`.
@@ -106,17 +116,23 @@ export default class WorkflowMonitor extends Command {
 
     try {
       for ( ; ; ) {
-        const result = await this.poll( args.workflowId, state.runId, flags, state.firstTick, state.consecutiveErrors );
-        if ( result === null ) {
+        const outcome = await this.poll( args.workflowId, flags, state );
+        if ( outcome === null ) {
           state.consecutiveErrors += 1;
           await sleep( flags.interval );
           continue;
         }
         state.consecutiveErrors = 0;
         state.firstTick = false;
+        state.cursor = outcome.cursor;
 
+        const result = outcome.result;
         state.runId = result.runId ?? state.runId;
-        const labels = buildSpanLabels( result.spans );
+        for ( const [ id, label ] of buildSpanLabels( result.spans ) ) {
+          if ( !labels.has( id ) ) {
+            labels.set( id, label );
+          }
+        }
         for ( const update of diffSpanUpdates( result.spans, labels, seen ) ) {
           emit( { span: update.span }, formatSpanUpdate( update, color ) );
         }
@@ -132,7 +148,9 @@ export default class WorkflowMonitor extends Command {
             `↻ continued as new run ${result.continuedAsNewRunId}`
           );
           state.runId = result.continuedAsNewRunId;
+          state.cursor = undefined;
           seen.clear();
+          labels.clear();
           await sleep( flags.interval );
           continue;
         }
@@ -159,21 +177,31 @@ export default class WorkflowMonitor extends Command {
    * successfully just returns `null` so the loop can retry — matching the dev
    * TUI's `useStepGraph` behavior of keeping the last good state on a poll
    * hiccup. `MAX_CONSECUTIVE_ERRORS` bounds how long we'll retry silently.
+   *
+   * Fetch strategy is driven by `state.cursor`, not tick count: no cursor yet
+   * (the very first poll, or the first poll of a run chained via continue-as-new)
+   * uses `fetchWorkflowHistory` (fast, no long-poll) so that render isn't delayed;
+   * once a cursor exists, every poll resumes via `fetchWorkflowHistoryUpdates`
+   * instead of re-paging the whole history — see `plan_workflow_monitor_history.md`
+   * for why a full re-fetch every tick is expensive for long-running workflows.
    */
   private async poll(
     workflowId: string,
-    runId: string | undefined,
     flags: { 'include-payloads': boolean },
-    firstTick: boolean,
-    consecutiveErrors: number
-  ): Promise<Awaited<ReturnType<typeof fetchWorkflowHistory>> | null> {
+    state: { runId: string | undefined; firstTick: boolean; consecutiveErrors: number; cursor: WorkflowHistoryCursor | undefined }
+  ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor } | null> {
     try {
-      return await fetchWorkflowHistory( { workflowId, runId, includePayloads: flags['include-payloads'] } );
+      const options = { workflowId, runId: state.runId, includePayloads: flags['include-payloads'] };
+      if ( !state.cursor ) {
+        const result = await fetchWorkflowHistory( options );
+        return { result, cursor: result.cursor };
+      }
+      return await fetchWorkflowHistoryUpdates( options, state.cursor );
     } catch ( error ) {
-      if ( firstTick || consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
+      if ( state.firstTick || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
         throw error;
       }
-      this.warn( `Poll failed (${consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${( error as Error ).message}` );
+      this.warn( `Poll failed (${state.consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${( error as Error ).message}` );
       return null;
     }
   }

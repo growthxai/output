@@ -1,3 +1,4 @@
+import { temporal as temporalConfig } from '#configs';
 import { InvalidPageTokenError } from '../../errors.js';
 import { decodeEventPayloads, serializeEvent } from '../../event_serialization.js';
 import { describeWorkflow } from './describe_workflow.js';
@@ -32,10 +33,14 @@ import { fetchHistoryPage } from './fetch_history_page.js';
  * @param {object} options.pageSize - Amount of results default=20
  * @param {object} options.pageToken - Used to retrieve next page, must be used together with runId
  * @param {object} options.includePayloads - Omit/display payloads, default=false
+ * @param {boolean} [options.wait] - Long-poll for a new event when already caught up to the
+ *   end of history, bounded by `temporal.historyWaitTimeoutMs`, instead of returning
+ *   immediately. Lets a resumable poller (`workflow monitor`) avoid restarting from page 1
+ *   on every tick.
  * @returns {WorkflowHistoryResults}
  */
 export const getHistory = async ( { client, connection }, workflowId, options = {} ) => {
-  const { runId, pageSize = 20, pageToken, includePayloads = false } = options ?? {};
+  const { runId, pageSize = 20, pageToken, includePayloads = false, wait = false } = options ?? {};
 
   if ( pageToken && !runId ) {
     throw new InvalidPageTokenError();
@@ -50,8 +55,20 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
   const response = await fetchHistoryPage( connection, workflowId, metadata.resolvedRunId, {
     maximumPageSize: Math.min( pageSize, 50 ),
     nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined,
-    mapInvalidArgument: () => new InvalidPageTokenError()
+    mapInvalidArgument: () => new InvalidPageTokenError(),
+    ...( wait ? { waitNewEvent: true, deadlineMs: temporalConfig.historyWaitTimeoutMs } : {} )
   } );
+
+  if ( response === null ) {
+    // Long-poll deadline elapsed with no new events. Return the cursor unchanged so the
+    // caller can retry from the same position instead of losing its place.
+    return {
+      workflow: metadata.workflow,
+      events: [],
+      runId: metadata.resolvedRunId,
+      nextPageToken: pageToken ?? null
+    };
+  }
 
   const events = ( response.history?.events || [] ).map( event => {
     const decoded = includePayloads ? decodeEventPayloads( event ) : event;

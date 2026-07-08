@@ -1155,6 +1155,15 @@ app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
  *           type: boolean
  *           default: false
  *         description: Include decoded input/output payloads in events
+ *       - in: query
+ *         name: wait
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: >
+ *           Long-poll for a new event when already caught up to the end of history, instead of
+ *           returning immediately. Bounded server-side; on timeout returns the same page's
+ *           cursor unchanged with an empty events array so the caller can retry.
  *     responses:
  *       200:
  *         description: Paginated history events
@@ -1220,6 +1229,15 @@ app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
  *           type: boolean
  *           default: false
  *         description: Include decoded input/output payloads in events
+ *       - in: query
+ *         name: wait
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *         description: >
+ *           Long-poll for a new event when already caught up to the end of history, instead of
+ *           returning immediately. Bounded server-side; on timeout returns the same page's
+ *           cursor unchanged with an empty events array so the caller can retry.
  *     responses:
  *       200:
  *         description: Paginated history events

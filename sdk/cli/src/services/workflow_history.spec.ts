@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getWorkflowIdHistory } from '#api/generated/api.js';
-import { fetchWorkflowHistory } from '#services/workflow_history.js';
+import { fetchWorkflowHistory, fetchWorkflowHistoryUpdates, type WorkflowHistoryCursor } from '#services/workflow_history.js';
 
 vi.mock( '#api/generated/api.js', () => ( { getWorkflowIdHistory: vi.fn() } ) );
 
@@ -59,6 +59,44 @@ describe( 'fetchWorkflowHistory', () => {
     expect( result.totalDurationMs ).toBe( 300_000 ); // closeTime - startTime
     expect( result.spans ).toHaveLength( 1 );
     expect( result.spans[0].durationMs ).toBe( 27_000 );
+    // Even though the server's own nextPageToken for the final page is empty (nothing more
+    // buffered), the cursor keeps the *request* token that reached it — a genuinely resumable
+    // position for a follow-up fetchWorkflowHistoryUpdates call. See fetchPages.
+    expect( result.cursor.pageToken ).toBe( 'token-2' );
+  } );
+
+  it( 'a follow-up fetchWorkflowHistoryUpdates call resumes from fetchWorkflowHistory\'s cursor instead of re-paging from page 1', async () => {
+    mockGet
+      .mockResolvedValueOnce( page( {
+        workflow: { workflowId: 'wf-123', runId: 'run-456', status: 'running', startTime: at( 0 ) },
+        runId: 'run-456',
+        events: [ workflowStarted( 0 ), scheduled( '2', 'wf#step', 0 ) ],
+        nextPageToken: 'token-2'
+      } ) )
+      .mockResolvedValueOnce( page( {
+        workflow: null,
+        runId: 'run-456',
+        events: [ started( '3', '2', 0 ) ],
+        nextPageToken: null
+      } ) );
+
+    const first = await fetchWorkflowHistory( { workflowId: 'wf-123' } );
+    expect( mockGet ).toHaveBeenCalledTimes( 2 );
+
+    // The next tick replays the last page (deduped) then finds nothing new and times out —
+    // one call, not a full re-walk from page 1 through both prior pages again.
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: null, runId: 'run-456', events: [], nextPageToken: 'token-2'
+    } ) );
+
+    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-123', runId: 'run-456' }, first.cursor );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 3 );
+    expect( mockGet ).toHaveBeenNthCalledWith( 3, 'wf-123', {
+      runId: 'run-456', pageSize: 50, pageToken: 'token-2', includePayloads: false, wait: true
+    } );
+    expect( result.events ).toHaveLength( 3 );
+    expect( cursor.pageToken ).toBe( 'token-2' );
   } );
 
   it( 'forwards an explicit runId and includePayloads, stopping after a single page', async () => {
@@ -130,5 +168,65 @@ describe( 'fetchWorkflowHistory', () => {
 
     const result = await fetchWorkflowHistory( { workflowId: 'wf-5' } );
     expect( result.continuedAsNewRunId ).toBeNull();
+  } );
+} );
+
+describe( 'fetchWorkflowHistoryUpdates', () => {
+  it( 'starts a fresh long-poll walk when no cursor is given, and stops once the deadline echoes the sent token', async () => {
+    mockGet
+      .mockResolvedValueOnce( page( {
+        workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
+        runId: 'run-7',
+        events: [ workflowStarted( 0 ) ],
+        nextPageToken: 'tip-token'
+      } ) )
+      .mockResolvedValueOnce( page( {
+        workflow: null,
+        runId: 'run-7',
+        events: [],
+        nextPageToken: 'tip-token'
+      } ) );
+
+    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 2 );
+    expect( mockGet ).toHaveBeenNthCalledWith( 1, 'wf-7', {
+      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, wait: true
+    } );
+    expect( mockGet ).toHaveBeenNthCalledWith( 2, 'wf-7', {
+      runId: 'run-7', pageSize: 50, pageToken: 'tip-token', includePayloads: false, wait: true
+    } );
+    expect( result.events ).toHaveLength( 1 );
+    expect( cursor.pageToken ).toBe( 'tip-token' );
+    expect( cursor.lastEventId ).toBe( 1 );
+  } );
+
+  it( 'resumes from a prior cursor, fetching only new events until the deadline echoes the token back', async () => {
+    const cursor: WorkflowHistoryCursor = {
+      pageToken: 'token-2',
+      lastEventId: 2,
+      meta: { workflowId: 'wf-6', runId: 'run-6', status: 'running', startTime: at( 0 ) },
+      runId: 'run-6',
+      events: [ workflowStarted( 0 ), scheduled( '2', 'wf#step', 0 ) ]
+    };
+
+    mockGet.mockResolvedValue( page( {
+      workflow: null,
+      runId: 'run-6',
+      events: [ started( '3', '2', 1 ) ],
+      nextPageToken: 'token-2'
+    } ) );
+
+    const { result, cursor: nextCursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-6', runId: 'run-6' }, cursor );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 2 );
+    expect( mockGet ).toHaveBeenNthCalledWith( 1, 'wf-6', {
+      runId: 'run-6', pageSize: 50, pageToken: 'token-2', includePayloads: false, wait: true
+    } );
+    // The events already carried on the cursor (2) plus the one genuinely new event (1) — the
+    // replayed duplicate on the second call must not be double-counted.
+    expect( result.events ).toHaveLength( 3 );
+    expect( nextCursor.pageToken ).toBe( 'token-2' );
+    expect( nextCursor.lastEventId ).toBe( 3 );
   } );
 } );
