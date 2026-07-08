@@ -39,6 +39,13 @@ TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS=10
 
 Resource-based auto-tuning is most useful for avoiding out-of-memory failures and absorbing bursts of low-resource work, such as Activities that spend most of their time waiting on external HTTP or I/O. Temporal recommends validating it by monitoring host CPU and memory under full load and confirming they settle near your configured targets. See Temporal's [resource-based auto-tuning announcement](https://temporal.io/blog/resource-based-auto-tuning-for-workers) for the model behind the feature.
 
+Choose exactly one tuner shape:
+
+- **Resource-based tuner:** one set of `tunerOptions`, plus optional `*SlotOptions`.
+- **Mixed slot suppliers:** one `*SlotSupplier` object for each task type.
+
+Do not mix `tunerOptions` / `*SlotOptions` with `*SlotSupplier` fields in the same JSON object.
+
 When `TEMPORAL_WORKER_TUNER` is set, Output passes it to Temporal as `tuner` and does not pass these incompatible execution options:
 
 - `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS`

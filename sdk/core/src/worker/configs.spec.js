@@ -89,13 +89,6 @@ describe( 'worker/configs', () => {
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
   } );
 
-  it( 'treats empty string for worker tuner as unset', async () => {
-    setEnv( { TEMPORAL_WORKER_TUNER: '' } );
-    const configs = await loadConfigs();
-
-    expect( configs.workerTuner ).toBeUndefined();
-  } );
-
   it( 'parses Temporal worker tuner JSON', async () => {
     const workerTuner = {
       tunerOptions: {
@@ -113,20 +106,6 @@ describe( 'worker/configs', () => {
     const configs = await loadConfigs();
 
     expect( configs.workerTuner ).toEqual( workerTuner );
-  } );
-
-  it( 'throws when Temporal worker tuner is not valid JSON', async () => {
-    setEnv( { TEMPORAL_WORKER_TUNER: '{invalid' } );
-    vi.resetModules();
-
-    await expect( import( './configs.js' ) ).rejects.toThrow();
-  } );
-
-  it( 'throws when Temporal worker tuner is not a JSON object', async () => {
-    setEnv( { TEMPORAL_WORKER_TUNER: '[]' } );
-    vi.resetModules();
-
-    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'parses custom numeric env vars', async () => {

@@ -1,34 +1,10 @@
 import * as z from 'zod';
 import { isStringboolTrue } from '#helpers/string';
-import { isPlainObject } from '#helpers/object';
+import { workerTunerEnvSchema } from './configs_tuner_schema.js';
 
 class InvalidEnvVarsErrors extends Error { }
 
 const coalesceEmptyString = v => v === '' ? undefined : v;
-
-const jsonObjectEnvSchema = z.preprocess(
-  coalesceEmptyString,
-  /* eslint-disable consistent-return */
-  z.string().optional().transform( ( value, ctx ) => {
-    if ( value === undefined ) {
-      return undefined;
-    }
-
-    try {
-      const parsed = JSON.parse( value );
-      if ( !isPlainObject( parsed ) ) {
-        ctx.addIssue( { code: 'custom', message: 'Expected a JSON representing plain JS object' } );
-        return z.NEVER;
-      }
-
-      return parsed;
-    } catch ( error ) {
-      ctx.addIssue( { code: 'custom', message: `Expected valid JSON: ${error.message}` } );
-      return z.NEVER;
-    }
-  } )
-  /* eslint-enable consistent-return */
-);
 
 const durationSchema = z.preprocess(
   coalesceEmptyString,
@@ -54,7 +30,7 @@ const envVarSchema = z.object( {
   TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
   TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
   // JSON-encoded Temporal Worker tuner options.
-  TEMPORAL_WORKER_TUNER: jsonObjectEnvSchema,
+  TEMPORAL_WORKER_TUNER: workerTunerEnvSchema,
   // Activity configs
   // How often the worker sends a heartbeat to the Temporal Service during activity execution
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
