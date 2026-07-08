@@ -9,6 +9,7 @@
  */
 import { getWorkflowIdHistory, type GetWorkflowIdHistory200 } from '#api/generated/api.js';
 import { correlate, eventAttributes, eventTypeName, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
+import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
 const PAGE_SIZE = 50;
 
@@ -108,9 +109,9 @@ async function fetchAllPages(
   // the server, mirroring Atlas's metadata shape).
   const meta = acc.meta ?? ( data.workflow as unknown as WorkflowMeta | null ) ?? null;
   const resolvedRunId = runId ?? data.runId ?? acc.runId;
-  const events = [ ...acc.events, ...( ( data.events as HistoryEvent[] | undefined ) ?? [] ) ];
+  acc.events.push( ...( ( data.events as HistoryEvent[] | undefined ) ?? [] ) );
   const nextToken = data.nextPageToken ?? undefined;
-  const nextAcc: PageAccumulator = { meta, runId: resolvedRunId, events };
+  const nextAcc: PageAccumulator = { meta, runId: resolvedRunId, events: acc.events };
 
   if ( nextToken ) {
     return fetchAllPages( workflowId, includePayloads, resolvedRunId, nextToken, nextAcc );
@@ -121,9 +122,14 @@ async function fetchAllPages(
 export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions ): Promise<WorkflowHistoryResult> {
   const { workflowId, runId, includePayloads = false } = options;
 
-  const { meta, runId: resolvedRunId, events } = await fetchAllPages(
+  const { meta: rawMeta, runId: resolvedRunId, events } = await fetchAllPages(
     workflowId, includePayloads, runId, undefined, { meta: null, runId, events: [] }
   );
+
+  // Normalize once here so every consumer (monitor, history, etc.) sees the
+  // same status vocabulary, matching status.ts/workflow_runs.ts/etc.
+  const status = normalizeWorkflowStatus( rawMeta?.status );
+  const meta = rawMeta ? { ...rawMeta, status } : rawMeta;
 
   const startMs = workflowStartMs( meta, events );
   const spans = correlate( events, startMs );
@@ -136,6 +142,6 @@ export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions
     totalDurationMs: totalDuration( meta, spans, startMs ),
     // Only the common case (a workflow that continued as new) pays for the
     // scan; every other status skips it entirely.
-    continuedAsNewRunId: meta?.status === 'continued_as_new' ? continuedAsNewRunId( events ) : null
+    continuedAsNewRunId: status === 'continued_as_new' ? continuedAsNewRunId( events ) : null
   };
 }
