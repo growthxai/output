@@ -134,8 +134,11 @@ async function fetchPages( workflowId: string, includePayloads: boolean, wait: b
   const data = response.data as GetWorkflowIdHistory200;
   // The generated `data.workflow` is an opaque `{ [key: string]: unknown }`, so
   // narrow it to WorkflowMeta via `unknown` (its real fields are validated by
-  // the server, mirroring Atlas's metadata shape).
-  const meta = acc.meta ?? ( data.workflow as unknown as WorkflowMeta | null ) ?? null;
+  // the server, mirroring Atlas's metadata shape). Prefer the *fresh* value when the
+  // server sent one — it re-describes on every `wait` call specifically so status
+  // updates (e.g. running -> completed) are seen; falling back to `acc.meta` only
+  // covers the pages within a walk where the server didn't re-describe.
+  const meta = ( data.workflow as unknown as WorkflowMeta | null ) ?? acc.meta;
   const resolvedRunId = runId ?? data.runId ?? acc.runId;
   const pageEvents = ( data.events as HistoryEvent[] | undefined ) ?? [];
   const newEvents = pageEvents.filter( event => numericEventId( event ) > acc.lastEventId );
@@ -143,21 +146,30 @@ async function fetchPages( workflowId: string, includePayloads: boolean, wait: b
   // Events arrive in increasing eventId order, so the last new one is the max — no scan needed.
   const lastEventId = newEvents.length > 0 ? numericEventId( newEvents[newEvents.length - 1] ) : acc.lastEventId;
   const nextToken = data.nextPageToken ?? undefined;
+  const nextAcc: WorkflowHistoryCursor = { meta, runId: resolvedRunId, events, lastEventId, pageToken: nextToken ?? pageToken };
+
+  // While long-polling, stop and hand back the first batch of new events instead of
+  // draining further pages — a poller needs each transition rendered as it arrives, not
+  // several (possibly including a terminal one) silently merged into a single response
+  // after however long it took to walk to the current tip.
+  if ( wait && newEvents.length > 0 ) {
+    return nextAcc;
+  }
 
   // The server echoes `pageToken` back unchanged (see `get_history.js`) when a waitNewEvent
   // call's deadline elapses with nothing new — that's the tip, stop for this tick.
-  const timedOut = wait && newEvents.length === 0 && nextToken === pageToken;
+  const timedOut = wait && nextToken === pageToken;
   if ( timedOut ) {
-    return { meta, runId: resolvedRunId, events, lastEventId, pageToken: nextToken };
+    return nextAcc;
   }
   if ( nextToken ) {
-    return fetchPages( workflowId, includePayloads, wait, { meta, runId: resolvedRunId, events, lastEventId, pageToken: nextToken } );
+    return fetchPages( workflowId, includePayloads, wait, nextAcc );
   }
   // Drained: the server has nothing more buffered (`nextToken` is empty), but unlike
   // `nextToken`, `pageToken` — the position that fetched this now-empty page — is still a
   // valid resume point: a future waitNewEvent call from here replays this page (de-duped by
   // `lastEventId`) and then genuinely waits at the tip, instead of restarting from page 1.
-  return { meta, runId: resolvedRunId, events, lastEventId, pageToken };
+  return nextAcc;
 }
 
 function buildResult( pages: WorkflowHistoryCursor ): WorkflowHistoryResult {

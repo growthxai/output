@@ -165,7 +165,9 @@ describe( 'getHistory', () => {
 
     await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
 
-    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'run-id', {
+    // wait:true re-describes even on a later page (resolving to 'resolved-run', the fixture's
+    // describeWorkflow stub), so status stays live across a resumed poll — see the next test.
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
       maximumPageSize: 20,
       nextPageToken: Buffer.from( pageToken, 'base64' ),
       mapInvalidArgument: expect.any( Function ),
@@ -184,16 +186,32 @@ describe( 'getHistory', () => {
     } );
   } );
 
-  it( 'returns the unchanged cursor and empty events when a wait call times out', async () => {
+  it( 're-describes on a later page when wait is requested, so a resumed poll sees a status change', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client }, 'workflow-id', { runId: 'run-id' } );
+  } );
+
+  it( 'skips the describe call on a later page when wait is not requested', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken } );
+
+    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
+  } );
+
+  it( 'returns the unchanged cursor and fresh workflow metadata when a wait call times out', async () => {
     const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
     mockFetchHistoryPage.mockResolvedValue( null );
 
     const result = await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
 
     expect( result ).toEqual( {
-      workflow: null,
+      workflow: expect.objectContaining( { workflowId: 'workflow-id' } ),
       events: [],
-      runId: 'run-id',
+      runId: 'resolved-run',
       nextPageToken: pageToken
     } );
     expect( mockSerializeEvent ).not.toHaveBeenCalled();

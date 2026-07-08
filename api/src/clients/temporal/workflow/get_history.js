@@ -46,8 +46,12 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
     throw new InvalidPageTokenError();
   }
 
-  const isFirstPage = !pageToken;
-  const metadata = isFirstPage ? await ( async () => {
+  // Re-describe on every `wait` call, not just the first page: a resumable poller
+  // (`workflow monitor`) never requests the first page again, so if metadata were only
+  // fetched there, `workflow.status` would freeze at whatever it was on the very first
+  // poll and the caller could never observe the run finishing.
+  const shouldDescribe = !pageToken || wait;
+  const metadata = shouldDescribe ? await ( async () => {
     const { workflow } = await describeWorkflow( { client }, workflowId, { runId } );
     return { workflow, resolvedRunId: workflow.runId };
   } )() : { workflow: null, resolvedRunId: runId };

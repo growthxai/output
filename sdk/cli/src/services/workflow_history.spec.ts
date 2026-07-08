@@ -172,36 +172,46 @@ describe( 'fetchWorkflowHistory', () => {
 } );
 
 describe( 'fetchWorkflowHistoryUpdates', () => {
-  it( 'starts a fresh long-poll walk when no cursor is given, and stops once the deadline echoes the sent token', async () => {
-    mockGet
-      .mockResolvedValueOnce( page( {
-        workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
-        runId: 'run-7',
-        events: [ workflowStarted( 0 ) ],
-        nextPageToken: 'tip-token'
-      } ) )
-      .mockResolvedValueOnce( page( {
-        workflow: null,
-        runId: 'run-7',
-        events: [],
-        nextPageToken: 'tip-token'
-      } ) );
+  it( 'stops as soon as the first hop finds new events, without draining further buffered pages', async () => {
+    // Two pages already exist beyond the resume point; the old behavior kept paging until a
+    // timeout, which could silently merge several transitions (even a terminal one) into a
+    // single delayed render. A poller needs each batch back as soon as it has something new.
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
+      runId: 'run-7',
+      events: [ workflowStarted( 0 ) ],
+      nextPageToken: 'page-2'
+    } ) );
 
     const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
 
-    expect( mockGet ).toHaveBeenCalledTimes( 2 );
-    expect( mockGet ).toHaveBeenNthCalledWith( 1, 'wf-7', {
+    expect( mockGet ).toHaveBeenCalledTimes( 1 );
+    expect( mockGet ).toHaveBeenCalledWith( 'wf-7', {
       runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, wait: true
     } );
-    expect( mockGet ).toHaveBeenNthCalledWith( 2, 'wf-7', {
-      runId: 'run-7', pageSize: 50, pageToken: 'tip-token', includePayloads: false, wait: true
-    } );
     expect( result.events ).toHaveLength( 1 );
-    expect( cursor.pageToken ).toBe( 'tip-token' );
+    expect( result.workflow?.status ).toBe( 'running' );
+    // Resumes from the still-unfetched page 2 next time, not from the start.
+    expect( cursor.pageToken ).toBe( 'page-2' );
     expect( cursor.lastEventId ).toBe( 1 );
   } );
 
-  it( 'resumes from a prior cursor, fetching only new events until the deadline echoes the token back', async () => {
+  it( 'times out with the sent token echoed back when there is genuinely nothing new', async () => {
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
+      runId: 'run-7',
+      events: [],
+      nextPageToken: null
+    } ) );
+
+    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 1 );
+    expect( result.events ).toHaveLength( 0 );
+    expect( cursor.pageToken ).toBeUndefined();
+  } );
+
+  it( 'resumes from a prior cursor and picks up the workflow status finishing, not the status frozen on the cursor', async () => {
     const cursor: WorkflowHistoryCursor = {
       pageToken: 'token-2',
       lastEventId: 2,
@@ -210,23 +220,25 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
       events: [ workflowStarted( 0 ), scheduled( '2', 'wf#step', 0 ) ]
     };
 
-    mockGet.mockResolvedValue( page( {
-      workflow: null,
+    mockGet.mockResolvedValueOnce( page( {
+      // The server re-describes on every `wait` call specifically so a resumed poll can see
+      // status changes — this must win over the (now-stale) status carried on the cursor.
+      workflow: { workflowId: 'wf-6', runId: 'run-6', status: 'completed', startTime: at( 0 ), closeTime: at( 5 ) },
       runId: 'run-6',
-      events: [ started( '3', '2', 1 ) ],
-      nextPageToken: 'token-2'
+      events: [ started( '3', '2', 1 ), completed( '4', '2', 5 ) ],
+      nextPageToken: null
     } ) );
 
     const { result, cursor: nextCursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-6', runId: 'run-6' }, cursor );
 
-    expect( mockGet ).toHaveBeenCalledTimes( 2 );
-    expect( mockGet ).toHaveBeenNthCalledWith( 1, 'wf-6', {
+    expect( mockGet ).toHaveBeenCalledTimes( 1 );
+    expect( mockGet ).toHaveBeenCalledWith( 'wf-6', {
       runId: 'run-6', pageSize: 50, pageToken: 'token-2', includePayloads: false, wait: true
     } );
-    // The events already carried on the cursor (2) plus the one genuinely new event (1) — the
-    // replayed duplicate on the second call must not be double-counted.
-    expect( result.events ).toHaveLength( 3 );
+    expect( result.workflow?.status ).toBe( 'completed' );
+    // The events already carried on the cursor (2) plus the genuinely new ones (2).
+    expect( result.events ).toHaveLength( 4 );
     expect( nextCursor.pageToken ).toBe( 'token-2' );
-    expect( nextCursor.lastEventId ).toBe( 3 );
+    expect( nextCursor.lastEventId ).toBe( 4 );
   } );
 } );
