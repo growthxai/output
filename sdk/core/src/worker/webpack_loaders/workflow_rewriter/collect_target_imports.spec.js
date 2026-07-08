@@ -27,14 +27,15 @@ import WF, { FlowA } from './workflow.js';
 const x = 1;`;
 
     const ast = makeAst( source, join( dir, 'file.js' ) );
-    const { stepImports, evaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( evaluatorImports ).toEqual( [ { localName: 'EvalA', evaluatorName: 'eval.a' } ] );
-
-    expect( stepImports ).toEqual( [ { localName: 'StepA', stepName: 'step.a' } ] );
+    expect( activityImports ).toEqual( [
+      { localName: 'StepA', activityName: 'step.a' },
+      { localName: 'EvalA', activityName: 'eval.a' }
+    ] );
     expect( ast.program.body.find( n => n.type === 'ImportDeclaration' )?.source.value ).toBe( './workflow.js' );
 
     rmSync( dir, { recursive: true, force: true } );
@@ -53,14 +54,15 @@ const WF = require( './workflow.js' );
 const obj = {};`;
 
     const ast = makeAst( source, join( dir, 'file.js' ) );
-    const { stepImports, evaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( evaluatorImports ).toEqual( [ { localName: 'EvalB', evaluatorName: 'eval.b' } ] );
-
-    expect( stepImports ).toEqual( [ { localName: 'StepB', stepName: 'step.b' } ] );
+    expect( activityImports ).toEqual( [
+      { localName: 'StepB', activityName: 'step.b' },
+      { localName: 'EvalB', activityName: 'eval.b' }
+    ] );
     // Only non-target require declarators should remain.
     const hasRequireDecl = ast.program.body.some( n =>
       n.type === 'VariableDeclaration' && n.declarations.some( d => d.init && d.init.type === 'CallExpression' )
@@ -77,12 +79,12 @@ const obj = {};`;
     const source = 'import { MyExport } from \'./evaluators.js\';';
     const ast = makeAst( source, join( dir, 'file.js' ) );
 
-    const { evaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( evaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -94,12 +96,12 @@ const obj = {};`;
     const source = 'import { MyExport } from \'./steps.js\';';
     const ast = makeAst( source, join( dir, 'file.js' ) );
 
-    const { stepImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( stepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -111,12 +113,12 @@ const obj = {};`;
     const source = 'const { MyExport } = require( \'./evaluators.js\' );';
     const ast = makeAst( source, join( dir, 'file.js' ) );
 
-    const { evaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( evaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -128,12 +130,12 @@ const obj = {};`;
     const source = 'const { MyExport } = require( \'./steps.js\' );';
     const ast = makeAst( source, join( dir, 'file.js' ) );
 
-    const { stepImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       dir,
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map() }
     );
-    expect( stepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -201,12 +203,12 @@ const obj = {};`;
     const source = 'import { SharedEval } from \'../../shared/evaluators/common.js\';';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedEvaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
-    expect( sharedEvaluatorImports ).toEqual( [ { localName: 'SharedEval', evaluatorName: 'shared.eval' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'SharedEval', activityName: 'shared.eval' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -223,12 +225,12 @@ const obj = {};`;
     const source = 'const { SharedEval } = require( \'../../shared/evaluators/common.js\' );';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedEvaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
-    expect( sharedEvaluatorImports ).toEqual( [ { localName: 'SharedEval', evaluatorName: 'shared.eval' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'SharedEval', activityName: 'shared.eval' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -245,7 +247,7 @@ const obj = {};`;
     const source = 'const { SharedA } = require( \'../../shared/steps/common.js\' );';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedStepImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       {
@@ -253,7 +255,7 @@ const obj = {};`;
         evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map()
       }
     );
-    expect( sharedStepImports ).toEqual( [ { localName: 'SharedA', stepName: 'shared.a' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'SharedA', activityName: 'shared.a' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -270,7 +272,7 @@ const obj = {};`;
     const source = 'const { MyExport } = require( \'../../shared/steps/common.js\' );';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedStepImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       {
@@ -278,7 +280,7 @@ const obj = {};`;
         evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map()
       }
     );
-    expect( sharedStepImports ).toEqual( [ { localName: 'MyExport', stepName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -295,12 +297,12 @@ const obj = {};`;
     const source = 'const { MyExport } = require( \'../../shared/evaluators/common.js\' );';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedEvaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
-    expect( sharedEvaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -317,12 +319,12 @@ const obj = {};`;
     const source = 'import { MyExport } from \'../../shared/evaluators/common.js\';';
     const ast = makeAst( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
-    const { sharedEvaluatorImports } = collectTargetImports(
+    const { activityImports } = collectTargetImports(
       ast,
       join( dir, 'workflows', 'my_workflow' ),
       { stepsNameCache: new Map(), evaluatorsNameCache: new Map(), sharedEvaluatorsNameCache: new Map() }
     );
-    expect( sharedEvaluatorImports ).toEqual( [ { localName: 'MyExport', evaluatorName: 'bad' } ] );
+    expect( activityImports ).toEqual( [ { localName: 'MyExport', activityName: 'bad' } ] );
 
     rmSync( dir, { recursive: true, force: true } );
   } );

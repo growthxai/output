@@ -43,7 +43,7 @@ const removeRequireDeclarator = path => {
 
 const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => {
   const propFilter = p => isObjectProperty( p ) && isIdentifier( p.key );
-  for ( const { match, buildMap, cache, target, valueKey, label } of descriptors ) {
+  for ( const { match, buildMap, cache, label, target } of descriptors ) {
     if ( !match( req ) ) {
       continue;
     }
@@ -54,7 +54,7 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
       if ( localName ) {
         const resolved = nameMap.get( importedName );
         if ( resolved ) {
-          target.push( { localName, [valueKey]: resolved } );
+          target.push( { localName, activityName: resolved } );
         } else {
           throw unresolvedImportError( importedName, label, absolutePath );
         }
@@ -67,7 +67,7 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
 
 /**
  * Collect and strip target imports and requires from an AST, producing
- * step/evaluator import mappings for later rewrites.
+ * activity import mappings for later rewrites.
  *
  * Mutates the AST by removing matching import declarations and require declarators.
  *
@@ -75,17 +75,13 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
  * @param {string} fileDir - Absolute directory of the file represented by `ast`.
  * @param {{ stepsNameCache: Map<string,Map<string,string>> }} caches
  *  Resolved-name caches to avoid re-reading same modules.
- * @returns {{ stepImports: Array<{localName:string,stepName:string}>,
- *  evaluatorImports: Array<{localName:string,evaluatorName:string}> }} Collected info mappings.
+ * @returns {{ activityImports: Array<{localName:string,activityName:string}> }} Collected import mappings.
  */
 export default function collectTargetImports(
   ast, fileDir,
   { stepsNameCache, evaluatorsNameCache, sharedStepsNameCache, sharedEvaluatorsNameCache }
 ) {
-  const stepImports = [];
-  const sharedStepImports = [];
-  const evaluatorImports = [];
-  const sharedEvaluatorImports = [];
+  const activityImports = [];
 
   traverse( ast, {
     ImportDeclaration: path => {
@@ -98,7 +94,7 @@ export default function collectTargetImports(
       }
 
       const absolutePath = toAbsolutePath( fileDir, src );
-      const collectNamedImports = ( match, buildMapFn, cache, targetArr, valueKey, fileLabel ) => {
+      const collectNamedImports = ( match, buildMapFn, cache, fileLabel ) => {
         if ( !match ) {
           return;
         }
@@ -108,22 +104,17 @@ export default function collectTargetImports(
           const localName = s.local.name;
           const value = nameMap.get( importedName );
           if ( value ) {
-            const entry = { localName };
-            entry[valueKey] = value;
-            targetArr.push( entry );
+            activityImports.push( { localName, activityName: value } );
           } else {
             throw unresolvedImportError( importedName, fileLabel, absolutePath );
           }
         }
       };
 
-      collectNamedImports( isStepsPath( src ), buildStepsNameMap, stepsNameCache, stepImports, 'stepName', 'steps' );
-      collectNamedImports( isSharedStepsPath( src ), buildSharedStepsNameMap, sharedStepsNameCache, sharedStepImports, 'stepName', 'shared steps' );
-      collectNamedImports( isEvaluatorsPath( src ), buildEvaluatorsNameMap, evaluatorsNameCache, evaluatorImports, 'evaluatorName', 'evaluators' );
-      collectNamedImports(
-        isSharedEvaluatorsPath( src ), buildSharedEvaluatorsNameMap,
-        sharedEvaluatorsNameCache, sharedEvaluatorImports, 'evaluatorName', 'shared evaluators'
-      );
+      collectNamedImports( isStepsPath( src ), buildStepsNameMap, stepsNameCache, 'steps' );
+      collectNamedImports( isSharedStepsPath( src ), buildSharedStepsNameMap, sharedStepsNameCache, 'shared steps' );
+      collectNamedImports( isEvaluatorsPath( src ), buildEvaluatorsNameMap, evaluatorsNameCache, 'evaluators' );
+      collectNamedImports( isSharedEvaluatorsPath( src ), buildSharedEvaluatorsNameMap, sharedEvaluatorsNameCache, 'shared evaluators' );
       path.remove();
     },
     VariableDeclarator: path => {
@@ -153,25 +144,21 @@ export default function collectTargetImports(
         const cjsDescriptors = [
           {
             match: isStepsPath, buildMap: buildStepsNameMap,
-            cache: stepsNameCache, target: stepImports,
-            valueKey: 'stepName', label: 'steps'
+            cache: stepsNameCache, target: activityImports, label: 'steps'
           },
           {
             match: isSharedStepsPath, buildMap: buildSharedStepsNameMap,
             cache: sharedStepsNameCache ?? stepsNameCache,
-            target: sharedStepImports,
-            valueKey: 'stepName', label: 'shared steps'
+            target: activityImports, label: 'shared steps'
           },
           {
             match: isEvaluatorsPath, buildMap: buildEvaluatorsNameMap,
-            cache: evaluatorsNameCache, target: evaluatorImports,
-            valueKey: 'evaluatorName', label: 'evaluators'
+            cache: evaluatorsNameCache, target: activityImports, label: 'evaluators'
           },
           {
             match: isSharedEvaluatorsPath, buildMap: buildSharedEvaluatorsNameMap,
             cache: sharedEvaluatorsNameCache ?? evaluatorsNameCache,
-            target: sharedEvaluatorImports,
-            valueKey: 'evaluatorName', label: 'shared evaluators'
+            target: activityImports, label: 'shared evaluators'
           }
         ];
         collectDestructuredRequires(
@@ -182,5 +169,5 @@ export default function collectTargetImports(
     }
   } );
 
-  return { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports };
+  return { activityImports };
 }

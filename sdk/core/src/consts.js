@@ -4,7 +4,6 @@ export const ACTIVITY_SEND_HTTP_REQUEST = '__internal#sendHttpRequest';
 export const ACTIVITY_WRAPPER_VERSION_FIELD = '__output_activity_wrapper_version';
 export const ACTIVITY_LOGGER_SYMBOL = Symbol.for( '__activity_logger' );
 export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );
-export const SHARED_STEP_PREFIX = '$shared';
 export const WORKFLOW_CATALOG = '$catalog';
 export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 export const WORKFLOW_WRAPPER_VERSION_FIELD = '__output_workflow_wrapper_version';

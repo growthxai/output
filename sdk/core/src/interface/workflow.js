@@ -7,16 +7,15 @@ import { TraceInfo } from '#helpers/trace_info';
 import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import { createWorkflow } from '#helpers/component';
-import {
-  ACTIVITY_GET_TRACE_DESTINATIONS,
-  METADATA_ACCESS_SYMBOL,
-  SHARED_STEP_PREFIX,
-  WORKFLOW_WRAPPER_VERSION_FIELD
-} from '#consts';
+import { ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL, WORKFLOW_WRAPPER_VERSION_FIELD } from '#consts';
 
-/**
- * Create a new workflow and return a wrapper function around its fn handler
- */
+const state = { activities: null, namespace: null };
+
+/** Invokes an activity in this workflow execution context */
+export const __invokeActivity = async ( name, ...args ) =>
+  state.activities[`${state.namespace}#${name}`]( ...args ).then( r => r.output );
+
+/** Create a new workflow and return a wrapper function around its fn handler */
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   WorkflowValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
@@ -72,29 +71,18 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
         memo.traceInfo = TraceInfo.build();
       }
 
-      const steps = proxyActivities( memo.activityOptions );
+      state.namespace = name;
+      state.activities = proxyActivities( memo.activityOptions );
+
       const traceDestinations = isRoot && {
         trace: {
-          destinations: disableTrace ? {} : ( await steps[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ) ).output ?? {}
+          destinations: disableTrace ? {} : await state.activities[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ).then( r => r.output ) ?? {}
         }
       };
 
       try {
         validator.validateInput( input );
-
-        // Creates an activity caller based on a prefix
-        const createCaller = prefix => async ( t, ...args ) => ( await steps[`${prefix}#${t}`]( ...args ) ).output;
-
-        // This are functions used by the AST to replace direct activity (step/evaluator) calls
-        const dispatchers = {
-          invokeStep: createCaller( name ),
-          invokeSharedStep: createCaller( SHARED_STEP_PREFIX ),
-          invokeEvaluator: createCaller( name ),
-          invokeSharedEvaluator: createCaller( SHARED_STEP_PREFIX )
-        };
-
-        // The workflow function execution with "this" set with the dispatchers
-        const output = await fn.call( dispatchers, input, WorkflowContext.build() );
+        const output = await fn( input, WorkflowContext.build() );
         validator.validateOutput( output );
 
         return { [WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };

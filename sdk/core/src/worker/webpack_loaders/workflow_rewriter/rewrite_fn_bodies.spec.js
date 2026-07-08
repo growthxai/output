@@ -6,7 +6,7 @@ import rewriteFnBodies from './rewrite_fn_bodies.js';
 const generate = generatorModule.default ?? generatorModule;
 
 describe( 'rewrite_fn_bodies', () => {
-  it( 'converts arrow to function and rewrites step calls without rewriting workflow calls', () => {
+  it( 'rewrites step calls inside functions without changing function shape', () => {
     const src = `
 const obj = {
   fn: async x => {
@@ -15,17 +15,19 @@ const obj = {
   }
 }`;
     const ast = parse( src, 'file.js' );
-    const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
-    expect( code ).toMatch( /this\.invokeStep\(([\"'])step\.a\1,\s*1\)/ );
+    expect( code ).toMatch( /import \{ __invokeActivity as _invokeActivity \} from "@outputai\/core\/invoker";/ );
+    expect( code ).toMatch( /fn:\s*async x =>/ );
+    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*1\)/ );
     expect( code ).toMatch( /FlowB\(2\)/ );
   } );
 
-  it( 'rewrites evaluator calls to this.invokeEvaluator', () => {
+  it( 'rewrites evaluator calls to __invokeActivity', () => {
     const src = `
 const obj = {
   fn: async x => {
@@ -33,19 +35,21 @@ const obj = {
   }
 };`;
     const ast = parse( src, 'file.js' );
-    const evaluatorImports = [ { localName: 'EvalA', evaluatorName: 'eval.a' } ];
-    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports } );
+    const activityImports = [ { localName: 'EvalA', activityName: 'eval.a' } ];
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
     expect( rewrote ).toBe( true );
+    const { code } = generate( ast, { quotes: 'single' } );
+    expect( code ).toMatch( /_invokeActivity\(([\"'])eval\.a\1,\s*3\)/ );
   } );
 
   it( 'does nothing when no matching calls are present', () => {
     const src = [ 'const obj = { fn: function() { other(); } }' ].join( '\n' );
     const ast = parse( src, 'file.js' );
-    const rewrote = rewriteFnBodies( { ast, stepImports: [], evaluatorImports: [] } );
+    const rewrote = rewriteFnBodies( { ast, activityImports: [] } );
     expect( rewrote ).toBe( false );
   } );
 
-  it( 'rewrites helper calls and helper bodies (steps and evaluators)', () => {
+  it( 'rewrites imported activity calls in any function body', () => {
     const src = `
 const foo = async () => {
   StepA( 1 );
@@ -63,61 +67,54 @@ const obj = {
 }`;
 
     const ast = parse( src, 'file.js' );
-    const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
-    const evaluatorImports = [ { localName: 'EvalA', evaluatorName: 'eval.a' } ];
+    const activityImports = [
+      { localName: 'StepA', activityName: 'step.a' },
+      { localName: 'EvalA', activityName: 'eval.a' }
+    ];
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports: [], evaluatorImports } );
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
 
-    // Helper calls in fn are rewritten to call(this, ...)
-    expect( code ).toMatch( /foo\.call\(this\)/ );
-    expect( code ).toMatch( /bar\.call\(this,\s*2\)/ );
-
-    // Inside helpers, calls are rewritten
-    expect( code ).toMatch( /this\.invokeStep\(([\"'])step\.a\1,\s*1\)/ );
-    expect( code ).toMatch( /this\.invokeEvaluator\(([\"'])eval\.a\1,\s*x\)/ );
-
-    // Arrow helper converted to function expression to allow dynamic this
-    expect( code ).toMatch( /const foo = async function/ );
+    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*1\)/ );
+    expect( code ).toMatch( /_invokeActivity\(([\"'])eval\.a\1,\s*x\)/ );
+    expect( code ).toMatch( /foo\(\)/ );
+    expect( code ).toMatch( /bar\(2\)/ );
+    expect( code ).toMatch( /const foo = async \(\) =>/ );
   } );
 
-  it( 'rewrites nested helper chains until the step invocation', () => {
+  it( 'does not rewrite top-level calls', () => {
     const src = `
-const foo = () => {
-  bar();
-};
-
-function bar() {
-  baz( 42 );
-}
-
-const baz = n => {
-  StepA( n );
-};
-
-const obj = {
-  fn: async () => {
-    foo();
-  }
+StepA( 1 );
+function helper() {
+  StepA( 2 );
 }`;
 
     const ast = parse( src, 'file.js' );
-    const stepImports = [ { localName: 'StepA', stepName: 'step.a' } ];
-    const rewrote = rewriteFnBodies( { ast, stepImports, evaluatorImports: [] } );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
-    // Calls along the chain are bound with this
-    expect( code ).toMatch( /foo\.call\(this\)/ );
-    expect( code ).toMatch( /bar\.call\(this\)/ );
-    expect( code ).toMatch( /baz\.call\(this,\s*42\)/ );
-    // Deep step rewrite in the last helper
-    expect( code ).toMatch( /this\.invokeStep\(([\"'])step\.a\1,\s*n\)/ );
-    // Arrow helpers converted to functions
-    expect( code ).toMatch( /const foo = function/ );
-    expect( code ).toMatch( /const baz = function/ );
+    expect( code ).toMatch( /StepA\(1\)/ );
+    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*2\)/ );
+  } );
+
+  it( 'uses an existing __invokeActivity import when present', () => {
+    const src = `
+import { __invokeActivity as invoke } from '@outputai/core/invoker';
+function helper() {
+  StepA();
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    expect( rewrote ).toBe( true );
+
+    const { code } = generate( ast, { quotes: 'single' } );
+    expect( code.match( /__invokeActivity/g ) ).toHaveLength( 1 );
+    expect( code ).toMatch( /invoke\(([\"'])step\.a\1\)/ );
   } );
 } );
 

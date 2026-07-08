@@ -12,7 +12,7 @@ import {
   isStringLiteral
 } from '@babel/types';
 import { existsSync, readFileSync } from 'node:fs';
-import { parse, isWorkflowPath, buildWorkflowNameMap } from './tools.js';
+import { parse, isWorkflowPath, buildWorkflowNameMap } from '../tools.js';
 
 /**
  * Resolves bare npm imports to workflow runtime names:

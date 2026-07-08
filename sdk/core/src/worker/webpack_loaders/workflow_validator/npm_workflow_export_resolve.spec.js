@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { parse } from './tools.js';
+import { parse } from '../tools.js';
 import {
   isBareNpmSpecifier,
   resolveBareImportSpecifiersAsWorkflows,

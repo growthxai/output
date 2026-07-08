@@ -75,7 +75,7 @@ export const deepMerge = ( a, b ) => deepMergeWithResolver( a, b, ( _, b ) => b 
 /**
  * Adds an non-writable, non-configurable and non-enumerable property to an object
  * @param {object} obj
- * @param {string} key
+ * @param {string|Symbol} key
  * @param {any} value
  * @returns
  */

@@ -58,6 +58,20 @@ describe( 'workflow_validator loader', () => {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
+  it( 'workflow.js: rejects default and namespace imports from activity files', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'wf-activity-import-shape-' ) );
+    await expect(
+      runLoader( join( dir, 'workflow.js' ), 'import StepA from "./steps.js";' )
+    ).rejects.toThrow( /Invalid activity import.*named imports only/ );
+    await expect(
+      runLoader( join( dir, 'workflow.js' ), 'import * as steps from "./steps.js";' )
+    ).rejects.toThrow( /Invalid activity import.*named imports only/ );
+    await expect(
+      runLoader( join( dir, 'workflow.js' ), 'import EvalA, { EvalB } from "./evaluators.js";' )
+    ).rejects.toThrow( /Invalid activity import.*named imports only/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
   it( 'workflow.js: allows imports from any non-component file', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'wf-any-allow-' ) );
     const src = 'import x from "./foo.js";';
@@ -95,6 +109,20 @@ describe( 'workflow_validator loader', () => {
     const src = 'import { E } from "./evaluators.js";';
     const result = await runLoader( join( dir, 'evaluators.js' ), src );
     expect( result.warnings ).toHaveLength( 0 );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'steps.js/evaluators.js: rejects non-named activity exports', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'activity-export-shape-' ) );
+    await expect(
+      runLoader( join( dir, 'steps.js' ), 'export default step({ name: "a" });' )
+    ).rejects.toThrow( /Invalid activity export.*named exports only/ );
+    await expect(
+      runLoader( join( dir, 'evaluators.js' ), 'export * from "./other_evaluators.js";' )
+    ).rejects.toThrow( /Invalid activity export.*named exports only/ );
+    await expect(
+      runLoader( join( dir, 'steps.js' ), 'export const A = step({ name: "a" });' )
+    ).resolves.toBeTruthy();
     rmSync( dir, { recursive: true, force: true } );
   } );
 
@@ -199,6 +227,17 @@ describe( 'workflow_validator loader', () => {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
+  it( 'workflow.js: rejects non-destructured requires from activity files', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'wf-activity-require-shape-' ) );
+    await expect(
+      runLoader( join( dir, 'workflow.js' ), 'const steps = require("./steps.js");' )
+    ).rejects.toThrow( /Invalid activity require.*destructured requires only/ );
+    await expect(
+      runLoader( join( dir, 'workflow.js' ), 'const evaluators = require("./evaluators.js");' )
+    ).rejects.toThrow( /Invalid activity require.*destructured requires only/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
   it( 'steps.js: allows importing evaluators/workflow variants (no import restrictions)', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'steps-allow-import2-' ) );
     const result1 = await runLoader( join( dir, 'steps.js' ), 'import { E } from "./evaluators.js";' );
@@ -217,12 +256,23 @@ describe( 'workflow_validator loader', () => {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'top-level calls outside fn are allowed in steps.js and evaluators.js', async () => {
-    const dir = mkdtempSync( join( tmpdir(), 'toplevel-allowed-' ) );
+  it( 'rejects top-level activity calls in steps.js and evaluators.js', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'toplevel-reject-' ) );
     const stepsTop = [ 'const A = step({ name: "a" });', 'A();' ].join( '\n' );
-    await expect( runLoader( join( dir, 'steps.js' ), stepsTop ) ).resolves.toBeTruthy();
+    await expect( runLoader( join( dir, 'steps.js' ), stepsTop ) ).rejects.toThrow( /Invalid top-level step call 'A'/ );
     const evaluatorsTop = [ 'const E = evaluator({ name: "e" });', 'E();' ].join( '\n' );
-    await expect( runLoader( join( dir, 'evaluators.js' ), evaluatorsTop ) ).resolves.toBeTruthy();
+    await expect( runLoader( join( dir, 'evaluators.js' ), evaluatorsTop ) ).rejects.toThrow(
+      /Invalid top-level evaluator call 'E'/
+    );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'allows activity calls inside helper functions', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'function-call-allowed-' ) );
+    const stepsSrc = [ 'const A = step({ name: "a" });', 'function helper() { return A(); }' ].join( '\n' );
+    await expect( runLoader( join( dir, 'steps.js' ), stepsSrc ) ).resolves.toBeTruthy();
+    const evaluatorsSrc = [ 'const E = evaluator({ name: "e" });', 'const helper = () => E();' ].join( '\n' );
+    await expect( runLoader( join( dir, 'evaluators.js' ), evaluatorsSrc ) ).resolves.toBeTruthy();
     rmSync( dir, { recursive: true, force: true } );
   } );
 

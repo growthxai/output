@@ -27,7 +27,7 @@ import {
   resolveBareImportSpecifiersAsWorkflows,
   resolveBareDestructuredRequireAsWorkflows,
   resolveBareDefaultRequireAsWorkflow
-} from '../npm_workflow_export_resolve.js';
+} from './npm_workflow_export_resolve.js';
 import { ComponentFile } from '../consts.js';
 import {
   isCallExpression,
@@ -83,6 +83,54 @@ const validateInstantiationLocation = ( calleeName, filename ) => {
   }
 };
 
+const validateActivityCallsAreInsideFunctions = ( {
+  ast, filename, localStepIds, localEvaluatorIds, importedStepIds, importedEvaluatorIds
+} ) => {
+  traverse( ast, {
+    CallExpression: path => {
+      const callee = path.node.callee;
+      if ( !isIdentifier( callee ) || path.getFunctionParent() ) {
+        return;
+      }
+
+      const { name } = callee;
+      const violation = [
+        [ 'step', localStepIds.has( name ) || importedStepIds.has( name ) ],
+        [ 'evaluator', localEvaluatorIds.has( name ) || importedEvaluatorIds.has( name ) ]
+      ].find( v => v[1] )?.[0];
+
+      if ( violation ) {
+        throw new Error( `Invalid top-level ${violation} call '${name}' in ${filename}. Activities can only be invoked inside functions.` );
+      }
+    }
+  } );
+};
+
+const isActivityPath = specifier => isAnyStepsPath( specifier ) || isAnyEvaluatorsPath( specifier );
+
+const validateActivityImportShape = ( specifier, specifiers ) => {
+  if ( !isActivityPath( specifier ) ) {
+    return;
+  }
+
+  if ( specifiers.some( s => !isImportSpecifier( s ) ) ) {
+    throw new Error(
+      `Invalid activity import from "${specifier}": use named imports only. ` +
+      'Default and namespace imports from steps/evaluators files cannot be rewritten.'
+    );
+  }
+};
+
+const validateActivityExportShape = ( fileKind, node ) => {
+  if ( ![ ComponentFile.STEPS, ComponentFile.EVALUATORS ].includes( fileKind ) ) {
+    return;
+  }
+
+  if ( node.type === 'ExportDefaultDeclaration' || node.type === 'ExportAllDeclaration' ) {
+    throw new Error( 'Invalid activity export: steps/evaluators files must use named exports only.' );
+  }
+};
+
 /**
  * Webpack loader that validates component instantiation and fn body calls.
  * Returns the source unchanged unless a validation error is found.
@@ -122,6 +170,8 @@ export default function workflowValidatorLoader( source, inputMap ) {
       ImportDeclaration: path => {
         const specifier = path.node.source.value;
 
+        validateActivityImportShape( specifier, path.node.specifiers );
+
         if ( isBareNpmSpecifier( specifier ) && fileMayBindBareNpmWorkflowImports( filename ) ) {
           const outcome = resolveBareImportSpecifiersAsWorkflows( {
             fromAbsoluteFile: filename,
@@ -151,6 +201,12 @@ export default function workflowValidatorLoader( source, inputMap ) {
             }
           }
         }
+      },
+      ExportDefaultDeclaration: path => {
+        validateActivityExportShape( fileKind, path.node );
+      },
+      ExportAllDeclaration: path => {
+        validateActivityExportShape( fileKind, path.node );
       },
       VariableDeclarator: path => {
         const init = path.node.init;
@@ -208,6 +264,12 @@ export default function workflowValidatorLoader( source, inputMap ) {
 
           // Collect imported identifiers from require patterns
           const reqType = getFileKind( toAbsolutePath( fileDir, req ) );
+          if ( [ ComponentFile.STEPS, ComponentFile.EVALUATORS ].includes( reqType ) && !isObjectPattern( path.node.id ) ) {
+            throw new Error(
+              `Invalid activity require from "${req}": use destructured requires only. ` +
+              'Default-style requires from steps/evaluators files cannot be rewritten.'
+            );
+          }
           if ( reqType === ComponentFile.STEPS && isObjectPattern( path.node.id ) ) {
             for ( const prop of path.node.id.properties ) {
               if ( isObjectProperty( prop ) && isIdentifier( prop.value ) ) {
@@ -227,6 +289,10 @@ export default function workflowValidatorLoader( source, inputMap ) {
           }
         }
       }
+    } );
+
+    validateActivityCallsAreInsideFunctions( {
+      ast, filename, localStepIds, localEvaluatorIds, importedStepIds, importedEvaluatorIds
     } );
 
     // Function-body call validations for steps/evaluators files

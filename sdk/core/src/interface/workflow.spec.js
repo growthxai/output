@@ -4,7 +4,6 @@ import {
   ACTIVITY_GET_TRACE_DESTINATIONS,
   ACTIVITY_WRAPPER_VERSION_FIELD,
   METADATA_ACCESS_SYMBOL,
-  SHARED_STEP_PREFIX,
   WORKFLOW_WRAPPER_VERSION_FIELD
 } from '#consts';
 import { ValidationError } from '#errors';
@@ -532,8 +531,8 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'activity dispatchers', () => {
-    it( 'invokes workflow-scoped steps and evaluators and unwraps activity output', async () => {
-      const { workflow } = await import( './workflow.js' );
+    it( 'invokes workflow-scoped activities and unwraps activity output', async () => {
+      const { workflow, __invokeActivity } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'dispatch_wf' } );
       const step = vi.fn().mockResolvedValue( activityOutput( 'step-output' ) );
       const evaluator = vi.fn().mockResolvedValue( activityOutput( 'eval-output' ) );
@@ -546,10 +545,10 @@ describe( 'workflow()', () => {
       const wf = workflow( workflowDefinition( {
         name: 'dispatch_wf',
         outputSchema: z.object( { stepResult: z.string(), evalResult: z.string() } ),
-        async fn() {
+        fn: async () => {
           return {
-            stepResult: await this.invokeStep( 'stepA', { a: 1 }, { b: 2 } ),
-            evalResult: await this.invokeEvaluator( 'evalA', { c: 3 } )
+            stepResult: await __invokeActivity( 'stepA', { a: 1 }, { b: 2 } ),
+            evalResult: await __invokeActivity( 'evalA', { c: 3 } )
           };
         }
       } ) );
@@ -563,24 +562,24 @@ describe( 'workflow()', () => {
       expect( evaluator ).toHaveBeenCalledWith( { c: 3 } );
     } );
 
-    it( 'invokes shared steps and shared evaluators with the shared prefix', async () => {
-      const { workflow } = await import( './workflow.js' );
+    it( 'invokes shared activities through the workflow namespace', async () => {
+      const { workflow, __invokeActivity } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'shared_dispatch_wf' } );
       const sharedStep = vi.fn().mockResolvedValue( activityOutput( 'shared-step-output' ) );
       const sharedEvaluator = vi.fn().mockResolvedValue( activityOutput( 'shared-eval-output' ) );
       mockActivities( {
         [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( null ) ),
-        [`${SHARED_STEP_PREFIX}#stepA`]: sharedStep,
-        [`${SHARED_STEP_PREFIX}#evalA`]: sharedEvaluator
+        'shared_dispatch_wf#stepA': sharedStep,
+        'shared_dispatch_wf#evalA': sharedEvaluator
       } );
 
       const wf = workflow( workflowDefinition( {
         name: 'shared_dispatch_wf',
         outputSchema: z.object( { stepResult: z.string(), evalResult: z.string() } ),
-        async fn() {
+        fn: async () => {
           return {
-            stepResult: await this.invokeSharedStep( 'stepA' ),
-            evalResult: await this.invokeSharedEvaluator( 'evalA', { x: 1 } )
+            stepResult: await __invokeActivity( 'stepA' ),
+            evalResult: await __invokeActivity( 'evalA', { x: 1 } )
           };
         }
       } ) );

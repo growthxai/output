@@ -17,7 +17,7 @@ function runLoader( source, resourcePath ) {
 }
 
 describe( 'workflows_rewriter Webpack loader spec', () => {
-  it( 'rewrites ESM step imports and leaves workflow calls intact', async () => {
+  it( 'rewrites ESM step imports to __invokeActivity and leaves workflow calls intact', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-esm-' ) );
     writeFileSync( join( dir, 'steps.js' ), 'export const StepA = step({ name: \'step.a\' });' );
     writeFileSync( join( dir, 'workflow.js' ), `
@@ -40,15 +40,16 @@ const obj = {
 
     expect( code ).not.toMatch( /from '\.\/steps\.js'/ );
     expect( code ).toMatch( /from '\.\/workflow\.js'/ );
-    expect( code ).toMatch( /fn:\s*async function \(x\)/ );
-    expect( code ).toMatch( /this\.invokeStep\('step\.a',\s*1\)/ );
+    expect( code ).toMatch( /import \{ __invokeActivity as _invokeActivity \} from '@outputai\/core\/invoker';/ );
+    expect( code ).toMatch( /fn:\s*async x =>/ );
+    expect( code ).toMatch( /_invokeActivity\('step\.a',\s*1\)/ );
     expect( code ).toMatch( /FlowA\(2\)/ );
     expect( code ).toMatch( /FlowDef\(3\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites ESM shared steps imports to invokeSharedStep', async () => {
+  it( 'rewrites ESM shared steps imports to __invokeActivity', async () => {
     // Create directory structure: shared/steps/common.js
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-esm-shared-' ) );
     mkdirSync( join( dir, 'shared', 'steps' ), { recursive: true } );
@@ -67,13 +68,12 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
     expect( code ).not.toMatch( /from '\.\.\/\.\.\/shared\/steps\/common\.js'/ );
-    expect( code ).toMatch( /fn:\s*async function \(x\)/ );
-    expect( code ).toMatch( /this\.invokeSharedStep\('shared\.a',\s*1\)/ );
+    expect( code ).toMatch( /_invokeActivity\('shared\.a',\s*1\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites CJS shared steps requires to invokeSharedStep', async () => {
+  it( 'rewrites CJS shared steps requires to __invokeActivity', async () => {
     // Create directory structure: shared/steps/common.js
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-cjs-shared-' ) );
     mkdirSync( join( dir, 'shared', 'steps' ), { recursive: true } );
@@ -92,8 +92,7 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
     expect( code ).not.toMatch( /require\('\.\.\/\.\.\/shared\/steps\/common\.js'\)/ );
-    expect( code ).toMatch( /fn:\s*async function \(y\)/ );
-    expect( code ).toMatch( /this\.invokeSharedStep\('shared\.b'\)/ );
+    expect( code ).toMatch( /_invokeActivity\('shared\.b'\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
@@ -118,8 +117,7 @@ const obj = {
 
     expect( code ).not.toMatch( /require\('\.\/steps\.js'\)/ );
     expect( code ).toMatch( /require\('\.\/workflow\.js'\)/ );
-    expect( code ).toMatch( /fn:\s*async function \(y\)/ );
-    expect( code ).toMatch( /this\.invokeStep\('step\.b'\)/ );
+    expect( code ).toMatch( /_invokeActivity\('step\.b'\)/ );
     expect( code ).toMatch( /FlowDefault\(\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
@@ -142,13 +140,13 @@ import FlowDef, { FlowC } from './workflow.js';
 const obj = { fn: async () => { StepC(); FlowC(); FlowDef(); } }`;
 
     const { code } = await runLoader( source, join( dir, 'file.js' ) );
-    expect( code ).toMatch( /this\.invokeStep\('step\.const'\)/ );
+    expect( code ).toMatch( /_invokeActivity\('step\.const'\)/ );
     expect( code ).toMatch( /FlowC\(\)/ );
     expect( code ).toMatch( /FlowDef\(\)/ );
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites ESM shared evaluator imports to invokeSharedEvaluator', async () => {
+  it( 'rewrites ESM shared evaluator imports to __invokeActivity', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-esm-shared-eval-' ) );
     mkdirSync( join( dir, 'shared', 'evaluators' ), { recursive: true } );
     mkdirSync( join( dir, 'workflows', 'my_workflow' ), { recursive: true } );
@@ -166,13 +164,12 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
     expect( code ).not.toMatch( /from '\.\.\/\.\.\/shared\/evaluators\/common\.js'/ );
-    expect( code ).toMatch( /fn:\s*async function \(x\)/ );
-    expect( code ).toMatch( /this\.invokeSharedEvaluator\('shared\.eval',\s*1\)/ );
+    expect( code ).toMatch( /_invokeActivity\('shared\.eval',\s*1\)/ );
 
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'rewrites CJS shared evaluator requires to invokeSharedEvaluator', async () => {
+  it( 'rewrites CJS shared evaluator requires to __invokeActivity', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-cjs-shared-eval-' ) );
     mkdirSync( join( dir, 'shared', 'evaluators' ), { recursive: true } );
     mkdirSync( join( dir, 'workflows', 'my_workflow' ), { recursive: true } );
@@ -190,9 +187,43 @@ const obj = {
     const { code } = await runLoader( source, join( dir, 'workflows', 'my_workflow', 'workflow.js' ) );
 
     expect( code ).not.toMatch( /require\('\.\.\/\.\.\/shared\/evaluators\/common\.js'\)/ );
-    expect( code ).toMatch( /fn:\s*async function \(y\)/ );
-    expect( code ).toMatch( /this\.invokeSharedEvaluator\('shared\.eval'\)/ );
+    expect( code ).toMatch( /_invokeActivity\('shared\.eval'\)/ );
 
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'rewrites helper modules without requiring workflow fn objects', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-helper-' ) );
+    writeFileSync( join( dir, 'steps.js' ), 'export const StepA = step({ name: \'step.helper\' });' );
+
+    const source = `
+import { StepA } from './steps.js';
+
+export const helper = async value => StepA(value);`;
+
+    const { code } = await runLoader( source, join( dir, 'helper.js' ) );
+
+    expect( code ).toMatch( /_invokeActivity\('step\.helper',\s*value\)/ );
+    expect( code ).toMatch( /export const helper = async value =>/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'aliases __invokeActivity import when the preferred local name is taken', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-collision-' ) );
+    writeFileSync( join( dir, 'steps.js' ), 'export const StepA = step({ name: \'step.collision\' });' );
+
+    const source = `
+import { StepA } from './steps.js';
+const _invokeActivity = () => null;
+export function helper() {
+  return StepA();
+}`;
+
+    const { code } = await runLoader( source, join( dir, 'helper.js' ) );
+
+    expect( code ).toMatch( /import \{ __invokeActivity as _invokeActivity2 \} from '@outputai\/core\/invoker';/ );
+    expect( code ).toMatch( /_invokeActivity2\('step\.collision'\)/ );
+    expect( code ).toMatch( /const _invokeActivity = \(\) => null/ );
     rmSync( dir, { recursive: true, force: true } );
   } );
 

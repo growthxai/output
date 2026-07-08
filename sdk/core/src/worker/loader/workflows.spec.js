@@ -5,8 +5,7 @@ vi.mock( '#consts', () => ( {
   ACTIVITY_GET_TRACE_DESTINATIONS: '__internal#getTraceDestinations',
   WORKFLOWS_INDEX_FILENAME: '__workflows_entrypoint.js',
   WORKFLOW_CATALOG: 'catalog',
-  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js',
-  SHARED_STEP_PREFIX: '$shared'
+  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js'
 } ) );
 
 const { importComponentsMock, findWorkflowsInNodeModulesMock, matchFilesMock, writeFileInTempDirMock } = vi.hoisted( () => ( {

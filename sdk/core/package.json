@@ -15,6 +15,9 @@
       "types": "./src/hooks/index.d.ts",
       "import": "./src/hooks/index.js"
     },
+    "./invoker": {
+      "import": "./src/interface/invoker.js"
+    },
     "./sdk/helpers": {
       "types": "./src/sdk/helpers/index.d.ts",
       "import": "./src/sdk/helpers/index.js"

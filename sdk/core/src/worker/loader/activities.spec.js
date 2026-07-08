@@ -5,8 +5,7 @@ vi.mock( '#consts', () => ( {
   ACTIVITY_GET_TRACE_DESTINATIONS: '__internal#getTraceDestinations',
   WORKFLOWS_INDEX_FILENAME: '__workflows_entrypoint.js',
   WORKFLOW_CATALOG: 'catalog',
-  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js',
-  SHARED_STEP_PREFIX: '$shared'
+  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js'
 } ) );
 
 const sendHttpRequestMock = vi.fn();
@@ -63,6 +62,7 @@ describe( 'loadActivities', () => {
   it( 'loadActivities returns map including system activity and writes options file', async () => {
     const { loadActivities } = await import( './activities.js' );
 
+    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
       yield {
         fn: () => {},
@@ -70,7 +70,6 @@ describe( 'loadActivities', () => {
         path: '/a/steps.js'
       };
     } );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
     const { activities, optionsFile } = await loadActivities( '/root', workflows );
@@ -89,11 +88,11 @@ describe( 'loadActivities', () => {
 
   it( 'loadActivities omits activity options when component has no options or no activityOptions', async () => {
     const { loadActivities } = await import( './activities.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'NoOptions' }, path: '/a/steps.js' };
       yield { fn: () => {}, metadata: { name: 'EmptyOptions', options: {} }, path: '/a/steps2.js' };
     } );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
 
     await loadActivities( '/root', [ { name: 'A', path: '/a/workflow.js' } ] );
     const written = JSON.parse(
@@ -105,6 +104,7 @@ describe( 'loadActivities', () => {
 
   it( 'loadActivities throws when two activities in the same workflow share a name', async () => {
     const { loadActivities } = await import( './activities.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'DuplicateActivity' }, path: '/a/steps.js' };
       yield { fn: () => {}, metadata: { name: 'DuplicateActivity' }, path: '/a/evaluators.js' };
@@ -118,7 +118,6 @@ Activity names must be unique within a workflow.'
 
   it( 'loadActivities throws when two shared activities share a name', async () => {
     const { loadActivities } = await import( './activities.js' );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
       yield { fn: () => {}, metadata: { name: 'DuplicateShared' }, path: '/root/shared/steps/a.js' };
       yield { fn: () => {}, metadata: { name: 'DuplicateShared' }, path: '/root/shared/evaluators/a.js' };
@@ -133,8 +132,8 @@ Activity names must be unique within a workflow.'
     const { loadActivities } = await import( './activities.js' );
     const workflowFiles = [ { path: '/a/steps/foo.js' } ];
     const sharedFiles = [ { path: '/root/shared/steps/baz.js' } ];
-    matchFilesMock.mockReturnValueOnce( workflowFiles );
     matchFilesMock.mockReturnValueOnce( sharedFiles );
+    matchFilesMock.mockReturnValueOnce( workflowFiles );
     importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {} );
 
@@ -143,12 +142,12 @@ Activity names must be unique within a workflow.'
 
     expect( matchFilesMock ).toHaveBeenCalledTimes( 2 );
     expect( buildActivityMatcherMock ).toHaveBeenCalledWith( '/a' );
-    expect( matchFilesMock ).toHaveBeenNthCalledWith( 1, '/a', [ activityMatcherMock ] );
-    expect( matchFilesMock ).toHaveBeenNthCalledWith( 2, '/root', [ sharedStepsDirMock, sharedEvaluatorsDirMock ] );
+    expect( matchFilesMock ).toHaveBeenNthCalledWith( 1, '/root', [ sharedStepsDirMock, sharedEvaluatorsDirMock ] );
+    expect( matchFilesMock ).toHaveBeenNthCalledWith( 2, '/a', [ activityMatcherMock ] );
 
     expect( importComponentsMock ).toHaveBeenCalledTimes( 2 );
-    expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, workflowFiles );
-    expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, sharedFiles );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, sharedFiles );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 2, workflowFiles );
   } );
 
   it( 'loads shared activities from external workflow packages', async () => {
@@ -157,8 +156,6 @@ Activity names must be unique within a workflow.'
     const localWorkflow = { name: 'Local', path: '/root/workflows/local/workflow.js' };
     const externalWorkflow = { name: 'External', path: '/root/node_modules/pkg/workflows/a/workflow.js', external: true };
     findSharedActivitiesFromWorkflowsMock.mockReturnValue( externalSharedFiles );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
-    importComponentsMock.mockImplementationOnce( async function *() {} );
     importComponentsMock.mockImplementationOnce( async function *() {
       yield {
         fn: () => {},
@@ -170,27 +167,29 @@ Activity names must be unique within a workflow.'
     const { activities } = await loadActivities( '/root', [ localWorkflow, externalWorkflow ] );
 
     expect( findSharedActivitiesFromWorkflowsMock ).toHaveBeenCalledWith( [ externalWorkflow ] );
-    expect( importComponentsMock ).toHaveBeenNthCalledWith( 3, externalSharedFiles );
-    expect( activities['$shared#ExternalShared'] ).toBeTypeOf( 'function' );
+    expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, externalSharedFiles );
+    expect( activities['Local#ExternalShared'] ).toBeTypeOf( 'function' );
+    expect( activities['External#ExternalShared'] ).toBeTypeOf( 'function' );
     const written = JSON.parse(
       writeFileInTempDirMock.mock.calls[0][0].replace( /^export default\s*/, '' ).replace( /;\s*$/, '' )
     );
-    expect( written['$shared#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
+    expect( written['Local#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
+    expect( written['External#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
   } );
 
   it( 'loadActivities includes nested workflow steps and shared evaluators', async () => {
     const { loadActivities } = await import( './activities.js' );
     importComponentsMock.mockImplementationOnce( async function *() {
-      yield { fn: () => {}, metadata: { name: 'ActNested' }, path: '/a/steps/foo.js' };
+      yield { fn: () => {}, metadata: { name: 'SharedEval' }, path: '/root/shared/evaluators/bar.js' };
     } );
     importComponentsMock.mockImplementationOnce( async function *() {
-      yield { fn: () => {}, metadata: { name: 'SharedEval' }, path: '/root/shared/evaluators/bar.js' };
+      yield { fn: () => {}, metadata: { name: 'ActNested' }, path: '/a/steps/foo.js' };
     } );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
     const { activities } = await loadActivities( '/root', workflows );
     expect( activities['A#ActNested'] ).toBeTypeOf( 'function' );
-    expect( activities['$shared#SharedEval'] ).toBeTypeOf( 'function' );
+    expect( activities['A#SharedEval'] ).toBeTypeOf( 'function' );
   } );
 
   it( 'collects shared nested steps and evaluators across multiple subfolders', async () => {
@@ -205,9 +204,9 @@ Activity names must be unique within a workflow.'
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
     const { activities } = await loadActivities( '/root', workflows );
-    expect( activities['$shared#SharedStepPrimary'] ).toBeTypeOf( 'function' );
-    expect( activities['$shared#SharedStepSecondary'] ).toBeTypeOf( 'function' );
-    expect( activities['$shared#SharedEvalPrimary'] ).toBeTypeOf( 'function' );
-    expect( activities['$shared#SharedEvalSecondary'] ).toBeTypeOf( 'function' );
+    expect( activities['A#SharedStepPrimary'] ).toBeTypeOf( 'function' );
+    expect( activities['A#SharedStepSecondary'] ).toBeTypeOf( 'function' );
+    expect( activities['A#SharedEvalPrimary'] ).toBeTypeOf( 'function' );
+    expect( activities['A#SharedEvalSecondary'] ).toBeTypeOf( 'function' );
   } );
 } );
