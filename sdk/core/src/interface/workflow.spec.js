@@ -500,7 +500,6 @@ describe( 'workflow()', () => {
       const { workflow } = await import( './workflow.js' );
       const getTraceDestinations = vi.fn().mockResolvedValue( activityOutput( { local: '/tmp/trace' } ) );
       const memo = {
-        stack: [ 'root-workflow' ],
         traceInfo: { workflowId: 'root-workflow' },
         activityOptions: {
           startToCloseTimeout: '9m',
@@ -651,9 +650,10 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'error handling', () => {
-    it( 'attaches root trace destinations to root workflow errors before rethrowing', async () => {
+    it( 'attaches root trace destinations to root workflow errors and preserves existing details', async () => {
       const { workflow } = await import( './workflow.js' );
-      const error = new Error( 'root failed' );
+      const error = new Error( 'root failed with details' );
+      error.details = [ { domain: { reason: 'bad-input' } } ];
       setWorkflowInfo( { workflowType: 'root_error_wf' } );
 
       const wf = workflow( workflowDefinition( {
@@ -665,23 +665,6 @@ describe( 'workflow()', () => {
 
       const thrown = await wf( {} ).catch( e => e );
       expect( thrown ).toBe( error );
-      expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: { local: '/tmp/trace' } } } );
-    } );
-
-    it( 'preserves existing error details when attaching root trace metadata', async () => {
-      const { workflow } = await import( './workflow.js' );
-      const error = new Error( 'root failed with details' );
-      error.details = [ { domain: { reason: 'bad-input' } } ];
-      setWorkflowInfo( { workflowType: 'root_error_existing_details_wf' } );
-
-      const wf = workflow( workflowDefinition( {
-        name: 'root_error_existing_details_wf',
-        fn: async () => {
-          throw error;
-        }
-      } ) );
-
-      await expect( wf( {} ) ).rejects.toBe( error );
       expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
       expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: { local: '/tmp/trace' } } } );
     } );
@@ -700,25 +683,6 @@ describe( 'workflow()', () => {
       } ) );
 
       await expect( wf( {} ) ).rejects.toBe( error );
-      expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: {} } } );
-    } );
-
-    it( 'preserves existing error details when no trace destinations are available', async () => {
-      const { workflow } = await import( './workflow.js' );
-      setWorkflowInfo( { workflowType: 'root_error_existing_details_no_trace_wf' } );
-      mockActivities( { [ACTIVITY_GET_TRACE_DESTINATIONS]: vi.fn().mockResolvedValue( activityOutput( {} ) ) } );
-      const error = new Error( 'root failed without trace' );
-      error.details = [ { domain: { reason: 'bad-input' } } ];
-
-      const wf = workflow( workflowDefinition( {
-        name: 'root_error_existing_details_no_trace_wf',
-        fn: async () => {
-          throw error;
-        }
-      } ) );
-
-      await expect( wf( {} ) ).rejects.toBe( error );
-      expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
       expect( error[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: {} } } );
     } );
 
@@ -754,7 +718,7 @@ describe( 'workflow()', () => {
       setWorkflowInfo( {
         workflowId: 'nested-workflow',
         root: { workflowId: 'root-workflow', runId: 'root-run' },
-        memo: { stack: [ 'root-workflow' ], traceInfo: { workflowId: 'root-workflow' } }
+        memo: { traceInfo: { workflowId: 'root-workflow' } }
       } );
 
       const wf = workflow( workflowDefinition( {
