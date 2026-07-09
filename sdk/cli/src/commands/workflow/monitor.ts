@@ -89,7 +89,11 @@ export default class WorkflowMonitor extends Command {
       default: false
     } ),
     interval: Flags.integer( {
-      description: 'Poll interval in milliseconds',
+      description: 'Poll interval in milliseconds. Once a resumed poll is long-polling ' +
+        'server-side for new events, this also bounds how long that block may last (capped ' +
+        'at the server\'s configured max), so an idle workflow\'s update cadence is roughly ' +
+        'twice this value (the long-poll bound, then this sleep) rather than a much longer, ' +
+        'separate server default.',
       default: DEFAULT_INTERVAL_MS
     } ),
     color: Flags.boolean( {
@@ -218,11 +222,15 @@ export default class WorkflowMonitor extends Command {
    */
   private async poll(
     workflowId: string,
-    flags: { 'include-payloads': boolean },
+    flags: { 'include-payloads': boolean; interval: number },
     state: { runId: string | undefined; firstTick: boolean; consecutiveErrors: number; cursor: WorkflowHistoryCursor | undefined }
   ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor } | null> {
     try {
-      const options = { workflowId, runId: state.runId, includePayloads: flags['include-payloads'] };
+      // Keeps the resumed long-poll's server-side block roughly aligned with `--interval`
+      // instead of always blocking for the server's full configured deadline regardless of
+      // it (see `plan_workflow_monitor_history.md`'s "Known tradeoff" note). Only takes
+      // effect once `wait: true` is sent, i.e. from the second tick onward.
+      const options = { workflowId, runId: state.runId, includePayloads: flags['include-payloads'], waitMs: flags.interval };
       if ( !state.cursor ) {
         const result = await fetchWorkflowHistory( options );
         return { result, cursor: result.cursor };

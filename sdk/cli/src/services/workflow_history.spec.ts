@@ -196,6 +196,30 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
     expect( cursor.lastEventId ).toBe( 1 );
   } );
 
+  it( 'forwards waitMs to the API on a resumed poll', async () => {
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
+      runId: 'run-7', events: [], nextPageToken: null
+    } ) );
+
+    await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7', waitMs: 2500 } );
+
+    expect( mockGet ).toHaveBeenCalledWith( 'wf-7', {
+      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, wait: true, waitMs: 2500
+    } );
+  } );
+
+  it( 'omits waitMs when not provided', async () => {
+    mockGet.mockResolvedValueOnce( page( {
+      workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
+      runId: 'run-7', events: [], nextPageToken: null
+    } ) );
+
+    await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
+
+    expect( mockGet ).toHaveBeenCalledWith( 'wf-7', expect.not.objectContaining( { waitMs: expect.anything() } ) );
+  } );
+
   it( 'times out with the sent token echoed back when there is genuinely nothing new', async () => {
     mockGet.mockResolvedValueOnce( page( {
       workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },

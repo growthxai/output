@@ -89,6 +89,28 @@ describe( 'workflow_history handler', () => {
       .expect( 400 );
   } );
 
+  it( 'passes waitMs through to the client', async () => {
+    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?wait=true&waitMs=2500' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { waitMs: 2500 } ) );
+  } );
+
+  it( 'rejects a non-positive waitMs', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?wait=true&waitMs=0' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects a non-numeric waitMs', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?wait=true&waitMs=soon' )
+      .expect( 400 );
+  } );
+
   it( 'defaults pageSize to 20 and includePayloads to false', async () => {
     mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
 

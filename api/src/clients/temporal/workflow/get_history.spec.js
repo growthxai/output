@@ -176,6 +176,26 @@ describe( 'getHistory', () => {
     } );
   } );
 
+  it( 'clamps deadlineMs to the configured max when waitMs requests a shorter wait', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { wait: true, waitMs: 2_500 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
+      maximumPageSize: 20,
+      nextPageToken: undefined,
+      mapInvalidArgument: expect.any( Function ),
+      waitNewEvent: true,
+      deadlineMs: 2_500
+    } );
+  } );
+
+  it( 'ignores a waitMs longer than the configured max, capping at historyWaitTimeoutMs', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { wait: true, waitMs: 60_000 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', expect.objectContaining( {
+      deadlineMs: 15_000
+    } ) );
+  } );
+
   it( 'does not pass waitNewEvent/deadlineMs when wait is not requested', async () => {
     await getHistory( { client, connection }, 'workflow-id', { pageSize: 30 } );
 

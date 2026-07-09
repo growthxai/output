@@ -37,10 +37,14 @@ import { fetchHistoryPage } from './fetch_history_page.js';
  *   end of history, bounded by `temporal.historyWaitTimeoutMs`, instead of returning
  *   immediately. Lets a resumable poller (`workflow monitor`) avoid restarting from page 1
  *   on every tick.
+ * @param {number} [options.waitMs] - Caller-requested upper bound (ms) for a `wait` long-poll,
+ *   letting a poller keep the block roughly aligned with its own poll cadence instead of
+ *   always blocking for the full `temporal.historyWaitTimeoutMs`. Clamped to that value —
+ *   callers can shorten the long-poll, never lengthen it past the server's configured cap.
  * @returns {WorkflowHistoryResults}
  */
 export const getHistory = async ( { client, connection }, workflowId, options = {} ) => {
-  const { runId, pageSize = 20, pageToken, includePayloads = false, wait = false } = options ?? {};
+  const { runId, pageSize = 20, pageToken, includePayloads = false, wait = false, waitMs } = options ?? {};
 
   if ( pageToken && !runId ) {
     throw new InvalidPageTokenError();
@@ -60,7 +64,10 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
     maximumPageSize: Math.min( pageSize, 50 ),
     nextPageToken: pageToken ? Buffer.from( pageToken, 'base64' ) : undefined,
     mapInvalidArgument: () => new InvalidPageTokenError(),
-    ...( wait ? { waitNewEvent: true, deadlineMs: temporalConfig.historyWaitTimeoutMs } : {} )
+    ...( wait ? {
+      waitNewEvent: true,
+      deadlineMs: waitMs ? Math.min( waitMs, temporalConfig.historyWaitTimeoutMs ) : temporalConfig.historyWaitTimeoutMs
+    } : {} )
   } );
 
   if ( response === null ) {

@@ -27,6 +27,9 @@ export interface FetchWorkflowHistoryOptions {
   workflowId: string;
   runId?: string;
   includePayloads?: boolean;
+  // Upper bound (ms) for a `wait` long-poll; only applies to `fetchWorkflowHistoryUpdates`.
+  // See `fetchPages`'s `wait` param — omitting it uses the server's full configured deadline.
+  waitMs?: number;
 }
 
 export interface WorkflowHistoryResult {
@@ -117,15 +120,18 @@ function totalDuration( meta: WorkflowMeta | null, spans: Span[], startMs: numbe
  * Pages through history starting from `acc` (its `pageToken`/`lastEventId`/`events` carry
  * the resume position — pass a zeroed cursor for a fresh walk). With `wait` set, every
  * request asks the server to long-poll (`waitNewEvent`) rather than return immediately, so
- * the final hop blocks (bounded server-side) until either a new event exists or the deadline
+ * the final hop blocks (bounded server-side, or by `waitMs` when given — see
+ * `FetchWorkflowHistoryOptions.waitMs`) until either a new event exists or the deadline
  * elapses. `lastEventId` de-dupes: resuming from a previously-seen page token replays that
  * page's events, which are filtered out here rather than appended twice.
  */
-async function fetchPages( workflowId: string, includePayloads: boolean, wait: boolean, acc: WorkflowHistoryCursor ): Promise<WorkflowHistoryCursor> {
+async function fetchPages(
+  workflowId: string, includePayloads: boolean, wait: boolean, acc: WorkflowHistoryCursor, waitMs?: number
+): Promise<WorkflowHistoryCursor> {
   const { pageToken, runId } = acc;
   const response = await getWorkflowIdHistory( workflowId, {
     runId, pageSize: PAGE_SIZE, pageToken, includePayloads,
-    ...( wait ? { wait: true } : {} )
+    ...( wait ? { wait: true, ...( waitMs ? { waitMs } : {} ) } : {} )
   } );
   if ( !response.data ) {
     throw new Error( 'API returned invalid response (missing data)' );
@@ -163,7 +169,7 @@ async function fetchPages( workflowId: string, includePayloads: boolean, wait: b
     return nextAcc;
   }
   if ( nextToken ) {
-    return fetchPages( workflowId, includePayloads, wait, nextAcc );
+    return fetchPages( workflowId, includePayloads, wait, nextAcc, waitMs );
   }
   // Drained: the server has nothing more buffered (`nextToken` is empty), but unlike
   // `nextToken`, `pageToken` — the position that fetched this now-empty page — is still a
@@ -214,11 +220,11 @@ export async function fetchWorkflowHistoryUpdates(
   options: FetchWorkflowHistoryOptions,
   cursor?: WorkflowHistoryCursor
 ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor }> {
-  const { workflowId, includePayloads = false } = options;
+  const { workflowId, includePayloads = false, waitMs } = options;
   const seed: WorkflowHistoryCursor = cursor ??
     { meta: null, runId: options.runId, events: [], lastEventId: 0, pageToken: undefined };
 
-  const pages = await fetchPages( workflowId, includePayloads, true, seed );
+  const pages = await fetchPages( workflowId, includePayloads, true, seed, waitMs );
 
   return { result: buildResult( pages ), cursor: pages };
 }

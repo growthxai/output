@@ -441,6 +441,12 @@ includePayloads?: boolean;
 
  */
 wait?: boolean;
+/**
+ * Upper bound in milliseconds for how long a `wait` long-poll may block. Only takes effect when `wait` is true, and only ever shortens the server's configured long-poll deadline, never lengthens it. Lets a caller (e.g. a poller with its own tick interval) keep the block roughly aligned with its own cadence.
+
+ * @minimum 1
+ */
+waitMs?: number;
 };
 
 /**
@@ -484,6 +490,12 @@ includePayloads?: boolean;
 
  */
 wait?: boolean;
+/**
+ * Upper bound in milliseconds for how long a `wait` long-poll may block. Only takes effect when `wait` is true, and only ever shortens the server's configured long-poll deadline, never lengthens it. Lets a caller (e.g. a poller with its own tick interval) keep the block roughly aligned with its own cadence.
+
+ * @minimum 1
+ */
+waitMs?: number;
 };
 
 /**

@@ -303,7 +303,7 @@ output workflow monitor <workflowId>
 | `--run-id, -r` | latest run | Monitor a specific run (continue-as-new chains are followed regardless of this flag) |
 | `--format, -f` | text | Output format: json, text |
 | `--include-payloads` | false | Include decoded step input/output payloads |
-| `--interval` | 2500 | Poll interval in milliseconds |
+| `--interval` | 2500 | Poll interval in milliseconds. Also bounds the resumed long-poll's server-side wait, so an idle workflow's update cadence is roughly twice this value, not a longer separate server default. |
 | `--color` | true | Colorize status output (`--no-color` to disable) |
 
 Exits `0` when the workflow completes, `1` when it fails, is canceled,

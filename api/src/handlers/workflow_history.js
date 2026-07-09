@@ -13,7 +13,10 @@ export function createWorkflowHistoryHandler( client ) {
     includePayloads: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' ),
     // Long-poll for a new event when already caught up to the end of history, instead of
     // returning immediately. Lets a resumable poller avoid restarting from page 1 every tick.
-    wait: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' )
+    wait: z.union( [ z.literal( 'true' ), z.literal( 'false' ) ] ).default( 'false' ).transform( v => v === 'true' ),
+    // Caller-requested upper bound for a `wait` long-poll; only ever shortens the
+    // server-configured deadline (see getHistory), never lengthens it.
+    waitMs: z.coerce.number().int().positive().optional()
   } ).refine(
     data => !data.pageToken || data.runId,
     { message: 'runId is required when using pageToken', path: [ 'runId' ] }
@@ -22,7 +25,7 @@ export function createWorkflowHistoryHandler( client ) {
   return async ( req, res ) => {
     const workflowId = req.params.id;
     const pathRunId = readPinnedRunId( req );
-    const { runId, pageSize, pageToken, includePayloads, wait } = querySchema.parse(
+    const { runId, pageSize, pageToken, includePayloads, wait, waitMs } = querySchema.parse(
       pathRunId ? { ...req.query, runId: pathRunId } : req.query
     );
 
@@ -31,7 +34,8 @@ export function createWorkflowHistoryHandler( client ) {
       pageSize,
       pageToken,
       includePayloads,
-      wait
+      wait,
+      waitMs
     } );
 
     res.json( result );
