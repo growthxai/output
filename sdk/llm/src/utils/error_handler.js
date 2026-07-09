@@ -77,7 +77,16 @@ export const mapAiError = error => {
     return error;
   }
 
-  if ( APICallError.isInstance( error ) && !error.isRetryable ) {
+  const isApiError = APICallError.isInstance( error );
+  const isGrammarCompilationError = error.message === 'Grammar compilation timed out.';
+  const isAnthropic = error.url?.includes( 'anthropic.com' );
+
+  // This error is actually transient, so instead of FatalError, return it
+  if ( isApiError && error.statusCode === 400 && isGrammarCompilationError && isAnthropic ) {
+    return error;
+  }
+
+  if ( isApiError && !error.isRetryable ) {
     // Non-retryable API failures are already classified by AI SDK as permanent provider failures.
     return toFatalError( error, error.statusCode ? `HTTP ${error.statusCode}` : '' );
   }

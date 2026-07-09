@@ -276,6 +276,17 @@ describe( 'mapAiError', () => {
     expect( mapAiError( error ) ).toBe( error );
   } );
 
+  it( 'preserves Anthropic grammar compilation timeouts as retryable activity failures', () => {
+    const error = makeApiCallError( {
+      message: 'Grammar compilation timed out.',
+      url: 'https://api.anthropic.com/v1/messages',
+      statusCode: 400,
+      isRetryable: false
+    } );
+
+    expect( mapAiError( error ) ).toBe( error );
+  } );
+
   it.each( fatalAiSdkErrors )( 'maps %s to FatalError', ( _name, makeError ) => {
     const error = makeError();
 
