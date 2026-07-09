@@ -71,17 +71,6 @@ const rewriteActivityCalls = ( { ast, activityNames, invokeActivityId } ) => {
   return state.rewrote;
 };
 
-// Used to avoid reporting an import-only edit as useful when no call was rewritten.
-const hasInvokeActivityImport = ast => ast.program.body.some( node =>
-  node.type === 'ImportDeclaration' &&
-  node.source.value === '@outputai/core/invoker' &&
-  node.specifiers.some( spec =>
-    spec.type === 'ImportSpecifier' &&
-    spec.imported.type === 'Identifier' &&
-    spec.imported.name === '__invokeActivity'
-  )
-);
-
 // Reuse an existing framework import so repeated loader passes do not add duplicate imports.
 const getExistingInvokeActivityLocal = ast => {
   for ( const node of ast.program.body ) {
@@ -114,7 +103,7 @@ export default function rewriteFnBodies( { ast, activityImports } ) {
     return false;
   }
 
-  if ( !hasInvokeActivityImport( ast ) ) {
+  if ( !existingLocal ) {
     injectInvokeActivityImport( ast, invokeActivityId );
   }
 

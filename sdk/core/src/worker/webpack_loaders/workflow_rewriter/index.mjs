@@ -33,7 +33,7 @@ export default function stepImportRewriterAstLoader( source, inputMap ) {
     const filename = this.resourcePath;
     const ast = parse( String( source ), filename );
     const fileDir = dirname( filename );
-    const { activityImports } = collectTargetImports( ast, fileDir, cache, filename );
+    const { activityImports } = collectTargetImports( ast, fileDir, cache );
 
     // No imports
     if ( activityImports.length === 0 ) {
