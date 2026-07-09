@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import { isStringboolTrue } from '#helpers/string';
+import { workerTunerEnvSchema } from './configs_tuner_schema.js';
 
 class InvalidEnvVarsErrors extends Error { }
 
@@ -28,6 +29,8 @@ const envVarSchema = z.object( {
   // How aggressively the worker pulls tasks from Temporal.
   TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
   TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
+  // JSON-encoded Temporal Worker tuner options.
+  TEMPORAL_WORKER_TUNER: workerTunerEnvSchema,
   // Activity configs
   // How often the worker sends a heartbeat to the Temporal Service during activity execution
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
@@ -60,6 +63,7 @@ export const maxConcurrentWorkflowTaskExecutions = envVars.TEMPORAL_MAX_CONCURRE
 export const maxCachedWorkflows = envVars.TEMPORAL_MAX_CACHED_WORKFLOWS;
 export const maxConcurrentActivityTaskPolls = envVars.TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS;
 export const maxConcurrentWorkflowTaskPolls = envVars.TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS;
+export const workerTuner = envVars.TEMPORAL_WORKER_TUNER;
 export const namespace = envVars.TEMPORAL_NAMESPACE;
 export const taskQueue = envVars.OUTPUT_CATALOG_ID;
 export const catalogId = envVars.OUTPUT_CATALOG_ID;

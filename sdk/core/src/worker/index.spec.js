@@ -45,6 +45,7 @@ const {
     maxCachedWorkflows: 1000,
     maxConcurrentActivityTaskPolls: 5,
     maxConcurrentWorkflowTaskPolls: 5,
+    workerTuner: undefined,
     processFailureShutdownDelay: 0,
     shutdownForceTime: undefined,
     shutdownGraceTime: undefined
@@ -185,6 +186,7 @@ describe( 'worker/index', () => {
     resetPromises();
     configValues.apiKey = undefined;
     configValues.grpcProxy = undefined;
+    configValues.workerTuner = undefined;
     configValues.shutdownForceTime = undefined;
     configValues.shutdownGraceTime = undefined;
     catalogJobInstance.error = null;
@@ -261,6 +263,32 @@ describe( 'worker/index', () => {
 
     await settleWorker();
     expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
+  } );
+
+  it( 'passes worker tuner instead of incompatible execution concurrency options', async () => {
+    configValues.workerTuner = {
+      tunerOptions: {
+        targetMemoryUsage: 0.8,
+        targetCpuUsage: 0.9
+      }
+    };
+    const { Worker } = await import( '@temporalio/worker' );
+
+    await importWorker();
+
+    await vi.waitFor( () => expect( Worker.create ).toHaveBeenCalled() );
+
+    const workerOptions = Worker.create.mock.calls[0][0];
+    expect( workerOptions ).toEqual( expect.objectContaining( {
+      tuner: configValues.workerTuner,
+      maxCachedWorkflows: configValues.maxCachedWorkflows,
+      maxConcurrentActivityTaskPolls: configValues.maxConcurrentActivityTaskPolls,
+      maxConcurrentWorkflowTaskPolls: configValues.maxConcurrentWorkflowTaskPolls
+    } ) );
+    expect( workerOptions ).not.toHaveProperty( 'maxConcurrentWorkflowTaskExecutions' );
+    expect( workerOptions ).not.toHaveProperty( 'maxConcurrentActivityTaskExecutions' );
+
+    await settleWorker();
   } );
 
   it( 'enables TLS when apiKey is set', async () => {

@@ -101,6 +101,7 @@
               "operations/error-hooks",
               "operations/external-workflow-packages",
               "operations/testing",
+              "operations/worker-tuning",
               "operations/tracing"
             ]
           },

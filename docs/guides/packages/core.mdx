@@ -270,15 +270,16 @@ The worker reads these environment variables:
 
 ### Worker concurrency and polling
 
-These map to Temporal’s [Worker task slots and pollers](https://docs.temporal.io/develop/worker-performance): they control how many tasks the worker runs at once (executor slots) and how many long-polling connections fetch tasks from the task queue. Tune them for your workload and host resources. Temporal recommends keeping poller count lower than executor slot count.
+These map to Temporal worker slots, pollers, and tuners. See [Worker Tuning](/operations/worker-tuning) for details and examples.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Max Activity Task executions at once (task slots). Each step (API, LLM, etc.) is one activity; lower to reduce memory under load. |
-| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Max Workflow Task executions at once. Workflows are lightweight; this can be high. |
-| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Max number of Workflow Executions in the [sticky workflow cache](https://docs.temporal.io/sticky-execution). Lower values free memory sooner after traffic spikes. |
-| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | Max concurrent pollers for Activity Task Queues. Increase to ingest work faster when slots are often free. |
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Max Activity Task executions at once. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Max Workflow Task executions at once. |
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Max number of Workflow Executions in the sticky workflow cache. |
+| `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | Max concurrent pollers for Activity Task Queues. |
 | `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS` | `5` | Max concurrent pollers for Workflow Task Queues. |
+| `TEMPORAL_WORKER_TUNER` | — | JSON-encoded Temporal Worker tuner configuration. |
 
 ### Activity heartbeating
 
