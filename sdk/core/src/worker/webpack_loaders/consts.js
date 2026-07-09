@@ -7,3 +7,9 @@ export const ComponentFile = {
   STEPS: 'steps',
   WORKFLOW: 'workflow'
 };
+
+export const ComponentFactory = {
+  EVALUATOR: 'evaluator',
+  STEP: 'step',
+  WORKFLOW: 'workflow'
+};

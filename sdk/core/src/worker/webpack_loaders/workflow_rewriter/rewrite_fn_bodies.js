@@ -1,15 +1,20 @@
 import traverseModule from '@babel/traverse';
+import { INVOKE_ACTIVITY_SYMBOL } from '#consts';
 import {
   callExpression,
   identifier,
-  importDeclaration,
-  importSpecifier,
   isIdentifier,
+  memberExpression,
   stringLiteral
 } from '@babel/types';
 
 // Handle CJS/ESM interop for Babel packages when executed as a webpack loader
 const traverse = traverseModule.default ?? traverseModule;
+const invokeActivitySymbolKey = Symbol.keyFor( INVOKE_ACTIVITY_SYMBOL );
+
+if ( !invokeActivitySymbolKey ) {
+  throw new Error( 'INVOKE_ACTIVITY_SYMBOL must be created with Symbol.for().' );
+}
 
 // Only direct function calls are rewritten. Member calls and dynamic callees stay untouched.
 const isIdentifierCallee = cPath => isIdentifier( cPath.node.callee );
@@ -24,31 +29,31 @@ const hasLiveLocalBinding = ( path, name ) => {
   return binding && !binding.path.removed;
 };
 
-// Reserve a collision-safe binding name for the internal activity dispatcher.
-const generateInvokeActivityIdentifier = ast => {
-  const state = { localIdentifier: null };
-  traverse( ast, {
-    Program: path => {
-      state.localIdentifier = path.scope.generateUidIdentifier( 'invokeActivity' );
-      path.stop();
-    }
-  } );
-  return state.localIdentifier;
-};
-
-// Add the dispatcher import only after we know a call was actually rewritten.
-const injectInvokeActivityImport = ( ast, localIdentifier ) => {
-  ast.program.body.unshift( importDeclaration( [
-    importSpecifier( localIdentifier, identifier( '__invokeActivity' ) )
-  ], stringLiteral( '@outputai/core/invoker' ) ) );
+const assertGlobalThisIsSafe = path => {
+  if ( hasLiveLocalBinding( path, 'globalThis' ) ) {
+    throw new Error( 'Cannot rewrite activity call because "globalThis" is shadowed in this scope.' );
+  }
 };
 
 // Build the generated dispatcher call, preserving the original call arguments.
-const createInvokeActivityCall = ( invokeActivityId, activityName, args ) =>
-  callExpression( identifier( invokeActivityId.name ), [ stringLiteral( activityName ), ...args ] );
+const createInvokeActivityCall = ( activityName, args ) =>
+  callExpression(
+    memberExpression(
+      identifier( 'globalThis' ),
+      callExpression(
+        memberExpression(
+          memberExpression( identifier( 'globalThis' ), identifier( 'Symbol' ) ),
+          identifier( 'for' )
+        ),
+        [ stringLiteral( invokeActivitySymbolKey ) ]
+      ),
+      true
+    ),
+    [ stringLiteral( activityName ), ...args ]
+  );
 
 // Rewrite valid function-body activity calls; top-level call validation belongs to the validator loader.
-const rewriteActivityCalls = ( { ast, activityNames, invokeActivityId } ) => {
+const rewriteActivityCalls = ( { ast, activityNames } ) => {
   const state = { rewrote: false };
 
   traverse( ast, {
@@ -63,30 +68,13 @@ const rewriteActivityCalls = ( { ast, activityNames, invokeActivityId } ) => {
         return;
       }
 
-      path.replaceWith( createInvokeActivityCall( invokeActivityId, activityName, path.node.arguments ) );
+      assertGlobalThisIsSafe( path );
+      path.replaceWith( createInvokeActivityCall( activityName, path.node.arguments ) );
       state.rewrote = true;
     }
   } );
 
   return state.rewrote;
-};
-
-// Reuse an existing framework import so repeated loader passes do not add duplicate imports.
-const getExistingInvokeActivityLocal = ast => {
-  for ( const node of ast.program.body ) {
-    if ( node.type !== 'ImportDeclaration' || node.source.value !== '@outputai/core/invoker' ) {
-      continue;
-    }
-    const spec = node.specifiers.find( s =>
-      s.type === 'ImportSpecifier' &&
-      s.imported.type === 'Identifier' &&
-      s.imported.name === '__invokeActivity'
-    );
-    if ( spec ) {
-      return spec.local;
-    }
-  }
-  return null;
 };
 
 // Entry point: resolve collected component imports into plain dispatcher calls.
@@ -96,16 +84,5 @@ export default function rewriteFnBodies( { ast, activityImports } ) {
     return false;
   }
 
-  const existingLocal = getExistingInvokeActivityLocal( ast );
-  const invokeActivityId = existingLocal ?? generateInvokeActivityIdentifier( ast );
-  const rewrote = rewriteActivityCalls( { ast, activityNames, invokeActivityId } );
-  if ( !rewrote ) {
-    return false;
-  }
-
-  if ( !existingLocal ) {
-    injectInvokeActivityImport( ast, invokeActivityId );
-  }
-
-  return rewrote;
+  return rewriteActivityCalls( { ast, activityNames } );
 };

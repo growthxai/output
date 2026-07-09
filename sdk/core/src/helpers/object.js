@@ -59,18 +59,24 @@ export const deepMergeWithResolver = ( a, b, resolver ) => {
 };
 
 /**
- * Creates a new object merging object "b" onto object "a" biased to "b":
- * - Object "b" will overwrite fields on object "a";
- * - Object "b" fields that don't exist on object "a" will be added;
- * - Object "a" fields that don't exist on object "b" will be preserved;
+ * Creates a new object recursively merging the rightmost object over the previous one.
+ * Give two objects, (L)eft and (R)right
+ * - Object "R" will overwrite fields on object "L";
+ * - Object "R" fields that don't exist on object "L" will be added;
+ * - Object "L" fields that don't exist on object "R" will be preserved;
  *
- * If "b" isn't an object, a new object equal to "a" is returned
+ * If "R" isn't an object, a new object equal to "L" is returned
  *
  * @param {object} a - The base object
  * @param {object} b - The target object
  * @returns {object} A new object
  */
-export const deepMerge = ( a, b ) => deepMergeWithResolver( a, b, ( _, b ) => b );
+export const deepMerge = ( base, ...rest ) => {
+  if ( !isPlainObject( base ) ) {
+    throw new Error( 'First argument is not an object.' );
+  }
+  return rest.reduce( ( merged, o ) => deepMergeWithResolver( merged, o, ( _, b ) => b ), base );
+};
 
 /**
  * Adds an non-writable, non-configurable and non-enumerable property to an object

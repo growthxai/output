@@ -8,6 +8,8 @@ export const WORKFLOW_CATALOG = '$catalog';
 export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 export const WORKFLOW_WRAPPER_VERSION_FIELD = '__output_workflow_wrapper_version';
 
+export const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
+
 export const ComponentType = {
   EVALUATOR: 'evaluator',
   INTERNAL_STEP: 'internal_step',

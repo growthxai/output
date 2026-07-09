@@ -7,19 +7,14 @@ import { TraceInfo } from '#helpers/trace_info';
 import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import { createWorkflow } from '#helpers/component';
-import { ACTIVITY_GET_TRACE_DESTINATIONS, METADATA_ACCESS_SYMBOL, WORKFLOW_WRAPPER_VERSION_FIELD } from '#consts';
-
-const state = { activities: null, namespace: null };
-
-/** Invokes an activity in this workflow execution context */
-export const __invokeActivity = async ( name, ...args ) =>
-  state.activities[`${state.namespace}#${name}`]( ...args ).then( r => r.output );
+import * as C from '#consts';
 
 /** Create a new workflow and return a wrapper function around its fn handler */
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   WorkflowValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
-  const { disableTrace, activityOptions } = deepMerge( defaultOptions, options );
+  // Disable trace can only be defined at the definition level
+  const disableTrace = options.disableTrace ?? defaultOptions.disableTrace;
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
   return createWorkflow( {
@@ -29,54 +24,60 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     outputSchema,
     options,
     aliases,
-    handler: async ( input, extra = {} ) => {
-      validator.validateInvocationOptions( extra );
+    handler: async ( input, invocationOptions = {} ) => {
+      validator.validateInvocationOptions( invocationOptions );
 
-      // this returns a plain function, for example, in unit tests
+      // If called outside Temporal workflow context, just execute the handler function
+      // This is important to allow for workflows to have unit tests
       if ( !inWorkflowContext() ) {
         validator.validateInput( input );
-        const output = await fn( input, deepMerge( WorkflowContext.build(), extra?.context ) );
+        const output = await fn( input, deepMerge( WorkflowContext.build(), invocationOptions?.context ) );
         validator.validateOutput( output );
         return output;
       }
 
       const { workflowId, memo, root } = workflowInfo();
 
-      // if the stack already includes this workflowId, means the workflow() function was called
-      // from within a running workflow, meaning it is suppose to start a child workflow
-      const isChild = Array.isArray( memo.stack ) ? memo.stack.includes( workflowId ) : false;
+      // Resolve the activity options:
+      // invocation options > parent options (memo) > definition options > default options
+      const activityOptions = deepMerge(
+        defaultOptions.activityOptions, // default
+        options?.activityOptions, // definition options
+        memo.activityOptions, // parent options
+        invocationOptions.activityOptions // invocation options
+      );
 
-      if ( isChild ) {
-        const result = await executeChild( name, {
+      // If the parent workflow already installed the activity dispatcher,
+      // this means that other calls to workflow() are suppose to start child workflows
+      const isChildWorkflowCall = !!globalThis[C.INVOKE_ACTIVITY_SYMBOL];
+      if ( isChildWorkflowCall ) {
+        return executeChild( name, {
           args: undefined === input ? [] : [ input ],
           workflowId: `${workflowId}-${toUrlSafeBase64( uuid4() )}`,
-          parentClosePolicy: ParentClosePolicy[extra?.detached ? 'ABANDON' : 'TERMINATE'],
-          memo: {
-            ...memo, // Preserve memo and mix activityOptions, if provided
-            ...( extra?.activityOptions && {
-              activityOptions: deepMerge( memo?.activityOptions ?? {}, extra?.activityOptions )
-            } )
-          }
-        } );
-        return result.output;
+          parentClosePolicy: ParentClosePolicy[invocationOptions?.detached ? 'ABANDON' : 'TERMINATE'],
+          memo: { ...memo, activityOptions }
+        } ).then( r => r.output );
       }
 
-      const isRoot = !root;
+      const isRoot = !root; // Check if this is the root most workflow
 
-      memo.stack = [ ...memo.stack ?? [], workflowId ];
-      // Parent options have prevalence on nested calls, child will be overwritten
-      memo.activityOptions = deepMerge( activityOptions, memo.activityOptions );
       // Trace info is only added in the root and only when trace is not disabled
       if ( isRoot && !disableTrace ) {
         memo.traceInfo = TraceInfo.build();
       }
+      // Set this execution activity options in memo, so the interceptor can access it to apply per-activity overrides.
+      memo.activityOptions = activityOptions;
 
-      state.namespace = name;
-      state.activities = proxyActivities( memo.activityOptions );
+      const activities = proxyActivities( activityOptions );
+
+      // Add a global var to be used to invoke activities. This is rewritten in the code by the webpack loader
+      // Note: Keep this as a configurable global assignment so Temporal's reusable VM can delete it when switching workflow scopes.
+      globalThis[C.INVOKE_ACTIVITY_SYMBOL] = async ( activityType, ...args ) =>
+        activities[`${name}#${activityType}`]( ...args ).then( r => r.output );
 
       const traceDestinations = isRoot && {
         trace: {
-          destinations: disableTrace ? {} : await state.activities[ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ).then( r => r.output ) ?? {}
+          destinations: disableTrace ? {} : await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ).then( r => r.output ) ?? {}
         }
       };
 
@@ -85,11 +86,11 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
         const output = await fn( input, WorkflowContext.build() );
         validator.validateOutput( output );
 
-        return { [WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
+        return { [C.WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
       } catch ( error ) {
         if ( traceDestinations ) {
           // Append the trace destinations so it is carried to interceptor
-          error[METADATA_ACCESS_SYMBOL] = traceDestinations;
+          error[C.METADATA_ACCESS_SYMBOL] = traceDestinations;
         }
         throw error;
       }

@@ -1,9 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import generatorModule from '@babel/generator';
 import { parse } from '../tools.js';
 import rewriteFnBodies from './rewrite_fn_bodies.js';
 
+const { invokeActivitySymbolKey } = vi.hoisted( () => ( {
+  invokeActivitySymbolKey: 'test:invoke_activity'
+} ) );
+
+vi.mock( '#consts', async importOriginal => ( {
+  ...await importOriginal(),
+  INVOKE_ACTIVITY_SYMBOL: Symbol.for( invokeActivitySymbolKey )
+} ) );
+
 const generate = generatorModule.default ?? generatorModule;
+const escapeRegExp = value => value.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
+const invokeActivityPattern = activityName =>
+  new RegExp( `globalThis\\[globalThis\\.Symbol\\.for\\(([\"'])${escapeRegExp( invokeActivitySymbolKey )}\\1\\)\\]\\(([\"'])${activityName}\\2` );
 
 describe( 'rewrite_fn_bodies', () => {
   it( 'rewrites step calls inside functions without changing function shape', () => {
@@ -21,13 +33,14 @@ const obj = {
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
-    expect( code ).toMatch( /import \{ __invokeActivity as _invokeActivity \} from "@outputai\/core\/invoker";/ );
+    expect( code ).not.toMatch( /@outputai\/core\/invoker/ );
     expect( code ).toMatch( /fn:\s*async x =>/ );
-    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*1\)/ );
+    expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+    expect( code ).toMatch( /,\s*1\)/ );
     expect( code ).toMatch( /FlowB\(2\)/ );
   } );
 
-  it( 'rewrites evaluator calls to __invokeActivity', () => {
+  it( 'rewrites evaluator calls to the global activity dispatcher', () => {
     const src = `
 const obj = {
   fn: async x => {
@@ -39,7 +52,8 @@ const obj = {
     const rewrote = rewriteFnBodies( { ast, activityImports } );
     expect( rewrote ).toBe( true );
     const { code } = generate( ast, { quotes: 'single' } );
-    expect( code ).toMatch( /_invokeActivity\(([\"'])eval\.a\1,\s*3\)/ );
+    expect( code ).toMatch( invokeActivityPattern( 'eval\\.a' ) );
+    expect( code ).toMatch( /,\s*3\)/ );
   } );
 
   it( 'does nothing when no matching calls are present', () => {
@@ -77,8 +91,10 @@ const obj = {
 
     const { code } = generate( ast, { quotes: 'single' } );
 
-    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*1\)/ );
-    expect( code ).toMatch( /_invokeActivity\(([\"'])eval\.a\1,\s*x\)/ );
+    expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+    expect( code ).toMatch( invokeActivityPattern( 'eval\\.a' ) );
+    expect( code ).toMatch( /,\s*1\)/ );
+    expect( code ).toMatch( /,\s*x\)/ );
     expect( code ).toMatch( /foo\(\)/ );
     expect( code ).toMatch( /bar\(2\)/ );
     expect( code ).toMatch( /const foo = async \(\) =>/ );
@@ -98,12 +114,14 @@ function helper() {
 
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).toMatch( /StepA\(1\)/ );
-    expect( code ).toMatch( /_invokeActivity\(([\"'])step\.a\1,\s*2\)/ );
+    expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+    expect( code ).toMatch( /,\s*2\)/ );
   } );
 
-  it( 'uses an existing __invokeActivity import when present', () => {
+  it( 'ignores local invoke activity names because globalThis is explicit', () => {
     const src = `
-import { __invokeActivity as invoke } from '@outputai/core/invoker';
+const __invokeActivity = () => 'local';
+const _invokeActivity = () => 'local';
 function helper() {
   StepA();
 }`;
@@ -113,8 +131,36 @@ function helper() {
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
-    expect( code.match( /__invokeActivity/g ) ).toHaveLength( 1 );
-    expect( code ).toMatch( /invoke\(([\"'])step\.a\1\)/ );
+    expect( code ).not.toMatch( /@outputai\/core\/invoker/ );
+    expect( code ).toMatch( /const __invokeActivity = \(\) => 'local'/ );
+    expect( code ).toMatch( /const _invokeActivity = \(\) => 'local'/ );
+    expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+  } );
+
+  it( 'reads Symbol through globalThis so local Symbol bindings are safe', () => {
+    const src = `
+function helper( Symbol ) {
+  StepA();
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    expect( rewrote ).toBe( true );
+
+    const { code } = generate( ast, { quotes: 'single' } );
+    expect( code ).toMatch( /function helper\(Symbol\)/ );
+    expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+  } );
+
+  it( 'throws when globalThis is shadowed at an activity call site', () => {
+    const src = `
+function helper( globalThis ) {
+  StepA();
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+
+    expect( () => rewriteFnBodies( { ast, activityImports } ) ).toThrow( /globalThis.*shadowed/ );
   } );
 } );
 

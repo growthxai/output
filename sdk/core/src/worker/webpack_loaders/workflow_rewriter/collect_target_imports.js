@@ -73,7 +73,12 @@ const collectDestructuredRequires = ( path, absolutePath, req, descriptors ) => 
  *
  * @param {import('@babel/types').File} ast - Parsed file AST.
  * @param {string} fileDir - Absolute directory of the file represented by `ast`.
- * @param {{ stepsNameCache: Map<string,Map<string,string>> }} caches
+ * @param {{
+ *  stepsNameCache: Map<string,Map<string,string>>,
+ *  evaluatorsNameCache: Map<string,Map<string,string>>,
+ *  sharedStepsNameCache: Map<string,Map<string,string>>,
+ *  sharedEvaluatorsNameCache: Map<string,Map<string,string>>
+ * }} caches
  *  Resolved-name caches to avoid re-reading same modules.
  * @returns {{ activityImports: Array<{localName:string,activityName:string}> }} Collected import mappings.
  */
@@ -148,7 +153,7 @@ export default function collectTargetImports(
           },
           {
             match: isSharedStepsPath, buildMap: buildSharedStepsNameMap,
-            cache: sharedStepsNameCache ?? stepsNameCache,
+            cache: sharedStepsNameCache,
             target: activityImports, label: 'shared steps'
           },
           {
@@ -157,7 +162,7 @@ export default function collectTargetImports(
           },
           {
             match: isSharedEvaluatorsPath, buildMap: buildSharedEvaluatorsNameMap,
-            cache: sharedEvaluatorsNameCache ?? evaluatorsNameCache,
+            cache: sharedEvaluatorsNameCache,
             target: activityImports, label: 'shared evaluators'
           }
         ];

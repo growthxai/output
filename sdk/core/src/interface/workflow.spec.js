@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   ACTIVITY_GET_TRACE_DESTINATIONS,
   ACTIVITY_WRAPPER_VERSION_FIELD,
+  INVOKE_ACTIVITY_SYMBOL,
   METADATA_ACCESS_SYMBOL,
   WORKFLOW_WRAPPER_VERSION_FIELD
 } from '#consts';
@@ -104,6 +105,7 @@ const invokeWorkflowFromHelper = ( wf, input, options ) => wf( input, options );
 describe( 'workflow()', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    delete globalThis[INVOKE_ACTIVITY_SYMBOL];
     inWorkflowContextMock.mockReturnValue( true );
     executeChildMock.mockResolvedValue( { output: {} } );
     setWorkflowInfo();
@@ -255,11 +257,11 @@ describe( 'workflow()', () => {
   } );
 
   describe( 'child workflow trigger path', () => {
-    it( 'starts a child workflow when memo.stack already contains the current workflowId', async () => {
+    it( 'starts a child workflow when the current workflow already installed the activity dispatcher', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
+      globalThis[INVOKE_ACTIVITY_SYMBOL] = vi.fn();
       const memo = {
-        stack: [ 'root-workflow', 'workflow-123' ],
         traceInfo: { workflowId: 'root-workflow' },
         activityOptions: {
           startToCloseTimeout: '10m',
@@ -296,12 +298,11 @@ describe( 'workflow()', () => {
         workflowId: expect.stringMatching( /^workflow-123-/ ),
         parentClosePolicy: ParentClosePolicy.ABANDON,
         memo: {
-          stack: [ 'root-workflow', 'workflow-123' ],
           traceInfo: { workflowId: 'root-workflow' },
-          activityOptions: {
+          activityOptions: expect.objectContaining( {
             startToCloseTimeout: '2m',
-            retry: { maximumAttempts: 7 }
-          }
+            retry: expect.objectContaining( { maximumAttempts: 7 } )
+          } )
         }
       } );
       expect( proxyActivitiesMock ).not.toHaveBeenCalled();
@@ -310,7 +311,8 @@ describe( 'workflow()', () => {
     it( 'uses empty args and terminate policy by default for child workflow execution', async () => {
       const { workflow } = await import( './workflow.js' );
       const { ParentClosePolicy } = await import( '@temporalio/workflow' );
-      setWorkflowInfo( { memo: { stack: [ 'workflow-123' ], activityOptions: { heartbeatTimeout: '1m' } } } );
+      globalThis[INVOKE_ACTIVITY_SYMBOL] = vi.fn();
+      setWorkflowInfo( { memo: { activityOptions: { heartbeatTimeout: '1m' } } } );
       executeChildMock.mockResolvedValueOnce( { output: 'done' } );
 
       const wf = workflow( workflowDefinition( {
@@ -324,7 +326,62 @@ describe( 'workflow()', () => {
       expect( executeChildMock ).toHaveBeenCalledWith( 'no_input_child_wf', expect.objectContaining( {
         args: [],
         parentClosePolicy: ParentClosePolicy.TERMINATE,
-        memo: { stack: [ 'workflow-123' ], activityOptions: { heartbeatTimeout: '1m' } }
+        memo: expect.objectContaining( { activityOptions: expect.objectContaining( { heartbeatTimeout: '1m' } ) } )
+      } ) );
+    } );
+
+    it( 'resolves activity options recursively by invocation, memo, definition, then default precedence', async () => {
+      const { workflow } = await import( './workflow.js' );
+      globalThis[INVOKE_ACTIVITY_SYMBOL] = vi.fn();
+      setWorkflowInfo( {
+        memo: {
+          activityOptions: {
+            heartbeatTimeout: '1m',
+            retry: {
+              maximumAttempts: 4,
+              maximumInterval: '30s'
+            }
+          }
+        }
+      } );
+      executeChildMock.mockResolvedValueOnce( { output: {} } );
+
+      const wf = workflow( workflowDefinition( {
+        name: 'activity_options_precedence_child_wf',
+        options: {
+          activityOptions: {
+            startToCloseTimeout: '5m',
+            retry: {
+              backoffCoefficient: 3,
+              maximumAttempts: 2
+            }
+          }
+        }
+      } ) );
+
+      await wf( {}, {
+        activityOptions: {
+          retry: {
+            initialInterval: '1s',
+            maximumAttempts: 9
+          }
+        }
+      } );
+
+      expect( executeChildMock ).toHaveBeenCalledWith( 'activity_options_precedence_child_wf', expect.objectContaining( {
+        memo: expect.objectContaining( {
+          activityOptions: {
+            startToCloseTimeout: '5m',
+            heartbeatTimeout: '1m',
+            retry: {
+              initialInterval: '1s',
+              backoffCoefficient: 3,
+              maximumInterval: '30s',
+              maximumAttempts: 9,
+              nonRetryableErrorTypes: [ ValidationError.name, 'FatalError' ]
+            }
+          }
+        } )
       } ) );
     } );
 
@@ -363,7 +420,6 @@ describe( 'workflow()', () => {
         args: [ { id: 1 } ],
         parentClosePolicy: ParentClosePolicy.TERMINATE,
         memo: expect.objectContaining( {
-          stack: [ 'workflow-123' ],
           traceInfo: info.memo.traceInfo,
           activityOptions: expect.objectContaining( {
             retry: expect.objectContaining( { maximumAttempts: 1 } )
@@ -375,6 +431,7 @@ describe( 'workflow()', () => {
 
     it( 'does not fallback to child execution when the replayed workflow type matches an alias', async () => {
       const { workflow } = await import( './workflow.js' );
+      delete globalThis[INVOKE_ACTIVITY_SYMBOL];
       setWorkflowInfo( { workflowType: 'old_root_wf', memo: {} } );
 
       const wf = workflow( workflowDefinition( {
@@ -395,7 +452,7 @@ describe( 'workflow()', () => {
     it( 'propagates executeChild errors without root ApplicationFailure wrapping', async () => {
       const { workflow } = await import( './workflow.js' );
       const error = new Error( 'child failed' );
-      setWorkflowInfo( { memo: { stack: [ 'workflow-123' ] } } );
+      globalThis[INVOKE_ACTIVITY_SYMBOL] = vi.fn();
       executeChildMock.mockRejectedValueOnce( error );
 
       const wf = workflow( workflowDefinition( { name: 'failing_child_wf' } ) );
@@ -429,7 +486,6 @@ describe( 'workflow()', () => {
         output: { ok: true },
         trace: { destinations: {} }
       } );
-      expect( info.memo.stack ).toEqual( [ 'workflow-123' ] );
       expect( info.memo.traceInfo ).toBeUndefined();
       expect( info.memo.activityOptions ).toEqual( expect.objectContaining( {
         startToCloseTimeout: '5m',
@@ -474,7 +530,6 @@ describe( 'workflow()', () => {
         [WORKFLOW_WRAPPER_VERSION_FIELD]: 1,
         output: { ok: true }
       } );
-      expect( info.memo.stack ).toEqual( [ 'root-workflow', 'child-workflow' ] );
       expect( info.memo.traceInfo ).toBe( memo.traceInfo );
       expect( info.memo.activityOptions ).toEqual( expect.objectContaining( {
         startToCloseTimeout: '9m',
@@ -521,6 +576,7 @@ describe( 'workflow()', () => {
       await expect( wf( { value: 1 } ) ).rejects.toBe( inputError );
       expect( inputError[METADATA_ACCESS_SYMBOL] ).toEqual( { trace: { destinations: { local: '/tmp/trace' } } } );
 
+      delete globalThis[INVOKE_ACTIVITY_SYMBOL];
       setWorkflowInfo( { workflowType: 'runtime_validation_wf', memo: {} } );
       validateOutputMock.mockImplementationOnce( () => {
         throw outputError;
@@ -532,7 +588,7 @@ describe( 'workflow()', () => {
 
   describe( 'activity dispatchers', () => {
     it( 'invokes workflow-scoped activities and unwraps activity output', async () => {
-      const { workflow, __invokeActivity } = await import( './workflow.js' );
+      const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'dispatch_wf' } );
       const step = vi.fn().mockResolvedValue( activityOutput( 'step-output' ) );
       const evaluator = vi.fn().mockResolvedValue( activityOutput( 'eval-output' ) );
@@ -547,8 +603,8 @@ describe( 'workflow()', () => {
         outputSchema: z.object( { stepResult: z.string(), evalResult: z.string() } ),
         fn: async () => {
           return {
-            stepResult: await __invokeActivity( 'stepA', { a: 1 }, { b: 2 } ),
-            evalResult: await __invokeActivity( 'evalA', { c: 3 } )
+            stepResult: await globalThis[INVOKE_ACTIVITY_SYMBOL]( 'stepA', { a: 1 }, { b: 2 } ),
+            evalResult: await globalThis[INVOKE_ACTIVITY_SYMBOL]( 'evalA', { c: 3 } )
           };
         }
       } ) );
@@ -563,7 +619,7 @@ describe( 'workflow()', () => {
     } );
 
     it( 'invokes shared activities through the workflow namespace', async () => {
-      const { workflow, __invokeActivity } = await import( './workflow.js' );
+      const { workflow } = await import( './workflow.js' );
       setWorkflowInfo( { workflowType: 'shared_dispatch_wf' } );
       const sharedStep = vi.fn().mockResolvedValue( activityOutput( 'shared-step-output' ) );
       const sharedEvaluator = vi.fn().mockResolvedValue( activityOutput( 'shared-eval-output' ) );
@@ -578,8 +634,8 @@ describe( 'workflow()', () => {
         outputSchema: z.object( { stepResult: z.string(), evalResult: z.string() } ),
         fn: async () => {
           return {
-            stepResult: await __invokeActivity( 'stepA' ),
-            evalResult: await __invokeActivity( 'evalA', { x: 1 } )
+            stepResult: await globalThis[INVOKE_ACTIVITY_SYMBOL]( 'stepA' ),
+            evalResult: await globalThis[INVOKE_ACTIVITY_SYMBOL]( 'evalA', { x: 1 } )
           };
         }
       } ) );

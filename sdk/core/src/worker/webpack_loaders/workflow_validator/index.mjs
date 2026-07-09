@@ -9,6 +9,24 @@ import {
   isWorkflowPath,
   isAbsoluteWorkflowJsResource
 } from '../tools.js';
+import {
+  isBareNpmSpecifier,
+  resolveBareImportSpecifiersAsWorkflows,
+  resolveBareDestructuredRequireAsWorkflows,
+  resolveBareDefaultRequireAsWorkflow
+} from './npm_workflow_export_resolve.js';
+import { ComponentFactory, ComponentFile } from '../consts.js';
+import {
+  isCallExpression,
+  isFunctionExpression,
+  isArrowFunctionExpression,
+  isIdentifier,
+  isImportDefaultSpecifier,
+  isImportSpecifier,
+  isObjectPattern,
+  isObjectProperty,
+  isStringLiteral
+} from '@babel/types';
 
 /**
  * Files where a bare npm import may bind to child workflows (catalog packages, etc.).
@@ -22,24 +40,6 @@ const fileMayBindBareNpmWorkflowImports = filename => {
   return isAbsoluteWorkflowJsResource( filename ) ||
     isAnyStepsPath( n ) || isAnyEvaluatorsPath( n );
 };
-import {
-  isBareNpmSpecifier,
-  resolveBareImportSpecifiersAsWorkflows,
-  resolveBareDestructuredRequireAsWorkflows,
-  resolveBareDefaultRequireAsWorkflow
-} from './npm_workflow_export_resolve.js';
-import { ComponentFile } from '../consts.js';
-import {
-  isCallExpression,
-  isFunctionExpression,
-  isArrowFunctionExpression,
-  isIdentifier,
-  isImportDefaultSpecifier,
-  isImportSpecifier,
-  isObjectPattern,
-  isObjectProperty,
-  isStringLiteral
-} from '@babel/types';
 
 // Handle CJS/ESM interop for Babel packages when executed as a webpack loader
 const traverse = traverseModule.default ?? traverseModule;
@@ -72,13 +72,13 @@ const getFileKindLabel = filename => {
  * @param {string} filename - The file path where the call occurs
  */
 const validateInstantiationLocation = ( calleeName, filename ) => {
-  if ( calleeName === 'step' && !isAnyStepsPath( filename ) ) {
+  if ( calleeName === ComponentFactory.STEP && !isAnyStepsPath( filename ) ) {
     throw new Error( `Invalid instantiation location: step() can only be called in files with 'steps' in the path. Found in: ${filename}` );
   }
-  if ( calleeName === 'evaluator' && !isAnyEvaluatorsPath( filename ) ) {
+  if ( calleeName === ComponentFactory.EVALUATOR && !isAnyEvaluatorsPath( filename ) ) {
     throw new Error( `Invalid instantiation location: evaluator() can only be called in files with 'evaluators' in the path. Found in: ${filename}` );
   }
-  if ( calleeName === 'workflow' && !isWorkflowPath( filename ) ) {
+  if ( calleeName === ComponentFactory.WORKFLOW && !isWorkflowPath( filename ) ) {
     throw new Error( `Invalid instantiation location: workflow() can only be called in files with 'workflow' in the path. Found in: ${filename}` );
   }
 };
@@ -95,8 +95,8 @@ const validateActivityCallsAreInsideFunctions = ( {
 
       const { name } = callee;
       const violation = [
-        [ 'step', localStepIds.has( name ) || importedStepIds.has( name ) ],
-        [ 'evaluator', localEvaluatorIds.has( name ) || importedEvaluatorIds.has( name ) ]
+        [ ComponentFactory.STEP, localStepIds.has( name ) || importedStepIds.has( name ) ],
+        [ ComponentFactory.EVALUATOR, localEvaluatorIds.has( name ) || importedEvaluatorIds.has( name ) ]
       ].find( v => v[1] )?.[0];
 
       if ( violation ) {
@@ -137,10 +137,11 @@ const validateActivityExportShape = ( fileKind, node ) => {
  *
  * Rules enforced:
  *  - Instantiation location: step() must be in steps path, evaluator() in evaluators path, workflow() in workflow path
+ *  - Activity files must use named exports only
+ *  - Activity imports/requires must use named bindings so the rewriter can target each call
+ *  - Top-level activity calls are rejected
  *  - steps.js `fn`: calling any step, evaluator, or workflow inside fn body emits warning
  *  - evaluators.js `fn`: calling any step, evaluator, or workflow inside fn body emits warning
- *
- * NOTE: Import restrictions have been removed - any file can import any other file.
  *
  * @param {string|Buffer} source
  * @param {any} inputMap
@@ -215,20 +216,20 @@ export default function workflowValidatorLoader( source, inputMap ) {
         }
 
         // Validate instantiation location for step/evaluator/workflow calls
-        if ( isIdentifier( init.callee, { name: 'step' } ) ) {
-          validateInstantiationLocation( 'step', filename );
+        if ( isIdentifier( init.callee, { name: ComponentFactory.STEP } ) ) {
+          validateInstantiationLocation( ComponentFactory.STEP, filename );
           if ( isIdentifier( path.node.id ) ) {
             localStepIds.add( path.node.id.name );
           }
         }
-        if ( isIdentifier( init.callee, { name: 'evaluator' } ) ) {
-          validateInstantiationLocation( 'evaluator', filename );
+        if ( isIdentifier( init.callee, { name: ComponentFactory.EVALUATOR } ) ) {
+          validateInstantiationLocation( ComponentFactory.EVALUATOR, filename );
           if ( isIdentifier( path.node.id ) ) {
             localEvaluatorIds.add( path.node.id.name );
           }
         }
-        if ( isIdentifier( init.callee, { name: 'workflow' } ) ) {
-          validateInstantiationLocation( 'workflow', filename );
+        if ( isIdentifier( init.callee, { name: ComponentFactory.WORKFLOW } ) ) {
+          validateInstantiationLocation( ComponentFactory.WORKFLOW, filename );
         }
 
         // CommonJS requires: collect identifiers for fn body call checks
@@ -314,9 +315,9 @@ export default function workflowValidatorLoader( source, inputMap ) {
                 const { name } = callee;
                 const fileLabel = getFileKindLabel( filename );
                 const violation = [
-                  [ 'step', localStepIds.has( name ) || importedStepIds.has( name ) ],
-                  [ 'evaluator', localEvaluatorIds.has( name ) || importedEvaluatorIds.has( name ) ],
-                  [ 'workflow', importedWorkflowIds.has( name ) ]
+                  [ ComponentFactory.STEP, localStepIds.has( name ) || importedStepIds.has( name ) ],
+                  [ ComponentFactory.EVALUATOR, localEvaluatorIds.has( name ) || importedEvaluatorIds.has( name ) ],
+                  [ ComponentFactory.WORKFLOW, importedWorkflowIds.has( name ) ]
                 ].find( v => v[1] )?.[0];
 
                 if ( violation ) {
