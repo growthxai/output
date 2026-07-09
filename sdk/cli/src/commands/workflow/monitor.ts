@@ -94,7 +94,8 @@ export default class WorkflowMonitor extends Command {
         'at the server\'s configured max), so an idle workflow\'s update cadence is roughly ' +
         'twice this value (the long-poll bound, then this sleep) rather than a much longer, ' +
         'separate server default.',
-      default: DEFAULT_INTERVAL_MS
+      default: DEFAULT_INTERVAL_MS,
+      min: 1
     } ),
     color: Flags.boolean( {
       description: 'Colorize status output (use --no-color to disable)',
@@ -246,9 +247,18 @@ export default class WorkflowMonitor extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
-      404: 'Workflow not found. Check the workflow ID.',
-      400: 'Resume cursor is no longer valid for this workflow; restart the monitor.'
-    } );
+    // A 400 is the generic status for several distinct causes (invalid pageToken, a
+    // missing runId, an out-of-range waitMs) — only override it with the stale-cursor
+    // message when the server actually identifies that specific cause; otherwise let
+    // the real validation error surface instead of misdiagnosing an unrelated 400.
+    const response = ( error as { response?: { status?: number; data?: { error?: string } } } ).response;
+    const isStaleCursor = response?.status === 400 && response.data?.error === 'InvalidPageTokenError';
+
+    const overrides: Record<number, string> = { 404: 'Workflow not found. Check the workflow ID.' };
+    if ( isStaleCursor ) {
+      overrides[400] = 'Resume cursor is no longer valid for this workflow; restart the monitor.';
+    }
+
+    return handleApiError( error, ( ...args ) => this.error( ...args ), overrides );
   }
 }
