@@ -1,5 +1,43 @@
 # output-api
 
+## 0.10.0
+
+### Minor Changes
+
+- c318502: Workflow result endpoints no longer include unavailable trace destinations instead of returning them as `null`.
+  This affects:
+
+  - `POST /workflow/run`
+  - `GET /workflow/{id}/result`
+  - `GET /workflow/{id}/runs/{rid}/result`
+
+  _Before:_
+
+  ```json
+  {
+    ...
+    "trace": {
+      "destinations": {
+        "local": null,
+        "remote": null
+      }
+    }
+  }
+  ```
+
+  _After:_
+
+  ```json
+  {
+    ...
+    "trace": {
+      "destinations": {}
+    }
+  }
+  ```
+
+- 14a0cfc: Add API endpoint and CLI command to get input from a workflow run
+
 ## 0.9.2
 
 ### Patch Changes

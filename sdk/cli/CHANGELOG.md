@@ -1,5 +1,46 @@
 # @outputai/cli
 
+## 0.10.0
+
+### Minor Changes
+
+- 14a0cfc: Add API endpoint and CLI command to get input from a workflow run
+- c318502: The JSON output for workflow result commands no longer includes unavailable trace destinations as `null`.
+  This affects:
+
+  - `output workflow run ... --json`
+  - `output workflow result <workflow-id> --json`
+
+  _Before:_
+
+  ```json
+  {
+    "trace": {
+      "destinations": {
+        "local": null,
+        "remote": null
+      }
+    }
+  }
+  ```
+
+  _After:_
+
+  ```json
+  {
+    "trace": {
+      "destinations": {}
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [67c8141]
+  - @outputai/llm@0.10.0
+  - @outputai/credentials@0.10.0
+  - @outputai/evals@0.10.0
+
 ## 0.9.2
 
 ### Patch Changes

@@ -80,7 +80,7 @@ services:
         condition: service_healthy
       worker:
         condition: service_healthy
-    image: outputai/api:${OUTPUT_API_VERSION:-0.9.2}
+    image: outputai/api:${OUTPUT_API_VERSION:-0.10.0}
     init: true
     networks:
       - main

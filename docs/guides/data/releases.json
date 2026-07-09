@@ -1,6 +1,87 @@
 {
   "releases": [
     {
+      "version": "0.10.0",
+      "date": "2026-07-09",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "fiery-cows-attend",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Workflow result endpoints no longer include unavailable trace destinations instead of returning them as `null`.\nThis affects:\n- `POST /workflow/run`\n- `GET /workflow/{id}/result`\n- `GET /workflow/{id}/runs/{rid}/result`\n\n_Before:_\n```json\n{\n  ...\n  \"trace\": {\n    \"destinations\": {\n      \"local\": null,\n      \"remote\": null\n    }\n  }\n}\n```\n_After:_\n```json\n{\n  ...\n  \"trace\": {\n    \"destinations\": {}\n  }\n}\n```"
+        },
+        {
+          "id": "many-paths-fry",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            },
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add API endpoint and CLI command to get input from a workflow run"
+        },
+        {
+          "id": "plain-papayas-lick",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            }
+          ],
+          "summary": "The JSON output for workflow result commands no longer includes unavailable trace destinations as `null`.\nThis affects:\n- `output workflow run ... --json`\n- `output workflow result <workflow-id> --json`\n\n_Before:_\n```json\n{\n  \"trace\": {\n    \"destinations\": {\n      \"local\": null,\n      \"remote\": null\n    }\n  }\n}\n```\n\n_After:_\n```json\n{\n  \"trace\": {\n    \"destinations\": {}\n  }\n}\n```"
+        },
+        {
+          "id": "slick-cameras-wonder",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Refactored Anthropic's error `\"Grammar compilation timed out.\"` handling not to throw `FatalError` as this is transient and `FatalError`s terminate the workflow execution without retries.\n\nIt seems that the Anthropic API throws this error (HTTP status code 400) when grammar compilation times out for a structured output schema, but after some investigation it was assessed that this error is indeed transient."
+        },
+        {
+          "id": "spicy-drinks-win",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "## Trace Changes\n- Internal Activity `getTraceDestinations` is no longer invoked when workflow has `disableTrace: true` configuration.\n- Workflow trace destinations now omit unavailable destinations instead of returning them as `null`:\n  _Before:_\n  ```json\n  {\n    \"output\": \"foo\",\n    \"trace\": {\n      \"destinations\": {\n        \"local\": null,\n        \"remote\": null\n      }\n    }\n  }\n  ```\n  _After:_\n  ```json\n  {\n    \"output\": \"foo\",\n    \"trace\": {\n      \"destinations\": {}\n    }\n  }\n  ```\n- Internal activities like `getTraceDestinations` and `sendHttpRequest` are no longer omitted in the trace files.\n\n## HTTP helper header changes\n- Both `sendHttpRequest` and `sendPostRequestAndAwaitWebhook` can now interpolate environment variable values in header values:\n  ```js\n  sendHttpRequest( {\n    url,\n    headers: {\n      Authorization: 'Bearer $TOKEN'\n    }\n  } );\n  ```\n  When executing this request, `$TOKEN` will be replaced by the value of `process.env.TOKEN`.\n\n\n## sendHttpRequest output changes\n- The response of `sendHttpRequest` no longer includes body or headers by default. Use the `responseOptions` argument to configure this:\n  ```js\n  sendHttpRequest( {\n    url,\n    responseOptions: {\n      includeHeaders: true,\n      includeBody: true\n    }\n  } );\n  ```\n- Response headers included via `responseOptions.includeHeaders` are redacted by header name. This covers common sensitive header names such as authorization, token, secret, password, cookie, and key, but it is a best-effort heuristic."
+        },
+        {
+          "id": "strong-paws-cheer",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Removing support for non-wrapped activity results and legacy child workflow executions (pre v0.8.0). Workflow executions from those versions can no longer be replayed."
+        },
+        {
+          "id": "wet-bugs-send",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Add support to Temporal worker tuner options. This can be set using a new environment variable `TEMPORAL_WORKER_TUNER` that accepts a JSON value."
+        }
+      ]
+    },
+    {
       "version": "0.9.2",
       "date": "2026-07-03",
       "level": "patch",
