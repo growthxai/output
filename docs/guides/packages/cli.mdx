@@ -308,7 +308,10 @@ output workflow monitor <workflowId>
 
 Exits `0` when the workflow completes, `1` when it fails, is canceled,
 terminated, or times out, and `130` if you detach with Ctrl+C — detaching
-never stops the workflow itself.
+never stops the workflow itself. `monitor` also exits `1` after 5 consecutive
+transient poll failures (network errors, 5xx/408/429 responses), printing a
+warning before each retry — this is API/network trouble, not a workflow
+outcome, but shares the same exit code.
 
 ```bash
 output workflow monitor wf-12345
