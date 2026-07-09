@@ -12,11 +12,36 @@ import { ERROR_STATUSES, TERMINAL_STATUSES } from '#utils/format_workflow_result
 import { handleApiError } from '#utils/error_handler.js';
 import { sleep } from '#utils/sleep.js';
 import { shouldColorize } from '#utils/color.js';
+import { HttpError } from '#api/http_client.js';
 
 const DEFAULT_INTERVAL_MS = 2500;
 const MAX_CONSECUTIVE_ERRORS = 5;
 const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
 const SIGINT_EXIT_CODE = 130;
+const TRANSIENT_ERROR_CODES = new Set( [ 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND' ] );
+
+/**
+ * Distinguishes blips worth retrying from errors that will fail identically on
+ * every attempt: network hiccups, a client-side request timeout, and 5xx/408/429
+ * responses are transient. Everything else — a 4xx like a stale/invalid resume
+ * cursor (`InvalidPageTokenError`, surfaced as 400), or a bug in correlate()/
+ * buildResult() re-throwing the same exception — can't self-resolve by waiting,
+ * so it should surface immediately instead of burning the retry budget.
+ */
+function isTransientPollError( error: unknown ): boolean {
+  if ( error instanceof HttpError ) {
+    const status = error.response.status;
+    return status >= 500 || status === 408 || status === 429;
+  }
+  const err = error as { name?: string; code?: string; cause?: { code?: string } };
+  if ( err.name === 'TimeoutError' ) {
+    return true;
+  }
+  return Boolean(
+    ( err.code && TRANSIENT_ERROR_CODES.has( err.code ) ) ||
+    ( err.cause?.code && TRANSIENT_ERROR_CODES.has( err.cause.code ) )
+  );
+}
 
 /**
  * Unlike `run`/`status`/`result` (migrated to oclif's native `--json` in
@@ -106,10 +131,13 @@ export default class WorkflowMonitor extends Command {
         text );
     };
 
-    this.log( `Monitoring ${args.workflowId}${state.runId ? ` (run ${state.runId})` : ''}... (Ctrl+C to detach)` );
+    emit(
+      { monitoring: true },
+      `Monitoring ${args.workflowId}${state.runId ? ` (run ${state.runId})` : ''}... (Ctrl+C to detach)`
+    );
 
     const sigintHandler = (): void => {
-      this.log( '\nDetached (the workflow keeps running).' );
+      emit( { detached: true }, '\nDetached (the workflow keeps running).' );
       process.exit( SIGINT_EXIT_CODE );
     };
     process.on( 'SIGINT', sigintHandler );
@@ -173,10 +201,13 @@ export default class WorkflowMonitor extends Command {
 
   /**
    * Wraps a single poll: a failure on the very first tick propagates (there's
-   * nothing to fall back on), but a blip after we've already been monitoring
-   * successfully just returns `null` so the loop can retry — matching the dev
-   * TUI's `useStepGraph` behavior of keeping the last good state on a poll
-   * hiccup. `MAX_CONSECUTIVE_ERRORS` bounds how long we'll retry silently.
+   * nothing to fall back on), but a transient blip (see `isTransientPollError`)
+   * after we've already been monitoring successfully just returns `null` so the
+   * loop can retry — matching the dev TUI's `useStepGraph` behavior of keeping
+   * the last good state on a poll hiccup. A non-transient error (e.g. a stale
+   * resume cursor, or a bug in the parsing pipeline) rethrows immediately since
+   * retrying it cannot succeed. `MAX_CONSECUTIVE_ERRORS` bounds how long we'll
+   * retry transient failures before giving up.
    *
    * Fetch strategy is driven by `state.cursor`, not tick count: no cursor yet
    * (the very first poll, or the first poll of a run chained via continue-as-new)
@@ -198,7 +229,7 @@ export default class WorkflowMonitor extends Command {
       }
       return await fetchWorkflowHistoryUpdates( options, state.cursor );
     } catch ( error ) {
-      if ( state.firstTick || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
+      if ( state.firstTick || !isTransientPollError( error ) || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
         throw error;
       }
       this.warn( `Poll failed (${state.consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${( error as Error ).message}` );
@@ -208,7 +239,8 @@ export default class WorkflowMonitor extends Command {
 
   async catch( error: Error ): Promise<void> {
     return handleApiError( error, ( ...args ) => this.error( ...args ), {
-      404: 'Workflow not found. Check the workflow ID.'
+      404: 'Workflow not found. Check the workflow ID.',
+      400: 'Resume cursor is no longer valid for this workflow; restart the monitor.'
     } );
   }
 }

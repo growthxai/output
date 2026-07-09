@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { HttpError } from '#api/http_client.js';
 
 vi.mock( '#services/workflow_history.js', () => ( { fetchWorkflowHistory: vi.fn(), fetchWorkflowHistoryUpdates: vi.fn() } ) );
 vi.mock( '#utils/sleep.js', () => ( { sleep: vi.fn().mockResolvedValue( undefined ) } ) );
@@ -213,11 +214,11 @@ describe( 'workflow monitor command', () => {
       expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 1 );
     } );
 
-    it( 'retries a transient failure after the first successful poll instead of crashing', async () => {
+    it( 'retries a transient network failure after the first successful poll instead of crashing', async () => {
       const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
       fetchWorkflowHistory.mockResolvedValueOnce( history( 'running' ) as any );
       fetchWorkflowHistoryUpdates
-        .mockRejectedValueOnce( new Error( 'blip' ) )
+        .mockRejectedValueOnce( Object.assign( new Error( 'blip' ), { code: 'ECONNRESET' } ) )
         .mockResolvedValueOnce( update( 'completed', { totalDurationMs: 1000 } ) as any );
 
       await cmd.run();
@@ -226,6 +227,33 @@ describe( 'workflow monitor command', () => {
       expect( fetchWorkflowHistoryUpdates ).toHaveBeenCalledTimes( 2 );
       expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( '(1/5)' ) );
       expect( process.exitCode ).toBeUndefined();
+    } );
+
+    it( 'retries a transient 503 HttpError after the first successful poll', async () => {
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'running' ) as any );
+      fetchWorkflowHistoryUpdates
+        .mockRejectedValueOnce( new HttpError( 'Service unavailable', { status: 503 } ) )
+        .mockResolvedValueOnce( update( 'completed', { totalDurationMs: 1000 } ) as any );
+
+      await cmd.run();
+
+      expect( fetchWorkflowHistoryUpdates ).toHaveBeenCalledTimes( 2 );
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( '(1/5)' ) );
+      expect( process.exitCode ).toBeUndefined();
+    } );
+
+    it( 'immediately rethrows a non-transient error (e.g. a stale resume cursor) without retrying', async () => {
+      const { cmd, fetchWorkflowHistory, fetchWorkflowHistoryUpdates } = await createCommand();
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'running' ) as any );
+      fetchWorkflowHistoryUpdates.mockRejectedValueOnce(
+        new HttpError( 'Invalid page token', { status: 400 } )
+      );
+
+      await expect( cmd.run() ).rejects.toThrow( 'Invalid page token' );
+
+      expect( fetchWorkflowHistoryUpdates ).toHaveBeenCalledTimes( 1 );
+      expect( cmd.warn ).not.toHaveBeenCalled();
     } );
 
     it( 'registers a SIGINT handler that detaches and exits 130 without affecting the workflow', async () => {
@@ -259,13 +287,16 @@ describe( 'workflow monitor command', () => {
       await cmd.run();
 
       const lines = ( cmd.log as any ).mock.calls.map( ( [ line ]: [ string ] ) => line );
-      expect( lines.some( ( line: string ) => {
+      expect( lines.every( ( line: string ) => {
         try {
-          return JSON.parse( line ).span?.id === '1';
+          JSON.parse( line );
+          return true;
         } catch {
           return false;
         }
       } ) ).toBe( true );
+      expect( lines.some( ( line: string ) => JSON.parse( line ).span?.id === '1' ) ).toBe( true );
+      expect( lines.some( ( line: string ) => JSON.parse( line ).monitoring === true ) ).toBe( true );
     } );
   } );
 } );
