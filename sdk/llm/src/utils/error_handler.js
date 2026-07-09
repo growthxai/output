@@ -79,10 +79,9 @@ export const mapAiError = error => {
 
   const isApiError = APICallError.isInstance( error );
   const isGrammarCompilationError = error.message === 'Grammar compilation timed out.';
-  const isAnthropic = error.url?.includes( 'anthropic.com' );
 
   // This error is actually transient, so instead of FatalError, return it
-  if ( isApiError && error.statusCode === 400 && isGrammarCompilationError && isAnthropic ) {
+  if ( isApiError && error.statusCode === 400 && isGrammarCompilationError ) {
     return error;
   }
 
