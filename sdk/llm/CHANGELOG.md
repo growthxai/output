@@ -1,5 +1,18 @@
 # @outputai/llm
 
+## 0.10.0
+
+### Patch Changes
+
+- 67c8141: Refactored Anthropic's error `"Grammar compilation timed out."` handling not to throw `FatalError` as this is transient and `FatalError`s terminate the workflow execution without retries.
+
+  It seems that the Anthropic API throws this error (HTTP status code 400) when grammar compilation times out for a structured output schema, but after some investigation it was assessed that this error is indeed transient.
+
+- Updated dependencies [c318502]
+- Updated dependencies [105840b]
+- Updated dependencies [62d9754]
+  - @outputai/core@0.10.0
+
 ## 0.9.2
 
 ### Patch Changes

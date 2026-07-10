@@ -9,6 +9,126 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.10.0" description="2026-07-09 · minor release">
+
+**`output-api`** — Workflow result endpoints no longer include unavailable trace destinations instead of returning them as `null`.
+This affects:
+- `POST /workflow/run`
+- `GET /workflow/{id}/result`
+- `GET /workflow/{id}/runs/{rid}/result`
+
+_Before:_
+```json
+{
+  ...
+  "trace": {
+    "destinations": {
+      "local": null,
+      "remote": null
+    }
+  }
+}
+```
+_After:_
+```json
+{
+  ...
+  "trace": {
+    "destinations": {}
+  }
+}
+```
+
+**`@outputai/cli`, `output-api`** — Add API endpoint and CLI command to get input from a workflow run
+
+**`@outputai/cli`** — The JSON output for workflow result commands no longer includes unavailable trace destinations as `null`.
+This affects:
+- `output workflow run ... --json`
+- `output workflow result <workflow-id> --json`
+
+_Before:_
+```json
+{
+  "trace": {
+    "destinations": {
+      "local": null,
+      "remote": null
+    }
+  }
+}
+```
+
+_After:_
+```json
+{
+  "trace": {
+    "destinations": {}
+  }
+}
+```
+
+**`@outputai/llm`** — Refactored Anthropic's error `"Grammar compilation timed out."` handling not to throw `FatalError` as this is transient and `FatalError`s terminate the workflow execution without retries.
+
+It seems that the Anthropic API throws this error (HTTP status code 400) when grammar compilation times out for a structured output schema, but after some investigation it was assessed that this error is indeed transient.
+
+**`@outputai/core`** — ## Trace Changes
+- Internal Activity `getTraceDestinations` is no longer invoked when workflow has `disableTrace: true` configuration.
+- Workflow trace destinations now omit unavailable destinations instead of returning them as `null`:
+  _Before:_
+  ```json
+  {
+    "output": "foo",
+    "trace": {
+      "destinations": {
+        "local": null,
+        "remote": null
+      }
+    }
+  }
+  ```
+  _After:_
+  ```json
+  {
+    "output": "foo",
+    "trace": {
+      "destinations": {}
+    }
+  }
+  ```
+- Internal activities like `getTraceDestinations` and `sendHttpRequest` are no longer omitted in the trace files.
+
+## HTTP helper header changes
+- Both `sendHttpRequest` and `sendPostRequestAndAwaitWebhook` can now interpolate environment variable values in header values:
+  ```js
+  sendHttpRequest( {
+    url,
+    headers: {
+      Authorization: 'Bearer $TOKEN'
+    }
+  } );
+  ```
+  When executing this request, `$TOKEN` will be replaced by the value of `process.env.TOKEN`.
+
+
+## sendHttpRequest output changes
+- The response of `sendHttpRequest` no longer includes body or headers by default. Use the `responseOptions` argument to configure this:
+  ```js
+  sendHttpRequest( {
+    url,
+    responseOptions: {
+      includeHeaders: true,
+      includeBody: true
+    }
+  } );
+  ```
+- Response headers included via `responseOptions.includeHeaders` are redacted by header name. This covers common sensitive header names such as authorization, token, secret, password, cookie, and key, but it is a best-effort heuristic.
+
+**`@outputai/core`** — Removing support for non-wrapped activity results and legacy child workflow executions (pre v0.8.0). Workflow executions from those versions can no longer be replayed.
+
+**`@outputai/core`** — Add support to Temporal worker tuner options. This can be set using a new environment variable `TEMPORAL_WORKER_TUNER` that accepts a JSON value.
+
+</Update>
+
 <Update label="v0.9.2" description="2026-07-03 · patch release">
 
 **`@outputai/credentials`, `@outputai/output`, `@outputai/evals`, `@outputai/core`, `@outputai/http`, `@outputai/cli`, `@outputai/llm`, `output-api`** — Pinning v24.15.0 as the minimal supported Node version
