@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import generatorModule from '@babel/generator';
 import { parse } from '../tools.js';
-import rewriteFnBodies from './rewrite_fn_bodies.js';
+import rewriteActivityCalls from './rewrite_activity_calls.js';
 
 const { invokeActivitySymbolKey } = vi.hoisted( () => ( {
   invokeActivitySymbolKey: 'test:invoke_activity'
@@ -17,7 +17,7 @@ const escapeRegExp = value => value.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
 const invokeActivityPattern = activityName =>
   new RegExp( `globalThis\\[globalThis\\.Symbol\\.for\\(([\"'])${escapeRegExp( invokeActivitySymbolKey )}\\1\\)\\]\\(([\"'])${activityName}\\2` );
 
-describe( 'rewrite_fn_bodies', () => {
+describe( 'rewrite_activity_calls', () => {
   it( 'rewrites step calls inside functions without changing function shape', () => {
     const src = `
 const obj = {
@@ -29,7 +29,7 @@ const obj = {
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
 
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -49,7 +49,7 @@ const obj = {
 };`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'EvalA', activityName: 'eval.a' } ];
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).toMatch( invokeActivityPattern( 'eval\\.a' ) );
@@ -59,7 +59,7 @@ const obj = {
   it( 'does nothing when no matching calls are present', () => {
     const src = [ 'const obj = { fn: function() { other(); } }' ].join( '\n' );
     const ast = parse( src, 'file.js' );
-    const rewrote = rewriteFnBodies( { ast, activityImports: [] } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports: [] } );
     expect( rewrote ).toBe( false );
   } );
 
@@ -86,7 +86,7 @@ const obj = {
       { localName: 'EvalA', activityName: 'eval.a' }
     ];
 
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -109,7 +109,7 @@ function helper() {
 
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -127,7 +127,7 @@ function helper() {
 }`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -144,7 +144,7 @@ function helper( Symbol ) {
 }`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     expect( rewrote ).toBe( true );
 
     const { code } = generate( ast, { quotes: 'single' } );
@@ -160,7 +160,6 @@ function helper( globalThis ) {
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
 
-    expect( () => rewriteFnBodies( { ast, activityImports } ) ).toThrow( /globalThis.*shadowed/ );
+    expect( () => rewriteActivityCalls( { ast, activityImports } ) ).toThrow( /globalThis.*shadowed/ );
   } );
 } );
-

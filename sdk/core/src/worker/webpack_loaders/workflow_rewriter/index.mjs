@@ -2,7 +2,7 @@ import { dirname } from 'node:path';
 import generatorModule from '@babel/generator';
 import { parse } from '../tools.js';
 
-import rewriteFnBodies from './rewrite_fn_bodies.js';
+import rewriteActivityCalls from './rewrite_activity_calls.js';
 import collectTargetImports from './collect_target_imports.js';
 
 // Handle CJS/ESM interop for Babel packages when executed as a webpack loader
@@ -16,7 +16,7 @@ const sharedEvaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorN
 
 /**
  * Webpack loader that rewrites imported step/evaluator calls by reading
- * declared activity names and transforming function-body calls accordingly.
+ * declared activity names and transforming function-body activity calls accordingly.
  * Preserves sourcemaps.
  *
  * @param {string|Buffer} source - Module source code.
@@ -40,7 +40,7 @@ export default function stepImportRewriterAstLoader( source, inputMap ) {
       return callback( null, source, inputMap );
     }
 
-    const rewrote = rewriteFnBodies( { ast, activityImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     // No edits performed
     if ( !rewrote ) {
       return callback( null, source, inputMap );

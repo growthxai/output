@@ -53,7 +53,7 @@ const createInvokeActivityCall = ( activityName, args ) =>
   );
 
 // Rewrite valid function-body activity calls; top-level call validation belongs to the validator loader.
-const rewriteActivityCalls = ( { ast, activityNames } ) => {
+const rewriteActivityCallsInFunctions = ( { ast, activityNames } ) => {
   const state = { rewrote: false };
 
   traverse( ast, {
@@ -78,11 +78,11 @@ const rewriteActivityCalls = ( { ast, activityNames } ) => {
 };
 
 // Entry point: resolve collected component imports into plain dispatcher calls.
-export default function rewriteFnBodies( { ast, activityImports } ) {
+export default function rewriteActivityCalls( { ast, activityImports } ) {
   const activityNames = buildActivityNameMap( activityImports );
   if ( activityNames.size === 0 ) {
     return false;
   }
 
-  return rewriteActivityCalls( { ast, activityNames } );
+  return rewriteActivityCallsInFunctions( { ast, activityNames } );
 };
