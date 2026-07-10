@@ -6,8 +6,9 @@ vi.mock( '#configs', () => ( { isProduction: true } ) );
 
 vi.mock( '#logger', () => ( {
   logger: {
-    http: vi.fn(),
-    warn: vi.fn()
+    error: vi.fn(),
+    warn: vi.fn(),
+    http: vi.fn()
   }
 } ) );
 
@@ -32,7 +33,7 @@ describe( 'http_logger', () => {
     vi.clearAllMocks();
   } );
 
-  it( 'includes request size fields for 413 errors', async () => {
+  it( 'logs 4xx at warn with a descriptive message and request size fields for 413', async () => {
     const app = createApp( ( _req, res ) => {
       const error = new Error( 'request entity too large' );
       error.status = 413;
@@ -47,12 +48,12 @@ describe( 'http_logger', () => {
       .send( {} )
       .expect( 413 );
 
-    expect( logger.http ).toHaveBeenCalledWith(
-      'HTTP request',
+    expect( logger.warn ).toHaveBeenCalledWith(
+      expect.stringMatching( /^POST \/workflow 413 [\d.]+ms$/ ),
       expect.objectContaining( {
         method: 'POST',
         url: '/workflow',
-        status: 413,
+        'http.status_code': 413,
         requestId: 'test-request-id',
         errorType: 'Error',
         errorMessage: 'request entity too large',
@@ -61,35 +62,11 @@ describe( 'http_logger', () => {
         limit: '2mb'
       } )
     );
+    expect( logger.error ).not.toHaveBeenCalled();
+    expect( logger.http ).not.toHaveBeenCalled();
   } );
 
-  it( 'handles missing content-length for 413 errors', done => {
-    const middleware = createHttpLoggingMiddleware();
-    const error = new Error( 'request entity too large' );
-    error.status = 413;
-    error.limit = '2mb';
-    const req = { id: 'test-request-id', url: '/workflow', method: 'POST', headers: {}, body: {} };
-    const res = {
-      locals: { error },
-      statusCode: 413,
-      getHeader: vi.fn().mockReturnValue( '0' ),
-      once: vi.fn( ( event, cb ) => {
-        if ( event === 'finish' ) {
-          setImmediate( () => {
-            cb();
-            expect( logger.http ).toHaveBeenCalledWith(
-              'HTTP request',
-              expect.objectContaining( { requestSizeBytes: undefined, requestSizeMB: 'unknown', limit: '2mb' } )
-            );
-            done();
-          } );
-        }
-      } )
-    };
-    middleware( req, res, () => {} );
-  } );
-
-  it( 'does not include request size fields for non-413 errors', async () => {
+  it( 'logs 5xx at error and omits request size fields for non-413 errors', async () => {
     const app = createApp( ( _req, res ) => {
       res.locals.error = new Error( 'Something went wrong' );
       res.status( 500 ).send( {} );
@@ -97,9 +74,58 @@ describe( 'http_logger', () => {
 
     await request( app ).post( '/workflow' ).set( 'X-Request-ID', 'test-request-id' ).send( {} ).expect( 500 );
 
-    const logData = logger.http.mock.calls[0][1];
+    expect( logger.error ).toHaveBeenCalledTimes( 1 );
+    const [ message, logData ] = logger.error.mock.calls[0];
+    expect( message ).toMatch( /^POST \/workflow 500 [\d.]+ms$/ );
+    expect( logData ).toMatchObject( { 'http.status_code': 500, errorType: 'Error', errorMessage: 'Something went wrong' } );
     expect( logData ).not.toHaveProperty( 'requestSizeBytes' );
     expect( logData ).not.toHaveProperty( 'requestSizeMB' );
     expect( logData ).not.toHaveProperty( 'limit' );
+    expect( logger.warn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'logs 2xx at http level', async () => {
+    const app = createApp( ( _req, res ) => res.status( 200 ).send( { ok: true } ) );
+
+    await request( app ).post( '/workflow' ).set( 'X-Request-ID', 'test-request-id' ).send( {} ).expect( 200 );
+
+    expect( logger.http ).toHaveBeenCalledWith(
+      expect.stringMatching( /^POST \/workflow 200 [\d.]+ms$/ ),
+      expect.objectContaining( { 'http.status_code': 200, requestId: 'test-request-id' } )
+    );
+    expect( logger.error ).not.toHaveBeenCalled();
+    expect( logger.warn ).not.toHaveBeenCalled();
+  } );
+
+  it( 'skips health and heartbeat endpoints', async () => {
+    const app = express();
+    app.use( createHttpLoggingMiddleware() );
+    app.get( '/health', ( _req, res ) => res.sendStatus( 200 ) );
+
+    await request( app ).get( '/health' ).expect( 200 );
+
+    expect( logger.http ).not.toHaveBeenCalled();
+    expect( logger.warn ).not.toHaveBeenCalled();
+    expect( logger.error ).not.toHaveBeenCalled();
+  } );
+
+  it( 'logs once when both finish and close fire', () => {
+    const middleware = createHttpLoggingMiddleware();
+    const req = { id: 'test-request-id', url: '/workflow', originalUrl: '/workflow', method: 'POST', headers: {}, body: {} };
+    const handlers = {};
+    const res = {
+      locals: {},
+      statusCode: 200,
+      getHeader: vi.fn().mockReturnValue( '2' ),
+      once: vi.fn( ( event, cb ) => {
+        handlers[event] = cb;
+      } )
+    };
+
+    middleware( req, res, () => {} );
+    handlers.finish();
+    handlers.close();
+
+    expect( logger.http ).toHaveBeenCalledTimes( 1 );
   } );
 } );
