@@ -128,4 +128,29 @@ describe( 'http_logger', () => {
 
     expect( logger.http ).toHaveBeenCalledTimes( 1 );
   } );
+
+  it( 'reports requestSizeMB "unknown" for a 413 with no content-length', () => {
+    const middleware = createHttpLoggingMiddleware();
+    const error = new Error( 'request entity too large' );
+    error.status = 413;
+    error.limit = '2mb';
+    const req = { id: 'test-request-id', url: '/workflow', originalUrl: '/workflow', method: 'POST', headers: {}, body: {} };
+    const handlers = {};
+    const res = {
+      locals: { error },
+      statusCode: 413,
+      getHeader: vi.fn().mockReturnValue( '0' ),
+      once: vi.fn( ( event, cb ) => {
+        handlers[event] = cb;
+      } )
+    };
+
+    middleware( req, res, () => {} );
+    handlers.finish();
+
+    expect( logger.warn ).toHaveBeenCalledWith(
+      expect.any( String ),
+      expect.objectContaining( { requestSizeBytes: undefined, requestSizeMB: 'unknown', limit: '2mb' } )
+    );
+  } );
 } );
