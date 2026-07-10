@@ -10,6 +10,7 @@ import { formatDurationLabel } from '#utils/waterfall.js';
 import { diffSpanUpdates, formatSpanUpdate } from '#utils/monitor_log.js';
 import { ERROR_STATUSES, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
+import { getErrorMessage } from '#utils/error_utils.js';
 import { sleep } from '#utils/sleep.js';
 import { shouldColorize } from '#utils/color.js';
 import { HttpError } from '#api/http_client.js';
@@ -241,7 +242,7 @@ export default class WorkflowMonitor extends Command {
       if ( state.firstTick || !isTransientPollError( error ) || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
         throw error;
       }
-      this.warn( `Poll failed (${state.consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${( error as Error ).message}` );
+      this.warn( `Poll failed (${state.consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${getErrorMessage( error )}` );
       return null;
     }
   }

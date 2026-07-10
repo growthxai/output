@@ -10,6 +10,7 @@
 import { getWorkflowIdHistory, type GetWorkflowIdHistory200 } from '#api/generated/api.js';
 import { correlate, eventAttributes, eventTypeName, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
+import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 
 const PAGE_SIZE = 50;
 
@@ -62,6 +63,13 @@ export interface WorkflowHistoryCursor {
   meta: WorkflowMeta | null;
   runId: string | undefined;
   events: HistoryEvent[];
+}
+
+// The status here comes from the request's own describe (fresh whenever `wait` is
+// set), so it can report the run closed before the closing event has been paged in.
+function isRunClosed( meta: WorkflowMeta | null ): boolean {
+  const status = normalizeWorkflowStatus( meta?.status );
+  return status === 'continued_as_new' || ( status !== undefined && TERMINAL_STATUSES.has( status ) );
 }
 
 function numericEventId( event: HistoryEvent ): number {
@@ -154,11 +162,13 @@ async function fetchPages(
   const nextToken = data.nextPageToken ?? undefined;
   const nextAcc: WorkflowHistoryCursor = { meta, runId: resolvedRunId, events, lastEventId, pageToken: nextToken ?? pageToken };
 
-  // While long-polling, stop and hand back the first batch of new events instead of
-  // draining further pages — a poller needs each transition rendered as it arrives, not
-  // several (possibly including a terminal one) silently merged into a single response
-  // after however long it took to walk to the current tip.
-  if ( wait && newEvents.length > 0 ) {
+  // While long-polling an open run, stop and hand back the first batch of new events
+  // instead of draining further pages — a poller needs each transition rendered as it
+  // arrives, and the buffered remainder will surface on subsequent ticks. Once the run
+  // is closed, though, no further ticks are coming: the poller acts on the closed
+  // status immediately, so stopping early would strand the trailing pages — including
+  // the terminal or CONTINUED_AS_NEW event — unfetched. Drain to the tip instead.
+  if ( wait && newEvents.length > 0 && !isRunClosed( meta ) ) {
     return nextAcc;
   }
 

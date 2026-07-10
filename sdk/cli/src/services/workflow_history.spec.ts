@@ -196,6 +196,57 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
     expect( cursor.lastEventId ).toBe( 1 );
   } );
 
+  it( 'drains buffered pages when the describe already reports the run closed, so the terminal events are not stranded', async () => {
+    // >1 page of events accumulated between polls, then the run completed: the fresh
+    // describe says 'completed' before the closing events have been paged in. Stopping
+    // after the first batch would make the poller act on the terminal status with the
+    // final steps' events unfetched.
+    mockGet
+      .mockResolvedValueOnce( page( {
+        workflow: { workflowId: 'wf-8', runId: 'run-8', status: 'completed', startTime: at( 0 ), closeTime: at( 30 ) },
+        runId: 'run-8',
+        events: [ workflowStarted( 0 ), scheduled( '2', 'wf#step', 0 ) ],
+        nextPageToken: 'page-2'
+      } ) )
+      .mockResolvedValueOnce( page( {
+        workflow: null,
+        runId: 'run-8',
+        events: [ started( '3', '2', 1 ), completed( '4', '2', 30 ) ],
+        nextPageToken: null
+      } ) );
+
+    const { result } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-8', runId: 'run-8' } );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 2 );
+    expect( result.events ).toHaveLength( 4 );
+    expect( result.spans ).toHaveLength( 1 );
+    expect( result.spans[0].status ).toBe( 'completed' );
+  } );
+
+  it( 'drains to the CONTINUED_AS_NEW event on a later page when the describe already reports continued_as_new', async () => {
+    mockGet
+      .mockResolvedValueOnce( page( {
+        workflow: { workflowId: 'wf-9', runId: 'run-9', status: 'continued_as_new', startTime: at( 0 ) },
+        runId: 'run-9',
+        events: [ workflowStarted( 0 ) ],
+        nextPageToken: 'page-2'
+      } ) )
+      .mockResolvedValueOnce( page( {
+        workflow: null,
+        runId: 'run-9',
+        events: [ {
+          eventId: '2', eventTypeName: 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW', eventTime: at( 60 ),
+          workflowExecutionContinuedAsNewEventAttributes: { newExecutionRunId: 'run-10' }
+        } ],
+        nextPageToken: null
+      } ) );
+
+    const { result } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-9', runId: 'run-9' } );
+
+    expect( mockGet ).toHaveBeenCalledTimes( 2 );
+    expect( result.continuedAsNewRunId ).toBe( 'run-10' );
+  } );
+
   it( 'forwards waitMs to the API on a resumed poll', async () => {
     mockGet.mockResolvedValueOnce( page( {
       workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
