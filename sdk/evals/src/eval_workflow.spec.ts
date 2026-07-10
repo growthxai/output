@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { evalWorkflow } from './eval_workflow.js';
 
 type EvalWorkflowRunner = {
-  call: (
-    context: { invokeEvaluator: ( name: string, input: unknown ) => Promise<unknown> },
-    input: { datasets: Array<Record<string, unknown>> }
-  ) => Promise<{
+  ( input: { datasets: Array<Record<string, unknown>> } ): Promise<{
     cases: Array<{
       datasetName: string;
       evaluators: Array<{ name: string; verdict: string; criticality: string }>
@@ -13,6 +10,7 @@ type EvalWorkflowRunner = {
   }>
 };
 
+const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
 const workflowMock = vi.hoisted( () => vi.fn( ( { fn }: { fn: unknown } ) => fn ) );
 const executeInParallelMock = vi.hoisted( () => vi.fn( async ( { jobs }: { jobs: Array<() => Promise<unknown>> } ) => {
   const results = await Promise.all( jobs.map( async job => ( { ok: true, result: await job() } ) ) );
@@ -40,6 +38,7 @@ vi.mock( '@outputai/core/sdk/helpers', () => ( {
 describe( 'evalWorkflow', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    delete ( globalThis as Record<symbol, unknown> )[INVOKE_ACTIVITY_SYMBOL];
     hasMock.mockReturnValue( true );
     getNameMock.mockReturnValue( 'quality_eval' );
   } );
@@ -53,9 +52,10 @@ describe( 'evalWorkflow', () => {
         interpret: { type: 'boolean' }
       } ]
     } ) as EvalWorkflowRunner;
-    const invokeEvaluator = vi.fn().mockResolvedValue( { value: true, confidence: 1, feedback: [], dimensions: [] } );
+    const invokeActivity = vi.fn().mockResolvedValue( { value: true, confidence: 1, feedback: [], dimensions: [] } );
+    ( globalThis as Record<symbol, unknown> )[INVOKE_ACTIVITY_SYMBOL] = invokeActivity;
 
-    const output = await workflowFn.call( { invokeEvaluator }, {
+    const output = await workflowFn( {
       datasets: [ {
         name: 'case_1',
         input: { prompt: 'hello' },
@@ -71,7 +71,7 @@ describe( 'evalWorkflow', () => {
 
     expect( hasMock ).toHaveBeenCalledWith( evaluator );
     expect( getNameMock ).toHaveBeenCalledWith( evaluator );
-    expect( invokeEvaluator ).toHaveBeenCalledWith( 'quality_eval', {
+    expect( invokeActivity ).toHaveBeenCalledWith( 'quality_eval', {
       input: { prompt: 'hello' },
       output: { answer: 'hello' },
       ground_truth: { shared: 'value', expected: 'hello' }
