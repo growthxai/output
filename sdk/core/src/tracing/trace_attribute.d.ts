@@ -4,6 +4,7 @@ export declare namespace Attribute {
     ppm: number;
     amount: number;
     total: number;
+    unit?: string;
   }
 
   export class HTTPRequestCount {
@@ -29,7 +30,7 @@ export declare namespace Attribute {
     modelId: string;
     usage: Usage[];
     constructor( modelId: string );
-    addUsage( usage: { type: string; ppm: number; amount: number } ): void;
+    addUsage( usage: { type: string; ppm: number; amount: number; unit?: string } ): void;
     readonly total: number;
     readonly tokensUsed: number;
   }

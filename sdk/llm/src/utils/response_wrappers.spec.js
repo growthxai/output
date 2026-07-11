@@ -71,7 +71,9 @@ describe( 'wrapTextResponse', () => {
     expect( wrapped.cost ).toEqual( mockCost );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.totalUsage,
-      modelId
+      modelId,
+      providerMetadata: response.providerMetadata,
+      steps: response.steps
     } );
     expect( mocks.extractSourcesFromSteps ).toHaveBeenCalledWith( response.steps );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
@@ -188,7 +190,9 @@ describe( 'wrapStreamOnFinishResponse', () => {
     } );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.totalUsage,
-      modelId
+      modelId,
+      providerMetadata: response.providerMetadata,
+      steps: response.steps
     } );
   } );
 } );

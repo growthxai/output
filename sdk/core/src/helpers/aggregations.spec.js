@@ -88,5 +88,20 @@ describe( 'aggregateAttributes', () => {
       output: 5
     } );
   } );
-} );
 
+  it( 'includes non-token usage in cost but excludes it from token aggregates', () => {
+    const llmUsage = new Attribute.LLMUsage( 'gemini-3.5-flash' );
+    llmUsage.addUsage( { type: 'input', ppm: 1.5, amount: 1_000 } );
+    llmUsage.addUsage( {
+      type: 'google_search_grounding',
+      unit: 'query',
+      ppm: 14_000,
+      amount: 2
+    } );
+
+    expect( aggregateAttributes( [ llmUsage ] ) ).toMatchObject( {
+      cost: { total: 0.0295 },
+      tokens: { total: 1_000, input: 1_000 }
+    } );
+  } );
+} );

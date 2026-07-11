@@ -95,18 +95,21 @@ The handler receives a single LLM usage attribute object:
 | `modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
 | `usage` | `array` | Priced usage entries for this call. See [Usage entries](#usage-entries). |
 | `total` | `number` | Total estimated cost in dollars. |
-| `tokensUsed` | `number` | Total number of tokens represented by `usage`. |
+| `tokensUsed` | `number` | Total token count. Non-token priced usage, such as grounding queries, is excluded. |
 
 ### Usage entries
 
-Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(tokens / 1_000_000) * pricePerMillion`. Non-cached input tokens use `inputTokens - (cachedInputTokens ?? 0)`.
+Cost is computed from list pricing. Model token pricing is fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(amount / 1_000_000) * ppm`. Non-cached input tokens use `inputTokens - (cachedInputTokens ?? 0)`.
+
+Gemini 3 Google Search grounding is included when the provider returns `groundingMetadata.webSearchQueries`. It appears as `google_search_grounding` with `unit: "query"`, using Google's $14 per 1,000-query list price. Account-level free tiers and negotiated discounts are not applied to per-call estimates.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `type` | `string` | Usage dimension. |
-| `ppm` | `number` | Price per million tokens for this dimension. |
-| `amount` | `number` | Token count for this dimension. |
+| `ppm` | `number` | Price per million units for this dimension. |
+| `amount` | `number` | Number of priced units. |
 | `total` | `number` | Cost for this dimension. |
+| `unit` | `string` | Optional unit when the entry is not token-based, such as `query`. |
 
 `usage[].type` values:
 
@@ -116,6 +119,7 @@ Cost is computed from the model's per-million-token pricing, fetched from a buil
 | `input_cached` | Cached prompt read tokens (`cachedInputTokens`). |
 | `output` | Completion tokens. |
 | `reasoning` | Reasoning tokens, only when the model defines separate reasoning pricing. |
+| `google_search_grounding` | Gemini 3 Google Search queries (`unit: "query"`). |
 
 Only available, finite usage dimensions are included. For example, `reasoning` is omitted when the model does not define separate reasoning pricing, and `input_cached` is omitted when there are no cached input tokens.
 

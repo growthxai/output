@@ -34,6 +34,7 @@ export const aggregateAttributes = attributes => ( {
     ...Object.entries( attributes
       .filter( a => Attribute.LLMUsage.TYPE === a.type )
       .flatMap( a => a.usage )
+      .filter( a => !a.unit || a.unit === 'token' )
       .reduce( ( obj, a ) => Object.assign( obj, { [a.type]: ( obj[a.type] ?? Decimal( 0 ) ).add( a.amount ) } ), {} ) )
       .reduce( ( obj, [ k, v ] ) => Object.assign( obj, { [k]: v.toNumber() } ), {} ) // convert all values to number
 

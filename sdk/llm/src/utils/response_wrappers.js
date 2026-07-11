@@ -19,7 +19,7 @@ import { calculateBase64FileSize } from './image.js';
 export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
   const { totalUsage: usage, providerMetadata, text: result, steps, sources } = response;
 
-  const cost = await calculateLLMCallCost( { usage, modelId } );
+  const cost = await calculateLLMCallCost( { usage, modelId, providerMetadata, steps } );
   const sourcesFromTools = extractSourcesFromSteps( steps );
 
   endTraceWithSuccess( { traceId, usage, cost, result, providerMetadata, sourcesFromTools } );

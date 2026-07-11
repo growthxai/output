@@ -17,12 +17,13 @@ vi.mock( '@outputai/core/sdk/runtime', () => {
       this.modelId = modelId;
     }
 
-    addUsage( { type, ppm, amount } ) {
+    addUsage( { type, ppm, amount, unit = 'token' } ) {
       this.usage.push( {
         type,
         ppm,
         amount,
-        total: ( amount / 1_000_000 ) * ppm
+        total: ( amount / 1_000_000 ) * ppm,
+        ...( unit === 'token' ? {} : { unit } )
       } );
     }
 
@@ -31,7 +32,9 @@ vi.mock( '@outputai/core/sdk/runtime', () => {
     }
 
     get tokensUsed() {
-      return this.usage.reduce( ( total, current ) => total + current.amount, 0 );
+      return this.usage
+        .filter( current => !current.unit || current.unit === 'token' )
+        .reduce( ( total, current ) => total + current.amount, 0 );
     }
   }
 
@@ -105,6 +108,38 @@ describe( 'calculateLLMCallCost', () => {
       ],
       total: 7,
       tokensUsed: 1_500_000
+    } );
+  } );
+
+  it( 'includes Gemini 3 search grounding cost without counting queries as tokens', async () => {
+    mockFetchModelsPricing.mockResolvedValue( new Map( [ [
+      'gemini-3.5-flash',
+      { input: 1.5, output: 9 }
+    ] ] ) );
+
+    const result = await calculateLLMCallCost( {
+      modelId: 'gemini-3.5-flash',
+      usage: { inputTokens: 1_000, outputTokens: 100 },
+      providerMetadata: {
+        vertex: { groundingMetadata: { webSearchQueries: [ 'one', 'two' ] } }
+      }
+    } );
+
+    expectLLMUsage( result, {
+      modelId: 'gemini-3.5-flash',
+      usage: [
+        { type: 'input', ppm: 1.5, amount: 1_000, total: 0.0015 },
+        { type: 'output', ppm: 9, amount: 100, total: ( 100 / 1_000_000 ) * 9 },
+        {
+          type: 'google_search_grounding',
+          unit: 'query',
+          ppm: 14_000,
+          amount: 2,
+          total: ( 2 / 1_000_000 ) * 14_000
+        }
+      ],
+      total: 0.0304,
+      tokensUsed: 1_100
     } );
   } );
 

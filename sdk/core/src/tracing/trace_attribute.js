@@ -49,16 +49,19 @@ class LLMUsage extends BaseAttribute {
     this.modelId = modelId;
   }
 
-  addUsage( { type, ppm, amount } ) {
+  addUsage( { type, ppm, amount, unit = 'token' } ) {
     const total = Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber();
     this.usage.push( {
       type,
       ppm,
       amount,
-      total
+      total,
+      ...( unit === 'token' ? {} : { unit } )
     } );
     this.total = Decimal( this.total ).add( total ).toNumber();
-    this.tokensUsed = Decimal( this.tokensUsed ).add( amount ).toNumber();
+    if ( unit === 'token' ) {
+      this.tokensUsed = Decimal( this.tokensUsed ).add( amount ).toNumber();
+    }
   }
 }
 

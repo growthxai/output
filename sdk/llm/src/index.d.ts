@@ -359,6 +359,7 @@ export type LLMUsageEvent = {
     ppm: number;
     amount: number;
     total: number;
+    unit?: string;
   }>;
   total: number;
   tokensUsed: number;

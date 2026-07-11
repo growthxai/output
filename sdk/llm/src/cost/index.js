@@ -1,15 +1,18 @@
 import { fetchModelsPricing } from './fetch_models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { Logger } from '@outputai/core';
+import { getGoogleSearchGroundingUsage } from './google_search_grounding.js';
 
 /**
  * Calculates the cost of an llm call based on the model and usage.
  * @param {object} args
  * @param {string} args.modelId - Name of the model, provider prefix is optional
  * @param {object} args.usage - Usage, as returned from AI SDK
+ * @param {object} [args.providerMetadata] - AI SDK provider metadata
+ * @param {Array<object>} [args.steps] - AI SDK text-generation steps
  * @returns {object} The cost with total value and components
  */
-export const calculateLLMCallCost = async ( { modelId, usage } ) => {
+export const calculateLLMCallCost = async ( { modelId, usage, providerMetadata, steps } ) => {
   try {
     const models = await fetchModelsPricing();
 
@@ -47,6 +50,11 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
     // When there are no reasoning costs, providers do not differentiate reasoning vs output, so the price is included in the output
     if ( Number.isFinite( pricing.reasoning ) && Number.isFinite( reasoningTokens ) ) {
       llmUsage.addUsage( { type: 'reasoning', ppm: pricing.reasoning, amount: reasoningTokens } );
+    }
+
+    const groundingUsage = getGoogleSearchGroundingUsage( { modelId, providerMetadata, steps } );
+    if ( groundingUsage ) {
+      llmUsage.addUsage( groundingUsage );
     }
 
     return llmUsage;
