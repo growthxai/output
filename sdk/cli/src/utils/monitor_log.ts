@@ -14,6 +14,10 @@ const GLYPH: Record<SpanStatus, string> = {
   failed: '✗'
 };
 
+// Continue-as-new is a workflow-level transition, not a span status, so it gets its own glyph
+// here in the formatting layer rather than being concatenated into the message at the call site.
+const CONTINUED_AS_NEW_GLYPH = '↻';
+
 export interface SpanUpdate {
   span: Span;
   label: string;
@@ -38,6 +42,11 @@ export function diffSpanUpdates(
     updates.push( { span, label: labels.get( span.id ) ?? span.name } );
   }
   return updates;
+}
+
+/** Formats the continue-as-new transition line, keeping its glyph in the formatting layer. */
+export function formatContinuedAsNew( runId: string ): string {
+  return `${CONTINUED_AS_NEW_GLYPH} continued as new run ${runId}`;
 }
 
 export function formatSpanUpdate( update: SpanUpdate, color: boolean ): string {

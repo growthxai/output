@@ -52,7 +52,7 @@ describe( 'workflow_history handler', () => {
       pageSize: 20,
       pageToken: undefined,
       includePayloads: false,
-      wait: false
+      longPollTimeoutMs: undefined
     } );
   } );
 
@@ -61,7 +61,7 @@ describe( 'workflow_history handler', () => {
     const token = Buffer.from( 'page-data' ).toString( 'base64' );
 
     await request( createApp() )
-      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true&wait=true` )
+      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true&longPollTimeoutMs=2500` )
       .expect( 200 );
 
     expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', {
@@ -69,45 +69,29 @@ describe( 'workflow_history handler', () => {
       pageSize: 30,
       pageToken: token,
       includePayloads: true,
-      wait: true
+      longPollTimeoutMs: 2500
     } );
   } );
 
-  it( 'defaults wait to false', async () => {
+  it( 'omits longPollTimeoutMs when not provided', async () => {
     mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
 
     await request( createApp() )
       .get( '/workflow/wf-123/history' )
       .expect( 200 );
 
-    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { wait: false } ) );
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { longPollTimeoutMs: undefined } ) );
   } );
 
-  it( 'rejects non-boolean wait values', async () => {
+  it( 'rejects a non-positive longPollTimeoutMs', async () => {
     await request( createApp() )
-      .get( '/workflow/wf-123/history?wait=yes' )
+      .get( '/workflow/wf-123/history?longPollTimeoutMs=0' )
       .expect( 400 );
   } );
 
-  it( 'passes waitMs through to the client', async () => {
-    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
-
+  it( 'rejects a non-numeric longPollTimeoutMs', async () => {
     await request( createApp() )
-      .get( '/workflow/wf-123/history?wait=true&waitMs=2500' )
-      .expect( 200 );
-
-    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { waitMs: 2500 } ) );
-  } );
-
-  it( 'rejects a non-positive waitMs', async () => {
-    await request( createApp() )
-      .get( '/workflow/wf-123/history?wait=true&waitMs=0' )
-      .expect( 400 );
-  } );
-
-  it( 'rejects a non-numeric waitMs', async () => {
-    await request( createApp() )
-      .get( '/workflow/wf-123/history?wait=true&waitMs=soon' )
+      .get( '/workflow/wf-123/history?longPollTimeoutMs=soon' )
       .expect( 400 );
   } );
 

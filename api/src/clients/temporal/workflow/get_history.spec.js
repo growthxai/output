@@ -18,7 +18,7 @@ vi.mock( '#logger', () => ( {
 } ) );
 
 vi.mock( '#configs', () => ( {
-  temporal: { historyWaitTimeoutMs: 15_000 }
+  temporal: { historyMaxWaitTimeoutMs: 15_000 }
 } ) );
 
 vi.mock( '../../event_serialization.js', () => ( {
@@ -160,12 +160,12 @@ describe( 'getHistory', () => {
     expect( result.nextPageToken ).toBeNull();
   } );
 
-  it( 'passes waitNewEvent and the configured deadline through when wait is requested', async () => {
+  it( 'passes waitNewEvent and the configured deadline through when a long-poll timeout is requested', async () => {
     const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
 
-    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
 
-    // wait:true re-describes even on a later page (resolving to 'resolved-run', the fixture's
+    // A long-poll re-describes even on a later page (resolving to 'resolved-run', the fixture's
     // describeWorkflow stub), so status stays live across a resumed poll — see the next test.
     expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
       maximumPageSize: 20,
@@ -176,8 +176,8 @@ describe( 'getHistory', () => {
     } );
   } );
 
-  it( 'clamps deadlineMs to the configured max when waitMs requests a shorter wait', async () => {
-    await getHistory( { client, connection }, 'workflow-id', { wait: true, waitMs: 2_500 } );
+  it( 'clamps deadlineMs to the configured max when longPollTimeoutMs requests a shorter wait', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 2_500 } );
 
     expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
       maximumPageSize: 20,
@@ -188,15 +188,15 @@ describe( 'getHistory', () => {
     } );
   } );
 
-  it( 'ignores a waitMs longer than the configured max, capping at historyWaitTimeoutMs', async () => {
-    await getHistory( { client, connection }, 'workflow-id', { wait: true, waitMs: 60_000 } );
+  it( 'ignores a longPollTimeoutMs longer than the configured max, capping at historyMaxWaitTimeoutMs', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 60_000 } );
 
     expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', expect.objectContaining( {
       deadlineMs: 15_000
     } ) );
   } );
 
-  it( 'does not pass waitNewEvent/deadlineMs when wait is not requested', async () => {
+  it( 'does not pass waitNewEvent/deadlineMs when no long-poll timeout is requested', async () => {
     await getHistory( { client, connection }, 'workflow-id', { pageSize: 30 } );
 
     expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
@@ -206,15 +206,15 @@ describe( 'getHistory', () => {
     } );
   } );
 
-  it( 're-describes on a later page when wait is requested, so a resumed poll sees a status change', async () => {
+  it( 're-describes on a later page when a long-poll timeout is requested, so a resumed poll sees a status change', async () => {
     const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
 
-    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
 
     expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client }, 'workflow-id', { runId: 'run-id' } );
   } );
 
-  it( 'skips the describe call on a later page when wait is not requested', async () => {
+  it( 'skips the describe call on a later page when no long-poll timeout is requested', async () => {
     const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
 
     await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken } );
@@ -226,7 +226,7 @@ describe( 'getHistory', () => {
     const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
     mockFetchHistoryPage.mockResolvedValue( null );
 
-    const result = await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, wait: true } );
+    const result = await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
 
     expect( result ).toEqual( {
       workflow: expect.objectContaining( { workflowId: 'workflow-id' } ),
@@ -240,7 +240,7 @@ describe( 'getHistory', () => {
   it( 'returns a null nextPageToken when a first-page wait call times out', async () => {
     mockFetchHistoryPage.mockResolvedValue( null );
 
-    const result = await getHistory( { client, connection }, 'workflow-id', { wait: true } );
+    const result = await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 15_000 } );
 
     expect( result.nextPageToken ).toBeNull();
     expect( result.workflow ).toEqual( expect.objectContaining( { workflowId: 'workflow-id' } ) );

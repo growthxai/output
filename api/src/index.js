@@ -1156,24 +1156,17 @@ app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
  *           default: false
  *         description: Include decoded input/output payloads in events
  *       - in: query
- *         name: wait
- *         schema:
- *           type: boolean
- *           default: false
- *         description: >
- *           Long-poll for a new event when already caught up to the end of history, instead of
- *           returning immediately. Bounded server-side; on timeout returns the same page's
- *           cursor unchanged with an empty events array so the caller can retry.
- *       - in: query
- *         name: waitMs
+ *         name: longPollTimeoutMs
  *         schema:
  *           type: integer
  *           minimum: 1
  *         description: >
- *           Upper bound in milliseconds for how long a `wait` long-poll may block. Only takes
- *           effect when `wait` is true, and only ever shortens the server's configured long-poll
- *           deadline, never lengthens it. Lets a caller (e.g. a poller with its own tick interval)
- *           keep the block roughly aligned with its own cadence.
+ *           When set, long-poll for a new event once caught up to the end of history instead of
+ *           returning immediately, bounding the block by this many milliseconds. Clamped to the
+ *           server's configured maximum — a caller can shorten the wait but never exceed it. Omit
+ *           for an immediate response; on timeout returns the same page's cursor unchanged with an
+ *           empty events array so the caller can retry. Lets a poller keep the block roughly
+ *           aligned with its own tick interval.
  *     responses:
  *       200:
  *         description: Paginated history events
@@ -1240,24 +1233,17 @@ app.get( '/workflow/:id/runs/:rid/trace-log', traceLogHandler );
  *           default: false
  *         description: Include decoded input/output payloads in events
  *       - in: query
- *         name: wait
- *         schema:
- *           type: boolean
- *           default: false
- *         description: >
- *           Long-poll for a new event when already caught up to the end of history, instead of
- *           returning immediately. Bounded server-side; on timeout returns the same page's
- *           cursor unchanged with an empty events array so the caller can retry.
- *       - in: query
- *         name: waitMs
+ *         name: longPollTimeoutMs
  *         schema:
  *           type: integer
  *           minimum: 1
  *         description: >
- *           Upper bound in milliseconds for how long a `wait` long-poll may block. Only takes
- *           effect when `wait` is true, and only ever shortens the server's configured long-poll
- *           deadline, never lengthens it. Lets a caller (e.g. a poller with its own tick interval)
- *           keep the block roughly aligned with its own cadence.
+ *           When set, long-poll for a new event once caught up to the end of history instead of
+ *           returning immediately, bounding the block by this many milliseconds. Clamped to the
+ *           server's configured maximum — a caller can shorten the wait but never exceed it. Omit
+ *           for an immediate response; on timeout returns the same page's cursor unchanged with an
+ *           empty events array so the caller can retry. Lets a poller keep the block roughly
+ *           aligned with its own tick interval.
  *     responses:
  *       200:
  *         description: Paginated history events

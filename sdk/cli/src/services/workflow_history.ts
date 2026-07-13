@@ -28,9 +28,10 @@ export interface FetchWorkflowHistoryOptions {
   workflowId: string;
   runId?: string;
   includePayloads?: boolean;
-  // Upper bound (ms) for a `wait` long-poll; only applies to `fetchWorkflowHistoryUpdates`.
-  // See `fetchPages`'s `wait` param — omitting it uses the server's full configured deadline.
-  waitMs?: number;
+  // Long-poll bound (ms) for `fetchWorkflowHistoryUpdates`: when set, each resumed poll asks the
+  // server to block up to this long for a new event (clamped to the server's ceiling). Required in
+  // practice for updates — omitting it makes each poll return immediately (no long-poll).
+  longPollTimeoutMs?: number;
 }
 
 export interface WorkflowHistoryResult {
@@ -126,20 +127,21 @@ function totalDuration( meta: WorkflowMeta | null, spans: Span[], startMs: numbe
 
 /**
  * Pages through history starting from `acc` (its `pageToken`/`lastEventId`/`events` carry
- * the resume position — pass a zeroed cursor for a fresh walk). With `wait` set, every
- * request asks the server to long-poll (`waitNewEvent`) rather than return immediately, so
- * the final hop blocks (bounded server-side, or by `waitMs` when given — see
- * `FetchWorkflowHistoryOptions.waitMs`) until either a new event exists or the deadline
- * elapses. `lastEventId` de-dupes: resuming from a previously-seen page token replays that
- * page's events, which are filtered out here rather than appended twice.
+ * the resume position — pass a zeroed cursor for a fresh walk). When `longPollTimeoutMs` is
+ * set, every request asks the server to long-poll (`waitNewEvent`) rather than return
+ * immediately, so the final hop blocks — up to that many milliseconds (clamped to the server's
+ * ceiling) — until either a new event exists or the deadline elapses. `lastEventId` de-dupes:
+ * resuming from a previously-seen page token replays that page's events, which are filtered out
+ * here rather than appended twice.
  */
 async function fetchPages(
-  workflowId: string, includePayloads: boolean, wait: boolean, acc: WorkflowHistoryCursor, waitMs?: number
+  workflowId: string, includePayloads: boolean, acc: WorkflowHistoryCursor, longPollTimeoutMs?: number
 ): Promise<WorkflowHistoryCursor> {
+  const wait = longPollTimeoutMs !== undefined && longPollTimeoutMs > 0;
   const { pageToken, runId } = acc;
   const response = await getWorkflowIdHistory( workflowId, {
     runId, pageSize: PAGE_SIZE, pageToken, includePayloads,
-    ...( wait ? { wait: true, ...( waitMs ? { waitMs } : {} ) } : {} )
+    ...( wait ? { longPollTimeoutMs } : {} )
   } );
   if ( !response.data ) {
     throw new Error( 'API returned invalid response (missing data)' );
@@ -179,7 +181,7 @@ async function fetchPages(
     return nextAcc;
   }
   if ( nextToken ) {
-    return fetchPages( workflowId, includePayloads, wait, nextAcc, waitMs );
+    return fetchPages( workflowId, includePayloads, nextAcc, longPollTimeoutMs );
   }
   // Drained: the server has nothing more buffered (`nextToken` is empty), but unlike
   // `nextToken`, `pageToken` — the position that fetched this now-empty page — is still a
@@ -214,7 +216,7 @@ export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions
   const { workflowId, runId, includePayloads = false } = options;
 
   const pages = await fetchPages(
-    workflowId, includePayloads, false, { meta: null, runId, events: [], lastEventId: 0, pageToken: undefined }
+    workflowId, includePayloads, { meta: null, runId, events: [], lastEventId: 0, pageToken: undefined }
   );
 
   return buildResult( pages );
@@ -230,11 +232,11 @@ export async function fetchWorkflowHistoryUpdates(
   options: FetchWorkflowHistoryOptions,
   cursor?: WorkflowHistoryCursor
 ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor }> {
-  const { workflowId, includePayloads = false, waitMs } = options;
+  const { workflowId, includePayloads = false, longPollTimeoutMs } = options;
   const seed: WorkflowHistoryCursor = cursor ??
     { meta: null, runId: options.runId, events: [], lastEventId: 0, pageToken: undefined };
 
-  const pages = await fetchPages( workflowId, includePayloads, true, seed, waitMs );
+  const pages = await fetchPages( workflowId, includePayloads, seed, longPollTimeoutMs );
 
   return { result: buildResult( pages ), cursor: pages };
 }

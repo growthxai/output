@@ -33,27 +33,25 @@ import { fetchHistoryPage } from './fetch_history_page.js';
  * @param {object} options.pageSize - Amount of results default=20
  * @param {object} options.pageToken - Used to retrieve next page, must be used together with runId
  * @param {object} options.includePayloads - Omit/display payloads, default=false
- * @param {boolean} [options.wait] - Long-poll for a new event when already caught up to the
- *   end of history, bounded by `temporal.historyWaitTimeoutMs`, instead of returning
- *   immediately. Lets a resumable poller (`workflow monitor`) avoid restarting from page 1
- *   on every tick.
- * @param {number} [options.waitMs] - Caller-requested upper bound (ms) for a `wait` long-poll,
- *   letting a poller keep the block roughly aligned with its own poll cadence instead of
- *   always blocking for the full `temporal.historyWaitTimeoutMs`. Clamped to that value —
- *   callers can shorten the long-poll, never lengthen it past the server's configured cap.
+ * @param {number} [options.longPollTimeoutMs] - When set (and positive), long-poll for a new
+ *   event once caught up to the end of history instead of returning immediately, bounding the
+ *   block by this many milliseconds. Clamped to `temporal.historyMaxWaitTimeoutMs` — a caller
+ *   can shorten the wait but never exceed the server-configured ceiling. Omit for an immediate
+ *   response. Lets a resumable poller avoid restarting its history fetch from page 1 each tick.
  * @returns {WorkflowHistoryResults}
  */
 export const getHistory = async ( { client, connection }, workflowId, options = {} ) => {
-  const { runId, pageSize = 20, pageToken, includePayloads = false, wait = false, waitMs } = options ?? {};
+  const { runId, pageSize = 20, pageToken, includePayloads = false, longPollTimeoutMs } = options ?? {};
+  const wait = longPollTimeoutMs !== undefined && longPollTimeoutMs > 0;
 
   if ( pageToken && !runId ) {
     throw new InvalidPageTokenError();
   }
 
-  // Re-describe on every `wait` call, not just the first page: a resumable poller
-  // (`workflow monitor`) never requests the first page again, so if metadata were only
-  // fetched there, `workflow.status` would freeze at whatever it was on the very first
-  // poll and the caller could never observe the run finishing.
+  // Re-describe on every long-poll call, not just the first page: a resumable poller
+  // never requests the first page again, so if metadata were only fetched there,
+  // `workflow.status` would freeze at whatever it was on the very first poll and the
+  // caller could never observe the run finishing.
   const shouldDescribe = !pageToken || wait;
   const metadata = shouldDescribe ? await ( async () => {
     const { workflow } = await describeWorkflow( { client }, workflowId, { runId } );
@@ -66,7 +64,7 @@ export const getHistory = async ( { client, connection }, workflowId, options = 
     mapInvalidArgument: () => new InvalidPageTokenError(),
     ...( wait ? {
       waitNewEvent: true,
-      deadlineMs: waitMs ? Math.min( waitMs, temporalConfig.historyWaitTimeoutMs ) : temporalConfig.historyWaitTimeoutMs
+      deadlineMs: Math.min( longPollTimeoutMs, temporalConfig.historyMaxWaitTimeoutMs )
     } : {} )
   } );
 

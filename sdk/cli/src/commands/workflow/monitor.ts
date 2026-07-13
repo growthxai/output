@@ -7,7 +7,7 @@ import type { SpanStatus } from '#services/workflow_history/correlator.js';
 import type { WorkflowResultResponseStatus } from '#api/generated/api.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { formatDurationLabel } from '#utils/waterfall.js';
-import { diffSpanUpdates, formatSpanUpdate } from '#utils/monitor_log.js';
+import { diffSpanUpdates, formatContinuedAsNew, formatSpanUpdate } from '#utils/monitor_log.js';
 import { ERROR_STATUSES, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { getErrorMessage } from '#utils/error_utils.js';
@@ -149,7 +149,7 @@ export default class WorkflowMonitor extends Command {
     process.on( 'SIGINT', sigintHandler );
 
     try {
-      for ( ; ; ) {
+      while ( true ) {
         const outcome = await this.poll( args.workflowId, flags, state );
         if ( outcome === null ) {
           state.consecutiveErrors += 1;
@@ -179,7 +179,7 @@ export default class WorkflowMonitor extends Command {
           }
           emit(
             { continuedAsNewRunId: result.continuedAsNewRunId },
-            `↻ continued as new run ${result.continuedAsNewRunId}`
+            formatContinuedAsNew( result.continuedAsNewRunId )
           );
           state.runId = result.continuedAsNewRunId;
           state.cursor = undefined;
@@ -231,8 +231,9 @@ export default class WorkflowMonitor extends Command {
       // Keeps the resumed long-poll's server-side block roughly aligned with `--interval`
       // instead of always blocking for the server's full configured deadline regardless of
       // it (see `plan_workflow_monitor_history.md`'s "Known tradeoff" note). Only takes
-      // effect once `wait: true` is sent, i.e. from the second tick onward.
-      const options = { workflowId, runId: state.runId, includePayloads: flags['include-payloads'], waitMs: flags.interval };
+      // effect once resuming (i.e. from the second tick onward); `fetchWorkflowHistory`
+      // ignores it on the initial full walk.
+      const options = { workflowId, runId: state.runId, includePayloads: flags['include-payloads'], longPollTimeoutMs: flags.interval };
       if ( !state.cursor ) {
         const result = await fetchWorkflowHistory( options );
         return { result, cursor: result.cursor };
@@ -249,7 +250,7 @@ export default class WorkflowMonitor extends Command {
 
   async catch( error: Error ): Promise<void> {
     // A 400 is the generic status for several distinct causes (invalid pageToken, a
-    // missing runId, an out-of-range waitMs) — only override it with the stale-cursor
+    // missing runId, an out-of-range longPollTimeoutMs) — only override it with the stale-cursor
     // message when the server actually identifies that specific cause; otherwise let
     // the real validation error surface instead of misdiagnosing an unrelated 400.
     const response = ( error as { response?: { status?: number; data?: { error?: string } } } ).response;

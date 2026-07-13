@@ -12,10 +12,11 @@ const envSchema = z.object( {
   TEMPORAL_NAMESPACE: z.string().optional().default( 'default' ),
   TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT: z.string().optional().default( '24h' ),
   TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING: z.coerce.number().optional().default( 300_000 ), // 5minutes
-  // Bounds a single long-poll (waitNewEvent) call on GET /workflow/:id/history so a resumable
-  // poller (e.g. `workflow monitor`) gets a fast, incremental response instead of restarting
-  // its history fetch from page 1 on every tick.
-  TEMPORAL_HISTORY_WAIT_TIMEOUT_MS: z.coerce.number().optional().default( 15_000 ),
+  // Upper bound (ceiling) for a single long-poll (waitNewEvent) call on GET /workflow/:id/history.
+  // A caller opts into long-polling via the `longPollTimeoutMs` query parameter; any value above
+  // this cap is clamped down to it, so a client can shorten the block but never exceed the
+  // server-configured maximum.
+  TEMPORAL_HISTORY_MAX_WAIT_TIMEOUT_MS: z.coerce.number().optional().default( 15_000 ),
   TEMPORAL_API_KEY: z.string().optional(),
   // gRPC max message size for the Temporal client connection (send + receive).
   // gRPC's default receive cap is 4 MiB; some workflow result exceed it.
@@ -44,7 +45,7 @@ export const temporal = {
   namespace: safeEnvVar.TEMPORAL_NAMESPACE,
   workflowExecutionTimeout: safeEnvVar.TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT,
   workflowExecutionMaxWaiting: safeEnvVar.TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING,
-  historyWaitTimeoutMs: safeEnvVar.TEMPORAL_HISTORY_WAIT_TIMEOUT_MS,
+  historyMaxWaitTimeoutMs: safeEnvVar.TEMPORAL_HISTORY_MAX_WAIT_TIMEOUT_MS,
   grpcMaxMessageSizeBytes: safeEnvVar.TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES
 };
 

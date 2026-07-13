@@ -447,7 +447,7 @@ describe( 'API endpoints', () => {
         pageSize: 20,
         pageToken: undefined,
         includePayloads: false,
-        wait: false
+        longPollTimeoutMs: undefined
       } );
     } );
 

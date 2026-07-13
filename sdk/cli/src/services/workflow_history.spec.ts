@@ -89,11 +89,11 @@ describe( 'fetchWorkflowHistory', () => {
       workflow: null, runId: 'run-456', events: [], nextPageToken: 'token-2'
     } ) );
 
-    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-123', runId: 'run-456' }, first.cursor );
+    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-123', runId: 'run-456', longPollTimeoutMs: 2500 }, first.cursor );
 
     expect( mockGet ).toHaveBeenCalledTimes( 3 );
     expect( mockGet ).toHaveBeenNthCalledWith( 3, 'wf-123', {
-      runId: 'run-456', pageSize: 50, pageToken: 'token-2', includePayloads: false, wait: true
+      runId: 'run-456', pageSize: 50, pageToken: 'token-2', includePayloads: false, longPollTimeoutMs: 2500
     } );
     expect( result.events ).toHaveLength( 3 );
     expect( cursor.pageToken ).toBe( 'token-2' );
@@ -183,11 +183,11 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
       nextPageToken: 'page-2'
     } ) );
 
-    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
+    const { result, cursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7', longPollTimeoutMs: 2500 } );
 
     expect( mockGet ).toHaveBeenCalledTimes( 1 );
     expect( mockGet ).toHaveBeenCalledWith( 'wf-7', {
-      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, wait: true
+      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, longPollTimeoutMs: 2500
     } );
     expect( result.events ).toHaveLength( 1 );
     expect( result.workflow?.status ).toBe( 'running' );
@@ -247,20 +247,20 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
     expect( result.continuedAsNewRunId ).toBe( 'run-10' );
   } );
 
-  it( 'forwards waitMs to the API on a resumed poll', async () => {
+  it( 'forwards longPollTimeoutMs to the API on a resumed poll', async () => {
     mockGet.mockResolvedValueOnce( page( {
       workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
       runId: 'run-7', events: [], nextPageToken: null
     } ) );
 
-    await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7', waitMs: 2500 } );
+    await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7', longPollTimeoutMs: 2500 } );
 
     expect( mockGet ).toHaveBeenCalledWith( 'wf-7', {
-      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, wait: true, waitMs: 2500
+      runId: 'run-7', pageSize: 50, pageToken: undefined, includePayloads: false, longPollTimeoutMs: 2500
     } );
   } );
 
-  it( 'omits waitMs when not provided', async () => {
+  it( 'sends no long-poll param when longPollTimeoutMs is not provided', async () => {
     mockGet.mockResolvedValueOnce( page( {
       workflow: { workflowId: 'wf-7', runId: 'run-7', status: 'running', startTime: at( 0 ) },
       runId: 'run-7', events: [], nextPageToken: null
@@ -268,7 +268,7 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
 
     await fetchWorkflowHistoryUpdates( { workflowId: 'wf-7', runId: 'run-7' } );
 
-    expect( mockGet ).toHaveBeenCalledWith( 'wf-7', expect.not.objectContaining( { waitMs: expect.anything() } ) );
+    expect( mockGet ).toHaveBeenCalledWith( 'wf-7', expect.not.objectContaining( { longPollTimeoutMs: expect.anything() } ) );
   } );
 
   it( 'times out with the sent token echoed back when there is genuinely nothing new', async () => {
@@ -304,11 +304,13 @@ describe( 'fetchWorkflowHistoryUpdates', () => {
       nextPageToken: null
     } ) );
 
-    const { result, cursor: nextCursor } = await fetchWorkflowHistoryUpdates( { workflowId: 'wf-6', runId: 'run-6' }, cursor );
+    const { result, cursor: nextCursor } = await fetchWorkflowHistoryUpdates(
+      { workflowId: 'wf-6', runId: 'run-6', longPollTimeoutMs: 2500 }, cursor
+    );
 
     expect( mockGet ).toHaveBeenCalledTimes( 1 );
     expect( mockGet ).toHaveBeenCalledWith( 'wf-6', {
-      runId: 'run-6', pageSize: 50, pageToken: 'token-2', includePayloads: false, wait: true
+      runId: 'run-6', pageSize: 50, pageToken: 'token-2', includePayloads: false, longPollTimeoutMs: 2500
     } );
     expect( result.workflow?.status ).toBe( 'completed' );
     // The events already carried on the cursor (2) plus the genuinely new ones (2).
