@@ -22,6 +22,10 @@
     "./sdk/runtime": {
       "types": "./src/sdk/runtime/index.d.ts",
       "import": "./src/sdk/runtime/index.js"
+    },
+    "./temporal": {
+      "types": "./src/temporal/index.d.ts",
+      "import": "./src/temporal/index.js"
     }
   },
   "files": [
