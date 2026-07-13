@@ -7,7 +7,7 @@ import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
 import { createWorkflowDetails } from '#helpers/temporal_context';
 
 // this is a dynamic generated file with activity configs overwrites
-import activityOptions from '../temp/__activity_options.js';
+import activityOptionsMap from '../temp/__activity_options.js';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
@@ -22,10 +22,10 @@ class HeadersInjectionInterceptor {
       ...memo,
       workflowDetails: createWorkflowDetails( info )
     } ) );
-    // Apply component-level activity options on top of workflow memo defaults.
-    const options = activityOptions[input.activityType];
-    if ( options ) {
-      input.options = deepMerge( memo.activityOptions, options );
+    // Apply component-level activity options on top of workflow options.
+    const activityOptionsOverrides = activityOptionsMap[input.activityType];
+    if ( activityOptionsOverrides ) {
+      input.options = deepMerge( input.options ?? {}, activityOptionsOverrides );
     }
     return next( input );
   }
