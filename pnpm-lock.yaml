@@ -31,8 +31,8 @@ catalogs:
       specifier: 4.0.9
       version: 4.0.9
     js-yaml:
-      specifier: 4.1.1
-      version: 4.1.1
+      specifier: 4.2.0
+      version: 4.2.0
     ky:
       specifier: 1.14.3
       version: 1.14.3
@@ -222,7 +222,7 @@ importers:
         version: 5.0.0(ink@7.0.1(@types/react@19.2.14)(react@19.2.5))(react@19.2.5)
       js-yaml:
         specifier: 'catalog:'
-        version: 4.1.1
+        version: 4.2.0
       json-schema-library:
         specifier: 11.4.0
         version: 11.4.0
@@ -335,7 +335,7 @@ importers:
         version: link:../core
       js-yaml:
         specifier: 'catalog:'
-        version: 4.1.1
+        version: 4.2.0
     devDependencies:
       '@types/js-yaml':
         specifier: 'catalog:'
@@ -7330,6 +7330,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
