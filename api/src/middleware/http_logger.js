@@ -1,4 +1,3 @@
-import morgan from 'morgan';
 import { logger } from '#logger';
 import { isProduction } from '#configs';
 
@@ -10,6 +9,21 @@ const HEALTH_ENDPOINTS = new Set( [ '/health', '/heartbeat' ] );
  * @returns {boolean}
  */
 const shouldSkipLogging = req => HEALTH_ENDPOINTS.has( req.url );
+
+/**
+ * Winston level for a response status: 5xx -> error, 4xx -> warn, else http.
+ * @param {number} status
+ * @returns {'error'|'warn'|'http'}
+ */
+const levelForStatus = status => {
+  if ( status >= 500 ) {
+    return 'error';
+  }
+  if ( status >= 400 ) {
+    return 'warn';
+  }
+  return 'http';
+};
 
 /**
  * For status 413 with an error, returns request size (bytes and MB) and the configured limit.
@@ -31,85 +45,80 @@ const getPayloadSizeFields = ( status, error, contentLength ) => {
 };
 
 /**
- * Extracts information about the request and response.
- * @param {import('morgan').TokenIndexer} tokens - Morgan token accessor
+ * Builds the structured log record for a completed request/response.
  * @param {import('express').Request} req
  * @param {import('express').Response} res
+ * @param {{ method: string, url: string, responseTime: number }} timing
  * @returns {Record<string, unknown>}
  */
-const gatherLogInfo = ( tokens, req, res ) => {
-  const status = Number.parseInt( tokens.status( req, res ), 10 ) || 0;
-  const requestContentLength = req?.headers?.['content-length'];
+const gatherLogInfo = ( req, res, { method, url, responseTime } ) => {
+  const status = res.statusCode;
+  const error = res.locals?.error;
+  const requestContentLength = req.headers?.['content-length'];
 
   return {
-    method: tokens.method( req, res ),
-    url: tokens.url( req, res ),
-    status,
-    contentLength: tokens.res( req, res, 'content-length' ) || '0',
-    responseTime: Number.parseFloat( tokens['response-time']( req, res ) ) || 0,
+    method,
+    url,
+    statusCode: status,
+    contentLength: String( res.getHeader( 'content-length' ) ?? '0' ),
+    responseTime,
     requestId: req.id,
-    ...( res.locals.error ? {
-      errorType: res.locals.error.constructor.name,
-      errorMessage: res.locals.error.message
+    ...( error ? {
+      errorType: error.constructor.name,
+      errorMessage: error.message
     } : {} ),
-    ...getPayloadSizeFields( status, res.locals.error, requestContentLength ),
-    workflowName: req.body?.workflowName ? req.body.workflowName : undefined
+    ...getPayloadSizeFields( status, error, requestContentLength ),
+    workflowName: req.body?.workflowName
   };
 };
 
 /**
- * Parses and sends out a JSON message to the logger.
- * @param {string} message - Single line of JSON from morgan
+ * Emits the request log at a status-appropriate level. Production logs a descriptive
+ * message plus the structured record; development logs a single human-readable line.
+ * @param {Record<string, unknown>} info
  */
-const prodStreamWrite = message => {
-  try {
-    const parsedMessage = JSON.parse( message );
-    logger.http( 'HTTP request', parsedMessage );
-  } catch ( parseError ) {
-    if ( parseError instanceof SyntaxError ) {
-      logger.warn( 'Failed to parse HTTP log JSON', {
-        raw: message.trim(),
-        parseError: parseError.message
-      } );
-    } else {
-      throw parseError;
-    }
+const emit = info => {
+  const { statusCode, ...rest } = info;
+  const { method, url, contentLength, responseTime, errorType, errorMessage } = rest;
+  const level = levelForStatus( statusCode );
+
+  if ( isProduction ) {
+    logger[level]( `${method} ${url} ${statusCode} ${responseTime}ms`, { ...rest, 'http.status_code': statusCode } );
+  } else {
+    const errorSuffix = errorType ? ` [${errorType}: ${errorMessage}]` : '';
+    logger[level]( `${method} ${url} ${statusCode} ${contentLength}b ${responseTime}ms${errorSuffix}` );
   }
 };
 
 /**
- * Returns morgan middleware that logs each request as a single JSON object.
+ * Express middleware that logs each request once, on response completion, at a level
+ * derived from the response status. Listens for both 'finish' (response sent) and
+ * 'close' (connection ended, e.g. client abort mid-stream) so aborted requests are
+ * still recorded; a guard ensures a single emission.
  * @returns {import('express').RequestHandler}
  */
-const createProdHttpLogger = () =>
-  morgan( ( tokens, req, res ) => JSON.stringify( gatherLogInfo( tokens, req, res ) ), {
-    skip: shouldSkipLogging,
-    stream: { write: prodStreamWrite }
-  } );
+export const createHttpLoggingMiddleware = () => ( req, res, next ) => {
+  if ( shouldSkipLogging( req ) ) {
+    next();
+    return;
+  }
 
-/**
- * Passes the trimmed message to the HTTP logger.
- * @param {string} message - Human-readable log line
- */
-const devStreamWrite = message => {
-  logger.http( message.trim() );
+  const start = Date.now();
+  const method = req.method;
+  const url = req.originalUrl ?? req.url;
+  const state = { logged: false };
+
+  const log = () => {
+    if ( state.logged ) {
+      return;
+    }
+    state.logged = true;
+    const responseTime = Date.now() - start;
+    emit( gatherLogInfo( req, res, { method, url, responseTime } ) );
+  };
+
+  res.once( 'finish', log );
+  res.once( 'close', log );
+
+  next();
 };
-
-/**
- * Returns morgan middleware that logs each request as one human-readable line
- * @returns {import('express').RequestHandler}
- */
-const createDevHttpLogger = () =>
-  morgan( ( tokens, req, res ) => {
-    const { method, url, status, contentLength, responseTime, errorType, errorMessage } = gatherLogInfo( tokens, req, res );
-    return `${method} ${url} ${status} ${contentLength}b ${responseTime}ms ${errorType ? `[${errorType}: ${errorMessage}]` : ''}`;
-  }, {
-    skip: shouldSkipLogging,
-    stream: { write: devStreamWrite }
-  } );
-
-/**
- * Returns HTTP logging middleware
- * @returns {import('express').RequestHandler}
- */
-export const createHttpLoggingMiddleware = () => isProduction ? createProdHttpLogger() : createDevHttpLogger();

@@ -52,7 +52,7 @@ const grpcHttpStatus = err =>
   ( err ? directGrpcHttpStatus( err ) ?? grpcHttpStatus( err.cause ) : undefined );
 
 export default function errorHandler( error, req, res, next ) {
-  res.locals.error = error; // Surface the error to the access logger (morgan) on every path.
+  res.locals.error = error; // Surface the error to the HTTP access logger on every path.
 
   // Response already flushed (e.g. an SSE endpoint mid-stream): we can no longer write a JSON
   // error body. Streaming endpoints own their own post-flush error handling, so reaching here
