@@ -1,0 +1,141 @@
+---
+title: "v0.10.0 → v0.11.0"
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: the API HTTP request log format changed. Log level now derives from response status, the status field was renamed, and the log message is now a request summary."
+---
+
+This guide covers the HTTP request logging changes in `output-api` v0.11.0. The API server was refactored to remove the `morgan` dependency and emit richer request logs. The public HTTP API contract is unchanged, but the shape, level, and message of the per-request log lines the server emits are different. This only affects you if you consume `output-api` logs in an observability tool (Datadog, CloudWatch, Loki, etc.) or match on them in scripts.
+
+## What changed
+
+### Log level now derives from response status
+
+This is the most impactful change. Previously every request was logged at the `http` level regardless of outcome. Now the level is chosen from the response status:
+
+| Status | Level (before) | Level (after) |
+| ------ | -------------- | ------------- |
+| 2xx / 3xx | `http` | `http` |
+| 4xx | `http` | `warn` |
+| 5xx | `http` | `error` |
+
+If you have alerts or filters keyed on winston log levels, they will now behave differently: any alert on `error` or `warn` will fire on 4xx/5xx HTTP responses that previously logged at `http`.
+
+### The `status` field was renamed to `http.status_code`
+
+The structured metadata field carrying the numeric response status changed name. This aligns with Datadog's standard `http.status_code` attribute.
+
+```diff
+- "status": 200
++ "http.status_code": 200
+```
+
+### The log message changed from a constant to a request summary
+
+Previously the message was the constant string `"HTTP request"`, with all detail in the metadata. Now the message is a human-readable summary and the structured record is still attached as metadata.
+
+```diff
+- "HTTP request"
++ "POST /workflow 200 12ms"
+```
+
+### `responseTime` is now an integer
+
+`responseTime` is now whole milliseconds (measured with `Date.now()`) rather than a sub-millisecond float.
+
+```diff
+- "responseTime": 12.347
++ "responseTime": 12
+```
+
+## Before and after
+
+A successful request, before (v0.10.0):
+
+```json
+{
+  "level": "http",
+  "message": "HTTP request",
+  "method": "POST",
+  "url": "/workflow",
+  "status": 200,
+  "contentLength": "42",
+  "responseTime": 12.347,
+  "requestId": "8f3c...",
+  "workflowName": "simple"
+}
+```
+
+The same request, after (v0.11.0):
+
+```json
+{
+  "level": "http",
+  "message": "POST /workflow 200 12ms",
+  "method": "POST",
+  "url": "/workflow",
+  "http.status_code": 200,
+  "contentLength": "42",
+  "responseTime": 12,
+  "requestId": "8f3c...",
+  "workflowName": "simple"
+}
+```
+
+A server error, before — logged at `http`:
+
+```json
+{
+  "level": "http",
+  "message": "HTTP request",
+  "status": 500,
+  "errorType": "Error",
+  "errorMessage": "Something went wrong"
+}
+```
+
+After — logged at `error`, with the renamed field:
+
+```json
+{
+  "level": "error",
+  "message": "POST /workflow 500 34ms",
+  "http.status_code": 500,
+  "errorType": "Error",
+  "errorMessage": "Something went wrong"
+}
+```
+
+## Migration steps
+
+### Update alerts and level-based filters
+
+If you alert or filter on winston levels, audit those rules. HTTP 4xx now arrives at `warn` and 5xx at `error`. Decide whether that is what you want:
+
+- To keep alerting only on application errors, scope alerts to exclude HTTP request logs (for example, filter on the presence of `http.status_code`).
+- To alert on failing requests, this is now available directly from the log level with no extra query.
+
+### Update queries and facets that reference `status`
+
+Anywhere you query, facet, or dashboard on the request-log `status` field, switch to `http.status_code`.
+
+```diff
+# Datadog / log query
+- @status:500
++ @http.status_code:500
+```
+
+In Datadog specifically, `http.status_code` is a standard attribute and maps to the built-in HTTP status facet, so you may be able to drop a custom `status` facet definition.
+
+### Update anything that matches the message string
+
+Scripts, log processors, or saved searches that match the literal message `"HTTP request"` will no longer match. Match on a structural field instead (for example, the presence of `http.status_code` or `requestId`), or update the matcher to the new summary format `<METHOD> <URL> <STATUS> <ms>ms`.
+
+### Adjust `responseTime` consumers expecting sub-millisecond precision
+
+If a dashboard or aggregation relied on fractional milliseconds in `responseTime`, note that values are now whole milliseconds.
+
+## Checklist
+
+- Review winston level-based alerts and filters; 4xx now logs at `warn`, 5xx at `error`.
+- Rename `status` to `http.status_code` in log queries, facets, and dashboards.
+- Replace any match on the constant message `"HTTP request"` with a structural field or the new summary format.
+- Confirm `responseTime` consumers tolerate integer milliseconds.
