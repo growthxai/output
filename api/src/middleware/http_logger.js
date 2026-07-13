@@ -1,4 +1,3 @@
-import { performance } from 'node:perf_hooks';
 import { logger } from '#logger';
 import { isProduction } from '#configs';
 
@@ -54,13 +53,13 @@ const getPayloadSizeFields = ( status, error, contentLength ) => {
  */
 const gatherLogInfo = ( req, res, { method, url, responseTime } ) => {
   const status = res.statusCode;
-  const error = res.locals?.error ?? null;
+  const error = res.locals?.error;
   const requestContentLength = req.headers?.['content-length'];
 
   return {
     method,
     url,
-    'http.status_code': status,
+    statusCode: status,
     contentLength: String( res.getHeader( 'content-length' ) ?? '0' ),
     responseTime,
     requestId: req.id,
@@ -69,7 +68,7 @@ const gatherLogInfo = ( req, res, { method, url, responseTime } ) => {
       errorMessage: error.message
     } : {} ),
     ...getPayloadSizeFields( status, error, requestContentLength ),
-    workflowName: req.body?.workflowName || undefined
+    workflowName: req.body?.workflowName
   };
 };
 
@@ -79,14 +78,15 @@ const gatherLogInfo = ( req, res, { method, url, responseTime } ) => {
  * @param {Record<string, unknown>} info
  */
 const emit = info => {
-  const { method, url, 'http.status_code': status, contentLength, responseTime, errorType, errorMessage } = info;
-  const level = levelForStatus( status );
-  const summary = `${method} ${url} ${status} ${responseTime}ms`;
+  const { statusCode, ...rest } = info;
+  const { method, url, contentLength, responseTime, errorType, errorMessage } = rest;
+  const level = levelForStatus( statusCode );
 
   if ( isProduction ) {
-    logger[level]( summary, info );
+    logger[level]( `${method} ${url} ${statusCode} ${responseTime}ms`, { ...rest, 'http.status_code': statusCode } );
   } else {
-    logger[level]( `${method} ${url} ${status} ${contentLength}b ${responseTime}ms ${errorType ? `[${errorType}: ${errorMessage}]` : ''}`.trimEnd() );
+    const errorSuffix = errorType ? ` [${errorType}: ${errorMessage}]` : '';
+    logger[level]( `${method} ${url} ${statusCode} ${contentLength}b ${responseTime}ms${errorSuffix}` );
   }
 };
 
@@ -103,9 +103,9 @@ export const createHttpLoggingMiddleware = () => ( req, res, next ) => {
     return;
   }
 
-  const start = performance.now();
+  const start = Date.now();
   const method = req.method;
-  const url = req.originalUrl || req.url;
+  const url = req.originalUrl ?? req.url;
   const state = { logged: false };
 
   const log = () => {
@@ -113,7 +113,7 @@ export const createHttpLoggingMiddleware = () => ( req, res, next ) => {
       return;
     }
     state.logged = true;
-    const responseTime = Number( ( performance.now() - start ).toFixed( 3 ) );
+    const responseTime = Date.now() - start;
     emit( gatherLogInfo( req, res, { method, url, responseTime } ) );
   };
 
