@@ -17,6 +17,10 @@ vi.mock( '#logger', () => ( {
   logger: { warn: mockLoggerWarn }
 } ) );
 
+vi.mock( '#configs', () => ( {
+  temporal: { historyMaxWaitTimeoutMs: 15_000 }
+} ) );
+
 vi.mock( '../../event_serialization.js', () => ( {
   decodeEventPayloads: mockDecodeEventPayloads,
   serializeEvent: mockSerializeEvent
@@ -154,5 +158,91 @@ describe( 'getHistory', () => {
 
     expect( result.events ).toEqual( [] );
     expect( result.nextPageToken ).toBeNull();
+  } );
+
+  it( 'passes waitNewEvent and the configured deadline through when a long-poll timeout is requested', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
+
+    // A long-poll re-describes even on a later page (resolving to 'resolved-run', the fixture's
+    // describeWorkflow stub), so status stays live across a resumed poll — see the next test.
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
+      maximumPageSize: 20,
+      nextPageToken: Buffer.from( pageToken, 'base64' ),
+      mapInvalidArgument: expect.any( Function ),
+      waitNewEvent: true,
+      deadlineMs: 15_000
+    } );
+  } );
+
+  it( 'clamps deadlineMs to the configured max when longPollTimeoutMs requests a shorter wait', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 2_500 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
+      maximumPageSize: 20,
+      nextPageToken: undefined,
+      mapInvalidArgument: expect.any( Function ),
+      waitNewEvent: true,
+      deadlineMs: 2_500
+    } );
+  } );
+
+  it( 'ignores a longPollTimeoutMs longer than the configured max, capping at historyMaxWaitTimeoutMs', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 60_000 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', expect.objectContaining( {
+      deadlineMs: 15_000
+    } ) );
+  } );
+
+  it( 'does not pass waitNewEvent/deadlineMs when no long-poll timeout is requested', async () => {
+    await getHistory( { client, connection }, 'workflow-id', { pageSize: 30 } );
+
+    expect( mockFetchHistoryPage ).toHaveBeenCalledWith( connection, 'workflow-id', 'resolved-run', {
+      maximumPageSize: 30,
+      nextPageToken: undefined,
+      mapInvalidArgument: expect.any( Function )
+    } );
+  } );
+
+  it( 're-describes on a later page when a long-poll timeout is requested, so a resumed poll sees a status change', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
+
+    expect( mockDescribeWorkflow ).toHaveBeenCalledWith( { client }, 'workflow-id', { runId: 'run-id' } );
+  } );
+
+  it( 'skips the describe call on a later page when no long-poll timeout is requested', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+
+    await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken } );
+
+    expect( mockDescribeWorkflow ).not.toHaveBeenCalled();
+  } );
+
+  it( 'returns the unchanged cursor and fresh workflow metadata when a wait call times out', async () => {
+    const pageToken = Buffer.from( 'previous-token' ).toString( 'base64' );
+    mockFetchHistoryPage.mockResolvedValue( null );
+
+    const result = await getHistory( { client, connection }, 'workflow-id', { runId: 'run-id', pageToken, longPollTimeoutMs: 15_000 } );
+
+    expect( result ).toEqual( {
+      workflow: expect.objectContaining( { workflowId: 'workflow-id' } ),
+      events: [],
+      runId: 'resolved-run',
+      nextPageToken: pageToken
+    } );
+    expect( mockSerializeEvent ).not.toHaveBeenCalled();
+  } );
+
+  it( 'returns a null nextPageToken when a first-page wait call times out', async () => {
+    mockFetchHistoryPage.mockResolvedValue( null );
+
+    const result = await getHistory( { client, connection }, 'workflow-id', { longPollTimeoutMs: 15_000 } );
+
+    expect( result.nextPageToken ).toBeNull();
+    expect( result.workflow ).toEqual( expect.objectContaining( { workflowId: 'workflow-id' } ) );
   } );
 } );

@@ -51,7 +51,8 @@ describe( 'workflow_history handler', () => {
       runId: undefined,
       pageSize: 20,
       pageToken: undefined,
-      includePayloads: false
+      includePayloads: false,
+      longPollTimeoutMs: undefined
     } );
   } );
 
@@ -60,15 +61,38 @@ describe( 'workflow_history handler', () => {
     const token = Buffer.from( 'page-data' ).toString( 'base64' );
 
     await request( createApp() )
-      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true` )
+      .get( `/workflow/wf-123/history?runId=run-abc&pageSize=30&pageToken=${token}&includePayloads=true&longPollTimeoutMs=2500` )
       .expect( 200 );
 
     expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', {
       runId: 'run-abc',
       pageSize: 30,
       pageToken: token,
-      includePayloads: true
+      includePayloads: true,
+      longPollTimeoutMs: 2500
     } );
+  } );
+
+  it( 'omits longPollTimeoutMs when not provided', async () => {
+    mockGetWorkflowHistory.mockResolvedValue( { workflow: null, events: [], nextPageToken: null } );
+
+    await request( createApp() )
+      .get( '/workflow/wf-123/history' )
+      .expect( 200 );
+
+    expect( mockGetWorkflowHistory ).toHaveBeenCalledWith( 'wf-123', expect.objectContaining( { longPollTimeoutMs: undefined } ) );
+  } );
+
+  it( 'rejects a non-positive longPollTimeoutMs', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?longPollTimeoutMs=0' )
+      .expect( 400 );
+  } );
+
+  it( 'rejects a non-numeric longPollTimeoutMs', async () => {
+    await request( createApp() )
+      .get( '/workflow/wf-123/history?longPollTimeoutMs=soon' )
+      .expect( 400 );
   } );
 
   it( 'defaults pageSize to 20 and includePayloads to false', async () => {

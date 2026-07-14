@@ -39,7 +39,7 @@ const TICK_STEPS_MS = [
 ];
 const TARGET_TICKS = 8;
 
-const ANSI: Record<SpanStatus | 'dim' | 'reset', string> = {
+export const ANSI: Record<SpanStatus | 'dim' | 'reset', string> = {
   completed: '[92m',
   running: '[33m',
   failed: '[31m',
@@ -47,6 +47,13 @@ const ANSI: Record<SpanStatus | 'dim' | 'reset', string> = {
   dim: '[2m',
   reset: '[0m'
 };
+
+// Shared by renderWaterfall and monitor_log's live status lines so there's one
+// place that knows how to wrap text in an ANSI code (and reset it) -- or not,
+// when color is disabled.
+export function makeTint( color: boolean ): ( text: string, code: string ) => string {
+  return ( text, code ) => ( color ? `${code}${text}${ANSI.reset}` : text );
+}
 
 function clamp( value: number, lo: number, hi: number ): number {
   return Math.min( Math.max( value, lo ), hi );
@@ -217,7 +224,7 @@ export default function renderWaterfall( spans: Span[], totalDurationMs: number,
     return [ header, 'No steps found for this run.' ].filter( Boolean ).join( '\n\n' );
   }
 
-  const tint = ( text: string, code: string ): string => ( color ? `${code}${text}${ANSI.reset}` : text );
+  const tint = makeTint( color );
   const labelFor = ( span: Span ): string => labels?.get( span.id ) ?? span.name;
   const durationFor = ( span: Span ): string => formatDurationLabel( Math.max( 0, span.durationMs ) );
 

@@ -6,6 +6,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_NAMESPACE',
   'TEMPORAL_WORKFLOW_EXECUTION_TIMEOUT',
   'TEMPORAL_WORKFLOW_EXECUTION_MAX_WAITING',
+  'TEMPORAL_HISTORY_MAX_WAIT_TIMEOUT_MS',
   'TEMPORAL_API_KEY',
   'TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES',
   'OUTPUT_API_PORT',
@@ -64,6 +65,7 @@ describe( 'configs', () => {
       namespace: 'default',
       workflowExecutionTimeout: '24h',
       workflowExecutionMaxWaiting: 300_000,
+      historyMaxWaitTimeoutMs: 15_000,
       grpcMaxMessageSizeBytes: 32 * 1024 * 1024
     } );
     expect( configs.api ).toEqual( {
@@ -111,6 +113,13 @@ describe( 'configs', () => {
     const configs = await loadConfigs();
 
     expect( configs.temporal.workflowExecutionMaxWaiting ).toBe( 600_000 );
+  } );
+
+  it( 'coerces TEMPORAL_HISTORY_MAX_WAIT_TIMEOUT_MS from string', async () => {
+    setEnv( { TEMPORAL_HISTORY_MAX_WAIT_TIMEOUT_MS: '20000' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporal.historyMaxWaitTimeoutMs ).toBe( 20_000 );
   } );
 
   it( 'coerces TEMPORAL_GRPC_MAX_MESSAGE_SIZE_BYTES from string', async () => {

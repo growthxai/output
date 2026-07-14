@@ -8,7 +8,9 @@
  * the `nextPageToken` (the endpoint requires runId once a pageToken is used).
  */
 import { getWorkflowIdHistory, type GetWorkflowIdHistory200 } from '#api/generated/api.js';
-import { correlate, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
+import { correlate, eventAttributes, eventTypeName, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
+import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
+import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 
 const PAGE_SIZE = 50;
 
@@ -26,20 +28,54 @@ export interface FetchWorkflowHistoryOptions {
   workflowId: string;
   runId?: string;
   includePayloads?: boolean;
+  // Long-poll bound (ms) for `fetchWorkflowHistoryUpdates`: when set, each resumed poll asks the
+  // server to block up to this long for a new event (clamped to the server's ceiling). Required in
+  // practice for updates — omitting it makes each poll return immediately (no long-poll).
+  longPollTimeoutMs?: number;
 }
 
 export interface WorkflowHistoryResult {
   workflow: WorkflowMeta | null;
+  // The server's response before status normalization, for callers (e.g. `history
+  // --raw`) that promise a verbatim passthrough of the API response rather than
+  // the client-side status vocabulary `workflow.status` is normalized into.
+  rawWorkflow: WorkflowMeta | null;
   runId: string | null;
   events: HistoryEvent[];
   spans: Span[];
   totalDurationMs: number;
+  continuedAsNewRunId: string | null;
+  // Resume state for a follow-up `fetchWorkflowHistoryUpdates` call — populated by every
+  // fetch (not just the incremental path), so a poller can resume from *any* prior call,
+  // including the very first one, instead of re-paging from page 1 on its second call.
+  cursor: WorkflowHistoryCursor;
 }
 
-interface PageAccumulator {
+/**
+ * Resume state for `fetchWorkflowHistoryUpdates`: the accumulated events (so spans/duration
+ * are always computed over the full history, not just the latest delta), `lastEventId` for
+ * de-duping a replayed page, and `pageToken` — the position that fetched the *current* end of
+ * history, which is itself always a valid resume point (see `fetchPages`) even though the
+ * server's own `nextPageToken` for that position is empty.
+ */
+export interface WorkflowHistoryCursor {
+  pageToken: string | undefined;
+  lastEventId: number;
   meta: WorkflowMeta | null;
   runId: string | undefined;
   events: HistoryEvent[];
+}
+
+// The status here comes from the request's own describe (fresh whenever `wait` is
+// set), so it can report the run closed before the closing event has been paged in.
+function isRunClosed( meta: WorkflowMeta | null ): boolean {
+  const status = normalizeWorkflowStatus( meta?.status );
+  return status === 'continued_as_new' || ( status !== undefined && TERMINAL_STATUSES.has( status ) );
+}
+
+function numericEventId( event: HistoryEvent ): number {
+  const id = Number( ( event as { eventId?: unknown } ).eventId );
+  return Number.isFinite( id ) ? id : 0;
 }
 
 function toMs( value: string | null | undefined ): number | null {
@@ -72,6 +108,14 @@ function workflowStartMs( meta: WorkflowMeta | null, events: HistoryEvent[] ): n
   return earliestEventMs( events );
 }
 
+// The paginated history endpoint doesn't surface a resolved `newRunId` the way
+// the SSE stream endpoint does (see `stream_history.js`'s `doneChunk`), so pull
+// it directly off the WORKFLOW_EXECUTION_CONTINUED_AS_NEW event when present.
+function continuedAsNewRunId( events: HistoryEvent[] ): string | null {
+  const terminal = events.find( e => eventTypeName( e ) === 'WORKFLOW_EXECUTION_CONTINUED_AS_NEW' );
+  return ( eventAttributes( terminal )?.newExecutionRunId as string | undefined ) ?? null;
+}
+
 function totalDuration( meta: WorkflowMeta | null, spans: Span[], startMs: number | null ): number {
   const closeMs = toMs( meta?.closeTime ?? undefined );
   if ( closeMs !== null && startMs !== null && ( closeMs - startMs ) > 0 ) {
@@ -81,14 +125,24 @@ function totalDuration( meta: WorkflowMeta | null, spans: Span[], startMs: numbe
   return Math.max( maxEnd, 1 );
 }
 
-async function fetchAllPages(
-  workflowId: string,
-  includePayloads: boolean,
-  runId: string | undefined,
-  pageToken: string | undefined,
-  acc: PageAccumulator
-): Promise<PageAccumulator> {
-  const response = await getWorkflowIdHistory( workflowId, { runId, pageSize: PAGE_SIZE, pageToken, includePayloads } );
+/**
+ * Pages through history starting from `acc` (its `pageToken`/`lastEventId`/`events` carry
+ * the resume position — pass a zeroed cursor for a fresh walk). When `longPollTimeoutMs` is
+ * set, every request asks the server to long-poll (`waitNewEvent`) rather than return
+ * immediately, so the final hop blocks — up to that many milliseconds (clamped to the server's
+ * ceiling) — until either a new event exists or the deadline elapses. `lastEventId` de-dupes:
+ * resuming from a previously-seen page token replays that page's events, which are filtered out
+ * here rather than appended twice.
+ */
+async function fetchPages(
+  workflowId: string, includePayloads: boolean, acc: WorkflowHistoryCursor, longPollTimeoutMs?: number
+): Promise<WorkflowHistoryCursor> {
+  const wait = longPollTimeoutMs !== undefined && longPollTimeoutMs > 0;
+  const { pageToken, runId } = acc;
+  const response = await getWorkflowIdHistory( workflowId, {
+    runId, pageSize: PAGE_SIZE, pageToken, includePayloads,
+    ...( wait ? { longPollTimeoutMs } : {} )
+  } );
   if ( !response.data ) {
     throw new Error( 'API returned invalid response (missing data)' );
   }
@@ -96,34 +150,93 @@ async function fetchAllPages(
   const data = response.data as GetWorkflowIdHistory200;
   // The generated `data.workflow` is an opaque `{ [key: string]: unknown }`, so
   // narrow it to WorkflowMeta via `unknown` (its real fields are validated by
-  // the server, mirroring Atlas's metadata shape).
-  const meta = acc.meta ?? ( data.workflow as unknown as WorkflowMeta | null ) ?? null;
+  // the server, mirroring Atlas's metadata shape). Prefer the *fresh* value when the
+  // server sent one — it re-describes on every `wait` call specifically so status
+  // updates (e.g. running -> completed) are seen; falling back to `acc.meta` only
+  // covers the pages within a walk where the server didn't re-describe.
+  const meta = ( data.workflow as unknown as WorkflowMeta | null ) ?? acc.meta;
   const resolvedRunId = runId ?? data.runId ?? acc.runId;
-  const events = [ ...acc.events, ...( ( data.events as HistoryEvent[] | undefined ) ?? [] ) ];
+  const pageEvents = ( data.events as HistoryEvent[] | undefined ) ?? [];
+  const newEvents = pageEvents.filter( event => numericEventId( event ) > acc.lastEventId );
+  const events = [ ...acc.events, ...newEvents ];
+  // Events arrive in increasing eventId order, so the last new one is the max — no scan needed.
+  const lastEventId = newEvents.length > 0 ? numericEventId( newEvents[newEvents.length - 1] ) : acc.lastEventId;
   const nextToken = data.nextPageToken ?? undefined;
-  const nextAcc: PageAccumulator = { meta, runId: resolvedRunId, events };
+  const nextAcc: WorkflowHistoryCursor = { meta, runId: resolvedRunId, events, lastEventId, pageToken: nextToken ?? pageToken };
 
-  if ( nextToken ) {
-    return fetchAllPages( workflowId, includePayloads, resolvedRunId, nextToken, nextAcc );
+  // While long-polling an open run, stop and hand back the first batch of new events
+  // instead of draining further pages — a poller needs each transition rendered as it
+  // arrives, and the buffered remainder will surface on subsequent ticks. Once the run
+  // is closed, though, no further ticks are coming: the poller acts on the closed
+  // status immediately, so stopping early would strand the trailing pages — including
+  // the terminal or CONTINUED_AS_NEW event — unfetched. Drain to the tip instead.
+  if ( wait && newEvents.length > 0 && !isRunClosed( meta ) ) {
+    return nextAcc;
   }
+
+  // The server echoes `pageToken` back unchanged (see `get_history.js`) when a waitNewEvent
+  // call's deadline elapses with nothing new — that's the tip, stop for this tick.
+  const timedOut = wait && nextToken === pageToken;
+  if ( timedOut ) {
+    return nextAcc;
+  }
+  if ( nextToken ) {
+    return fetchPages( workflowId, includePayloads, nextAcc, longPollTimeoutMs );
+  }
+  // Drained: the server has nothing more buffered (`nextToken` is empty), but unlike
+  // `nextToken`, `pageToken` — the position that fetched this now-empty page — is still a
+  // valid resume point: a future waitNewEvent call from here replays this page (de-duped by
+  // `lastEventId`) and then genuinely waits at the tip, instead of restarting from page 1.
   return nextAcc;
 }
 
-export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions ): Promise<WorkflowHistoryResult> {
-  const { workflowId, runId, includePayloads = false } = options;
-
-  const { meta, runId: resolvedRunId, events } = await fetchAllPages(
-    workflowId, includePayloads, runId, undefined, { meta: null, runId, events: [] }
-  );
+function buildResult( pages: WorkflowHistoryCursor ): WorkflowHistoryResult {
+  const { meta: rawMeta, runId: resolvedRunId, events } = pages;
+  // Normalize once here so every consumer (monitor, history, etc.) sees the
+  // same status vocabulary, matching status.ts/workflow_runs.ts/etc.
+  const status = normalizeWorkflowStatus( rawMeta?.status );
+  const meta = rawMeta ? { ...rawMeta, status } : rawMeta;
 
   const startMs = workflowStartMs( meta, events );
   const spans = correlate( events, startMs );
 
   return {
     workflow: meta,
+    rawWorkflow: rawMeta,
     runId: resolvedRunId ?? meta?.runId ?? null,
     events,
     spans,
-    totalDurationMs: totalDuration( meta, spans, startMs )
+    totalDurationMs: totalDuration( meta, spans, startMs ),
+    continuedAsNewRunId: continuedAsNewRunId( events ),
+    cursor: pages
   };
+}
+
+export async function fetchWorkflowHistory( options: FetchWorkflowHistoryOptions ): Promise<WorkflowHistoryResult> {
+  const { workflowId, runId, includePayloads = false } = options;
+
+  const pages = await fetchPages(
+    workflowId, includePayloads, { meta: null, runId, events: [], lastEventId: 0, pageToken: undefined }
+  );
+
+  return buildResult( pages );
+}
+
+/**
+ * Incremental counterpart to `fetchWorkflowHistory`, for a poller (`workflow monitor`) that
+ * calls repeatedly while a workflow is still running. Pass the previous call's `cursor`
+ * (from either function's result) to resume from where it left off instead of re-paging the
+ * whole history; omit it only to start a completely fresh walk.
+ */
+export async function fetchWorkflowHistoryUpdates(
+  options: FetchWorkflowHistoryOptions,
+  cursor?: WorkflowHistoryCursor
+): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor }> {
+  const { workflowId, includePayloads = false, longPollTimeoutMs } = options;
+  const seed: WorkflowHistoryCursor = cursor ??
+    { meta: null, runId: options.runId, events: [], lastEventId: 0, pageToken: undefined };
+
+  const pages = await fetchPages( workflowId, includePayloads, seed, longPollTimeoutMs );
+
+  return { result: buildResult( pages ), cursor: pages };
 }

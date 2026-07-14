@@ -1,0 +1,70 @@
+/**
+ * Turns newly-correlated spans into append-only status lines for `workflow
+ * monitor`. Unlike the waterfall (which needs the full span set up front to
+ * lay out a time axis), a live monitor just reports each span's status
+ * transitions as they're observed on each poll.
+ */
+import type { Span, SpanStatus } from '#services/workflow_history/correlator.js';
+import { ANSI, formatDurationLabel, makeTint } from '#utils/waterfall.js';
+
+const GLYPH: Record<SpanStatus, string> = {
+  pending: '·',
+  running: '●',
+  completed: '✓',
+  failed: '✗'
+};
+
+// Continue-as-new is a workflow-level transition, not a span status, so it gets its own glyph
+// here in the formatting layer rather than being concatenated into the message at the call site.
+const CONTINUED_AS_NEW_GLYPH = '↻';
+
+export interface SpanUpdate {
+  span: Span;
+  label: string;
+}
+
+/**
+ * Returns spans whose status changed since the last call. `seen` is mutated
+ * in place so callers can carry it across polls. Pending spans are skipped —
+ * nothing worth reporting until a step starts.
+ */
+export function diffSpanUpdates(
+  spans: Span[],
+  labels: Map<string, string>,
+  seen: Map<string, SpanStatus>
+): SpanUpdate[] {
+  const updates: SpanUpdate[] = [];
+  for ( const span of spans ) {
+    if ( span.status === 'pending' || seen.get( span.id ) === span.status ) {
+      continue;
+    }
+    seen.set( span.id, span.status );
+    updates.push( { span, label: labels.get( span.id ) ?? span.name } );
+  }
+  return updates;
+}
+
+/** Formats the continue-as-new transition line, keeping its glyph in the formatting layer. */
+export function formatContinuedAsNew( runId: string ): string {
+  return `${CONTINUED_AS_NEW_GLYPH} continued as new run ${runId}`;
+}
+
+export function formatSpanUpdate( update: SpanUpdate, color: boolean ): string {
+  const { span, label } = update;
+  const glyph = GLYPH[span.status];
+  const tint = makeTint( color );
+  const tintStatus = ( text: string ): string => tint( text, ANSI[span.status] );
+
+  switch ( span.status ) {
+    case 'running':
+      return `${tintStatus( glyph )} ${label} running…`;
+    case 'completed':
+      return `${tintStatus( glyph )} ${label}  ${formatDurationLabel( Math.max( 0, span.durationMs ) )}`;
+    case 'failed': {
+      const reason = span.failureMessage ? `: ${span.failureMessage}` : '';
+      return `${tintStatus( glyph )} ${label} failed${reason}`;
+    }
+    default:
+      return `${glyph} ${label} ${span.status}`;
+  }
+}

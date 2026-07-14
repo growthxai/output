@@ -33,6 +33,7 @@ npx output workflow run lead_enrichment acme
 | `output workflow run` | Run a workflow and wait for the result |
 | `output workflow start` | Start a workflow without waiting |
 | `output workflow status` | Check workflow execution status |
+| `output workflow monitor` | Attach to a run and stream status updates until it ends |
 | `output workflow result` | Get a completed workflow's result |
 | `output workflow stop` | Stop a workflow gracefully |
 | `output workflow terminate` | Force-stop a workflow |
@@ -282,6 +283,45 @@ output workflow status <workflowId>
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--format, -f` | text | Output format: json, text |
+
+### output workflow monitor
+
+Attach to a workflow run and stream status updates until it ends — a step
+starts, completes, or fails is printed as it happens, so you don't have to
+re-run `workflow status` in a loop to watch a long-running workflow:
+
+```bash
+output workflow monitor <workflowId>
+```
+
+<ParamField path="workflowId" type="string" required>
+  The workflow execution ID
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--run-id, -r` | latest run | Monitor a specific run (continue-as-new chains are followed regardless of this flag) |
+| `--format, -f` | text | Output format: json, text |
+| `--include-payloads` | false | Include decoded step input/output payloads |
+| `--interval` | 2500 | Poll interval in milliseconds. Also bounds the resumed long-poll's server-side wait, so an idle workflow's update cadence is roughly twice this value, not a longer separate server default. |
+| `--color` | true | Colorize status output (`--no-color` to disable) |
+
+Exits `0` when the workflow completes, `1` when it fails, is canceled,
+terminated, or times out, and `130` if you detach with Ctrl+C — detaching
+never stops the workflow itself. `monitor` also exits `1` after 5 consecutive
+transient poll failures (network errors, 5xx/408/429 responses), printing a
+warning before each retry — this is API/network trouble, not a workflow
+outcome, but shares the same exit code.
+
+```bash
+output workflow monitor wf-12345
+output workflow monitor wf-12345 --run-id 2fe0b36b-...
+output workflow monitor wf-12345 --format json
+```
+
+<Note>
+  `--format json` here is **not** the same thing as the native `--json` flag used by `workflow run`, `workflow status`, and other commands migrated in OUT-419 (see the [changelog](/changelog)). Native `--json` suppresses all in-progress log output and prints a single JSON object once the command finishes. `monitor` has no single final result to print — it's a long-running command that emits a stream of discrete events (a step starting or finishing, a continue-as-new notice, a final summary) while the workflow is still running. `--format json` prints each event as its own line of newline-delimited JSON as it happens, so the output can be piped into `jq` or read incrementally by another process — often another automated or agent process rather than a person, which is the primary reason this command keeps its own JSON mode instead of adopting `--json`.
+</Note>
 
 ### output workflow result
 

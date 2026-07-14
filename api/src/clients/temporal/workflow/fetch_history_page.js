@@ -1,3 +1,4 @@
+import { isGrpcDeadlineError } from '@temporalio/client';
 import { temporal as temporalConfig } from '#configs';
 import { logger } from '#logger';
 import { workflowNotFoundError } from '../../errors.js';
@@ -11,7 +12,7 @@ const { namespace } = temporalConfig;
  * once when Temporal returns no history field. Shared by get_input and get_result so the
  * not-found + missing-history handling lives in one place instead of being copy-pasted.
  *
- * @param {object} connection - Temporal connection exposing `workflowService`
+ * @param {object} connection - Temporal connection exposing `workflowService` and `withDeadline`
  * @param {string} workflowId
  * @param {string} runId - Resolved run id to fetch
  * @param {object} [options]
@@ -19,29 +20,46 @@ const { namespace } = temporalConfig;
  * @param {Buffer} [options.nextPageToken]
  * @param {(error: object) => Error} [options.mapInvalidArgument] - Maps a gRPC INVALID_ARGUMENT
  *   (e.g. a malformed/expired runId) to a domain error; when omitted the raw error propagates.
- * @returns {Promise<object>} The raw getWorkflowExecutionHistory response
+ * @param {boolean} [options.waitNewEvent] - Long-poll: block server-side until a new event
+ *   exists past this page, up to `deadlineMs`. Only blocks when this page is already at the
+ *   current end of history; returns immediately if more is already buffered.
+ * @param {number} [options.deadlineMs] - Bounds how long a `waitNewEvent` call may block.
+ *   Required when `waitNewEvent` is true.
+ * @returns {Promise<object|null>} The raw getWorkflowExecutionHistory response, or `null` if
+ *   `waitNewEvent` was requested and the deadline elapsed with no new event.
  */
 export const fetchHistoryPage = async (
   connection, workflowId, runId,
-  { maximumPageSize, nextPageToken, mapInvalidArgument } = {}
+  { maximumPageSize, nextPageToken, mapInvalidArgument, waitNewEvent, deadlineMs } = {}
 ) => {
-  const response = await connection.workflowService.getWorkflowExecutionHistory( {
+  const call = () => connection.workflowService.getWorkflowExecutionHistory( {
     namespace,
     execution: { workflowId, runId },
     maximumPageSize,
-    nextPageToken
-  } ).catch( error => {
-    if ( !error ) {
-      throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
-    }
-    if ( error.code === GrpcStatus.NOT_FOUND ) {
-      throw workflowNotFoundError( workflowId, runId );
-    }
-    if ( mapInvalidArgument && error.code === GrpcStatus.INVALID_ARGUMENT ) {
-      throw mapInvalidArgument( error );
-    }
-    throw error;
+    nextPageToken,
+    ...( waitNewEvent ? { waitNewEvent: true } : {} )
   } );
+
+  const response = await ( waitNewEvent ? connection.withDeadline( Date.now() + deadlineMs, call ) : call() )
+    .catch( error => {
+      if ( !error ) {
+        throw new Error( 'Temporal getWorkflowExecutionHistory rejected with no error' );
+      }
+      if ( waitNewEvent && isGrpcDeadlineError( error ) ) {
+        return null;
+      }
+      if ( error.code === GrpcStatus.NOT_FOUND ) {
+        throw workflowNotFoundError( workflowId, runId );
+      }
+      if ( mapInvalidArgument && error.code === GrpcStatus.INVALID_ARGUMENT ) {
+        throw mapInvalidArgument( error );
+      }
+      throw error;
+    } );
+
+  if ( response === null ) {
+    return null;
+  }
 
   if ( !response.history ) {
     logger.warn( 'Temporal getWorkflowExecutionHistory returned no history field', { workflowId, runId } );
