@@ -1,11 +1,13 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: the API HTTP request log format changed. Log level now derives from response status, the status field was renamed, and the log message is now a request summary."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
 ---
 
-This guide covers the HTTP request logging changes in `output-api` v0.11.0. The API server was refactored to remove the `morgan` dependency and emit richer request logs. The public HTTP API contract is unchanged, but the shape, level, and message of the per-request log lines the server emits are different. This only affects you if you consume `output-api` logs in an observability tool (Datadog, CloudWatch, Loki, etc.) or match on them in scripts.
+This guide covers customer-facing changes to API request logging in `output-api` and workflow execution in `@outputai/core`.
 
-## What changed
+## API HTTP request logging
+
+The API server was refactored to remove the `morgan` dependency and emit richer request logs. The public HTTP API contract is unchanged, but the shape, level, and message of the per-request log lines the server emits are different. This only affects you if you consume `output-api` logs in an observability tool (Datadog, CloudWatch, Loki, etc.) or match on them in scripts.
 
 ### Log level now derives from response status
 
@@ -46,7 +48,7 @@ Previously the message was the constant string `"HTTP request"`, with all detail
 + "responseTime": 12
 ```
 
-## Before and after
+### Before and after
 
 A successful request, before (v0.10.0):
 
@@ -104,16 +106,16 @@ After — logged at `error`, with the renamed field:
 }
 ```
 
-## Migration steps
+### Migration steps
 
-### Update alerts and level-based filters
+#### Update alerts and level-based filters
 
 If you alert or filter on winston levels, audit those rules. HTTP 4xx now arrives at `warn` and 5xx at `error`. Decide whether that is what you want:
 
 - To keep alerting only on application errors, scope alerts to exclude HTTP request logs (for example, filter on the presence of `http.status_code`).
 - To alert on failing requests, this is now available directly from the log level with no extra query.
 
-### Update queries and facets that reference `status`
+#### Update queries and facets that reference `status`
 
 Anywhere you query, facet, or dashboard on the request-log `status` field, switch to `http.status_code`.
 
@@ -125,17 +127,155 @@ Anywhere you query, facet, or dashboard on the request-log `status` field, switc
 
 In Datadog specifically, `http.status_code` is a standard attribute and maps to the built-in HTTP status facet, so you may be able to drop a custom `status` facet definition.
 
-### Update anything that matches the message string
+#### Update anything that matches the message string
 
 Scripts, log processors, or saved searches that match the literal message `"HTTP request"` will no longer match. Match on a structural field instead (for example, the presence of `http.status_code` or `requestId`), or update the matcher to the new summary format `<METHOD> <URL> <STATUS> <ms>ms`.
 
-### Adjust `responseTime` consumers expecting sub-millisecond precision
+#### Adjust `responseTime` consumers expecting sub-millisecond precision
 
 If a dashboard or aggregation relied on fractional milliseconds in `responseTime`, note that values are now whole milliseconds.
 
-## Checklist
+### API logging checklist
 
 - Review winston level-based alerts and filters; 4xx now logs at `warn`, 5xx at `error`.
 - Rename `status` to `http.status_code` in log queries, facets, and dashboards.
 - Replace any match on the constant message `"HTTP request"` with a structural field or the new summary format.
 - Confirm `responseTime` consumers tolerate integer milliseconds.
+
+## Workflow runtime changes
+
+This section covers the workflow execution changes in `@outputai/core` v0.11.0.
+
+### What changed
+
+- Steps, evaluators, and shared activities now use one workflow-scoped runtime dispatcher.
+- Shared activities are registered as `<workflow-name>#<activity-name>` instead of `$shared#<activity-name>`.
+- Child workflow invocation options are passed as workflow arguments instead of being propagated through Temporal memo.
+- A child workflow's definition-level `activityOptions` now override inherited parent options. Invocation-level and step-level options remain more specific.
+
+### Before upgrading running workers
+
+<Warning>
+Do not deploy v0.10.x and v0.11.0 workers to the same Temporal task queue, and do not replace a v0.10.x worker while affected workflow executions are still open.
+</Warning>
+
+The v0.11.0 runtime changes Temporal command attributes:
+
+- A shared activity previously scheduled as `$shared#send_event` is now scheduled as `lead_enrichment#send_event`.
+- A child workflow is now started with its invocation-level activity options in its argument payload instead of inherited through memo.
+
+Temporal replays a workflow's existing history when another worker processes it. If a v0.11.0 worker replays a history produced by v0.10.x and reaches one of these commands, the new command can differ from the recorded event. Temporal then reports a nondeterminism failure.
+
+A mixed-version rollout is also unsafe. The two versions use different memo and child-argument contracts, so an old parent and new child, or a new parent and old child, can lose inherited activity options even when replay does not fail immediately.
+
+#### Choose a safe rollout strategy
+
+Use one of these strategies before changing the worker version:
+
+1. **Drain the existing task queue.** Stop starting new workflows on the v0.10.x queue, wait for affected executions to complete, and then replace the worker.
+2. **Move v0.11.0 to a new task queue.** Keep the v0.10.x worker serving its existing queue while new executions are routed to a separate v0.11.0 queue.
+3. **Restart affected executions.** If an execution can be safely terminated and restarted from its original input or a checkpoint, restart it after the v0.11.0 cutover.
+
+At minimum, treat executions that call shared activities or child workflows as affected. Do not rely on a normal rolling restart on the same task queue.
+
+#### Update activity-type consumers
+
+Update dashboards, alerts, history processors, and scripts that match the old `$shared` activity prefix.
+
+##### Before
+
+```ts
+const isSharedActivity = activityType.startsWith( '$shared#' );
+```
+
+##### After
+
+Shared and local activities use the same workflow namespace. Match the full workflow activity type when possible:
+
+```ts
+const isSendEventActivity = activityType === 'lead_enrichment#send_event';
+```
+
+If the workflow name is not known:
+
+```ts
+const activityName = activityType.split( '#' ).at( -1 );
+const isSendEventActivity = activityName === 'send_event';
+```
+
+### Review child workflow activity options
+
+Activity options are merged from broad defaults to specific overrides. v0.11.0 changes the relative precedence of inherited parent options and the child workflow's definition.
+
+#### v0.10.x precedence
+
+1. Output's default activity options
+2. The child workflow's definition-level `options.activityOptions`
+3. Activity options inherited from the parent workflow
+4. The `activityOptions` passed to this child invocation
+5. The called step's own `options.activityOptions`
+
+#### v0.11.0 precedence
+
+1. Output's default activity options
+2. Activity options inherited from the parent workflow
+3. The child workflow's definition-level `options.activityOptions`
+4. The `activityOptions` passed to this child invocation
+5. The called step's own `options.activityOptions`
+
+This means a child definition now protects its own retry and timeout defaults from broader settings inherited through the parent.
+
+For example:
+
+```ts
+const childWorkflow = workflow( {
+  name: 'enrich_company',
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 2
+      }
+    }
+  },
+  async fn( input ) {
+    // ...
+  }
+} );
+```
+
+If the parent currently has `maximumAttempts: 8`, the child used 8 attempts in v0.10.x. In v0.11.0, the child uses 2 attempts.
+
+#### Preserve a parent-selected override
+
+Pass the policy on the child invocation when the parent must override the child's definition:
+
+```ts
+await childWorkflow(
+  { companyId: input.companyId },
+  {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 8
+      }
+    }
+  }
+);
+```
+
+Invocation-level options remain more specific than inherited parent options and the child definition.
+
+Alternatively, remove the overlapping option from the child definition when the child should always inherit that field from its parent.
+
+<Note>
+Step-level `options.activityOptions` still have final precedence. Review step definitions as well as parent and child workflow definitions when calculating the effective policy.
+</Note>
+
+### Workflow runtime checklist
+
+- Inventory open v0.10.x executions that call shared activities or child workflows.
+- Drain the old task queue, keep a v0.10.x worker for old executions, or restart affected executions before the cutover.
+- Do not run v0.10.x and v0.11.0 workers on the same Temporal task queue.
+- Update dashboards and history tooling that match `$shared#<activity-name>`.
+- Audit parent and child workflows that configure the same retry or timeout fields.
+- Pass `activityOptions` on child invocations where the parent must override the child's definition.
+- Update tests that assert inherited parent options override child definition options.
