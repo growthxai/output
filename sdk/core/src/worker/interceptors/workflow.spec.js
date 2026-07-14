@@ -56,12 +56,13 @@ vi.mock( './headers.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMo
 const deepMergeMock = vi.fn( ( a, b ) => ( { ...( a || {} ), ...( b || {} ) } ) );
 vi.mock( '#helpers/object', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
 
-const stepOptionsDefault = {};
-vi.mock( '../temp/__activity_options.js', () => ( { default: stepOptionsDefault } ) );
+const activityOptionsDefault = {};
+vi.mock( '../temp/__activity_options.js', () => ( { default: activityOptionsDefault } ) );
 
 describe( 'workflow interceptors', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    Object.keys( activityOptionsDefault ).forEach( key => delete activityOptionsDefault[key] );
     isCancellationMock.mockReturnValue( false );
     workflowInfoMock.mockReturnValue( workflowInfo );
   } );
@@ -91,11 +92,11 @@ describe( 'workflow interceptors', () => {
       expect( out ).toBe( 'result' );
     } );
 
-    it( 'merges stepOptions with memo.activityOptions when stepOptions exist for activityType', async () => {
-      stepOptionsDefault['MyWorkflow#step1'] = { scheduleToCloseTimeout: 60 };
+    it( 'merges component activity options over the scheduled activity input options', async () => {
+      activityOptionsDefault['MyWorkflow#step1'] = { scheduleToCloseTimeout: 60 };
       workflowInfoMock.mockReturnValue( {
         ...workflowInfo,
-        memo: { traceInfo: workflowInfo.memo.traceInfo, activityOptions: { heartbeatTimeout: 10 } }
+        memo: { traceInfo: workflowInfo.memo.traceInfo }
       } );
       memoToHeadersMock.mockReturnValue( {} );
       deepMergeMock.mockReturnValue( { heartbeatTimeout: 10, scheduleToCloseTimeout: 60 } );
@@ -103,14 +104,13 @@ describe( 'workflow interceptors', () => {
       const { interceptors } = await import( './workflow.js' );
       const { outbound } = interceptors();
       const interceptor = outbound[0];
-      const input = { headers: {}, activityType: 'MyWorkflow#step1' };
+      const input = { headers: {}, activityType: 'MyWorkflow#step1', options: { heartbeatTimeout: 10 } };
       const next = vi.fn().mockResolvedValue( undefined );
 
       await interceptor.scheduleActivity( input, next );
 
       expect( deepMergeMock ).toHaveBeenCalledWith( { heartbeatTimeout: 10 }, { scheduleToCloseTimeout: 60 } );
       expect( input.options ).toEqual( { heartbeatTimeout: 10, scheduleToCloseTimeout: 60 } );
-      delete stepOptionsDefault['MyWorkflow#step1'];
     } );
   } );
 

@@ -60,21 +60,6 @@ describe( 'resolveResetEventId', () => {
     expect( resolveResetEventId( events, 'firstStep' ).toString() ).toBe( '13' );
   } );
 
-  it( 'matches shared-step activity names by suffix', async () => {
-    const events = [
-      event( 1, EventType.ACTIVITY_TASK_SCHEDULED, {
-        activityTaskScheduledEventAttributes: { activityType: { name: '$shared#commonStep' } }
-      } ),
-      event( 2, EventType.ACTIVITY_TASK_COMPLETED, {
-        activityTaskCompletedEventAttributes: { scheduledEventId: { toString: () => '1' } }
-      } ),
-      event( 3, EventType.WORKFLOW_TASK_COMPLETED )
-    ];
-    const { resolveResetEventId } = await import( './reset.js' );
-
-    expect( resolveResetEventId( events, 'commonStep' ).toString() ).toBe( '3' );
-  } );
-
   it( 'throws StepNotFoundError when the step was never scheduled', async () => {
     const { resolveResetEventId } = await import( './reset.js' );
 

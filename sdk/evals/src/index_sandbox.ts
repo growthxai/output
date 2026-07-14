@@ -9,8 +9,8 @@
  * The webpack rewriter (workflow_rewriter/index.mjs) is supposed to strip evaluator
  * imports from the AST via collectTargetImports(), which calls path.remove() on each
  * matched import declaration. However, after collecting imports, the rewriter checks
- * if rewriteFnBodies() performed any rewrites. For eval workflows — which have no
- * fn body, only a config object — rewriteFnBodies() returns false. When that happens,
+ * if rewriteActivityCalls() performed any rewrites. For eval workflows — which have no
+ * function-body activity calls, only a config object — rewriteActivityCalls() returns false. When that happens,
  * the rewriter returns the original source string unchanged (lines 46-48), discarding
  * the import stripping that collectTargetImports() already applied to the AST.
  *
@@ -26,8 +26,8 @@
  *
  * Remove when:
  * The workflow rewriter in sdk/core/src/worker/webpack_loaders/workflow_rewriter/index.mjs
- * is fixed to generate output from the modified AST even when rewriteFnBodies() returns
- * false — i.e. when collectTargetImports() stripped imports but no fn bodies needed
+ * is fixed to generate output from the modified AST even when rewriteActivityCalls() returns
+ * false — i.e. when collectTargetImports() stripped imports but no activity calls needed
  * rewriting. This also requires injecting metadata stubs for the stripped evaluator
  * references, since evalWorkflow() calls ComponentMetadata.getName(def.evaluator) at
  * module init time and the identifiers would otherwise be undefined. Once the rewriter

@@ -23,29 +23,34 @@ export declare const Objects: {
   isPlainObject( object: unknown ): boolean,
 
   /**
-   * Creates a new object by merging object `b` onto object `a`, biased toward `b`:
-   * - Fields in `b` overwrite fields in `a`.
-   * - Fields in `b` that don't exist in `a` are created.
-   * - Fields in `a` that don't exist in `b` are left unchanged.
+   * Creates a new object by recursively merging overlays onto a base object.
+   * Later objects overwrite fields from earlier objects.
    *
-   * @param a - The base object.
-   * @param b - The overriding object.
-   * @throws {Error} If either `a` or `b` is not a plain object.
+   * Non-object overlays are ignored.
+   *
+   * @param base - The base object.
+   * @param overlays - The overriding objects, applied from left to right.
+   * @throws {Error} If `base` is not a plain object.
    * @returns A new merged object.
    */
-  deepMerge( a: object, b: object | null | undefined ): object,
+  deepMerge( base: object, ...overlays: Array<object | null | undefined> ): object,
 
   /**
-   * Creates a new object by merging object `b` onto object `a`, biased toward `b`:
-   * - Fields in `b` that don't exist in `a` are created.
-   * - Fields in `a` that don't exist in `b` are left unchanged.
-   * - Fields in `a` and `b` are passed as arguments to the resolve function (a,b) and its return assigns the new value.
+   * Creates a new object by recursively merging overlays onto a base object.
+   * Existing leaf values are resolved by the resolver function.
    *
-   * @param a - The base object.
-   * @param b - The overriding object.
-   * @param resolver - The resolver function.
-   * @throws {Error} If either `a` or `b` is not a plain object.
+   * Non-object overlays are ignored.
+   *
+   * @param base - The base object.
+   * @param args - The overriding objects, applied from left to right, followed by the resolver function.
+   * @throws {Error} If `base` is not a plain object.
    * @returns A new merged object.
    */
-  deepMergeWithResolver( a: object, b: object | null | undefined, resolver: ( a: unknown, b: unknown ) => unknown ): object
+  deepMergeWithResolver(
+    base: object,
+    ...args: [
+      ...overlays: Array<object | null | undefined>,
+      resolver: ( a: unknown, b: unknown ) => unknown
+    ]
+  ): object
 };

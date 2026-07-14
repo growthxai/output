@@ -9,7 +9,6 @@ import {
   extractTopLevelStringConsts,
   getObjectKeyName,
   getLocalNameFromDestructuredProperty,
-  toFunctionExpression,
   isStepsPath,
   isSharedStepsPath,
   isAnyStepsPath,
@@ -17,7 +16,6 @@ import {
   isSharedEvaluatorsPath,
   isWorkflowPath,
   isAbsoluteWorkflowJsResource,
-  createThisMethodCall,
   resolveNameFromArg,
   resolveNameFromOptions,
   buildStepsNameMap,
@@ -130,17 +128,6 @@ describe( 'workflow_rewriter tools', () => {
     rmSync( dir, { recursive: true, force: true } );
   } );
 
-  it( 'toFunctionExpression: converts arrow, wraps expression bodies', () => {
-    const arrowExprBody = t.arrowFunctionExpression( [ t.identifier( 'x' ) ], t.identifier( 'x' ) );
-    const arrowBlockBody = t.arrowFunctionExpression( [], t.blockStatement( [ t.returnStatement( t.numericLiteral( 1 ) ) ] ) );
-    const fn1 = toFunctionExpression( arrowExprBody );
-    const fn2 = toFunctionExpression( arrowBlockBody );
-    expect( t.isFunctionExpression( fn1 ) ).toBe( true );
-    expect( t.isBlockStatement( fn1.body ) ).toBe( true );
-    expect( t.isReturnStatement( fn1.body.body[0] ) ).toBe( true );
-    expect( t.isFunctionExpression( fn2 ) ).toBe( true );
-  } );
-
   it( 'isStepsPath: matches LOCAL steps.js (no path traversal)', () => {
     // Local steps (without ../ or /shared/)
     expect( isStepsPath( 'steps.js' ) ).toBe( true );
@@ -224,16 +211,6 @@ describe( 'workflow_rewriter tools', () => {
     // Non-evaluators should NOT match
     expect( isSharedEvaluatorsPath( '../utils.js' ) ).toBe( false );
     expect( isSharedEvaluatorsPath( 'steps.js' ) ).toBe( false );
-  } );
-
-  it( 'createThisMethodCall: builds this.method(\'name\', ...args) call', () => {
-    const call = createThisMethodCall( 'invoke', 'n', [ t.numericLiteral( 1 ), t.identifier( 'x' ) ] );
-    expect( t.isCallExpression( call ) ).toBe( true );
-    expect( t.isMemberExpression( call.callee ) ).toBe( true );
-    expect( t.isThisExpression( call.callee.object ) ).toBe( true );
-    expect( t.isIdentifier( call.callee.property, { name: 'invoke' } ) ).toBe( true );
-    expect( t.isStringLiteral( call.arguments[0], { value: 'n' } ) ).toBe( true );
-    expect( call.arguments.length ).toBe( 3 );
   } );
 
   it( 'buildSharedStepsNameMap: reads names from shared steps module and caches result', () => {

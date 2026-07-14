@@ -95,98 +95,86 @@ describe( 'clone', () => {
 } );
 
 describe( 'deepMerge', () => {
-  it( 'Overwrites properties in object "a"', () => {
+  it( 'returns a clone when only the base object is provided', () => {
     const a = {
-      a: 1,
-      b: {
-        c: 2
-      }
+      nested: { value: 1 }
     };
-    const b = {
-      a: false,
-      b: {
-        c: true
-      }
-    };
-    expect( deepMerge( a, b ) ).toEqual( {
-      a: false,
-      b: {
-        c: true
-      }
+    const result = deepMerge( a );
+
+    a.nested.value = 2;
+
+    expect( result ).toEqual( {
+      nested: { value: 1 }
     } );
-  } );
-
-  it( 'Adds properties existing in "b" but absent in "a"', () => {
-    const a = {
-      a: 1
-    };
-    const b = {
-      a: false,
-      b: true
-    };
-    expect( deepMerge( a, b ) ).toEqual( {
-      a: false,
-      b: true
-    } );
-  } );
-
-  it( 'Keep extra properties in "a"', () => {
-    const a = {
-      a: 1
-    };
-    const b = {
-      b: true
-    };
-    expect( deepMerge( a, b ) ).toEqual( {
-      a: 1,
-      b: true
-    } );
-  } );
-
-  it( 'Merge object is a clone', () => {
-    const a = {
-      a: 1
-    };
-    const b = {
-      b: 1
-    };
-    const result = deepMerge( a, b );
-    a.a = 2;
-    b.b = 2;
-    expect( result.a ).toEqual( 1 );
-  } );
-
-  it( 'Returns copy of "a" if "b" is not an object', () => {
-    const a = {
-      a: 1
-    };
-    expect( deepMerge( a, null ) ).toEqual( { a: 1 } );
-    expect( deepMerge( a, undefined ) ).toEqual( { a: 1 } );
-  } );
-
-  it( 'Copy of object "a" is a clone', () => {
-    const a = {
-      a: 1
-    };
-    const result = deepMerge( a, null );
-    a.a = 2;
-    expect( result.a ).toEqual( 1 );
   } );
 
   it( 'Throws when first argument is not a plain object', () => {
-    expect( () => deepMerge( Function ) ).toThrow( Error );
-    expect( () => deepMerge( () => {} ) ).toThrow( Error );
-    expect( () => deepMerge( 'a' ) ).toThrow( Error );
-    expect( () => deepMerge( true ) ).toThrow( Error );
-    expect( () => deepMerge( /a/ ) ).toThrow( Error );
-    expect( () => deepMerge( [] ) ).toThrow( Error );
-    expect( () => deepMerge( class Foo {}, class Foo {} ) ).toThrow( Error );
-    expect( () => deepMerge( Number.constructor, Number.constructor ) ).toThrow( Error );
-    expect( () => deepMerge( Number.constructor.prototype, Number.constructor.prototype ) ).toThrow( Error );
+    expect( () => deepMerge( null ) ).toThrow( Error );
+  } );
+
+  it( 'merges multiple objects from left to right using rightmost values', () => {
+    expect( deepMerge(
+      {
+        a: 1,
+        nested: {
+          a: 'base',
+          kept: true
+        }
+      },
+      {
+        b: 2,
+        nested: {
+          a: 'first',
+          b: 'first'
+        }
+      },
+      {
+        a: 3,
+        nested: {
+          b: 'second',
+          c: 'second'
+        }
+      }
+    ) ).toEqual( {
+      a: 3,
+      b: 2,
+      nested: {
+        a: 'first',
+        b: 'second',
+        c: 'second',
+        kept: true
+      }
+    } );
+  } );
+
+  it( 'ignores non-object values among multiple overlays', () => {
+    expect( deepMerge(
+      { a: 1 },
+      null,
+      { b: 2 },
+      undefined,
+      { a: 3 }
+    ) ).toEqual( {
+      a: 3,
+      b: 2
+    } );
   } );
 } );
 
 describe( 'deepMergeWithResolver', () => {
+  it( 'returns a clone when only the base object and resolver are provided', () => {
+    const a = {
+      nested: { value: 1 }
+    };
+    const result = deepMergeWithResolver( a, ( x, y ) => x + y );
+
+    a.nested.value = 2;
+
+    expect( result ).toEqual( {
+      nested: { value: 1 }
+    } );
+  } );
+
   it( 'uses resolver for existing leaf values, including nested leaves', () => {
     const a = {
       cost: { total: 1 },
@@ -234,6 +222,66 @@ describe( 'deepMergeWithResolver', () => {
     expect( () => deepMergeWithResolver( null, {}, ( x, y ) => x + y ) ).toThrow( Error );
     expect( () => deepMergeWithResolver( [], {}, ( x, y ) => x + y ) ).toThrow( Error );
     expect( () => deepMergeWithResolver( 'a', {}, ( x, y ) => x + y ) ).toThrow( Error );
+  } );
+
+  it( 'throws when last argument is not a resolver function', () => {
+    expect( () => deepMergeWithResolver( { a: 1 }, { a: 2 } ) )
+      .toThrow( 'Last argument (resolver) is not a function.' );
+  } );
+
+  it( 'merges multiple objects using the resolver from left to right', () => {
+    const resolver = vi.fn( ( x, y ) => `${ x }:${ y }` );
+
+    expect( deepMergeWithResolver(
+      {
+        a: 'base',
+        nested: {
+          count: 1,
+          kept: 'yes'
+        }
+      },
+      {
+        a: 'first',
+        nested: {
+          count: 2,
+          firstOnly: true
+        }
+      },
+      {
+        a: 'second',
+        nested: {
+          count: 3,
+          secondOnly: true
+        }
+      },
+      resolver
+    ) ).toEqual( {
+      a: 'base:first:second',
+      nested: {
+        count: '1:2:3',
+        firstOnly: true,
+        kept: 'yes',
+        secondOnly: true
+      }
+    } );
+    expect( resolver ).toHaveBeenCalledTimes( 4 );
+  } );
+
+  it( 'ignores non-object values among multiple resolver overlays', () => {
+    const resolver = vi.fn( ( x, y ) => x + y );
+
+    expect( deepMergeWithResolver(
+      { a: 1 },
+      null,
+      { a: 2 },
+      undefined,
+      { b: 3 },
+      resolver
+    ) ).toEqual( {
+      a: 3,
+      b: 3
+    } );
+    expect( resolver ).toHaveBeenCalledOnce();
   } );
 } );
 

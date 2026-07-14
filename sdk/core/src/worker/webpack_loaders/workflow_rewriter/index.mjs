@@ -2,7 +2,7 @@ import { dirname } from 'node:path';
 import generatorModule from '@babel/generator';
 import { parse } from '../tools.js';
 
-import rewriteFnBodies from './rewrite_fn_bodies.js';
+import rewriteActivityCalls from './rewrite_activity_calls.js';
 import collectTargetImports from './collect_target_imports.js';
 
 // Handle CJS/ESM interop for Babel packages when executed as a webpack loader
@@ -15,8 +15,8 @@ const evaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName>
 const sharedEvaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName> (shared)
 
 /**
- * Webpack loader that rewrites step/evaluator calls by reading names from
- * the respective modules and transforming `fn` bodies accordingly.
+ * Webpack loader that rewrites imported step/evaluator calls by reading
+ * declared activity names and transforming function-body activity calls accordingly.
  * Preserves sourcemaps.
  *
  * @param {string|Buffer} source - Module source code.
@@ -33,15 +33,14 @@ export default function stepImportRewriterAstLoader( source, inputMap ) {
     const filename = this.resourcePath;
     const ast = parse( String( source ), filename );
     const fileDir = dirname( filename );
-    const { stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports } =
-      collectTargetImports( ast, fileDir, cache, filename );
+    const { activityImports } = collectTargetImports( ast, fileDir, cache );
 
     // No imports
-    if ( [].concat( stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports ).length === 0 ) {
+    if ( activityImports.length === 0 ) {
       return callback( null, source, inputMap );
     }
 
-    const rewrote = rewriteFnBodies( { ast, stepImports, sharedStepImports, evaluatorImports, sharedEvaluatorImports } );
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
     // No edits performed
     if ( !rewrote ) {
       return callback( null, source, inputMap );

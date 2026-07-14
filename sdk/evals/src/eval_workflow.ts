@@ -55,7 +55,9 @@ export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOpti
   } );
 
   const defaultFn = async function ( this: unknown, input: EvalWorkflowInput ) {
-    const { invokeEvaluator } = this as { invokeEvaluator: ( name: string, input: unknown ) => Promise<unknown> };
+    const invoke = ( globalThis as unknown as Record<symbol, ( name: string, input: unknown ) => Promise<unknown>> )[
+      Symbol.for( '@outputai/core:__invoke_activity' )
+    ];
 
     const jobs = input.datasets.map( ( dataset: Dataset ) => async () => {
       const evaluatorResults = [];
@@ -65,7 +67,7 @@ export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOpti
         const evalTruth = perEvalTruth?.[evalDef.name] ?? {};
         const mergedTruth = { ...globalTruth, ...evalTruth };
 
-        const result = await invokeEvaluator( evalDef.name, {
+        const result = await invoke( evalDef.name, {
           input: dataset.input,
           output: dataset.last_output?.output,
           ground_truth: mergedTruth

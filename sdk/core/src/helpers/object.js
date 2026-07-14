@@ -24,58 +24,71 @@ export const clone = v => {
 };
 
 /**
- * Creates a new object merging object "b" onto object "a", using a resolver function to define the value to keep.
- * - Object "b" fields that also exists on "a" will have their value defined by the "resolver" function
- * - Object "b" fields that don't exist on object "a" will be added;
- * - Object "a" fields that don't exist on object "b" will be preserved;
+ * Creates a new object recursively merging the rightmost object over the previous one using a resolver function.
+ * Give two objects, (L)eft and (R)right
+ * - Object "R" will overwrite fields on object "L" based on the result of the resolver function;
+ * - Object "R" fields that don't exist on object "L" will be added;
+ * - Object "L" fields that don't exist on object "R" will be preserved;
  *
- * If "b" isn't an object, a new object equal to "a" is returned
+ * If "R" isn't an object, a new object equal to "L" is returned.
  *
- * @param {object} a - The base object
- * @param {object} b - The target object
- * @param {function} resolver - A function that return the value to be kept. First argument is value a, second is value b
+ * The resolver function will define the final value of the merge, it receives two args value "L" and "R".
+ *
+ *
+ * @param {object} base - The base object
+ * @param {...(object|function)} args - Target objects followed by the resolver function
  * @returns {object} A new object
  */
-export const deepMergeWithResolver = ( a, b, resolver ) => {
-  if ( !isPlainObject( a ) ) {
-    throw new Error( 'Parameter "a" is not an object.' );
+export const deepMergeWithResolver = ( base, ...args ) => {
+  const objects = args.slice( 0, -1 );
+  const resolver = args.at( -1 );
+
+  if ( !isPlainObject( base ) ) {
+    throw new Error( 'First argument (base object) is not an object.' );
   }
-  if ( !isPlainObject( b ) ) {
-    return clone( a );
+
+  if ( typeof resolver !== 'function' ) {
+    throw new Error( 'Last argument (resolver) is not a function.' );
   }
-  return Object.entries( b ).reduce( ( obj, [ k, v ] ) =>
-    Object.assign( obj, {
-      [k]: ( () => {
-        if ( isPlainObject( v ) && isPlainObject( a[k] ) ) {
-          return deepMergeWithResolver( a[k], v, resolver );
-        }
-        if ( Object.hasOwn( a, k ) ) {
-          return resolver( a[k], v );
-        }
-        return v;
-      } )()
-    } )
-  , clone( a ) );
+
+  return objects.reduce( ( merged, object ) => {
+    if ( !isPlainObject( object ) ) {
+      return merged;
+    }
+
+    for ( const [ k, v ] of Object.entries( object ) ) {
+      if ( isPlainObject( v ) && isPlainObject( merged[k] ) ) {
+        merged[k] = deepMergeWithResolver( merged[k], v, resolver );
+      } else if ( Object.hasOwn( merged, k ) ) {
+        merged[k] = resolver( merged[k], v );
+      } else {
+        merged[k] = v;
+      }
+    }
+    return merged;
+  }, clone( base ) );
 };
 
 /**
- * Creates a new object merging object "b" onto object "a" biased to "b":
- * - Object "b" will overwrite fields on object "a";
- * - Object "b" fields that don't exist on object "a" will be added;
- * - Object "a" fields that don't exist on object "b" will be preserved;
+ * Creates a new object recursively merging the rightmost object over the previous one.
+ * Give two objects, (L)eft and (R)right
+ * - Object "R" will overwrite fields on object "L";
+ * - Object "R" fields that don't exist on object "L" will be added;
+ * - Object "L" fields that don't exist on object "R" will be preserved;
  *
- * If "b" isn't an object, a new object equal to "a" is returned
+ * If "R" isn't an object, a new object equal to "L" is returned.
  *
- * @param {object} a - The base object
- * @param {object} b - The target object
+ * @param {object} base - The base object
+ * @param {...object} rest - The target objects
  * @returns {object} A new object
  */
-export const deepMerge = ( a, b ) => deepMergeWithResolver( a, b, ( _, b ) => b );
+export const deepMerge = ( base, ...rest ) =>
+  deepMergeWithResolver( base, ...rest, ( _, b ) => b );
 
 /**
  * Adds an non-writable, non-configurable and non-enumerable property to an object
  * @param {object} obj
- * @param {string} key
+ * @param {string|Symbol} key
  * @param {any} value
  * @returns
  */

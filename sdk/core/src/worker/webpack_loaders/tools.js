@@ -2,27 +2,14 @@ import parser from '@babel/parser';
 import { resolve as resolvePath } from 'node:path';
 import { readFileSync } from 'node:fs';
 import {
-  blockStatement,
-  callExpression,
-  functionExpression,
-  identifier,
-  isArrowFunctionExpression,
   isAssignmentPattern,
-  isBlockStatement,
   isCallExpression,
   isExportNamedDeclaration,
-  isFunctionExpression,
   isIdentifier,
-  isVariableDeclarator,
   isStringLiteral,
   isVariableDeclaration,
   isObjectExpression,
-  memberExpression,
-  returnStatement,
-  stringLiteral,
-  thisExpression,
-  isExportDefaultDeclaration,
-  isFunctionDeclaration
+  isExportDefaultDeclaration
 } from '@babel/types';
 import { ComponentFile, NodeType } from './consts.js';
 
@@ -98,17 +85,6 @@ export const getLocalNameFromDestructuredProperty = prop => {
     return prop.value.left.name;
   }
   return null;
-};
-
-/**
- * Convert an ArrowFunctionExpression to a FunctionExpression.
- * Wraps expression bodies in a block with a return statement.
- * @param {import('@babel/types').ArrowFunctionExpression} arrow - Arrow function.
- * @returns {import('@babel/types').FunctionExpression} Function expression.
- */
-export const toFunctionExpression = arrow => {
-  const body = isBlockStatement( arrow.body ) ? arrow.body : blockStatement( [ returnStatement( arrow.body ) ] );
-  return functionExpression( null, arrow.params, body, arrow.generator ?? false, arrow.async ?? false );
 };
 
 /**
@@ -230,38 +206,6 @@ export const getFileKind = path => {
   }
   return null;
 };
-
-/**
- * Create a `this.method(literalName, ...args)` CallExpression.
- * @param {string} method - Method name on `this`.
- * @param {string} literalName - First string literal argument.
- * @param {import('@babel/types').Expression[]} args - Remaining call arguments.
- * @returns {import('@babel/types').CallExpression} Call expression node.
- */
-export const createThisMethodCall = ( method, literalName, args ) =>
-  callExpression( memberExpression( thisExpression(), identifier( method ) ), [ stringLiteral( literalName ), ...args ] );
-
-/**
- * Build a CallExpression that binds `this` at the call site:
- *   fn(arg1, arg2) -> fn.call(this, arg1, arg2)
- *
- * When to use:
- * - Inside workflow `fn` rewriting, local call-chain functions must receive the dynamic `this`
- *   so that emitted `this.invokeStep(...)` and similar calls inside them operate correctly.
- *
- * Example:
- *   // Input AST intent:
- *   foo(a, b);
- *
- *   // Rewritten AST:
- *   foo.call(this, a, b);
- *
- * @param {string} calleeName - Identifier name of the function being called (e.g., 'foo').
- * @param {import('@babel/types').Expression[]} args - Original call arguments.
- * @returns {import('@babel/types').CallExpression} CallExpression node representing `callee.call(this, ...args)`.
- */
-export const bindThisAtCallSite = ( calleeName, args ) =>
-  callExpression( memberExpression( identifier( calleeName ), identifier( 'call' ) ), [ thisExpression(), ...args ] );
 
 /**
  * Resolve an options object's name property to a string.
@@ -466,92 +410,3 @@ export const buildWorkflowNameMap = ( path, cache ) => {
   return result;
 };
 
-/**
- * Determine whether a node represents a function body usable as a workflow `fn`.
- *
- * Why this matters:
- * - Workflow `fn` needs a dynamic `this` so the rewriter can emit calls like `this.invokeStep(...)`.
- * - Arrow functions do not have their own `this`; they capture `this` lexically, which breaks the runtime contract.
- *
- * Accepts:
- * - FunctionExpression (possibly async/generator), e.g.:
- *   const obj = {
- *     fn: async function (input) {
- *       return input;
- *     }
- *   };
- *
- * Rejects:
- * - ArrowFunctionExpression, e.g.:
- *   const obj = {
- *     fn: async (input) => input
- *   };
- *
- * - Any other non-function expression.
- *
- * Notes:
- * - The rewriter will proactively convert arrow `fn` to a FunctionExpression before further processing.
- *
- * @param {import('@babel/types').Expression} v - Candidate node for `fn` value.
- * @returns {boolean} True if `v` is a FunctionExpression and not an arrow function.
- */
-export const isFunction = v => isFunctionExpression( v ) && !isArrowFunctionExpression( v );
-
-/**
- * Determine whether a variable declarator represents a function-like value.
- *
- * Use case:
- * - When `fn` calls a locally-declared function (directly or transitively), we need to:
- *   - propagate `this` to that function call (`callee.call(this, ...)`)
- *   - traverse into that function's body to rewrite imported step/workflow/evaluator calls.
- *
- * Matches patterns like:
- * - Function expression:
- *   const foo = function (x) { return x + 1; };
- *
- * - Async/generator function expression:
- *   const foo = async function (x) { return await work(x); };
- *
- * - Arrow function (will be normalized to FunctionExpression by the rewriter):
- *   const foo = (x) => x + 1;
- *   const foo = async (x) => await work(x);
- *
- * Does not match:
- * - Non-function initializers:
- *   const foo = 42;
- *   const foo = someIdentifier;
- *
- * @param {import('@babel/types').Node} v - AST node (typically a VariableDeclarator).
- * @returns {boolean} True if the declarator's initializer is a function (arrow or function expression).
- */
-export const isVarFunction = v =>
-  isVariableDeclarator( v ) && ( isFunctionExpression( v.init ) || isArrowFunctionExpression( v.init ) );
-
-/**
- * Determine whether a binding node corresponds to a function-like declaration usable
- * as a call-chain function target during workflow rewriting.
- *
- * Matches:
- * - FunctionDeclaration:
- *     function foo(x) { return x + 1; }
- *
- * - VariableDeclarator initialized with a function or arrow (normalized later):
- *     const foo = function (x) { return x + 1; };
- *     const foo = (x) => x + 1;
- *
- * Non-matches:
- * - Any binding that is not a function declaration nor a variable declarator with a function initializer.
- *
- * Why this matters:
- * - The rewriter traverses call chains from the workflow `fn`. It must recognize which local
- *   callees are valid function bodies to rewrite and into which it can propagate `this`.
- *
- * @param {import('@babel/types').Node} node - Binding path node (FunctionDeclaration or VariableDeclarator).
- * @returns {boolean} True if the node represents a function-like binding.
- */
-export const isFunctionLikeBinding = node =>
-  isFunctionDeclaration( node ) ||
-  (
-    isVariableDeclarator( node ) &&
-    ( isFunctionExpression( node.init ) || isArrowFunctionExpression( node.init ) )
-  );
