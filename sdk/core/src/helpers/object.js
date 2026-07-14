@@ -44,7 +44,11 @@ export const deepMergeWithResolver = ( base, ...args ) => {
   const resolver = args.at( -1 );
 
   if ( !isPlainObject( base ) ) {
-    throw new Error( 'First argument is not an object.' );
+    throw new Error( 'First argument (base object) is not an object.' );
+  }
+
+  if ( typeof resolver !== 'function' ) {
+    throw new Error( 'Last argument (resolver) is not a function.' );
   }
 
   return objects.reduce( ( merged, object ) => {

@@ -224,6 +224,11 @@ describe( 'deepMergeWithResolver', () => {
     expect( () => deepMergeWithResolver( 'a', {}, ( x, y ) => x + y ) ).toThrow( Error );
   } );
 
+  it( 'throws when last argument is not a resolver function', () => {
+    expect( () => deepMergeWithResolver( { a: 1 }, { a: 2 } ) )
+      .toThrow( 'Last argument (resolver) is not a function.' );
+  } );
+
   it( 'merges multiple objects using the resolver from left to right', () => {
     const resolver = vi.fn( ( x, y ) => `${ x }:${ y }` );
 
