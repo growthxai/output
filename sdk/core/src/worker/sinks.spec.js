@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BusEventType, ComponentType } from '#consts';
 
-const messageBusMock = vi.hoisted( () => ( {
+const mainEventBusMock = vi.hoisted( () => ( {
   emit: vi.fn()
 } ) );
 
@@ -15,7 +15,7 @@ const createWorkflowDetailsMock = vi.hoisted( () => vi.fn( workflowInfo => ( {
   runId: workflowInfo.runId
 } ) ) );
 
-vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 vi.mock( '#tracing', () => ( {
   addEventStart: addEventStartMock,
   addEventEnd: addEventEndMock,
@@ -69,7 +69,7 @@ describe( 'worker/sinks', () => {
     } );
 
     expect( createWorkflowDetailsMock ).toHaveBeenCalledWith( workflowInfo );
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_LOG, {
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_LOG, {
       level: 'info',
       message: 'workflow detail',
       metadata,
@@ -83,7 +83,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.start.fn( workflowInfo, input );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_START, { workflowDetails } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_START, { workflowDetails } );
     expect( addEventStartMock ).toHaveBeenCalledWith( {
       id: 'run-1',
       kind: ComponentType.WORKFLOW,
@@ -99,7 +99,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.start.fn( { ...workflowInfo, memo: {} }, { value: 'input' } );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_START, { workflowDetails } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_START, { workflowDetails } );
     expect( addEventStartMock ).not.toHaveBeenCalled();
   } );
 
@@ -109,7 +109,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.end.fn( workflowInfo, output );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_END, { workflowDetails } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_END, { workflowDetails } );
     expect( addEventEndMock ).toHaveBeenCalledWith( {
       id: 'run-1',
       details: output,
@@ -122,7 +122,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.end.fn( { ...workflowInfo, memo: {} }, { value: 'output' } );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_END, { workflowDetails } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_END, { workflowDetails } );
     expect( addEventEndMock ).not.toHaveBeenCalled();
   } );
 
@@ -132,7 +132,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.error.fn( workflowInfo, error );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
     expect( addEventErrorMock ).toHaveBeenCalledWith( {
       id: 'run-1',
       details: error,
@@ -146,7 +146,7 @@ describe( 'worker/sinks', () => {
 
     sinks.workflow.error.fn( { ...workflowInfo, memo: {} }, error );
 
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 

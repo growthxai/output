@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: hook event envelopes, API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
 ---
 
-This guide covers customer-facing changes to API request logging in `output-api` and workflow execution in `@outputai/core`.
+This guide covers customer-facing changes to hooks and workflow execution in `@outputai/core`, plus API request logging in `output-api`.
 
 ## API HTTP request logging
 
@@ -141,6 +141,127 @@ If a dashboard or aggregation relied on fractional milliseconds in `responseTime
 - Rename `status` to `http.status_code` in log queries, facets, and dashboards.
 - Replace any match on the constant message `"HTTP request"` with a structural field or the new summary format.
 - Confirm `responseTime` consumers tolerate integer milliseconds.
+
+## Hook event changes
+
+This section applies to hook files that import from `@outputai/core/hooks`.
+
+### `on()` now receives an event envelope
+
+In v0.10.x, SDK event fields were merged into the same object as framework metadata. In v0.11.0, framework metadata remains at the top level and event-specific data is available under `payload`.
+
+This affects every handler registered with `on()`, including:
+
+- `http:request`
+- `cost:http:request`
+- `cost:llm:request`
+- Custom events
+
+Lifecycle hooks such as `onWorkflowStart`, `onActivityEnd`, and `onError` remain flat.
+
+#### Before
+
+```ts
+import { on } from '@outputai/core/hooks';
+import type { HttpRequestEvent } from '@outputai/http';
+
+on<HttpRequestEvent>( 'http:request', event => {
+  console.log( event.eventId, event.workflowDetails.workflowId, event.method, event.url );
+} );
+```
+
+#### After
+
+```ts
+import { on } from '@outputai/core/hooks';
+import type { HttpRequestEvent } from '@outputai/http';
+
+on<HttpRequestEvent>( 'http:request', event => {
+  if ( !event.payload ) {
+    return;
+  }
+
+  console.log(
+    event.eventId,
+    event.workflowDetails.workflowId,
+    event.payload.method,
+    event.payload.url
+  );
+} );
+```
+
+The envelope has this shape:
+
+```ts
+{
+  eventId: string;
+  eventDate: number;
+  activityInfo: Info;
+  workflowDetails: WorkflowDetails;
+  outputActivityKind?: string;
+  payload: T | undefined;
+}
+```
+
+The generic passed to `on<T>()` still describes the event-specific data. The difference is that `T` now types `event.payload` instead of fields on `event` itself.
+
+Because custom events can omit their payload, check `event.payload` before reading its fields. SDK events such as `http:request` and cost events always supply one, but the public handler type still represents the optional case.
+
+v0.11.0 also adds `emit(eventName, payload?)` for publishing custom events from an Output activity:
+
+```ts
+import { emit, on } from '@outputai/core/hooks';
+
+emit( 'company:enriched', { companyId: 'company-123' } );
+
+on<{ companyId: string }>( 'company:enriched', event => {
+  if ( !event.payload ) {
+    return;
+  }
+
+  console.log( event.payload.companyId );
+} );
+```
+
+### Activity lifecycle hooks include internal activities
+
+`onActivityStart`, `onActivityEnd`, and `onActivityError` now run for internal activities as well as steps and evaluators. Internal activity payloads have:
+
+```ts
+{
+  outputActivityKind: 'internal_step'
+}
+```
+
+If your handler should keep the v0.10.x behavior, add an explicit filter:
+
+```ts
+import { onActivityStart } from '@outputai/core/hooks';
+
+onActivityStart( event => {
+  if ( event.outputActivityKind === 'internal_step' ) {
+    return;
+  }
+
+  // Handle steps and evaluators.
+} );
+```
+
+Review metrics, logs, webhooks, and state updates triggered by activity lifecycle hooks. Without a filter, internal activities now contribute to those side effects.
+
+### `onError` excludes the internal catalog workflow
+
+The internal `$catalog` workflow was already excluded from `onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError`. In v0.11.0, its workflow and activity errors are also excluded from `onError`.
+
+No migration is needed unless an `onError` handler explicitly relied on `$catalog` failures. Worker startup and catalog-manager failures still surface as runtime errors. Monitor Temporal or API catalog health if you need to detect the catalog workflow being terminated after startup.
+
+### Hook migration checklist
+
+- Update every `on()` handler to read event-specific fields from `event.payload`.
+- Guard `event.payload` before accessing its fields.
+- Keep framework fields such as `eventId`, `workflowDetails`, and `activityInfo` at the top level.
+- Filter `outputActivityKind === 'internal_step'` in activity lifecycle hooks when internal activities should remain hidden.
+- Remove assumptions that `onError` reports `$catalog` workflow failures.
 
 ## Workflow runtime changes
 

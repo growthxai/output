@@ -1,18 +1,5 @@
-import { messageBus } from '#bus';
-import { Storage } from '#async_storage';
+import { stepEventBus } from '#bus';
 
 export const Event = {
-  emit: ( eventName, payload ) => {
-    const ctx = Storage.load();
-
-    messageBus.emit( `external:${eventName}`, {
-      ...payload ?? {},
-      ...( ctx && {
-        activityInfo: ctx.activityInfo,
-        workflowDetails: ctx.workflowDetails,
-        outputActivityKind: ctx.outputActivityKind
-      } )
-    } );
-  }
+  emit: ( eventName, payload ) => stepEventBus.emit( `sdk:${eventName}`, payload )
 };
-

@@ -849,7 +849,7 @@ Built-in providers are initialized with a custom fetch that extends Undici's `he
 
 ## LLM call cost event
 
-Each `generateText` and `streamText` call emits a `cost:llm:request` event after the LLM responds and cost can be computed. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The payload is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
+Each `generateText` and `streamText` call emits a `cost:llm:request` event after the LLM responds and cost can be computed. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The handler receives an event envelope whose `payload` field is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
 
 ## loadPrompt
 

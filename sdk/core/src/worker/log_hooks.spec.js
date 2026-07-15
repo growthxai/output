@@ -22,14 +22,14 @@ const createChildLoggerMock = vi.hoisted( () =>
 );
 
 const onHandlers = vi.hoisted( () => ( {} ) );
-const messageBusMock = vi.hoisted( () => ( {
+const mainEventBusMock = vi.hoisted( () => ( {
   on: vi.fn( ( eventType, handler ) => {
     onHandlers[eventType] = handler;
   } )
 } ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
-vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 
 import './log_hooks.js';
 

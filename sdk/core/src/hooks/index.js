@@ -1,17 +1,17 @@
-import { messageBus } from '#bus';
-import { BusEventType, ComponentType, WORKFLOW_CATALOG } from '#consts';
+import { mainEventBus, stepEventBus } from '#bus';
+import { BusEventType } from '#consts';
 import { createChildLogger } from '#logger';
 
 const log = createChildLogger( 'Hooks' );
 
 /**
- * Invokes an external hook handler function with a try catch around it
+ * Invokes a function within a try catch and log the error
  *
  * @param {Function} fn
  * @param {any} args - Args to invoke the function with
  * @param {string} hookName - hookName to identify this hook function in the logs
  */
-const safeInvoke = async ( fn, args, hookName ) => {
+const callHookCb = async ( fn, args, hookName ) => {
   try {
     await fn( args );
   } catch ( error ) {
@@ -19,50 +19,55 @@ const safeInvoke = async ( fn, args, hookName ) => {
   }
 };
 
-/** Triggers on any errors: workflow, activity and runtime */
-export const onError = handler => {
-  messageBus.on( BusEventType.ACTIVITY_ERROR, async payload =>
-    safeInvoke( handler, { source: 'activity', ...payload }, 'onError' ) );
-  messageBus.on( BusEventType.WORKFLOW_ERROR, async payload =>
-    safeInvoke( handler, { source: 'workflow', ...payload }, 'onError' ) );
-  messageBus.on( BusEventType.RUNTIME_ERROR, async payload =>
-    safeInvoke( handler, { source: 'runtime', ...payload }, 'onError' ) );
+// General Life-cycle
+// --------------------------------------
+const onError = cb => {
+  mainEventBus.on( BusEventType.ACTIVITY_ERROR, async payload =>
+    callHookCb( cb, { source: 'activity', ...payload }, 'onError' ) );
+  mainEventBus.on( BusEventType.WORKFLOW_ERROR, async payload =>
+    callHookCb( cb, { source: 'workflow', ...payload }, 'onError' ) );
+  mainEventBus.on( BusEventType.RUNTIME_ERROR, async payload =>
+    callHookCb( cb, { source: 'runtime', ...payload }, 'onError' ) );
 };
 
-/** Listen to worker before start events */
-export const onBeforeWorkerStart = handler => messageBus.on( BusEventType.WORKER_BEFORE_START, () =>
-  safeInvoke( handler, undefined, 'onBeforeWorkerStart' ) );
+const onBeforeWorkerStart = cb => mainEventBus.on( BusEventType.WORKER_BEFORE_START, () => callHookCb( cb, undefined, 'onBeforeWorkerStart' ) );
 
-/** Catalog workflow events should not be emitted */
-const shouldEmitWorkflowEvent = workflowDetails => WORKFLOW_CATALOG !== workflowDetails.workflowType;
+// Workflow Life-cycle
+// --------------------------------------
+const onWorkflowStart = cb => mainEventBus.on( BusEventType.WORKFLOW_START, payload => callHookCb( cb, payload, 'onWorkflowStart' ) );
+const onWorkflowEnd = cb => mainEventBus.on( BusEventType.WORKFLOW_END, payload => callHookCb( cb, payload, 'onWorkflowEnd' ) );
+const onWorkflowError = cb => mainEventBus.on( BusEventType.WORKFLOW_ERROR, payload => callHookCb( cb, payload, 'onWorkflowError' ) );
 
-/** Listen to workflow start events, excludes catalog workflow */
-export const onWorkflowStart = handler => messageBus.on( BusEventType.WORKFLOW_START, ( { workflowDetails, ...eventFields } ) =>
-  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowStart' ) : null );
+// Activity Life-cycle
+// --------------------------------------
+const onActivityStart = cb => mainEventBus.on( BusEventType.ACTIVITY_START, fields => callHookCb( cb, fields, 'onActivityStart' ) );
+const onActivityEnd = cb => mainEventBus.on( BusEventType.ACTIVITY_END, fields => callHookCb( cb, fields, 'onActivityEnd' ) );
+const onActivityError = cb => mainEventBus.on( BusEventType.ACTIVITY_ERROR, fields => callHookCb( cb, fields, 'onActivityError' ) );
 
-/** Listen to workflow end events, excludes catalog workflow */
-export const onWorkflowEnd = handler => messageBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails, ...eventFields } ) =>
-  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowEnd' ) : null );
+// Generic Events
+// --------------------------------------
+/** Listen to both sdk and custom events */
+const on = ( eventName, cb ) => {
+  stepEventBus.on( `sdk:${eventName}`, payload => callHookCb( cb, payload, eventName ) );
+  stepEventBus.on( `usr:${eventName}`, payload => callHookCb( cb, payload, eventName ) );
+};
 
-/** Listen to workflow error events, excludes catalog workflow */
-export const onWorkflowError = handler => messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, ...eventFields } ) =>
-  shouldEmitWorkflowEvent( workflowDetails ) ? safeInvoke( handler, { workflowDetails, ...eventFields }, 'onWorkflowError' ) : null );
+/**
+ * Emits a custom event
+ * @param {string} eventName
+ * @param {any} payload
+ */
+const emit = ( eventName, payload ) => stepEventBus.emit( `usr:${eventName}`, payload );
 
-/** Internal activities do not trigger hooks */
-const shouldEmitActivityEvent = outputActivityKind => outputActivityKind !== ComponentType.INTERNAL_STEP;
-
-/** Listen to workflow start events, excludes catalog workflow */
-export const onActivityStart = handler => messageBus.on( BusEventType.ACTIVITY_START, ( { outputActivityKind, ...eventFields } ) =>
-  shouldEmitActivityEvent( outputActivityKind ) ? safeInvoke( handler, { outputActivityKind, ...eventFields }, 'onActivityStart' ) : null );
-
-/** Listen to workflow end events, excludes catalog workflow */
-export const onActivityEnd = handler => messageBus.on( BusEventType.ACTIVITY_END, ( { outputActivityKind, ...eventFields } ) =>
-  shouldEmitActivityEvent( outputActivityKind ) ? safeInvoke( handler, { outputActivityKind, ...eventFields }, 'onActivityEnd' ) : null );
-
-/** Listen to workflow error events, excludes catalog workflow */
-export const onActivityError = handler => messageBus.on( BusEventType.ACTIVITY_ERROR, ( { outputActivityKind, ...eventFields } ) =>
-  shouldEmitActivityEvent( outputActivityKind ) ? safeInvoke( handler, { outputActivityKind, ...eventFields }, 'onActivityError' ) : null );
-
-/** Generic listener for events emitted elsewhere (outside core) */
-export const on = ( eventName, handler ) => messageBus.on( `external:${eventName}`, payload =>
-  safeInvoke( handler, payload, eventName ) );
+export {
+  emit,
+  on,
+  onActivityEnd,
+  onActivityError,
+  onActivityStart,
+  onBeforeWorkerStart,
+  onError,
+  onWorkflowEnd,
+  onWorkflowError,
+  onWorkflowStart
+};

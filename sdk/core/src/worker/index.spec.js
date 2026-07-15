@@ -7,7 +7,7 @@ const {
   connectionMonitorInstance,
   createCatalogMock,
   initInterceptorsMock,
-  messageBusMock,
+  mainEventBusMock,
   mockConnection,
   mockLog,
   mockWorker,
@@ -110,7 +110,7 @@ const {
     loadActivitiesMock: vi.fn().mockResolvedValue( {} ),
     loadHooksMock: vi.fn().mockResolvedValue( undefined ),
     loadWorkflowsMock: vi.fn().mockResolvedValue( [] ),
-    messageBusMock: { emit: vi.fn(), on: vi.fn() },
+    mainEventBusMock: { emit: vi.fn(), on: vi.fn() },
     mockConnection: { close: vi.fn().mockResolvedValue( undefined ) },
     mockLog: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     mockWorker,
@@ -128,7 +128,7 @@ vi.mock( '#consts', async importOriginal => {
 } );
 const initTracing = vi.fn().mockResolvedValue( undefined );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
-vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 
 const loadWorkflowsMock = vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } );
 const loadActivitiesMock = vi.fn().mockResolvedValue( { activities: {} } );
@@ -357,7 +357,7 @@ describe( 'worker/index', () => {
         error: 'Big Failure'
       } ) );
     } );
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalledWith( 1 ) );
   } );
 
@@ -378,7 +378,7 @@ describe( 'worker/index', () => {
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
     expect( catalogJobInstance.interrupt ).toHaveBeenCalledOnce();
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
   } );
 
   it( 'throws catalog job errors after graceful shutdown', async () => {
@@ -398,7 +398,7 @@ describe( 'worker/index', () => {
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
     expect( connectionMonitorInstance.stop ).toHaveBeenCalledOnce();
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
   } );
 
   it( 'cleans up partial startup failures after connecting', async () => {

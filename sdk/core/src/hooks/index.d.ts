@@ -116,7 +116,7 @@ export interface HookPayloadBase {
 export interface ActivityPayloadBase extends HookPayloadBase {
   /** Temporal's activityInfo(). */
   activityInfo: Info;
-  /** Output component kind for the activity, e.g. step or evaluator. */
+  /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
   outputActivityKind: string;
 }
 
@@ -233,8 +233,6 @@ export declare function onWorkflowError( handler: ( payload: WorkflowErrorHookPa
 /**
  * Register a handler to be invoked when an activity starts.
  *
- * Excludes internal activities.
- *
  * @param handler - Function called with the activity start payload.
  */
 export declare function onActivityStart( handler: ( payload: ActivityStartHookPayload ) => void ): void;
@@ -242,16 +240,12 @@ export declare function onActivityStart( handler: ( payload: ActivityStartHookPa
 /**
  * Register a handler to be invoked when an activity completes successfully.
  *
- * Excludes internal activities.
- *
  * @param handler - Function called with the activity end payload.
  */
 export declare function onActivityEnd( handler: ( payload: ActivityEndHookPayload ) => void ): void;
 
 /**
  * Register a handler to be invoked when an activity fails.
- *
- * Excludes internal activities.
  *
  * @param handler - Function called with the activity error payload.
  */
@@ -264,11 +258,25 @@ export interface OnHookEnvelope extends HookPayloadBase {
   /** Temporal's activityInfo(). */
   activityInfo: Info;
   /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
-  outputActivityKind?: string;
+  outputActivityKind: string;
 }
 
-export type OnHookPayload<TAttributes extends Record<string, unknown> = Record<string, unknown>> =
-  OnHookEnvelope & TAttributes;
+export type OnHookPayload<TPayload = unknown> =
+  OnHookEnvelope & {
+    /** Event-specific payload supplied by the SDK or emit(). */
+    payload: TPayload | undefined;
+  };
+
+/**
+ * Emit a custom event from the current activity.
+ *
+ * @param eventName - The name of the event to emit.
+ * @param payload - Optional value forwarded to on() handlers.
+ */
+export declare function emit(
+  eventName: string,
+  payload?: unknown
+): boolean;
 
 /**
  * Register a handler to be invoked when a given event happens
@@ -276,7 +284,7 @@ export type OnHookPayload<TAttributes extends Record<string, unknown> = Record<s
  * @param eventName - The name of the event to subscribe
  * @param handler - Function called with the event payload
  */
-export declare function on<TAttributes extends Record<string, unknown> = Record<string, unknown>>(
+export declare function on<TPayload = unknown>(
   eventName: string,
-  handler: ( payload: OnHookPayload<TAttributes> ) => void
+  handler: ( event: OnHookPayload<TPayload> ) => void
 ): void;

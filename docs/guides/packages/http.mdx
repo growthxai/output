@@ -135,27 +135,33 @@ Every HTTP call made through `@outputai/http`'s `fetch` (and the higher-level `h
 import { on } from '@outputai/core/hooks';
 import type { HttpRequestEvent } from '@outputai/http';
 
-on<HttpRequestEvent>( 'http:request', async ( payload ) => {
-  // payload: { eventId, eventDate, requestId, method, url, status?, durationMs, outcome, activityInfo, workflowDetails, outputActivityKind }
-  console.log( `[${payload.outcome}] ${payload.method} ${payload.url} ${payload.status ?? '-'} ${payload.durationMs}ms` );
+on<HttpRequestEvent>( 'http:request', async ( { eventId, workflowDetails, payload } ) => {
+  if (!payload) {
+    return;
+  }
+
+  console.log( `[${payload.outcome}] ${payload.method} ${payload.url} ${payload.status ?? '-'} ${payload.durationMs}ms`, {
+    eventId,
+    workflowId: workflowDetails.workflowId
+  } );
 } );
 ```
 
-The payload includes:
+The handler receives an event envelope. Request-specific fields are available under `payload`:
 
 | Field | Description |
 |-------|-------------|
 | `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key — `http:request` and `cost:http:request` for the same fetch get distinct `eventId`s, so dedup keyed on `eventId` won't collapse the two. |
 | `eventDate` | Millisecond epoch timestamp for when the event was emitted. |
-| `requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
-| `method` | HTTP method (uppercase). |
-| `url` | Absolute request URL. |
-| `status` | HTTP status code; `undefined` on network failure. |
-| `durationMs` | Elapsed time from request issuance to response (or failure), in milliseconds. |
-| `outcome` | One of `'success'` (2xx-3xx), `'error'` (status >= 400), `'failure'` (DNS / timeout / abort). |
 | `activityInfo` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
 | `workflowDetails` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
 | `outputActivityKind` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
+| `payload.requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
+| `payload.method` | HTTP method (uppercase). |
+| `payload.url` | Absolute request URL. |
+| `payload.status` | HTTP status code; `undefined` on network failure. |
+| `payload.durationMs` | Elapsed time from request issuance to response (or failure), in milliseconds. |
+| `payload.outcome` | One of `'success'` (2xx-3xx), `'error'` (status >= 400), `'failure'` (DNS / timeout / abort). |
 
 The event fires for **every** call — success, non-2xx responses, and network failures alike. The existing [`cost:http:request`](/costs/cost-events#http-request-cost) event is unchanged and continues to fire only when you call `addRequestCost`.
 

@@ -1,22 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BusEventType, ComponentType, WORKFLOW_CATALOG } from '#consts';
+import { BusEventType } from '#consts';
 
 const logErrorMock = vi.hoisted( () => vi.fn() );
 const createChildLoggerMock = vi.hoisted( () =>
   vi.fn( () => ( { error: logErrorMock } ) )
 );
 
-const onHandlers = vi.hoisted( () => ( {} ) );
-const messageBusMock = vi.hoisted( () => ( {
+const mainOnHandlers = vi.hoisted( () => ( {} ) );
+const stepOnHandlers = vi.hoisted( () => ( {} ) );
+const mainEventBusMock = vi.hoisted( () => ( {
   on: vi.fn( ( eventType, handler ) => {
-    onHandlers[eventType] = handler;
+    mainOnHandlers[eventType] = handler;
+  } )
+} ) );
+const stepEventBusMock = vi.hoisted( () => ( {
+  emit: vi.fn( () => true ),
+  on: vi.fn( ( eventType, handler ) => {
+    stepOnHandlers[eventType] = handler;
   } )
 } ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
-vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+vi.mock( '#bus', () => ( {
+  mainEventBus: mainEventBusMock,
+  stepEventBus: stepEventBusMock
+} ) );
 
 import {
+  emit,
   on,
   onActivityEnd,
   onActivityError,
@@ -38,11 +49,6 @@ const workflowDetails = {
   attempt: 1
 };
 
-const catalogWorkflowDetails = {
-  ...workflowDetails,
-  workflowType: WORKFLOW_CATALOG
-};
-
 const activityInfo = {
   activityId: 'act-1',
   activityType: 'wf#step',
@@ -61,8 +67,11 @@ const aggregations = {
 describe( 'hooks/index', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    Object.keys( onHandlers ).forEach( k => {
-      delete onHandlers[k];
+    Object.keys( mainOnHandlers ).forEach( k => {
+      delete mainOnHandlers[k];
+    } );
+    Object.keys( stepOnHandlers ).forEach( k => {
+      delete stepOnHandlers[k];
     } );
   } );
 
@@ -71,9 +80,9 @@ describe( 'hooks/index', () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onError( handler );
 
-      expect( messageBusMock.on ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.any( Function ) );
-      expect( messageBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, expect.any( Function ) );
-      expect( messageBusMock.on ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.any( Function ) );
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.any( Function ) );
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, expect.any( Function ) );
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.any( Function ) );
     } );
 
     it( 'invokes handler with activity-shaped payload, forwarding bus fields', async () => {
@@ -81,7 +90,7 @@ describe( 'hooks/index', () => {
       onError( handler );
 
       const err = new Error( 'act-fail' );
-      await onHandlers[BusEventType.ACTIVITY_ERROR]( {
+      await mainOnHandlers[BusEventType.ACTIVITY_ERROR]( {
         eventId: 'evt-act-1',
         eventDate,
         activityInfo,
@@ -108,7 +117,7 @@ describe( 'hooks/index', () => {
       onError( handler );
 
       const err = new Error( 'wf-fail' );
-      await onHandlers[BusEventType.WORKFLOW_ERROR]( {
+      await mainOnHandlers[BusEventType.WORKFLOW_ERROR]( {
         eventId: 'evt-wf-1',
         eventDate,
         workflowDetails,
@@ -131,7 +140,7 @@ describe( 'hooks/index', () => {
       onError( handler );
 
       const error = new Error( 'rt' );
-      await onHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
+      await mainOnHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
 
       expect( handler ).toHaveBeenCalledWith( { eventId: 'evt-rt-1', eventDate, source: 'runtime', error } );
     } );
@@ -142,68 +151,35 @@ describe( 'hooks/index', () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       onBeforeWorkerStart( handler );
 
-      expect( messageBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKER_BEFORE_START, expect.any( Function ) );
-      await onHandlers[BusEventType.WORKER_BEFORE_START]();
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKER_BEFORE_START, expect.any( Function ) );
+      await mainOnHandlers[BusEventType.WORKER_BEFORE_START]();
 
       expect( handler ).toHaveBeenCalledWith( undefined );
     } );
   } );
 
-  describe( 'onWorkflowStart', () => {
-    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
+  describe( 'workflow lifecycle hooks', () => {
+    const cases = [
+      [ 'onWorkflowStart', onWorkflowStart, BusEventType.WORKFLOW_START, {} ],
+      [ 'onWorkflowEnd', onWorkflowEnd, BusEventType.WORKFLOW_END, {} ],
+      [ 'onWorkflowError', onWorkflowError, BusEventType.WORKFLOW_ERROR, { error: new Error( 'workflow failed' ) } ]
+    ];
+
+    it.each( cases )( '%s forwards bus fields', async ( _name, registerHook, eventType, extraFields ) => {
       const handler = vi.fn().mockResolvedValue( undefined );
-      onWorkflowStart( handler );
+      const payload = {
+        eventId: 'evt-workflow-1',
+        eventDate,
+        workflowDetails,
+        extra: 'passthrough',
+        ...extraFields
+      };
+      registerHook( handler );
 
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails
-      } ) );
-      expect( handler ).not.toHaveBeenCalled();
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( eventType, expect.any( Function ) );
+      await mainOnHandlers[eventType]( payload );
 
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_START]( {
-        eventId: 'evt-start-1', eventDate, workflowDetails, extra: 'passthrough'
-      } ) );
-      expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-start-1', eventDate, workflowDetails, extra: 'passthrough'
-      } );
-    } );
-  } );
-
-  describe( 'onWorkflowEnd', () => {
-    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
-      const handler = vi.fn().mockResolvedValue( undefined );
-      onWorkflowEnd( handler );
-
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails
-      } ) );
-      expect( handler ).not.toHaveBeenCalled();
-
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_END]( {
-        eventId: 'evt-end-1', eventDate, workflowDetails, extra: 'passthrough'
-      } ) );
-      expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-end-1', eventDate, workflowDetails, extra: 'passthrough'
-      } );
-    } );
-  } );
-
-  describe( 'onWorkflowError', () => {
-    it( 'skips catalog workflow and forwards bus fields for real workflows', async () => {
-      const handler = vi.fn().mockResolvedValue( undefined );
-      const err = new Error( 'wf' );
-      onWorkflowError( handler );
-
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-ignored', eventDate, workflowDetails: catalogWorkflowDetails, error: err
-      } ) );
-      expect( handler ).not.toHaveBeenCalled();
-
-      await Promise.resolve( onHandlers[BusEventType.WORKFLOW_ERROR]( {
-        eventId: 'evt-err-1', eventDate, workflowDetails, error: err, extra: 'passthrough'
-      } ) );
-      expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-err-1', eventDate, workflowDetails, error: err, extra: 'passthrough'
-      } );
+      expect( handler ).toHaveBeenCalledWith( payload );
     } );
   } );
 
@@ -214,53 +190,49 @@ describe( 'hooks/index', () => {
       [ 'onActivityError', onActivityError, BusEventType.ACTIVITY_ERROR, { error: new Error( 'activity failed' ) } ]
     ];
 
-    it.each( cases )( '%s skips internal activities and forwards bus fields', async ( _name, registerHook, eventType, extraFields = {} ) => {
+    it.each( cases )( '%s forwards internal activity bus fields', async ( _name, registerHook, eventType, extraFields = {} ) => {
       const handler = vi.fn().mockResolvedValue( undefined );
+      const payload = {
+        eventId: 'evt-activity-1',
+        eventDate,
+        activityInfo,
+        workflowDetails,
+        outputActivityKind: 'internal_step',
+        extra: 'passthrough',
+        ...extraFields
+      };
       registerHook( handler );
 
-      expect( messageBusMock.on ).toHaveBeenCalledWith( eventType, expect.any( Function ) );
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( eventType, expect.any( Function ) );
+      await mainOnHandlers[eventType]( payload );
 
-      await Promise.resolve( onHandlers[eventType]( {
-        eventId: 'evt-ignored',
-        eventDate,
-        activityInfo,
-        workflowDetails,
-        outputActivityKind: ComponentType.INTERNAL_STEP,
-        ...extraFields
-      } ) );
-      expect( handler ).not.toHaveBeenCalled();
-
-      await Promise.resolve( onHandlers[eventType]( {
-        eventId: 'evt-activity-1',
-        eventDate,
-        activityInfo,
-        workflowDetails,
-        outputActivityKind: ComponentType.STEP,
-        extra: 'passthrough',
-        ...extraFields
-      } ) );
-
-      expect( handler ).toHaveBeenCalledWith( {
-        eventId: 'evt-activity-1',
-        eventDate,
-        activityInfo,
-        workflowDetails,
-        outputActivityKind: ComponentType.STEP,
-        extra: 'passthrough',
-        ...extraFields
-      } );
+      expect( handler ).toHaveBeenCalledWith( payload );
     } );
   } );
 
   describe( 'on', () => {
-    it( 'subscribes to external event channel and forwards payload', async () => {
+    it( 'subscribes to SDK and user event channels and forwards payloads', async () => {
       const handler = vi.fn().mockResolvedValue( undefined );
       on( 'myEvent', handler );
 
-      expect( messageBusMock.on ).toHaveBeenCalledWith( 'external:myEvent', expect.any( Function ) );
-      await onHandlers['external:myEvent']( { foo: 1 } );
+      expect( stepEventBusMock.on ).toHaveBeenCalledWith( 'sdk:myEvent', expect.any( Function ) );
+      expect( stepEventBusMock.on ).toHaveBeenCalledWith( 'usr:myEvent', expect.any( Function ) );
+      await stepOnHandlers['sdk:myEvent']( { payload: { source: 'sdk' } } );
+      await stepOnHandlers['usr:myEvent']( { payload: { source: 'user' } } );
 
-      expect( handler ).toHaveBeenCalledWith( { foo: 1 } );
+      expect( handler ).toHaveBeenNthCalledWith( 1, { payload: { source: 'sdk' } } );
+      expect( handler ).toHaveBeenNthCalledWith( 2, { payload: { source: 'user' } } );
+    } );
+  } );
+
+  describe( 'emit', () => {
+    it( 'emits payloads on the user event channel', () => {
+      const payload = { foo: 1 };
+
+      const emitted = emit( 'myEvent', payload );
+
+      expect( stepEventBusMock.emit ).toHaveBeenCalledWith( 'usr:myEvent', payload );
+      expect( emitted ).toBe( true );
     } );
   } );
 } );
