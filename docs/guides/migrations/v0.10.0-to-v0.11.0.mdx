@@ -177,7 +177,7 @@ import { on } from '@outputai/core/hooks';
 import type { HttpRequestEvent } from '@outputai/http';
 
 on<HttpRequestEvent>( 'http:request', event => {
-  if ( !event.payload ) {
+  if ( !event.workflowDetails || !event.payload ) {
     return;
   }
 
@@ -196,9 +196,9 @@ The envelope has this shape:
 {
   eventId: string;
   eventDate: number;
-  activityInfo: Info;
-  workflowDetails: WorkflowDetails;
-  outputActivityKind: string;
+  activityInfo?: Info;
+  workflowDetails?: WorkflowDetails;
+  outputActivityKind?: string;
   payload: T | undefined;
 }
 ```
@@ -221,6 +221,41 @@ on<{ companyId: string }>( 'company:enriched', event => {
 
   console.log( event.payload.companyId );
 } );
+```
+
+When an event is emitted outside an activity context, `activityInfo`, `workflowDetails`, and `outputActivityKind` are omitted. These fields are therefore optional on `ExternalHookPayload<T>`; check any context field before using it.
+
+### Update imported hook payload types
+
+The exported base and envelope types were simplified in v0.11.0. If your hook files import these types directly, make the following replacements:
+
+- Replace `OnHookPayload<T>` with `ExternalHookPayload<T>`.
+- Replace `OnHookEnvelope` with `ActivityPayloadBase`.
+- Replace `ActivityHookPayload` with `ActivityPayloadBase`.
+
+`HookPayloadBase` now contains only `eventId` and `eventDate`. Use `WorkflowPayloadBase` when you also need `workflowDetails`, or `ActivityPayloadBase` when you need the workflow and activity context fields.
+
+#### Before
+
+```ts
+import type {
+  ActivityHookPayload,
+  OnHookEnvelope,
+  OnHookPayload
+} from '@outputai/core/hooks';
+
+type CompanyEnrichedEvent = OnHookPayload<{ companyId: string }>;
+```
+
+#### After
+
+```ts
+import type {
+  ActivityPayloadBase,
+  ExternalHookPayload
+} from '@outputai/core/hooks';
+
+type CompanyEnrichedEvent = ExternalHookPayload<{ companyId: string }>;
 ```
 
 ### Activity lifecycle hooks include internal activities

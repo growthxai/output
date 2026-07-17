@@ -7,12 +7,13 @@
   {
     eventId: string,
     eventDate: number,
-    outputActivityKind: string,
-    workflowDetails: {},
-    activityInfo: {},
+    outputActivityKind?: string,
+    workflowDetails?: {},
+    activityInfo?: {},
     payload: <original emitted payload>
   }
   ```
+  Events emitted outside an activity context omit `outputActivityKind`, `workflowDetails`, and `activityInfo`.
 - Added the same wrapping envelope to all other events listened to with `on()`: `http:request`, `cost:llm:request`, `cost:http:request`;
 - Added internal activity events to activity lifecycle: `onActivityStart`, `onActivityEnd`, `onActivityError`;
 - Updated internal triggers so `onError()` no longer receives errors from the internal `$catalog` workflow.

@@ -110,7 +110,7 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 | `onActivityStart` | An Output activity starts, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
 | `onActivityEnd` | An Output activity completes successfully, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
 | `onActivityError` | An Output activity fails, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error` |
-| `on(eventName, handler)` | SDK and custom events emitted from an Output activity | An envelope containing `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, and your original value under `payload` |
+| `on(eventName, handler)` | SDK and custom events | An envelope containing `eventId`, `eventDate`, and your original value under `payload`; activity context fields are included when available |
 
 **Context objects on hook payloads**
 
@@ -127,14 +127,16 @@ Events received with `on(eventName, handler)` keep framework context separate fr
 {
   eventId: string;
   eventDate: number;
-  activityInfo: Info;
-  workflowDetails: WorkflowDetails;
-  outputActivityKind: string;
+  activityInfo?: Info;
+  workflowDetails?: WorkflowDetails;
+  outputActivityKind?: string;
   payload: unknown;
 }
 ```
 
 Use `emit(eventName, payload)` from a step or evaluator to publish a custom event. The payload is optional and can be any JavaScript value.
+
+If you call `emit()` outside a step or evaluator (and therefore outside an activity context), the event still includes `eventId`, `eventDate`, and `payload`, but it does not include `activityInfo`, `workflowDetails`, or `outputActivityKind`.
 
 ```typescript
 import { emit, on } from '@outputai/core/hooks';
@@ -145,7 +147,7 @@ emit('company:enriched', {
 });
 
 on<{ companyId: string; domain: string }>('company:enriched', ({ eventId, workflowDetails, payload }) => {
-  if (!payload) {
+  if (!workflowDetails || !payload) {
     return;
   }
 

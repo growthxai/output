@@ -9,6 +9,11 @@ vi.mock( '#async_storage', () => ( {
 import { mainEventBus, stepEventBus } from './bus.js';
 
 const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACTIVITY_CONTEXT = {
+  activityInfo: { activityId: 'activity-id' },
+  workflowDetails: { workflowId: 'workflow-id' },
+  outputActivityKind: 'step'
+};
 
 describe( 'event buses', () => {
   beforeEach( () => {
@@ -94,15 +99,13 @@ describe( 'event buses', () => {
   } );
 
   describe( 'stepEventBus', () => {
+    beforeEach( () => {
+      loadMock.mockReturnValue( ACTIVITY_CONTEXT );
+    } );
+
     it( 'wraps payloads with event metadata and activity context', () => {
       const handler = vi.fn();
       const payload = { foo: 'bar' };
-      const context = {
-        activityInfo: { activityId: 'activity-id' },
-        workflowDetails: { workflowId: 'workflow-id' },
-        outputActivityKind: 'step'
-      };
-      loadMock.mockReturnValue( context );
       stepEventBus.on( 'test:event', handler );
 
       stepEventBus.emit( 'test:event', payload );
@@ -110,8 +113,22 @@ describe( 'event buses', () => {
       expect( handler ).toHaveBeenCalledWith( {
         eventId: expect.stringMatching( UUID_V4_REGEX ),
         eventDate: expect.any( Number ),
-        ...context,
+        ...ACTIVITY_CONTEXT,
         payload
+      } );
+    } );
+
+    it( 'omits activity fields outside activity context', () => {
+      const handler = vi.fn();
+      loadMock.mockReturnValue( undefined );
+      stepEventBus.on( 'test:event', handler );
+
+      stepEventBus.emit( 'test:event', { foo: 'bar' } );
+
+      expect( handler ).toHaveBeenCalledWith( {
+        eventId: expect.stringMatching( UUID_V4_REGEX ),
+        eventDate: expect.any( Number ),
+        payload: { foo: 'bar' }
       } );
     } );
 

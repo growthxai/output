@@ -25,7 +25,7 @@ import { on } from '@outputai/core/hooks';
 import type { LLMUsageEvent } from '@outputai/llm';
 
 on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, eventDate, workflowDetails, activityInfo, payload } ) => {
-  if (!payload) {
+  if (!workflowDetails || !activityInfo || !payload) {
     return;
   }
 
@@ -47,7 +47,7 @@ import { on } from '@outputai/core/hooks';
 import type { HttpRequestCostEvent } from '@outputai/http';
 
 on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, eventDate, workflowDetails, activityInfo, payload } ) => {
-  if (!payload) {
+  if (!workflowDetails || !activityInfo || !payload) {
     return;
   }
 
@@ -106,9 +106,9 @@ The handler receives an event envelope. The LLM usage attribute is available und
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:llm:request` and `http:request` for the same fetch get distinct `eventId`s. |
 | `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
-| `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the call. |
-| `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
-| `outputActivityKind` | `string` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
+| `activityInfo` | `object \| undefined` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the call is made in an activity context. |
+| `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
+| `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `payload.type` | `"llm:usage"` | Attribute type. |
 | `payload.modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
 | `payload.usage` | `array` | Priced usage entries for this call. See [Usage entries](#usage-entries). |
@@ -172,9 +172,9 @@ The handler receives an event envelope. The HTTP request cost attribute is avail
 |-------|------|-------------|
 | `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:http:request` and `http:request` for the same fetch get distinct `eventId`s, so consumers keying by `eventId` won't collapse the two. |
 | `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
-| `activityInfo` | `object` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
-| `workflowDetails` | `object` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
-| `outputActivityKind` | `string` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
+| `activityInfo` | `object \| undefined` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the request is made in an activity context. |
+| `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
+| `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `payload.type` | `"http:request:cost"` | Attribute type. |
 | `payload.requestId` | `string` | Internal id linking this payload to the HTTP trace event for that request. |
 | `payload.url` | `string` | Final response URL (same as `response.url`). |

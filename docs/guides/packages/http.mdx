@@ -136,7 +136,7 @@ import { on } from '@outputai/core/hooks';
 import type { HttpRequestEvent } from '@outputai/http';
 
 on<HttpRequestEvent>( 'http:request', async ( { eventId, workflowDetails, payload } ) => {
-  if (!payload) {
+  if (!workflowDetails || !payload) {
     return;
   }
 
@@ -153,9 +153,9 @@ The handler receives an event envelope. Request-specific fields are available un
 |-------|-------------|
 | `eventId` | UUID v4 stamped per emit. Stable per-emit idempotency key — `http:request` and `cost:http:request` for the same fetch get distinct `eventId`s, so dedup keyed on `eventId` won't collapse the two. |
 | `eventDate` | Millisecond epoch timestamp for when the event was emitted. |
-| `activityInfo` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) for the activity that made the request. |
-| `workflowDetails` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). |
-| `outputActivityKind` | Output activity kind. Possible values are `step`, `evaluator`, and `internal_step`. |
+| `activityInfo?` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the request is made in an activity context. |
+| `workflowDetails?` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
+| `outputActivityKind?` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `payload.requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
 | `payload.method` | HTTP method (uppercase). |
 | `payload.url` | Absolute request URL. |
