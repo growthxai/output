@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getGlobalDispatcher, Headers, MockAgent, Request, setGlobalDispatcher } from 'undici';
-import type { Dispatcher, Request as UndiciRequest, Response as UndiciResponse } from 'undici';
+import { FormData as UndiciFormData, getGlobalDispatcher, Headers, MockAgent, Request, setGlobalDispatcher } from 'undici';
+import type {
+  Dispatcher,
+  Request as UndiciRequest,
+  RequestInfo as UndiciRequestInfo,
+  RequestInit as UndiciRequestInit,
+  Response as UndiciResponse
+} from 'undici';
 
 const FIXED_REQUEST_ID = 'aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee';
 
@@ -8,18 +14,17 @@ const randomUUIDMock = vi.hoisted( () => vi.fn( () => FIXED_REQUEST_ID ) );
 
 const loggerMock = vi.hoisted( () => ( {
   logRequest: vi.fn( async ( _args: { requestId: string; request: UndiciRequest } ): Promise<void> => {} ),
-  logResponse: vi.fn( async ( _args: {
-    requestId: string; response: UndiciResponse; method: string; url: string; durationMs: number;
-  } ): Promise<void> => {} ),
-  logError: vi.fn( ( _args: {
-    requestId: string; response: UndiciResponse; method: string; url: string; durationMs: number;
-  } ): void => {} ),
-  logFailure: vi.fn( ( _args: {
-    requestId: string; error: Error; method: string; url: string; durationMs: number;
-  } ): void => {} )
+  logResponse: vi.fn( async ( _args: { requestId: string; response: UndiciResponse } ): Promise<void> => {} ),
+  logError: vi.fn( ( _args: { requestId: string; response: UndiciResponse } ): void => {} ),
+  logFailure: vi.fn( ( _args: { requestId: string; error: Error } ): void => {} )
 } ) );
 const utilsMock = vi.hoisted( () => ( {
   addRequestIdToResponse: vi.fn()
+} ) );
+const eventsMock = vi.hoisted( () => ( {
+  emitSuccess: vi.fn(),
+  emitError: vi.fn(),
+  emitFailure: vi.fn()
 } ) );
 
 vi.mock( 'node:crypto', () => ( {
@@ -35,12 +40,17 @@ vi.mock( './logger.js', () => ( {
 vi.mock( './utils.js', () => ( {
   addRequestIdToResponse: utilsMock.addRequestIdToResponse
 } ) );
+vi.mock( './events.js', () => ( {
+  emitSuccess: eventsMock.emitSuccess,
+  emitError: eventsMock.emitError,
+  emitFailure: eventsMock.emitFailure
+} ) );
 
-import { fetch } from './index.js';
+import { instrumentedFetch } from './index.js';
 
 const MOCK_ORIGIN = 'https://fetch-index.undici.test';
 
-describe( 'fetch/index', () => {
+describe( 'instrumented_fetch/index', () => {
   const undiciCtx: {
     mockAgent: MockAgent | undefined;
     previousDispatcher: Dispatcher | undefined;
@@ -50,9 +60,12 @@ describe( 'fetch/index', () => {
   };
 
   const fetchWithMockDispatcher = (
-    input: Parameters<typeof fetch>[0],
-    init?: Parameters<typeof fetch>[1]
-  ) => fetch( input, { ...init, dispatcher: undiciCtx.mockAgent! } );
+    input: string | URL | globalThis.Request | UndiciRequest,
+    init?: globalThis.RequestInit | UndiciRequestInit
+  ) => instrumentedFetch(
+    input as UndiciRequestInfo,
+    { ...init, dispatcher: undiciCtx.mockAgent! } as UndiciRequestInit
+  );
 
   beforeEach( () => {
     undiciCtx.mockAgent = new MockAgent();
@@ -64,6 +77,9 @@ describe( 'fetch/index', () => {
     loggerMock.logError.mockClear();
     loggerMock.logFailure.mockClear();
     utilsMock.addRequestIdToResponse.mockClear();
+    eventsMock.emitSuccess.mockClear();
+    eventsMock.emitError.mockClear();
+    eventsMock.emitFailure.mockClear();
     randomUUIDMock.mockClear();
     randomUUIDMock.mockImplementation( () => FIXED_REQUEST_ID );
   } );
@@ -99,15 +115,18 @@ describe( 'fetch/index', () => {
       const responseCall = loggerMock.logResponse.mock.calls[0][0];
       expect( responseCall.requestId ).toBe( FIXED_REQUEST_ID );
       expect( responseCall.response ).toBe( response );
-      expect( responseCall.method ).toBe( 'GET' );
-      expect( responseCall.url ).toBe( `${MOCK_ORIGIN}/ok` );
-      expect( typeof responseCall.durationMs ).toBe( 'number' );
-      expect( responseCall.durationMs ).toBeGreaterThanOrEqual( 0 );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledTimes( 1 );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledWith( response, FIXED_REQUEST_ID );
 
       expect( loggerMock.logError ).not.toHaveBeenCalled();
       expect( loggerMock.logFailure ).not.toHaveBeenCalled();
+      expect( eventsMock.emitSuccess ).toHaveBeenCalledWith( {
+        requestId: FIXED_REQUEST_ID,
+        method: 'GET',
+        url: `${MOCK_ORIGIN}/ok`,
+        status: 200,
+        durationMs: expect.any( Number )
+      } );
     } );
 
     it( 'uses logError for status > 399 without logging response end', async () => {
@@ -128,6 +147,13 @@ describe( 'fetch/index', () => {
       expect( loggerMock.logError.mock.calls[0][0].response ).toBe( response );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledTimes( 1 );
       expect( utilsMock.addRequestIdToResponse ).toHaveBeenCalledWith( response, FIXED_REQUEST_ID );
+      expect( eventsMock.emitError ).toHaveBeenCalledWith( {
+        requestId: FIXED_REQUEST_ID,
+        method: 'GET',
+        url: `${MOCK_ORIGIN}/missing`,
+        status: 404,
+        durationMs: expect.any( Number )
+      } );
     } );
 
     it( 'treats status 399 as success (logs response end, not HTTP error)', async () => {
@@ -203,6 +229,12 @@ describe( 'fetch/index', () => {
       expect( ( failure as TypeError ).message ).toBe( 'fetch failed' );
       expect( ( failure as TypeError ).cause ).toBeInstanceOf( Error );
       expect( ( ( failure as TypeError ).cause as Error ).message ).toBe( 'simulated network failure' );
+      expect( eventsMock.emitFailure ).toHaveBeenCalledWith( {
+        requestId: FIXED_REQUEST_ID,
+        method: 'GET',
+        url: `${MOCK_ORIGIN}/boom`,
+        durationMs: expect.any( Number )
+      } );
     } );
 
     it( 'fails when no mock matches (disabled net)', async () => {
@@ -242,7 +274,7 @@ describe( 'fetch/index', () => {
     } );
   } );
 
-  describe( 'fetch RequestInfo / RequestInit shapes', () => {
+  describe( 'instrumentedFetch RequestInfo / RequestInit shapes', () => {
     it( 'accepts a URL object as the first argument', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/from-url', method: 'GET' } ).reply(
         200,
@@ -269,6 +301,93 @@ describe( 'fetch/index', () => {
       const { request } = loggerMock.logRequest.mock.calls[0][0];
       expect( request.method ).toBe( 'GET' );
       expect( request.url ).toBe( `${MOCK_ORIGIN}/req-only` );
+    } );
+
+    it( 'accepts Node built-in Request and Headers instances', async () => {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
+        path: '/node-request',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-node-header': 'node-value',
+          'x-request-trace-id': FIXED_REQUEST_ID
+        }
+      } ).reply( 201, JSON.stringify( { created: true } ), {
+        headers: { 'content-type': 'application/json' }
+      } );
+
+      const headers = new globalThis.Headers( {
+        'content-type': 'application/json',
+        'x-node-header': 'node-value'
+      } );
+      const input = new globalThis.Request( `${MOCK_ORIGIN}/node-request`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify( { name: 'node' } )
+      } );
+
+      const response = await fetchWithMockDispatcher( input );
+      const nodeResponse: globalThis.Response = response;
+
+      expect( input ).not.toBeInstanceOf( Request );
+      expect( nodeResponse.status ).toBe( 201 );
+      await expect( nodeResponse.json() ).resolves.toEqual( { created: true } );
+      expect( loggerMock.logRequest.mock.calls[0][0].request ).toBeInstanceOf( Request );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'POST' );
+    } );
+
+    it( 'encodes Node built-in FormData before entering the Undici realm', async () => {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
+        path: '/node-form-data',
+        method: 'POST'
+      } ).reply( 200, 'ok' );
+
+      const body = new globalThis.FormData();
+      body.set( 'name', 'node' );
+      loggerMock.logRequest.mockImplementationOnce( async ( { request } ) => {
+        expect( request ).toBeInstanceOf( Request );
+        expect( request.headers.get( 'content-type' ) ).toMatch( /^multipart\/form-data; boundary=/ );
+        await expect( request.clone().text() ).resolves.toContain( 'name="name"\r\n\r\nnode' );
+      } );
+
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/node-form-data`, {
+        method: 'POST',
+        body
+      } );
+
+      expect( response.status ).toBe( 200 );
+    } );
+
+    it( 'rejects mixed Request and FormData realms', async () => {
+      const input = new globalThis.Request( `${MOCK_ORIGIN}/mixed-realms`, { method: 'POST', body: 'node' } );
+      const body = new UndiciFormData();
+      body.set( 'name', 'undici' );
+
+      await expect( fetchWithMockDispatcher( input, {
+        method: 'POST',
+        body: body as unknown as globalThis.FormData
+      } ) ).rejects.toThrow( 'Cannot mix Node and Undici Request/FormData realms.' );
+    } );
+
+    it( 'accepts Node built-in RequestInit with a string input', async () => {
+      undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( {
+        path: '/node-init',
+        method: 'PATCH',
+        headers: {
+          'x-node-init': 'yes',
+          'x-request-trace-id': FIXED_REQUEST_ID
+        }
+      } ).reply( 204 );
+
+      const init: globalThis.RequestInit = {
+        method: 'PATCH',
+        headers: new globalThis.Headers( { 'x-node-init': 'yes' } )
+      };
+      const response = await fetchWithMockDispatcher( `${MOCK_ORIGIN}/node-init`, init );
+
+      expect( response.status ).toBe( 204 );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.method ).toBe( 'PATCH' );
+      expect( loggerMock.logRequest.mock.calls[0][0].request.headers.get( 'x-node-init' ) ).toBe( 'yes' );
     } );
 
     it( 'accepts Request plus init that overrides method and body', async () => {
@@ -330,7 +449,7 @@ describe( 'fetch/index', () => {
         }
       } ).reply( 200, 'ok' );
 
-      const response = await fetch( `${MOCK_ORIGIN}/custom-dispatcher`, {
+      const response = await instrumentedFetch( `${MOCK_ORIGIN}/custom-dispatcher`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -355,7 +474,7 @@ describe( 'fetch/index', () => {
         headers: { 'x-request-trace-id': FIXED_REQUEST_ID }
       } ).reply( 200, 'ok' );
 
-      const response = await fetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
+      const response = await instrumentedFetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
         dispatcher: undefined
       } );
 

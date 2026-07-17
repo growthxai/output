@@ -12,7 +12,6 @@ import { initInterceptors } from './interceptors/index.js';
 import { createChildLogger } from '#logger';
 import { setupInterruptionHandler } from './interruption.js';
 import { CatalogJob } from './catalog_workflow/catalog_job.js';
-import { bootstrapFetchProxy } from './proxy.js';
 import { mainEventBus } from '#bus';
 import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
@@ -61,7 +60,6 @@ const execute = async () => {
   const { activities } = await loadActivities( callerDir, workflows );
 
   mainEventBus.emit( BusEventType.WORKER_BEFORE_START );
-  bootstrapFetchProxy();
 
   log.info( 'Initializing tracing...' );
   await initTracing();

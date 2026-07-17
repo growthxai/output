@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: hook event envelopes, API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
 ---
 
-This guide covers customer-facing changes to hooks and workflow execution in `@outputai/core`, plus API request logging in `output-api`.
+This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, and API request logging in `output-api`.
 
 ## API HTTP request logging
 
@@ -297,6 +297,212 @@ No migration is needed unless an `onError` handler explicitly relied on `$catalo
 - Keep framework fields such as `eventId`, `workflowDetails`, and `activityInfo` at the top level.
 - Filter `outputActivityKind === 'internal_step'` in activity lifecycle hooks when internal activities should remain hidden.
 - Remove assumptions that `onError` reports `$catalog` workflow failures.
+
+## HTTP client changes
+
+`@outputai/http` now exposes two explicitly named, instrumented clients:
+
+- `instrumentedFetch` for Fetch-compatible requests.
+- `createKyClient` for a Ky client backed by `instrumentedFetch`.
+
+Ky was upgraded from v1 to v2 and both Ky and Undici are now peer dependencies. Most projects using the previous `httpClient` need import, option, and dependency updates.
+
+### Upgrade and resolve the HTTP peers
+
+Ky and Undici were previously private dependencies of `@outputai/http` and are now peers. Current npm and pnpm versions install compatible peers automatically, so upgrading the Output package is normally enough:
+
+```bash
+npm install @outputai/http@^0.11
+```
+
+Use the equivalent command for your package manager, then commit the updated lockfile. Install `ky@^2` or `undici@^8` explicitly only if you need to pin a version or resolve a peer-version conflict.
+
+### Rename HTTP exports
+
+Update imports using this mapping:
+
+| v0.10.x | v0.11.0 |
+| --- | --- |
+| `fetch` | `instrumentedFetch` |
+| `httpClient` | `createKyClient` |
+| `HTTPError` | `ky.HTTPError` |
+| `TimeoutError` | `ky.TimeoutError` |
+| `HttpClientOptions` | `ky.Options` |
+| `RequestInfo` | `undici.RequestInfo` or a native Fetch type |
+| `RequestInit` | `undici.RequestInit` or a native Fetch type |
+
+For example:
+
+```diff
+- import { httpClient, HTTPError, TimeoutError } from '@outputai/http';
++ import { createKyClient, ky } from '@outputai/http';
+
+- const client = httpClient( {
++ const client = createKyClient( {
+    timeout: 30_000
+  } );
+
+  try {
+    await client.get( url );
+  } catch ( error ) {
+-   if ( error instanceof HTTPError ) {
++   if ( error instanceof ky.HTTPError ) {
+      console.log( error.response.status );
+    }
+-   if ( error instanceof TimeoutError ) {
++   if ( error instanceof ky.TimeoutError ) {
+      console.log( 'Request timed out' );
+    }
+  }
+```
+
+The complete Ky and Undici namespaces are available as `ky` and `undici` from `@outputai/http`.
+
+### Update Ky v2 options
+
+Replace Ky's `prefixUrl` option with `prefix`:
+
+```diff
+- const client = httpClient( {
+-   prefixUrl: 'https://api.example.com',
++ const client = createKyClient( {
++   prefix: 'https://api.example.com',
+    timeout: 30_000
+  } );
+```
+
+Review other Ky options against Ky 2 when upgrading. This is especially important for shared client factories that expose Ky's `Options` type.
+
+See [Ky's official v2.0.0 migration guide](https://github.com/sindresorhus/ky/releases/tag/v2.0.0#migration-guide) for the complete list of changes, including empty-response JSON parsing, `beforeError` behavior, hook option normalization, `searchParams` merging, and `HTTPError.data`.
+
+### Update Ky hook callbacks
+
+Ky 2 passes one state object to every hook. Ky 1 `beforeRequest`, `beforeError`, and `afterResponse` callbacks commonly used positional arguments.
+
+```diff
+- const beforeRequest = request => {
++ const beforeRequest = ( { request } ) => {
+    request.headers.set( 'x-api-key', apiKey );
+  };
+
+- const beforeError = error => {
++ const beforeError = ( { error } ) => {
+    console.error( error.response?.status );
+    return error;
+  };
+
+- const afterResponse = async ( request, options, response ) => {
++ const afterResponse = async ( { request, options, response } ) => {
+    await recordUsage( request, response );
+  };
+```
+
+Types for hooks are also available through the Ky namespace:
+
+```ts
+import { ky } from '@outputai/http';
+
+const afterResponse = async ( { response }: ky.AfterResponseState ) => {
+  // ...
+};
+```
+
+Audit hook functions passed indirectly through shared option objects as well as inline hooks.
+
+### Replace custom wrappers around the old fetch export
+
+If your project created its own Ky factory solely to inject Output's old `fetch`, use `createKyClient` directly:
+
+```diff
+- import ky from 'ky';
+- import type { Options } from 'ky';
+- import { fetch } from '@outputai/http';
++ import { createKyClient, ky } from '@outputai/http';
+
+- export const createHttpClient = ( options: Options = {} ) =>
+-   ky.create( { fetch: fetch as NonNullable<Options['fetch']>, ...options } );
++ export const createHttpClient = ( options: ky.Options = {} ) =>
++   createKyClient( options );
+```
+
+If the wrapper adds other defaults or hooks, keep the wrapper and pass those options to `createKyClient`.
+
+### Update direct Fetch usage
+
+Rename direct imports:
+
+```diff
+- import { fetch } from '@outputai/http';
++ import { instrumentedFetch } from '@outputai/http';
+
+- const response = await fetch( url, init );
++ const response = await instrumentedFetch( url, init );
+```
+
+`instrumentedFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node inputs are normalized before entering the Undici-backed implementation.
+
+Keep `Request` and `FormData` from the same family within one call:
+
+```ts
+import { instrumentedFetch, undici } from '@outputai/http';
+
+const form = new undici.FormData();
+form.set( 'name', 'Ada' );
+
+await instrumentedFetch( 'https://api.example.com/users', {
+  method: 'POST',
+  body: form
+} );
+```
+
+The same pattern works with Node's global `FormData`. Do not combine a Node `Request` with Undici `FormData`, or an Undici `Request` with Node `FormData`.
+
+### Remove reliance on `undici.install()`
+
+Importing `@outputai/http` no longer replaces `globalThis.fetch`, `Request`, `Response`, `Headers`, or `FormData`.
+
+Code that imports an Undici dispatcher but calls global `fetch` should choose the HTTP implementation explicitly. Use `instrumentedFetch` when the request should be traced:
+
+```diff
+- import { undici } from '@outputai/http';
++ import { instrumentedFetch, undici } from '@outputai/http';
+
+  const dispatcher = new undici.EnvHttpProxyAgent( {
+    headersTimeout: 15 * 60 * 1000,
+    bodyTimeout: 15 * 60 * 1000
+  } );
+
+- const customFetch = ( input: string | URL | Request, init?: RequestInit ) =>
+-   fetch( input, { ...init, dispatcher } as RequestInit );
++ const customFetch = (
++   input: undici.RequestInfo,
++   init?: undici.RequestInit
++ ) => instrumentedFetch( input, { ...init, dispatcher } );
+```
+
+Use `undici.fetch` instead when tracing is not wanted. Do not assume the npm Undici dispatcher's types or behavior apply to Node's built-in Fetch implementation.
+
+### Configure proxy behavior explicitly
+
+Core workers no longer install a process-wide Undici dispatcher when proxy environment variables are present.
+
+- `instrumentedFetch` and `createKyClient` continue to use an `EnvHttpProxyAgent` and honor standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` variables.
+- For direct npm Undici calls, pass an `undici.EnvHttpProxyAgent` or configure Undici's global dispatcher yourself.
+- For Node's built-in Fetch, enable Node's environment proxy support at process startup with `NODE_USE_ENV_PROXY=1` and set the standard proxy variables.
+
+Audit libraries that receive a custom `fetch` callback. Ensure the callback uses `instrumentedFetch`, `undici.fetch`, or native Fetch intentionally rather than relying on the old import-time global replacement.
+
+### HTTP migration checklist
+
+- Upgrade `@outputai/http` and confirm the lockfile resolved Ky 2 and Undici 8.
+- Rename `fetch` and `httpClient`.
+- Update error and option types to the `ky` and `undici` namespaces.
+- Replace `prefixUrl` with `prefix`.
+- Convert Ky hooks to state-object parameters.
+- Replace custom Ky factories that only injected Output's old `fetch`.
+- Check custom dispatchers and Fetch callbacks for reliance on `undici.install()`.
+- Configure proxy behavior for non-Output HTTP calls.
+- Run type checking and HTTP integration tests after regenerating the lockfile.
 
 ## Workflow runtime changes
 

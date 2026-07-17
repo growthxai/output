@@ -1,4 +1,3 @@
-import type { Request, Response, Headers } from 'undici';
 import { requestIdSymbol } from '../consts.js';
 
 /**
@@ -10,16 +9,16 @@ const HEADER_REDACTION_EXEMPT = new Set( [
 ] );
 
 /** Matches red int "hot-red-pie", but not int "redact" */
-const wordMatcher = ( term : string ) => new RegExp( `(?<![a-z\\d])${term}(?![a-z\\d])`, 'i' );
+const wordMatcher = term => new RegExp( `(?<![a-z\\d])${term}(?![a-z\\d])`, 'i' );
 
 /** Matches red in "acquired", but not in "redact" */
-const wordEndMatcher = ( term : string ) => new RegExp( `${term}(?![a-z\\d])`, 'i' );
+const wordEndMatcher = term => new RegExp( `${term}(?![a-z\\d])`, 'i' );
 
 /**
  * Sensitive header patterns for redaction (case-insensitive).
  * Uses alphanumeric boundaries so e.g. `token` does not match inside `tokens`.
  */
-const SENSITIVE_HEADER_PATTERNS : RegExp[] = [
+const SENSITIVE_HEADER_PATTERNS = [
   // matches headers that contain these exact words
   wordMatcher( 'authorization' ),
   wordMatcher( 'token' ),
@@ -39,16 +38,16 @@ const SENSITIVE_HEADER_PATTERNS : RegExp[] = [
  * - code (optional, but present on Node errors)
  * - cause (error chain)
  *
- * @param error Error to serialize
- * @param depth Current recursion depth for the error.cause chain
+ * @param {Error} error Error to serialize
+ * @param {number} depth Current recursion depth for the error.cause chain
  * @returns Object
  */
-export const serializeError = ( error: Error, depth : number = 1 ) => ( {
+export const serializeError = ( error, depth = 1 ) => ( {
   name: error.constructor.name,
   message: error.message,
   stack: error.stack,
-  code: ( error as { code?: string } ).code ?? undefined,
-  cause: ( () : object | string | undefined => {
+  code: error?.code,
+  cause: ( () => {
     if ( depth > 5 ) {
       return '<Max recursion depth reached>';
     }
@@ -62,11 +61,11 @@ export const serializeError = ( error: Error, depth : number = 1 ) => ( {
 /**
  * Redacts sensitive headers for safe logging
  *
- * @param headers
- * @returns Plain object with sensitive headers redacted
+ * @param {Headers} headers
+ * @returns {object} Plain object with sensitive headers redacted
  */
-export const redactHeaders = ( headers: Headers ) : Record<string, unknown> => {
-  const result : Record<string, unknown> = {};
+export const redactHeaders = headers => {
+  const result = {};
   for ( const [ key, value ] of headers.entries() ) {
     const lowerCaseKey = key.toLowerCase();
     const isSensitive = !HEADER_REDACTION_EXEMPT.has( lowerCaseKey ) &&
@@ -81,10 +80,10 @@ export const redactHeaders = ( headers: Headers ) : Record<string, unknown> => {
  * - non-JSON content-type, or empty body: returns the text as-is
  * - application/json with a non-empty body: returns JSON.parse result, or the raw text if parsing fails
  *
- * @param r
- * @returns Parsed JSON value or raw body string
+ * @param {Request|Response} r
+ * @returns {object|string} Parsed JSON value or raw body string
  */
-export const parseBody = async ( r : Request | Response ) : Promise<string | object> => {
+export const parseBody = async r => {
   const clone = r.clone();
   const contentType = clone.headers.get( 'content-type' ) || '';
   const textContent = await clone.text();
@@ -106,8 +105,11 @@ export const parseBody = async ( r : Request | Response ) : Promise<string | obj
  * before invoking `afterResponse` hooks, and undici headers are immutable on
  * received responses, so a symbol re-attached inside `clone()` is the only
  * path that survives.
+ *
+ * @param {Response} response
+ * @param {string} requestId
  */
-export const addRequestIdToResponse = ( response: Response, requestId: string ) : void => {
+export const addRequestIdToResponse = ( response, requestId ) => {
   Object.defineProperty( response, requestIdSymbol, { value: requestId, enumerable: false, configurable: false, writable: false } );
   const originalClone = response.clone.bind( response );
   Object.defineProperty( response, 'clone', {

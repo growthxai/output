@@ -1,5 +1,5 @@
 import { workflow, z } from '@outputai/core';
-import httpSimple from '../../../http_simple/workflow.js';
+import httpSimple from '../../../http/http_simple/workflow.js';
 
 export default workflow( {
   name: 'nested_direct_call_child',

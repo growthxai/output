@@ -44,7 +44,7 @@ config/
 ## Key Conventions
 
 - **Workflows are deterministic**: No I/O, no `Date.now()`, no `Math.random()` in `workflow.ts`. All side effects go in steps or evaluators.
-- **HTTP clients**: Always use `httpClient` from `@outputai/http` -- never raw `fetch` or `axios`. This enables automatic tracing and cost tracking.
+- **HTTP clients**: Use `instrumentedFetch` or `createKyClient` from `@outputai/http` instead of raw `fetch` or `axios`. Requests are automatically traced; use `addRequestCost` when cost tracking is needed.
 - **LLM calls**: Use `generateText` from `@outputai/llm` with `.prompt` files. Never call LLM APIs directly.
 
 ---

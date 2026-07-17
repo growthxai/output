@@ -94,7 +94,7 @@ import { z } from 'zod';
 
 ```typescript
 // CORRECT - Use @outputai/http wrapper
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -129,7 +129,7 @@ import { InputSchema, OutputSchema } from './types';
 
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { generateText, Output } from '@outputai/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
@@ -194,13 +194,13 @@ fn: async input => {
 ### Creating an HTTP Client
 
 ```typescript
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { FatalError, ValidationError } from '@outputai/core';
 
 const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
 const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const httpClientInstance = httpClient( {
+const httpClientInstance = createKyClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -208,7 +208,7 @@ const httpClientInstance = httpClient( {
   },
   hooks: {
     beforeError: [
-      error => {
+      ( { error } ) => {
         const status = error.response?.status;
         const message = error.message;
 
@@ -407,7 +407,7 @@ Based on a real workflow step:
 
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { generateText, Output } from '@outputai/llm';
 
 import { GeminiImageService } from '../../shared/clients/gemini_client.js';
@@ -420,7 +420,7 @@ import {
 const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
 const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const httpClientInstance = httpClient( {
+const httpClientInstance = createKyClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -428,7 +428,7 @@ const httpClientInstance = httpClient( {
   },
   hooks: {
     beforeError: [
-      error => {
+      ( { error } ) => {
         const status = error.response?.status;
         const message = error.message;
 
@@ -564,7 +564,7 @@ fn: async input => {
 ## Verification Checklist
 
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
-- [ ] `httpClient` imported from `@outputai/http` (not axios)
+- [ ] `createKyClient` imported from `@outputai/http` (not axios)
 - [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
 - [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
 - [ ] Schemas for `Output.object()` are defined in `types.ts` and imported, not inline

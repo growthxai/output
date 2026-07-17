@@ -3,19 +3,54 @@ title: "@outputai/http"
 description: "Make traceable HTTP requests from your steps"
 ---
 
-The `@outputai/http` package gives you an HTTP client that automatically shows up in your [traces](/operations/tracing). Every request — URL, method, status code, timing — is recorded as a child node in the trace tree, so you can see exactly what API calls your steps made and how long they took.
+The `@outputai/http` package provides Fetch and Ky clients instrumented for [tracing](/operations/tracing). Every request — URL, method, status code, and timing — is recorded as a child node in the trace tree.
 
-Under the hood, it wraps [ky](https://github.com/sindresorhus/ky), a lightweight HTTP client built on `fetch`.
+It exposes two entry points:
 
-## Creating a Client
+- `instrumentedFetch` — a Fetch-compatible function backed by [Undici](https://undici.nodejs.org/).
+- `createKyClient` — creates a [Ky](https://github.com/sindresorhus/ky) client that uses `instrumentedFetch`.
+
+Ky and Undici are peer dependencies. Current npm and pnpm versions install compatible peers automatically, so the normal package installation is enough:
+
+```bash
+pnpm add @outputai/http
+```
+
+Install Ky or Undici explicitly only when you need to pin their versions or resolve a peer-version conflict.
+
+## Using Instrumented Fetch
+
+Use `instrumentedFetch` when you want the standard Fetch API:
+
+```typescript
+import { instrumentedFetch } from '@outputai/http';
+
+const response = await instrumentedFetch( 'https://api.example.com/users', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify( { name: 'Ada' } )
+} );
+
+if ( !response.ok ) {
+  throw new Error( `Request failed with status ${response.status}` );
+}
+
+const user = await response.json();
+```
+
+Like native Fetch, `instrumentedFetch` returns responses for HTTP error statuses. It only throws for failures such as DNS errors, timeouts, and aborts.
+
+`instrumentedFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node `Request` and `FormData` inputs are normalized into the Undici realm before the request is sent. Keep `Request` and `FormData` from the same family when using both in one call.
+
+## Creating a Ky Client
 
 The typical pattern is to create a client per external service in your [clients directory](/clients), then import it in your steps:
 
 ```typescript clients/jina.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
-export const jina = httpClient({
-  prefixUrl: 'https://r.jina.ai',
+export const jina = createKyClient({
+  prefix: 'https://r.jina.ai',
   headers: {
     'Authorization': `Bearer ${process.env.JINA_API_KEY}`,
     'Accept': 'application/json'
@@ -23,6 +58,10 @@ export const jina = httpClient({
   timeout: 30000
 });
 ```
+
+`createKyClient` accepts Ky's complete options object and returns a standard Ky instance. All Ky methods, hooks, retries, timeout behavior, and `.extend()` support remain available.
+
+By default, the client uses `instrumentedFetch`. Providing Ky's `fetch` option overrides it, so requests made by that client are not automatically traced by Output.
 
 You can extend clients to create specialized instances:
 
@@ -56,7 +95,7 @@ await client.delete('companies/123');
 
 ## Response Bodies
 
-`@outputai/http` follows normal `fetch` semantics: callers own the returned response body. Always consume the body with
+Both APIs follow normal Fetch semantics: callers own the returned response body. Always consume the body with
 `.json()`, `.text()`, `.arrayBuffer()`, or another body reader when you need the payload.
 
 If you only need response metadata from a non-`HEAD` request, such as `response.url`, `response.status`, or headers, cancel
@@ -129,7 +168,7 @@ See [Tracing](/operations/tracing) for details on the trace format.
 
 ## Request Events
 
-Every HTTP call made through `@outputai/http`'s `fetch` (and the higher-level `httpClient`) emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:
+Every call made through `instrumentedFetch` or a client returned by `createKyClient` emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:
 
 ```typescript
 import { on } from '@outputai/core/hooks';
@@ -170,9 +209,9 @@ The event fires for **every** call — success, non-2xx responses, and network f
 When you know the dollar cost of an HTTP request (for example from provider billing headers), you can attach it to the HTTP trace event with `addRequestCost`.
 
 ```typescript
-import { httpClient, addRequestCost } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/http';
 
-const client = httpClient( { prefixUrl: 'https://api.vendor.com' } );
+const client = createKyClient( { prefix: 'https://api.vendor.com' } );
 
 const response = await client.post( 'search', {
   json: { query: 'acme' }
@@ -188,36 +227,67 @@ response.body?.cancel();
 
 `addRequestCost` accepts the total request cost as a number.
 
-`addRequestCost` only works with responses created by `@outputai/http` (or its exported `fetch`). If the response did not come from this package, the function safely no-ops and logs a warning.
+`addRequestCost` only works with responses returned by `instrumentedFetch` or `createKyClient`. If the response did not come from this package, the function safely no-ops and logs a warning.
 
 It also emits a **`cost:http:request`** hook event (same hooks system as [`cost:llm:request`](/costs/cost-events)). For the payload and examples, see [Cost Events — HTTP](/costs/cost-events#http-request-cost).
 
 ## Error Handling
 
-The client throws `HTTPError` for non-2xx responses and `TimeoutError` for timeouts:
+`instrumentedFetch` returns non-2xx responses without throwing. Ky clients use Ky's configured error behavior and throw `ky.HTTPError` for non-2xx responses by default and `ky.TimeoutError` for timeouts:
 
 ```typescript
-import { HTTPError, TimeoutError } from '@outputai/http';
+import { createKyClient, ky } from '@outputai/http';
+
+const client = createKyClient( { prefix: 'https://api.example.com' } );
 
 try {
-  const response = await jina.get(url);
+  const response = await client.get( 'users/1' );
   return response.json();
 } catch (error) {
-  if (error instanceof HTTPError) {
+  if (error instanceof ky.HTTPError) {
     if (error.response.status === 404) {
-      return null; // Page not found
+      return null;
     }
-    // 429, 500, etc. — let the step retry
     throw error;
   }
-  if (error instanceof TimeoutError) {
-    throw error; // Step will retry
+  if (error instanceof ky.TimeoutError) {
+    throw error;
   }
   throw error;
 }
 ```
 
 Since steps retry automatically, you generally just need to handle cases where retrying won't help (like a 404). For everything else, let the error propagate and the step's retry policy will handle it.
+
+## Undici Dispatchers
+
+Requests use an `EnvHttpProxyAgent` by default, including standard HTTP proxy environment variables. You can provide an Undici dispatcher for one request:
+
+```typescript
+import { instrumentedFetch, undici } from '@outputai/http';
+
+const dispatcher = new undici.Agent( {
+  headersTimeout: 60_000,
+  bodyTimeout: 60_000
+} );
+
+const response = await instrumentedFetch( 'https://api.example.com', {
+  dispatcher
+} );
+```
+
+Set `dispatcher: undefined` explicitly to bypass the default dispatcher.
+
+## Ky and Undici Exports
+
+The complete Ky and Undici namespaces are re-exported for convenience and to let callers use the same Undici realm as `instrumentedFetch`:
+
+```typescript
+import { ky, undici } from '@outputai/http';
+
+const request = new undici.Request( 'https://api.example.com' );
+const isHttpError = ( error: unknown ) => error instanceof ky.HTTPError;
+```
 
 ## Environment Variables
 

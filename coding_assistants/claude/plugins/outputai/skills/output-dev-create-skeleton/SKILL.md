@@ -145,7 +145,6 @@ Replace the example step with your actual step implementations:
 
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
 import { ProcessContentInputSchema } from './types.js';
 
 export const processContent = step( {
