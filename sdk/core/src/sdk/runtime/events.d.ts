@@ -9,5 +9,5 @@ export declare const Event: {
    * @param eventName - The name of the event to emit
    * @param payload - An optional payload to send to the event.
    */
-  emit( eventName: string, payload?: object ): void;
+  emit( eventName: string, payload?: object ): boolean;
 };

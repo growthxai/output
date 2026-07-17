@@ -135,7 +135,7 @@ export interface ErrorHookPayload {
   /** Temporal's activityInfo(). If source is activity */
   activityInfo?: Info;
   /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
-  outputActivityKind?: string;
+  outputActivityKind: string;
   /** Attribute totals collected during the activity execution. */
   aggregations?: Aggregations | null;
   /** The error thrown. */
