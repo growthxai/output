@@ -61,8 +61,8 @@ vi.mock( './headers.js', () => ( {
   headersToObject: () => ( { traceInfo: traceInfoMock, workflowDetails: workflowDetailsMock } )
 } ) );
 
-const messageBusEmitMock = vi.fn();
-vi.mock( '#bus', () => ( { messageBus: { emit: messageBusEmitMock } } ) );
+const mainEventBusEmitMock = vi.fn();
+vi.mock( '#bus', () => ( { mainEventBus: { emit: mainEventBusEmitMock } } ) );
 
 vi.mock( '#consts', async importOriginal => {
   const actual = await importOriginal();
@@ -135,11 +135,11 @@ describe( 'ActivityExecutionInterceptor', () => {
       aggregations: null,
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith(
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith(
       BusEventType.ACTIVITY_START,
       { activityInfo: activityInfoMock, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
     );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith(
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith(
       BusEventType.ACTIVITY_END,
       { activityInfo: activityInfoMock, aggregations: null, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
     );
@@ -178,7 +178,7 @@ describe( 'ActivityExecutionInterceptor', () => {
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
 
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, expect.any( Object ) );
     expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'sync' }, traceInfo: traceInfoMock } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
@@ -198,7 +198,7 @@ describe( 'ActivityExecutionInterceptor', () => {
       [ACTIVITY_WRAPPER_VERSION_FIELD]: 1
     } );
 
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, {
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_END, {
       activityInfo: activityInfoMock,
       aggregations: httpRequestAggregations,
       workflowDetails: workflowDetailsMock,
@@ -226,7 +226,7 @@ describe( 'ActivityExecutionInterceptor', () => {
       } ],
       cause: error
     } );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
       activityInfo: activityInfoMock,
       aggregations: httpRequestAggregations,
       workflowDetails: workflowDetailsMock,
@@ -318,8 +318,8 @@ describe( 'ActivityExecutionInterceptor', () => {
     vi.advanceTimersByTime( 0 );
 
     await expect( promise ).rejects.toThrow( 'step failed' );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.any( Object ) );
-    expect( messageBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.any( Object ) );
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
       activityInfo: activityInfoMock,
       aggregations: null,
       workflowDetails: workflowDetailsMock,

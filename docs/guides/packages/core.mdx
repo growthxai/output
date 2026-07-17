@@ -107,10 +107,10 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 | `onWorkflowStart` | A user workflow execution starts | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowError` | A user workflow execution fails | `eventId`, `eventDate`, `workflowDetails`, `error` |
-| `onActivityStart` | A step or evaluator activity starts | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
-| `onActivityEnd` | A step or evaluator activity completes successfully | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
-| `onActivityError` | A step or evaluator activity fails | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error` |
-| `on(eventName, handler)` | Custom events emitted elsewhere in the stack | Your event payload plus `eventId` and `eventDate`. When emitted from an Output activity, the framework also attaches `activityInfo`, `workflowDetails`, and `outputActivityKind`. |
+| `onActivityStart` | An Output activity starts, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
+| `onActivityEnd` | An Output activity completes successfully, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
+| `onActivityError` | An Output activity fails, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error` |
+| `on(eventName, handler)` | SDK and custom events | An envelope containing `eventId`, `eventDate`, and your original value under `payload`; activity context fields are included when available |
 
 **Context objects on hook payloads**
 
@@ -118,6 +118,49 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 - `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). It includes `workflowId`, `runId`, `workflowType`, `parent`, `root`, `firstExecutionRunId`, `continuedFromExecutionRunId`, `startTime`, `runStartTime`, and `attempt`.
 - `outputActivityKind` is Output metadata for activity hooks and custom events emitted from activities. Possible values are `step`, `evaluator`, and `internal_step`.
 - `aggregations` contains activity-scoped attribute totals collected while the step or evaluator ran. It is `null` when no attributes were collected.
+
+**SDK and custom event envelopes**
+
+Events received with `on(eventName, handler)` keep framework context separate from event-specific data:
+
+```typescript
+{
+  eventId: string;
+  eventDate: number;
+  activityInfo?: Info;
+  workflowDetails?: WorkflowDetails;
+  outputActivityKind?: string;
+  payload: unknown;
+}
+```
+
+Use `emit(eventName, payload)` from a step or evaluator to publish a custom event. The payload is optional and can be any JavaScript value.
+
+If you call `emit()` outside a step or evaluator (and therefore outside an activity context), the event still includes `eventId`, `eventDate`, and `payload`, but it does not include `activityInfo`, `workflowDetails`, or `outputActivityKind`.
+
+```typescript
+import { emit, on } from '@outputai/core/hooks';
+
+emit('company:enriched', {
+  companyId: 'company-123',
+  domain: 'example.com'
+});
+
+on<{ companyId: string; domain: string }>('company:enriched', ({ eventId, workflowDetails, payload }) => {
+  if (!workflowDetails || !payload) {
+    return;
+  }
+
+  console.log('Company enriched', {
+    eventId,
+    workflowId: workflowDetails.workflowId,
+    companyId: payload.companyId,
+    domain: payload.domain
+  });
+});
+```
+
+SDK events use the same envelope. For example, `http:request` stores its request fields under `payload`, while `eventId` and activity context remain at the top level.
 
 ```typescript
 type WorkflowDetails = {
@@ -151,7 +194,7 @@ type Aggregations = {
 - **`workflow`** — `eventId`, `eventDate`, `source`, `workflowDetails`, `error`
 - **`runtime`** — `eventId`, `eventDate`, `source`, `error`
 
-`onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` do **not** run for the internal `$catalog` workflow. `onActivityStart`, `onActivityEnd`, and `onActivityError` do **not** run for internal activities. `onError` can still report failures from any workflow or activity, including internal ones, if you need them.
+The internal `$catalog` workflow is excluded from lifecycle and error hooks. Activity hooks include internal activities, identified by `outputActivityKind: 'internal_step'`.
 
 ## HTTP from Workflows
 

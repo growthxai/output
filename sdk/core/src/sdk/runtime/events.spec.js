@@ -1,118 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const loadMock = vi.hoisted( () => vi.fn() );
 const emitMock = vi.hoisted( () => vi.fn() );
 
-vi.mock( '#async_storage', () => ( {
-  Storage: { load: loadMock }
-} ) );
-
 vi.mock( '#bus', () => ( {
-  messageBus: { emit: emitMock }
+  stepEventBus: { emit: emitMock }
 } ) );
 
 import { Event } from './events.js';
 
-// `eventId` stamping is the bus layer's responsibility (see bus.spec.js).
-// Assertions here use `objectContaining` so they don't have to know about that enrichment.
 describe( 'Event.emit', () => {
   beforeEach( () => {
     vi.clearAllMocks();
   } );
 
-  it( 'forwards activityInfo, workflowDetails, and outputActivityKind from storage', () => {
-    const activityInfo = {
-      activityId: 'act-1',
-      activityType: 'step',
-      workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
-      workflowType: 'workflow'
-    };
-    const workflowDetails = {
-      workflowId: 'wf-1',
-      runId: 'run-1',
-      workflowType: 'workflow'
-    };
-    loadMock.mockReturnValue( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step'
-    } );
+  it( 'forwards class instance payloads unchanged', () => {
+    class Payload {
+      value = 'test';
+    }
+    const payload = new Payload();
 
-    Event.emit( 'cost:llm:request', { modelId: 'gpt-4o' } );
+    Event.emit( 'test:event', payload );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:llm:request', expect.objectContaining( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step',
-      modelId: 'gpt-4o'
-    } ) );
+    expect( emitMock ).toHaveBeenCalledWith( 'sdk:test:event', payload );
   } );
 
-  it( 'emits payload without context when storage is missing', () => {
-    loadMock.mockReturnValue( undefined );
+  it( 'emits plain object payloads on the SDK event channel', () => {
+    const payload = { modelId: 'gpt-4o' };
 
-    Event.emit( 'foo:bar', { x: 1 } );
+    Event.emit( 'cost:llm:request', payload );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:foo:bar', { x: 1 } );
+    expect( emitMock ).toHaveBeenCalledWith( 'sdk:cost:llm:request', payload );
   } );
 
-  it( 'handles missing payload', () => {
-    const activityInfo = {
-      activityId: 'act-2',
-      activityType: 'step',
-      workflowExecution: { workflowId: 'wf-2', runId: 'run-2' },
-      workflowType: 'workflow'
-    };
-    const workflowDetails = {
-      workflowId: 'wf-2',
-      runId: 'run-2',
-      workflowType: 'workflow'
-    };
-    loadMock.mockReturnValue( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step'
-    } );
-
+  it( 'forwards a missing payload as undefined', () => {
     Event.emit( 'lifecycle:start' );
 
-    expect( emitMock ).toHaveBeenCalledWith( 'external:lifecycle:start', expect.objectContaining( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step'
-    } ) );
-  } );
-
-  it( 'does not let payload override activityInfo, workflowDetails, or outputActivityKind', () => {
-    const activityInfo = {
-      activityId: 'act-3',
-      activityType: 'step',
-      workflowExecution: { workflowId: 'wf-3', runId: 'run-3' },
-      workflowType: 'workflow'
-    };
-    const workflowDetails = {
-      workflowId: 'wf-3',
-      runId: 'run-3',
-      workflowType: 'workflow'
-    };
-    loadMock.mockReturnValue( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step'
-    } );
-
-    Event.emit( 'cost:http:request', {
-      activityInfo: { activityId: 'should-be-overridden' },
-      workflowDetails: { workflowId: 'should-be-overridden' },
-      outputActivityKind: 'should-be-overridden',
-      url: 'https://example.com'
-    } );
-
-    expect( emitMock ).toHaveBeenCalledWith( 'external:cost:http:request', expect.objectContaining( {
-      activityInfo,
-      workflowDetails,
-      outputActivityKind: 'step',
-      url: 'https://example.com'
-    } ) );
+    expect( emitMock ).toHaveBeenCalledWith( 'sdk:lifecycle:start', undefined );
   } );
 } );

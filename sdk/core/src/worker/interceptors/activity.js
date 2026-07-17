@@ -4,7 +4,7 @@ import * as Tracing from '#tracing';
 import { headersToObject } from './headers.js';
 import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
-import { messageBus } from '#bus';
+import { mainEventBus } from '#bus';
 import { aggregateAttributes } from '#helpers/aggregations';
 import { buildApplicationFailureWithDetails } from '#helpers/errors';
 
@@ -68,7 +68,7 @@ export class ActivityExecutionInterceptor {
       addAttribute
     };
 
-    messageBus.emit( BusEventType.ACTIVITY_START, { activityInfo, workflowDetails, outputActivityKind } );
+    mainEventBus.emit( BusEventType.ACTIVITY_START, { activityInfo, workflowDetails, outputActivityKind } );
     Tracing.addEventStart( { id: activityId, name: activityType, kind: outputActivityKind, parentId: runId, details: input.args[0], traceInfo } );
 
     try {
@@ -79,14 +79,14 @@ export class ActivityExecutionInterceptor {
 
       const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
 
-      messageBus.emit( BusEventType.ACTIVITY_END, { activityInfo, aggregations, workflowDetails, outputActivityKind } );
+      mainEventBus.emit( BusEventType.ACTIVITY_END, { activityInfo, aggregations, workflowDetails, outputActivityKind } );
       Tracing.addEventEnd( { id: activityId, details: output, traceInfo } );
 
       return { [ACTIVITY_WRAPPER_VERSION_FIELD]: 1, output, aggregations };
 
     } catch ( error ) {
       const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
-      messageBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, aggregations, workflowDetails, outputActivityKind, error } );
+      mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, aggregations, workflowDetails, outputActivityKind, error } );
       Tracing.addEventError( { id: activityId, details: error, traceInfo } );
 
       throw aggregations ? buildApplicationFailureWithDetails( error, { aggregations } ) : error;

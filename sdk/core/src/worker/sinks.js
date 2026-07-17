@@ -1,6 +1,6 @@
 import { BusEventType, ComponentType } from '#consts';
 import * as Tracing from '#tracing';
-import { messageBus } from '#bus';
+import { mainEventBus } from '#bus';
 import { createWorkflowDetails } from '#helpers/temporal_context';
 
 // This sink allow for sandbox Temporal environment to send trace logs back to the main thread.
@@ -12,15 +12,15 @@ export const sinks = {
   workflow: {
     log: {
       fn: ( workflowInfo, { level, message, metadata } ) => {
-        messageBus.emit( BusEventType.WORKFLOW_LOG, { level, message, metadata, workflowDetails: createWorkflowDetails( workflowInfo ) } );
+        mainEventBus.emit( BusEventType.WORKFLOW_LOG, { level, message, metadata, workflowDetails: createWorkflowDetails( workflowInfo ) } );
       },
       callDuringReplay: false
     },
     start: {
       fn: ( workflowInfo, input ) => {
         const { runId, workflowType, memo: { traceInfo }, parent } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_START, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
-        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+        mainEventBus.emit( BusEventType.WORKFLOW_START, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
+        if ( traceInfo ) {
           Tracing.addEventStart( {
             id: runId,
             kind: ComponentType.WORKFLOW,
@@ -37,8 +37,8 @@ export const sinks = {
     end: {
       fn: ( workflowInfo, output ) => {
         const { runId, memo: { traceInfo } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_END, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
-        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+        mainEventBus.emit( BusEventType.WORKFLOW_END, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
+        if ( traceInfo ) {
           Tracing.addEventEnd( { id: runId, details: output, traceInfo } );
         }
       },
@@ -48,8 +48,8 @@ export const sinks = {
     error: {
       fn: ( workflowInfo, error ) => {
         const { runId, memo: { traceInfo } } = workflowInfo;
-        messageBus.emit( BusEventType.WORKFLOW_ERROR, { workflowDetails: createWorkflowDetails( workflowInfo ), error } );
-        if ( traceInfo ) { // internal workflows (catalog) do not have this info
+        mainEventBus.emit( BusEventType.WORKFLOW_ERROR, { workflowDetails: createWorkflowDetails( workflowInfo ), error } );
+        if ( traceInfo ) {
           Tracing.addEventError( { id: runId, details: error, traceInfo } );
         }
       },

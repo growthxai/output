@@ -10,7 +10,7 @@ const {
   }
 } ) );
 
-const messageBusMock = vi.hoisted( () => ( {
+const mainEventBusMock = vi.hoisted( () => ( {
   emit: vi.fn()
 } ) );
 const activityInfoMock = vi.hoisted( () => vi.fn( () => ( {
@@ -19,7 +19,7 @@ const activityInfoMock = vi.hoisted( () => vi.fn( () => ( {
 } ) ) );
 
 vi.mock( '#consts', () => ( { ACTIVITY_LOGGER_SYMBOL, BusEventType } ) );
-vi.mock( '#bus', () => ( { messageBus: messageBusMock } ) );
+vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 vi.mock( '@temporalio/activity', () => ( {
   activityInfo: activityInfoMock
 } ) );
@@ -42,7 +42,7 @@ describe( 'worker/global_functions', () => {
     } );
 
     expect( activityInfoMock ).toHaveBeenCalledTimes( 1 );
-    expect( messageBusMock.emit ).toHaveBeenCalledWith( BusEventType.ACTIVITY_LOG, {
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.ACTIVITY_LOG, {
       level: 'debug',
       message: 'activity detail',
       metadata,

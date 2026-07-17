@@ -1,4 +1,4 @@
-import { messageBus } from '#bus';
+import { mainEventBus } from '#bus';
 import { createChildLogger } from '#logger';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, BusEventType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
 
@@ -25,21 +25,21 @@ const serializedActivityFields = activityInfo => ( {
 
 const shouldLogActivity = activityInfo => activityInfo.activityType !== ACTIVITY_GET_TRACE_DESTINATIONS;
 
-messageBus.on( BusEventType.ACTIVITY_START, ( { activityInfo, outputActivityKind } ) =>
+mainEventBus.on( BusEventType.ACTIVITY_START, ( { activityInfo, outputActivityKind } ) =>
   shouldLogActivity( activityInfo ) && activityLog.info( `Started ${activityInfo.activityType} ${outputActivityKind}`, {
     event: LifecycleEvent.START,
     ...serializedActivityFields( activityInfo )
   } )
 );
 
-messageBus.on( BusEventType.ACTIVITY_END, ( { activityInfo, outputActivityKind } ) =>
+mainEventBus.on( BusEventType.ACTIVITY_END, ( { activityInfo, outputActivityKind } ) =>
   shouldLogActivity( activityInfo ) && activityLog.info( `Ended ${activityInfo.activityType} ${outputActivityKind}`, {
     event: LifecycleEvent.END,
     ...serializedActivityFields( activityInfo )
   } )
 );
 
-messageBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind, error } ) =>
+mainEventBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind, error } ) =>
   shouldLogActivity( activityInfo ) && activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.constructor.name}`, {
     event: LifecycleEvent.ERROR,
     ...serializedActivityFields( activityInfo ),
@@ -47,7 +47,7 @@ messageBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind
   } )
 );
 
-messageBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activityInfo } ) =>
+mainEventBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activityInfo } ) =>
   activityLog[level]( message, {
     ...metadata ?? {},
     ...serializedActivityFields( activityInfo )
@@ -68,21 +68,21 @@ const serializeWorkflowFields = workflowDetails => ( {
 
 const shouldLogWorkflow = workflowDetails => workflowDetails.workflowType !== WORKFLOW_CATALOG;
 
-messageBus.on( BusEventType.WORKFLOW_START, ( { workflowDetails } ) =>
+mainEventBus.on( BusEventType.WORKFLOW_START, ( { workflowDetails } ) =>
   shouldLogWorkflow( workflowDetails ) && workflowLog.info( `Started ${workflowDetails.workflowType} workflow`, {
     event: LifecycleEvent.START,
     ...serializeWorkflowFields( workflowDetails )
   } )
 );
 
-messageBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails } ) =>
+mainEventBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails } ) =>
   shouldLogWorkflow( workflowDetails ) && workflowLog.info( `Ended ${workflowDetails.workflowType} workflow`, {
     event: LifecycleEvent.END,
     ...serializeWorkflowFields( workflowDetails )
   } )
 );
 
-messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
+mainEventBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
   shouldLogWorkflow( workflowDetails ) && workflowLog.error( `Error ${workflowDetails.workflowType} workflow: ${error.constructor.name}`, {
     event: LifecycleEvent.ERROR,
     ...serializeWorkflowFields( workflowDetails ),
@@ -90,7 +90,7 @@ messageBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
   } )
 );
 
-messageBus.on( BusEventType.WORKFLOW_LOG, ( { level, message, metadata, workflowDetails } ) =>
+mainEventBus.on( BusEventType.WORKFLOW_LOG, ( { level, message, metadata, workflowDetails } ) =>
   workflowLog[level]( message, {
     ...metadata ?? {},
     ...serializeWorkflowFields( workflowDetails )

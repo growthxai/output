@@ -1,6 +1,7 @@
 // import {
 //   onError,
 //   on,
+//   emit,
 //   onBeforeWorkerStart,
 //   onWorkflowStart,
 //   onWorkflowEnd,
@@ -16,17 +17,23 @@
 // on( 'http:request', async payload => console.log( colorize( 'on(http:request)' ), payload ) );
 // on( 'cost:llm:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
 // on( 'cost:http:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
+// on( 'test', payload => console.log( colorize( 'on(test)' ), payload ) );
 
 // // Generic on error
 // onError( payload => console.log( colorize( 'onError()' ), payload ) );
 
 // // Worker start
-// onBeforeWorkerStart( () => console.log( colorize( 'onBeforeWorkerStart()' ) ) );
+// onBeforeWorkerStart( () => {
+//   console.log( colorize( 'onBeforeWorkerStart()' ) )
+//   emit( 'test', { message: 'foo' } );
+// } );
 
 // // Workflow lifecycle
 // onWorkflowStart( payload => console.log( colorize( 'onWorkflowStart()' ), payload ) );
 // onWorkflowEnd( payload => console.log( colorize( 'onWorkflowEnd()' ), payload ) );
 // onWorkflowError( payload => console.log( colorize( 'onWorkflowError()' ), payload ) );
 
-// onActivityStart( ( { activityInfo, outputActivityKind } ) => console.log( colorize( 'onActivityStart()' ), { activityInfo, outputActivityKind } ) );
-// onActivityEnd( ( { aggregations } ) => console.log( colorize( 'onActivityStart()' ), { aggregations } ) );
+// // Activity lifecycle
+// onActivityStart( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
+// onActivityEnd( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
+// onActivityError( payload => console.log( colorize( 'onActivityError()' ), payload ) );

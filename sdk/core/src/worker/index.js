@@ -13,7 +13,7 @@ import { createChildLogger } from '#logger';
 import { setupInterruptionHandler } from './interruption.js';
 import { CatalogJob } from './catalog_workflow/catalog_job.js';
 import { bootstrapFetchProxy } from './proxy.js';
-import { messageBus } from '#bus';
+import { mainEventBus } from '#bus';
 import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
@@ -60,7 +60,7 @@ const execute = async () => {
   log.info( 'Loading activities...', { callerDir } );
   const { activities } = await loadActivities( callerDir, workflows );
 
-  messageBus.emit( BusEventType.WORKER_BEFORE_START );
+  mainEventBus.emit( BusEventType.WORKER_BEFORE_START );
   bootstrapFetchProxy();
 
   log.info( 'Initializing tracing...' );
@@ -218,7 +218,7 @@ execute()
   .catch( error => {
     log.error( 'Fatal error', { error: error.message, stack: error.stack } );
 
-    messageBus.emit( BusEventType.RUNTIME_ERROR, { error } );
+    mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error } );
 
     const timeToFlushEvent = configs.processFailureShutdownDelay;
     log.info( `Exiting in ${timeToFlushEvent}ms` );
