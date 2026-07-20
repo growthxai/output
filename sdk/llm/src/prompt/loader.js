@@ -5,7 +5,11 @@ import { validatePrompt } from './validations.js';
 import { FatalError } from '@outputai/core';
 import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
 
-const liquid = new Liquid();
+const liquid = new Liquid( {
+  strictFilters: true,
+  strictVariables: true,
+  lenientIf: true
+} );
 setupLiquidEncodeFilter( liquid );
 
 /** Uses LiquidJS to interpolate variables in the prompt file content. */
