@@ -8,7 +8,7 @@ import {
 import { evaluator } from './evaluator.js';
 import { step } from './step.js';
 import { workflow } from './workflow.js';
-import { executeInParallel } from './workflow_utils.js';
+import { executeInParallel, hasErrorType } from './workflow_utils.js';
 import { sendHttpRequest, sendPostRequestAndAwaitWebhook } from './webhook.js';
 import { Logger } from './logger.js';
 
@@ -23,6 +23,7 @@ export {
   EvaluationVerdictResult,
   EvaluationFeedback,
   executeInParallel,
+  hasErrorType,
   sendHttpRequest,
   sendPostRequestAndAwaitWebhook
 };
