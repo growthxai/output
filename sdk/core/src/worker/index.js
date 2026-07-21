@@ -18,7 +18,7 @@ import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
-import { registerWorkflowClientConnection, clearWorkflowClientConnection } from '../temporal/workflow_client.js';
+import { setupClientConfig } from '#temporal/client';
 import { runOnce } from '#helpers/function';
 
 import './log_hooks.js';
@@ -83,8 +83,8 @@ const execute = async () => {
 
   state.connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
 
-  // Expose the connection to step-side code (@outputai/core/temporal getWorkflowClient)
-  registerWorkflowClientConnection( { connection: state.connection, namespace } );
+  // add configs for the /temporal endpoint
+  setupClientConfig( { connection: state.connection, namespace } );
 
   log.info( 'Creating connection monitor...' );
   state.connectionMonitor = new TemporalConnectionMonitor( state.connection );
@@ -214,7 +214,6 @@ execute()
     }
     if ( state.connection ) {
       log.info( 'Closing connection...' );
-      clearWorkflowClientConnection();
       await state.connection.close()
         .catch( e => log.warn( 'Connection close error', { error: e.message } ) );
     }
