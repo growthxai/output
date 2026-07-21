@@ -14,6 +14,7 @@ import { setupInterruptionHandler } from './interruption.js';
 import { CatalogJob } from './catalog_workflow/catalog_job.js';
 import { bootstrapFetchProxy } from './proxy.js';
 import { mainEventBus } from '#bus';
+import { flushPendingHooks } from '#hooks/pending_hooks';
 import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
@@ -214,13 +215,18 @@ execute()
         .catch( e => log.warn( 'Connection close error', { error: e.message } ) );
     }
   } )
-  .then( () => log.info( 'Bye' ) )
-  .catch( error => {
+  .then( async () => {
+    log.info( 'Flushing events...' );
+    await flushPendingHooks();
+    log.info( 'Bye' );
+  } )
+  .catch( async error => {
     log.error( 'Fatal error', { error: error.message, stack: error.stack } );
 
     mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error } );
 
-    const timeToFlushEvent = configs.processFailureShutdownDelay;
-    log.info( `Exiting in ${timeToFlushEvent}ms` );
-    setTimeout( () => process.exit( 1 ), timeToFlushEvent );
+    log.info( 'Fluxing events...' );
+    await flushPendingHooks();
+    log.info( 'Exiting...' );
+    setTimeout( () => process.exit( 1 ) );
   } );

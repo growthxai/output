@@ -6,6 +6,7 @@ const {
   configValues,
   connectionMonitorInstance,
   createCatalogMock,
+  flushPendingHooksMock,
   initInterceptorsMock,
   mainEventBusMock,
   mockConnection,
@@ -46,7 +47,6 @@ const {
     maxConcurrentActivityTaskPolls: 5,
     maxConcurrentWorkflowTaskPolls: 5,
     workerTuner: undefined,
-    processFailureShutdownDelay: 0,
     shutdownForceTime: undefined,
     shutdownGraceTime: undefined
   };
@@ -105,6 +105,7 @@ const {
     connectionMonitorInstance,
     createCatalogMock: vi.fn().mockReturnValue( { workflows: [], activities: {} } ),
     createWorkflowsEntryPointMock: vi.fn().mockReturnValue( '/fake/workflows/path.js' ),
+    flushPendingHooksMock: vi.fn().mockResolvedValue( undefined ),
     hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
     initInterceptorsMock: vi.fn().mockReturnValue( [] ),
     loadActivitiesMock: vi.fn().mockResolvedValue( {} ),
@@ -129,6 +130,7 @@ vi.mock( '#consts', async importOriginal => {
 const initTracing = vi.fn().mockResolvedValue( undefined );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
+vi.mock( '#hooks/pending_hooks', () => ( { flushPendingHooks: flushPendingHooksMock } ) );
 
 const loadWorkflowsMock = vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } );
 const loadActivitiesMock = vi.fn().mockResolvedValue( { activities: {} } );
@@ -262,6 +264,7 @@ describe( 'worker/index', () => {
     expect( catalogJobInstance.run ).toHaveBeenCalled();
 
     await settleWorker();
+    await vi.waitFor( () => expect( flushPendingHooksMock ).toHaveBeenCalledOnce() );
     expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
   } );
 
@@ -359,6 +362,9 @@ describe( 'worker/index', () => {
     } );
     expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalledWith( 1 ) );
+    expect( flushPendingHooksMock ).toHaveBeenCalledOnce();
+    expect( mainEventBusMock.emit.mock.invocationCallOrder[0] ).toBeLessThan( flushPendingHooksMock.mock.invocationCallOrder[0] );
+    expect( flushPendingHooksMock.mock.invocationCallOrder[0] ).toBeLessThan( exitMock.mock.invocationCallOrder[0] );
   } );
 
   it( 'throws connection monitor errors after graceful shutdown', async () => {

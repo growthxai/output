@@ -1,22 +1,24 @@
 import { mainEventBus, stepEventBus } from '#bus';
 import { BusEventType } from '#consts';
 import { createChildLogger } from '#logger';
+import { pendingHooks } from './pending_hooks.js';
 
 const log = createChildLogger( 'Hooks' );
 
 /**
- * Invokes a function within a try catch and log the error
+ * Invokes a function within a try catch and log the error.
  *
  * @param {Function} fn
  * @param {any} args - Args to invoke the function with
  * @param {string} hookName - hookName to identify this hook function in the logs
  */
-const callHookCb = async ( fn, args, hookName ) => {
-  try {
-    await fn( args );
-  } catch ( error ) {
-    log.error( `${hookName} hook error`, { message: error.message, stack: error.stack } );
-  }
+const callHookCb = ( fn, args, hookName ) => {
+  const promise = Promise.resolve()
+    .then( () => fn( args ) )
+    .catch( e => log.error( `${hookName} hook error`, { message: e.message, stack: e.stack } ) )
+    .finally( () => pendingHooks.delete( promise ) );
+  pendingHooks.add( promise );
+  return promise;
 };
 
 // General Life-cycle
