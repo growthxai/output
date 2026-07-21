@@ -1,6 +1,6 @@
 import ky from 'ky';
 import type { Options } from 'ky';
-import { instrumentedFetch } from '#instrumented_fetch/index.js';
+import { instrumentedFetch } from '../instrumented_fetch/index.js';
 
 /**
  * Creates a ky client.

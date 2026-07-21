@@ -66,7 +66,7 @@ export const instrumentedFetch: InstrumentedFetch = async (
 
   const method = request.method;
   const url = request.url;
-  const startedAt = performance.now();
+  const startedAt = Date.now();
 
   await logRequest( { requestId, request } );
 
@@ -74,7 +74,7 @@ export const instrumentedFetch: InstrumentedFetch = async (
   const dispatcher = Object.hasOwn( init ?? {}, 'dispatcher' ) ? inputDispatcher : customDispatcher;
   try {
     const response = await undici.fetch( request, dispatcher ? { dispatcher } : undefined );
-    const durationMs = performance.now() - startedAt;
+    const durationMs = Date.now() - startedAt;
     const { status } = response;
 
     // This enriches the response of the request id, so it is identifiable later.
@@ -89,7 +89,7 @@ export const instrumentedFetch: InstrumentedFetch = async (
     emitSuccess( { requestId, method, url, status, durationMs } );
     return response;
   } catch ( error ) {
-    const durationMs = performance.now() - startedAt;
+    const durationMs = Date.now() - startedAt;
     logFailure( { requestId, error } );
     emitFailure( { requestId, method, url, durationMs } );
     throw error;

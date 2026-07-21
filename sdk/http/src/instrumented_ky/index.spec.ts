@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Options } from 'ky';
-import { instrumentedFetch } from '#instrumented_fetch/index.js';
+import { instrumentedFetch } from '../instrumented_fetch/index.js';
 
 const kyMock = vi.hoisted( () => ( {
   client: { get: vi.fn() },
