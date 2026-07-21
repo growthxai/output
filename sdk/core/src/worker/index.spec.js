@@ -15,6 +15,7 @@ const {
   promises,
   resetPromises,
   serializeErrorMock,
+  setupClientConfigMock,
   setupInterruptionHandlerMock,
   setupTemporalLoggerMock,
   setupTelemetryMock
@@ -124,6 +125,7 @@ const {
       message: error.message,
       stack: error.stack
     } ) ),
+    setupClientConfigMock: vi.fn(),
     setupInterruptionHandlerMock: vi.fn(),
     setupTemporalLoggerMock: vi.fn(),
     setupTelemetryMock: vi.fn()
@@ -167,6 +169,7 @@ vi.mock( './catalog_workflow/catalog_job.js', () => ( {
 } ) );
 vi.mock( './log_hooks.js', () => ( {} ) );
 vi.mock( './temporal_logger.js', () => ( { setupTemporalLogger: setupTemporalLoggerMock } ) );
+vi.mock( '#temporal/client', () => ( { setupClientConfig: setupClientConfigMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
   Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
@@ -234,6 +237,10 @@ describe( 'worker/index', () => {
       tls: false,
       apiKey: undefined,
       proxy: undefined
+    } );
+    expect( setupClientConfigMock ).toHaveBeenCalledWith( {
+      connection: mockConnection,
+      namespace: configValues.namespace
     } );
     expect( bindGlobalFunctionsMock ).toHaveBeenCalledTimes( 1 );
     expect( bindGlobalFunctionsMock.mock.invocationCallOrder[0] ).toBeLessThan(

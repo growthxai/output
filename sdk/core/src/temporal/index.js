@@ -1,1 +1,1 @@
-export { getWorkflowClient, signalInvokingWorkflow } from './workflow_client.js';
+export { createTemporalClient, getCurrentWorkflowHandle } from './client.js';
