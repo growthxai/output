@@ -83,7 +83,7 @@ const emit = info => {
   const level = levelForStatus( statusCode );
 
   if ( isProduction ) {
-    logger[level]( `${method} ${url} ${statusCode} ${responseTime}ms`, { ...rest, 'http.status_code': statusCode } );
+    logger[level]( `${method} ${url} ${statusCode} ${responseTime}ms`, { ...rest, statusCode } );
   } else {
     const errorSuffix = errorType ? ` [${errorType}: ${errorMessage}]` : '';
     logger[level]( `${method} ${url} ${statusCode} ${contentLength}b ${responseTime}ms${errorSuffix}` );

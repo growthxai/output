@@ -53,7 +53,7 @@ describe( 'http_logger', () => {
       expect.objectContaining( {
         method: 'POST',
         url: '/workflow',
-        'http.status_code': 413,
+        statusCode: 413,
         requestId: 'test-request-id',
         errorType: 'Error',
         errorMessage: 'request entity too large',
@@ -77,7 +77,7 @@ describe( 'http_logger', () => {
     expect( logger.error ).toHaveBeenCalledTimes( 1 );
     const [ message, logData ] = logger.error.mock.calls[0];
     expect( message ).toMatch( /^POST \/workflow 500 [\d.]+ms$/ );
-    expect( logData ).toMatchObject( { 'http.status_code': 500, errorType: 'Error', errorMessage: 'Something went wrong' } );
+    expect( logData ).toMatchObject( { statusCode: 500, errorType: 'Error', errorMessage: 'Something went wrong' } );
     expect( logData ).not.toHaveProperty( 'requestSizeBytes' );
     expect( logData ).not.toHaveProperty( 'requestSizeMB' );
     expect( logData ).not.toHaveProperty( 'limit' );
@@ -91,7 +91,7 @@ describe( 'http_logger', () => {
 
     expect( logger.http ).toHaveBeenCalledWith(
       expect.stringMatching( /^POST \/workflow 200 [\d.]+ms$/ ),
-      expect.objectContaining( { 'http.status_code': 200, requestId: 'test-request-id' } )
+      expect.objectContaining( { statusCode: 200, requestId: 'test-request-id' } )
     );
     expect( logger.error ).not.toHaveBeenCalled();
     expect( logger.warn ).not.toHaveBeenCalled();

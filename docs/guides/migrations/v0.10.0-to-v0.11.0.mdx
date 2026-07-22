@@ -21,14 +21,16 @@ This is the most impactful change. Previously every request was logged at the `h
 
 If you have alerts or filters keyed on winston log levels, they will now behave differently: any alert on `error` or `warn` will fire on 4xx/5xx HTTP responses that previously logged at `http`.
 
-### The `status` field was renamed to `http.status_code`
+### The `status` field was renamed to `statusCode`
 
-The structured metadata field carrying the numeric response status changed name. This aligns with Datadog's standard `http.status_code` attribute.
+The structured metadata field carrying the numeric response status changed name, for consistency with the other fields the logger emits.
 
 ```diff
 - "status": 200
-+ "http.status_code": 200
++ "statusCode": 200
 ```
+
+If you use Datadog, map `statusCode` to the standard `http.status_code` attribute with a remapper in your log pipeline. That keeps the built-in HTTP status facet working without emitting a dotted field name from the application.
 
 ### The log message changed from a constant to a request summary
 
@@ -74,7 +76,7 @@ The same request, after (v0.11.0):
   "message": "POST /workflow 200 12ms",
   "method": "POST",
   "url": "/workflow",
-  "http.status_code": 200,
+  "statusCode": 200,
   "contentLength": "42",
   "responseTime": 12,
   "requestId": "8f3c...",
@@ -100,7 +102,7 @@ After — logged at `error`, with the renamed field:
 {
   "level": "error",
   "message": "POST /workflow 500 34ms",
-  "http.status_code": 500,
+  "statusCode": 500,
   "errorType": "Error",
   "errorMessage": "Something went wrong"
 }
@@ -112,24 +114,24 @@ After — logged at `error`, with the renamed field:
 
 If you alert or filter on winston levels, audit those rules. HTTP 4xx now arrives at `warn` and 5xx at `error`. Decide whether that is what you want:
 
-- To keep alerting only on application errors, scope alerts to exclude HTTP request logs (for example, filter on the presence of `http.status_code`).
+- To keep alerting only on application errors, scope alerts to exclude HTTP request logs (for example, filter on the presence of `statusCode`).
 - To alert on failing requests, this is now available directly from the log level with no extra query.
 
 #### Update queries and facets that reference `status`
 
-Anywhere you query, facet, or dashboard on the request-log `status` field, switch to `http.status_code`.
+Anywhere you query, facet, or dashboard on the request-log `status` field, switch to `statusCode`.
 
 ```diff
 # Datadog / log query
 - @status:500
-+ @http.status_code:500
++ @statusCode:500
 ```
 
-In Datadog specifically, `http.status_code` is a standard attribute and maps to the built-in HTTP status facet, so you may be able to drop a custom `status` facet definition.
+In Datadog, add a remapper in your log pipeline to map `statusCode` onto the standard `http.status_code` attribute. That attribute maps to the built-in HTTP status facet, so once the remapper is in place you can query on `@http.status_code:500` and reuse the standard facet instead of defining a custom one.
 
 #### Update anything that matches the message string
 
-Scripts, log processors, or saved searches that match the literal message `"HTTP request"` will no longer match. Match on a structural field instead (for example, the presence of `http.status_code` or `requestId`), or update the matcher to the new summary format `<METHOD> <URL> <STATUS> <ms>ms`.
+Scripts, log processors, or saved searches that match the literal message `"HTTP request"` will no longer match. Match on a structural field instead (for example, the presence of `statusCode` or `requestId`), or update the matcher to the new summary format `<METHOD> <URL> <STATUS> <ms>ms`.
 
 #### Adjust `responseTime` consumers expecting sub-millisecond precision
 
@@ -138,7 +140,7 @@ If a dashboard or aggregation relied on fractional milliseconds in `responseTime
 ### API logging checklist
 
 - Review winston level-based alerts and filters; 4xx now logs at `warn`, 5xx at `error`.
-- Rename `status` to `http.status_code` in log queries, facets, and dashboards.
+- Rename `status` to `statusCode` in log queries, facets, and dashboards; in Datadog, add a remapper from `statusCode` to `http.status_code`.
 - Replace any match on the constant message `"HTTP request"` with a structural field or the new summary format.
 - Confirm `responseTime` consumers tolerate integer milliseconds.
 
