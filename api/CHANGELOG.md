@@ -1,5 +1,12 @@
 # output-api
 
+## 0.11.0
+
+### Minor Changes
+
+- 64a9df7: Add workflow monitor command, update workflow history API to be resumable
+- b7b2fbe: API: removed morgan library, refactored logs to include more information in message, and changed 'status' to 'http.status_code'
+
 ## 0.10.0
 
 ### Minor Changes

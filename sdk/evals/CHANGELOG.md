@@ -1,5 +1,15 @@
 # @outputai/evals
 
+## 0.11.0
+
+### Patch Changes
+
+- Updated dependencies [09ed166]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [d815a8e]
+  - @outputai/llm@0.11.0
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes

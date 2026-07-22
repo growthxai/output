@@ -1,6 +1,67 @@
 {
   "releases": [
     {
+      "version": "0.11.0",
+      "date": "2026-07-22",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "cozy-peas-stand",
+          "packages": [
+            {
+              "name": "@outputai/llm",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Added stricter LiquidJs settings for prompt files parsing. The following configurations were added:\n```js\n{\n  strictFilters: true,\n  strictVariables: true,\n  lenientIf: true\n}\n```"
+        },
+        {
+          "id": "fancy-wombats-buy",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            },
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Add workflow monitor command, update workflow history API to be resumable"
+        },
+        {
+          "id": "heavy-friends-beg",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "minor"
+            }
+          ],
+          "summary": "API: removed morgan library, refactored logs to include more information in message, and changed 'status' to 'http.status_code'"
+        },
+        {
+          "id": "lazy-suits-stop",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "## Workflow Activity Invocation\n\n- Refactored workflow activity invocation so steps, evaluators, and shared activities use the same runtime dispatcher\ninstead of `this`-based handler dispatch.\n\n  Workflow handlers no longer need to be rewritten from arrow functions into regular functions for activity dispatch,\n  reducing AST rewrite complexity during worker startup and making bundling more predictable.\n\n- Step and evaluator calls can now be placed in helper functions and imported helper modules used by a workflow.\n  Helpers no longer need to pass a workflow-bound `this` value through their call chain.\n\n## Child Workflow Activity Options\n\n- A child workflow's definition-level `options.activityOptions` now override activity options inherited from its parent. Invocation-level `activityOptions` still override both, and a step or evaluator's own `options.activityOptions` remain the most specific.\n\n- If a parent must override a child's retry or timeout configuration, pass `activityOptions` explicitly when invoking the child workflow.\n\n## Shared Activity Namespaces\n\n- Removed the previous `\"$shared\"` activity namespace by registering shared activities into each workflow namespace. This means workflows can call local and shared activities through the same activity resolution path.\n\n- Shared activity types now use `\"<workflow-name>#<activity-name>\"` instead of `\"$shared#<activity-name>\"`.\n\n- Added validation that prevents workflow-scoped activities from using the same activity name as a shared activity. If a workflow defines an activity with the same name as a shared activity, worker startup now fails validation instead of allowing ambiguous activity resolution.\n\n## Workflow Code Validation\n\n- Added fail-fast validation for default exports and `export *` declarations in steps/evaluators files. Steps and evaluators already needed to be exposed through named exports for workflow rewriting. The worker now reports these unsupported forms directly during startup.\n\n  ```js\n  // valid\n  export const foo = step( { name: 'foo' } );\n\n  // invalid\n  export default step( { name: 'foo' } );\n  export * from './other_steps.js';\n  ```\n\n- Added fail-fast validation for unsupported steps/evaluators import shapes. Imports from steps/evaluators files already needed to use named imports or destructured requires for workflow rewriting.\n\n  The worker now fails fast with a validation error for unsupported import shapes like default imports, namespace imports, or non-destructured requires.\n\n  ```js\n  // valid\n  import { foo } from './steps.js';\n  const { bar } = require( './evaluators.js' );\n\n  // invalid\n  import foo from './steps.js';\n  import * as steps from './steps.js';\n  const steps = require( './steps.js' );\n  ```\n\n- Added validation that activity calls must happen inside functions.\n  Calling a step or evaluator at module top level now fails validation.\n\n  ```js\n  import { foo } from './steps.js';\n\n  // invalid\n  foo();\n  ```"
+        },
+        {
+          "id": "two-socks-post",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Added `emit()` to `/hooks` entrypoint to emit custom events. Emitted events can be listened using `on()` and will have their payload wrapped in an envelope:\n  ```js\n  {\n    eventId: string,\n    eventDate: number,\n    outputActivityKind?: string,\n    workflowDetails?: {},\n    activityInfo?: {},\n    payload: <original emitted payload>\n  }\n  ```\n  Events emitted outside an activity context omit `outputActivityKind`, `workflowDetails`, and `activityInfo`.\n- Added the same wrapping envelope to all other events listened to with `on()`: `http:request`, `cost:llm:request`, `cost:http:request`;\n- Added internal activity events to activity lifecycle: `onActivityStart`, `onActivityEnd`, `onActivityError`;\n- Updated internal triggers so `onError()` no longer receives errors from the internal `$catalog` workflow."
+        }
+      ]
+    },
+    {
       "version": "0.10.0",
       "date": "2026-07-09",
       "level": "minor",
