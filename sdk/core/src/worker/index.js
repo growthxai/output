@@ -18,6 +18,7 @@ import { BusEventType } from '#consts';
 import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
+import { setupClientConfig } from '#temporal/client';
 import { runOnce } from '#helpers/function';
 
 import './log_hooks.js';
@@ -81,6 +82,9 @@ const execute = async () => {
   bindGlobalFunctions();
 
   state.connection = await NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } );
+
+  // add configs for the /temporal endpoint
+  setupClientConfig( { connection: state.connection, namespace } );
 
   log.info( 'Creating connection monitor...' );
   state.connectionMonitor = new TemporalConnectionMonitor( state.connection );

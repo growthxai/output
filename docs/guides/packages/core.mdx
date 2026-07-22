@@ -281,6 +281,58 @@ The workflow pauses after sending the request and waits for a response at `/work
 `sendPostRequestAndAwaitWebhook` is not primarily designed for secure or sensitive HTTP exchanges. Its request arguments are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, or literal headers. Use `$ENV_VAR_NAME` placeholders for request header secrets and avoid secrets in URLs and payloads.
 </Warning>
 
+## Temporal Access in the Worker
+
+The `@outputai/core/temporal` subpath gives worker-side code direct access to the Temporal layer, sharing the worker's live connection — no extra configuration, TLS, or credentials handling. Temporal Activities can additionally access the workflow execution that invoked them.
+
+### getCurrentWorkflowHandle
+
+Get a handle pinned to the exact workflow run that invoked the current step. The primary use case is signaling incremental results — e.g. LLM token batches — back to a workflow that buffers them for a client-facing update handler:
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { getCurrentWorkflowHandle } from '@outputai/core/temporal';
+import { streamText } from '@outputai/llm';
+
+export const draftWithProgress = step({
+  name: 'draftWithProgress',
+  inputSchema: DraftInput,
+  outputSchema: DraftOutput,
+  fn: async (input) => {
+    const stream = streamText({ prompt: 'draft@v1', variables: input });
+    const handle = getCurrentWorkflowHandle();
+    for await (const chunk of stream.textStream) {
+      await handle.signal('progressToken', chunk);
+    }
+    return { text: await stream.text };
+  }
+});
+```
+
+The handle is resolved from the activity context and pinned to the exact `workflowId` + `runId`, so a stale activity from a retried or superseded run can never signal a newer run reusing the same workflow id. If the invoking run has already completed, operations on the handle reject and the activity fails — surfacing the problem instead of signaling into the void.
+
+### createTemporalClient
+
+For operations on other workflows, `createTemporalClient()` creates a full Temporal [`Client`](https://typescript.temporal.io/api/classes/client.Client) that shares the running worker's connection and namespace:
+
+```typescript
+import { createTemporalClient } from '@outputai/core/temporal';
+
+const client = createTemporalClient();
+const handle = client.workflow.getHandle(someWorkflowId);
+await handle.signal('resume', payload);
+```
+
+Each call creates a lightweight client while reusing the worker's live connection. Do not close `client.connection`; the worker owns its lifecycle.
+
+<Warning>
+`createTemporalClient()` is available after the worker establishes its Temporal connection; early lifecycle hooks such as `onBeforeWorkerStart` run before that point. `getCurrentWorkflowHandle()` additionally requires a Temporal Activity context. Elsewhere (e.g. unit tests), they throw a non-retryable `FatalError`; mock the helpers in those tests. Never import `@outputai/core/temporal` from `workflow.ts` — workflows run in Temporal's isolated sandbox and cannot hold connections, so the import would fail the workflow bundle.
+</Warning>
+
+<Warning>
+Prefer normal dataflow (step return values) whenever the workflow only needs the final result. Signal-per-chunk streaming adds one history event per signal; batch chunks aggressively, and for high-frequency token streams consider an out-of-band channel (e.g. Redis pub/sub) with only the final result returned through Temporal.
+</Warning>
+
 ## File Structure
 
 Each workflow lives in its own directory:
