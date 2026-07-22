@@ -139,7 +139,7 @@ Only available, finite usage dimensions are included. For example, `reasoning` i
 
 ## HTTP request cost
 
-Events fire only when your code calls [`addRequestCost( response, total )`](/packages/http#attaching-request-cost) with a **response object created by `@outputai/http`** (or its exported `fetch`). The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
+Events fire only when your code calls [`addRequestCost( response, total )`](/packages/http#attaching-request-cost) with a response returned by `instrumentedFetch` or `createKyClient`. The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
 
 ### Payload
 

@@ -32,7 +32,7 @@ vi.mock( '@outputai/core/sdk/runtime', () => {
 
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { addRequestCost } from './cost.js';
-import { addRequestIdToResponse } from './fetch/utils.js';
+import { addRequestIdToResponse } from './instrumented_fetch/utils.js';
 
 const tracing = vi.mocked( Tracing, true );
 const event = vi.mocked( Event, true );

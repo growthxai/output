@@ -3,16 +3,16 @@ title: "Connecting to External APIs"
 description: "Build typed, observable API clients for reliable third-party integrations"
 ---
 
-AI workflows talk to external APIs constantly — search engines, content services, data providers, internal tools. You could install a dedicated SDK for each one, but that adds maintenance overhead. Writing raw `fetch` calls works, but you lose visibility into what's happening across your workflow and becomes tedious to maintain.
+AI workflows talk to external APIs constantly — search engines, content services, data providers, internal tools. You could install a dedicated SDK for each one, but that adds maintenance overhead. Writing raw `fetch` calls works, but you lose visibility into what's happening across your workflow, and it becomes tedious to maintain.
 
-Output ships `httpClient` from `@outputai/http` as the standard way to write API clients. Every request is automatically traced, so you see exactly what your workflow called in the same trace as the step that called it, what came back, and how long it took. You (or Claude Code) write thin, typed wrappers — one file per API — that your steps import.
+Output ships `createKyClient` from `@outputai/http` as the standard way to write Ky API clients. Every request is automatically traced, so you see exactly what your workflow called in the same trace as the step that called it, what came back, and how long it took. You (or Claude Code) write thin, typed wrappers — one file per API — that your steps import.
 
 ## Your First Client
 
 Here's a simple client that searches the web using [Tavily](https://tavily.com). Create a file at `src/clients/tavily.ts`:
 
 ```typescript src/clients/tavily.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { FatalError } from '@outputai/core';
 
 const getApiKey = () => {
@@ -24,8 +24,8 @@ const getApiKey = () => {
 };
 
 const createClient = () =>
-  httpClient({
-    prefixUrl: 'https://api.tavily.com',
+  createKyClient({
+    prefix: 'https://api.tavily.com',
     timeout: 60000,
   });
 
@@ -47,7 +47,7 @@ export const tavilyClient = {
 
 That's a complete, working client. Let's break down what's happening:
 
-**`createClient()`** builds an HTTP client with a base URL and timeout. Every request through this client is automatically traced — you'll see the URL, status code, and timing in your workflow trace. The `prefixUrl` means you only write relative paths like `'search'` instead of the full URL.
+**`createClient()`** builds an HTTP client with a base URL and timeout. Every request through this client is automatically traced — you'll see the URL, status code, and timing in your workflow trace. The `prefix` means you only write relative paths like `'search'` instead of the full URL.
 
 **`getApiKey()`** reads the API key from an environment variable. It throws a `FatalError` if the key is missing — this tells Output "don't retry this step, it will never succeed without the key." More on this in [Error Handling](#error-handling).
 
@@ -83,8 +83,8 @@ The most common pattern — pass a token in the `Authorization` header. Many int
 
 ```typescript src/clients/hubspot.ts
 const createClient = () =>
-  httpClient({
-    prefixUrl: 'https://api.hubapi.com',
+  createKyClient({
+    prefix: 'https://api.hubapi.com',
     timeout: 30000,
     headers: {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
@@ -99,8 +99,8 @@ Some APIs use a custom header name like `x-api-key` instead of the standard `Aut
 
 ```typescript src/clients/exa.ts
 const createClient = () =>
-  httpClient({
-    prefixUrl: 'https://api.exa.ai',
+  createKyClient({
+    prefix: 'https://api.exa.ai',
     timeout: 60000,
   });
 
@@ -124,8 +124,8 @@ Older APIs sometimes use HTTP Basic authentication, which encodes a username and
 const createClient = () => {
   const userId = process.env.SERVICE_USER_ID;
   const apiKey = process.env.SERVICE_API_KEY;
-  return httpClient({
-    prefixUrl: 'https://api.example.com/v1',
+  return createKyClient({
+    prefix: 'https://api.example.com/v1',
     timeout: 120000,
     headers: {
       Authorization: `Basic ${Buffer.from(`${userId}:${apiKey}`).toString('base64')}`,
@@ -141,12 +141,12 @@ API responses can change without warning — a field gets renamed, a type change
 Zod schemas catch this at the boundary. Define what the API should return, and parse the response immediately:
 
 ```typescript src/clients/clearbit.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { z } from '@outputai/core';
 
 const createClient = () =>
-  httpClient({
-    prefixUrl: 'https://company.clearbit.com/v2',
+  createKyClient({
+    prefix: 'https://company.clearbit.com/v2',
     timeout: 30000,
     headers: {
       Authorization: `Bearer ${process.env.CLEARBIT_API_KEY}`,
@@ -194,14 +194,14 @@ The `z.infer<typeof CompanySchema>` line generates a TypeScript type from the sc
 
 When an API call fails, you need to decide: should Output retry the step, or is the error permanent?
 
-`httpClient` throws two error types:
-- **`HTTPError`** — The server responded with a non-2xx status code (like 404, 429, or 500)
-- **`TimeoutError`** — The request took longer than the timeout you set
+Ky clients throw two common error types:
+- **`ky.HTTPError`** — The server responded with a non-2xx status code (like 404, 429, or 500)
+- **`ky.TimeoutError`** — The request took longer than the timeout you set
 
 By default, Output retries failed steps automatically. This is great for transient errors (server hiccups, network blips), but you don't want to retry when the API key is missing or the resource doesn't exist. Here's how to handle the common cases:
 
 ```typescript src/clients/search.ts
-import { httpClient, HTTPError, TimeoutError } from '@outputai/http';
+import { createKyClient, ky } from '@outputai/http';
 import { FatalError } from '@outputai/core';
 
 const getApiKey = () => {
@@ -224,14 +224,14 @@ export const searchClient = {
 
       return response.results ?? [];
     } catch (error) {
-      if (error instanceof HTTPError) {
+      if (error instanceof ky.HTTPError) {
         // 429: Rate limited. Let the step retry with backoff.
         if (error.response.status === 429) throw error;
 
         // 404: Not found. Return empty results instead of failing.
         if (error.response.status === 404) return [];
       }
-      // Everything else (5xx, TimeoutError): let it propagate.
+      // Everything else (5xx, ky.TimeoutError): let it propagate.
       // Output will retry the step automatically.
       throw error;
     }
@@ -277,7 +277,7 @@ Each method creates a fresh client instance, keeping things stateless. Your step
 Some APIs don't return results immediately. Instead, they give you a task ID and you poll until the work is done. Research APIs and batch processing services commonly work this way:
 
 ```typescript src/clients/research.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { FatalError } from '@outputai/core';
 
 // Clients run inside steps (activities), not workflows.
@@ -330,7 +330,7 @@ src/
         └── steps.ts         # Imports from ../../clients/
 ```
 
-Steps import from client files — they never create `httpClient` instances directly. When an API changes its auth or base URL, you update one file and every workflow that uses it picks up the change.
+Steps import from client files — they never create `createKyClient` instances directly. When an API changes its auth or base URL, you update one file and every workflow that uses it picks up the change.
 
 ## Debugging
 
@@ -340,7 +340,7 @@ When an API call isn't returning what you expect, turn on verbose logging to see
 OUTPUT_TRACE_HTTP_VERBOSE=1 output dev
 ```
 
-This captures everything flowing through `httpClient` — request bodies, response bodies, headers, timing. Sensitive headers like `authorization` and `api-key` are automatically redacted so you can safely share traces.
+This captures everything flowing through `instrumentedFetch` and `createKyClient` — request bodies, response bodies, headers, and timing. Sensitive headers like `authorization` and `api-key` are automatically redacted so you can safely share traces.
 
 Turn this off in production. Response bodies from search APIs and content services can be large, and you don't want that in every trace.
 
@@ -349,7 +349,7 @@ Turn this off in production. Response bodies from search APIs and content servic
 Here's the full Tavily client with search, extract, and crawl methods. This is a production-ready example you can copy and adapt — it demonstrates environment variable validation, typed interfaces, multiple methods, and transforming the API's `snake_case` responses into `camelCase` for your TypeScript code:
 
 ```typescript src/clients/tavily.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { FatalError } from '@outputai/core';
 
 const TAVILY_API_URL = 'https://api.tavily.com';
@@ -363,8 +363,8 @@ const getApiKey = () => {
 };
 
 const createClient = () =>
-  httpClient({
-    prefixUrl: TAVILY_API_URL,
+  createKyClient({
+    prefix: TAVILY_API_URL,
     timeout: 60000,
   });
 
@@ -517,7 +517,7 @@ export const tavilyClient = {
 
 ## What's Next
 
-- [@outputai/http API reference](/packages/http) — Full `httpClient` API, `.extend()`, and configuration options
+- [@outputai/http API reference](/packages/http) — `instrumentedFetch`, `createKyClient`, and configuration options
 - [Steps](/steps) — Where clients get used: wrapping API calls in retryable steps
 - [Tracing](/operations/tracing) — How request traces appear in the Temporal UI
 - [Error Handling](/operations/error-handling) — `FatalError`, `ValidationError`, and retry policies

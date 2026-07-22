@@ -14,16 +14,19 @@
   "scripts": {
     "build": "rm -rf ./dist && tsc"
   },
+  "peerDependencies": {
+    "ky": ">=2 <3",
+    "undici": ">=8 <9"
+  },
   "dependencies": {
-    "@outputai/core": "workspace:",
+    "@outputai/core": "workspace:"
+  },
+  "devDependencies": {
     "ky": "catalog:",
     "undici": "catalog:"
   },
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
-  },
-  "imports": {
-    "#*": "./dist/*"
   }
 }

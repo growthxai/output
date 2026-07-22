@@ -66,15 +66,16 @@ export default workflow({
 // steps.ts - where I/O happens
 import { step, z } from '@outputai/core';
 import { generateText } from '@outputai/llm';
-import { httpClient } from '@outputai/http';
+import { instrumentedFetch } from '@outputai/http';
 
 export const scrapeWebsite = step({
   name: 'scrapeWebsite',
   inputSchema: z.string().url(),
   outputSchema: z.string(),
   fn: async (url) => {
-    const client = httpClient({ timeout: 30000 });
-    const response = await client.get(url);
+    const response = await instrumentedFetch(url, {
+      signal: AbortSignal.timeout(30000)
+    });
     return response.text();
   }
 });

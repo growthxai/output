@@ -89,7 +89,7 @@ export default workflow( {
 
 ```typescript
 import { z, step, workflow } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 // Create a step for the I/O operation
 export const fetchData = step( {
@@ -101,7 +101,7 @@ export const fetchData = step( {
     data: z.unknown()
   } ),
   fn: async input => {
-    const client = httpClient( { prefixUrl: 'https://api.example.com' } );
+    const client = createKyClient( { prefix: 'https://api.example.com' } );
     const data = await client.get( input.endpoint ).json();
     return { data };
   }

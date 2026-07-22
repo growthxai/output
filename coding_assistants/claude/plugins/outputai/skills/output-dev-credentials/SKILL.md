@@ -152,12 +152,12 @@ stripe:
 ### Before (old pattern)
 
 ```typescript
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 const API_KEY = process.env.SERVICE_API_KEY || '';
 
-const client = httpClient({
-  prefixUrl: 'https://api.service.com',
+const client = createKyClient({
+  prefix: 'https://api.service.com',
   headers: { Authorization: `Bearer ${API_KEY}` }
 });
 ```
@@ -165,13 +165,13 @@ const client = httpClient({
 ### After (credentials pattern)
 
 ```typescript
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
 const apiKey = credentials.require('service.api_key');
 
-const client = httpClient({
-  prefixUrl: 'https://api.service.com',
+const client = createKyClient({
+  prefix: 'https://api.service.com',
   headers: { Authorization: `Bearer ${apiKey}` }
 });
 ```
