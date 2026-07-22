@@ -144,7 +144,7 @@ src/
 |-------|---------|
 | `output-error-zod-import` | Wrong zod import source |
 | `output-error-nondeterminism` | Date.now, Math.random in workflows |
-| `output-error-try-catch` | Missing error handling in steps |
+| `output-error-try-catch` | Workflow try/catch patterns and typed step-error checks |
 | `output-error-missing-schemas` | Incomplete Zod schema exports |
 | `output-error-direct-io` | I/O operations in workflow files |
 | `output-error-http-client` | Using axios instead of @outputai/http |

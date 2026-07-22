@@ -30,6 +30,7 @@ import {
   // Error types
   FatalError,
   ValidationError,
+  hasErrorType,
 
   // Zod (re-exported for convenience)
   z
@@ -50,6 +51,7 @@ import {
 | `Logger` | Structured logger that works from both workflows and steps |
 | `FatalError` | Non-retryable error — stops immediately |
 | `ValidationError` | Schema validation failure — stops immediately |
+| `hasErrorType` | Match an error class across a Temporal failure cause chain |
 | `z` | Zod schema library for input/output validation |
 
 For full details on `workflow`, `step`, and `evaluator`, see [Workflows](/workflows), [Steps](/steps), and [Evaluators](/evaluators).
