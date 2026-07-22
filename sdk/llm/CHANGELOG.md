@@ -1,5 +1,24 @@
 # @outputai/llm
 
+## 0.11.0
+
+### Minor Changes
+
+- 09ed166: Added stricter LiquidJs settings for prompt files parsing. The following configurations were added:
+  ```js
+  {
+    strictFilters: true,
+    strictVariables: true,
+    lenientIf: true
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [eaf62a3]
+- Updated dependencies [d815a8e]
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes

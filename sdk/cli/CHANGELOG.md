@@ -1,5 +1,18 @@
 # @outputai/cli
 
+## 0.11.0
+
+### Minor Changes
+
+- 64a9df7: Add workflow monitor command, update workflow history API to be resumable
+
+### Patch Changes
+
+- Updated dependencies [09ed166]
+  - @outputai/llm@0.11.0
+  - @outputai/credentials@0.11.0
+  - @outputai/evals@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes
