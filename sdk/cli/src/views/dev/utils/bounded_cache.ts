@@ -1,4 +1,4 @@
-export interface BoundedCache<K, V> {
+export interface BoundedCache<K, V extends {}> {
   get( key: K ): V | undefined;
   set( key: K, value: V ): void;
   has( key: K ): boolean;
@@ -12,7 +12,10 @@ export interface BoundedCache<K, V> {
  * least-recently-used entries are evicted. Drop-in compatible with the
  * `Map.get` / `Map.set` calls it replaces.
  */
-export const createBoundedCache = <K, V>( maxSize: number ): BoundedCache<K, V> => {
+export const createBoundedCache = <K, V extends {}>( maxSize: number ): BoundedCache<K, V> => {
+  if ( maxSize < 1 ) {
+    throw new Error( 'createBoundedCache: maxSize must be >= 1' );
+  }
   const entries = new Map<K, V>();
 
   return {
