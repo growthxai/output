@@ -14,6 +14,7 @@ const {
   mockWorker,
   promises,
   resetPromises,
+  serializeErrorMock,
   setupInterruptionHandlerMock,
   setupTelemetryMock
 } = vi.hoisted( () => {
@@ -117,16 +118,18 @@ const {
     mockWorker,
     promises,
     resetPromises,
+    serializeErrorMock: vi.fn( error => ( {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    } ) ),
     setupInterruptionHandlerMock: vi.fn(),
     setupTelemetryMock: vi.fn()
   };
 } );
 
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
-vi.mock( '#consts', async importOriginal => {
-  const actual = await importOriginal();
-  return { ...actual };
-} );
+vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
 const initTracing = vi.fn().mockResolvedValue( undefined );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
@@ -356,9 +359,10 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'Big Failure'
+        error: expect.objectContaining( { message: 'Big Failure' } )
       } ) );
     } );
+    expect( serializeErrorMock ).toHaveBeenCalledWith( error );
     expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalledWith( 1 ) );
     expect( flushPendingHooksMock ).toHaveBeenCalledOnce();
@@ -378,7 +382,7 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'connection lost'
+        error: expect.objectContaining( { message: 'connection lost' } )
       } ) );
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
@@ -398,7 +402,7 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'catalog failed'
+        error: expect.objectContaining( { message: 'catalog failed' } )
       } ) );
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
@@ -418,7 +422,7 @@ describe( 'worker/index', () => {
     expect( catalogJobInstance.interrupt ).not.toHaveBeenCalled();
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'worker create failed'
+        error: expect.objectContaining( { message: 'worker create failed' } )
       } ) );
     } );
   } );

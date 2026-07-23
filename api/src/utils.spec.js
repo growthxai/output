@@ -104,7 +104,7 @@ describe( 'utils spec', () => {
   } );
 
   describe( 'extractErrorDetail', () => {
-    it( 'returns trace from error.details when present', () => {
+    it( 'returns trace from a details array', () => {
       const tracePayload = { destinations: { local: 'xxx', remote: 'yyy' } };
       const error = { details: [ { trace: tracePayload } ] };
 

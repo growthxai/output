@@ -109,21 +109,19 @@ export interface HookPayloadBase {
 }
 
 /**
- * Payload passed to the onError() handler when a workflow, activity or runtime error occurs.
+ * A serialized error-like object emitted from a workflow.
+ *
+ * Additional enumerable properties from the original error may also be present.
  */
-export interface ErrorHookPayload extends HookPayloadBase {
-  /** Origin of the error: workflow execution, activity execution, or runtime. */
-  source: 'workflow' | 'activity' | 'runtime';
-  /** Information about the current workflow execution */
-  workflowDetails?: WorkflowDetails;
-  /** Temporal's activityInfo(). If source is activity */
-  activityInfo?: Info;
-  /** Output component kind for the activity, e.g. step, evaluator, or internal_step. */
-  outputActivityKind: string;
-  /** Attribute totals collected during the activity execution. */
-  aggregations?: Aggregations | null;
-  /** The error thrown. */
-  error: Error;
+export interface SerializedError {
+  /** Error name. */
+  name: string;
+  /** Error message. */
+  message: string;
+  /** Serialized underlying cause, when present. */
+  cause?: SerializedError;
+  /** Additional properties captured from the original error. */
+  [property: string]: unknown;
 }
 
 /**
@@ -148,8 +146,8 @@ export type WorkflowEndHookPayload = WorkflowPayloadBase;
  * Payload passed to the onWorkflowError() handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload extends WorkflowPayloadBase {
-  /** The error thrown. */
-  error: Error;
+  /** Serialized workflow error. */
+  error: SerializedError;
 }
 
 /**
@@ -172,20 +170,36 @@ export type ActivityStartHookPayload = ActivityPayloadBase;
 /**
  * Payload passed to the onActivityEnd() handler when an activity completes successfully.
  */
-export interface ActivityEndHookPayload extends ActivityPayloadBase {
-  /** Attribute totals collected during the activity execution. */
-  aggregations: Aggregations | null;
-}
+export type ActivityEndHookPayload = ActivityPayloadBase;
 
 /**
  * Payload passed to the onActivityError() handler when an activity fails.
  */
 export interface ActivityErrorHookPayload extends ActivityPayloadBase {
-  /** Attribute totals collected during the activity execution. */
-  aggregations: Aggregations | null;
   /** The error thrown. */
   error: Error;
 }
+
+/**
+ * Payload passed to the onError() handler when a workflow, activity or runtime error occurs.
+ */
+export type ErrorHookPayload =
+  ( WorkflowPayloadBase & {
+    /** Workflow error origin. */
+    source: 'workflow';
+    /** Serialized workflow error. */
+    error: SerializedError;
+  } ) |
+  ( ActivityErrorHookPayload & {
+    /** Activity error origin. */
+    source: 'activity';
+  } ) |
+  ( HookPayloadBase & {
+    /** Worker runtime error origin. */
+    source: 'runtime';
+    /** The original error instance. */
+    error: Error;
+  } );
 
 /**
  * Register a handler to be invoked on workflow, activity or runtime errors.

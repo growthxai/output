@@ -46,6 +46,7 @@ describe( 'GrpcStatus', () => {
 describe( 'formatStatus', () => {
   it( 'formats Temporal status names for API responses', () => {
     expect( formatStatus( 'COMPLETED' ) ).toBe( 'completed' );
+    expect( formatStatus( 'CANCELLED' ) ).toBe( 'cancelled' );
     expect( formatStatus( 'CONTINUED_AS_NEW' ) ).toBe( 'continued_as_new' );
   } );
 

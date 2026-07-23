@@ -21,6 +21,7 @@ import { bindGlobalFunctions } from './global_functions.js';
 import { runOnce } from '#helpers/function';
 
 import './log_hooks.js';
+import { serializeError } from '#helpers/errors';
 
 const log = createChildLogger( 'Worker' );
 
@@ -219,7 +220,7 @@ execute()
     log.info( 'Bye' );
   } )
   .catch( async error => {
-    log.error( 'Fatal error', { error: error.message, stack: error.stack } );
+    log.error( 'Fatal error', { error: serializeError( error ) } );
 
     mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error } );
 

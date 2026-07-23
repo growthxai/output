@@ -1,3 +1,4 @@
+import { serializeError } from '#helpers/errors';
 import { createChildLogger } from '#logger';
 import { workerTelemetryIntervalMs } from './configs.js';
 
@@ -18,7 +19,7 @@ export const setupTelemetry = ( { worker } ) => {
         }
       } );
     } catch ( error ) {
-      log.warn( 'Failure', { error: error.message } );
+      log.warn( 'Failure', { error: serializeError( error, { includeStack: false } ) } );
     }
   }, workerTelemetryIntervalMs ).unref();
 };

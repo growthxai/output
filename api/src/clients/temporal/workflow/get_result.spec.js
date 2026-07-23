@@ -81,12 +81,13 @@ describe( 'getResult', () => {
     const latestHandle = {
       describe: vi.fn().mockResolvedValue( describe ?? {
         runId: 'resolved-run',
-        status: { code: WorkflowStatus.COMPLETED, name: 'COMPLETED' }
+        status: { code: WorkflowStatus.COMPLETED, name: 'COMPLETED' },
+        memo: { payloadVersion: '2', trace: { local: '/tmp/trace.json' } }
       } ),
       result: vi.fn()
     };
     const pinnedHandle = {
-      result: vi.fn( result ?? vi.fn().mockResolvedValue( { output: { ok: true } } ) )
+      result: vi.fn( result ?? vi.fn().mockResolvedValue( { ok: true } ) )
     };
     const getHandle = vi.fn()
       .mockReturnValueOnce( latestHandle )
@@ -134,7 +135,7 @@ describe( 'getResult', () => {
   } );
 
   it( 'pins latest-run result reads to the described runId and returns completed output', async () => {
-    const workflowOutput = { output: { ok: true }, trace: null };
+    const workflowOutput = { ok: true };
     const fixtures = makeGetResult( { result: vi.fn().mockResolvedValue( workflowOutput ) } );
     const { getResult } = await import( './get_result.js' );
 
@@ -149,6 +150,7 @@ describe( 'getResult', () => {
       status: 'formatted-status',
       runId: 'resolved-run',
       input: { decoded: { input: true } },
+      memo: { payloadVersion: '2', trace: { local: '/tmp/trace.json' } },
       result: workflowOutput
     } );
     expect( result ).toEqual( { shaped: mockBuildWorkflowResult.mock.calls[0][0] } );
@@ -158,9 +160,10 @@ describe( 'getResult', () => {
     const explicitHandle = {
       describe: vi.fn().mockResolvedValue( {
         runId: 'explicit-run',
-        status: { code: WorkflowStatus.COMPLETED, name: 'COMPLETED' }
+        status: { code: WorkflowStatus.COMPLETED, name: 'COMPLETED' },
+        memo: { payloadVersion: '2', trace: null }
       } ),
-      result: vi.fn().mockResolvedValue( { output: null } )
+      result: vi.fn().mockResolvedValue( null )
     };
     const getHandle = vi.fn().mockReturnValue( explicitHandle );
     mockFetchHistoryPage.mockResolvedValue( { history: { events: [] } } );
@@ -181,7 +184,8 @@ describe( 'getResult', () => {
     const fixtures = makeGetResult( {
       describe: {
         runId: 'continued-run',
-        status: { code: WorkflowStatus.CONTINUED_AS_NEW, name: 'CONTINUED_AS_NEW' }
+        status: { code: WorkflowStatus.CONTINUED_AS_NEW, name: 'CONTINUED_AS_NEW' },
+        memo: { payloadVersion: '2', trace: { remote: 's3://bucket/trace.json' } }
       }
     } );
     const { getResult } = await import( './get_result.js' );
@@ -193,7 +197,8 @@ describe( 'getResult', () => {
       workflowId: 'workflow-id',
       status: 'formatted-status',
       runId: 'continued-run',
-      input: { decoded: { input: true } }
+      input: { decoded: { input: true } },
+      memo: { payloadVersion: '2', trace: { remote: 's3://bucket/trace.json' } }
     } );
   } );
 
@@ -202,7 +207,8 @@ describe( 'getResult', () => {
     const fixtures = makeGetResult( {
       describe: {
         runId: 'failed-run',
-        status: { code: WorkflowStatus.FAILED, name: 'FAILED' }
+        status: { code: WorkflowStatus.FAILED, name: 'FAILED' },
+        memo: { payloadVersion: '2', trace: { local: '/tmp/failed-trace.json' } }
       },
       result: vi.fn().mockRejectedValue( workflowError )
     } );
@@ -215,6 +221,7 @@ describe( 'getResult', () => {
       status: 'formatted-status',
       runId: 'failed-run',
       input: { decoded: { input: true } },
+      memo: { payloadVersion: '2', trace: { local: '/tmp/failed-trace.json' } },
       error: workflowError
     } );
   } );

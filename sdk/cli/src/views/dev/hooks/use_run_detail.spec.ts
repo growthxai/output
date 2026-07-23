@@ -6,7 +6,7 @@ describe( 'isTerminalRunStatus', () => {
   it( 'returns true for completed states', () => {
     expect( isTerminalRunStatus( 'completed' ) ).toBe( true );
     expect( isTerminalRunStatus( 'failed' ) ).toBe( true );
-    expect( isTerminalRunStatus( 'canceled' ) ).toBe( true );
+    expect( isTerminalRunStatus( 'cancelled' ) ).toBe( true );
     expect( isTerminalRunStatus( 'terminated' ) ).toBe( true );
     expect( isTerminalRunStatus( 'timed_out' ) ).toBe( true );
   } );
