@@ -41,13 +41,13 @@ Errors are emitted from three origins. Every payload includes `eventId`, `eventD
 
 | Source | When it fires | Fields besides `eventId`, `eventDate`, `source`, and `error` |
 |--------|----------------|----------------------------------------|
-| `activity` | A step, evaluator, or internal activity fails (after retries are exhausted). | `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
+| `activity` | A step, evaluator, or internal activity fails (after retries are exhausted). | `activityInfo`, `workflowDetails`, `outputActivityKind` |
 | `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | `workflowDetails` |
 | `runtime` | An error outside workflow/activity scope (e.g. in the worker/runtime). | — |
 
 So:
 
-- **Activity** — `eventId`, `eventDate`, `source: 'activity'`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error`. This includes internal activities.
+- **Activity** — `eventId`, `eventDate`, `source: 'activity'`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`. This includes internal activities.
 - **Workflow** — `eventId`, `eventDate`, `source: 'workflow'`, `workflowDetails`, `error` (no activity fields).
 - **Runtime** — `eventId`, `eventDate`, `source: 'runtime'`, and `error` only.
 
@@ -55,7 +55,7 @@ So:
 
 `outputActivityKind` identifies the Output activity type. Possible values are `step`, `evaluator`, and `internal_step`.
 
-`aggregations` contains activity-scoped attribute totals collected before the failure, such as `cost.total`, `tokens.total`, provider-specific token buckets, and `httpRequests.total`. It is `null` when no attributes were collected.
+For `activity` and `runtime`, `error` is the original `Error` instance. Workflow errors cross Temporal's sandbox boundary as plain serialized objects. They retain `name`, `message`, an optional recursive `cause`, and additional enumerable diagnostic properties, but they are not `instanceof Error`.
 
 `eventId` is a UUID v4 stamped per emit — use it as a stable idempotency key when forwarding errors to external systems (Sentry, PagerDuty, your own incident pipeline). `eventDate` is the millisecond epoch timestamp for when the event was emitted. Use `source` to branch in one handler, or ignore payload fields that are undefined for that source.
 

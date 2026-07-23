@@ -5,10 +5,15 @@ vi.mock( '#async_storage', () => ( {
   Storage: { load: storageLoadMock }
 } ) );
 
-const logWarnMock = vi.fn();
+const serializeErrorMock = vi.fn( error => ( {
+  name: error.name,
+  message: error.message
+} ) );
+vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
+
 const logErrorMock = vi.fn();
 vi.mock( '#logger', () => ( {
-  createChildLogger: () => ( { warn: logWarnMock, error: logErrorMock } )
+  createChildLogger: () => ( { error: logErrorMock } )
 } ) );
 
 const localInitMock = vi.fn( async () => {} );
@@ -71,6 +76,24 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.traceInfo ).toBe( traceInfo );
   } );
 
+  it( 'init() logs processor failures with serialized stacks', async () => {
+    process.env.OUTPUT_TRACE_LOCAL_ON = '1';
+    const processorError = new Error( 'processor failed' );
+    localExecMock.mockRejectedValueOnce( processorError );
+    const { init, addEventAction } = await loadTraceEngine();
+    await init();
+
+    addEventAction( 'start', {
+      kind: 'step', name: 'N', id: '1', parentId: 'p', details: null, traceInfo
+    } );
+
+    await vi.waitFor( () => expect( logErrorMock ).toHaveBeenCalledWith( 'Processor execution error', {
+      processor: 'LOCAL',
+      error: { name: 'Error', message: 'processor failed' }
+    } ) );
+    expect( serializeErrorMock ).toHaveBeenCalledWith( processorError );
+  } );
+
   it( 'addEventAction() emits an entry consumed by processors', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'on';
     const { init, addEventAction } = await loadTraceEngine();
@@ -87,6 +110,24 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.details ).toBe( 'done' );
   } );
 
+  it( 'addEventAction() serializes error details before emitting', async () => {
+    process.env.OUTPUT_TRACE_LOCAL_ON = 'on';
+    const { init, addEventAction } = await loadTraceEngine();
+    await init();
+    const error = new TypeError( 'step failed' );
+
+    addEventAction( 'error', {
+      kind: 'step', name: 'S', id: '3', parentId: 'p3', details: error,
+      traceInfo
+    } );
+
+    expect( serializeErrorMock ).toHaveBeenCalledWith( error );
+    expect( localExecMock.mock.calls[0][0].entry.details ).toEqual( {
+      name: 'TypeError',
+      message: 'step failed'
+    } );
+  } );
+
   it( 'addEventAction() does not emit when traceInfo is absent', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = '1';
     const { init, addEventAction } = await loadTraceEngine();
@@ -97,24 +138,6 @@ describe( 'tracing/trace_engine', () => {
       traceInfo: undefined
     } );
     expect( localExecMock ).not.toHaveBeenCalled();
-  } );
-
-  it( 'addEventAction() emits when kind is INTERNAL_STEP', async () => {
-    process.env.OUTPUT_TRACE_LOCAL_ON = '1';
-    const { init, addEventAction } = await loadTraceEngine();
-    await init();
-
-    addEventAction( 'start', {
-      kind: 'internal_step', name: 'Internal', id: '1', parentId: 'p', details: {},
-      traceInfo
-    } );
-    expect( localExecMock ).toHaveBeenCalledTimes( 1 );
-    expect( localExecMock.mock.calls[0][0].entry ).toMatchObject( {
-      kind: 'internal_step',
-      name: 'Internal',
-      id: '1',
-      parentId: 'p'
-    } );
   } );
 
   it( 'addEventActionWithContext() uses storage when available', async () => {
@@ -135,13 +158,11 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.action ).toBe( 'tick' );
   } );
 
-  it( 'addEventActionWithContext() records ADD_ATTR attributes through storage context', async () => {
+  it( 'addEventActionWithContext() emits validated ADD_ATTR trace entries', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
-    const addAttributeMock = vi.fn();
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      traceInfo,
-      addAttribute: addAttributeMock
+      traceInfo
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     const { EventAction } = await import( './trace_consts.js' );
@@ -151,8 +172,6 @@ describe( 'tracing/trace_engine', () => {
     const attribute = new Attribute.HTTPRequestCount( 'https://example.test', 'req-1' );
     addEventActionWithContext( EventAction.ADD_ATTR, { kind: 'http', name: 'request', id: 'req-1', details: attribute } );
 
-    expect( addAttributeMock ).toHaveBeenCalledTimes( 1 );
-    expect( addAttributeMock ).toHaveBeenCalledWith( attribute );
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );
     expect( localExecMock.mock.calls[0][0] ).toEqual( {
       traceInfo,
@@ -170,11 +189,9 @@ describe( 'tracing/trace_engine', () => {
 
   it( 'addEventActionWithContext() throws on invalid ADD_ATTR signal payloads', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
-    const addAttributeMock = vi.fn();
     storageLoadMock.mockReturnValue( {
       parentId: 'ctx-p',
-      traceInfo,
-      addAttribute: addAttributeMock
+      traceInfo
     } );
     const { init, addEventActionWithContext } = await loadTraceEngine();
     const { EventAction } = await import( './trace_consts.js' );
@@ -186,7 +203,6 @@ describe( 'tracing/trace_engine', () => {
       { kind: 'http', name: 'request', id: 'req-1', details: invalidAttribute }
     ) ).toThrow( /not a BaseAttribute instance/ );
 
-    expect( addAttributeMock ).not.toHaveBeenCalled();
     expect( localExecMock ).not.toHaveBeenCalled();
   } );
 

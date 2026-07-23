@@ -70,7 +70,16 @@ describe( 'workflow run command', () => {
       const { cmd, postWorkflowRun, resolveInput } = await createCommand();
       resolveInput.mockResolvedValue( { key: 'value' } );
       postWorkflowRun.mockResolvedValue( {
-        data: { status: 'completed', result: { output: 'ok' } },
+        data: {
+          v: '2',
+          workflowId: 'wf-1',
+          runId: 'run-1',
+          status: 'completed',
+          input: { key: 'value' },
+          output: 'ok',
+          trace: null,
+          error: null
+        },
         status: 200,
         headers: new Headers()
       } as any );
@@ -95,7 +104,16 @@ describe( 'workflow run command', () => {
       } );
       resolveInput.mockResolvedValue( { key: 'value' } );
       postWorkflowRun.mockResolvedValue( {
-        data: { status: 'completed', result: {} },
+        data: {
+          v: '2',
+          workflowId: 'wf-1',
+          runId: 'run-1',
+          status: 'completed',
+          input: { key: 'value' },
+          output: {},
+          trace: null,
+          error: null
+        },
         status: 200,
         headers: new Headers()
       } as any );
@@ -116,7 +134,16 @@ describe( 'workflow run command', () => {
       postWorkflowRun
         .mockRejectedValueOnce( new HttpError( 'Unavailable', { status: 503, headers } ) )
         .mockResolvedValueOnce( {
-          data: { status: 'completed', result: {} },
+          data: {
+            v: '2',
+            workflowId: 'wf-1',
+            runId: 'run-1',
+            status: 'completed',
+            input: {},
+            output: {},
+            trace: null,
+            error: null
+          },
           status: 200,
           headers: new Headers()
         } as any );

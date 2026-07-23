@@ -4,13 +4,29 @@ import { resolveWorkflowName } from '../catalog.js';
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { logger } from '#logger';
+import { formatStatus } from '../types.js';
 
 const { defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
+
+const execute = async ( { handle, executionTimeout } ) => {
+  try {
+    const result = await Promise.race( [
+      handle.result(),
+      new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
+    ] );
+    return { isFailure: false, result };
+  } catch ( error ) {
+    if ( error instanceof WorkflowFailedError ) {
+      return { isFailure: true, error };
+    }
+    throw error;
+  }
+};
 
 /**
  * Runs a workflow and return its result.
  *
- * The status field of the result is always 'completed' or 'failed'
+ * The status field reflects Temporal's terminal workflow execution status.
  *
  * @param {string} workflowName - The type of the workflow
  * @param {any} input - The input arguments of the workflow
@@ -33,18 +49,19 @@ export const run = async ( { client }, workflowName, input, options = {} ) => {
   const runId = handle.firstExecutionRunId ?? null;
 
   try {
-    const result = await Promise.race( [
-      handle.result(),
-      new Promise( ( _, rj ) => setTimeout( () => rj( new WorkflowExecutionTimedOutError() ), executionTimeout ) )
-    ] );
-    return buildWorkflowResult( { workflowId, status: 'completed', runId, input, result } );
-  } catch ( error ) {
-    // Workflow failures are returned as data, not thrown
-    if ( error instanceof WorkflowFailedError ) {
+    const { isFailure, result, error } = await execute( { handle, executionTimeout } );
+    if ( isFailure ) {
       logger.warn( 'Workflow execution failed', { workflowId, errorMessage: error.message } );
-      return buildWorkflowResult( { workflowId, status: 'failed', runId, input, error } );
     }
-    // Other errors (timeout, not found, etc.) are still thrown
+    const description = await handle.describe();
+    if ( runId && description.firstRunId && description.firstRunId !== runId ) {
+      throw new Error( `Workflow "${workflowId}" was reused before its result metadata could be read` );
+    }
+    const status = formatStatus( description.status.name );
+    // Execution errors still return normally, with a built response
+    return buildWorkflowResult( { workflowId, status, runId, input, result, memo: description.memo, error } );
+  } catch ( error ) {
+    // Throw errors unrelated to execution (timeout, not found, etc.)
     error.workflowId = workflowId;
     error.runId = runId;
     throw error;

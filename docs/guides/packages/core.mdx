@@ -108,8 +108,8 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 | `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowError` | A user workflow execution fails | `eventId`, `eventDate`, `workflowDetails`, `error` |
 | `onActivityStart` | An Output activity starts, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
-| `onActivityEnd` | An Output activity completes successfully, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations` |
-| `onActivityError` | An Output activity fails, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error` |
+| `onActivityEnd` | An Output activity completes successfully, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind` |
+| `onActivityError` | An Output activity fails, including internal activities | `eventId`, `eventDate`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error` |
 | `on(eventName, handler)` | SDK and custom events | An envelope containing `eventId`, `eventDate`, and your original value under `payload`; activity context fields are included when available |
 
 **Context objects on hook payloads**
@@ -117,7 +117,6 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 - `activityInfo` is Temporal's Activity execution info object. See Temporal's [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) reference for all fields.
 - `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). It includes `workflowId`, `runId`, `workflowType`, `parent`, `root`, `firstExecutionRunId`, `continuedFromExecutionRunId`, `startTime`, `runStartTime`, and `attempt`.
 - `outputActivityKind` is Output metadata for activity hooks and custom events emitted from activities. Possible values are `step`, `evaluator`, and `internal_step`.
-- `aggregations` contains activity-scoped attribute totals collected while the step or evaluator ran. It is `null` when no attributes were collected.
 
 **SDK and custom event envelopes**
 
@@ -177,22 +176,13 @@ type WorkflowDetails = {
 };
 ```
 
-```typescript
-type Aggregations = {
-  cost: { total: number };
-  tokens: {
-    total: number;
-    [tokenType: string]: number | undefined;
-  };
-  httpRequests: { total: number };
-};
-```
-
 **`onError` payload by `source`**
 
-- **`activity`** — `eventId`, `eventDate`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `aggregations`, `error`
+- **`activity`** — `eventId`, `eventDate`, `source`, `activityInfo`, `workflowDetails`, `outputActivityKind`, `error`
 - **`workflow`** — `eventId`, `eventDate`, `source`, `workflowDetails`, `error`
 - **`runtime`** — `eventId`, `eventDate`, `source`, `error`
+
+Activity and runtime errors are `Error` instances. Workflow errors cross Temporal's sandbox boundary as plain serialized objects containing `name`, `message`, an optional recursive `cause`, and any additional enumerable diagnostic properties.
 
 The internal `$catalog` workflow is excluded from lifecycle and error hooks. Activity hooks include internal activities, identified by `outputActivityKind: 'internal_step'`.
 

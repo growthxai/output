@@ -27,9 +27,14 @@ const mainEventBusMock = vi.hoisted( () => ( {
     onHandlers[eventType] = handler;
   } )
 } ) );
+const serializeErrorMock = vi.hoisted( () => vi.fn( error => ( {
+  name: error.name,
+  message: error.message
+} ) ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
+vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
 
 import './log_hooks.js';
 
@@ -120,9 +125,10 @@ describe( 'log_hooks', () => {
           workflowId: 'wf-1',
           workflowType: 'myWorkflow',
           runId: 'run-1',
-          error: 'step failed'
+          error: { name: 'Error', message: 'step failed' }
         }
       );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { includeStack: false } );
     } );
 
     it( 'ACTIVITY_ERROR does not log trace destination activity', () => {
@@ -244,9 +250,10 @@ describe( 'log_hooks', () => {
           workflowId: 'wf-1',
           workflowType: 'myWorkflow',
           runId: 'run-1',
-          error: 'workflow boom'
+          error: { name: 'TypeError', message: 'workflow boom' }
         }
       );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { includeStack: false } );
     } );
 
     it( 'WORKFLOW_ERROR does not log when workflowType is WORKFLOW_CATALOG', () => {

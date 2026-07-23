@@ -43,8 +43,9 @@ describe( 'trace_log handler', () => {
 
   it( 'returns 404 when workflow has no trace destinations', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
+      v: '2',
       workflowId: 'test-workflow-id',
-      trace: { destinations: { local: null, remote: null } }
+      trace: null
     } );
 
     await request( createApp() )
@@ -59,13 +60,11 @@ describe( 'trace_log handler', () => {
   it( 'returns remote response with data for S3 traces', async () => {
     const mockTraceData = { workflow: 'test', steps: [ { name: 'step1' } ] };
     mockGetWorkflowResult.mockResolvedValue( {
+      v: '2',
       workflowId: 'test-workflow-id',
       runId: 'r-remote',
       trace: {
-        destinations: {
-          local: null,
-          remote: 'https://my-bucket.s3.amazonaws.com/traces/file.json'
-        }
+        remote: 'https://my-bucket.s3.amazonaws.com/traces/file.json'
       }
     } );
     mockFetchTraceFromS3.mockResolvedValue( mockTraceData );
@@ -81,14 +80,10 @@ describe( 'trace_log handler', () => {
 
   it( 'returns local response for local-only traces', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
+      v: '2',
       workflowId: 'test-workflow-id',
       runId: 'r-local',
-      trace: {
-        destinations: {
-          local: '/path/to/local/trace.json',
-          remote: null
-        }
-      }
+      trace: { local: '/path/to/local/trace.json' }
     } );
 
     await request( createApp() )
@@ -96,11 +91,40 @@ describe( 'trace_log handler', () => {
       .expect( 200, { source: 'local', runId: 'r-local', localPath: '/path/to/local/trace.json' } );
   } );
 
-  it( 'forwards the pinned rid to getWorkflowResult', async () => {
+  it( 'supports legacy nested trace destinations', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
       workflowId: 'test-workflow-id',
+      runId: 'r-legacy',
+      trace: { destinations: { local: '/path/to/legacy/trace.json', remote: null } }
+    } );
+
+    await request( createApp() )
+      .get( '/workflow/test-workflow-id/trace-log' )
+      .expect( 200, { source: 'local', runId: 'r-legacy', localPath: '/path/to/legacy/trace.json' } );
+  } );
+
+  it( 'supports legacy flat trace destinations from failed workflows', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      workflowId: 'test-workflow-id',
+      runId: 'r-legacy-failure',
+      trace: { local: '/path/to/legacy/failed-trace.json' }
+    } );
+
+    await request( createApp() )
+      .get( '/workflow/test-workflow-id/trace-log' )
+      .expect( 200, {
+        source: 'local',
+        runId: 'r-legacy-failure',
+        localPath: '/path/to/legacy/failed-trace.json'
+      } );
+  } );
+
+  it( 'forwards the pinned rid to getWorkflowResult', async () => {
+    mockGetWorkflowResult.mockResolvedValue( {
+      v: '2',
+      workflowId: 'test-workflow-id',
       runId: RID,
-      trace: { destinations: { local: '/tmp/t.json', remote: null } }
+      trace: { local: '/tmp/t.json' }
     } );
 
     await request( createApp() )
@@ -120,12 +144,10 @@ describe( 'trace_log handler', () => {
 
   it( 'calls error handler when S3 fetch fails', async () => {
     mockGetWorkflowResult.mockResolvedValue( {
+      v: '2',
       workflowId: 'test-workflow-id',
       trace: {
-        destinations: {
-          local: null,
-          remote: 'https://my-bucket.s3.amazonaws.com/traces/file.json'
-        }
+        remote: 'https://my-bucket.s3.amazonaws.com/traces/file.json'
       }
     } );
     const s3Error = new Error( 'S3 access denied' );

@@ -1,6 +1,6 @@
 import { Storage } from '#async_storage';
 import { EventEmitter } from 'node:events';
-import { serializeError } from './tools/utils.js';
+import { serializeError } from '#helpers/errors';
 import { isStringboolTrue } from '#helpers/string';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
@@ -51,7 +51,7 @@ export const init = async () => {
       try {
         await p.exec( ...args );
       } catch ( error ) {
-        log.error( 'Processor execution error', { processor: p.name, error: error.message, stack: error.stack } );
+        log.error( 'Processor execution error', { processor: p.name, error: serializeError( error ) } );
       }
     } );
   }
@@ -87,14 +87,9 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, tra
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, traceInfo, addAttribute } = storeContent;
-    if ( action === EventAction.ADD_ATTR ) {
-      const attribute = options.details;
-      if ( !( attribute instanceof BaseAttribute ) ) {
-        throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
-      } else {
-        addAttribute( options.details );
-      }
+    const { parentId, traceInfo } = storeContent;
+    if ( action === EventAction.ADD_ATTR && !( options.details instanceof BaseAttribute ) ) {
+      throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
     }
     addEventAction( action, { ...options, parentId, traceInfo } );
   }

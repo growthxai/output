@@ -19,7 +19,7 @@ import { validateRequestPayload } from './validations/index.js';
  */
 export async function sendHttpRequest( { url, method = 'GET', payload = undefined, headers = undefined, responseOptions = {} } ) {
   validateRequestPayload( { method, url, payload, headers, responseOptions } );
-  const res = await proxyActivities( {
+  return proxyActivities( {
     startToCloseTimeout: '3m',
     retry: {
       initialInterval: '15s',
@@ -27,7 +27,6 @@ export async function sendHttpRequest( { url, method = 'GET', payload = undefine
       nonRetryableErrorTypes: [ FatalError.name ]
     }
   } )[ACTIVITY_SEND_HTTP_REQUEST]( { method, url, payload, headers, responseOptions } );
-  return res.output;
 };
 
 /**

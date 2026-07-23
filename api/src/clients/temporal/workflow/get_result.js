@@ -1,6 +1,6 @@
 import { defaultPayloadConverter } from '@temporalio/client';
 import { WorkflowFailedError, WorkflowNotCompletedError } from '../../errors.js';
-import { WorkflowStatus, isWorkflowClosed, formatStatus } from '../types.js';
+import { WorkflowStatus, formatStatus, isWorkflowClosed } from '../types.js';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { fetchHistoryPage } from './fetch_history_page.js';
 import { logger } from '#logger';
@@ -37,6 +37,8 @@ export const getResult = async ( { client, connection }, workflowId, runId ) => 
     throw new WorkflowNotCompletedError();
   }
 
+  const { memo } = description;
+
   const resolvedRunId = description.runId;
   if ( !resolvedRunId ) {
     // Temporal should always report a runId for a terminal execution; if not, fail loudly
@@ -50,20 +52,21 @@ export const getResult = async ( { client, connection }, workflowId, runId ) => 
   const firstPage = await fetchHistoryPage( connection, workflowId, resolvedRunId, { maximumPageSize: 1 } );
 
   const status = formatStatus( description.status.name );
+
   const input = extractWorkflowInput( firstPage.history );
 
   // For completed workflows, return the full result
   if ( description.status.code === WorkflowStatus.COMPLETED ) {
     const result = await pinnedHandle.result();
-    return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, result } );
+    return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, memo, result } );
   }
 
   // CONTINUED_AS_NEW is not an error - it means the workflow continued in a new execution
   if ( description.status.code === WorkflowStatus.CONTINUED_AS_NEW ) {
-    return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input } );
+    return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, memo } );
   }
 
-  // For other terminal statuses (failed, canceled, terminated, timed_out), extract trace from error details
+  // For other terminal statuses (failed, cancelled, terminated, timed_out), extract trace from error details
   // The workflow interceptor puts trace metadata in ApplicationFailure.details when workflows fail
   const workflowError = await pinnedHandle.result()
     .then( () => null )
@@ -81,5 +84,5 @@ export const getResult = async ( { client, connection }, workflowId, runId ) => 
       throw e;
     } );
 
-  return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, error: workflowError } );
+  return buildWorkflowResult( { workflowId, status, runId: resolvedRunId, input, memo, error: workflowError } );
 };

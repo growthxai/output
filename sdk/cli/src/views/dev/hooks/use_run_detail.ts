@@ -106,7 +106,7 @@ const readTraceLog = async (
 };
 
 // Run detail and trace fetches are best-effort. Many statuses (in-progress,
-// failed, canceled) don't have a fully-formed result or trace available at
+// failed, cancelled) don't have a fully-formed result or trace available at
 // any given moment, and that's expected — the caller falls back to
 // EMPTY_DETAIL and the UI renders whatever's there. Swallow everything.
 const fetchTrace = async ( workflowId: string, runId: string | undefined ): Promise<TraceData | null> => {

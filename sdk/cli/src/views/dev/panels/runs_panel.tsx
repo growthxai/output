@@ -31,7 +31,7 @@ const STATUS_ORDER: Record<string, number> = {
   failed: 1,
   timed_out: 2,
   terminated: 3,
-  canceled: 4,
+  cancelled: 4,
   continued_as_new: 5,
   completed: 6
 };
@@ -173,7 +173,7 @@ const DetailPane: React.FC<{
       }
       return <Text dimColor>—</Text>;
     }
-    if ( activePane === 'output' && hasJsonValue( pane.error ) ) {
+    if ( activePane === 'output' && typeof pane.error === 'string' ) {
       const lines = String( pane.error ).split( '\n' ).slice( 0, tabContentRows );
       return (
         <Box flexDirection="column">
