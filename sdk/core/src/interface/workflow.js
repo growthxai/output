@@ -1,5 +1,5 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
+import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy, upsertMemo } from '@temporalio/workflow';
 import { WorkflowValidator } from './validations/index.js';
 import { toUrlSafeBase64 } from '#helpers/string';
 import { WorkflowContext } from '#helpers/workflow_context';
@@ -29,7 +29,7 @@ const executeWithoutTemporal = async ( { input, validator, handler, contextOverr
  * so Temporal's reusable VM can delete it when switching workflow scopes.
  */
 const createGlobalDispatcher = ( { runId, workflowType, activities } ) => {
-  const dispatcher = async ( activityType, ...args ) => activities[`${workflowType}#${activityType}`]( ...args ).then( r => r.output );
+  const dispatcher = async ( activityType, ...args ) => activities[`${workflowType}#${activityType}`]( ...args );
   dispatcher.runId = runId;
   globalThis[C.INVOKE_ACTIVITY_SYMBOL] = dispatcher;
 };
@@ -52,12 +52,16 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
   const handler = async ( input, invocationOptions = {} ) => {
-    validator.validateInvocationOptions( invocationOptions );
-
     // If called outside Temporal workflow context, just execute the handler function
     if ( !inWorkflowContext() ) {
+      validator.validateInvocationOptions( invocationOptions );
       return executeWithoutTemporal( { input, validator, handler: fn, contextOverrides: invocationOptions?.context } );
     }
+
+    // set this payload version as the first thing
+    upsertMemo( { payloadVersion: '2' } );
+
+    validator.validateInvocationOptions( invocationOptions );
 
     const { workflowId, runId, memo, root } = workflowInfo();
 
@@ -69,7 +73,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       const parentClosePolicy = ParentClosePolicy[invocationOptions?.detached ? 'ABANDON' : 'TERMINATE'];
       const childWorkflowId = `${workflowId}-${toUrlSafeBase64( uuid4() )}`;
       const args = [ input, { activityOptions: invocationOptions?.activityOptions } ];
-      return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } ).then( r => r.output );
+      return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } );
     }
 
     const isRoot = !root; // Check if this is the root most workflow
@@ -92,25 +96,16 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
 
     createGlobalDispatcher( { runId, workflowType: name, activities } );
 
-    const traceDestinations = isRoot && {
-      trace: {
-        destinations: disableTrace ? {} : await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ).then( r => r.output ) ?? {}
-      }
-    };
-
-    try {
-      validator.validateInput( input );
-      const output = await fn( input, WorkflowContext.build() );
-      validator.validateOutput( output );
-
-      return { [C.WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
-    } catch ( error ) {
-      if ( traceDestinations ) {
-        // Append the trace destinations so it is carried to interceptor
-        error[C.METADATA_ACCESS_SYMBOL] = traceDestinations;
-      }
-      throw error;
+    if ( isRoot && !disableTrace ) {
+      const trace = await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo );
+      upsertMemo( { trace } );
     }
+
+    validator.validateInput( input );
+    const output = await fn( input, WorkflowContext.build() );
+    validator.validateOutput( output );
+
+    return output;
   };
 
   return createWorkflow( { name, description, inputSchema, outputSchema, options, aliases, handler } );

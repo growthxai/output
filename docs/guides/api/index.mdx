@@ -44,6 +44,7 @@ curl http://localhost:3001/workflow/<workflow-id>/result
 
 ```json
 {
+  "v": "2",
   "workflowId": "lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab",
   "runId": "b5c6d7e8-9012-3456-7890-abcdef123456",
   "status": "completed",
@@ -52,22 +53,28 @@ curl http://localhost:3001/workflow/<workflow-id>/result
     "company": "Acme Corp",
     "summary": "Enterprise software company focused on..."
   },
-  "trace": { "destinations": {} },
+  "trace": {
+    "local": "/path/to/trace.json",
+    "remote": "s3://trace-bucket/path/to/trace.json"
+  },
   "error": null
 }
 ```
 
 | Field | Description |
 |-------|-------------|
+| `v` | Workflow result payload version. Current responses use `"2"`. |
 | `workflowId` | Workflow execution ID. |
 | `runId` | Specific Temporal run ID. |
 | `status` | Current or final execution status. |
 | `input` | Original workflow input. |
 | `output` | Value returned by the workflow on success, or `null` on failure. |
 | `trace` | Trace metadata for the run, or `null` when unavailable. |
-| `error` | Error message on failure, otherwise `null`. |
+| `error` | Serialized error object on failure, otherwise `null`. It includes `name` and `message` and may include `activityType`, `cause`, and additional diagnostic properties. |
 
-When a workflow fails, the result includes `status: "failed"`, `output: null`, and an `error` message. Trace metadata may still be present when available.
+When a workflow fails, the result includes `status: "failed"`, `output: null`, and a structured `error`. Trace metadata may still be present when available.
+
+Results from workflows started by older workers retain the legacy unversioned response shape until those executions leave Temporal retention.
 
 ## Interacting with Running Workflows
 

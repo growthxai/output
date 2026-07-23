@@ -121,7 +121,7 @@ describe( 'CatalogJob', () => {
 
     await job.run();
 
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Error completing previous catalog workflow', { error: completeError } );
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Error completing previous catalog workflow', { error: completeError.message } );
     expect( workflowStartMock ).toHaveBeenCalledWith( 'catalog', expect.any( Object ) );
     expect( job.error ).toBeNull();
   } );

@@ -62,8 +62,14 @@ describe( 'run', () => {
   } );
 
   it( 'starts the resolved workflow and returns a completed workflow result', async () => {
-    const workflowResult = { output: { ok: true } };
-    const handle = { firstExecutionRunId: 'run-1', result: vi.fn().mockResolvedValue( workflowResult ) };
+    const workflowResult = { ok: true };
+    const trace = { local: '/tmp/trace.json' };
+    const memo = { payloadVersion: '2', trace };
+    const handle = {
+      firstExecutionRunId: 'run-1',
+      result: vi.fn().mockResolvedValue( workflowResult ),
+      describe: vi.fn().mockResolvedValue( { firstRunId: 'run-1', status: { name: 'COMPLETED' }, memo } )
+    };
     const start = vi.fn().mockResolvedValue( handle );
     const client = { workflow: { start } };
     const { run } = await import( './run.js' );
@@ -86,13 +92,18 @@ describe( 'run', () => {
       status: 'completed',
       runId: 'run-1',
       input: { input: true },
-      result: workflowResult
+      result: workflowResult,
+      memo,
+      error: undefined
     } );
     expect( result ).toEqual( { shaped: mockBuildWorkflowResult.mock.calls[0][0] } );
   } );
 
   it( 'uses caller-provided workflow id, task queue, and wait timeout', async () => {
-    const handle = { result: vi.fn().mockResolvedValue( { output: null } ) };
+    const handle = {
+      result: vi.fn().mockResolvedValue( null ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'COMPLETED' }, memo: { payloadVersion: '2' } } )
+    };
     const start = vi.fn().mockResolvedValue( handle );
     const client = { workflow: { start } };
     const { run } = await import( './run.js' );
@@ -117,7 +128,13 @@ describe( 'run', () => {
 
   it( 'returns failed workflow results instead of throwing WorkflowFailedError', async () => {
     const workflowError = new MockWorkflowFailedError( 'workflow failed' );
-    const handle = { firstExecutionRunId: 'run-failed', result: vi.fn().mockRejectedValue( workflowError ) };
+    const trace = { remote: 's3://bucket/trace.json' };
+    const memo = { payloadVersion: '2', trace };
+    const handle = {
+      firstExecutionRunId: 'run-failed',
+      result: vi.fn().mockRejectedValue( workflowError ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'FAILED' }, memo } )
+    };
     const start = vi.fn().mockResolvedValue( handle );
     const client = { workflow: { start } };
     const { run } = await import( './run.js' );
@@ -133,8 +150,67 @@ describe( 'run', () => {
       status: 'failed',
       runId: 'run-failed',
       input: { input: true },
-      error: workflowError
+      error: workflowError,
+      memo
     } );
+  } );
+
+  it( 'preserves Temporal cancellation status', async () => {
+    const workflowError = new MockWorkflowFailedError( 'workflow failed' );
+    const handle = {
+      firstExecutionRunId: 'run-cancelled',
+      result: vi.fn().mockRejectedValue( workflowError ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'CANCELLED' }, memo: { payloadVersion: '2' } } )
+    };
+    const client = { workflow: { start: vi.fn().mockResolvedValue( handle ) } };
+    const { run } = await import( './run.js' );
+
+    await run( { client }, 'workflow', { input: true } );
+
+    expect( mockBuildWorkflowResult ).toHaveBeenCalledWith( {
+      workflowId: 'generated-id',
+      status: 'cancelled',
+      runId: 'run-cancelled',
+      input: { input: true },
+      result: undefined,
+      error: workflowError,
+      memo: { payloadVersion: '2' }
+    } );
+  } );
+
+  it( 'rejects metadata from a reused workflow id', async () => {
+    const handle = {
+      firstExecutionRunId: 'original-run',
+      result: vi.fn().mockResolvedValue( { ok: true } ),
+      describe: vi.fn().mockResolvedValue( {
+        firstRunId: 'reused-run',
+        status: { name: 'COMPLETED' },
+        memo: { payloadVersion: '2' }
+      } )
+    };
+    const client = { workflow: { start: vi.fn().mockResolvedValue( handle ) } };
+    const { run } = await import( './run.js' );
+
+    await expect( run( { client }, 'workflow', {} ) ).rejects.toThrow(
+      'Workflow "generated-id" was reused before its result metadata could be read'
+    );
+    expect( mockBuildWorkflowResult ).not.toHaveBeenCalled();
+  } );
+
+  it( 'annotates and rethrows errors from describe', async () => {
+    const describeError = new Error( 'describe failed' );
+    const handle = {
+      firstExecutionRunId: 'run-failed',
+      result: vi.fn().mockRejectedValue( new MockWorkflowFailedError( 'workflow failed' ) ),
+      describe: vi.fn().mockRejectedValue( describeError )
+    };
+    const client = { workflow: { start: vi.fn().mockResolvedValue( handle ) } };
+    const { run } = await import( './run.js' );
+
+    await expect( run( { client }, 'workflow', { input: true } ) ).rejects.toBe( describeError );
+
+    expect( describeError.workflowId ).toBe( 'generated-id' );
+    expect( describeError.runId ).toBe( 'run-failed' );
   } );
 
   it( 'annotates and rethrows non-workflow-failure errors', async () => {

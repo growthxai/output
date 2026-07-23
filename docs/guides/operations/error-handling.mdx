@@ -67,25 +67,25 @@ If you don't catch the error, the workflow fails.
 
 ### Error metadata
 
-When a root workflow fails, Output can attach trace metadata to the Temporal error returned by the runtime.
+Trace destinations are stored in Temporal memo and exposed as the workflow result's `trace` field. They are available independently of whether the workflow succeeds or fails.
 
-The CLI and API expose this metadata on failed workflow results alongside the error message when it is available.
+Current API responses expose failures as a serialized `error` object with `name`, `message`, and any additional diagnostic properties captured from the original error. Activity failures also include `activityType` when available.
 
-If you inspect raw errors directly, remember that workflow failures are native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. The metadata is stored in a Temporal failure's `details`, which may be on a nested error in the `.cause` chain rather than on the top-level error object. Walk the `.cause` chain and look for `details` containing `trace`.
+If you inspect Temporal errors directly, workflow failures remain native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. Output may store the serialized original error under `details.error` on a nested failure in the `.cause` chain.
 
 ```typescript
-function getWorkflowErrorMetadata(error: unknown) {
+function getSerializedWorkflowError(error: unknown) {
   let current = error as { cause?: unknown; details?: unknown[] } | null;
 
   while (current) {
-    const metadata = current.details?.find((detail) =>
-      detail &&
-      typeof detail === 'object' &&
-      'trace' in detail
+    const detail = current.details?.find((value) =>
+      value &&
+      typeof value === 'object' &&
+      'error' in value
     );
 
-    if (metadata) {
-      return metadata;
+    if (detail && typeof detail === 'object' && 'error' in detail) {
+      return detail.error;
     }
 
     current = current.cause as typeof current;

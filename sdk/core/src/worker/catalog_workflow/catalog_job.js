@@ -38,7 +38,7 @@ export class CatalogJob {
         throw e;
       }
       if ( !( e instanceof WorkflowNotFoundError ) ) {
-        log.warn( 'Error describing catalog workflow', { error: e } );
+        log.warn( 'Error describing catalog workflow', { error: e.message } );
       }
       return false;
     } );
@@ -52,7 +52,7 @@ export class CatalogJob {
         throw e;
       }
       if ( !( e instanceof WorkflowNotFoundError ) ) {
-        log.warn( 'Error describing catalog workflow', { error: e } );
+        log.warn( 'Error describing catalog workflow', { error: e.message } );
       }
       return false;
     } );
@@ -66,7 +66,7 @@ export class CatalogJob {
         throw e;
       }
       if ( !( e instanceof WorkflowNotFoundError ) ) {
-        log.warn( 'Error completing previous catalog workflow', { error: e } );
+        log.warn( 'Error completing previous catalog workflow', { error: e.message } );
       }
     } );
   };

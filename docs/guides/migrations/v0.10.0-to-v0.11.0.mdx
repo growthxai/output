@@ -225,6 +225,35 @@ on<{ companyId: string }>( 'company:enriched', event => {
 
 When an event is emitted outside an activity context, `activityInfo`, `workflowDetails`, and `outputActivityKind` are omitted. These fields are therefore optional on `ExternalHookPayload<T>`; check any context field before using it.
 
+### Activity lifecycle hooks no longer include `aggregations`
+
+`onActivityEnd`, `onActivityError`, and activity-sourced `onError` payloads no longer include the `aggregations` field. Remove reads of `event.aggregations` from hook handlers and use the dedicated cost and request events when those measurements are needed.
+
+```ts
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:llm:request', event => {
+  console.log( event.payload );
+} );
+```
+
+### Workflow error hooks receive serialized objects
+
+Workflow errors are serialized before crossing Temporal's workflow sandbox boundary. The `error` field passed to `onWorkflowError` and workflow-sourced `onError` handlers is now a plain error-like object rather than an `Error` instance.
+
+```ts
+import { onError } from '@outputai/core/hooks';
+
+onError( event => {
+  if ( event.source === 'workflow' ) {
+    console.log( event.error.name, event.error.message );
+    // event.error instanceof Error === false
+  }
+} );
+```
+
+Activity and runtime error hooks continue to receive `Error` instances.
+
 ### Update imported hook payload types
 
 The exported base and envelope types were simplified in v0.11.0. If your hook files import these types directly, make the following replacements:
@@ -295,8 +324,42 @@ No migration is needed unless an `onError` handler explicitly relied on `$catalo
 - Update every `on()` handler to read event-specific fields from `event.payload`.
 - Guard `event.payload` before accessing its fields.
 - Keep framework fields such as `eventId`, `workflowDetails`, and `activityInfo` at the top level.
+- Remove reads of `aggregations` from activity lifecycle and error hooks.
+- Treat workflow hook errors as serialized error-like objects rather than `Error` instances.
 - Filter `outputActivityKind === 'internal_step'` in activity lifecycle hooks when internal activities should remain hidden.
 - Remove assumptions that `onError` reports `$catalog` workflow failures.
+
+## Workflow result changes
+
+New workflows return their declared value directly instead of an internal Output wrapper. Activity results are also no longer wrapped. Code should consume the declared return value without reading a nested `.output`.
+
+Trace destinations now live in Temporal memo and use a flat shape:
+
+```json
+{
+  "trace": {
+    "local": "/path/to/trace.json",
+    "remote": "s3://trace-bucket/path/to/trace.json"
+  }
+}
+```
+
+The previous `trace.destinations` object is removed. API and CLI JSON results created by v0.11.0 workers include `v: "2"`, and failures expose a structured `error` object instead of only an error string:
+
+```json
+{
+  "v": "2",
+  "status": "failed",
+  "output": null,
+  "trace": null,
+  "error": {
+    "name": "ValidationError",
+    "message": "companyDomain is required"
+  }
+}
+```
+
+The API continues to return the legacy unversioned shape for workflows started by older workers. Consumers that can read results from both versions should branch on `result.v === "2"`.
 
 ## Workflow runtime changes
 

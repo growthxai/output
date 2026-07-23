@@ -335,16 +335,13 @@ output workflow result <workflowId>
   The workflow execution ID
 </ParamField>
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--format, -f` | text | Output format: json, text |
-
 #### Workflow result JSON format
 
-Use `--format json` with `output workflow run` or `output workflow result` to print the full structured workflow result:
+Use `--json` with `output workflow run` or `output workflow result` to print the full structured workflow result:
 
 ```json
 {
+  "v": "2",
   "workflowId": "lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab",
   "runId": "b5c6d7e8-9012-3456-7890-abcdef123456",
   "status": "completed",
@@ -353,20 +350,24 @@ Use `--format json` with `output workflow run` or `output workflow result` to pr
     "company": "Acme Corp",
     "summary": "Enterprise software company focused on..."
   },
-  "trace": { "destinations": {} },
+  "trace": {
+    "local": "/path/to/trace.json",
+    "remote": "s3://trace-bucket/path/to/trace.json"
+  },
   "error": null
 }
 ```
 
 | Field | Description |
 |-------|-------------|
+| `v` | Workflow result payload version. Current responses use `"2"`. |
 | `workflowId` | Workflow execution ID. |
 | `runId` | Specific Temporal run ID. |
 | `status` | Current or final execution status. |
 | `input` | Original workflow input. |
 | `output` | Value returned by the workflow on success, or `null` on failure. |
 | `trace` | Trace metadata for the run, or `null` when unavailable. |
-| `error` | Error message on failure, otherwise `null`. |
+| `error` | Serialized error object on failure, otherwise `null`. It includes `name` and `message` and may contain `activityType`, `cause`, and other diagnostic properties. |
 
 ### output workflow stop
 

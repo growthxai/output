@@ -1,5 +1,6 @@
 import { mainEventBus, stepEventBus } from '#bus';
 import { BusEventType } from '#consts';
+import { serializeError } from '#helpers/errors';
 import { createChildLogger } from '#logger';
 
 const log = createChildLogger( 'Hooks' );
@@ -15,7 +16,7 @@ const callHookCb = async ( fn, args, hookName ) => {
   try {
     await fn( args );
   } catch ( error ) {
-    log.error( `${hookName} hook error`, { message: error.message, stack: error.stack } );
+    log.error( `${hookName} hook error`, { error: serializeError( error ) } );
   }
 };
 

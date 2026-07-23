@@ -5,6 +5,11 @@ const logErrorMock = vi.hoisted( () => vi.fn() );
 const createChildLoggerMock = vi.hoisted( () =>
   vi.fn( () => ( { error: logErrorMock } ) )
 );
+const serializeErrorMock = vi.hoisted( () => vi.fn( error => ( {
+  name: error.name,
+  message: error.message,
+  stack: error.stack
+} ) ) );
 
 const mainOnHandlers = vi.hoisted( () => ( {} ) );
 const stepOnHandlers = vi.hoisted( () => ( {} ) );
@@ -21,6 +26,7 @@ const stepEventBusMock = vi.hoisted( () => ( {
 } ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
+vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
 vi.mock( '#bus', () => ( {
   mainEventBus: mainEventBusMock,
   stepEventBus: stepEventBusMock
@@ -57,12 +63,6 @@ const activityInfo = {
 };
 
 const eventDate = 1710000001234;
-
-const aggregations = {
-  cost: { total: 0 },
-  tokens: { total: 0 },
-  httpRequests: { total: 1 }
-};
 
 describe( 'hooks/index', () => {
   beforeEach( () => {
@@ -143,6 +143,14 @@ describe( 'hooks/index', () => {
       await mainOnHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
 
       expect( handler ).toHaveBeenCalledWith( { eventId: 'evt-rt-1', eventDate, source: 'runtime', error } );
+      expect( logErrorMock ).toHaveBeenCalledWith( 'onError hook error', {
+        error: {
+          name: 'Error',
+          message: 'boom',
+          stack: expect.any( String )
+        }
+      } );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( expect.objectContaining( { message: 'boom' } ) );
     } );
   } );
 
@@ -186,7 +194,7 @@ describe( 'hooks/index', () => {
   describe( 'activity lifecycle hooks', () => {
     const cases = [
       [ 'onActivityStart', onActivityStart, BusEventType.ACTIVITY_START, undefined ],
-      [ 'onActivityEnd', onActivityEnd, BusEventType.ACTIVITY_END, { aggregations } ],
+      [ 'onActivityEnd', onActivityEnd, BusEventType.ACTIVITY_END ],
       [ 'onActivityError', onActivityError, BusEventType.ACTIVITY_ERROR, { error: new Error( 'activity failed' ) } ]
     ];
 

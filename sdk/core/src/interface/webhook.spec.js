@@ -1,24 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// Mocks for module aliases used by webhook.js
-vi.mock( '#consts', () => ( {
-  ACTIVITY_SEND_HTTP_REQUEST: '__internal#sendHttpRequest'
-} ) );
+import { ACTIVITY_SEND_HTTP_REQUEST } from '#consts';
 
 const validateRequestPayloadMock = vi.fn();
 vi.mock( './validations/index.js', () => ( {
   validateRequestPayload: validateRequestPayloadMock
 } ) );
 
-const activityEnvelope = output => ( {
-  __output_activity_wrapper_version: 1,
-  output,
-  aggregations: null
-} );
-
 // Minimal, legible mock of @temporalio/workflow APIs used by webhook.js
 const activityFnMock = vi.fn();
-const proxyActivitiesMock = vi.fn( () => ( { ['__internal#sendHttpRequest']: activityFnMock } ) );
+const proxyActivitiesMock = vi.fn( () => ( { [ACTIVITY_SEND_HTTP_REQUEST]: activityFnMock } ) );
 
 const storedHandlers = new Map();
 const defineSignalMock = name => name;
@@ -76,7 +66,7 @@ describe( 'interface/webhook', () => {
       headers: { 'content-type': 'application/json' },
       body: { ok: true }
     };
-    activityFnMock.mockResolvedValueOnce( activityEnvelope( fakeSerializedResponse ) );
+    activityFnMock.mockResolvedValueOnce( fakeSerializedResponse );
 
     const args = { url: 'https://example.com/api', method: 'GET' };
     const res = await sendHttpRequest( args );
@@ -112,7 +102,7 @@ describe( 'interface/webhook', () => {
   it( 'sendHttpRequest forwards response options', async () => {
     const { sendHttpRequest } = await import( './webhook.js' );
 
-    activityFnMock.mockResolvedValueOnce( activityEnvelope( { ok: true } ) );
+    activityFnMock.mockResolvedValueOnce( { ok: true } );
 
     const args = {
       url: 'https://example.com/api',
@@ -137,15 +127,14 @@ describe( 'interface/webhook', () => {
   it( 'sendPostRequestAndAwaitWebhook posts wrapped payload and resolves on resume signal', async () => {
     const { sendPostRequestAndAwaitWebhook } = await import( './webhook.js' );
 
-    // Make the inner activity resolve (through sendHttpRequest)
-    activityFnMock.mockResolvedValueOnce( activityEnvelope( {
+    activityFnMock.mockResolvedValueOnce( {
       url: 'https://webhook.site',
       status: 200,
       statusText: 'OK',
       ok: true,
       headers: {},
       body: null
-    } ) );
+    } );
 
     const url = 'https://webhook.site/ingest';
     const promise = sendPostRequestAndAwaitWebhook( { url, payload: { x: 1 }, headers: { a: 'b' } } );
@@ -158,7 +147,24 @@ describe( 'interface/webhook', () => {
     expect( callArgs.headers ).toEqual( { a: 'b' } );
     expect( callArgs.responseOptions ).toEqual( {} );
 
-    // Returns a promise (async function) for the eventual webhook result
-    expect( typeof promise.then ).toBe( 'function' );
+    await vi.waitFor( () => expect( storedHandlers.has( 'resume' ) ).toBe( true ) );
+
+    expect( sinks.trace.start ).toHaveBeenCalledWith( {
+      id: 'wf-123-https://webhook.site/ingest-uuid-mock',
+      name: 'resume',
+      kind: 'webhook'
+    } );
+
+    const webhookPayload = { status: 'completed' };
+    storedHandlers.get( 'resume' )( webhookPayload );
+
+    await expect( promise ).resolves.toEqual( webhookPayload );
+    expect( sinks.trace.end ).toHaveBeenCalledWith( {
+      id: 'wf-123-https://webhook.site/ingest-uuid-mock',
+      details: webhookPayload
+    } );
+
+    storedHandlers.get( 'resume' )( { status: 'duplicate' } );
+    expect( sinks.trace.end ).toHaveBeenCalledTimes( 1 );
   } );
 } );
