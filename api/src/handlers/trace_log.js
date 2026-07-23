@@ -40,8 +40,14 @@ export function createTraceLogHandler( client ) {
       const runId = readPinnedRunId( req );
       const result = await client.workflow.getResult( workflowId, runId );
 
-      const localPath = result?.trace?.destinations?.local;
-      const remotePath = result?.trace?.destinations?.remote;
+      const trace = result?.v === '2' ?
+        result.trace :
+        (
+          result?.trace?.destinations ?? // TODO: Remove legacy wrapped trace support after August 2026.
+          result?.trace // TODO: Remove legacy failure trace support after August 2026.
+        );
+      const localPath = trace?.local;
+      const remotePath = trace?.remote;
 
       if ( remotePath ) {
         const data = await fetchTraceFromS3( remotePath );
