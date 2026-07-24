@@ -191,7 +191,7 @@ describe( 'docker service', () => {
         stderr?: ( chunk: Buffer ) => void;
       } = {};
       const process = {
-        on: vi.fn( ( event: 'error' | 'exit',
+        on: vi.fn( ( event: 'error' | 'close',
           handler: ( ( error: Error ) => void ) | ( ( code: number | null, signal: NodeJS.Signals | null ) => void ) ) => {
           if ( event === 'error' ) {
             processHandlers.error = handler as ( error: Error ) => void;
@@ -223,7 +223,7 @@ describe( 'docker service', () => {
       } );
 
       expect( dockerProcess.on ).toHaveBeenCalledWith( 'error', expect.any( Function ) );
-      expect( dockerProcess.on ).toHaveBeenCalledWith( 'exit', expect.any( Function ) );
+      expect( dockerProcess.on ).toHaveBeenCalledWith( 'close', expect.any( Function ) );
 
       streamHandlers.stdout?.( Buffer.from( 'starting services\n' ) );
       streamHandlers.stderr?.( Buffer.from( 'compose failed\n' ) );
@@ -246,7 +246,7 @@ describe( 'docker service', () => {
         stderr?: ( chunk: Buffer ) => void;
       } = {};
       const proc = {
-        on: vi.fn( ( event: 'error' | 'exit',
+        on: vi.fn( ( event: 'error' | 'close',
           handler: ( ( error: Error ) => void ) | ( ( code: number | null ) => void ) ) => {
           if ( event === 'error' ) {
             handlers.error = handler as ( error: Error ) => void;
@@ -493,6 +493,31 @@ describe( 'docker service', () => {
       expect( classifyStackState( [
         svc( 'running', 'healthy' ),
         svc( 'running', 'unhealthy' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    // `ps --all` reports exited containers, so a stack stopped by a reboot, a
+    // `docker compose stop`, or a failed teardown still has rows. Nothing is
+    // live, so this invocation would be the one starting it — that makes it an
+    // owned fresh start, not an attach.
+    it( 'returns NONE when every service is exited — an owned fresh start, not an attach', () => {
+      expect( classifyStackState( [
+        svc( 'exited', 'none' ),
+        svc( 'exited', 'none' )
+      ] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'returns NONE when containers are created but none have started', () => {
+      expect( classifyStackState( [
+        svc( 'created', 'none' ),
+        svc( 'created', 'none' )
+      ] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'still returns PARTIAL when at least one service is live', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'exited', 'none' )
       ] ) ).toBe( STACK_STATE.PARTIAL );
     } );
   } );

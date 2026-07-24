@@ -25,6 +25,7 @@ npx output workflow run lead_enrichment acme
 |---------|-------------|
 | `output init` | Create a new project |
 | `output dev` | Start development services |
+| `output dev down` | Stop development services |
 | `output update` | Update CLI and agent configuration |
 | `output workflow plan` | Generate a workflow plan from a description |
 | `output workflow generate` | Generate workflow code from a plan |
@@ -84,7 +85,8 @@ This starts:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--compose-file, -f` | — | Path to custom docker-compose file |
-| `--no-watch` | false | Disable file watching |
+| `--detached, -d` | false | Start services in the background and exit immediately |
+| `--image-pull-policy` | `always` | Image pull policy: `always`, `missing`, or `never` |
 
 #### Running multiple dev stacks
 
@@ -107,6 +109,37 @@ OUTPUT_TEMPORAL_HOST_PORT=7234
 `DOCKER_SERVICE_NAME` isolates Docker networks, volumes, and container names so the stacks don't interfere with each other. `OUTPUT_CATALOG_ID` keeps each stack's workflow catalog separate. The three `OUTPUT_*_HOST_PORT` vars control which ports are exposed on your machine — the container-internal ports are unchanged, so workers in either stack still reach Temporal at `temporal:7233`.
 
 Run `npx output dev` in each project directory. Project A's API is at `http://localhost:3001` and Project B's at `http://localhost:3002`. If a port is already in use, `output dev` names the conflicting port and the env var to override.
+
+#### Attaching to a running stack
+
+If services are already running for this project, `output dev` attaches and
+monitors them instead of reporting a port collision on our own containers.
+
+An attached session does not own the stack: quitting the dashboard leaves the
+services running. The footer reads `ctrl+c detach (keeps running)` so you can
+tell which mode you're in. Stop an attached stack explicitly:
+
+```bash
+output dev down
+```
+
+A stack whose containers are all stopped is not an attach — `output dev` starts
+it in the foreground and tears it down on quit, as a fresh start would.
+
+### output dev down
+
+Stop the development services started by `output dev`:
+
+```bash
+output dev down
+```
+
+Use this after `output dev -d`, or when an attached `output dev` session left
+the services running on quit.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--compose-file, -f` | — | Path to custom docker-compose file |
 
 ### output dev eject
 

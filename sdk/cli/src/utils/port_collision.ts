@@ -3,21 +3,27 @@
  * an actionable hint that names the conflicting port and the env var to
  * override.
  *
- * Docker compose surfaces port collisions through two common error shapes:
- *   - "Bind for 0.0.0.0:3001 failed: port is already allocated"
- *   - "failed to bind host port for 0.0.0.0:7233:.../tcp: address already in use"
+ * Docker wraps the same failure differently across versions and platforms —
+ * Docker 29 on macOS nests it three deep:
  *
- * We match both, extract the host port, then map it back to the env var that
- * sets it. The map prefers a runtime lookup of resolved ports (so a user who
- * already set OUTPUT_API_HOST_PORT=3050 sees that var named when 3050
- * collides) and falls back to a default-port table for the unresolved case.
+ *   Error response from daemon: failed to set up container networking: driver
+ *   failed programming external connectivity on endpoint out-api-1 (a1b2…):
+ *   Bind for 0.0.0.0:3001 failed: port is already allocated
+ *
+ * Matching whole message shapes means a new wrapper silently drops the hint, so
+ * we anchor on the terminal phrase instead and take the host port nearest to it.
+ * That survives wrappers we haven't seen.
+ *
+ * The port is then mapped back to the env var that sets it. The map prefers a
+ * runtime lookup of resolved ports (so a user who already set
+ * OUTPUT_API_HOST_PORT=3050 sees that var named when 3050 collides) and falls
+ * back to a default-port table for the unresolved case.
  */
 
-const PORT_BIND_PATTERNS: RegExp[] = [
-  /Bind for [^:\s]+:(\d+) failed: port is already allocated/,
-  /failed to bind host port for [^:\s]+:(\d+)[^]*?address already in use/,
-  /listen tcp [^:\s]+:(\d+):\s*bind: address already in use/
-];
+const COLLISION_PHRASES = [ 'port is already allocated', 'address already in use' ];
+
+/** Trailing `:<port>` in a fragment — the host port a bind failure names. */
+const TRAILING_PORT = /:(\d+)(?!.*:\d)/s;
 
 const DEFAULT_PORT_TO_ENV_VAR: Record<number, string> = {
   3001: 'OUTPUT_API_HOST_PORT',
@@ -39,8 +45,16 @@ export function extractCollidedPort( stderr: string ): number | null {
   if ( !stderr ) {
     return null;
   }
-  for ( const pattern of PORT_BIND_PATTERNS ) {
-    const match = stderr.match( pattern );
+
+  for ( const phrase of COLLISION_PHRASES ) {
+    const phraseIndex = stderr.indexOf( phrase );
+    if ( phraseIndex === -1 ) {
+      continue;
+    }
+    // The host port is the last one named before the phrase — every shape puts
+    // it there ("Bind for 0.0.0.0:3001 failed: port is already allocated",
+    // "listen tcp 0.0.0.0:3001: bind: address already in use").
+    const match = stderr.slice( 0, phraseIndex ).match( TRAILING_PORT );
     if ( match ) {
       return parseInt( match[1], 10 );
     }

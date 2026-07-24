@@ -12,7 +12,7 @@ import {
   STACK_STATE,
   resolveDockerComposePath
 } from '#services/docker.js';
-import type { PullPolicy } from '#services/docker.js';
+import type { PullPolicy, ServiceStatus } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { formatComposeFailure, formatPortCollisionsHint } from '#utils/port_collision.js';
 import { findUnavailablePorts } from '#utils/port_availability.js';
@@ -25,11 +25,15 @@ export default class Dev extends Command {
     'Start Output development services (auto-restarts worker on file changes)',
     '',
     'If services are already running (e.g. after `output dev -d`), this attaches',
-    'to monitor them instead of failing on a port collision. Quitting an attached',
-    'session leaves the services running — stop them with `output dev down`.',
+    'to monitor them rather than treating our own containers as a port collision.',
+    'Quitting an attached session leaves the services running — stop them with',
+    '`output dev down`.',
     '',
-    'To run a second dev stack concurrently, override host ports in .env:',
+    'To run a second dev stack concurrently, give it its own compose project and',
+    'host ports in .env — without DOCKER_SERVICE_NAME both checkouts share one',
+    'stack, and the second will attach to the first instead of starting:',
     '',
+    '  DOCKER_SERVICE_NAME=output-sdk-two',
     '  OUTPUT_API_HOST_PORT=3002',
     '  OUTPUT_TEMPORAL_UI_HOST_PORT=8081',
     '  OUTPUT_TEMPORAL_HOST_PORT=7234'
@@ -80,55 +84,59 @@ export default class Dev extends Command {
     const pullPolicy = flags['image-pull-policy'] as PullPolicy;
     if ( flags.detached ) {
       this.log( '🐳 Starting services in detached mode...\n' );
+      // Probe only for a fresh start, same rule as the foreground path — our own
+      // running containers must not read as a collision. Compose alone isn't
+      // enough of a check: on Docker Desktop for macOS (verified on 29.4.0) a
+      // non-container process holding a published port doesn't fail `up -d` at
+      // all — the container starts and that port keeps answering the other
+      // process. The probe is the only thing that catches it there.
+      await this.probePortsIfFreshStart( dockerComposePath );
       await this.upDetachedOrError( dockerComposePath, pullPolicy );
       this.log( '✅ Services started. Run `output dev` without --detached to monitor status.\n' );
       return;
     }
 
-    // Detect an existing stack for this project (scoped by compose project
-    // name) so a re-run attaches instead of colliding. A raw port probe can't
-    // tell our own running containers from a foreign process; `docker compose
-    // ps` can. Fall back to a fresh start if the query itself fails.
-    const existingServices = await getServiceStatus( dockerComposePath ).catch( () => [] );
+    // Detect an existing stack for this project so a re-run attaches instead of
+    // colliding. A raw port probe can't tell our own running containers from a
+    // foreign process; `docker compose ps` can — though only within the shared
+    // compose project name, which doesn't separate one checkout from another.
+    const existingServices = await this.getServiceStatusOrWarn( dockerComposePath );
     const stackState = classifyStackState( existingServices );
 
     if ( stackState === STACK_STATE.NONE ) {
-      // Fresh start: probe each published host port before docker runs.
-      // Compose won't collide with its own containers, but a foreign process
-      // on one of these ports would leave the Ink TUI in limbo, so surface it
-      // now with an actionable hint.
-      const takenPorts = await findUnavailablePorts( Object.values( config.ports ) );
-      if ( takenPorts.length > 0 ) {
-        this.error( formatPortCollisionsHint( takenPorts, config.ports ), { exit: 1 } );
-      }
+      await this.probePorts();
     } else if ( stackState === STACK_STATE.PARTIAL ) {
-      // Reconcile: recreate failed or missing containers in the background,
-      // then monitor. `up -d` is idempotent and leaves healthy containers
-      // untouched, so this cleanly recovers the OUT-477 orphaned-stack case.
-      // Inspected (not fire-and-forget) so a failed bind surfaces the same
-      // actionable port-collision hint the fresh-start path gives.
+      // Reconcile: converge a stack that's up but incomplete to the compose
+      // spec, then monitor. Inspected (not fire-and-forget) so a failed bind
+      // surfaces the same actionable port-collision hint the fresh-start path
+      // gives. Recovers the OUT-477 orphaned-stack case.
       this.log( '🔄 Existing services detected — reconciling before attaching...\n' );
       await this.upDetachedOrError( dockerComposePath, pullPolicy );
     } else {
       this.log( '🔗 Services already running — attaching to monitor.\n' );
     }
 
-    // True whenever we didn't start the stack ourselves — an attach or a
-    // reconcile of a stack the user backgrounded. Drives teardown ownership,
-    // the foreground `up`, and the UI hint.
-    const attachOnly = stackState !== STACK_STATE.NONE;
+    // We own the stack only when we started it ourselves. Attaching to (or
+    // reconciling) a stack the user already had running leaves it up on quit.
+    const ownsStack = stackState === STACK_STATE.NONE;
+
+    if ( !ownsStack ) {
+      // The stack outliving this session is the surprising half of attach mode,
+      // and neither log line above says so. State the consequence plainly —
+      // container state alone can't tell a backgrounded `-d` stack from a
+      // crashed foreground session, so we can't infer intent, only report it.
+      this.log( 'Quitting leaves these services running — stop them with `output dev down`.\n' );
+    }
 
     const state = {
       cleaningUp: false
     };
 
-    // Only an invocation that started the stack in the foreground owns its
-    // teardown; attach/reconcile sessions leave it running (`output dev down`
-    // stops it). A foreground `up` stops the whole project on exit, so attach
-    // mode never runs one. Both the signal-driven cleanup and the abnormal-exit
-    // catch route through here so the ownership rule lives in one place.
+    // Only an invocation that started the stack owns its teardown; attach and
+    // reconcile sessions leave it running. Both the signal-driven cleanup and
+    // the abnormal-exit catch route through here so the rule lives in one place.
     const teardownIfOwned = async () => {
-      if ( attachOnly ) {
+      if ( !ownsStack ) {
         return;
       }
       if ( this.dockerProcess ) {
@@ -195,15 +203,14 @@ export default class Dev extends Command {
       enterAltScreen();
 
       const instance = render(
-        React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup, attached: attachOnly } ),
+        React.createElement( DevApp, { dockerComposePath, onCleanup: cleanup, attached: !ownsStack } ),
         { exitOnCtrlC: false }
       );
       instanceRef.current = instance;
 
-      // Attach mode monitors an existing stack via `docker compose ps` polling
-      // (handled inside DevApp) — it must not own a foreground `up`, which
-      // would stop the whole project on exit.
-      if ( !attachOnly ) {
+      // Attach mode monitors via `docker compose ps` polling (inside DevApp) —
+      // it must not own a foreground `up`, which stops the whole project on exit.
+      if ( ownsStack ) {
         const dockerProc = await startDockerCompose( {
           dockerComposePath,
           pullPolicy,
@@ -252,19 +259,61 @@ export default class Dev extends Command {
     }
   }
 
+  // Probe each published host port before docker runs. Compose won't collide
+  // with its own containers, but a foreign process on one of these ports would
+  // leave the Ink TUI in limbo (or, detached, produce a container nobody can
+  // reach), so surface it now with an actionable hint.
+  private async probePorts(): Promise<void> {
+    const takenPorts = await findUnavailablePorts( Object.values( config.ports ) );
+    if ( takenPorts.length > 0 ) {
+      this.error( formatPortCollisionsHint( takenPorts, config.ports ), { exit: 1 } );
+    }
+  }
+
+  // Probe only when no container of ours is live — otherwise our own stack is
+  // legitimately holding the ports and a probe would abort on it, which is the
+  // OUT-477 failure this detection replaced.
+  private async probePortsIfFreshStart( dockerComposePath: string ): Promise<void> {
+    const services = await this.getServiceStatusOrWarn( dockerComposePath );
+    if ( classifyStackState( services ) === STACK_STATE.NONE ) {
+      await this.probePorts();
+    }
+  }
+
+  // Query the stack, falling back to "nothing running" when the query itself
+  // fails. A fresh start is the right recovery, but [] is not a neutral default
+  // — it asserts "no containers exist", which every caller acts on. Announce it,
+  // or a broken `ps` silently port-probes onto the user's own containers and
+  // reproduces the exact OUT-477 message this detection replaced, with a remedy
+  // (change the port) that is wrong for the actual cause.
+  private async getServiceStatusOrWarn( dockerComposePath: string ): Promise<ServiceStatus[]> {
+    return getServiceStatus( dockerComposePath ).catch( ( error: unknown ) => {
+      this.warn(
+        `Could not query existing services (${getErrorMessage( error )}). ` +
+        'Continuing as a fresh start — if services are already running, stop them ' +
+        'with `output dev down` first.'
+      );
+      return [];
+    } );
+  }
+
   // Bring the stack up detached and fail with an actionable message if compose
   // couldn't launch it (most often a foreign process holding a published
   // port). Shared by the `--detached` flag and the PARTIAL reconcile branch so
   // both surface the port-collision hint instead of a raw compose error.
   private async upDetachedOrError( dockerComposePath: string, pullPolicy: PullPolicy ): Promise<void> {
-    const { code, output } = await runDockerComposeUpDetached( dockerComposePath, pullPolicy );
+    const { code, signal, output } = await runDockerComposeUpDetached( dockerComposePath, pullPolicy );
     if ( code === 0 ) {
       return;
     }
 
+    // A signalled compose (an OOM-killed pull, a SIGKILL) has no exit code —
+    // report the signal rather than "unknown", which discards a known cause.
+    const reason = signal ? `signal ${signal}` : `exit code ${code ?? 'unknown'}`;
     this.error(
       formatComposeFailure(
-        `Docker compose failed to start services (exit code ${code ?? 'unknown'}).`,
+        `Docker compose failed to start services (${reason}). ` +
+        'Some containers may have started — stop them with `output dev down`.',
         output,
         config.ports
       ),

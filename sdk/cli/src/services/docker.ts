@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
 import semver from 'semver';
 import { config } from '#config.js';
+import { getErrorMessage } from '#utils/error_utils.js';
+import { formatComposeFailure } from '#utils/port_collision.js';
 
 const DEFAULT_COMPOSE_PATH = '../assets/docker/docker-compose-dev.yml';
 
@@ -187,11 +189,11 @@ export function isServiceFailed( service: ServiceStatus ): boolean {
 }
 
 export const STACK_STATE = {
-  /** No containers exist for this project — a fresh start. */
+  /** Nothing live for this project — a fresh start we own. */
   NONE: 'none',
-  /** Every container is up and healthy — safe to attach and monitor. */
+  /** Every container found is running and healthy (or has no healthcheck). */
   RUNNING: 'running',
-  /** Containers exist but some failed or are still coming up — reconcile. */
+  /** Something is live but not everything is healthy — reconcile. */
   PARTIAL: 'partial'
 } as const;
 
@@ -200,19 +202,21 @@ export type StackState = typeof STACK_STATE[keyof typeof STACK_STATE];
 /**
  * Classify the current state of a project's stack from `docker compose ps`.
  *
- * This is the detection signal `output dev` branches on: an empty result means
- * nothing is running (fresh start); an all-healthy result means we can attach
- * and monitor without touching the stack; anything in between (an exited
- * container, or services still booting) is reconciled with an idempotent
- * `up -d`. Scoped to the project name, so it never mistakes a foreign process
- * for one of ours the way a raw port probe does.
+ * This is the detection signal `output dev` branches on: nothing live means a
+ * fresh start; an all-healthy result means we can attach and monitor without
+ * touching the stack; anything in between is reconciled with `up -d`.
+ *
+ * Scoped to the shared `output-sdk` compose project, which distinguishes our
+ * containers from unrelated processes — but not one Output checkout from
+ * another, since the project name defaults to a machine-global constant.
  */
 export function classifyStackState( services: ServiceStatus[] ): StackState {
-  if ( services.length === 0 ) {
+  // No container is live. `ps --all` also reports exited ones, so a stack left
+  // behind by a reboot, a `docker compose stop`, or a failed teardown lands
+  // here — that's an owned fresh start, not something to attach to.
+  if ( !services.some( service => service.state === SERVICE_STATE.RUNNING ) ) {
     return STACK_STATE.NONE;
   }
-  // Anything short of every service being healthy — a failed container or one
-  // still booting — is PARTIAL and gets reconciled.
   if ( services.every( isServiceHealthy ) ) {
     return STACK_STATE.RUNNING;
   }
@@ -297,7 +301,9 @@ export async function startDockerCompose( {
     dockerProcess.on( 'error', error => onError( error, output.read() ) );
   }
   if ( onExit ) {
-    dockerProcess.on( 'exit', ( code, signal ) => onExit( code, signal, output.read() ) );
+    // `close` rather than `exit` so stdio has drained — the buffered output is
+    // what formatComposeFailure greps for a bind failure.
+    dockerProcess.on( 'close', ( code, signal ) => onExit( code, signal, output.read() ) );
   }
 
   return dockerProcess;
@@ -305,14 +311,18 @@ export async function startDockerCompose( {
 
 export interface DetachedUpResult {
   code: number | null;
+  signal: NodeJS.Signals | null;
   output: string;
 }
 
 // Run `docker compose up -d` to completion, teeing Docker's progress to the
-// user's terminal while retaining recent output. Unlike a fire-and-forget
-// spawn, the caller can inspect the exit code and surface a port-collision
-// hint when the bind fails. Async (not execFileSync) so the event loop — and
-// any TUI about to mount — stays responsive during image pulls.
+// user's terminal while retaining recent output. The predecessor used
+// execFileSync with inherited stdio, which threw a raw compose error the caller
+// couldn't inspect; returning the exit code and output lets it surface a
+// port-collision hint instead. Async so image pulls don't block the event loop.
+//
+// Trade-off: piping means Docker sees a non-TTY and drops its redrawing
+// progress bars for plain scrolling lines.
 export function runDockerComposeUpDetached(
   dockerComposePath: string,
   pullPolicy?: PullPolicy
@@ -348,8 +358,17 @@ export function runDockerComposeUpDetached(
       output.append( chunk );
     } );
 
-    child.on( 'error', reject );
-    child.on( 'exit', code => resolve( { code, output: output.read() } ) );
+    // `error` fires when the spawn itself failed (docker missing, EACCES).
+    // Reject with the buffered output attached so the caller keeps the context
+    // rather than surfacing a bare `spawn docker ENOENT`.
+    child.on( 'error', error => {
+      reject( new Error( formatComposeFailure( getErrorMessage( error ), output.read(), config.ports ) ) );
+    } );
+    // `close`, not `exit`: exit fires while stdio may still be draining, and on
+    // a fast-failing `up -d` — exactly the bind-collision case — the stderr
+    // chunk carrying the bind error can land after it. Resolving early makes
+    // the port-collision hint disappear intermittently.
+    child.on( 'close', ( code, signal ) => resolve( { code, signal, output: output.read() } ) );
   } );
 }
 
