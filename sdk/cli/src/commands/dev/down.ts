@@ -34,9 +34,8 @@ export default class DevDown extends Command {
 
     validateDockerEnvironment();
 
-    const dockerComposePath = await resolveDockerComposePath( flags['compose-file'] );
-
     try {
+      const dockerComposePath = await resolveDockerComposePath( flags['compose-file'] );
       await stopDockerCompose( dockerComposePath );
     } catch ( error ) {
       this.error( getErrorMessage( error ), { exit: 1 } );

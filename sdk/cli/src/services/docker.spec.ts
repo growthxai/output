@@ -1,16 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import {
   parseServiceStatus, getServiceStatus,
-  startDockerCompose, startDockerComposeDetached, stopDockerCompose,
+  startDockerCompose, runDockerComposeUpDetached, stopDockerCompose,
   waitForServicesHealthy, isServiceHealthy, isServiceFailed,
-  classifyStackState, STACK_STATE, type ServiceStatus
+  classifyStackState, STACK_STATE, type ServiceStatus,
+  resolveDockerComposePath, getDefaultDockerComposePath, DockerComposeConfigNotFoundError
 } from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
   execFileSync: vi.fn(),
   spawn: vi.fn()
+} ) );
+
+vi.mock( 'node:fs/promises', () => ( {
+  default: { access: vi.fn() }
 } ) );
 
 const mockChildProcess = ( process: unknown ): ChildProcess => process as ChildProcess;
@@ -230,11 +237,48 @@ describe( 'docker service', () => {
     } );
   } );
 
-  describe( 'startDockerComposeDetached', () => {
-    it( 'should pass --project-name and -d to docker compose up', () => {
-      vi.mocked( execFileSync ).mockReturnValue( '' );
-      startDockerComposeDetached( '/path/to/docker-compose.yml' );
-      expect( execFileSync ).toHaveBeenCalledWith(
+  describe( 'runDockerComposeUpDetached', () => {
+    const makeProcess = () => {
+      const handlers: {
+        error?: ( error: Error ) => void;
+        exit?: ( code: number | null ) => void;
+        stdout?: ( chunk: Buffer ) => void;
+        stderr?: ( chunk: Buffer ) => void;
+      } = {};
+      const proc = {
+        on: vi.fn( ( event: 'error' | 'exit',
+          handler: ( ( error: Error ) => void ) | ( ( code: number | null ) => void ) ) => {
+          if ( event === 'error' ) {
+            handlers.error = handler as ( error: Error ) => void;
+          } else {
+            handlers.exit = handler as ( code: number | null ) => void;
+          }
+          return proc;
+        } ),
+        stdout: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            handlers.stdout = handler;
+            return proc.stdout;
+          } )
+        },
+        stderr: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            handlers.stderr = handler;
+            return proc.stderr;
+          } )
+        }
+      };
+      return { proc, handlers };
+    };
+
+    it( 'passes --project-name and -d, tees output, and resolves with the exit code', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      const stdoutSpy = vi.spyOn( process.stdout, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+
+      expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
           'compose', '-f', '/path/to/docker-compose.yml',
@@ -242,14 +286,27 @@ describe( 'docker service', () => {
           '--project-name', 'output-sdk',
           'up', '-d'
         ],
-        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+        expect.objectContaining( { cwd: process.cwd(), stdio: [ 'ignore', 'pipe', 'pipe' ] } )
       );
+
+      handlers.stdout?.( Buffer.from( 'pulling images\n' ) );
+      handlers.exit?.( 0 );
+
+      expect( await promise ).toEqual( { code: 0, output: 'pulling images' } );
+      expect( stdoutSpy ).toHaveBeenCalledWith( Buffer.from( 'pulling images\n' ) );
+      stdoutSpy.mockRestore();
     } );
 
-    it( 'should append --pull when pullPolicy is provided', () => {
-      vi.mocked( execFileSync ).mockReturnValue( '' );
-      startDockerComposeDetached( '/path/to/docker-compose.yml', 'missing' );
-      expect( execFileSync ).toHaveBeenCalledWith(
+    it( 'appends --pull when pullPolicy is provided', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      vi.spyOn( process.stdout, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml', 'missing' );
+      handlers.exit?.( 0 );
+      await promise;
+
+      expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
           'compose', '-f', '/path/to/docker-compose.yml',
@@ -257,8 +314,52 @@ describe( 'docker service', () => {
           '--project-name', 'output-sdk',
           'up', '-d', '--pull', 'missing'
         ],
-        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+        expect.objectContaining( { cwd: process.cwd() } )
       );
+    } );
+
+    it( 'resolves with a non-zero code and captured stderr so the caller can hint the collision', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      vi.spyOn( process.stderr, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+      handlers.stderr?.( Buffer.from( 'Error: address already in use\n' ) );
+      handlers.exit?.( 1 );
+
+      expect( await promise ).toEqual( { code: 1, output: 'Error: address already in use' } );
+    } );
+
+    it( 'rejects when the docker process fails to spawn', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+      handlers.error?.( new Error( 'spawn ENOENT' ) );
+
+      await expect( promise ).rejects.toThrow( 'spawn ENOENT' );
+    } );
+  } );
+
+  describe( 'resolveDockerComposePath', () => {
+    it( 'resolves a custom path against cwd and returns it when it exists', async () => {
+      vi.mocked( fs.access ).mockResolvedValue( undefined );
+      const result = await resolveDockerComposePath( 'custom/compose.yml' );
+      const expected = path.resolve( process.cwd(), 'custom/compose.yml' );
+      expect( result ).toBe( expected );
+      expect( fs.access ).toHaveBeenCalledWith( expected );
+    } );
+
+    it( 'throws DockerComposeConfigNotFoundError when the path does not exist', async () => {
+      vi.mocked( fs.access ).mockRejectedValue( new Error( 'ENOENT' ) );
+      await expect( resolveDockerComposePath( 'missing.yml' ) )
+        .rejects.toBeInstanceOf( DockerComposeConfigNotFoundError );
+    } );
+
+    it( 'falls back to the bundled default when no custom path is given', async () => {
+      vi.mocked( fs.access ).mockResolvedValue( undefined );
+      const result = await resolveDockerComposePath();
+      expect( result ).toBe( getDefaultDockerComposePath() );
     } );
   } );
 

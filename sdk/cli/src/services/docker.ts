@@ -295,10 +295,20 @@ export async function startDockerCompose( {
   return dockerProcess;
 }
 
-export function startDockerComposeDetached(
+export interface DetachedUpResult {
+  code: number | null;
+  output: string;
+}
+
+// Run `docker compose up -d` to completion, teeing Docker's progress to the
+// user's terminal while retaining recent output. Unlike a fire-and-forget
+// spawn, the caller can inspect the exit code and surface a port-collision
+// hint when the bind fails. Async (not execFileSync) so the event loop — and
+// any TUI about to mount — stays responsive during image pulls.
+export function runDockerComposeUpDetached(
   dockerComposePath: string,
   pullPolicy?: PullPolicy
-): void {
+): Promise<DetachedUpResult> {
   const args = [
     'compose',
     '-f', dockerComposePath,
@@ -311,7 +321,33 @@ export function startDockerComposeDetached(
     args.push( '--pull', pullPolicy );
   }
 
-  execFileSync( 'docker', args, { stdio: 'inherit', cwd: process.cwd() } );
+  const output = {
+    value: ''
+  };
+  const appendOutput = ( chunk: Buffer ): void => {
+    output.value = `${output.value}${chunk.toString()}`.slice( -20000 ).trimStart();
+  };
+
+  return new Promise( ( resolve, reject ) => {
+    // Pipe rather than inherit so we can both echo Docker's progress and keep
+    // recent output for a startup-failure hint.
+    const child = spawn( 'docker', args, {
+      cwd: process.cwd(),
+      stdio: [ 'ignore', 'pipe', 'pipe' ]
+    } );
+
+    child.stdout?.on( 'data', ( chunk: Buffer ) => {
+      process.stdout.write( chunk );
+      appendOutput( chunk );
+    } );
+    child.stderr?.on( 'data', ( chunk: Buffer ) => {
+      process.stderr.write( chunk );
+      appendOutput( chunk );
+    } );
+
+    child.on( 'error', reject );
+    child.on( 'exit', code => resolve( { code, output: output.value.trimEnd() } ) );
+  } );
 }
 
 export async function stopDockerCompose( dockerComposePath: string ): Promise<void> {

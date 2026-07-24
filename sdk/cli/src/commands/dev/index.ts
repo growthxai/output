@@ -5,7 +5,7 @@ import React from 'react';
 import {
   validateDockerEnvironment,
   startDockerCompose,
-  startDockerComposeDetached,
+  runDockerComposeUpDetached,
   stopDockerCompose,
   getServiceStatus,
   classifyStackState,
@@ -80,7 +80,7 @@ export default class Dev extends Command {
     const pullPolicy = flags['image-pull-policy'] as PullPolicy;
     if ( flags.detached ) {
       this.log( '🐳 Starting services in detached mode...\n' );
-      startDockerComposeDetached( dockerComposePath, pullPolicy );
+      await this.upDetachedOrError( dockerComposePath, pullPolicy );
       this.log( '✅ Services started. Run `output dev` without --detached to monitor status.\n' );
       return;
     }
@@ -105,8 +105,10 @@ export default class Dev extends Command {
       // Reconcile: recreate failed or missing containers in the background,
       // then monitor. `up -d` is idempotent and leaves healthy containers
       // untouched, so this cleanly recovers the OUT-477 orphaned-stack case.
+      // Inspected (not fire-and-forget) so a failed bind surfaces the same
+      // actionable port-collision hint the fresh-start path gives.
       this.log( '🔄 Existing services detected — reconciling before attaching...\n' );
-      startDockerComposeDetached( dockerComposePath, pullPolicy );
+      await this.upDetachedOrError( dockerComposePath, pullPolicy );
     } else {
       this.log( '🔗 Services already running — attaching to monitor.\n' );
     }
@@ -238,9 +240,35 @@ export default class Dev extends Command {
       // owned stack never leaks containers holding ports — the OUT-477 root
       // cause. teardownIfOwned no-ops for attach/reconcile sessions.
       if ( !state.cleaningUp ) {
-        await teardownIfOwned().catch( () => {} );
+        await teardownIfOwned().catch( teardownError => {
+          // Don't mask the original failure, but the stack may still be up
+          // holding ports — tell the user how to stop it.
+          this.warn(
+            'Failed to stop services during cleanup — they may still be running. ' +
+            `Stop them with \`output dev down\`.\n${getErrorMessage( teardownError )}`
+          );
+        } );
       }
       this.error( getErrorMessage( error ), { exit: 1 } );
     }
+  }
+
+  // Bring the stack up detached and fail with an actionable message if compose
+  // couldn't launch it (most often a foreign process holding a published
+  // port). Shared by the `--detached` flag and the PARTIAL reconcile branch so
+  // both surface the port-collision hint instead of a raw compose error.
+  private async upDetachedOrError( dockerComposePath: string, pullPolicy: PullPolicy ): Promise<void> {
+    const { code, output } = await runDockerComposeUpDetached( dockerComposePath, pullPolicy );
+    if ( code === 0 ) {
+      return;
+    }
+
+    const hint = formatPortCollisionHint( output, config.ports );
+    const prefix = hint ? `${hint}\n\n` : '';
+    const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
+    this.error(
+      `${prefix}Docker compose failed to start services (exit code ${code ?? 'unknown'}).${detail}`,
+      { exit: 1 }
+    );
   }
 }

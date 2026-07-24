@@ -25,7 +25,7 @@ vi.mock( '#services/docker.js', async importActual => {
     // so branch selection here exercises the same logic production runs.
     validateDockerEnvironment: vi.fn(),
     startDockerCompose: vi.fn(),
-    startDockerComposeDetached: vi.fn(),
+    runDockerComposeUpDetached: vi.fn().mockResolvedValue( { code: 0, output: '' } ),
     stopDockerCompose: vi.fn().mockResolvedValue( undefined ),
     // Default: nothing running — a fresh start. Individual tests opt into an
     // existing stack by overriding this to drive attach / reconcile branches.
@@ -93,7 +93,7 @@ describe( 'dev command', () => {
     // By default, no stack is running — a fresh start. Tests opt into the
     // attach / reconcile branches by overriding getServiceStatus.
     vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( [] );
-    vi.mocked( dockerService.startDockerComposeDetached ).mockReturnValue( undefined );
+    vi.mocked( dockerService.runDockerComposeUpDetached ).mockResolvedValue( { code: 0, output: '' } );
     // By default, startDockerCompose returns a mock process
     vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( createMockDockerProcess() );
     // By default, the compose file resolves and exists.
@@ -461,7 +461,7 @@ describe( 'dev command', () => {
 
       expect( portAvailability.findUnavailablePorts ).not.toHaveBeenCalled();
       expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
-      expect( dockerService.startDockerComposeDetached ).not.toHaveBeenCalled();
+      expect( dockerService.runDockerComposeUpDetached ).not.toHaveBeenCalled();
       expect( cmd.error ).not.toHaveBeenCalled();
       expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( true );
     } );
@@ -497,14 +497,38 @@ describe( 'dev command', () => {
       const cmd = makeCmd();
       await cmd.run();
 
-      expect( dockerService.startDockerComposeDetached ).toHaveBeenCalledWith(
+      expect( dockerService.runDockerComposeUpDetached ).toHaveBeenCalledWith(
         '/path/to/docker-compose-dev.yml',
         'always'
       );
       // Reconcile monitors via ps polling, not a foreground up.
       expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
       expect( portAvailability.findUnavailablePorts ).not.toHaveBeenCalled();
+      expect( cmd.error ).not.toHaveBeenCalled();
       expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( true );
+    } );
+
+    it( 'aborts with a port-collision hint when the reconcile up fails to bind', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( [
+        { name: 'temporal', state: 'running', health: 'healthy', ports: [ '7233:7233' ] },
+        { name: 'worker', state: 'exited', health: 'none', ports: [] }
+      ] );
+      vi.mocked( dockerService.runDockerComposeUpDetached ).mockResolvedValue( {
+        code: 1,
+        output: 'Error: ports are not available: exposing port TCP 0.0.0.0:3001 -> bind: address already in use'
+      } );
+
+      const cmd = makeCmd();
+      // this.error throws in oclif; emulate so the flow stops at the abort.
+      const errorMock = vi.fn( ( _message?: string ) => {
+        throw new Error( 'aborted' );
+      } );
+      cmd.error = errorMock as any;
+      await expect( cmd.run() ).rejects.toThrow( 'aborted' );
+
+      const message = errorMock.mock.calls.at( -1 )?.[0] as unknown as string;
+      expect( message ).toContain( '3001' );
+      expect( render ).not.toHaveBeenCalled();
     } );
 
     it( 'falls back to a fresh foreground start when no stack is running', async () => {
@@ -516,10 +540,56 @@ describe( 'dev command', () => {
 
       expect( portAvailability.findUnavailablePorts ).toHaveBeenCalled();
       expect( dockerService.startDockerCompose ).toHaveBeenCalled();
-      expect( dockerService.startDockerComposeDetached ).not.toHaveBeenCalled();
+      expect( dockerService.runDockerComposeUpDetached ).not.toHaveBeenCalled();
       expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( false );
 
       runPromise.catch( () => {} );
+    } );
+  } );
+
+  describe( 'detached flag', () => {
+    const makeDetachedCmd = (): Dev => {
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( {
+          flags: { 'compose-file': undefined, 'image-pull-policy': 'always', detached: true },
+          args: {}
+        } ),
+        configurable: true
+      } );
+      return cmd;
+    };
+
+    it( 'brings the stack up detached and exits without mounting the TUI', async () => {
+      const cmd = makeDetachedCmd();
+      await cmd.run();
+
+      expect( dockerService.runDockerComposeUpDetached ).toHaveBeenCalledWith(
+        '/path/to/docker-compose-dev.yml',
+        'always'
+      );
+      expect( dockerService.getServiceStatus ).not.toHaveBeenCalled();
+      expect( render ).not.toHaveBeenCalled();
+      expect( cmd.error ).not.toHaveBeenCalled();
+    } );
+
+    it( 'aborts with a port-collision hint when the detached up fails to bind', async () => {
+      vi.mocked( dockerService.runDockerComposeUpDetached ).mockResolvedValue( {
+        code: 1,
+        output: 'Error: ports are not available: exposing port TCP 0.0.0.0:7233 -> bind: address already in use'
+      } );
+
+      const cmd = makeDetachedCmd();
+      const errorMock = vi.fn( ( _message?: string ) => {
+        throw new Error( 'aborted' );
+      } );
+      cmd.error = errorMock as any;
+
+      await expect( cmd.run() ).rejects.toThrow( 'aborted' );
+      const message = errorMock.mock.calls.at( -1 )?.[0] as unknown as string;
+      expect( message ).toContain( '7233' );
     } );
   } );
 

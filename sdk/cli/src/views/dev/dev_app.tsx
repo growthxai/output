@@ -230,7 +230,16 @@ const Shell: React.FC<{
     onServices: setServices,
     onAllHealthy: () => setPhase( 'running' ),
     onFailure: () => setPhase( 'failed' ),
-    onTimeout: () => exit( new Error( 'Timeout waiting for services to become healthy' ) )
+    // An attach/reconcile session monitors a stack it doesn't own, so a slow
+    // health check must not be fatal — drop into the dashboard and keep
+    // polling status. Only an owned fresh start treats the timeout as an error.
+    onTimeout: () => {
+      if ( attached ) {
+        setPhase( 'running' );
+        return;
+      }
+      exit( new Error( 'Timeout waiting for services to become healthy' ) );
+    }
   } );
 
   useStatusRefresh( dockerComposePath, phase !== 'waiting', setServices );

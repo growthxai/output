@@ -58,11 +58,19 @@ describe( 'dev down command', () => {
       expect( cmd.error ).not.toHaveBeenCalled();
     } );
 
-    it( 'errors when the compose file is missing', async () => {
+    it( 'errors with the command formatter when the compose file is missing', async () => {
       vi.mocked( dockerService.resolveDockerComposePath ).mockRejectedValue( new Error( 'File not found' ) );
 
       const cmd = makeCmd();
+      cmd.error = vi.fn( () => {
+        throw new Error( 'oclif-error-thrown' );
+      } ) as any;
+
       await expect( cmd.run() ).rejects.toThrow();
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'File not found' ),
+        { exit: 1 }
+      );
       expect( dockerService.stopDockerCompose ).not.toHaveBeenCalled();
     } );
 
