@@ -475,7 +475,7 @@ describe( 'docker service', () => {
       ] ) ).toBe( STACK_STATE.RUNNING );
     } );
 
-    it( 'returns PARTIAL when any service has failed (OUT-477 orphan)', () => {
+    it( 'returns PARTIAL when any service has failed (orphaned stack)', () => {
       expect( classifyStackState( [
         svc( 'running', 'healthy' ),
         svc( 'exited', 'none' )

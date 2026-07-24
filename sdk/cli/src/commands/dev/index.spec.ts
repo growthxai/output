@@ -652,7 +652,7 @@ describe( 'dev command', () => {
 
     // The `ps` query absorbs a broken compose file, a dead daemon, EACCES on the
     // socket, and any JSON.parse throw. Falling back to a fresh start is right;
-    // doing it silently is what reproduced OUT-477 with the wrong remedy.
+    // doing it silently is what reported a port collision with the wrong remedy.
     it( 'falls back to a fresh start and warns when the state query fails', async () => {
       vi.mocked( dockerService.getServiceStatus ).mockRejectedValue(
         new Error( 'no configuration file provided: not found' )

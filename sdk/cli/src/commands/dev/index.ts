@@ -109,7 +109,7 @@ export default class Dev extends Command {
       // Reconcile: converge a stack that's up but incomplete to the compose
       // spec, then monitor. Inspected (not fire-and-forget) so a failed bind
       // surfaces the same actionable port-collision hint the fresh-start path
-      // gives. Recovers the OUT-477 orphaned-stack case.
+      // gives. Recovers the orphaned stack a crashed session leaves behind.
       this.log( '🔄 Existing services detected — reconciling before attaching...\n' );
       await this.upDetachedOrError( dockerComposePath, pullPolicy );
     } else {
@@ -243,8 +243,8 @@ export default class Dev extends Command {
       exitAltScreenOnce();
       // An abnormal exit (health timeout, docker crash) resolves outside the
       // signal path. Tear down here only if cleanup hasn't already run, so an
-      // owned stack never leaks containers holding ports — the OUT-477 root
-      // cause. teardownIfOwned no-ops for attach/reconcile sessions.
+      // owned stack never leaks containers that keep holding published ports.
+      // teardownIfOwned no-ops for attach/reconcile sessions.
       if ( !state.cleaningUp ) {
         await teardownIfOwned().catch( teardownError => {
           // Don't mask the original failure, but the stack may still be up
@@ -271,8 +271,8 @@ export default class Dev extends Command {
   }
 
   // Probe only when no container of ours is live — otherwise our own stack is
-  // legitimately holding the ports and a probe would abort on it, which is the
-  // OUT-477 failure this detection replaced.
+  // legitimately holding the ports and the probe would abort on it, which is
+  // the failure this detection replaced.
   private async probePortsIfFreshStart( dockerComposePath: string ): Promise<void> {
     const services = await this.getServiceStatusOrWarn( dockerComposePath );
     if ( classifyStackState( services ) === STACK_STATE.NONE ) {
@@ -282,12 +282,11 @@ export default class Dev extends Command {
 
   // Query the stack, falling back to "nothing running" when the query itself
   // fails. A fresh start is the right recovery, but [] is not a neutral default
-  // — it asserts "no containers exist", which every caller acts on. Announce it,
-  // or a broken `ps` silently port-probes onto the user's own containers and
-  // reproduces the exact OUT-477 message this detection replaced, with a remedy
-  // (change the port) that is wrong for the actual cause.
-  private async getServiceStatusOrWarn( dockerComposePath: string ): Promise<ServiceStatus[]> {
-    return getServiceStatus( dockerComposePath ).catch( ( error: unknown ) => {
+  // — it asserts "no containers exist", which every caller acts on. Warn, or a
+  // broken `ps` silently port-probes onto the user's own containers and reports
+  // a port collision whose remedy (change the port) is wrong for the cause.
+  private getServiceStatusOrWarn = ( dockerComposePath: string ): Promise<ServiceStatus[]> =>
+    getServiceStatus( dockerComposePath ).catch( ( error: unknown ) => {
       this.warn(
         `Could not query existing services (${getErrorMessage( error )}). ` +
         'Continuing as a fresh start — if services are already running, stop them ' +
@@ -295,7 +294,6 @@ export default class Dev extends Command {
       );
       return [];
     } );
-  }
 
   // Bring the stack up detached and fail with an actionable message if compose
   // couldn't launch it (most often a foreign process holding a published
