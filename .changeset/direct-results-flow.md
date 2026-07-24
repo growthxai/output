@@ -28,6 +28,7 @@
 - Refactored hook error payloads:
   - Workflow errors are now serialized plain objects that preserve `name`, `message`, `cause`, and additional diagnostic properties;
   - Activity and runtime errors remain `Error` instances;
+- Forwarded Temporal SDK and native Core logs through Output's logger for consistent production/development formatting, omitted redundant failure logs (workflow/activity failures), and added `OUTPUT_TEMPORAL_LOG_LEVEL` to configure verbosity;
 - Refactored workflow and activity error logs:
   - Workflow
     - `ContinueAsNew`, log a successful workflow end instead of an error;

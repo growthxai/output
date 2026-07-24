@@ -19,9 +19,10 @@ import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
 import { runOnce } from '#helpers/function';
+import { serializeError } from '#helpers/errors';
+import { setupTemporalLogger } from './temporal_logger.js';
 
 import './log_hooks.js';
-import { serializeError } from '#helpers/errors';
 
 const log = createChildLogger( 'Worker' );
 
@@ -52,6 +53,9 @@ const state = {
 const callerDir = process.argv[2];
 
 const execute = async () => {
+  log.info( 'Setup Temporal Logger' );
+  setupTemporalLogger();
+
   log.info( 'Loading config...', { callerDir } );
   await loadHooks( callerDir );
 

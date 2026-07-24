@@ -16,6 +16,7 @@ const {
   resetPromises,
   serializeErrorMock,
   setupInterruptionHandlerMock,
+  setupTemporalLoggerMock,
   setupTelemetryMock
 } = vi.hoisted( () => {
   const createDeferred = () => {
@@ -124,6 +125,7 @@ const {
       stack: error.stack
     } ) ),
     setupInterruptionHandlerMock: vi.fn(),
+    setupTemporalLoggerMock: vi.fn(),
     setupTelemetryMock: vi.fn()
   };
 } );
@@ -164,6 +166,7 @@ vi.mock( './catalog_workflow/catalog_job.js', () => ( {
   } )
 } ) );
 vi.mock( './log_hooks.js', () => ( {} ) );
+vi.mock( './temporal_logger.js', () => ( { setupTemporalLogger: setupTemporalLoggerMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
   Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
@@ -220,6 +223,7 @@ describe( 'worker/index', () => {
     await vi.waitFor( () => expect( Worker.create ).toHaveBeenCalled() );
 
     expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
+    expect( setupTemporalLoggerMock ).toHaveBeenCalledOnce();
     expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
     expect( initTracing ).toHaveBeenCalled();
