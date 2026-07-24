@@ -105,6 +105,24 @@ export function formatPortCollisionHint(
 }
 
 /**
+ * Compose a docker-failure message from a caller-supplied core sentence and the
+ * process's recent output: an actionable port-collision hint (when one is
+ * detected) is prepended, and the raw recent output is appended. Shared by the
+ * foreground exit handler and the detached/reconcile path so both surface the
+ * same failure shape.
+ */
+export function formatComposeFailure(
+  reason: string,
+  output: string,
+  resolvedPorts: Record<string, number>
+): string {
+  const hint = formatPortCollisionHint( output, resolvedPorts );
+  const prefix = hint ? `${hint}\n\n` : '';
+  const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
+  return `${prefix}${reason}${detail}`;
+}
+
+/**
  * Build a hint from a known list of colliding ports. For a single collision
  * the output matches `formatPortCollisionHint` exactly so callers stay
  * symmetric. For multiple collisions a bulleted list is rendered, each line

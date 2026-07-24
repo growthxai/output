@@ -239,6 +239,19 @@ export async function waitForServicesHealthy(
   throw new Error( 'Timeout waiting for services to become healthy' );
 }
 
+// A rolling buffer that retains the last ~20k chars of a spawned process's
+// combined output, so a startup failure can surface recent Docker logs without
+// holding the whole stream. Shared by the two compose spawn sites.
+function createOutputBuffer(): { append: ( chunk: Buffer ) => void; read: () => string } {
+  const buffer = { value: '' };
+  return {
+    append: ( chunk: Buffer ): void => {
+      buffer.value = `${buffer.value}${chunk.toString()}`.slice( -20000 ).trimStart();
+    },
+    read: (): string => buffer.value.trimEnd()
+  };
+}
+
 export interface DockerComposeHandlers {
   onError?: ( error: Error, output: string ) => void;
   onExit?: ( code: number | null, signal: NodeJS.Signals | null, output: string ) => void;
@@ -269,12 +282,7 @@ export async function startDockerCompose( {
     args.push( '--pull', pullPolicy );
   }
 
-  const output = {
-    value: ''
-  };
-  const appendOutput = ( chunk: Buffer ): void => {
-    output.value = `${output.value}${chunk.toString()}`.slice( -20000 ).trimStart();
-  };
+  const output = createOutputBuffer();
 
   const dockerProcess = spawn( 'docker', args, {
     cwd: process.cwd(),
@@ -283,13 +291,13 @@ export async function startDockerCompose( {
     stdio: [ 'ignore', 'pipe', 'pipe' ]
   } );
 
-  dockerProcess.stdout?.on( 'data', appendOutput );
-  dockerProcess.stderr?.on( 'data', appendOutput );
+  dockerProcess.stdout?.on( 'data', output.append );
+  dockerProcess.stderr?.on( 'data', output.append );
   if ( onError ) {
-    dockerProcess.on( 'error', error => onError( error, output.value.trimEnd() ) );
+    dockerProcess.on( 'error', error => onError( error, output.read() ) );
   }
   if ( onExit ) {
-    dockerProcess.on( 'exit', ( code, signal ) => onExit( code, signal, output.value.trimEnd() ) );
+    dockerProcess.on( 'exit', ( code, signal ) => onExit( code, signal, output.read() ) );
   }
 
   return dockerProcess;
@@ -321,12 +329,7 @@ export function runDockerComposeUpDetached(
     args.push( '--pull', pullPolicy );
   }
 
-  const output = {
-    value: ''
-  };
-  const appendOutput = ( chunk: Buffer ): void => {
-    output.value = `${output.value}${chunk.toString()}`.slice( -20000 ).trimStart();
-  };
+  const output = createOutputBuffer();
 
   return new Promise( ( resolve, reject ) => {
     // Pipe rather than inherit so we can both echo Docker's progress and keep
@@ -338,15 +341,15 @@ export function runDockerComposeUpDetached(
 
     child.stdout?.on( 'data', ( chunk: Buffer ) => {
       process.stdout.write( chunk );
-      appendOutput( chunk );
+      output.append( chunk );
     } );
     child.stderr?.on( 'data', ( chunk: Buffer ) => {
       process.stderr.write( chunk );
-      appendOutput( chunk );
+      output.append( chunk );
     } );
 
     child.on( 'error', reject );
-    child.on( 'exit', code => resolve( { code, output: output.value.trimEnd() } ) );
+    child.on( 'exit', code => resolve( { code, output: output.read() } ) );
   } );
 }
 

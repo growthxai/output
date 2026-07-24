@@ -14,7 +14,7 @@ import {
 } from '#services/docker.js';
 import type { PullPolicy } from '#services/docker.js';
 import { getErrorMessage } from '#utils/error_utils.js';
-import { formatPortCollisionHint, formatPortCollisionsHint } from '#utils/port_collision.js';
+import { formatComposeFailure, formatPortCollisionsHint } from '#utils/port_collision.js';
 import { findUnavailablePorts } from '#utils/port_availability.js';
 import { ensureClaudePlugin } from '#services/coding_agents.js';
 import { DevApp } from '#views/dev/dev_app.js';
@@ -220,10 +220,9 @@ export default class Dev extends Command {
             }
 
             const exitReason = signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`;
-            const hint = formatPortCollisionHint( output, config.ports );
-            const prefix = hint ? `${hint}\n\n` : '';
-            const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
-            instance.unmount( new Error( `${prefix}Docker compose exited with ${exitReason}.${detail}` ) );
+            instance.unmount( new Error(
+              formatComposeFailure( `Docker compose exited with ${exitReason}.`, output, config.ports )
+            ) );
           }
         } );
 
@@ -263,11 +262,12 @@ export default class Dev extends Command {
       return;
     }
 
-    const hint = formatPortCollisionHint( output, config.ports );
-    const prefix = hint ? `${hint}\n\n` : '';
-    const detail = output ? `\n\nRecent Docker output:\n${output}` : '';
     this.error(
-      `${prefix}Docker compose failed to start services (exit code ${code ?? 'unknown'}).${detail}`,
+      formatComposeFailure(
+        `Docker compose failed to start services (exit code ${code ?? 'unknown'}).`,
+        output,
+        config.ports
+      ),
       { exit: 1 }
     );
   }
