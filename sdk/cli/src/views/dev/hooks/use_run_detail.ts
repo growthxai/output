@@ -10,6 +10,7 @@ import {
 import type { TraceData, DebugNode } from '#types/trace.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
+import { createBoundedCache } from '#views/dev/utils/bounded_cache.js';
 
 export interface RunStep {
   index: number;
@@ -35,7 +36,8 @@ const EMPTY_DETAIL: RunDetail = {
   steps: [],
   loading: false
 };
-const runDetailCache = new Map<string, RunDetail>();
+const RUN_DETAIL_CACHE_MAX = 50;
+const runDetailCache = createBoundedCache<string, RunDetail>( RUN_DETAIL_CACHE_MAX );
 
 const stepNameOf = ( node: DebugNode ): string => {
   if ( node.name ) {

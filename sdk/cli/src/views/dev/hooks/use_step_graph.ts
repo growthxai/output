@@ -4,6 +4,7 @@ import type { Span } from '#services/workflow_history/correlator.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { isTerminalRunStatus } from '#views/dev/hooks/use_run_detail.js';
 import { usePoll, POLL_INTERVAL_MS } from '#views/dev/hooks/use_poll.js';
+import { createBoundedCache } from '#views/dev/utils/bounded_cache.js';
 
 export interface StepGraph {
   spans: Span[];
@@ -23,7 +24,8 @@ const EMPTY_GRAPH: StepGraph = {
   error: null
 };
 
-const stepGraphCache = new Map<string, StepGraph>();
+const STEP_GRAPH_CACHE_MAX = 50;
+const stepGraphCache = createBoundedCache<string, StepGraph>( STEP_GRAPH_CACHE_MAX );
 
 /**
  * Fetches a run's correlated step spans for the dev TUI's waterfall overlay,
