@@ -1,4 +1,5 @@
 import { execFileSync, execSync, spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
@@ -122,6 +123,24 @@ export function getDefaultDockerComposePath(): string {
   );
 }
 
+// Resolve the compose file a `dev` command should act on — a caller-supplied
+// path (relative to cwd) or the bundled default — and verify it exists. Shared
+// by `dev` and `dev down` so the resolution rule and not-found error stay in
+// one place.
+export async function resolveDockerComposePath( customPath?: string ): Promise<string> {
+  const dockerComposePath = customPath ?
+    path.resolve( process.cwd(), customPath ) :
+    getDefaultDockerComposePath();
+
+  try {
+    await fs.access( dockerComposePath );
+  } catch {
+    throw new DockerComposeConfigNotFoundError( dockerComposePath );
+  }
+
+  return dockerComposePath;
+}
+
 export function parseServiceStatus( jsonOutput: string ): ServiceStatus[] {
   if ( !jsonOutput.trim() ) {
     return [];
@@ -165,6 +184,39 @@ export function isServiceHealthy( service: ServiceStatus ): boolean {
 
 export function isServiceFailed( service: ServiceStatus ): boolean {
   return service.state === SERVICE_STATE.EXITED || service.health === SERVICE_HEALTH.UNHEALTHY;
+}
+
+export const STACK_STATE = {
+  /** No containers exist for this project — a fresh start. */
+  NONE: 'none',
+  /** Every container is up and healthy — safe to attach and monitor. */
+  RUNNING: 'running',
+  /** Containers exist but some failed or are still coming up — reconcile. */
+  PARTIAL: 'partial'
+} as const;
+
+export type StackState = typeof STACK_STATE[keyof typeof STACK_STATE];
+
+/**
+ * Classify the current state of a project's stack from `docker compose ps`.
+ *
+ * This is the detection signal `output dev` branches on: an empty result means
+ * nothing is running (fresh start); an all-healthy result means we can attach
+ * and monitor without touching the stack; anything in between (an exited
+ * container, or services still booting) is reconciled with an idempotent
+ * `up -d`. Scoped to the project name, so it never mistakes a foreign process
+ * for one of ours the way a raw port probe does.
+ */
+export function classifyStackState( services: ServiceStatus[] ): StackState {
+  if ( services.length === 0 ) {
+    return STACK_STATE.NONE;
+  }
+  // Anything short of every service being healthy — a failed container or one
+  // still booting — is PARTIAL and gets reconciled.
+  if ( services.every( isServiceHealthy ) ) {
+    return STACK_STATE.RUNNING;
+  }
+  return STACK_STATE.PARTIAL;
 }
 
 export async function waitForServicesHealthy(

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import fs from 'node:fs/promises';
 import type { ChildProcess } from 'node:child_process';
 import { render } from 'ink';
 import * as dockerService from '#services/docker.js';
@@ -17,37 +16,23 @@ vi.mock( '#utils/port_availability.js', () => ( {
   findUnavailablePorts: vi.fn().mockResolvedValue( [] )
 } ) );
 
-vi.mock( '#services/docker.js', () => ( {
-  validateDockerEnvironment: vi.fn(),
-  startDockerCompose: vi.fn(),
-  stopDockerCompose: vi.fn().mockResolvedValue( undefined ),
-  getServiceStatus: vi.fn().mockResolvedValue( [
-    { name: 'redis', state: 'running', health: 'healthy', ports: [ '6379:6379' ] },
-    { name: 'temporal', state: 'running', health: 'healthy', ports: [ '7233:7233' ] }
-  ] ),
-  isServiceFailed: vi.fn( ( s: { state: string; health: string } ) =>
-    s.state === 'exited' || s.health === 'unhealthy'
-  ),
-  DockerComposeConfigNotFoundError: Error,
-  DockerValidationError: Error,
-  getDefaultDockerComposePath: vi.fn( () => '/path/to/docker-compose-dev.yml' ),
-  SERVICE_HEALTH: {
-    HEALTHY: 'healthy',
-    UNHEALTHY: 'unhealthy',
-    STARTING: 'starting',
-    NONE: 'none'
-  },
-  SERVICE_STATE: {
-    RUNNING: 'running',
-    EXITED: 'exited'
-  }
-} ) );
-
-vi.mock( 'node:fs/promises', () => ( {
-  default: {
-    access: vi.fn()
-  }
-} ) );
+vi.mock( '#services/docker.js', async importActual => {
+  const actual = await importActual<typeof import( '#services/docker.js' )>();
+  return {
+    ...actual,
+    // Override only the IO surface. Pure helpers (classifyStackState,
+    // isServiceHealthy, STACK_STATE, error classes) come from the real module,
+    // so branch selection here exercises the same logic production runs.
+    validateDockerEnvironment: vi.fn(),
+    startDockerCompose: vi.fn(),
+    startDockerComposeDetached: vi.fn(),
+    stopDockerCompose: vi.fn().mockResolvedValue( undefined ),
+    // Default: nothing running — a fresh start. Individual tests opt into an
+    // existing stack by overriding this to drive attach / reconcile branches.
+    getServiceStatus: vi.fn().mockResolvedValue( [] ),
+    resolveDockerComposePath: vi.fn().mockResolvedValue( '/path/to/docker-compose-dev.yml' )
+  };
+} );
 
 vi.mock( 'ink', () => ( {
   render: vi.fn().mockReturnValue( {
@@ -105,12 +90,22 @@ describe( 'dev command', () => {
     vi.mocked( dockerService.validateDockerEnvironment ).mockResolvedValue( undefined );
     // By default, no host port is taken — individual tests opt in.
     vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [] );
+    // By default, no stack is running — a fresh start. Tests opt into the
+    // attach / reconcile branches by overriding getServiceStatus.
+    vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( [] );
+    vi.mocked( dockerService.startDockerComposeDetached ).mockReturnValue( undefined );
     // By default, startDockerCompose returns a mock process
     vi.mocked( dockerService.startDockerCompose ).mockResolvedValue( createMockDockerProcess() );
-    // By default, fs.access succeeds (file exists)
-    vi.mocked( fs ).access.mockResolvedValue( undefined );
+    // By default, the compose file resolves and exists.
+    vi.mocked( dockerService.resolveDockerComposePath ).mockResolvedValue( '/path/to/docker-compose-dev.yml' );
     // By default, ensureClaudePlugin succeeds
     vi.mocked( codingAgentsService.ensureClaudePlugin ).mockResolvedValue( undefined );
+    // By default, render returns an instance that exits immediately. Tests
+    // needing a controllable lifecycle override this.
+    vi.mocked( render ).mockReturnValue( {
+      waitUntilExit: vi.fn().mockResolvedValue( undefined ),
+      unmount: vi.fn()
+    } as any );
   } );
 
   afterEach( () => {
@@ -277,7 +272,9 @@ describe( 'dev command', () => {
     } );
 
     it( 'should handle docker compose configuration not found', async () => {
-      vi.mocked( fs ).access.mockRejectedValue( new Error( 'File not found' ) );
+      vi.mocked( dockerService.resolveDockerComposePath ).mockRejectedValue(
+        new dockerService.DockerComposeConfigNotFoundError( '/path/to/docker-compose-dev.yml' )
+      );
 
       const cmd = new Dev( [], {} as any );
       cmd.log = vi.fn() as any;
@@ -424,6 +421,105 @@ describe( 'dev command', () => {
 
       expect( inkInstance.unmount ).not.toHaveBeenCalledWith( expect.any( Error ) );
       expect( cmd.error ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'attach and reconcile behavior', () => {
+    const runningStack = [
+      { name: 'redis', state: 'running', health: 'healthy', ports: [] },
+      { name: 'temporal', state: 'running', health: 'healthy', ports: [ '7233:7233' ] },
+      { name: 'api', state: 'running', health: 'none', ports: [ '3001:3001' ] }
+    ];
+
+    const makeCmd = (): Dev => {
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( {
+          flags: { 'compose-file': undefined, 'image-pull-policy': 'always', detached: false },
+          args: {}
+        } ),
+        configurable: true
+      } );
+      return cmd;
+    };
+
+    const lastRenderedProps = <T>(): T => {
+      const appElement = vi.mocked( render ).mock.calls.at( -1 )?.[0];
+      if ( !React.isValidElement<T>( appElement ) ) {
+        throw new Error( 'Expected render to receive a React element' );
+      }
+      return appElement.props;
+    };
+
+    it( 'attaches to a healthy running stack without a foreground up or port probe', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( runningStack );
+
+      const cmd = makeCmd();
+      await cmd.run();
+
+      expect( portAvailability.findUnavailablePorts ).not.toHaveBeenCalled();
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( dockerService.startDockerComposeDetached ).not.toHaveBeenCalled();
+      expect( cmd.error ).not.toHaveBeenCalled();
+      expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( true );
+    } );
+
+    it( 'leaves an attached stack running on cleanup (no teardown)', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( runningStack );
+
+      const cmd = makeCmd();
+      await cmd.run();
+
+      await lastRenderedProps<{ onCleanup: () => Promise<void> }>().onCleanup();
+
+      expect( dockerService.stopDockerCompose ).not.toHaveBeenCalled();
+    } );
+
+    it( 'does not port-probe or error when our own stack already holds the ports', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( runningStack );
+      vi.mocked( portAvailability.findUnavailablePorts ).mockResolvedValue( [ 3001 ] );
+
+      const cmd = makeCmd();
+      await cmd.run();
+
+      expect( portAvailability.findUnavailablePorts ).not.toHaveBeenCalled();
+      expect( cmd.error ).not.toHaveBeenCalled();
+    } );
+
+    it( 'reconciles a partially-failed stack with a detached up, then monitors', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( [
+        { name: 'temporal', state: 'running', health: 'healthy', ports: [ '7233:7233' ] },
+        { name: 'worker', state: 'exited', health: 'none', ports: [] }
+      ] );
+
+      const cmd = makeCmd();
+      await cmd.run();
+
+      expect( dockerService.startDockerComposeDetached ).toHaveBeenCalledWith(
+        '/path/to/docker-compose-dev.yml',
+        'always'
+      );
+      // Reconcile monitors via ps polling, not a foreground up.
+      expect( dockerService.startDockerCompose ).not.toHaveBeenCalled();
+      expect( portAvailability.findUnavailablePorts ).not.toHaveBeenCalled();
+      expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( true );
+    } );
+
+    it( 'falls back to a fresh foreground start when no stack is running', async () => {
+      vi.mocked( dockerService.getServiceStatus ).mockResolvedValue( [] );
+
+      const cmd = makeCmd();
+      const runPromise = cmd.run();
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      expect( portAvailability.findUnavailablePorts ).toHaveBeenCalled();
+      expect( dockerService.startDockerCompose ).toHaveBeenCalled();
+      expect( dockerService.startDockerComposeDetached ).not.toHaveBeenCalled();
+      expect( lastRenderedProps<{ attached: boolean }>().attached ).toBe( false );
+
+      runPromise.catch( () => {} );
     } );
   } );
 

@@ -218,7 +218,8 @@ const overlayFor = ( opts: {
 const Shell: React.FC<{
   dockerComposePath: string;
   onCleanup: () => Promise<void>;
-}> = ( { dockerComposePath, onCleanup } ) => {
+  attached: boolean;
+}> = ( { dockerComposePath, onCleanup, attached } ) => {
   const { exit } = useApp();
   const ui = useUiState();
   const [ phase, setPhase ] = useState<Phase>( 'waiting' );
@@ -335,7 +336,7 @@ const Shell: React.FC<{
         {ui.tab === 'help' && <HelpPanel />}
       </Box>
       <Toasts />
-      <Footer hints={footer.hints} itemCount={footer.itemCount} itemLabel={footer.itemLabel} />
+      <Footer hints={footer.hints} itemCount={footer.itemCount} itemLabel={footer.itemLabel} attached={attached} />
     </Box>
   );
 };
@@ -343,8 +344,9 @@ const Shell: React.FC<{
 export const DevApp: React.FC<{
   dockerComposePath: string;
   onCleanup: () => Promise<void>;
-}> = ( { dockerComposePath, onCleanup } ) => (
+  attached?: boolean;
+}> = ( { dockerComposePath, onCleanup, attached = false } ) => (
   <UiStateProvider>
-    <Shell dockerComposePath={dockerComposePath} onCleanup={onCleanup} />
+    <Shell dockerComposePath={dockerComposePath} onCleanup={onCleanup} attached={attached} />
   </UiStateProvider>
 );

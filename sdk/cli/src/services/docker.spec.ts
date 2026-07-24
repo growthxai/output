@@ -3,7 +3,8 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import {
   parseServiceStatus, getServiceStatus,
   startDockerCompose, startDockerComposeDetached, stopDockerCompose,
-  waitForServicesHealthy, isServiceHealthy, isServiceFailed
+  waitForServicesHealthy, isServiceHealthy, isServiceFailed,
+  classifyStackState, STACK_STATE, type ServiceStatus
 } from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
@@ -355,6 +356,43 @@ describe( 'docker service', () => {
 
     it( 'should return false for a service with health: starting — not a failure, just in progress', () => {
       expect( isServiceFailed( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'classifyStackState', () => {
+    const svc = ( state: string, health: string ): ServiceStatus =>
+      ( { name: 's', state, health, ports: [] } );
+
+    it( 'returns NONE for an empty stack (fresh start)', () => {
+      expect( classifyStackState( [] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'returns RUNNING when every service is up and healthy', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'running', 'none' )
+      ] ) ).toBe( STACK_STATE.RUNNING );
+    } );
+
+    it( 'returns PARTIAL when any service has failed (OUT-477 orphan)', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'exited', 'none' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    it( 'returns PARTIAL when services exist but some are still coming up', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'created', 'none' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    it( 'treats an unhealthy service as PARTIAL, not RUNNING', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'running', 'unhealthy' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
     } );
   } );
 
