@@ -19,8 +19,8 @@ import {
   ToolCallRepairError,
   UnsupportedFunctionalityError
 } from 'ai';
-import { FatalError } from '@outputai/core';
-import { findInstanceInCauseChain, mapAiError } from './error_handler.js';
+import { FatalError, TransparentFatalError } from '@outputai/core';
+import { mapAiError } from './error_handler.js';
 
 const makeApiCallError = ( input = {} ) => new APICallError( {
   message: 'Provider rejected the request',
@@ -130,63 +130,6 @@ const preservedAiSdkErrors = [
   ]
 ];
 
-describe( 'findInstanceInCauseChain', () => {
-  class FirstCustomError extends Error {}
-  class SecondCustomError extends Error {}
-
-  it( 'returns the input error when it matches the target constructor', () => {
-    const error = new FirstCustomError( 'first' );
-
-    expect( findInstanceInCauseChain( error, FirstCustomError ) ).toBe( error );
-  } );
-
-  it( 'returns the input error when it matches the target constructor name', () => {
-    const error = new FirstCustomError( 'first' );
-
-    expect( findInstanceInCauseChain( error, 'FirstCustomError' ) ).toBe( error );
-  } );
-
-  it( 'walks the cause chain to find an error by constructor', () => {
-    const target = new SecondCustomError( 'second' );
-    const wrapper = new FirstCustomError( 'first', { cause: target } );
-
-    expect( findInstanceInCauseChain( wrapper, SecondCustomError ) ).toBe( target );
-  } );
-
-  it( 'walks the cause chain to find an error by constructor name', () => {
-    const target = new SecondCustomError( 'second' );
-    const wrapper = new FirstCustomError( 'first', { cause: target } );
-
-    expect( findInstanceInCauseChain( wrapper, 'SecondCustomError' ) ).toBe( target );
-  } );
-
-  it( 'returns null when the target is not found', () => {
-    const error = new FirstCustomError( 'first', { cause: new Error( 'root' ) } );
-
-    expect( findInstanceInCauseChain( error, SecondCustomError ) ).toBeNull();
-  } );
-
-  it( 'returns null for empty or non-object inputs', () => {
-    expect( findInstanceInCauseChain( null, Error ) ).toBeNull();
-    expect( findInstanceInCauseChain( 'not an error', Error ) ).toBeNull();
-  } );
-
-  it( 'returns null for object causes without constructors', () => {
-    const cause = Object.create( null );
-    const error = new FirstCustomError( 'first', { cause } );
-
-    expect( findInstanceInCauseChain( error, 'SecondCustomError' ) ).toBeNull();
-  } );
-
-  it( 'stops searching after the depth limit', () => {
-    const makeErrorChain = depth => depth === 0 ?
-      new SecondCustomError( 'target' ) :
-      new FirstCustomError( `level ${depth}`, { cause: makeErrorChain( depth - 1 ) } );
-
-    expect( findInstanceInCauseChain( makeErrorChain( 11 ), SecondCustomError ) ).toBeNull();
-  } );
-} );
-
 describe( 'mapAiError', () => {
   it( 'preserves existing FatalError instances', () => {
     const error = new FatalError( 'Already fatal' );
@@ -194,7 +137,7 @@ describe( 'mapAiError', () => {
     expect( mapAiError( error ) ).toBe( error );
   } );
 
-  it( 'adds first schema issue details to NoObjectGeneratedError schema mismatches', () => {
+  it( 'preserves NoObjectGeneratedError with its complete schema issue details', () => {
     class ZodError extends Error {
       constructor( issues ) {
         super( 'schema failed' );
@@ -217,32 +160,12 @@ describe( 'mapAiError', () => {
       cause: validationError
     } );
 
-    const result = mapAiError( error );
-
-    expect( result ).not.toBe( error );
-    expect( NoObjectGeneratedError.isInstance( result ) ).toBe( true );
-    expect( result.name ).toBe( 'AI_NoObjectGeneratedError' );
-    expect( result.message ).toBe(
-      'No object generated: response did not match schema. First issue is "Expected string" at path [items, 0, title].'
-    );
-    expect( result.cause ).toBe( validationError );
-    expect( result.text ).toBe( error.text );
-    expect( result.response ).toBe( error.response );
-    expect( result.usage ).toBe( error.usage );
-    expect( result.finishReason ).toBe( error.finishReason );
-  } );
-
-  it( 'preserves NoObjectGeneratedError schema mismatches when no schema issue is available', () => {
-    const error = new NoObjectGeneratedError( {
-      message: 'No object generated: response did not match schema.',
-      text: '{"items":[{}]}',
-      cause: new Error( 'validation failed' )
-    } );
-
     expect( mapAiError( error ) ).toBe( error );
+    expect( error.cause.cause ).toBe( zodError );
+    expect( error.cause.cause.issues ).toEqual( zodError.issues );
   } );
 
-  it( 'maps non-retryable APICallError instances to FatalError', () => {
+  it( 'maps non-retryable APICallError instances to TransparentFatalError', () => {
     const error = makeApiCallError( {
       statusCode: 400,
       isRetryable: false
@@ -250,20 +173,18 @@ describe( 'mapAiError', () => {
 
     const result = mapAiError( error );
 
-    expect( result ).toBeInstanceOf( FatalError );
-    expect( result.message ).toBe( 'AI-SDK fatal error (HTTP 400): Provider rejected the request' );
+    expect( result ).toBeInstanceOf( TransparentFatalError );
     expect( result.cause ).toBe( error );
   } );
 
-  it( 'maps non-retryable APICallError instances without status codes to FatalError', () => {
+  it( 'maps non-retryable APICallError instances without status codes to TransparentFatalError', () => {
     const error = makeApiCallError( {
       isRetryable: false
     } );
 
     const result = mapAiError( error );
 
-    expect( result ).toBeInstanceOf( FatalError );
-    expect( result.message ).toBe( 'AI-SDK fatal error: Provider rejected the request' );
+    expect( result ).toBeInstanceOf( TransparentFatalError );
     expect( result.cause ).toBe( error );
   } );
 
@@ -286,13 +207,12 @@ describe( 'mapAiError', () => {
     expect( mapAiError( error ) ).toBe( error );
   } );
 
-  it.each( fatalAiSdkErrors )( 'maps %s to FatalError', ( _name, makeError ) => {
+  it.each( fatalAiSdkErrors )( 'maps %s to TransparentFatalError', ( _name, makeError ) => {
     const error = makeError();
 
     const result = mapAiError( error );
 
-    expect( result ).toBeInstanceOf( FatalError );
-    expect( result.message ).toBe( `AI-SDK fatal error: ${error.message}` );
+    expect( result ).toBeInstanceOf( TransparentFatalError );
     expect( result.cause ).toBe( error );
   } );
 

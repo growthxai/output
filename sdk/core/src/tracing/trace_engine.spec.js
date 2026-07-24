@@ -158,6 +158,29 @@ describe( 'tracing/trace_engine', () => {
     expect( payload.entry.action ).toBe( 'tick' );
   } );
 
+  it( 'addEventActionWithContext() unwraps transparent errors without mutating options', async () => {
+    process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
+    storageLoadMock.mockReturnValue( {
+      parentId: 'ctx-p',
+      traceInfo
+    } );
+    const { init, addEventActionWithContext } = await loadTraceEngine();
+    const { TransparentFatalError } = await import( '#errors' );
+    await init();
+
+    const cause = new TypeError( 'provider rejected request' );
+    const error = new TransparentFatalError( cause );
+    const options = { kind: 'llm', name: 'generate', id: 'llm-1', details: error };
+    addEventActionWithContext( 'error', options );
+
+    expect( options.details ).toBe( error );
+    expect( serializeErrorMock ).toHaveBeenCalledWith( cause );
+    expect( localExecMock.mock.calls[0][0].entry.details ).toEqual( {
+      name: 'TypeError',
+      message: 'provider rejected request'
+    } );
+  } );
+
   it( 'addEventActionWithContext() emits validated ADD_ATTR trace entries', async () => {
     process.env.OUTPUT_TRACE_LOCAL_ON = 'true';
     storageLoadMock.mockReturnValue( {

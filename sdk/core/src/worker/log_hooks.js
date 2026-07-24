@@ -41,11 +41,12 @@ mainEventBus.on( BusEventType.ACTIVITY_END, ( { activityInfo, outputActivityKind
 );
 
 mainEventBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind, error } ) =>
-  shouldLogActivity( activityInfo ) && activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.constructor.name}`, {
-    event: LifecycleEvent.ERROR,
-    ...serializedActivityFields( activityInfo ),
-    error: serializeError( error, { includeStack: false } )
-  } )
+  shouldLogActivity( activityInfo ) &&
+    activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.name ?? error.constructor.name}`, {
+      event: LifecycleEvent.ERROR,
+      ...serializedActivityFields( activityInfo ),
+      error: serializeError( error, { includeStack: false } )
+    } )
 );
 
 mainEventBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activityInfo } ) =>

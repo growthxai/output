@@ -13,6 +13,7 @@
   }
   ```
 - Removed `aggregations` from activity lifecycle and error hook payloads.
+- Added `TransparentFatalError`, a non-retryable wrapper that surfaces its cause as the original error in logs, traces, hooks and workflow results.
 - Refactored workflow and activity error handling:
   - Workflow
     - `ContinueAsNew`, throw;

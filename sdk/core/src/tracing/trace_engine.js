@@ -7,6 +7,7 @@ import * as s3Processor from './processors/s3/index.js';
 import { createChildLogger } from '#logger';
 import { EventAction } from './trace_consts.js';
 import { BaseAttribute } from './trace_attribute.js';
+import { TransparentFatalError } from '#errors';
 
 const log = createChildLogger( 'Tracing' );
 
@@ -91,6 +92,8 @@ export function addEventActionWithContext( action, options ) {
     if ( action === EventAction.ADD_ATTR && !( options.details instanceof BaseAttribute ) ) {
       throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
     }
-    addEventAction( action, { ...options, parentId, traceInfo } );
+    /** Unwraps Transparent error set in details so it behaves like in the interceptors */
+    const details = options.details instanceof TransparentFatalError ? options.details.cause : options.details;
+    addEventAction( action, { ...options, details, parentId, traceInfo } );
   }
 };

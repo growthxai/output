@@ -464,7 +464,7 @@ describe( 'workflow()', () => {
           backoffCoefficient: 3,
           maximumInterval: '30s',
           maximumAttempts: 9,
-          nonRetryableErrorTypes: [ ValidationError.name, 'FatalError' ]
+          nonRetryableErrorTypes: [ 'FatalError' ]
         }
       } );
       expect( info.memo.parentActivityOptions ).toEqual( proxyActivitiesMock.mock.calls[0][0] );

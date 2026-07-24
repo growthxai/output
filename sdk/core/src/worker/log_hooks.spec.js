@@ -109,6 +109,7 @@ describe( 'log_hooks', () => {
 
     it( 'ACTIVITY_ERROR logs full message and second arg', () => {
       const err = new Error( 'step failed' );
+      err.name = 'ProviderError';
       onHandlers[BusEventType.ACTIVITY_ERROR]( {
         ...basePayload,
         duration: 100,
@@ -117,7 +118,7 @@ describe( 'log_hooks', () => {
 
       expect( activityLogMock.error ).toHaveBeenCalledTimes( 1 );
       expect( activityLogMock.error ).toHaveBeenCalledWith(
-        'Error myWorkflow#myStep step: Error',
+        'Error myWorkflow#myStep step: ProviderError',
         {
           event: LifecycleEvent.ERROR,
           activityId: 'act-1',
@@ -125,7 +126,7 @@ describe( 'log_hooks', () => {
           workflowId: 'wf-1',
           workflowType: 'myWorkflow',
           runId: 'run-1',
-          error: { name: 'Error', message: 'step failed' }
+          error: { name: 'ProviderError', message: 'step failed' }
         }
       );
       expect( serializeErrorMock ).toHaveBeenCalledWith( err, { includeStack: false } );
@@ -235,7 +236,7 @@ describe( 'log_hooks', () => {
     } );
 
     it( 'WORKFLOW_ERROR logs full message and second arg', () => {
-      const err = new TypeError( 'workflow boom' );
+      const err = { name: 'TypeError', message: 'workflow boom' };
       onHandlers[BusEventType.WORKFLOW_ERROR]( {
         ...basePayload,
         duration: 150,

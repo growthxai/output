@@ -142,6 +142,13 @@ describe( 'serializeError', () => {
     expect( serializeError( /request-\d+/gi ) ).toBe( '/request-\\d+/gi' );
   } );
 
+  it( 'truncates long inspected values', () => {
+    const serialized = serializeError( 10n ** 16_384n );
+
+    expect( serialized ).toHaveLength( 16_384 + '... 2 more characters'.length );
+    expect( serialized ).toMatch( /^1[0]+[.]{3} 2 more characters$/ );
+  } );
+
   it( 'handles top-level undefined, functions, and symbols', () => {
     function namedFunction() {}
 
@@ -155,6 +162,112 @@ describe( 'serializeError', () => {
   it( 'renders typed arrays and buffers without enumerating their elements', () => {
     expect( serializeError( new Uint16Array( [ 1, 2 ] ) ) ).toBe( 'Uint16Array(2) [ 1, 2 ]' );
     expect( serializeError( Buffer.from( [ 1, 2 ] ) ) ).toBe( 'Buffer(2) [Uint8Array] [ 1, 2 ]' );
+    expect( serializeError( new Uint8Array( 52 ) ) ).toContain( '... 2 more items' );
+  } );
+
+  it( 'truncates long strings and property names', () => {
+    const longValue = 'v'.repeat( 16_385 );
+    const sharedKeyPrefix = 'k'.repeat( 256 );
+    const value = {
+      longValue,
+      [`${sharedKeyPrefix}a`]: 'first',
+      [`${sharedKeyPrefix}b`]: 'second'
+    };
+
+    expect( serializeError( longValue ) ).toBe( `${'v'.repeat( 16_384 )}... 1 more characters` );
+    expect( serializeError( value ) ).toEqual( {
+      longValue: `${'v'.repeat( 16_384 )}... 1 more characters`,
+      [`${sharedKeyPrefix}... 1 more characters`]: 'first'
+    } );
+  } );
+
+  it( 'limits arrays, maps, and sets while preserving recursive serialization', () => {
+    const exactArray = Array.from( { length: 50 }, ( _, index ) => index );
+    const exactMap = new Map( Array.from( { length: 50 }, ( _, index ) => [ `key-${index}`, index ] ) );
+    const exactSet = new Set( Array.from( { length: 50 }, ( _, index ) => index ) );
+    const longArray = Array.from( { length: 52 }, ( _, index ) => index );
+    const longMap = new Map( Array.from( { length: 51 }, ( _, index ) => [ `key-${index}`, BigInt( index ) ] ) );
+    const longSet = new Set( Array.from( { length: 52 }, ( _, index ) => BigInt( index ) ) );
+
+    expect( serializeError( exactArray ) ).toEqual( exactArray );
+    expect( serializeError( exactMap ) ).toHaveLength( 50 );
+    expect( serializeError( exactSet ) ).toHaveLength( 50 );
+    expect( serializeError( longArray ) ).toEqual( [ ...exactArray, '... 2 more items' ] );
+
+    const serializedMap = serializeError( longMap );
+    expect( serializedMap ).toHaveLength( 51 );
+    expect( serializedMap[0] ).toEqual( [ 'key-0', '0n' ] );
+    expect( serializedMap.at( -1 ) ).toBe( '... 1 more items' );
+
+    const serializedSet = serializeError( longSet );
+    expect( serializedSet ).toHaveLength( 51 );
+    expect( serializedSet[0] ).toBe( '0n' );
+    expect( serializedSet.at( -1 ) ).toBe( '... 2 more items' );
+  } );
+
+  it( 'limits serializable properties per prototype level', () => {
+    const exactProperties = Object.fromEntries( Array.from( { length: 50 }, ( _, index ) => [ `property-${index}`, index ] ) );
+    const skippedProperties = {
+      request: 'excluded',
+      callback: () => 'excluded',
+      unavailable: undefined,
+      ...Object.fromEntries( Array.from( { length: 51 }, ( _, index ) => [ `property-${index}`, index ] ) )
+    };
+
+    expect( serializeError( exactProperties ) ).toEqual( exactProperties );
+
+    const serialized = serializeError( skippedProperties );
+    expect( Object.keys( serialized ) ).toHaveLength( 51 );
+    expect( serialized['property-49'] ).toBe( 49 );
+    expect( serialized ).not.toHaveProperty( 'property-50' );
+    expect( serialized['...'] ).toBe( 'possibly more properties' );
+
+    const prototype = Object.fromEntries( Array.from( { length: 51 }, ( _, index ) => [ `inherited-${index}`, index ] ) );
+    const instance = Object.assign(
+      Object.create( prototype ),
+      Object.fromEntries( Array.from( { length: 51 }, ( _, index ) => [ `own-${index}`, index ] ) )
+    );
+    const serializedInstance = serializeError( instance );
+
+    expect( serializedInstance['inherited-49'] ).toBe( 49 );
+    expect( serializedInstance['own-49'] ).toBe( 49 );
+    expect( serializedInstance ).not.toHaveProperty( 'inherited-50' );
+    expect( serializedInstance ).not.toHaveProperty( 'own-50' );
+    expect( serializedInstance['...'] ).toBe( 'possibly more properties' );
+  } );
+
+  it( 'recursively excludes unsafe property names without removing similar diagnostics', () => {
+    const symbolKey = Symbol( 'private metadata' );
+    const value = {
+      failure: { internal: 'Temporal protobuf' },
+      request: { body: 'private request' },
+      response: { body: 'private response' },
+      headers: { Authorization: 'Bearer secret' },
+      Authorization: 'Bearer secret',
+      RequestBodyValues: { prompt: 'private prompt' },
+      RESPONSE_HEADERS: { Cookie: 'private cookie' },
+      APIKey: 'private key',
+      AccessToken: 'private token',
+      PASSWORD: 'private password',
+      Credential: 'private credential',
+      keyboard: 'preserved',
+      tokenCount: 42,
+      passwordPolicy: 'preserved',
+      secretCount: 1,
+      nested: {
+        Cookie: 'private cookie',
+        code: 'EFAILED'
+      },
+      [symbolKey]: 'private symbol metadata'
+    };
+
+    expect( serializeError( value ) ).toEqual( {
+      keyboard: 'preserved',
+      tokenCount: 42,
+      passwordPolicy: 'preserved',
+      secretCount: 1,
+      nested: { code: 'EFAILED' }
+    } );
   } );
 
   it( 'includes root and cause stacks by default and allows excluding them', () => {

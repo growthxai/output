@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ApplicationFailure, CompleteAsyncError } from '@temporalio/common';
 import { ActivitySpecialOutput, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
+import { TransparentFatalError } from '#errors';
 
 const heartbeatMock = vi.hoisted( () => vi.fn() );
 const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async fn => fn() ) );
@@ -183,6 +184,39 @@ describe( 'ActivityExecutionInterceptor', () => {
       type: 'SpecificValidationError',
       nonRetryable: true,
       cause: error
+    } );
+  } );
+
+  it( 'uses a transparent error cause for reporting and propagation while preserving retryability', async () => {
+    activityInfoMock.retryPolicy = { nonRetryableErrorTypes: [ 'FatalError' ] };
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const cause = new TypeError( 'provider rejected request' );
+    cause.code = 'EAUTH';
+    const error = new TransparentFatalError( cause );
+    const next = vi.fn().mockRejectedValue( error );
+
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
+
+    expect( thrown ).toMatchObject( {
+      message: 'provider rejected request',
+      type: 'TypeError',
+      nonRetryable: true,
+      cause,
+      details: [ {
+        error: {
+          name: 'TypeError',
+          message: 'provider rejected request',
+          code: 'EAUTH'
+        }
+      } ]
+    } );
+    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1', details: cause, traceInfo: traceInfoMock } );
+    expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
+      activityInfo: activityInfoMock,
+      workflowDetails: workflowDetailsMock,
+      outputActivityKind: 'step',
+      error: cause
     } );
   } );
 

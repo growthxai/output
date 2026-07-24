@@ -143,7 +143,7 @@ function getSerializedWorkflowError(error: unknown) {
 }
 ```
 
-## FatalError and ValidationError
+## FatalError, ValidationError, and TransparentFatalError
 
 Sometimes retrying won't help — the API key is invalid, the resource doesn't exist, or the data is fundamentally wrong. For these cases, throw `FatalError` or `ValidationError` to fail immediately without retries.
 
@@ -151,8 +151,9 @@ Sometimes retrying won't help — the API key is invalid, the resource doesn't e
 |-------|----------|
 | `FatalError` | The failure is not recoverable. Retrying would not help (e.g. invalid API key, resource not found, business rule violation). |
 | `ValidationError` | The data is invalid. Use for custom validation checks alongside the framework's built-in schema validation. |
+| `TransparentFatalError` | An existing error must be non-retryable, but its original type, message, cause chain, and diagnostic properties should remain visible. |
 
-Both are exported from `@outputai/core`:
+All three are exported from `@outputai/core`:
 
 ```typescript steps.ts
 import { step, FatalError, ValidationError } from '@outputai/core';
@@ -184,6 +185,21 @@ export const lookupContact = step({
     };
   }
 });
+```
+
+`TransparentFatalError` accepts an existing `Error` as its cause. It has the same non-retryable behavior as `FatalError`, but Output removes the wrapper when reporting or propagating the failure. Logs, traces, hooks, and workflow results therefore show the original error rather than a generic fatal-error message.
+
+```typescript
+import { TransparentFatalError } from '@outputai/core';
+
+try {
+  await callProvider();
+} catch (error) {
+  if (error instanceof ProviderError && !error.isRetryable) {
+    throw new TransparentFatalError(error);
+  }
+  throw error;
+}
 ```
 
 ## Schema Validation

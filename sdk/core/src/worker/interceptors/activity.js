@@ -7,6 +7,7 @@ import { ActivitySpecialOutput, BusEventType, METADATA_ACCESS_SYMBOL } from '#co
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { mainEventBus } from '#bus';
 import { inheritsFromAnyNamedType, serializeError } from '#helpers/errors';
+import { TransparentFatalError } from '#errors';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -86,18 +87,20 @@ export class ActivityExecutionInterceptor {
         throw error;
       }
 
-      Tracing.addEventError( { id: activityId, details: error, traceInfo } );
-      mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error } );
+      const unwrappedError = error instanceof TransparentFatalError ? error.cause : error;
+
+      Tracing.addEventError( { id: activityId, details: unwrappedError, traceInfo } );
+      mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error: unwrappedError } );
 
       // Native Temporal errors are just re-thrown
       if ( error instanceof TemporalFailure ) {
         throw error;
       }
 
-      throw ApplicationFailure.fromError( error, {
+      throw ApplicationFailure.fromError( unwrappedError, {
         nonRetryable: inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] ),
-        cause: error,
-        details: [ { error: serializeError( error, { includeStack: false } ) } ]
+        cause: unwrappedError,
+        details: [ { error: serializeError( unwrappedError, { includeStack: false } ) } ]
       } );
     } finally {
       clearInterval( state.heartbeat );

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApplicationFailure } from '@temporalio/common';
-import { FatalError, ValidationError } from '#errors';
+import { FatalError, TransparentFatalError, ValidationError } from '#errors';
 
 const workflowInfoMock = vi.fn();
 const workflowStartMock = vi.fn();
@@ -183,6 +183,40 @@ describe( 'workflow interceptors', () => {
         stack: expect.any( String )
       } ) );
       expect( workflowErrorMock.mock.calls[0][0] ).not.toBeInstanceOf( Error );
+      expect( workflowEndMock ).not.toHaveBeenCalled();
+    } );
+
+    it( 'uses a transparent error cause for the sink and ApplicationFailure', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { inbound } = interceptors();
+      const interceptor = inbound[0];
+      const cause = new TypeError( 'provider rejected request' );
+      cause.code = 'EAUTH';
+      const error = new TransparentFatalError( cause );
+      const next = vi.fn().mockRejectedValue( error );
+
+      const thrown = await interceptor.execute( { args: [ {} ] }, next ).catch( e => e );
+
+      expect( thrown ).toMatchObject( {
+        message: 'provider rejected request',
+        type: 'TypeError',
+        nonRetryable: true,
+        cause,
+        details: [ {
+          error: {
+            name: 'TypeError',
+            message: 'provider rejected request',
+            code: 'EAUTH'
+          }
+        } ]
+      } );
+      expect( workflowErrorMock ).toHaveBeenCalledWith( expect.objectContaining( {
+        name: 'TypeError',
+        message: 'provider rejected request',
+        code: 'EAUTH',
+        stack: expect.any( String )
+      } ) );
+      expect( workflowErrorMock.mock.calls[0][0] ).not.toHaveProperty( 'cause' );
       expect( workflowEndMock ).not.toHaveBeenCalled();
     } );
 
