@@ -3,12 +3,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const loadModelImpl = vi.fn();
 const loadImageModelImpl = vi.fn();
 const loadToolsImpl = vi.fn();
+const resolveModelMaxOutputTokensImpl = vi.fn();
+const warnImpl = vi.fn();
 
 vi.mock( './ai_model.js', () => ( {
   loadTextModel: ( ...args ) => loadModelImpl( ...args ),
   loadImageModel: ( ...args ) => loadImageModelImpl( ...args ),
   loadTools: ( ...args ) => loadToolsImpl( ...args )
 } ) );
+
+vi.mock( './cost/fetch_models_pricing.js', () => ( {
+  resolveModelMaxOutputTokens: ( ...args ) => resolveModelMaxOutputTokensImpl( ...args )
+} ) );
+
+vi.mock( '@outputai/core', async importOriginal => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    Logger: { ...actual.Logger, createLogger: () => ( { warn: ( ...args ) => warnImpl( ...args ) } ) }
+  };
+} );
 
 const importSut = async () => import( './ai_sdk_options.js' );
 
@@ -44,6 +58,8 @@ describe( 'ai_sdk_options', () => {
     loadModelImpl.mockReturnValue( 'MODEL' );
     loadImageModelImpl.mockReturnValue( 'IMAGE_MODEL' );
     loadToolsImpl.mockReturnValue( null );
+    resolveModelMaxOutputTokensImpl.mockReturnValue( { status: 'cold', maxOutputTokens: null } );
+    warnImpl.mockReset();
   } );
 
   it( 'maps loaded prompts to AI SDK text options', async () => {
@@ -86,6 +102,66 @@ describe( 'ai_sdk_options', () => {
     const result = loadAiSdkTextOptions( prompt );
 
     expect( result.tools ).toBe( tools );
+  } );
+
+  it( 'defaults maxOutputTokens to the model limit from models.dev when maxTokens is unset', async () => {
+    resolveModelMaxOutputTokensImpl.mockReturnValue( { status: 'known', maxOutputTokens: 8000 } );
+    const prompt = makeTextPrompt();
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( resolveModelMaxOutputTokensImpl ).toHaveBeenCalledWith( {
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5'
+    } );
+    expect( result.maxOutputTokens ).toBe( 8000 );
+    expect( warnImpl ).not.toHaveBeenCalled();
+  } );
+
+  it( 'caps the injected model limit at 32000', async () => {
+    resolveModelMaxOutputTokensImpl.mockReturnValue( { status: 'known', maxOutputTokens: 64000 } );
+    const prompt = makeTextPrompt();
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.maxOutputTokens ).toBe( 32000 );
+  } );
+
+  it( 'prefers an explicit maxTokens over the model limit and skips the resolver', async () => {
+    const prompt = makeTextPrompt( { maxTokens: 1000 } );
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.maxOutputTokens ).toBe( 1000 );
+    expect( resolveModelMaxOutputTokensImpl ).not.toHaveBeenCalled();
+  } );
+
+  it( 'leaves maxOutputTokens unset and does not warn when the models table is cold', async () => {
+    resolveModelMaxOutputTokensImpl.mockReturnValue( { status: 'cold', maxOutputTokens: null } );
+    const prompt = makeTextPrompt();
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const result = loadAiSdkTextOptions( prompt );
+
+    expect( result.maxOutputTokens ).toBeUndefined();
+    expect( warnImpl ).not.toHaveBeenCalled();
+  } );
+
+  it( 'warns once per model when the limit is unknown and leaves maxOutputTokens unset', async () => {
+    resolveModelMaxOutputTokensImpl.mockReturnValue( { status: 'unknown', maxOutputTokens: null } );
+    const prompt = makeTextPrompt( { model: 'claude-sonnet-5' } );
+
+    const { loadAiSdkTextOptions } = await importSut();
+    const first = loadAiSdkTextOptions( prompt );
+    const second = loadAiSdkTextOptions( prompt );
+
+    expect( first.maxOutputTokens ).toBeUndefined();
+    expect( second.maxOutputTokens ).toBeUndefined();
+    expect( warnImpl ).toHaveBeenCalledTimes( 1 );
+    expect( warnImpl ).toHaveBeenCalledWith( expect.stringContaining( 'anthropic/claude-sonnet-5' ) );
   } );
 
   it( 'throws when text options receive a prompt without message blocks', async () => {

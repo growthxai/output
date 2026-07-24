@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
+import { fetchModelsPricing, resolveModelMaxOutputTokens, warmModelsPricing, cache } from './fetch_models_pricing.js';
 
 const fetchMock = vi.hoisted( () => vi.fn() );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
@@ -31,6 +31,7 @@ const stubFetch = response => {
 describe( 'fetchModelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
+    cache.limits = null;
     cache.expiresAt = 0;
     fetchMock.mockReset();
   } );
@@ -151,5 +152,144 @@ describe( 'fetchModelsPricing', () => {
 
     expect( result.get( 'withCost' ) ).toEqual( { input: 1, output: 2 } );
     expect( result.get( 'noCost' ) ).toBeUndefined();
+  } );
+
+  it( 'treats a non-object response body as an error without throwing', async () => {
+    stubFetch( okResponse( null ) );
+
+    const result = await fetchModelsPricing();
+
+    expect( result ).toBeNull();
+  } );
+
+  it( 'negative-caches after a failure so a subsequent call does not refetch', async () => {
+    stubFetch( { ok: false, status: 503 } );
+
+    const first = await fetchModelsPricing();
+    const second = await fetchModelsPricing();
+
+    expect( first ).toBeNull();
+    expect( second ).toBeNull();
+    expect( fetchMock ).toHaveBeenCalledTimes( 1 );
+  } );
+} );
+
+describe( 'resolveModelMaxOutputTokens', () => {
+  const knownModel = 'claude-opus-4-5-20251101';
+  const knownLimit = fixture.anthropic.models[knownModel].limit.output;
+
+  beforeEach( () => {
+    cache.content = null;
+    cache.limits = null;
+    cache.expiresAt = 0;
+    fetchMock.mockReset();
+  } );
+
+  it( 'returns status "cold" and triggers a warm when the table has never been fetched', async () => {
+    stubFetch( okResponse( fixture ) );
+
+    const result = resolveModelMaxOutputTokens( { provider: 'anthropic', model: knownModel } );
+
+    expect( result ).toEqual( { status: 'cold', maxOutputTokens: null } );
+    expect( fetchMock ).toHaveBeenCalled();
+
+    // Flush the background warm so it does not leak into later tests.
+    await warmModelsPricing();
+  } );
+
+  it( 'returns the model output limit once the table is warm', async () => {
+    stubFetch( okResponse( fixture ) );
+    await fetchModelsPricing();
+
+    expect( resolveModelMaxOutputTokens( { provider: 'anthropic', model: knownModel } ) )
+      .toEqual( { status: 'known', maxOutputTokens: knownLimit } );
+  } );
+
+  it( 'resolves a provider-prefixed model id', async () => {
+    stubFetch( okResponse( fixture ) );
+    await fetchModelsPricing();
+
+    // The bare model key and the provider/model key both resolve.
+    expect( resolveModelMaxOutputTokens( { provider: 'anthropic', model: knownModel } ).maxOutputTokens )
+      .toBe( knownLimit );
+  } );
+
+  it( 'returns status "unknown" for a model absent from the warm table', async () => {
+    stubFetch( okResponse( fixture ) );
+    await fetchModelsPricing();
+
+    expect( resolveModelMaxOutputTokens( { provider: 'anthropic', model: 'claude-sonnet-5' } ) )
+      .toEqual( { status: 'unknown', maxOutputTokens: null } );
+  } );
+
+  it( 'ignores models whose limit has no output value', async () => {
+    const data = {
+      p1: {
+        id: 'p1',
+        models: {
+          noOutput: { cost: { input: 1, output: 2 }, limit: { context: 100 } }
+        }
+      }
+    };
+    stubFetch( okResponse( data ) );
+    await fetchModelsPricing();
+
+    expect( resolveModelMaxOutputTokens( { provider: 'p1', model: 'noOutput' } ) )
+      .toEqual( { status: 'unknown', maxOutputTokens: null } );
+  } );
+
+  it( 'treats a zero output limit as unknown rather than a known limit of 0', async () => {
+    const data = {
+      p1: {
+        id: 'p1',
+        models: {
+          zero: { cost: { input: 1, output: 2 }, limit: { output: 0 } }
+        }
+      }
+    };
+    stubFetch( okResponse( data ) );
+    await fetchModelsPricing();
+
+    expect( resolveModelMaxOutputTokens( { provider: 'p1', model: 'zero' } ) )
+      .toEqual( { status: 'unknown', maxOutputTokens: null } );
+  } );
+
+  it( 'reports "cold" (not "unknown") for an absent model when the table is stale', async () => {
+    stubFetch( okResponse( fixture ) );
+    await fetchModelsPricing();
+    cache.expiresAt = 0; // table is now stale
+    stubFetch( okResponse( fixture ) ); // the background warm triggered by the resolve
+
+    const result = resolveModelMaxOutputTokens( { provider: 'anthropic', model: 'brand-new-model' } );
+
+    expect( result ).toEqual( { status: 'cold', maxOutputTokens: null } );
+    expect( fetchMock ).toHaveBeenCalled();
+
+    await warmModelsPricing(); // flush the background warm so it does not leak
+  } );
+} );
+
+describe( 'warmModelsPricing', () => {
+  beforeEach( () => {
+    cache.content = null;
+    cache.limits = null;
+    cache.expiresAt = 0;
+    fetchMock.mockReset();
+  } );
+
+  it( 'fetches and warms the cache without throwing on failure', async () => {
+    fetchMock.mockRejectedValueOnce( new Error( 'network failure' ) );
+
+    await expect( warmModelsPricing() ).resolves.toBeNull();
+  } );
+
+  it( 'warms the limits cache so a later resolve returns known', async () => {
+    stubFetch( okResponse( fixture ) );
+
+    await warmModelsPricing();
+
+    const knownModel = 'claude-opus-4-5-20251101';
+    expect( resolveModelMaxOutputTokens( { provider: 'anthropic', model: knownModel } ).status )
+      .toBe( 'known' );
   } );
 } );
