@@ -187,9 +187,7 @@ export default class Dev extends Command {
     // mid-teardown and let a Ctrl+C orphan the stack. Print the raw error so
     // Node's stack trace survives, then re-exit non-zero. Fire-once: a second
     // catchable crash during teardown is a no-op. A hard V8 abort() (SIGABRT)
-    // is uncatchable and not covered here. The object wrapper holds the
-    // fire-once flag because the linter forbids `let` (same idiom as
-    // exitAltScreenOnce above).
+    // is uncatchable and not covered here.
     const fatalState = { handled: false };
     const handleFatalError = ( err: unknown ): void => {
       if ( fatalState.handled ) {
