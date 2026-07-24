@@ -178,7 +178,29 @@ export default class Dev extends Command {
     // signal handlers just stop docker and exit.
     const instanceRef: { current: ReturnType<typeof render> | null } = { current: null };
 
-    process.on( 'exit', exitAltScreenOnce );
+    // Single terminal-restore sequence shared by every exit path: stop Ink
+    // (frees raw mode) then leave the alt-screen. The `finally` guarantees
+    // the alt-screen is left even if `unmount()` throws — otherwise a crash
+    // could strand the user in the blank alt buffer. This is the one place
+    // the unmount → leave-alt-screen order lives, so the paths can't drift.
+    const restoreTerminal = (): void => {
+      try {
+        instanceRef.current?.unmount();
+      } finally {
+        exitAltScreenOnce();
+      }
+    };
+
+    // Collect a disposer for every process listener so registration and
+    // teardown can't drift: a handler added through `on` is always removed by
+    // the `finally` below, with no separate removeListener list to keep in sync.
+    const disposers: Array<() => void> = [];
+    const on = ( event: string, handler: ( ...args: unknown[] ) => void ): void => {
+      process.on( event, handler );
+      disposers.push( () => process.removeListener( event, handler ) );
+    };
+
+    on( 'exit', exitAltScreenOnce );
 
     // `process.on` doesn't await the handler, so the cleanup promise would
     // float and any rejection would surface as an unhandled rejection.
@@ -193,11 +215,38 @@ export default class Dev extends Command {
           exitAltScreenOnce();
           console.error( 'Cleanup failed:', getErrorMessage( err ) );
         } )
-        .finally( () => instanceRef.current?.unmount() );
+        .finally( restoreTerminal );
     };
 
-    process.on( 'SIGINT', handleSignal );
-    process.on( 'SIGTERM', handleSignal );
+    on( 'SIGINT', handleSignal );
+    on( 'SIGTERM', handleSignal );
+
+    // A fatal crash (uncaught exception / unhandled rejection) skips both the
+    // clean-exit path and the signal handlers. Tear docker down via cleanup()
+    // FIRST, then restore the terminal and print the crash: unmounting Ink
+    // resolves the awaited waitUntilExit(), which resumes run() and strips the
+    // signal listeners — so unmounting before cleanup would drop them
+    // mid-teardown and let a Ctrl+C orphan the stack. Print the raw error so
+    // Node's stack trace survives, then re-exit non-zero. Fire-once: a second
+    // catchable crash during teardown is a no-op. A hard V8 abort() (SIGABRT)
+    // is uncatchable and not covered here.
+    const fatalState = { handled: false };
+    const handleFatalError = ( err: unknown ): void => {
+      if ( fatalState.handled ) {
+        return;
+      }
+      fatalState.handled = true;
+      cleanup()
+        .catch( cleanupErr => console.error( 'Cleanup failed:', getErrorMessage( cleanupErr ) ) )
+        .finally( () => {
+          restoreTerminal();
+          console.error( err );
+          process.exit( 1 );
+        } );
+    };
+
+    on( 'uncaughtException', handleFatalError );
+    on( 'unhandledRejection', handleFatalError );
 
     try {
       enterAltScreen();
@@ -239,8 +288,7 @@ export default class Dev extends Command {
       await instance.waitUntilExit();
       exitAltScreenOnce();
     } catch ( error ) {
-      instanceRef.current?.unmount();
-      exitAltScreenOnce();
+      restoreTerminal();
       // An abnormal exit (health timeout, docker crash) resolves outside the
       // signal path. Tear down here only if cleanup hasn't already run, so an
       // owned stack never leaks containers that keep holding published ports.
@@ -256,6 +304,11 @@ export default class Dev extends Command {
         } );
       }
       this.error( getErrorMessage( error ), { exit: 1 } );
+    } finally {
+      // Remove every process-global listener registered above; otherwise each
+      // run() (test invocations included) leaks a live handler that force-
+      // exits the process on the next stray signal or rejection.
+      disposers.forEach( dispose => dispose() );
     }
   }
 

@@ -799,6 +799,75 @@ describe( 'dev command', () => {
     } );
   } );
 
+  describe( 'fatal error handling', () => {
+    it( 'restores the terminal and exits non-zero on an uncaught exception', async () => {
+      const inkInstance = createControllableInkInstance();
+      vi.mocked( render ).mockReturnValue( inkInstance as any );
+
+      // Capture the registered handlers instead of letting them attach to the
+      // real process, and neutralize process.exit so firing one doesn't kill
+      // the test runner.
+      const handlers: Record<string, ( err: unknown ) => void> = {};
+      const onSpy = vi.spyOn( process, 'on' ).mockImplementation( ( ( event: string, handler: any ) => {
+        handlers[event] = handler;
+        return process;
+      } ) as any );
+      const exitSpy = vi.spyOn( process, 'exit' ).mockImplementation( ( () => undefined ) as any );
+      const stdoutSpy = vi.spyOn( process.stdout, 'write' ).mockImplementation( () => true );
+      const errorSpy = vi.spyOn( console, 'error' ).mockImplementation( () => {} );
+
+      const cmd = new Dev( [], {} as any );
+      cmd.log = vi.fn() as any;
+      cmd.error = vi.fn() as any;
+
+      Object.defineProperty( cmd, 'parse', {
+        value: vi.fn().mockResolvedValue( { flags: { 'compose-file': undefined, 'image-pull-policy': 'always' }, args: {} } ),
+        configurable: true
+      } );
+
+      const runPromise = cmd.run();
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      expect( handlers.uncaughtException ).toBeInstanceOf( Function );
+      expect( handlers.unhandledRejection ).toBeInstanceOf( Function );
+
+      const crash = new Error( 'boom' );
+      handlers.uncaughtException( crash );
+
+      // Terminal restore, the crash print, and exit all run after docker
+      // teardown settles, so they land a tick later.
+      await new Promise( resolve => setImmediate( resolve ) );
+
+      // Docker is torn down before exit, so a crash doesn't orphan the
+      // compose stack.
+      expect( dockerService.stopDockerCompose ).toHaveBeenCalled();
+      expect( inkInstance.unmount ).toHaveBeenCalled();
+      expect( stdoutSpy ).toHaveBeenCalledWith( '\x1b[?1049l' );
+      expect( errorSpy ).toHaveBeenCalledWith( crash );
+      expect( exitSpy ).toHaveBeenCalledWith( 1 );
+
+      // Discriminating order: docker must be fully torn down BEFORE Ink
+      // unmounts. Unmounting resolves waitUntilExit() and resumes run(),
+      // which strips the signal listeners — so an unmount-first ordering
+      // would drop the SIGINT handler mid-teardown and risk orphaning the
+      // stack on a Ctrl+C.
+      expect( vi.mocked( dockerService.stopDockerCompose ).mock.invocationCallOrder[0] )
+        .toBeLessThan( inkInstance.unmount.mock.invocationCallOrder[0] );
+
+      // Within the restore, Ink unmounts before the alt-screen is left, and
+      // the crash prints only after — otherwise console.error paints into a
+      // buffer the user never sees.
+      const leaveAltScreenCall = stdoutSpy.mock.invocationCallOrder[
+        stdoutSpy.mock.calls.findIndex( ( [ seq ] ) => seq === '\x1b[?1049l' )
+      ];
+      expect( inkInstance.unmount.mock.invocationCallOrder[0] ).toBeLessThan( leaveAltScreenCall );
+      expect( leaveAltScreenCall ).toBeLessThan( errorSpy.mock.invocationCallOrder[0] );
+
+      onSpy.mockRestore();
+      runPromise.catch( () => {} );
+    } );
+  } );
+
   describe( 'image pull policy', () => {
     it( 'should pass pull policy to startDockerCompose', async () => {
       const cmd = new Dev( [], {} as any );
