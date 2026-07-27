@@ -16,15 +16,17 @@ export interface FooterState {
   hints?: CommandHint[];
   itemCount?: number;
   itemLabel?: string;
+  /** Attached to a pre-existing stack — quitting leaves services running. */
+  attached?: boolean;
 }
 
-const GLOBAL_HINTS: CommandHint[] = [
+const globalHints = ( attached: boolean ): CommandHint[] => [
   { key: 'tab', label: 'next tab' },
   { key: 'shift-tab', label: 'prev tab' },
   { key: '1-4', label: 'tabs' },
   { key: '/', label: 'search' },
   { key: '?', label: 'help' },
-  { key: 'ctrl+c', label: 'quit' }
+  { key: 'ctrl+c', label: attached ? 'detach (keeps running)' : 'quit' }
 ];
 
 const VERSION = packageJson.version;
@@ -43,11 +45,11 @@ const HintRow: React.FC<{ hints: CommandHint[] }> = ( { hints } ) => (
   </Box>
 );
 
-export const Footer: React.FC<FooterState> = ( { hints = [], itemCount, itemLabel } ) => {
+export const Footer: React.FC<FooterState> = ( { hints = [], itemCount, itemLabel, attached = false } ) => {
   return (
     <Box flexDirection="column">
       <Box flexDirection="row" justifyContent="space-between">
-        <HintRow hints={GLOBAL_HINTS} />
+        <HintRow hints={globalHints( attached )} />
         {typeof itemCount === 'number' && itemLabel && (
           <Box>
             <Text dimColor>{itemCount} {itemLabel}</Text>

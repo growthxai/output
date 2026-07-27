@@ -62,9 +62,16 @@ Wait 30-60 seconds for all services to initialize, then re-run the checks.
 
 ### If only some services are down:
 ```bash
-# Restart all services using Docker Compose
-docker compose down
-docker compose up -d
+# `output dev` reconciles a partially-up stack itself — it runs `up -d` for the
+# missing containers, then attaches to monitor. Prefer it over raw compose so
+# the project name and compose file match what the CLI uses.
+npx output dev
+```
+
+To stop everything first and start clean:
+```bash
+npx output dev down
+npx output dev
 ```
 
 ### If services fail to start:

@@ -218,7 +218,8 @@ const overlayFor = ( opts: {
 const Shell: React.FC<{
   dockerComposePath: string;
   onCleanup: () => Promise<void>;
-}> = ( { dockerComposePath, onCleanup } ) => {
+  attached: boolean;
+}> = ( { dockerComposePath, onCleanup, attached } ) => {
   const { exit } = useApp();
   const ui = useUiState();
   const [ phase, setPhase ] = useState<Phase>( 'waiting' );
@@ -229,7 +230,16 @@ const Shell: React.FC<{
     onServices: setServices,
     onAllHealthy: () => setPhase( 'running' ),
     onFailure: () => setPhase( 'failed' ),
-    onTimeout: () => exit( new Error( 'Timeout waiting for services to become healthy' ) )
+    // An attach/reconcile session monitors a stack it doesn't own, so a slow
+    // health check must not be fatal — drop into the dashboard and keep
+    // polling status. Only an owned fresh start treats the timeout as an error.
+    onTimeout: () => {
+      if ( attached ) {
+        setPhase( 'running' );
+        return;
+      }
+      exit( new Error( 'Timeout waiting for services to become healthy' ) );
+    }
   } );
 
   useStatusRefresh( dockerComposePath, phase !== 'waiting', setServices );
@@ -335,7 +345,7 @@ const Shell: React.FC<{
         {ui.tab === 'help' && <HelpPanel />}
       </Box>
       <Toasts />
-      <Footer hints={footer.hints} itemCount={footer.itemCount} itemLabel={footer.itemLabel} />
+      <Footer hints={footer.hints} itemCount={footer.itemCount} itemLabel={footer.itemLabel} attached={attached} />
     </Box>
   );
 };
@@ -343,8 +353,9 @@ const Shell: React.FC<{
 export const DevApp: React.FC<{
   dockerComposePath: string;
   onCleanup: () => Promise<void>;
-}> = ( { dockerComposePath, onCleanup } ) => (
+  attached?: boolean;
+}> = ( { dockerComposePath, onCleanup, attached = false } ) => (
   <UiStateProvider>
-    <Shell dockerComposePath={dockerComposePath} onCleanup={onCleanup} />
+    <Shell dockerComposePath={dockerComposePath} onCleanup={onCleanup} attached={attached} />
   </UiStateProvider>
 );

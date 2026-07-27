@@ -1,9 +1,12 @@
 import { execFileSync, execSync, spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ux } from '@oclif/core';
 import semver from 'semver';
 import { config } from '#config.js';
+import { getErrorMessage } from '#utils/error_utils.js';
+import { formatComposeFailure } from '#utils/port_collision.js';
 
 const DEFAULT_COMPOSE_PATH = '../assets/docker/docker-compose-dev.yml';
 
@@ -122,6 +125,24 @@ export function getDefaultDockerComposePath(): string {
   );
 }
 
+// Resolve the compose file a `dev` command should act on — a caller-supplied
+// path (relative to cwd) or the bundled default — and verify it exists. Shared
+// by `dev` and `dev down` so the resolution rule and not-found error stay in
+// one place.
+export async function resolveDockerComposePath( customPath?: string ): Promise<string> {
+  const dockerComposePath = customPath ?
+    path.resolve( process.cwd(), customPath ) :
+    getDefaultDockerComposePath();
+
+  try {
+    await fs.access( dockerComposePath );
+  } catch {
+    throw new DockerComposeConfigNotFoundError( dockerComposePath );
+  }
+
+  return dockerComposePath;
+}
+
 export function parseServiceStatus( jsonOutput: string ): ServiceStatus[] {
   if ( !jsonOutput.trim() ) {
     return [];
@@ -167,6 +188,41 @@ export function isServiceFailed( service: ServiceStatus ): boolean {
   return service.state === SERVICE_STATE.EXITED || service.health === SERVICE_HEALTH.UNHEALTHY;
 }
 
+export const STACK_STATE = {
+  /** Nothing live for this project — a fresh start we own. */
+  NONE: 'none',
+  /** Every container found is running and healthy (or has no healthcheck). */
+  RUNNING: 'running',
+  /** Something is live but not everything is healthy — reconcile. */
+  PARTIAL: 'partial'
+} as const;
+
+export type StackState = typeof STACK_STATE[keyof typeof STACK_STATE];
+
+/**
+ * Classify the current state of a project's stack from `docker compose ps`.
+ *
+ * This is the detection signal `output dev` branches on: nothing live means a
+ * fresh start; an all-healthy result means we can attach and monitor without
+ * touching the stack; anything in between is reconciled with `up -d`.
+ *
+ * Scoped to the shared `output-sdk` compose project, which distinguishes our
+ * containers from unrelated processes — but not one Output checkout from
+ * another, since the project name defaults to a machine-global constant.
+ */
+export function classifyStackState( services: ServiceStatus[] ): StackState {
+  // No container is live. `ps --all` also reports exited ones, so a stack left
+  // behind by a reboot, a `docker compose stop`, or a failed teardown lands
+  // here — that's an owned fresh start, not something to attach to.
+  if ( !services.some( service => service.state === SERVICE_STATE.RUNNING ) ) {
+    return STACK_STATE.NONE;
+  }
+  if ( services.every( isServiceHealthy ) ) {
+    return STACK_STATE.RUNNING;
+  }
+  return STACK_STATE.PARTIAL;
+}
+
 export async function waitForServicesHealthy(
   dockerComposePath: string,
   timeoutMs: number = 120000,
@@ -185,6 +241,19 @@ export async function waitForServicesHealthy(
   }
 
   throw new Error( 'Timeout waiting for services to become healthy' );
+}
+
+// A rolling buffer that retains the last ~20k chars of a spawned process's
+// combined output, so a startup failure can surface recent Docker logs without
+// holding the whole stream. Shared by the two compose spawn sites.
+function createOutputBuffer(): { append: ( chunk: Buffer ) => void; read: () => string } {
+  const buffer = { value: '' };
+  return {
+    append: ( chunk: Buffer ): void => {
+      buffer.value = `${buffer.value}${chunk.toString()}`.slice( -20000 ).trimStart();
+    },
+    read: (): string => buffer.value.trimEnd()
+  };
 }
 
 export interface DockerComposeHandlers {
@@ -217,12 +286,7 @@ export async function startDockerCompose( {
     args.push( '--pull', pullPolicy );
   }
 
-  const output = {
-    value: ''
-  };
-  const appendOutput = ( chunk: Buffer ): void => {
-    output.value = `${output.value}${chunk.toString()}`.slice( -20000 ).trimStart();
-  };
+  const output = createOutputBuffer();
 
   const dockerProcess = spawn( 'docker', args, {
     cwd: process.cwd(),
@@ -231,22 +295,38 @@ export async function startDockerCompose( {
     stdio: [ 'ignore', 'pipe', 'pipe' ]
   } );
 
-  dockerProcess.stdout?.on( 'data', appendOutput );
-  dockerProcess.stderr?.on( 'data', appendOutput );
+  dockerProcess.stdout?.on( 'data', output.append );
+  dockerProcess.stderr?.on( 'data', output.append );
   if ( onError ) {
-    dockerProcess.on( 'error', error => onError( error, output.value.trimEnd() ) );
+    dockerProcess.on( 'error', error => onError( error, output.read() ) );
   }
   if ( onExit ) {
-    dockerProcess.on( 'exit', ( code, signal ) => onExit( code, signal, output.value.trimEnd() ) );
+    // `close` rather than `exit` so stdio has drained — the buffered output is
+    // what formatComposeFailure greps for a bind failure.
+    dockerProcess.on( 'close', ( code, signal ) => onExit( code, signal, output.read() ) );
   }
 
   return dockerProcess;
 }
 
-export function startDockerComposeDetached(
+export interface DetachedUpResult {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  output: string;
+}
+
+// Run `docker compose up -d` to completion, teeing Docker's progress to the
+// user's terminal while retaining recent output. The predecessor used
+// execFileSync with inherited stdio, which threw a raw compose error the caller
+// couldn't inspect; returning the exit code and output lets it surface a
+// port-collision hint instead. Async so image pulls don't block the event loop.
+//
+// Trade-off: piping means Docker sees a non-TTY and drops its redrawing
+// progress bars for plain scrolling lines.
+export function runDockerComposeUpDetached(
   dockerComposePath: string,
   pullPolicy?: PullPolicy
-): void {
+): Promise<DetachedUpResult> {
   const args = [
     'compose',
     '-f', dockerComposePath,
@@ -259,7 +339,37 @@ export function startDockerComposeDetached(
     args.push( '--pull', pullPolicy );
   }
 
-  execFileSync( 'docker', args, { stdio: 'inherit', cwd: process.cwd() } );
+  const output = createOutputBuffer();
+
+  return new Promise( ( resolve, reject ) => {
+    // Pipe rather than inherit so we can both echo Docker's progress and keep
+    // recent output for a startup-failure hint.
+    const child = spawn( 'docker', args, {
+      cwd: process.cwd(),
+      stdio: [ 'ignore', 'pipe', 'pipe' ]
+    } );
+
+    child.stdout?.on( 'data', ( chunk: Buffer ) => {
+      process.stdout.write( chunk );
+      output.append( chunk );
+    } );
+    child.stderr?.on( 'data', ( chunk: Buffer ) => {
+      process.stderr.write( chunk );
+      output.append( chunk );
+    } );
+
+    // `error` fires when the spawn itself failed (docker missing, EACCES).
+    // Reject with the buffered output attached so the caller keeps the context
+    // rather than surfacing a bare `spawn docker ENOENT`.
+    child.on( 'error', error => {
+      reject( new Error( formatComposeFailure( getErrorMessage( error ), output.read(), config.ports ) ) );
+    } );
+    // `close`, not `exit`: exit fires while stdio may still be draining, and on
+    // a fast-failing `up -d` — exactly the bind-collision case — the stderr
+    // chunk carrying the bind error can land after it. Resolving early makes
+    // the port-collision hint disappear intermittently.
+    child.on( 'close', ( code, signal ) => resolve( { code, signal, output: output.read() } ) );
+  } );
 }
 
 export async function stopDockerCompose( dockerComposePath: string ): Promise<void> {

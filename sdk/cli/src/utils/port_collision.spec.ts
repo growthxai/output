@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { extractCollidedPort, formatPortCollisionHint, formatPortCollisionsHint } from './port_collision.js';
+import {
+  extractCollidedPort, formatPortCollisionHint, formatPortCollisionsHint, formatComposeFailure
+} from './port_collision.js';
 
 const DEFAULT_PORTS = { api: 3001, temporalUi: 8080, temporal: 7233 };
 
@@ -27,6 +29,27 @@ describe( 'extractCollidedPort', () => {
 
   it( 'returns null when no bind failure is present', () => {
     expect( extractCollidedPort( 'some unrelated stderr line' ) ).toBeNull();
+  } );
+
+  // Captured verbatim from Docker 29.4.0 on macOS. The bind failure is nested
+  // three wrappers deep; matching whole message shapes missed it.
+  it( 'extracts the port from Docker 29\'s nested container-networking wrapper', () => {
+    const stderr = 'Error response from daemon: failed to set up container networking: ' +
+      'driver failed programming external connectivity on endpoint out-api-1 ' +
+      '(e72baf85643fb5dc19000acf62c1ad0d11bffc653cabe1fc8861387ec1ebd629): ' +
+      'Bind for 0.0.0.0:3001 failed: port is already allocated';
+    expect( extractCollidedPort( stderr ) ).toBe( 3001 );
+  } );
+
+  it( 'extracts the port from the "ports are not available" wrapper', () => {
+    const stderr = 'Error: ports are not available: exposing port TCP 0.0.0.0:3001 -> 0.0.0.0:0: ' +
+      'listen tcp 0.0.0.0:3001: bind: address already in use';
+    expect( extractCollidedPort( stderr ) ).toBe( 3001 );
+  } );
+
+  it( 'ignores an IP-like prefix and takes the port nearest the failure phrase', () => {
+    const stderr = 'container 172.17.0.2:5432 started\nBind for 0.0.0.0:8080 failed: port is already allocated';
+    expect( extractCollidedPort( stderr ) ).toBe( 8080 );
   } );
 
   it( 'returns null for empty input', () => {
@@ -111,5 +134,34 @@ describe( 'formatPortCollisionsHint', () => {
     const hint = formatPortCollisionsHint( [ 3001, 5432 ], DEFAULT_PORTS );
     expect( hint ).toContain( '• Port 3001 — override with OUTPUT_API_HOST_PORT=<other port>' );
     expect( hint ).toContain( '• Port 5432 — stop the process holding it' );
+  } );
+} );
+
+describe( 'formatComposeFailure', () => {
+  const reason = 'Docker compose failed to start services (exit code 1).';
+
+  it( 'prepends the actionable hint when the output names a collision', () => {
+    const message = formatComposeFailure(
+      reason,
+      'Bind for 0.0.0.0:3001 failed: port is already allocated',
+      DEFAULT_PORTS
+    );
+    expect( message.startsWith( 'Port 3001 is already in use.' ) ).toBe( true );
+    expect( message ).toContain( 'OUTPUT_API_HOST_PORT=<other port>' );
+    expect( message ).toContain( reason );
+    expect( message ).toContain( 'Recent Docker output:' );
+  } );
+
+  it( 'omits the output section entirely when nothing was captured', () => {
+    const message = formatComposeFailure( reason, '', DEFAULT_PORTS );
+    expect( message ).toBe( reason );
+    expect( message ).not.toContain( 'Recent Docker output:' );
+  } );
+
+  it( 'returns reason plus raw output, with no hint, for an unrecognized failure', () => {
+    const message = formatComposeFailure( reason, 'no such image: outputai/api:dev', DEFAULT_PORTS );
+    expect( message.startsWith( reason ) ).toBe( true );
+    expect( message ).toContain( 'Recent Docker output:\nno such image' );
+    expect( message ).not.toContain( 'is already in use' );
   } );
 } );

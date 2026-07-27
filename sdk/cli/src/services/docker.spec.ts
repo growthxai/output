@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import {
   parseServiceStatus, getServiceStatus,
-  startDockerCompose, startDockerComposeDetached, stopDockerCompose,
-  waitForServicesHealthy, isServiceHealthy, isServiceFailed
+  startDockerCompose, runDockerComposeUpDetached, stopDockerCompose,
+  waitForServicesHealthy, isServiceHealthy, isServiceFailed,
+  classifyStackState, STACK_STATE, type ServiceStatus,
+  resolveDockerComposePath, getDefaultDockerComposePath, DockerComposeConfigNotFoundError
 } from './docker.js';
 
 vi.mock( 'node:child_process', () => ( {
   execSync: vi.fn(),
   execFileSync: vi.fn(),
   spawn: vi.fn()
+} ) );
+
+vi.mock( 'node:fs/promises', () => ( {
+  default: { access: vi.fn() }
 } ) );
 
 const mockChildProcess = ( process: unknown ): ChildProcess => process as ChildProcess;
@@ -183,7 +191,7 @@ describe( 'docker service', () => {
         stderr?: ( chunk: Buffer ) => void;
       } = {};
       const process = {
-        on: vi.fn( ( event: 'error' | 'exit',
+        on: vi.fn( ( event: 'error' | 'close',
           handler: ( ( error: Error ) => void ) | ( ( code: number | null, signal: NodeJS.Signals | null ) => void ) ) => {
           if ( event === 'error' ) {
             processHandlers.error = handler as ( error: Error ) => void;
@@ -215,7 +223,7 @@ describe( 'docker service', () => {
       } );
 
       expect( dockerProcess.on ).toHaveBeenCalledWith( 'error', expect.any( Function ) );
-      expect( dockerProcess.on ).toHaveBeenCalledWith( 'exit', expect.any( Function ) );
+      expect( dockerProcess.on ).toHaveBeenCalledWith( 'close', expect.any( Function ) );
 
       streamHandlers.stdout?.( Buffer.from( 'starting services\n' ) );
       streamHandlers.stderr?.( Buffer.from( 'compose failed\n' ) );
@@ -229,11 +237,48 @@ describe( 'docker service', () => {
     } );
   } );
 
-  describe( 'startDockerComposeDetached', () => {
-    it( 'should pass --project-name and -d to docker compose up', () => {
-      vi.mocked( execFileSync ).mockReturnValue( '' );
-      startDockerComposeDetached( '/path/to/docker-compose.yml' );
-      expect( execFileSync ).toHaveBeenCalledWith(
+  describe( 'runDockerComposeUpDetached', () => {
+    const makeProcess = () => {
+      const handlers: {
+        error?: ( error: Error ) => void;
+        exit?: ( code: number | null ) => void;
+        stdout?: ( chunk: Buffer ) => void;
+        stderr?: ( chunk: Buffer ) => void;
+      } = {};
+      const proc = {
+        on: vi.fn( ( event: 'error' | 'close',
+          handler: ( ( error: Error ) => void ) | ( ( code: number | null ) => void ) ) => {
+          if ( event === 'error' ) {
+            handlers.error = handler as ( error: Error ) => void;
+          } else {
+            handlers.exit = handler as ( code: number | null ) => void;
+          }
+          return proc;
+        } ),
+        stdout: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            handlers.stdout = handler;
+            return proc.stdout;
+          } )
+        },
+        stderr: {
+          on: vi.fn( ( event: 'data', handler: ( chunk: Buffer ) => void ) => {
+            handlers.stderr = handler;
+            return proc.stderr;
+          } )
+        }
+      };
+      return { proc, handlers };
+    };
+
+    it( 'passes --project-name and -d, tees output, and resolves with the exit code', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      const stdoutSpy = vi.spyOn( process.stdout, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+
+      expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
           'compose', '-f', '/path/to/docker-compose.yml',
@@ -241,14 +286,27 @@ describe( 'docker service', () => {
           '--project-name', 'output-sdk',
           'up', '-d'
         ],
-        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+        expect.objectContaining( { cwd: process.cwd(), stdio: [ 'ignore', 'pipe', 'pipe' ] } )
       );
+
+      handlers.stdout?.( Buffer.from( 'pulling images\n' ) );
+      handlers.exit?.( 0 );
+
+      expect( await promise ).toEqual( { code: 0, output: 'pulling images' } );
+      expect( stdoutSpy ).toHaveBeenCalledWith( Buffer.from( 'pulling images\n' ) );
+      stdoutSpy.mockRestore();
     } );
 
-    it( 'should append --pull when pullPolicy is provided', () => {
-      vi.mocked( execFileSync ).mockReturnValue( '' );
-      startDockerComposeDetached( '/path/to/docker-compose.yml', 'missing' );
-      expect( execFileSync ).toHaveBeenCalledWith(
+    it( 'appends --pull when pullPolicy is provided', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      vi.spyOn( process.stdout, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml', 'missing' );
+      handlers.exit?.( 0 );
+      await promise;
+
+      expect( spawn ).toHaveBeenCalledWith(
         'docker',
         [
           'compose', '-f', '/path/to/docker-compose.yml',
@@ -256,8 +314,52 @@ describe( 'docker service', () => {
           '--project-name', 'output-sdk',
           'up', '-d', '--pull', 'missing'
         ],
-        expect.objectContaining( { stdio: 'inherit', cwd: process.cwd() } )
+        expect.objectContaining( { cwd: process.cwd() } )
       );
+    } );
+
+    it( 'resolves with a non-zero code and captured stderr so the caller can hint the collision', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+      vi.spyOn( process.stderr, 'write' ).mockReturnValue( true );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+      handlers.stderr?.( Buffer.from( 'Error: address already in use\n' ) );
+      handlers.exit?.( 1 );
+
+      expect( await promise ).toEqual( { code: 1, output: 'Error: address already in use' } );
+    } );
+
+    it( 'rejects when the docker process fails to spawn', async () => {
+      const { proc, handlers } = makeProcess();
+      vi.mocked( spawn ).mockReturnValue( mockChildProcess( proc ) );
+
+      const promise = runDockerComposeUpDetached( '/path/to/docker-compose.yml' );
+      handlers.error?.( new Error( 'spawn ENOENT' ) );
+
+      await expect( promise ).rejects.toThrow( 'spawn ENOENT' );
+    } );
+  } );
+
+  describe( 'resolveDockerComposePath', () => {
+    it( 'resolves a custom path against cwd and returns it when it exists', async () => {
+      vi.mocked( fs.access ).mockResolvedValue( undefined );
+      const result = await resolveDockerComposePath( 'custom/compose.yml' );
+      const expected = path.resolve( process.cwd(), 'custom/compose.yml' );
+      expect( result ).toBe( expected );
+      expect( fs.access ).toHaveBeenCalledWith( expected );
+    } );
+
+    it( 'throws DockerComposeConfigNotFoundError when the path does not exist', async () => {
+      vi.mocked( fs.access ).mockRejectedValue( new Error( 'ENOENT' ) );
+      await expect( resolveDockerComposePath( 'missing.yml' ) )
+        .rejects.toBeInstanceOf( DockerComposeConfigNotFoundError );
+    } );
+
+    it( 'falls back to the bundled default when no custom path is given', async () => {
+      vi.mocked( fs.access ).mockResolvedValue( undefined );
+      const result = await resolveDockerComposePath();
+      expect( result ).toBe( getDefaultDockerComposePath() );
     } );
   } );
 
@@ -355,6 +457,68 @@ describe( 'docker service', () => {
 
     it( 'should return false for a service with health: starting — not a failure, just in progress', () => {
       expect( isServiceFailed( { name: 'temporal', state: 'running', health: 'starting', ports: [] } ) ).toBe( false );
+    } );
+  } );
+
+  describe( 'classifyStackState', () => {
+    const svc = ( state: string, health: string ): ServiceStatus =>
+      ( { name: 's', state, health, ports: [] } );
+
+    it( 'returns NONE for an empty stack (fresh start)', () => {
+      expect( classifyStackState( [] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'returns RUNNING when every service is up and healthy', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'running', 'none' )
+      ] ) ).toBe( STACK_STATE.RUNNING );
+    } );
+
+    it( 'returns PARTIAL when any service has failed (orphaned stack)', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'exited', 'none' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    it( 'returns PARTIAL when services exist but some are still coming up', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'created', 'none' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    it( 'treats an unhealthy service as PARTIAL, not RUNNING', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'running', 'unhealthy' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
+    } );
+
+    // `ps --all` reports exited containers, so a stack stopped by a reboot, a
+    // `docker compose stop`, or a failed teardown still has rows. Nothing is
+    // live, so this invocation would be the one starting it — that makes it an
+    // owned fresh start, not an attach.
+    it( 'returns NONE when every service is exited — an owned fresh start, not an attach', () => {
+      expect( classifyStackState( [
+        svc( 'exited', 'none' ),
+        svc( 'exited', 'none' )
+      ] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'returns NONE when containers are created but none have started', () => {
+      expect( classifyStackState( [
+        svc( 'created', 'none' ),
+        svc( 'created', 'none' )
+      ] ) ).toBe( STACK_STATE.NONE );
+    } );
+
+    it( 'still returns PARTIAL when at least one service is live', () => {
+      expect( classifyStackState( [
+        svc( 'running', 'healthy' ),
+        svc( 'exited', 'none' )
+      ] ) ).toBe( STACK_STATE.PARTIAL );
     } );
   } );
 
