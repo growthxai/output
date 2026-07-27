@@ -1,6 +1,6 @@
 import { Storage } from '#async_storage';
 import { EventEmitter } from 'node:events';
-import { serializeError } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 import { isStringboolTrue } from '#helpers/string';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';

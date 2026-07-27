@@ -1,7 +1,7 @@
 import { mainEventBus } from '#bus';
 import { createChildLogger } from '#logger';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, BusEventType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
-import { serializeError } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 
 const activityLog = createChildLogger( 'Activity' );
 const workflowLog = createChildLogger( 'Workflow' );
@@ -45,7 +45,7 @@ mainEventBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKi
     activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.name ?? error.constructor.name}`, {
       event: LifecycleEvent.ERROR,
       ...serializedActivityFields( activityInfo ),
-      error: serializeError( error, { includeStack: false } )
+      error: serializeError( error, { dropKeys: [ 'stack' ] } )
     } )
 );
 
@@ -89,7 +89,7 @@ mainEventBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
     workflowLog.error( `Error ${workflowDetails.workflowType} workflow: ${error.name ?? error.constructor.name}`, {
       event: LifecycleEvent.ERROR,
       ...serializeWorkflowFields( workflowDetails ),
-      error: serializeError( error, { includeStack: false } )
+      error: serializeError( error, { dropKeys: [ 'stack' ] } )
     } )
 );
 

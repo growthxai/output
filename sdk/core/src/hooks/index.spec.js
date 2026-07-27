@@ -26,7 +26,7 @@ const stepEventBusMock = vi.hoisted( () => ( {
 } ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
-vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 vi.mock( '#bus', () => ( {
   mainEventBus: mainEventBusMock,
   stepEventBus: stepEventBusMock

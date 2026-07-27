@@ -9,7 +9,7 @@ const serializeErrorMock = vi.fn( error => ( {
   name: error.name,
   message: error.message
 } ) );
-vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 
 const logErrorMock = vi.fn();
 vi.mock( '#logger', () => ( {

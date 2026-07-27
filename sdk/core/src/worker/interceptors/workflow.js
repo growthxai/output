@@ -8,7 +8,7 @@ import { createWorkflowDetails } from '#helpers/temporal_context';
 // this is a dynamic generated file with activity configs overwrites
 import activityOptionsMap from '../temp/__activity_options.js';
 import { FatalError, TransparentFatalError } from '#errors';
-import { serializeError } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
@@ -62,7 +62,7 @@ class WorkflowExecutionInterceptor {
        * Sink back the error without stack (not necessary for this).
        */
       if ( isCancellation( error ) ) {
-        sinks.workflow.error( serializeError( error, { includeStack: false } ) );
+        sinks.workflow.error( serializeError( error, { dropKeys: [ 'stack' ] } ) );
         throw error;
       }
 
@@ -77,7 +77,7 @@ class WorkflowExecutionInterceptor {
         throw ApplicationFailure.fromError( unwrappedError, {
           cause: unwrappedError,
           nonRetryable: true,
-          details: [ { error: serializeError( unwrappedError, { includeStack: false } ) } ]
+          details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
         } );
       };
 

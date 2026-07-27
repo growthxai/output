@@ -1,4 +1,4 @@
-import { serializeError } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 import { createChildLogger } from '#logger';
 import { workerTelemetryIntervalMs } from './configs.js';
 
@@ -19,7 +19,7 @@ export const setupTelemetry = ( { worker } ) => {
         }
       } );
     } catch ( error ) {
-      log.warn( 'Failure', { error: serializeError( error, { includeStack: false } ) } );
+      log.warn( 'Failure', { error: serializeError( error, { dropKeys: [ 'stack' ] } ) } );
     }
   }, workerTelemetryIntervalMs ).unref();
 };

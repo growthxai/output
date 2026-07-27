@@ -6,7 +6,8 @@ import { headersToObject } from './headers.js';
 import { ActivitySpecialOutput, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { mainEventBus } from '#bus';
-import { inheritsFromAnyNamedType, serializeError } from '#helpers/errors';
+import { inheritsFromAnyNamedType } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 import { TransparentFatalError } from '#errors';
 
 /*
@@ -100,7 +101,7 @@ export class ActivityExecutionInterceptor {
       throw ApplicationFailure.fromError( unwrappedError, {
         nonRetryable: inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] ),
         cause: unwrappedError,
-        details: [ { error: serializeError( unwrappedError, { includeStack: false } ) } ]
+        details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
       } );
     } finally {
       clearInterval( state.heartbeat );

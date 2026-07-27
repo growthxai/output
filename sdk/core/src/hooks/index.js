@@ -1,6 +1,6 @@
 import { mainEventBus, stepEventBus } from '#bus';
 import { BusEventType } from '#consts';
-import { serializeError } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
 import { createChildLogger } from '#logger';
 import { pendingHooks } from './pending_hooks.js';
 

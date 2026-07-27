@@ -131,7 +131,7 @@ const {
 } );
 
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
-vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 const initTracing = vi.fn().mockResolvedValue( undefined );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );

@@ -34,7 +34,7 @@ const serializeErrorMock = vi.hoisted( () => vi.fn( error => ( {
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
-vi.mock( '#helpers/errors', () => ( { serializeError: serializeErrorMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 
 import './log_hooks.js';
 
@@ -129,7 +129,7 @@ describe( 'log_hooks', () => {
           error: { name: 'ProviderError', message: 'step failed' }
         }
       );
-      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { includeStack: false } );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { dropKeys: [ 'stack' ] } );
     } );
 
     it( 'ACTIVITY_ERROR does not log trace destination activity', () => {
@@ -254,7 +254,7 @@ describe( 'log_hooks', () => {
           error: { name: 'TypeError', message: 'workflow boom' }
         }
       );
-      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { includeStack: false } );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { dropKeys: [ 'stack' ] } );
     } );
 
     it( 'WORKFLOW_ERROR does not log when workflowType is WORKFLOW_CATALOG', () => {
