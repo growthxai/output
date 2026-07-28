@@ -38,6 +38,7 @@ import {
   onWorkflowError,
   onWorkflowStart
 } from './index.js';
+import { pendingHooks } from './pending_hooks.js';
 
 const workflowDetails = {
   workflowId: 'wf-1',
@@ -67,6 +68,7 @@ const aggregations = {
 describe( 'hooks/index', () => {
   beforeEach( () => {
     vi.clearAllMocks();
+    pendingHooks.clear();
     Object.keys( mainOnHandlers ).forEach( k => {
       delete mainOnHandlers[k];
     } );
@@ -156,6 +158,23 @@ describe( 'hooks/index', () => {
 
       expect( handler ).toHaveBeenCalledWith( undefined );
     } );
+  } );
+
+  it( 'tracks a hook callback until it settles', async () => {
+    const deferred = { resolve: null };
+    const handlerPromise = new Promise( resolve => {
+      deferred.resolve = resolve;
+    } );
+    const handler = vi.fn( () => handlerPromise );
+    onActivityEnd( handler );
+
+    const callbackPromise = mainOnHandlers[BusEventType.ACTIVITY_END]( { activityInfo } );
+
+    expect( pendingHooks.size ).toBe( 1 );
+
+    deferred.resolve();
+    await callbackPromise;
+    expect( pendingHooks.size ).toBe( 0 );
   } );
 
   describe( 'workflow lifecycle hooks', () => {

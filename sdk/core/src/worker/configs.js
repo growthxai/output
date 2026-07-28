@@ -36,8 +36,6 @@ const envVarSchema = z.object( {
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
   // Whether to send activity heartbeats (enabled by default)
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
-  // Time to allow for hooks to flush before shutdown
-  OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 3000 ) ),
   // Set temporal worker shutdown force time
   TEMPORAL_SHUTDOWN_FORCE_TIME: durationSchema,
   // Set temporal worker shutdown grace time
@@ -70,7 +68,6 @@ export const catalogId = envVars.OUTPUT_CATALOG_ID;
 export const workerTelemetryIntervalMs = envVars.OUTPUT_WORKER_TELEMETRY_INTERVAL_MS;
 export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS;
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
-export const processFailureShutdownDelay = envVars.OUTPUT_PROCESS_FAILURE_SHUTDOWN_DELAY;
 export const shutdownForceTime = envVars.TEMPORAL_SHUTDOWN_FORCE_TIME;
 export const shutdownGraceTime = envVars.TEMPORAL_SHUTDOWN_GRACE_TIME;
 export const grpcProxy = envVars.TEMPORAL_GRPC_PROXY;
