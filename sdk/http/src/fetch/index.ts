@@ -9,15 +9,15 @@ const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
 
 type NodeRequestInfo = string | URL | globalThis.Request;
 type NodeRequestInit = globalThis.RequestInit & Pick<undici.RequestInit, 'dispatcher'>;
-type InstrumentedRequestInfo = NodeRequestInfo | undici.RequestInfo;
-type InstrumentedRequestInit = NodeRequestInit | undici.RequestInit;
+type OutputRequestInfo = NodeRequestInfo | undici.RequestInfo;
+type OutputRequestInit = NodeRequestInit | undici.RequestInit;
 
-type InstrumentedFetch = {
+type OutputFetch = {
   ( input: NodeRequestInfo, init?: NodeRequestInit ): Promise<Response>;
   ( input: undici.RequestInfo, init?: undici.RequestInit ): Promise<Response>;
 };
 
-const createUndiciRequest = ( input: InstrumentedRequestInfo, init?: InstrumentedRequestInit ): undici.Request => {
+const createUndiciRequest = ( input: OutputRequestInfo, init?: OutputRequestInit ): undici.Request => {
   const isNodeRequest = input instanceof globalThis.Request;
   const hasNodeFormData = init?.body instanceof globalThis.FormData;
   const isUndiciRequest = input instanceof undici.Request;
@@ -48,9 +48,9 @@ const createUndiciRequest = ( input: InstrumentedRequestInfo, init?: Instrumente
  * @param init - Request options
  * @returns The HTTP response
  */
-export const instrumentedFetch: InstrumentedFetch = async (
-  input: InstrumentedRequestInfo,
-  init?: InstrumentedRequestInit
+export const outputFetch: OutputFetch = async (
+  input: OutputRequestInfo,
+  init?: OutputRequestInit
 ): Promise<Response> => {
   const { dispatcher: inputDispatcher, ...requestInit } = ( init ?? {} ) as undici.RequestInit;
 

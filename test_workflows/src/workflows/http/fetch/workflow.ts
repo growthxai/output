@@ -18,8 +18,8 @@ import {
 } from './steps.js';
 
 export default workflow( {
-  name: 'fetch',
-  description: 'Exercises instrumentedFetch HTTP behaviors',
+  name: 'http_fetch',
+  description: 'Exercises outputFetch HTTP behaviors',
   outputSchema: z.object( {
     traceHeader: z.string(),
     json: z.object( {

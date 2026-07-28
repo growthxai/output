@@ -14,8 +14,8 @@ export type HttpRequestCostEvent = {
   total: number;
 };
 
-export { instrumentedFetch } from './instrumented_fetch/index.js';
-export { createKyClient } from './instrumented_ky/index.js';
+export { outputFetch } from './fetch/index.js';
+export { createKyClient } from './ky/index.js';
 
 export { addRequestCost } from './cost.js';
 

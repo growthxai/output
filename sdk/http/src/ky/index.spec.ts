@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Options } from 'ky';
-import { instrumentedFetch } from '../instrumented_fetch/index.js';
+import { outputFetch } from '../fetch/index.js';
 
 const kyMock = vi.hoisted( () => ( {
   client: { get: vi.fn() },
@@ -19,9 +19,9 @@ describe( 'createKyClient', () => {
     kyMock.create.mockReturnValue( kyMock.client );
   } );
 
-  it( 'creates a Ky client using instrumentedFetch', () => {
+  it( 'creates a Ky client using outputFetch', () => {
     expect( createKyClient() ).toBe( kyMock.client );
-    expect( kyMock.create ).toHaveBeenCalledWith( { fetch: instrumentedFetch } );
+    expect( kyMock.create ).toHaveBeenCalledWith( { fetch: outputFetch } );
   } );
 
   it( 'forwards Ky options', () => {
@@ -33,7 +33,7 @@ describe( 'createKyClient', () => {
 
     createKyClient( options );
 
-    expect( kyMock.create ).toHaveBeenCalledWith( { fetch: instrumentedFetch, ...options } );
+    expect( kyMock.create ).toHaveBeenCalledWith( { fetch: outputFetch, ...options } );
   } );
 
   it( 'allows callers to override fetch', () => {

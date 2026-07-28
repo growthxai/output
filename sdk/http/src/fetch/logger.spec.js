@@ -99,7 +99,26 @@ describe( 'instrumented_fetch/logger', () => {
   } );
 
   describe( 'logError', () => {
-    it( 'records the response status, redacted headers, and body', async () => {
+    it( 'omits headers and body outside verbose mode', async () => {
+      const response = new Response( 'unavailable', {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'x-api-key': 'secret' }
+      } );
+
+      await logError( { requestId: 'request-error', response } );
+
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'request-error',
+        details: {
+          status: 503,
+          statusText: 'Service Unavailable'
+        }
+      } );
+    } );
+
+    it( 'includes redacted headers and parsed body in verbose mode', async () => {
+      config.logVerbose = true;
       const response = new Response( JSON.stringify( { error: 'unavailable' } ), {
         status: 503,
         statusText: 'Service Unavailable',

@@ -302,8 +302,8 @@ No migration is needed unless an `onError` handler explicitly relied on `$catalo
 
 `@outputai/http` now exposes two explicitly named, instrumented clients:
 
-- `instrumentedFetch` for Fetch-compatible requests.
-- `createKyClient` for a Ky client backed by `instrumentedFetch`.
+- `outputFetch` for Fetch-compatible requests.
+- `createKyClient` for a Ky client backed by `outputFetch`.
 
 Ky was upgraded from v1 to v2 and both Ky and Undici are now peer dependencies. Most projects using the previous `httpClient` need import, option, and dependency updates.
 
@@ -323,7 +323,7 @@ Update imports using this mapping:
 
 | v0.10.x | v0.11.0 |
 | --- | --- |
-| `fetch` | `instrumentedFetch` |
+| `fetch` | `outputFetch` |
 | `httpClient` | `createKyClient` |
 | `HTTPError` | `ky.HTTPError` |
 | `TimeoutError` | `ky.TimeoutError` |
@@ -433,23 +433,23 @@ Rename direct imports:
 
 ```diff
 - import { fetch } from '@outputai/http';
-+ import { instrumentedFetch } from '@outputai/http';
++ import { outputFetch } from '@outputai/http';
 
 - const response = await fetch( url, init );
-+ const response = await instrumentedFetch( url, init );
++ const response = await outputFetch( url, init );
 ```
 
-`instrumentedFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node inputs are normalized before entering the Undici-backed implementation.
+`outputFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node inputs are normalized before entering the Undici-backed implementation.
 
 Keep `Request` and `FormData` from the same family within one call:
 
 ```ts
-import { instrumentedFetch, undici } from '@outputai/http';
+import { outputFetch, undici } from '@outputai/http';
 
 const form = new undici.FormData();
 form.set( 'name', 'Ada' );
 
-await instrumentedFetch( 'https://api.example.com/users', {
+await outputFetch( 'https://api.example.com/users', {
   method: 'POST',
   body: form
 } );
@@ -461,11 +461,11 @@ The same pattern works with Node's global `FormData`. Do not combine a Node `Req
 
 Importing `@outputai/http` no longer replaces `globalThis.fetch`, `Request`, `Response`, `Headers`, or `FormData`.
 
-Code that imports an Undici dispatcher but calls global `fetch` should choose the HTTP implementation explicitly. Use `instrumentedFetch` when the request should be traced:
+Code that imports an Undici dispatcher but calls global `fetch` should choose the HTTP implementation explicitly. Use `outputFetch` when the request should be traced:
 
 ```diff
 - import { undici } from '@outputai/http';
-+ import { instrumentedFetch, undici } from '@outputai/http';
++ import { outputFetch, undici } from '@outputai/http';
 
   const dispatcher = new undici.EnvHttpProxyAgent( {
     headersTimeout: 15 * 60 * 1000,
@@ -477,7 +477,7 @@ Code that imports an Undici dispatcher but calls global `fetch` should choose th
 + const customFetch = (
 +   input: undici.RequestInfo,
 +   init?: undici.RequestInit
-+ ) => instrumentedFetch( input, { ...init, dispatcher } );
++ ) => outputFetch( input, { ...init, dispatcher } );
 ```
 
 Use `undici.fetch` instead when tracing is not wanted. Do not assume the npm Undici dispatcher's types or behavior apply to Node's built-in Fetch implementation.
@@ -486,11 +486,11 @@ Use `undici.fetch` instead when tracing is not wanted. Do not assume the npm Und
 
 Core workers no longer install a process-wide Undici dispatcher when proxy environment variables are present.
 
-- `instrumentedFetch` and `createKyClient` continue to use an `EnvHttpProxyAgent` and honor standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` variables.
+- `outputFetch` and `createKyClient` continue to use an `EnvHttpProxyAgent` and honor standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` variables.
 - For direct npm Undici calls, pass an `undici.EnvHttpProxyAgent` or configure Undici's global dispatcher yourself.
 - For Node's built-in Fetch, enable Node's environment proxy support at process startup with `NODE_USE_ENV_PROXY=1` and set the standard proxy variables.
 
-Audit libraries that receive a custom `fetch` callback. Ensure the callback uses `instrumentedFetch`, `undici.fetch`, or native Fetch intentionally rather than relying on the old import-time global replacement.
+Audit libraries that receive a custom `fetch` callback. Ensure the callback uses `outputFetch`, `undici.fetch`, or native Fetch intentionally rather than relying on the old import-time global replacement.
 
 ### HTTP migration checklist
 

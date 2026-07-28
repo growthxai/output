@@ -25,8 +25,7 @@ export const logError = async ( { requestId, response } ) =>
     id: requestId, details: {
       status: response.status,
       statusText: response.statusText,
-      headers: redactHeaders( response.headers ),
-      body: await parseBody( response )
+      ...( config.logVerbose && { headers: redactHeaders( response.headers ), body: await parseBody( response ) } )
     }
   } );
 

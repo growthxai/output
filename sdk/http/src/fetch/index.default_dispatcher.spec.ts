@@ -38,16 +38,16 @@ vi.mock( './utils.js', () => ( {
 } ) );
 
 import { Request, Response } from 'undici';
-import { instrumentedFetch } from './index.js';
+import { outputFetch } from './index.js';
 
-describe( 'instrumentedFetch default dispatcher', () => {
+describe( 'outputFetch default dispatcher', () => {
   beforeEach( () => {
     undiciMock.fetch.mockReset();
     undiciMock.fetch.mockResolvedValue( new Response( 'ok' ) );
   } );
 
   it( 'uses an EnvHttpProxyAgent when dispatcher is omitted', async () => {
-    await instrumentedFetch( 'https://example.com' );
+    await outputFetch( 'https://example.com' );
 
     expect( undiciMock.envHttpProxyAgent ).toHaveBeenCalledWith( { allowH2: false } );
     expect( undiciMock.fetch ).toHaveBeenCalledWith(

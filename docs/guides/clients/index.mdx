@@ -340,7 +340,7 @@ When an API call isn't returning what you expect, turn on verbose logging to see
 OUTPUT_TRACE_HTTP_VERBOSE=1 output dev
 ```
 
-This captures everything flowing through `instrumentedFetch` and `createKyClient` — request bodies, response bodies, headers, and timing. Sensitive headers like `authorization` and `api-key` are automatically redacted so you can safely share traces.
+This captures everything flowing through `outputFetch` and `createKyClient` — request bodies, response bodies, headers, and timing. Sensitive headers like `authorization` and `api-key` are automatically redacted so you can safely share traces.
 
 Turn this off in production. Response bodies from search APIs and content services can be large, and you don't want that in every trace.
 
@@ -517,7 +517,7 @@ export const tavilyClient = {
 
 ## What's Next
 
-- [@outputai/http API reference](/packages/http) — `instrumentedFetch`, `createKyClient`, and configuration options
+- [@outputai/http API reference](/packages/http) — `outputFetch`, `createKyClient`, and configuration options
 - [Steps](/steps) — Where clients get used: wrapping API calls in retryable steps
 - [Tracing](/operations/tracing) — How request traces appear in the Temporal UI
 - [Error Handling](/operations/error-handling) — `FatalError`, `ValidationError`, and retry policies

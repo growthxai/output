@@ -46,7 +46,7 @@ vi.mock( './events.js', () => ( {
   emitFailure: eventsMock.emitFailure
 } ) );
 
-import { instrumentedFetch } from './index.js';
+import { outputFetch } from './index.js';
 
 const MOCK_ORIGIN = 'https://fetch-index.undici.test';
 
@@ -62,7 +62,7 @@ describe( 'instrumented_fetch/index', () => {
   const fetchWithMockDispatcher = (
     input: string | URL | globalThis.Request | UndiciRequest,
     init?: globalThis.RequestInit | UndiciRequestInit
-  ) => instrumentedFetch(
+  ) => outputFetch(
     input as UndiciRequestInfo,
     { ...init, dispatcher: undiciCtx.mockAgent! } as UndiciRequestInit
   );
@@ -274,7 +274,7 @@ describe( 'instrumented_fetch/index', () => {
     } );
   } );
 
-  describe( 'instrumentedFetch RequestInfo / RequestInit shapes', () => {
+  describe( 'outputFetch RequestInfo / RequestInit shapes', () => {
     it( 'accepts a URL object as the first argument', async () => {
       undiciCtx.mockAgent!.get( MOCK_ORIGIN ).intercept( { path: '/from-url', method: 'GET' } ).reply(
         200,
@@ -449,7 +449,7 @@ describe( 'instrumented_fetch/index', () => {
         }
       } ).reply( 200, 'ok' );
 
-      const response = await instrumentedFetch( `${MOCK_ORIGIN}/custom-dispatcher`, {
+      const response = await outputFetch( `${MOCK_ORIGIN}/custom-dispatcher`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -474,7 +474,7 @@ describe( 'instrumented_fetch/index', () => {
         headers: { 'x-request-trace-id': FIXED_REQUEST_ID }
       } ).reply( 200, 'ok' );
 
-      const response = await instrumentedFetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
+      const response = await outputFetch( `${MOCK_ORIGIN}/undefined-dispatcher`, {
         dispatcher: undefined
       } );
 

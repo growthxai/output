@@ -7,8 +7,8 @@ The `@outputai/http` package provides Fetch and Ky clients instrumented for [tra
 
 It exposes two entry points:
 
-- `instrumentedFetch` — a Fetch-compatible function backed by [Undici](https://undici.nodejs.org/).
-- `createKyClient` — creates a [Ky](https://github.com/sindresorhus/ky) client that uses `instrumentedFetch`.
+- `outputFetch` — a Fetch-compatible function backed by [Undici](https://undici.nodejs.org/).
+- `createKyClient` — creates a [Ky](https://github.com/sindresorhus/ky) client that uses `outputFetch`.
 
 Ky and Undici are peer dependencies. Current npm and pnpm versions install compatible peers automatically, so the normal package installation is enough:
 
@@ -20,12 +20,12 @@ Install Ky or Undici explicitly only when you need to pin their versions or reso
 
 ## Using Instrumented Fetch
 
-Use `instrumentedFetch` when you want the standard Fetch API:
+Use `outputFetch` when you want the standard Fetch API:
 
 ```typescript
-import { instrumentedFetch } from '@outputai/http';
+import { outputFetch } from '@outputai/http';
 
-const response = await instrumentedFetch( 'https://api.example.com/users', {
+const response = await outputFetch( 'https://api.example.com/users', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify( { name: 'Ada' } )
@@ -38,9 +38,9 @@ if ( !response.ok ) {
 const user = await response.json();
 ```
 
-Like native Fetch, `instrumentedFetch` returns responses for HTTP error statuses. It only throws for failures such as DNS errors, timeouts, and aborts.
+Like native Fetch, `outputFetch` returns responses for HTTP error statuses. It only throws for failures such as DNS errors, timeouts, and aborts.
 
-`instrumentedFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node `Request` and `FormData` inputs are normalized into the Undici realm before the request is sent. Keep `Request` and `FormData` from the same family when using both in one call.
+`outputFetch` accepts URL strings, `URL` objects, and both Node and Undici `Request` objects. Node `Request` and `FormData` inputs are normalized into the Undici realm before the request is sent. Keep `Request` and `FormData` from the same family when using both in one call.
 
 ## Creating a Ky Client
 
@@ -61,7 +61,7 @@ export const jina = createKyClient({
 
 `createKyClient` accepts Ky's complete options object and returns a standard Ky instance. All Ky methods, hooks, retries, timeout behavior, and `.extend()` support remain available.
 
-By default, the client uses `instrumentedFetch`. Providing Ky's `fetch` option overrides it, so requests made by that client are not automatically traced by Output.
+By default, the client uses `outputFetch`. Providing Ky's `fetch` option overrides it, so requests made by that client are not automatically traced by Output.
 
 You can extend clients to create specialized instances:
 
@@ -168,7 +168,7 @@ See [Tracing](/operations/tracing) for details on the trace format.
 
 ## Request Events
 
-Every call made through `instrumentedFetch` or a client returned by `createKyClient` emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:
+Every call made through `outputFetch` or a client returned by `createKyClient` emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:
 
 ```typescript
 import { on } from '@outputai/core/hooks';
@@ -227,13 +227,13 @@ response.body?.cancel();
 
 `addRequestCost` accepts the total request cost as a number.
 
-`addRequestCost` only works with responses returned by `instrumentedFetch` or `createKyClient`. If the response did not come from this package, the function safely no-ops and logs a warning.
+`addRequestCost` only works with responses returned by `outputFetch` or `createKyClient`. If the response did not come from this package, the function safely no-ops and logs a warning.
 
 It also emits a **`cost:http:request`** hook event (same hooks system as [`cost:llm:request`](/costs/cost-events)). For the payload and examples, see [Cost Events — HTTP](/costs/cost-events#http-request-cost).
 
 ## Error Handling
 
-`instrumentedFetch` returns non-2xx responses without throwing. Ky clients use Ky's configured error behavior and throw `ky.HTTPError` for non-2xx responses by default and `ky.TimeoutError` for timeouts:
+`outputFetch` returns non-2xx responses without throwing. Ky clients use Ky's configured error behavior and throw `ky.HTTPError` for non-2xx responses by default and `ky.TimeoutError` for timeouts:
 
 ```typescript
 import { createKyClient, ky } from '@outputai/http';
@@ -264,14 +264,14 @@ Since steps retry automatically, you generally just need to handle cases where r
 Requests use an `EnvHttpProxyAgent` by default, including standard HTTP proxy environment variables. You can provide an Undici dispatcher for one request:
 
 ```typescript
-import { instrumentedFetch, undici } from '@outputai/http';
+import { outputFetch, undici } from '@outputai/http';
 
 const dispatcher = new undici.Agent( {
   headersTimeout: 60_000,
   bodyTimeout: 60_000
 } );
 
-const response = await instrumentedFetch( 'https://api.example.com', {
+const response = await outputFetch( 'https://api.example.com', {
   dispatcher
 } );
 ```
@@ -280,7 +280,7 @@ Set `dispatcher: undefined` explicitly to bypass the default dispatcher.
 
 ## Ky and Undici Exports
 
-The complete Ky and Undici namespaces are re-exported for convenience and to let callers use the same Undici realm as `instrumentedFetch`:
+The complete Ky and Undici namespaces are re-exported for convenience and to let callers use the same Undici realm as `outputFetch`:
 
 ```typescript
 import { ky, undici } from '@outputai/http';
