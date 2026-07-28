@@ -65,6 +65,54 @@ export default workflow({
 
 If you don't catch the error, the workflow fails.
 
+### Checking error types in workflows
+
+Errors thrown by steps and evaluators cross Temporal's Activity boundary before they reach workflow code. Temporal serializes them into a failure cause chain, so a direct `error instanceof CustomError` check is not reliable inside a workflow.
+
+Use `hasErrorType(error, CustomError)` to inspect the complete cause chain. It matches native error instances as well as Temporal's serialized `type` and `name` fields.
+
+Define the custom error in a shared module imported by both the step and workflow:
+
+```typescript types.ts
+export class CompanyNotFoundError extends Error {}
+```
+
+```typescript steps.ts
+import { step } from '@outputai/core';
+import { CompanyNotFoundError } from './types.js';
+
+export const lookupCompany = step({
+  name: 'lookup_company',
+  fn: async () => {
+    throw new CompanyNotFoundError('Company not found');
+  }
+});
+```
+
+```typescript workflow.ts
+import { hasErrorType, workflow } from '@outputai/core';
+import { lookupCompany } from './steps.js';
+import { CompanyNotFoundError } from './types.js';
+
+export default workflow({
+  name: 'company_lookup',
+  fn: async () => {
+    try {
+      return await lookupCompany();
+    } catch (error) {
+      if (hasErrorType(error, CompanyNotFoundError)) {
+        return null;
+      }
+
+      // Preserve unexpected failures.
+      throw error;
+    }
+  }
+});
+```
+
+Always rethrow errors that do not match the type the workflow explicitly handles.
+
 ### Error metadata
 
 When a root workflow fails, Output can attach trace metadata to the Temporal error returned by the runtime.

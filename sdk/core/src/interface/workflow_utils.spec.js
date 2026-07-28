@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { executeInParallel } from './workflow_utils.js';
+import { hasErrorType, executeInParallel } from './workflow_utils.js';
 
 describe( 'executeInParallel', () => {
   it( 'returns empty array for empty jobs', async () => {
@@ -186,5 +186,86 @@ describe( 'executeInParallel', () => {
       { ok: true, result: 'slow', index: 0 },
       { ok: true, result: 'fast', index: 1 }
     ] );
+  } );
+} );
+
+describe( 'hasErrorType', () => {
+  class FooError extends Error {}
+
+  it( 'matches a direct error instance', () => {
+    expect( hasErrorType( new FooError( 'foo' ), FooError ) ).toBe( true );
+  } );
+
+  it( 'matches an error instance in the cause chain', () => {
+    const error = new Error( 'outer', {
+      cause: new Error( 'middle', {
+        cause: new FooError( 'foo' )
+      } )
+    } );
+
+    expect( hasErrorType( error, FooError ) ).toBe( true );
+  } );
+
+  it( 'matches Temporal ApplicationFailure type in the cause chain', () => {
+    const applicationFailure = Object.assign( new Error( 'foo' ), {
+      name: 'ApplicationFailure',
+      type: 'FooError'
+    } );
+    const activityFailure = Object.assign( new Error( 'Activity execution failed', {
+      cause: applicationFailure
+    } ), {
+      name: 'ActivityFailure'
+    } );
+
+    expect( hasErrorType( activityFailure, FooError ) ).toBe( true );
+  } );
+
+  it( 'matches a serialized error name', () => {
+    const error = Object.assign( new Error( 'foo' ), { name: 'FooError' } );
+
+    expect( hasErrorType( error, FooError ) ).toBe( true );
+  } );
+
+  it( 'matches an error serialized as its type name', () => {
+    expect( hasErrorType( 'FooError', FooError ) ).toBe( true );
+  } );
+
+  it( 'matches an error type in a plain object cause chain', () => {
+    const error = {
+      name: 'ActivityFailure',
+      cause: {
+        name: 'ApplicationFailure',
+        type: 'FooError'
+      }
+    };
+
+    expect( hasErrorType( error, FooError ) ).toBe( true );
+  } );
+
+  it.each( [ null, undefined, '', 42, false ] )( 'returns false for unsupported error value %j', error => {
+    expect( hasErrorType( error, FooError ) ).toBe( false );
+  } );
+
+  it( 'returns false when ErrorType is not a class', () => {
+    expect( hasErrorType( new FooError( 'foo' ), null ) ).toBe( false );
+  } );
+
+  it( 'returns false when the requested error type is absent', () => {
+    const error = new Error( 'outer', { cause: new TypeError( 'inner' ) } );
+
+    expect( hasErrorType( error, FooError ) ).toBe( false );
+  } );
+
+  it( 'keeps plain Error matching backwards compatible', () => {
+    expect( hasErrorType( new Error( 'foo' ), Error ) ).toBe( true );
+  } );
+
+  it( 'stops traversing cause chains after the depth limit', () => {
+    const createCauseChain = depth => depth === 20 ?
+      new FooError( 'foo' ) :
+      new Error( `depth-${depth}`, { cause: createCauseChain( depth + 1 ) } );
+    const root = new Error( 'root', { cause: createCauseChain( 0 ) } );
+
+    expect( hasErrorType( root, FooError ) ).toBe( false );
   } );
 } );

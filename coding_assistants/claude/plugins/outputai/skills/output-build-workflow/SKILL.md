@@ -52,6 +52,7 @@ Update `workflow.ts` in the workflow directory with the workflow definition.
   - Implement workflow function with proper orchestration
   - Handle conditional logic if specified in plan
   - Add proper error handling
+  - When catching a specific step or evaluator error, use `hasErrorType(error, ErrorClass)` instead of `instanceof` (see `output-error-try-catch`)
 </implementation_checklist>
 
 <workflow_template>

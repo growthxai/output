@@ -1,245 +1,139 @@
 ---
 name: output-error-try-catch
-description: Fix try-catch anti-pattern in Output SDK workflows. Use when retries aren't working, errors are being swallowed, seeing unexpected FatalError wrapping, or when step failures don't trigger retry policies.
-allowed-tools: [Bash, Read]
+description: Handle errors caught in Output workflows without losing failure context. Use when adding workflow try/catch logic, fallbacks, partial-failure handling, custom Error classes, or typed checks for errors thrown by steps and evaluators.
+allowed-tools: [Bash, Read, Write, Edit]
 ---
 
-# Fix Try-Catch Anti-Pattern
+# Handle Errors in Workflows
 
-## Overview
+## Understand when workflow catch blocks run
 
-This skill helps diagnose and fix a common anti-pattern where step calls are wrapped in try-catch blocks. This prevents Output SDK's retry mechanism from working properly and can lead to confusing error behavior.
+Steps and evaluators run as Temporal Activities. Temporal applies their configured retry policy before returning a successful result or throwing a final failure to workflow code.
 
-## When to Use This Skill
+A workflow `catch` around a step therefore runs only after the step has exhausted its Activity retries. Catching that failure does not disable or bypass the Activity retry policy.
 
-You're seeing:
-- Retries not working as expected
-- Errors being swallowed silently
-- Unexpected FatalError wrapping
-- Step failures not triggering retry policies
-- Errors being caught and re-thrown incorrectly
+The catch block decides what the workflow does with the final failure:
 
-## Root Cause
+- Return a fallback value.
+- Run an alternative step.
+- Record a partial failure and continue.
+- Handle an expected error type.
+- Rethrow the error and fail the workflow.
 
-When you wrap step calls in try-catch blocks, you intercept errors before the Output SDK retry mechanism can handle them. This defeats the built-in retry logic and can cause:
+## Let unexpected failures propagate
 
-1. **Retries not happening**: The error is caught, so the framework doesn't know to retry
-2. **Wrong error classification**: Re-throwing as FatalError prevents retries entirely
-3. **Lost error context**: Original error details may be lost in the catch block
-
-## Symptoms
-
-### Pattern 1: Errors Swallowed
+Do not add a catch block that only wraps or logs an error. It can discard Temporal's failure type, cause chain, and retry metadata.
 
 ```typescript
-// WRONG: Error is silently ignored
+// Avoid: replaces the original Temporal failure chain.
 try {
-  const result = await myStep( input );
+  return await fetchData( input );
 } catch ( error ) {
-  console.log( 'Step failed' );  // Swallowed!
-  return { success: false };
+  throw new Error( `Fetch failed: ${error.message}` );
 }
 ```
 
-### Pattern 2: FatalError Wrapping
-
-```typescript
-// WRONG: Turns retryable errors into fatal errors
-try {
-  const result = await myStep( input );
-} catch ( error ) {
-  throw new FatalError( error.message );  // Prevents retries!
-}
-```
-
-### Pattern 3: Re-throwing Generic Errors
-
-```typescript
-// WRONG: Loses error context and may affect retry behavior
-try {
-  const result = await myStep( input );
-} catch ( error ) {
-  throw new Error( `Step failed: ${error.message}` );
-}
-```
-
-## Solution
-
-**Let failures propagate naturally.** Remove try-catch blocks around step calls and let the Output SDK handle errors:
-
-### Before (Wrong)
+When the workflow cannot recover, let the step failure propagate:
 
 ```typescript
 export default workflow( {
+  name: 'fetch_workflow',
+  fn: async input => fetchData( input )
+} );
+```
+
+If a catch block handles only known failures, always rethrow everything else.
+
+## Check specific error types with hasErrorType
+
+Errors crossing from a step or evaluator into workflow code are serialized into a Temporal failure cause chain. The original JavaScript object identity is not preserved, so `error instanceof CustomError` is unreliable.
+
+Use `hasErrorType` from `@outputai/core`. It walks the cause chain and matches native instances and Temporal's serialized `type` and `name` fields.
+
+```typescript
+import { hasErrorType, workflow } from '@outputai/core';
+import { lookupCompany } from './steps.js';
+import { CompanyNotFoundError } from './types.js';
+
+export default workflow( {
+  name: 'company_lookup',
   fn: async input => {
     try {
-      const data = await fetchDataStep( input );
-      const result = await processDataStep( data );
-      return result;
+      return await lookupCompany( input );
     } catch ( error ) {
-      throw new FatalError( error.message );
+      if ( hasErrorType( error, CompanyNotFoundError ) ) {
+        return null;
+      }
+
+      throw error;
     }
   }
 } );
 ```
 
-### After (Correct)
+Define custom Error classes in a shared module imported by both the workflow and step:
 
 ```typescript
-export default workflow( {
-  fn: async input => {
-    const data = await fetchDataStep( input );
-    const result = await processDataStep( data );
-    return result;
-  }
-} );
+export class CompanyNotFoundError extends Error {}
 ```
 
-## When Try-Catch IS Appropriate
+Do not inspect a fixed number of `.cause` levels or check only the outer `ActivityFailure`.
 
-There are limited cases where catching errors in workflows is valid:
+## Valid try/catch patterns
 
-### 1. Optional/Fallback Steps
-
-When a step failure should trigger an alternative path:
-
-```typescript
-export default workflow( {
-  fn: async input => {
-    const data = await ( async () => {
-      try {
-        return await fetchFromPrimarySource( input );
-      } catch {
-        return await fetchFromSecondarySource( input );
-      }
-    } )();
-    return await processData( data );
-  }
-} );
-```
-
-For readability, you can extract the fallback logic into a named helper function instead of using an IIFE:
+### Fallback step
 
 ```typescript
 const fetchWithFallback = async input => {
   try {
     return await fetchFromPrimarySource( input );
   } catch {
-    return await fetchFromSecondarySource( input );
+    return fetchFromSecondarySource( input );
   }
 };
-
-export default workflow( {
-  fn: async input => {
-    const data = await fetchWithFallback( input );
-    return await processData( data );
-  }
-} );
 ```
 
-### 2. Aggregate Results with Partial Failures
+Use this only when every primary-source failure should trigger the fallback. Use `hasErrorType` when only specific failures are recoverable.
 
-When processing multiple items where some may fail:
+### Partial failures
+
+```typescript
+const results = await Promise.all( input.items.map( async item => {
+  try {
+    return { item, value: await processItem( item ), ok: true };
+  } catch ( error ) {
+    const message = error instanceof Error ? error.message : String( error );
+    return { item, error: message, ok: false };
+  }
+} ) );
+```
+
+Ensure the workflow output schema supports both successful and failed entries. Do not silently omit failures.
+
+## Configure Activity retries separately
+
+Configure step and evaluator retry behavior through workflow Activity options. The workflow catch block handles only the failure that remains after this policy is exhausted.
 
 ```typescript
 export default workflow( {
-  fn: async input => {
-    const results = [];
-    for ( const item of input.items ) {
-      try {
-        const result = await processItem( item );
-        results.push( { item, result, success: true } );
-      } catch ( error ) {
-        results.push( { item, error: error.message, success: false } );
+  name: 'company_lookup',
+  fn: async input => lookupCompany( input ),
+  options: {
+    activityOptions: {
+      retry: {
+        initialInterval: '1s',
+        maximumAttempts: 3
       }
     }
-    return results;  // Contains both successes and failures
   }
 } );
 ```
 
-**Note**: Even in these cases, be careful not to swallow errors that should cause the whole workflow to fail.
+## Review checklist
 
-## Finding Try-Catch Around Steps
-
-Search for the pattern:
-
-```bash
-# Find try blocks in workflow files
-grep -rn "try {" src/workflows/
-
-# Look for FatalError usage
-grep -rn "FatalError" src/workflows/
-```
-
-Then review each match to see if it's wrapping step calls.
-
-## How Retries Work
-
-When you DON'T catch errors:
-
-1. Step throws an error
-2. Output SDK receives the error
-3. SDK checks retry policy (configured per step)
-4. If retries remain, step is re-executed
-5. If retries exhausted, workflow fails with full error context
-
-When you DO catch errors:
-
-1. Step throws an error
-2. Your catch block handles it
-3. Output SDK never sees the original error
-4. Retry logic is bypassed
-5. You control what happens (often incorrectly)
-
-## Configuring Retry Behavior
-
-Instead of try-catch, configure retry policies on steps:
-
-```typescript
-export const fetchData = step( {
-  name: 'fetchData',
-  retry: {
-    maxAttempts: 3,
-    initialInterval: '1s',
-    maxInterval: '30s',
-    backoffCoefficient: 2
-  },
-  fn: async input => {
-    // If this fails, it will be retried according to policy
-    return await callApi( input );
-  }
-} );
-```
-
-## Using FatalError Correctly
-
-FatalError is for errors that should NEVER be retried:
-
-```typescript
-export const validateInput = step( {
-  name: 'validateInput',
-  fn: async input => {
-    if ( !input.userId ) {
-      // This will never succeed on retry
-      throw new FatalError( 'userId is required' );
-    }
-    return input;
-  }
-} );
-```
-
-Do NOT use FatalError to wrap other errors unless you're certain they shouldn't retry.
-
-## Verification
-
-After removing try-catch:
-
-1. **Test normal operation**: `npx output workflow run <name> --input '<valid-input>'`
-2. **Test failure scenarios**: Use input that causes step failures
-3. **Check retry behavior**: Look for retry attempts in `npx output workflow debug <id>`
-
-## Related Issues
-
-- For configuring retry policies, see step definition documentation
-- For handling expected failures gracefully, consider using conditional logic instead of try-catch
+- Catch only when the workflow has a defined recovery path.
+- Use `hasErrorType` for specific errors originating in steps or evaluators.
+- Rethrow unmatched errors unchanged.
+- Do not replace an existing failure with a generic `Error`.
+- Keep custom Error class names stable because Temporal serializes them as failure types.
+- Configure retries independently from workflow catch behavior.

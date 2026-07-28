@@ -48,3 +48,22 @@ export const executeInParallel = async ( { jobs, concurrency = Infinity, onJobCo
 
   return results.sort( ( a, b ) => a.index - b.index );
 };
+
+/**
+ * Check if an error, or any parts of its cause chain are instances of a given Error class.
+ * Also check .name and .type
+ *
+ * @param {Error} error
+ * @param {Error} ErrorType
+ * @returns {boolean}
+ */
+export const hasErrorType = ( error, ErrorType, depth = 0 ) => {
+  if ( depth > 20 || typeof ErrorType !== 'function' ) {
+    return false;
+  }
+  const expectedType = ErrorType.name;
+  if ( error instanceof ErrorType || error?.type === expectedType || error?.name === expectedType || error === expectedType ) {
+    return true;
+  }
+  return error?.cause ? hasErrorType( error.cause, ErrorType, depth + 1 ) : false;
+};

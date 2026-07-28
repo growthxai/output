@@ -74,3 +74,18 @@ export declare function executeInParallel<T extends readonly ( () => Promise<unk
     onJobCompleted?: ( result: ParallelResults<T>[number] ) => void;
   }
 ): Promise<ParallelResults<T>>;
+
+/**
+ * Checks whether an error or any error in its cause chain matches an Error class.
+ *
+ * Temporal Application Failures are matched through their serialized `type`,
+ * in addition to standard `instanceof` and `name` checks.
+ *
+ * @param error - Error or failure chain to inspect
+ * @param ErrorType - Error class to match
+ * @returns Whether the Error class appears in the chain
+ */
+export declare function hasErrorType<T extends Error>(
+  error: unknown,
+  ErrorType: abstract new ( ...args: never[] ) => T
+): boolean;
