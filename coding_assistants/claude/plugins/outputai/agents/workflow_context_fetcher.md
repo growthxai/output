@@ -81,8 +81,8 @@ Request: "Find existing workflow patterns"
 Request: "Get retry policy defaults"
 → Use grep to find retry-related sections in the `output-meta-pre-flight` skill or CLAUDE.md
 
-Request: "Find how existing steps use httpClient"
-→ Search `src/workflows/*/steps.ts` and `src/workflows/*/steps/*.ts` for httpClient patterns
+Request: "Find how existing steps use createKyClient"
+→ Search `src/workflows/*/steps.ts` and `src/workflows/*/steps/*.ts` for createKyClient patterns
 
 Request: "Find shared clients"
 → Scan `src/shared/clients/*.ts` for available API clients

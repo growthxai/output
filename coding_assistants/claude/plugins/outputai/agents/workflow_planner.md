@@ -172,7 +172,7 @@ Delegate to these specialized agents when appropriate:
 import { z } from '@outputai/core';
 
 // HTTP clients - NEVER use axios
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 // LLM operations - NEVER call providers directly
 import { generateText, Output } from '@outputai/llm';

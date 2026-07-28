@@ -446,10 +446,10 @@ export const summarizeContent = step({
 
 ```typescript src/clients/jina.ts
 // src/clients/jina.ts
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
-const client = httpClient({
-  prefixUrl: 'https://r.jina.ai',
+const client = createKyClient({
+  prefix: 'https://r.jina.ai',
   timeout: 30000
 });
 

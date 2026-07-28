@@ -35,7 +35,7 @@ const apiState: { api?: ReturnType<typeof ky.create> } = {};
 function getApi() {
   if ( !apiState.api ) {
     apiState.api = ky.create( {
-      prefixUrl: config.apiUrl,
+      prefix: config.apiUrl,
       timeout: config.requestTimeout,
       retry: {
         limit: 2,
@@ -45,7 +45,7 @@ function getApi() {
       throwHttpErrors: false,
       hooks: {
         beforeRequest: [
-          request => {
+          ( { request } ) => {
             if ( config.apiToken ) {
               request.headers.set( 'Authorization', `Basic ${config.apiToken}` );
             }

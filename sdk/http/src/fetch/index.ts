@@ -1,34 +1,45 @@
-import * as undici from 'undici';
 import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
-import type { RequestInfo, RequestInit } from 'undici';
+import { emitSuccess, emitError, emitFailure } from './events.js';
 import { addRequestIdToResponse } from './utils.js';
+import * as undici from 'undici';
 
 /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
 
-/*
- * Unifies undici and nodes realms
- * https://github.com/nodejs/undici#keep-fetch-and-formdata-together
- */
-undici.install();
+type NodeRequestInfo = string | URL | globalThis.Request;
+type NodeRequestInit = globalThis.RequestInit & Pick<undici.RequestInit, 'dispatcher'>;
+type OutputRequestInfo = NodeRequestInfo | undici.RequestInfo;
+type OutputRequestInit = NodeRequestInit | undici.RequestInit;
 
-/** Re-export undici library for convenience. */
-export * as undici from 'undici';
+type OutputFetch = {
+  ( input: NodeRequestInfo, init?: NodeRequestInit ): Promise<Response>;
+  ( input: undici.RequestInfo, init?: undici.RequestInit ): Promise<Response>;
+};
 
-/** Export fetch input types. Also available under in undici.* export. */
-export type {
-  /** Undici's fetch first argument: Either a URL string, a URL object or a undici.Request object. */
-  RequestInfo,
-  /** Undici's fetch second argument: A plain object containing HTTP options. */
-  RequestInit
+const createUndiciRequest = ( input: OutputRequestInfo, init?: OutputRequestInit ): undici.Request => {
+  const isNodeRequest = input instanceof globalThis.Request;
+  const hasNodeFormData = init?.body instanceof globalThis.FormData;
+  const isUndiciRequest = input instanceof undici.Request;
+  const hasUndiciFormData = init?.body instanceof undici.FormData;
+
+  if ( ( isNodeRequest && hasUndiciFormData ) || ( isUndiciRequest && hasNodeFormData ) ) {
+    throw new TypeError( 'Cannot mix Node and Undici Request/FormData realms.' );
+  }
+
+  if ( !isNodeRequest && !hasNodeFormData ) {
+    return new undici.Request( input as undici.RequestInfo, init as undici.RequestInit );
+  }
+
+  const request = new globalThis.Request( input as NodeRequestInfo, init as globalThis.RequestInit );
+  return new undici.Request( request.url, request as unknown as undici.RequestInit );
 };
 
 /**
  * A fetch compliant function, that wraps undici's fetch.
  *
  * Behaves the same as any fetch function except:
- * - Sets a request header called `x-request--trace-id` with a random UUID;
+ * - Sets a request header called `x-request-trace-id` with a random UUID;
  * - Sends the request, response, error and/or failure to the Trace system;
  * - Emits a `http:request` event on every call (success, error, failure).
  *
@@ -37,9 +48,15 @@ export type {
  * @param init - Request options
  * @returns The HTTP response
  */
-export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) : Promise<Response> => {
+export const outputFetch: OutputFetch = async (
+  input: OutputRequestInfo,
+  init?: OutputRequestInit
+): Promise<Response> => {
+  const { dispatcher: inputDispatcher, ...requestInit } = ( init ?? {} ) as undici.RequestInit;
+
   // Creates a Request object with the many shapes RequestInfo can have
-  const base = new undici.Request( input as RequestInfo, init );
+  const base = createUndiciRequest( input, requestInit );
+
   // Creates a headers object with the many shapes Request.Headers can have (object, array, Headers)
   const headers = new undici.Headers( base.headers );
 
@@ -49,28 +66,32 @@ export const fetch = async ( input: RequestInfo | Request, init?: RequestInit ) 
 
   const method = request.method;
   const url = request.url;
-  const startedAt = performance.now();
+  const startedAt = Date.now();
 
   await logRequest( { requestId, request } );
 
   // this allows for users not only to override the dispatcher but also to define it as undefined and remove it altogether.
-  const dispatcher = Object.hasOwn( init ?? {}, 'dispatcher' ) ? init?.dispatcher : customDispatcher;
+  const dispatcher = Object.hasOwn( init ?? {}, 'dispatcher' ) ? inputDispatcher : customDispatcher;
   try {
     const response = await undici.fetch( request, dispatcher ? { dispatcher } : undefined );
-    const durationMs = performance.now() - startedAt;
+    const durationMs = Date.now() - startedAt;
+    const { status } = response;
 
     // This enriches the response of the request id, so it is identifiable later.
     addRequestIdToResponse( response, requestId );
 
-    if ( response.status > 399 ) {
-      await logError( { requestId, response, method, url, durationMs } );
+    if ( status > 399 ) {
+      await logError( { requestId, response } );
+      emitError( { requestId, method, url, status, durationMs } );
       return response;
     }
-    await logResponse( { requestId, response, method, url, durationMs } );
+    await logResponse( { requestId, response } );
+    emitSuccess( { requestId, method, url, status, durationMs } );
     return response;
   } catch ( error ) {
-    const durationMs = performance.now() - startedAt;
-    logFailure( { requestId, error: error as Error, method, url, durationMs } );
+    const durationMs = Date.now() - startedAt;
+    logFailure( { requestId, error } );
+    emitFailure( { requestId, method, url, durationMs } );
     throw error;
   }
 };

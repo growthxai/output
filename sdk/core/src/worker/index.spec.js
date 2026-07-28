@@ -145,7 +145,6 @@ vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
 vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
-vi.mock( './proxy.js', () => ( { bootstrapFetchProxy: vi.fn() } ) );
 vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
 vi.mock( './interruption.js', () => ( { setupInterruptionHandler: setupInterruptionHandlerMock } ) );
 vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );

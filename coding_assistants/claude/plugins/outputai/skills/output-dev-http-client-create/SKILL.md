@@ -61,7 +61,7 @@ import { JinaClient } from '../clients/jina_client.js';
 
 ```typescript
 // CORRECT - Use @outputai/http wrapper
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -94,14 +94,14 @@ const apiKey = process.env.SERVICE_API_KEY;
 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
 const API_KEY = credentials.require('service.api_key');
 const BASE_URL = 'https://api.service.com';
 
-const serviceClient = httpClient({
-  prefixUrl: BASE_URL,
+const client = createKyClient({
+  prefix: BASE_URL,
   headers: {
     Authorization: `Bearer ${API_KEY}`,
     Accept: 'application/json'
@@ -122,7 +122,7 @@ const serviceClient = httpClient({
  * @throws {ValidationError} If temporary error occurs
  */
 export async function fetchServiceData(query: string): Promise<ServiceResponse> {
-  const response = await serviceClient.get('endpoint', {
+  const response = await client.get('endpoint', {
     searchParams: { q: query }
   });
 
@@ -140,7 +140,7 @@ export async function fetchServiceData(query: string): Promise<ServiceResponse> 
 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
 export interface ServiceOptions {
@@ -149,14 +149,14 @@ export interface ServiceOptions {
 }
 
 export class ServiceClient {
-  private readonly client: ReturnType<typeof httpClient>;
+  private readonly client: ReturnType<typeof createKyClient>;
   private readonly model: string;
 
   constructor(apiKey?: string) {
     const key = apiKey ?? credentials.require('service.api_key');
 
-    this.client = httpClient({
-      prefixUrl: 'https://api.service.com',
+    this.client = createKyClient({
+      prefix: 'https://api.service.com',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json'
@@ -204,14 +204,14 @@ export class ServiceClient {
 
 ```typescript
 import { FatalError } from '@outputai/core';
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
 const JINA_API_KEY = credentials.require('jina.api_key');
 const JINA_BASE_URL = 'https://r.jina.ai';
 
-const jinaClient = httpClient({
-  prefixUrl: JINA_BASE_URL,
+const client = createKyClient({
+  prefix: JINA_BASE_URL,
   headers: {
     Authorization: `Bearer ${JINA_API_KEY}`,
     Accept: 'application/json'
@@ -227,7 +227,7 @@ const jinaClient = httpClient({
  * Parse PDF resume using Jina Reader API
  */
 export async function parseResumeWithJina(base64Pdf: string): Promise<string> {
-  const response = await jinaClient.post('', {
+  const response = await client.post('', {
     json: { pdf: base64Pdf },
     headers: {
       'Content-Type': 'application/json'
@@ -252,7 +252,7 @@ export async function parseResumeWithJina(base64Pdf: string): Promise<string> {
  * Scrape text content from URL using Jina Reader
  */
 export async function scrapeTextWithJina(url: string): Promise<string> {
-  const response = await jinaClient.get(url, {
+  const response = await client.get(url, {
     headers: {
       'X-Return-Format': 'text',
       'X-No-Cache': 'true',
@@ -379,14 +379,14 @@ export class GeminiImageService {
 const RETRY_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 const FATAL_STATUS_CODES = [401, 403, 404];
 
-const client = httpClient({
+const client = createKyClient({
   retry: {
     limit: 3,
     statusCodes: RETRY_STATUS_CODES
   },
   hooks: {
     beforeError: [
-      error => {
+      ( { error } ) => {
         const status = error.response?.status;
         const message = error.message;
 
@@ -458,7 +458,7 @@ timeout: 60000
 
 ### 4. Consume or Cancel Response Bodies
 
-`httpClient` follows fetch semantics: callers own returned response bodies. Prefer body readers like `.json()` or `.text()`
+`createKyClient` follows Fetch response-body semantics: callers own returned response bodies. Prefer body readers like `.json()` or `.text()`
 when the payload is needed. If a request only reads metadata such as `response.url`, `response.status`, or headers, cancel the
 unused body in a `finally` block.
 
@@ -493,7 +493,7 @@ export interface ServiceResponse {
 
 - [ ] Client file located in `src/shared/clients/` directory
 - [ ] File named `{service}_client.ts`
-- [ ] `httpClient` imported from `@outputai/http` (not axios)
+- [ ] `createKyClient` imported from `@outputai/http` (not axios)
 - [ ] `FatalError` and `ValidationError` imported from `@outputai/core`
 - [ ] API key validation in constructor/initialization
 - [ ] Retry configuration for appropriate status codes

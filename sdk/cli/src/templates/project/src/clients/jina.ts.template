@@ -1,4 +1,4 @@
-import { httpClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 
 export interface JinaReaderResponse {
   code: number;
@@ -12,13 +12,13 @@ export interface JinaReaderResponse {
   };
 }
 
-const jinaClient = httpClient( {
-  prefixUrl: 'https://r.jina.ai',
+const client = createKyClient( {
+  prefix: 'https://r.jina.ai',
   timeout: 30000
 } );
 
 export async function fetchBlogContent( url: string ): Promise<JinaReaderResponse> {
-  const response = await jinaClient.post( '', {
+  const response = await client.post( '', {
     json: { url },
     headers: {
       'Accept': 'application/json',
