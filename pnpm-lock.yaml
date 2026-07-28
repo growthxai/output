@@ -395,8 +395,8 @@ importers:
         specifier: 4.0.3
         version: 4.0.3
       liquidjs:
-        specifier: '>=10.26.0'
-        version: 10.27.0
+        specifier: 10.27.1
+        version: 10.27.1
       undici:
         specifier: 'catalog:'
         version: 8.5.0
@@ -1146,20 +1146,20 @@ packages:
     resolution: {integrity: sha512-rZAP3aVgB9ds9KOeUSL+zZ21hPmo8dh6fnIFwRQj5EAZl9gzR7wxYbYXYysAM8CTqGmUGyp2S4kUdV17MnGuWQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@floating-ui/core@1.7.5':
-    resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
+  '@floating-ui/core@1.8.0':
+    resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
 
-  '@floating-ui/dom@1.7.6':
-    resolution: {integrity: sha512-9gZSAI5XM36880PPMm//9dfiEngYoC6Am2izES1FF406YFsjvyBMmeJ2g4SAju3xWwtuynNRFL2s9hgxpLI5SQ==}
+  '@floating-ui/dom@1.8.0':
+    resolution: {integrity: sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg==}
 
-  '@floating-ui/react-dom@2.1.8':
-    resolution: {integrity: sha512-cC52bHwM/n/CxS87FH0yWdngEZrjdtLW/qVruo68qg+prK7ZQ4YGdut2GyDVpoGeAYe/h899rVeOVm6Oi40k2A==}
+  '@floating-ui/react-dom@2.1.9':
+    resolution: {integrity: sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==}
     peerDependencies:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
-  '@floating-ui/utils@0.2.11':
-    resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+  '@floating-ui/utils@0.2.12':
+    resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
@@ -5495,8 +5495,8 @@ packages:
     engines: {node: '>=20.17'}
     hasBin: true
 
-  liquidjs@10.27.0:
-    resolution: {integrity: sha512-tw/OA59K7aIBlMKIrKlumr37fiZUheShVHXY8cVctWisgY1p9mc5hreOvlreoS0wTiwlWk14Ya7305c2a/Cg5w==}
+  liquidjs@10.27.1:
+    resolution: {integrity: sha512-ylE+1q2kSef1UxAyxqbyuWM3FRWS1v48JK1Y3CoW3bD6TSNXZh0+GsVnihujEpKyR+Jejx2aRAFfC3AHm9rElg==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -7330,6 +7330,7 @@ packages:
   tsconfck@3.1.6:
     resolution: {integrity: sha512-ks6Vjr/jEw0P1gmOVwutM3B7fWxoWBL2KRDb1JfqGVawBmO5UsvmWOQFGHBPl5yxYz4eERr19E6L7NMv+Fej4w==}
     engines: {node: ^18 || >=20}
+    deprecated: unmaintained
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0
@@ -9101,22 +9102,22 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@floating-ui/core@1.7.5':
+  '@floating-ui/core@1.8.0':
     dependencies:
-      '@floating-ui/utils': 0.2.11
+      '@floating-ui/utils': 0.2.12
 
-  '@floating-ui/dom@1.7.6':
+  '@floating-ui/dom@1.8.0':
     dependencies:
-      '@floating-ui/core': 1.7.5
-      '@floating-ui/utils': 0.2.11
+      '@floating-ui/core': 1.8.0
+      '@floating-ui/utils': 0.2.12
 
-  '@floating-ui/react-dom@2.1.8(react-dom@18.3.1(react@19.2.3))(react@19.2.3)':
+  '@floating-ui/react-dom@2.1.9(react-dom@18.3.1(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@floating-ui/dom': 1.7.6
+      '@floating-ui/dom': 1.8.0
       react: 19.2.3
       react-dom: 18.3.1(react@19.2.3)
 
-  '@floating-ui/utils@0.2.11': {}
+  '@floating-ui/utils@0.2.12': {}
 
   '@gerrit0/mini-shiki@3.23.0':
     dependencies:
@@ -10625,7 +10626,7 @@ snapshots:
 
   '@radix-ui/react-popper@1.2.8(@types/react@19.2.14)(react-dom@18.3.1(react@19.2.3))(react@19.2.3)':
     dependencies:
-      '@floating-ui/react-dom': 2.1.8(react-dom@18.3.1(react@19.2.3))(react@19.2.3)
+      '@floating-ui/react-dom': 2.1.9(react-dom@18.3.1(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-arrow': 1.1.7(@types/react@19.2.14)(react-dom@18.3.1(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-compose-refs': 1.1.2(@types/react@19.2.14)(react@19.2.3)
       '@radix-ui/react-context': 1.1.2(@types/react@19.2.14)(react@19.2.3)
@@ -14396,7 +14397,7 @@ snapshots:
       tinyexec: 1.1.2
       yaml: 2.9.0
 
-  liquidjs@10.27.0:
+  liquidjs@10.27.1:
     dependencies:
       commander: 10.0.1
 
