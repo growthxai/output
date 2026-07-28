@@ -200,7 +200,7 @@ import { FatalError, ValidationError } from '@outputai/core';
 const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
 const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const kyClient = createKyClient( {
+const client = createKyClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -231,16 +231,16 @@ const kyClient = createKyClient( {
 
 ```typescript
 // GET request
-const response = await kyClient.get( 'https://api.example.com/data' );
+const response = await client.get( 'https://api.example.com/data' );
 const data = await response.json();
 
 // POST request with JSON body
-const response = await kyClient.post( 'https://api.example.com/submit', {
+const response = await client.post( 'https://api.example.com/submit', {
   json: { field: 'value' }
 } );
 
 // HEAD request (check URL accessibility)
-const response = await kyClient.head( url );
+const response = await client.head( url );
 const contentType = response.headers.get( 'content-type' );
 ```
 
@@ -248,7 +248,7 @@ When a non-`HEAD` request only uses response metadata, such as `response.url`, `
 unused body in a `finally` block. Responses read with `.json()`, `.text()`, etc. are already consumed.
 
 ```typescript
-const response = await kyClient.get( url );
+const response = await client.get( url );
 
 try {
   return response.url;
@@ -388,7 +388,7 @@ if ( response.status === 503 ) {
 
 // Network errors
 try {
-  const response = await kyClient.get( url );
+  const response = await client.get( url );
 } catch ( error ) {
   throw new ValidationError( `Network error: ${error.message}` );
 }
@@ -420,7 +420,7 @@ import {
 const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
 const FATAL_STATUS_CODES = [ 401, 403, 404 ];
 
-const kyClient = createKyClient( {
+const client = createKyClient( {
   timeout: 30000,
   retry: {
     limit: 3,
@@ -504,7 +504,7 @@ export const validateReferenceImages = step( {
     }
 
     for ( const [ index, url ] of referenceImageUrls.entries() ) {
-      const response = await kyClient.head( url );
+      const response = await client.head( url );
       const contentType = response.headers.get( 'content-type' );
 
       if ( contentType && !contentType.startsWith( 'image/' ) ) {
@@ -556,7 +556,7 @@ fn: async input => {
     throw new FatalError( 'URL must use HTTPS protocol' );
   }
 
-  const response = await kyClient.get( input.url );
+  const response = await client.get( input.url );
   // ...
 }
 ```

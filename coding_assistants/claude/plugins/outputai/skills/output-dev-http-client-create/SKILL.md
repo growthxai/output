@@ -100,7 +100,7 @@ import { credentials } from '@outputai/credentials';
 const API_KEY = credentials.require('service.api_key');
 const BASE_URL = 'https://api.service.com';
 
-const serviceClient = createKyClient({
+const client = createKyClient({
   prefix: BASE_URL,
   headers: {
     Authorization: `Bearer ${API_KEY}`,
@@ -122,7 +122,7 @@ const serviceClient = createKyClient({
  * @throws {ValidationError} If temporary error occurs
  */
 export async function fetchServiceData(query: string): Promise<ServiceResponse> {
-  const response = await serviceClient.get('endpoint', {
+  const response = await client.get('endpoint', {
     searchParams: { q: query }
   });
 
@@ -210,7 +210,7 @@ import { credentials } from '@outputai/credentials';
 const JINA_API_KEY = credentials.require('jina.api_key');
 const JINA_BASE_URL = 'https://r.jina.ai';
 
-const jinaClient = createKyClient({
+const client = createKyClient({
   prefix: JINA_BASE_URL,
   headers: {
     Authorization: `Bearer ${JINA_API_KEY}`,
@@ -227,7 +227,7 @@ const jinaClient = createKyClient({
  * Parse PDF resume using Jina Reader API
  */
 export async function parseResumeWithJina(base64Pdf: string): Promise<string> {
-  const response = await jinaClient.post('', {
+  const response = await client.post('', {
     json: { pdf: base64Pdf },
     headers: {
       'Content-Type': 'application/json'
@@ -252,7 +252,7 @@ export async function parseResumeWithJina(base64Pdf: string): Promise<string> {
  * Scrape text content from URL using Jina Reader
  */
 export async function scrapeTextWithJina(url: string): Promise<string> {
-  const response = await jinaClient.get(url, {
+  const response = await client.get(url, {
     headers: {
       'X-Return-Format': 'text',
       'X-No-Cache': 'true',
