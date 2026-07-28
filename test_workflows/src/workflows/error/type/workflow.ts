@@ -4,7 +4,7 @@ import { FooError } from './types.js';
 
 export default workflow( {
   name: 'error_type',
-  description: 'Verify that typed errors threw in user code can be intercepted',
+  description: 'Verify that typed errors thrown in user code can be intercepted',
   outputSchema: z.string(),
   fn: async () => {
     try {
