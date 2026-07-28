@@ -1,9 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const logMock = vi.hoisted( () => ( { warn: vi.fn() } ) );
+
+vi.mock( '#logger', () => ( { createChildLogger: () => logMock } ) );
+
 import { flushPendingHooks, pendingHooks } from './pending_hooks.js';
 
 describe( 'pending hooks', () => {
   beforeEach( () => {
     pendingHooks.clear();
+    vi.clearAllMocks();
   } );
 
   afterEach( () => {
@@ -40,5 +46,17 @@ describe( 'pending hooks', () => {
     await vi.advanceTimersByTimeAsync( 30_000 );
 
     await expect( flushPromise ).resolves.toBeUndefined();
+  } );
+
+  it( 'logs the number of hooks that exceeded the timeout', async () => {
+    vi.useFakeTimers();
+    pendingHooks.add( new Promise( () => {} ) );
+    pendingHooks.add( new Promise( () => {} ) );
+
+    const flushPromise = flushPendingHooks();
+    await vi.advanceTimersByTimeAsync( 30_000 );
+    await flushPromise;
+
+    expect( logMock.warn ).toHaveBeenCalledWith( expect.any( String ), { count: 2 } );
   } );
 } );

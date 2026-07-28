@@ -214,7 +214,7 @@ execute()
     }
   } )
   .then( async () => {
-    log.info( 'Flushing events...' );
+    log.info( 'Flushing hook callbacks...' );
     await flushPendingHooks();
     log.info( 'Bye' );
   } )
@@ -223,7 +223,7 @@ execute()
 
     mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error } );
 
-    log.info( 'Fluxing events...' );
+    log.info( 'Flushing hook callbacks...' );
     await flushPendingHooks();
     log.info( 'Exiting...' );
     setTimeout( () => process.exit( 1 ) );

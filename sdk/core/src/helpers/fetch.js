@@ -1,6 +1,6 @@
 import { FatalError } from '#errors';
 
-/** Matches red int "hot-red-pie", but not int "redact" */
+/** Matches red in "hot-red-pie", but not in "redact" */
 const wordMatcher = term => new RegExp( `(?<![a-z\\d])${term}(?![a-z\\d])`, 'i' );
 
 /** Matches red in "acquired", but not in "redact" */
