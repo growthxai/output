@@ -37,10 +37,38 @@ describe( 'resolveInput', () => {
     } as any );
     vi.mocked( parseInputFlag ).mockReturnValue( { key: 'value' } );
 
-    const result = await resolveInput( 'web_search', 'happy_path', undefined, 'start' );
+    const result = await resolveInput( {
+      workflowName: 'web_search',
+      scenario: 'happy_path',
+      commandName: 'start'
+    } );
 
     expect( result ).toEqual( { key: 'value' } );
-    expect( ux.stderr ).toHaveBeenCalledWith( 'Using scenario: /scenarios/happy_path.json\n' );
+    expect( ux.stderr ).toHaveBeenCalledWith( 'Using scenario: /scenarios/happy_path.json' );
+    expect( ux.stdout ).not.toHaveBeenCalled();
+  } );
+
+  it( 'suppresses the scenario notice entirely under --json', async () => {
+    const { ux } = await import( '@oclif/core' );
+    const { parseInputFlag } = await import( '#utils/input_parser.js' );
+    const { resolveScenarioPath } = await import( '#utils/scenario_resolver.js' );
+    const { resolveInput } = await import( './resolve_input.js' );
+
+    vi.mocked( resolveScenarioPath ).mockResolvedValue( {
+      found: true,
+      path: '/scenarios/happy_path.json'
+    } as any );
+    vi.mocked( parseInputFlag ).mockReturnValue( { key: 'value' } );
+
+    const result = await resolveInput( {
+      workflowName: 'web_search',
+      scenario: 'happy_path',
+      commandName: 'start',
+      json: true
+    } );
+
+    expect( result ).toEqual( { key: 'value' } );
+    expect( ux.stderr ).not.toHaveBeenCalled();
     expect( ux.stdout ).not.toHaveBeenCalled();
   } );
 
@@ -51,7 +79,11 @@ describe( 'resolveInput', () => {
 
     vi.mocked( parseInputFlag ).mockReturnValue( { key: 'value' } );
 
-    await resolveInput( 'web_search', undefined, '{"key":"value"}', 'start' );
+    await resolveInput( {
+      workflowName: 'web_search',
+      inputFlag: '{"key":"value"}',
+      commandName: 'start'
+    } );
 
     expect( ux.stderr ).not.toHaveBeenCalled();
     expect( ux.stdout ).not.toHaveBeenCalled();

@@ -81,7 +81,14 @@ export default class WorkflowRun extends Command {
   async run(): Promise<WorkflowResultResponse> {
     const { args, flags } = await this.parse( WorkflowRun );
 
-    const input = await resolveInput( args.workflowName, args.scenario, flags.input, 'run', flags.catalog );
+    const input = await resolveInput( {
+      workflowName: args.workflowName,
+      scenario: args.scenario,
+      inputFlag: flags.input,
+      commandName: 'run',
+      catalog: flags.catalog,
+      json: this.jsonEnabled()
+    } );
 
     this.log( `Executing workflow: ${args.workflowName}...` );
 
