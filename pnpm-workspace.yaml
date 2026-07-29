@@ -48,6 +48,12 @@ overrides:
   ws@>=8.0.0 <8.20.1: '8.21.0'
   zod@<=3.22.2: '3.24.0'
 
+peerDependencyRules:
+  allowedVersions:
+    # Mintlify uses React 19 while its MDX dependencies still declare React 18 peers.
+    # It is unsolvable until Mintlify updates its stack
+    react: 19.2.3
+
 strictDepBuilds: true
 
 trustPolicy: no-downgrade
