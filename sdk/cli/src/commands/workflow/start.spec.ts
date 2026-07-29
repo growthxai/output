@@ -43,6 +43,11 @@ describe( 'workflow start command', () => {
       expect( WorkflowStart.flags.catalog.env ).toBe( 'OUTPUT_CATALOG_ID' );
       expect( WorkflowStart.flags.catalog.char ).toBe( 'c' );
     } );
+
+    it( 'enables the built-in --json flag', async () => {
+      const WorkflowStart = ( await import( './start.js' ) ).default;
+      expect( WorkflowStart.enableJsonFlag ).toBe( true );
+    } );
   } );
 
   describe( 'run()', () => {
@@ -73,12 +78,13 @@ describe( 'workflow start command', () => {
         headers: new Headers()
       } as any );
 
-      await cmd.run();
+      const result = await cmd.run();
 
       expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', undefined, undefined, 'start', 'my-catalog' );
       expect( postWorkflowStart ).toHaveBeenCalledWith(
         expect.objectContaining( { workflowName: 'my_workflow', catalog: 'my-catalog' } )
       );
+      expect( result ).toEqual( { workflowId: 'wf-123' } );
     } );
 
     it( 'passes undefined catalog through when none is set', async () => {

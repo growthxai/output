@@ -28,7 +28,7 @@ export async function resolveInput(
         { exit: 1 }
       );
     }
-    ux.stdout( `Using scenario: ${resolution.path}\n` );
+    ux.stderr( `Using scenario: ${resolution.path}\n` );
     return parseInputFlag( resolution.path! );
   }
 
