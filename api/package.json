@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@temporalio/proto": "catalog:",
-    "swagger-jsdoc": "6.2.8"
+    "swagger-jsdoc": "6.3.0"
   },
   "license": "UNLISENCED",
   "private": true,
