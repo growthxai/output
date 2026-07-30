@@ -90,7 +90,7 @@ class WorkflowExecutionInterceptor {
         throw error;
       }
 
-      // Workflow Task failure, do not sink as this retry the Task no the Workflow
+      // Workflow Task failure, do not sink as this retries the Task only,  not the Workflow
       throw error;
     }
   }
