@@ -224,9 +224,6 @@ importers:
       undici:
         specifier: 'catalog:'
         version: 8.5.0
-      yaml:
-        specifier: ^2.8.3
-        version: 2.9.0
     devDependencies:
       '@types/cli-progress':
         specifier: 3.11.6

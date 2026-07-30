@@ -47,8 +47,7 @@
     "ky": "catalog:",
     "react": "19.2.5",
     "semver": "catalog:",
-    "undici": "catalog:",
-    "yaml": "^2.8.3"
+    "undici": "catalog:"
   },
   "devDependencies": {
     "@types/cli-progress": "3.11.6",
