@@ -77,7 +77,12 @@ describe( 'workflow run command', () => {
 
       await cmd.run();
 
-      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', undefined, undefined, 'run', undefined );
+      expect( resolveInput ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowName: 'my_workflow',
+        commandName: 'run',
+        catalog: undefined,
+        json: false
+      } ) );
       expect( postWorkflowRun ).toHaveBeenCalledTimes( 1 );
       expect( postWorkflowRun ).toHaveBeenCalledWith(
         { workflowName: 'my_workflow', input: { key: 'value' }, catalog: undefined },
@@ -102,7 +107,12 @@ describe( 'workflow run command', () => {
 
       await cmd.run();
 
-      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', 'basic', undefined, 'run', 'my-catalog' );
+      expect( resolveInput ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowName: 'my_workflow',
+        scenario: 'basic',
+        commandName: 'run',
+        catalog: 'my-catalog'
+      } ) );
       expect( postWorkflowRun ).toHaveBeenCalledWith(
         expect.objectContaining( { catalog: 'my-catalog' } ),
         expect.anything()

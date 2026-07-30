@@ -6,11 +6,14 @@ import { resolveInput } from '#utils/resolve_input.js';
 export default class WorkflowStart extends Command {
   static override description = 'Start a workflow asynchronously without waiting for completion';
 
+  static override enableJsonFlag = true;
+
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple basic_input',
     '<%= config.bin %> <%= command.id %> simple --input \'{"values":[1,2,3]}\'',
     '<%= config.bin %> <%= command.id %> simple --input input.json',
-    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog'
+    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog',
+    '<%= config.bin %> <%= command.id %> simple --json'
   ];
 
   static override args = {
@@ -40,10 +43,17 @@ export default class WorkflowStart extends Command {
     } )
   };
 
-  async run(): Promise<void> {
+  async run(): Promise<PostWorkflowStart200> {
     const { args, flags } = await this.parse( WorkflowStart );
 
-    const input = await resolveInput( args.workflowName, args.scenario, flags.input, 'start', flags.catalog );
+    const input = await resolveInput( {
+      workflowName: args.workflowName,
+      scenario: args.scenario,
+      inputFlag: flags.input,
+      commandName: 'start',
+      catalog: flags.catalog,
+      json: this.jsonEnabled()
+    } );
 
     this.log( `Starting workflow: ${args.workflowName}...` );
 
@@ -68,6 +78,8 @@ export default class WorkflowStart extends Command {
     ].join( '\n' );
 
     this.log( `\n${output}` );
+
+    return result;
   }
 
   async catch( error: Error ): Promise<void> {

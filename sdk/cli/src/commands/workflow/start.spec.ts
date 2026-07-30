@@ -43,15 +43,20 @@ describe( 'workflow start command', () => {
       expect( WorkflowStart.flags.catalog.env ).toBe( 'OUTPUT_CATALOG_ID' );
       expect( WorkflowStart.flags.catalog.char ).toBe( 'c' );
     } );
+
+    it( 'enables the built-in --json flag', async () => {
+      const WorkflowStart = ( await import( './start.js' ) ).default;
+      expect( WorkflowStart.enableJsonFlag ).toBe( true );
+    } );
   } );
 
   describe( 'run()', () => {
-    const createCommand = async ( flagOverrides: Record<string, unknown> = {} ) => {
+    const createCommand = async ( flagOverrides: Record<string, unknown> = {}, argv = [ 'my_workflow' ] ) => {
       const WorkflowStart = ( await import( './start.js' ) ).default;
       const { postWorkflowStart } = await import( '#api/generated/api.js' );
       const { resolveInput } = await import( '#utils/resolve_input.js' );
 
-      const cmd = new WorkflowStart( [ 'my_workflow' ], {} as any );
+      const cmd = new WorkflowStart( argv, {} as any );
       cmd.log = vi.fn();
       cmd.error = vi.fn( () => {
         throw new Error( 'error called' );
@@ -73,12 +78,18 @@ describe( 'workflow start command', () => {
         headers: new Headers()
       } as any );
 
-      await cmd.run();
+      const result = await cmd.run();
 
-      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', undefined, undefined, 'start', 'my-catalog' );
+      expect( resolveInput ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowName: 'my_workflow',
+        commandName: 'start',
+        catalog: 'my-catalog',
+        json: false
+      } ) );
       expect( postWorkflowStart ).toHaveBeenCalledWith(
         expect.objectContaining( { workflowName: 'my_workflow', catalog: 'my-catalog' } )
       );
+      expect( result ).toEqual( { workflowId: 'wf-123' } );
     } );
 
     it( 'passes undefined catalog through when none is set', async () => {
@@ -92,7 +103,25 @@ describe( 'workflow start command', () => {
 
       await cmd.run();
 
-      expect( resolveInput ).toHaveBeenCalledWith( 'my_workflow', undefined, undefined, 'start', undefined );
+      expect( resolveInput ).toHaveBeenCalledWith( expect.objectContaining( {
+        workflowName: 'my_workflow',
+        commandName: 'start',
+        catalog: undefined
+      } ) );
+    } );
+
+    it( 'tells resolveInput to stay quiet when --json is set', async () => {
+      const { cmd, postWorkflowStart, resolveInput } = await createCommand( {}, [ 'my_workflow', 'basic', '--json' ] );
+      resolveInput.mockResolvedValue( {} );
+      postWorkflowStart.mockResolvedValue( {
+        data: { workflowId: 'wf-123' },
+        status: 200,
+        headers: new Headers()
+      } as any );
+
+      await cmd.run();
+
+      expect( resolveInput ).toHaveBeenCalledWith( expect.objectContaining( { json: true } ) );
     } );
   } );
 } );
