@@ -1,5 +1,3 @@
-import { FatalError } from '#errors';
-
 export const defaultOptions = {
   activityOptions: {
     startToCloseTimeout: '20m',
@@ -9,7 +7,7 @@ export const defaultOptions = {
       backoffCoefficient: 2.0,
       maximumInterval: '2m',
       maximumAttempts: 3,
-      nonRetryableErrorTypes: [ FatalError.name ]
+      nonRetryableErrorTypes: []
     }
   },
   disableTrace: false

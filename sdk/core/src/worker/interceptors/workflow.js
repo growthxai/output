@@ -28,6 +28,12 @@ class HeadersInjectionInterceptor {
     if ( activityOptionsOverrides ) {
       input.options = deepMerge( input.options ?? {}, activityOptionsOverrides );
     }
+    // Add the default nonRetryableError
+    const { nonRetryableErrorTypes = [], ...retryProps } = input.options.retry ?? {};
+    input.options.retry = {
+      ...retryProps,
+      nonRetryableErrorTypes: [ ...new Set( nonRetryableErrorTypes.concat( FatalError.name ) ) ]
+    };
     return next( input );
   }
 };

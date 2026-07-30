@@ -16,9 +16,9 @@ Default retry behavior:
 | `initialInterval` | 10s |
 | `backoffCoefficient` | 2.0 |
 | `maximumAttempts` | 3 |
-| `nonRetryableErrorTypes` | `['ValidationError', 'FatalError']` |
+| `nonRetryableErrorTypes` | `['FatalError']` |
 
-This means a failing step waits 10s, then 20s, then fails for good. You can override these per step via the `options.activityOptions` property — see [Step Options](/steps#options).
+This means a failing step waits 10s, then 20s, then fails for good. You can override these per step via the `options.activityOptions` property — see [Step Options](/steps#options). Custom `nonRetryableErrorTypes` are added alongside `FatalError`; Output always keeps `FatalError` non-retryable.
 
 ## Workflows
 
@@ -146,6 +146,8 @@ function getSerializedWorkflowError(error: unknown) {
 ## FatalError, ValidationError, and TransparentFatalError
 
 Sometimes retrying won't help — the API key is invalid, the resource doesn't exist, or the data is fundamentally wrong. For these cases, throw `FatalError` or `ValidationError` to fail immediately without retries.
+
+`ValidationError` and `TransparentFatalError` extend `FatalError`. The entire `FatalError` family is always non-retryable and cannot be made retryable through activity options. Throw a regular or custom `Error` when retry configuration should control the behavior.
 
 | Error | Use when |
 |-------|----------|

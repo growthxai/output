@@ -8,7 +8,7 @@ import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../config
 import { mainEventBus } from '#bus';
 import { inheritsFromAnyNamedType } from '#helpers/errors';
 import { serializeError } from '#helpers/error_serializer';
-import { TransparentFatalError } from '#errors';
+import { FatalError, TransparentFatalError } from '#errors';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -98,8 +98,9 @@ export class ActivityExecutionInterceptor {
         throw error;
       }
 
+      const nonRetryable = error instanceof FatalError || inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] );
       throw ApplicationFailure.fromError( unwrappedError, {
-        nonRetryable: inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] ),
+        nonRetryable,
         cause: unwrappedError,
         details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
       } );

@@ -76,7 +76,7 @@ describe( 'workflow interceptors', () => {
       const { interceptors } = await import( './workflow.js' );
       const { outbound } = interceptors();
       const interceptor = outbound[0];
-      const input = { headers: { existing: 'header' }, activityType: 'MyWorkflow#step1' };
+      const input = { headers: { existing: 'header' }, activityType: 'MyWorkflow#step1', options: {} };
       const next = vi.fn().mockResolvedValue( 'result' );
 
       memoToHeadersMock.mockReturnValue( { traceInfo: workflowInfo.memo.traceInfo, workflowDetails } );
@@ -103,7 +103,11 @@ describe( 'workflow interceptors', () => {
         memo: { traceInfo: workflowInfo.memo.traceInfo }
       } );
       memoToHeadersMock.mockReturnValue( {} );
-      deepMergeMock.mockReturnValue( { heartbeatTimeout: 10, scheduleToCloseTimeout: 60 } );
+      deepMergeMock.mockReturnValue( {
+        heartbeatTimeout: 10,
+        scheduleToCloseTimeout: 60,
+        retry: { maximumAttempts: 2, nonRetryableErrorTypes: [ 'StepError' ] }
+      } );
 
       const { interceptors } = await import( './workflow.js' );
       const { outbound } = interceptors();
@@ -114,7 +118,38 @@ describe( 'workflow interceptors', () => {
       await interceptor.scheduleActivity( input, next );
 
       expect( deepMergeMock ).toHaveBeenCalledWith( { heartbeatTimeout: 10 }, { scheduleToCloseTimeout: 60 } );
-      expect( input.options ).toEqual( { heartbeatTimeout: 10, scheduleToCloseTimeout: 60 } );
+      expect( input.options ).toEqual( {
+        heartbeatTimeout: 10,
+        scheduleToCloseTimeout: 60,
+        retry: {
+          maximumAttempts: 2,
+          nonRetryableErrorTypes: [ 'StepError', 'FatalError' ]
+        }
+      } );
+    } );
+
+    it( 'adds FatalError to activity retry options without duplicates', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { outbound } = interceptors();
+      const interceptor = outbound[0];
+      const input = {
+        headers: {},
+        activityType: 'MyWorkflow#step1',
+        options: {
+          retry: {
+            maximumAttempts: 4,
+            nonRetryableErrorTypes: [ 'DomainError', 'FatalError' ]
+          }
+        }
+      };
+      const next = vi.fn().mockResolvedValue( undefined );
+
+      await interceptor.scheduleActivity( input, next );
+
+      expect( input.options.retry ).toEqual( {
+        maximumAttempts: 4,
+        nonRetryableErrorTypes: [ 'DomainError', 'FatalError' ]
+      } );
     } );
   } );
 

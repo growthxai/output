@@ -187,8 +187,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     } );
   } );
 
-  it( 'uses a transparent error cause for reporting and propagation while preserving retryability', async () => {
-    activityInfoMock.retryPolicy = { nonRetryableErrorTypes: [ 'FatalError' ] };
+  it( 'uses a transparent error cause while remaining non-retryable without retry policy metadata', async () => {
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const cause = new TypeError( 'provider rejected request' );
