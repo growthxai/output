@@ -1,55 +1,51 @@
-/**
- * Tests for the env loader utility
- */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import * as dotenv from 'dotenv';
-
-vi.mock( 'node:fs' );
-vi.mock( 'dotenv' );
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { loadEnvironment } from './env_loader.js';
 
 describe( 'loadEnvironment', () => {
-  const originalEnv = { ...process.env };
-  const mockCwd = '/mock/project';
+  const originalCwd = process.cwd();
+  const mockCwd = mkdtempSync( join( tmpdir(), 'output-env-loader-' ) );
+  const mockApiUrl = 'https://mock.api.com';
+  const mockToken = 'mock-token';
+  const mockEnvironment = [
+    `OUTPUT_API_URL=${mockApiUrl}`,
+    `OUTPUT_API_TOKEN=${mockToken}`
+  ].join( '\n' );
 
   beforeEach( () => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    vi.spyOn( process, 'cwd' ).mockReturnValue( mockCwd );
-    vi.spyOn( console, 'log' ).mockImplementation( () => {} );
-    vi.spyOn( console, 'warn' ).mockImplementation( () => {} );
+    process.chdir( mockCwd );
+    vi.stubEnv( 'OUTPUT_CLI_ENV', undefined );
+    vi.stubEnv( 'OUTPUT_API_URL', undefined );
+    vi.stubEnv( 'OUTPUT_API_TOKEN', undefined );
   } );
 
   afterEach( () => {
-    process.env = { ...originalEnv };
-    vi.restoreAllMocks();
+    process.chdir( originalCwd );
+    vi.unstubAllEnvs();
   } );
 
-  it( 'should load from OUTPUT_CLI_ENV when set and file exists', async () => {
-    process.env.OUTPUT_CLI_ENV = '.env.prod';
-    const expectedPath = resolve( mockCwd, '.env.prod' );
-
-    vi.mocked( existsSync ).mockReturnValue( true );
-    vi.mocked( dotenv.config ).mockReturnValue( { parsed: { OUTPUT_API_URL: 'https://prod.api.com' } } );
-
-    const { loadEnvironment } = await import( './env_loader.js' );
-    loadEnvironment();
-
-    expect( dotenv.config ).toHaveBeenCalledWith( { path: expectedPath, quiet: true } );
+  afterAll( () => {
+    rmSync( mockCwd, { recursive: true, force: true } );
   } );
 
-  it( 'should load .env by default and log', async () => {
-    delete process.env.OUTPUT_CLI_ENV;
-    const envPath = resolve( mockCwd, '.env' );
+  it( 'loads variables from OUTPUT_CLI_ENV', () => {
+    writeFileSync( join( mockCwd, '.env.mock' ), mockEnvironment );
+    process.env.OUTPUT_CLI_ENV = '.env.mock';
 
-    vi.mocked( existsSync ).mockImplementation( p => p === envPath );
-    vi.mocked( dotenv.config ).mockReturnValue( { parsed: {} } );
-
-    const { loadEnvironment } = await import( './env_loader.js' );
     loadEnvironment();
 
-    expect( dotenv.config ).toHaveBeenCalledTimes( 1 );
-    expect( dotenv.config ).toHaveBeenCalledWith( { path: envPath, quiet: true } );
+    expect( process.env.OUTPUT_API_URL ).toBe( mockApiUrl );
+    expect( process.env.OUTPUT_API_TOKEN ).toBe( mockToken );
+  } );
+
+  it( 'loads variables from .env by default', () => {
+    writeFileSync( join( mockCwd, '.env' ), mockEnvironment );
+
+    loadEnvironment();
+
+    expect( process.env.OUTPUT_API_URL ).toBe( mockApiUrl );
+    expect( process.env.OUTPUT_API_TOKEN ).toBe( mockToken );
   } );
 } );

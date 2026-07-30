@@ -5,7 +5,6 @@
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import * as dotenv from 'dotenv';
 import debugFactory from 'debug';
 
 const debug = debugFactory( 'output-cli:env-loader' );
@@ -21,5 +20,5 @@ export function loadEnvironment(): void {
   }
 
   debug( `Loading env from: ${envPath}` );
-  dotenv.config( { path: envPath, quiet: true } );
+  process.loadEnvFile( envPath );
 }
