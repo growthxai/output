@@ -9,6 +9,5 @@ export const defaultOptions = {
       maximumAttempts: 3,
       nonRetryableErrorTypes: []
     }
-  },
-  disableTrace: false
+  }
 };

@@ -3,10 +3,10 @@ import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, 
 import { WorkflowValidator } from './validations/index.js';
 import { toUrlSafeBase64 } from '#helpers/string';
 import { WorkflowContext } from '#helpers/workflow_context';
-import { TraceInfo } from '#helpers/trace_info';
 import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import { createWorkflow } from '#helpers/component';
+import { enforceActivityOptions } from '#helpers/activity_options';
 import { FatalError } from '#errors';
 import * as C from '#consts';
 
@@ -36,8 +36,6 @@ const checkGlobalContextContamination = runId => {
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   WorkflowValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
-  // Disable trace can only be defined at the definition level
-  const disableTrace = options.disableTrace ?? defaultOptions.disableTrace;
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
   const handler = async ( input, rawInvocationOptions = {} ) => {
@@ -50,10 +48,8 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       );
     }
 
-    // set this payload version as the first thing
-    upsertMemo( { payloadVersion: '2' } );
-
     const { workflowId, runId, memo, root } = workflowInfo();
+    const isRoot = !root;
 
     checkGlobalContextContamination( runId );
 
@@ -66,30 +62,23 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } );
     }
 
-    const isRoot = !root; // Check if this is the root most workflow
-
-    // Trace info is only added in the root and only when trace is not disabled
-    if ( isRoot && !disableTrace ) {
-      memo.traceInfo = TraceInfo.build();
-    }
-
-    // Resolve the activity options: invocation options > definition options > parent options > default options
-    const activityOptions = deepMerge(
+    // Resolve the activity options: invocation options > definition options > parent options > default options, then enforce final SDK options
+    const activityOptions = enforceActivityOptions( deepMerge(
       defaultOptions.activityOptions, // default
-      memo?.parentActivityOptions, // parent options
+      memo?.activityOptions, // parent options
       options?.activityOptions, // definition options
       invocationOptions.activityOptions // invocation options
-    );
-    // Resolved activity options are added to memo so child workflow executions can continue the policy chain.
-    memo.parentActivityOptions = activityOptions;
-    const activities = proxyActivities( activityOptions );
+    ) );
 
+    const activities = proxyActivities( activityOptions );
     createGlobalDispatcher( { runId, workflowType: name, activities } );
 
-    if ( isRoot && !disableTrace ) {
-      const trace = await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo );
-      upsertMemo( { trace } );
-    }
+    upsertMemo( {
+      activityOptions, // Resolved activity options are added to memo so child workflow executions can continue the policy chain
+      ...( isRoot && memo.traceInfo && {
+        trace: await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo )
+      } )
+    } );
 
     return validator.parseOutput(
       await fn( validator.parseInput( input ), WorkflowContext.build() )

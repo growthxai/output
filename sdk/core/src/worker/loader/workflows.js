@@ -1,7 +1,7 @@
 import { EOL } from 'node:os';
 import { writeFileInTempDir, findWorkflowsInNodeModules, importComponents, matchFiles } from './tools.js';
 import { staticMatchers } from './matchers.js';
-import { WORKFLOWS_INDEX_FILENAME, WORKFLOW_CATALOG } from '#consts';
+import { WORKFLOWS_INDEX_FILENAME, WORKFLOW_CATALOG, WORKFLOW_OPTIONS_FILENAME } from '#consts';
 import { createChildLogger } from '#logger';
 import { ValidationError } from '#errors';
 
@@ -38,6 +38,7 @@ const createWorkflowsEntrypoint = workflows => {
  * @typedef LoadWorkflowsResult
  * @property {Workflow[]} workflows - Loaded workflows
  * @property {string} entrypoint - Index file loading all workflows
+ * @property {string} optionsFile - File exporting options for each workflow and their aliases
  */
 /**
  * Scan and find workflow.js files and import them.
@@ -47,6 +48,8 @@ const createWorkflowsEntrypoint = workflows => {
  */
 export async function loadWorkflows( rootDir ) {
   const workflowNames = new Set();
+  const workflowOptions = new Map();
+
   const workflows = [];
   const localWorkflows = matchFiles( rootDir, [ staticMatchers.workflowFile ] );
   const externalWorkflows = findWorkflowsInNodeModules( rootDir );
@@ -55,7 +58,7 @@ export async function loadWorkflows( rootDir ) {
     if ( staticMatchers.workflowPathHasShared( path ) ) {
       throw new ValidationError( 'Workflow directory can\'t be named "shared"' );
     }
-    const { name, aliases } = metadata;
+    const { name, aliases, options } = metadata;
     if ( workflowNames.has( name ) ) {
       throw new ValidationError( `Workflow name "${name}" conflicts with another workflow or alias. \
 Workflow names and aliases must be unique.` );
@@ -64,6 +67,8 @@ Workflow names and aliases must be unique.` );
       throw new ValidationError( `Workflow name "${name}" is reserved for the internal catalog workflow.` );
     }
     workflowNames.add( name );
+    workflowOptions.set( name, { disableTrace: options?.disableTrace ?? false } );
+
     for ( const alias of aliases ?? [] ) {
       if ( workflowNames.has( alias ) ) {
         throw new ValidationError( `Workflow "${name}" alias "${alias}" conflicts with another workflow or alias. \
@@ -73,10 +78,18 @@ Workflow names and aliases must be unique.` );
         throw new ValidationError( `Workflow "${name}" alias "${alias}" is reserved for the internal catalog workflow.` );
       }
       workflowNames.add( alias );
+      workflowOptions.set( alias, { disableTrace: options?.disableTrace ?? false } );
     }
 
     log.info( name, { path, aliases, ...( external && { external } ) } );
     workflows.push( { ...metadata, path, external } );
   }
-  return { workflows, entrypoint: createWorkflowsEntrypoint( workflows ) };
+
+  workflowOptions.set( WORKFLOW_CATALOG, { disableTrace: true } );
+
+  // writes down the static workflow options, currently only disable trace
+  const optionsContent = `export default ${JSON.stringify( Object.fromEntries( workflowOptions ), undefined, 2 )};`;
+  const optionsFile = writeFileInTempDir( optionsContent, WORKFLOW_OPTIONS_FILENAME );
+
+  return { workflows, entrypoint: createWorkflowsEntrypoint( workflows ), optionsFile };
 };

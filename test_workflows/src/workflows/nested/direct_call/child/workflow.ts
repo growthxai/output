@@ -1,6 +1,8 @@
 import { workflow, z } from '@outputai/core';
 import httpSimple from '../../../http/simple/workflow.js';
 
+class FooError extends Error {};
+
 export default workflow( {
   name: 'nested_direct_call_child',
   description: 'Second level',
@@ -10,5 +12,12 @@ export default workflow( {
   fn: async () => {
     const value = await httpSimple();
     return { value };
+  },
+  options: {
+    activityOptions: {
+      retry: {
+        nonRetryableErrorTypes: [ FooError.name ]
+      }
+    }
   }
 } );

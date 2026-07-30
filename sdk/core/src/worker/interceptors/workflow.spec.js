@@ -7,6 +7,8 @@ const workflowStartMock = vi.fn();
 const workflowEndMock = vi.fn();
 const workflowErrorMock = vi.fn();
 const isCancellationMock = vi.fn();
+const upsertMemoMock = vi.fn();
+const traceInfoBuildMock = vi.fn();
 const startTime = new Date( '2026-06-02T09:00:00.000Z' );
 const runStartTime = new Date( '2026-06-02T09:05:00.000Z' );
 const workflowDetails = {
@@ -50,9 +52,12 @@ vi.mock( '@temporalio/workflow', async importOriginal => {
         this.name = 'ContinueAsNew';
       }
     },
-    isCancellation: ( ...args ) => isCancellationMock( ...args )
+    isCancellation: ( ...args ) => isCancellationMock( ...args ),
+    upsertMemo: ( ...args ) => upsertMemoMock( ...args )
   };
 } );
+
+vi.mock( '#helpers/trace_info', () => ( { TraceInfo: { build: ( ...args ) => traceInfoBuildMock( ...args ) } } ) );
 
 const memoToHeadersMock = vi.fn( memo => ( memo ? { ...memo, __asHeaders: true } : {} ) );
 vi.mock( './headers.js', () => ( { memoToHeaders: ( ...args ) => memoToHeadersMock( ...args ) } ) );
@@ -63,11 +68,17 @@ vi.mock( '#helpers/object', () => ( { deepMerge: ( ...args ) => deepMergeMock( .
 const activityOptionsDefault = {};
 vi.mock( '../temp/__activity_options.js', () => ( { default: activityOptionsDefault } ) );
 
+const workflowOptionsDefault = {};
+vi.mock( '../temp/__workflow_options.js', () => ( { default: workflowOptionsDefault } ) );
+
 describe( 'workflow interceptors', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     Object.keys( activityOptionsDefault ).forEach( key => delete activityOptionsDefault[key] );
+    Object.keys( workflowOptionsDefault ).forEach( key => delete workflowOptionsDefault[key] );
+    workflowOptionsDefault.MyWorkflow = { disableTrace: false };
     isCancellationMock.mockReturnValue( false );
+    traceInfoBuildMock.mockReturnValue( { workflowId: 'workflow-1', runId: 'run-1' } );
     workflowInfoMock.mockReturnValue( workflowInfo );
   } );
 
@@ -154,6 +165,43 @@ describe( 'workflow interceptors', () => {
   } );
 
   describe( 'WorkflowExecutionInterceptor', () => {
+    it( 'upserts root trace info before starting the workflow trace', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { inbound } = interceptors();
+      const traceInfo = { workflowId: 'workflow-1', runId: 'run-1' };
+      traceInfoBuildMock.mockReturnValue( traceInfo );
+
+      await inbound[0].execute( { args: [ {} ] }, vi.fn().mockResolvedValue( undefined ) );
+
+      expect( traceInfoBuildMock ).toHaveBeenCalledOnce();
+      expect( upsertMemoMock ).toHaveBeenCalledWith( { payloadVersion: '2', traceInfo } );
+      expect( upsertMemoMock.mock.invocationCallOrder[0] ).toBeLessThan( workflowStartMock.mock.invocationCallOrder[0] );
+    } );
+
+    it.each( [
+      {
+        name: 'tracing is disabled',
+        info: workflowInfo,
+        options: { disableTrace: true }
+      },
+      {
+        name: 'the workflow has a root',
+        info: { ...workflowInfo, root: { workflowId: 'root-workflow', runId: 'root-run' } },
+        options: { disableTrace: false }
+      }
+    ] )( 'does not build trace info when $name', async ( { info, options } ) => {
+      workflowInfoMock.mockReturnValue( info );
+      workflowOptionsDefault.MyWorkflow = options;
+      const { interceptors } = await import( './workflow.js' );
+      const { inbound } = interceptors();
+
+      await inbound[0].execute( { args: [ {} ] }, vi.fn().mockResolvedValue( undefined ) );
+
+      expect( traceInfoBuildMock ).not.toHaveBeenCalled();
+      expect( upsertMemoMock ).toHaveBeenCalledOnce();
+      expect( upsertMemoMock ).toHaveBeenCalledWith( { payloadVersion: '2' } );
+    } );
+
     it( 'calls sinks.workflow.start, next, then sinks.workflow.end on success', async () => {
       const { interceptors } = await import( './workflow.js' );
       const { inbound } = interceptors();

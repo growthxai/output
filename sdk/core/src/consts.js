@@ -4,6 +4,7 @@ export const ACTIVITY_SEND_HTTP_REQUEST = '__internal#sendHttpRequest';
 export const ACTIVITY_LOGGER_SYMBOL = Symbol.for( '__activity_logger' );
 export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );
 export const WORKFLOW_CATALOG = '$catalog';
+export const WORKFLOW_OPTIONS_FILENAME = '__workflow_options.js';
 export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 
 export const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );

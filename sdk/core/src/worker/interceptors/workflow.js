@@ -1,14 +1,17 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { workflowInfo, proxySinks, ContinueAsNew, isCancellation, ApplicationFailure, TemporalFailure } from '@temporalio/workflow';
+import { workflowInfo, proxySinks, ContinueAsNew, isCancellation, ApplicationFailure, TemporalFailure, upsertMemo } from '@temporalio/workflow';
 import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#helpers/object';
 import { WorkflowSpecialOutput } from '#consts';
 import { createWorkflowDetails } from '#helpers/temporal_context';
-
-// this is a dynamic generated file with activity configs overwrites
-import activityOptionsMap from '../temp/__activity_options.js';
+import { TraceInfo } from '#helpers/trace_info';
 import { FatalError, TransparentFatalError } from '#errors';
 import { serializeError } from '#helpers/error_serializer';
+import { enforceActivityOptions } from '#helpers/activity_options';
+
+// these are a dynamic generated file with activity configs overwrites and workflow options
+import activityOptionsMap from '../temp/__activity_options.js';
+import workflowOptionsMap from '../temp/__workflow_options.js';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
@@ -28,12 +31,8 @@ class HeadersInjectionInterceptor {
     if ( activityOptionsOverrides ) {
       input.options = deepMerge( input.options ?? {}, activityOptionsOverrides );
     }
-    // Add the default nonRetryableError
-    const { nonRetryableErrorTypes = [], ...retryProps } = input.options.retry ?? {};
-    input.options.retry = {
-      ...retryProps,
-      nonRetryableErrorTypes: [ ...new Set( nonRetryableErrorTypes.concat( FatalError.name ) ) ]
-    };
+    // Re-enforce framework options after component overrides
+    input.options = enforceActivityOptions( input.options );
     return next( input );
   }
 };
@@ -42,6 +41,15 @@ const sinks = proxySinks();
 
 class WorkflowExecutionInterceptor {
   async execute( input, next ) {
+    const { workflowType, root } = workflowInfo();
+    const traceEnabled = workflowOptionsMap[workflowType]?.disableTrace !== true;
+    const isRoot = !root; // root workflow doesn't have the root block
+
+    upsertMemo( {
+      payloadVersion: '2',
+      ...( isRoot && traceEnabled && { traceInfo: TraceInfo.build() } )
+    } );
+
     sinks.workflow.start( input.args[0] );
     try {
       const output = await next( input );
