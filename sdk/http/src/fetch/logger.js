@@ -1,6 +1,6 @@
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { config } from '../config.js';
-import { parseBody, redactHeaders, serializeError } from './utils.js';
+import { parseBody, redactHeaders } from './utils.js';
 
 /**
  * Sends the trace start event for an http request
@@ -39,4 +39,4 @@ export const logResponse = async ( { requestId, response } ) =>
   } );
 
 export const logFailure = ( { requestId, error } ) =>
-  Tracing.addEventError( { id: requestId, details: serializeError( error ) } );
+  Tracing.addEventError( { id: requestId, details: error } );

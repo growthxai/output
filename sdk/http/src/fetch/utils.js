@@ -31,34 +31,6 @@ const SENSITIVE_HEADER_PATTERNS = [
 ];
 
 /**
- * Serialize a given error to a plain object keeping main properties:
- * - name (from constructor.name)
- * - message
- * - stack
- * - code (optional, but present on Node errors)
- * - cause (error chain)
- *
- * @param {Error} error Error to serialize
- * @param {number} depth Current recursion depth for the error.cause chain
- * @returns Object
- */
-export const serializeError = ( error, depth = 1 ) => ( {
-  name: error.constructor.name,
-  message: error.message,
-  stack: error.stack,
-  code: error?.code,
-  cause: ( () => {
-    if ( depth > 5 ) {
-      return '<Max recursion depth reached>';
-    }
-    if ( error.cause instanceof Error ) {
-      return serializeError( error.cause, depth + 1 );
-    }
-    return undefined; // eslint-disable-line consistent-return
-  } )()
-} );
-
-/**
  * Redacts sensitive headers for safe logging
  *
  * @param {Headers} headers
