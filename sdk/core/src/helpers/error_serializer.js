@@ -1,5 +1,7 @@
 import { inspect } from 'util';
 import { tryOrUndefined } from './function.js';
+import { redactUrl } from './redact.js';
+import { isUrl } from './string.js';
 
 const MAX_VALUE_DEPTH = 10;
 const MAX_PROTOTYPE_DEPTH = 10;
@@ -74,7 +76,7 @@ export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth 
  * Rules: Assigned .name property > inherited .name if not "Error" > constructor.name
  */
 export const resolveErrorName = target => {
-  // if its not error, dont return anything
+  // if its not error, don't return anything
   if ( !( target instanceof Error ) ) {
     return undefined;
   }
@@ -108,7 +110,7 @@ const serializeValue = ( target, state, depth = 0 ) => {
 
     // Strings
     if ( typeof target === 'string' ) {
-      return truncateString( target );
+      return truncateString( isUrl( target ) ? redactUrl( target ) : target );
     }
 
     // Primitives are returned as they are
@@ -127,6 +129,10 @@ const serializeValue = ( target, state, depth = 0 ) => {
   // If the same object was already seem in this branch, it is a circular reference
   if ( state.seenObjects.has( target ) ) {
     return Marker.Circular;
+  }
+
+  if ( target instanceof URL ) {
+    return truncateString( redactUrl( target ) );
   }
 
   // Mark this object as seen to track circular dependency

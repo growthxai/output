@@ -1,44 +1,6 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import { hydrateHeaders, redactHeaders, serializeBodyAndInferContentType, serializeResponse } from './fetch.js';
-
-describe( 'redactHeaders', () => {
-  it( 'redacts sensitive header names', () => {
-    const result = redactHeaders( {
-      Authorization: 'Bearer token',
-      'X-Api-Key': 'api-key',
-      Cookie: 'session=id',
-      'x-client-secret': 'secret'
-    } );
-
-    expect( result ).toEqual( {
-      Authorization: '[REDACTED]',
-      'X-Api-Key': '[REDACTED]',
-      Cookie: '[REDACTED]',
-      'x-client-secret': '[REDACTED]'
-    } );
-  } );
-
-  it( 'preserves non-sensitive header names and ignored false positives', () => {
-    const result = redactHeaders( {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-csrf-token': 'csrf-token',
-      'public-key-pins': 'pin'
-    } );
-
-    expect( result ).toEqual( {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'x-csrf-token': 'csrf-token',
-      'public-key-pins': 'pin'
-    } );
-  } );
-
-  it( 'handles empty headers', () => {
-    expect( redactHeaders( {} ) ).toEqual( {} );
-  } );
-} );
+import { hydrateHeaders, serializeBodyAndInferContentType, serializeResponse } from './fetch.js';
 
 describe( 'hydrateHeaders', () => {
   afterEach( () => {

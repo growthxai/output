@@ -9,6 +9,12 @@ import {
   truncateString
 } from './error_serializer.js';
 
+const redactUrlMock = vi.hoisted( () => vi.fn().mockReturnValue( '[Redacted URL]' ) );
+const isUrlMock = vi.hoisted( () => vi.fn().mockReturnValue( false ) );
+
+vi.mock( './redact.js', () => ( { redactUrl: redactUrlMock } ) );
+vi.mock( './string.js', () => ( { isUrl: isUrlMock } ) );
+
 describe( 'error serializer helpers', () => {
   describe( 'truncateString', () => {
     it( 'preserves values within the limit and marks omitted characters', () => {
@@ -219,6 +225,27 @@ describe( 'serializeError', () => {
     expect( serializeError( /request-\d+/gi ) ).toBe( '/request-\\d+/gi' );
     expect( serializeError( new Uint16Array( [ 1, 2 ] ) ) ).toBe( 'Uint16Array(2) [ 1, 2 ]' );
     expect( serializeError( Buffer.from( [ 1, 2 ] ) ) ).toBe( 'Buffer(2) [Uint8Array] [ 1, 2 ]' );
+  } );
+
+  it( 'redacts URL strings and URL instances with redactUrl', () => {
+    const stringUrl = 'https://user:password@example.com/models?model=gpt-5&token=secret#debug';
+    const url = new URL( 'ftp://user:password@example.com/file.txt?download=true#details' );
+    redactUrlMock.mockClear();
+    isUrlMock.mockClear();
+    isUrlMock.mockReturnValueOnce( true );
+
+    expect( serializeError( {
+      stringUrl,
+      url
+    } ) ).toEqual( {
+      stringUrl: '[Redacted URL]',
+      url: '[Redacted URL]'
+    } );
+    expect( isUrlMock ).toHaveBeenCalledOnce();
+    expect( isUrlMock ).toHaveBeenCalledWith( stringUrl );
+    expect( redactUrlMock ).toHaveBeenCalledTimes( 2 );
+    expect( redactUrlMock ).toHaveBeenNthCalledWith( 1, stringUrl );
+    expect( redactUrlMock ).toHaveBeenNthCalledWith( 2, url );
   } );
 
   it( 'truncates string values and property names', () => {
