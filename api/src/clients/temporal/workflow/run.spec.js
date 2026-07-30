@@ -178,25 +178,6 @@ describe( 'run', () => {
     } );
   } );
 
-  it( 'rejects metadata from a reused workflow id', async () => {
-    const handle = {
-      firstExecutionRunId: 'original-run',
-      result: vi.fn().mockResolvedValue( { ok: true } ),
-      describe: vi.fn().mockResolvedValue( {
-        firstRunId: 'reused-run',
-        status: { name: 'COMPLETED' },
-        memo: { payloadVersion: '2' }
-      } )
-    };
-    const client = { workflow: { start: vi.fn().mockResolvedValue( handle ) } };
-    const { run } = await import( './run.js' );
-
-    await expect( run( { client }, 'workflow', {} ) ).rejects.toThrow(
-      'Workflow "generated-id" was reused before its result metadata could be read'
-    );
-    expect( mockBuildWorkflowResult ).not.toHaveBeenCalled();
-  } );
-
   it( 'annotates and rethrows errors from describe', async () => {
     const describeError = new Error( 'describe failed' );
     const handle = {

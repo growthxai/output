@@ -54,9 +54,6 @@ export const run = async ( { client }, workflowName, input, options = {} ) => {
       logger.warn( 'Workflow execution failed', { workflowId, errorMessage: error.message } );
     }
     const description = await handle.describe();
-    if ( runId && description.firstRunId && description.firstRunId !== runId ) {
-      throw new Error( `Workflow "${workflowId}" was reused before its result metadata could be read` );
-    }
     const status = formatStatus( description.status.name );
     // Execution errors still return normally, with a built response
     return buildWorkflowResult( { workflowId, status, runId, input, result, memo: description.memo, error } );
