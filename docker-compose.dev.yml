@@ -17,6 +17,7 @@ services:
       - OUTPUT_CATALOG_ID=main
       - TEMPORAL_ADDRESS=temporal:7233
     command: node /app/api/src/index.js
+    env_file: './test_workflows/.env'
     ports:
       - '3001:3001'
     volumes:

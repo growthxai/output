@@ -27,11 +27,14 @@ export const sendSignalsQueriesAndUpdates = step( {
 
     const state = { signalsSent: 0 };
     for ( const i of [ 1, 2, 3 ] ) {
-      await fetch( `${base}/signal/message`, {
+      const response = await fetch( `${base}/signal/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify( { payload: { value: i } } )
       } );
+      if ( !response.ok ) {
+        throw new Error( `Signal request failed with status ${response.status}` );
+      }
       state.signalsSent++;
     }
 
@@ -40,6 +43,9 @@ export const sendSignalsQueriesAndUpdates = step( {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify( { payload: {} } )
     } );
+    if ( !queryRes.ok ) {
+      throw new Error( `Query request failed with status ${queryRes.status}` );
+    }
 
     const queryResult = ( await queryRes.json() ) as number;
 
@@ -48,6 +54,9 @@ export const sendSignalsQueriesAndUpdates = step( {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify( { payload: { items: [ 1, 2, 3, 4 ] } } )
     } );
+    if ( !updateRes.ok ) {
+      throw new Error( `Update request failed with status ${updateRes.status}` );
+    }
 
     const updateResult = ( await updateRes.json() ) as number;
 
