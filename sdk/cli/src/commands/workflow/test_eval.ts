@@ -15,9 +15,9 @@ import {
 import type { Dataset, EvalOutput } from '@outputai/evals';
 
 export default class WorkflowTest extends Command {
-  static override aliases = [ 'workflow:test' ];
+  static override hiddenAliases = [ 'workflow:test' ];
 
-  static override description = 'Run evaluations against a workflow using its datasets';
+  static override description = 'Run evaluations against a workflow using its datasets (alias: workflow test)';
 
   static override enableJsonFlag = true;
 
