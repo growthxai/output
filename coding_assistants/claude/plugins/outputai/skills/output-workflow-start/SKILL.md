@@ -67,6 +67,37 @@ The command outputs the workflow ID which you'll need for:
 - Getting results: `npx output workflow result <id>`
 - Debugging: `npx output workflow debug <id>`
 
+### Start and Watch in One Command
+
+Add `--monitor` (`-m`) to attach immediately after starting and stream step
+updates until the workflow ends, instead of polling `workflow status`:
+
+```bash
+npx output workflow start data-migration --input src/data_migration/scenarios/large_batch.json --monitor
+```
+
+This attaches to the exact run that was just started. Ctrl+C detaches without
+stopping the workflow (exit 130), and the command exits 1 if the workflow fails.
+
+These flags tune the stream and require `--monitor`:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--interval` | 2500 | Poll interval in milliseconds |
+| `--include-payloads` | false | Include decoded step input/output payloads |
+| `--color` | true | Colorize status output (`--no-color` to disable) |
+
+`--monitor` cannot be combined with `--json`. Under `--json` the CLI suppresses
+progress output and prints one JSON object at the end, so the stream would be
+silently swallowed and the command would look hung until the workflow finished.
+To get JSON, either use `npx output workflow run --json` (wait for the result),
+or start without `--monitor` and attach with
+`npx output workflow monitor <id> --format json` (streaming NDJSON).
+
+Prefer `--monitor` over a `workflow status` polling loop when you're watching a
+single workflow through to completion. Keep the plain async form when starting
+several workflows in parallel, since `--monitor` blocks until the run ends.
+
 ## Examples
 
 **Scenario**: Start a long-running workflow with scenario file
@@ -195,6 +226,7 @@ npx output workflow start batch-job --input src/batch_job/scenarios/id_2.json >>
 ## Related Commands
 
 - `npx output workflow run <name> --input` - Execute synchronously
+- `npx output workflow monitor <id>` - Attach to a run already in progress
 - `npx output workflow status <id>` - Check execution status
 - `npx output workflow result <id>` - Get execution result
 - `npx output workflow stop <id>` - Stop a running workflow
