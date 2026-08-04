@@ -20,7 +20,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["OWNER", "MEMBER"]'), github.event.pull_request.author_association)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
@@ -36,7 +36,6 @@ jobs:
         uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1 as of 2026-08-04
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          timeout_minutes: "15"
           track_progress: true
           use_sticky_comment: true
           prompt: |
