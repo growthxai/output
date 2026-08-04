@@ -19,7 +19,7 @@ catalog:
   js-yaml: 4.3.0
   ky: 2.0.2
   semver: 7.7.4
-  undici: 8.5.0
+  undici: 8.9.0
   winston: 3.19.0
   zod: 4.3.6
 
@@ -40,11 +40,13 @@ overrides:
   body-parser@<1.20.6: '1.20.6'
   body-parser@>=2.0.0 <2.3.0: '2.3.0'
   esbuild@>=0.27.3 <0.28.1: '0.28.1'
+  ip-address@<=10.3.1: 10.3.1
   js-yaml@>=4.0.0 <4.3.0: '4.3.0'
   lodash@<=4.17.23: '4.18.1'
-  postcss@<=8.5.17: '8.5.18'
+  postcss@<=8.5.23: 8.5.23
   qs@>=6.11.1 <=6.15.1: '6.15.2'
   sharp@<0.35.0: '0.35.0'
+  socket.io-parser@<=4.2.7: 4.2.7
   tar@<=7.5.20: '7.5.21'
   uuid@<14.0.0: '14.0.0'
   ws@>=8.0.0 <8.20.1: '8.21.0'
@@ -52,8 +54,6 @@ overrides:
 
 peerDependencyRules:
   allowedVersions:
-    # Mintlify uses React 19 while its MDX dependencies still declare React 18 peers.
-    # It is unsolvable until Mintlify updates its stack
     react: 19.2.3
 
 strictDepBuilds: true
