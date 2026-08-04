@@ -55,6 +55,21 @@ describe( 'setupTemporalLogger', () => {
     expect( logMock.log ).toHaveBeenCalledWith( 'warn', 'Worker warning', { taskQueue: 'default' } );
   } );
 
+  it.each( [
+    [ 'TRACE', 'debug' ],
+    [ 'DEBUG', 'debug' ],
+    [ 'INFO', 'info' ],
+    [ 'WARN', 'warn' ],
+    [ 'ERROR', 'error' ]
+  ] )( 'maps Temporal %s logs to the %s application level', ( temporalLevel, internalLevel ) => {
+    setupTemporalLogger();
+    const [ entryCallback ] = defaultLoggerMock.mock.calls[0].slice( 1 );
+
+    entryCallback( { level: temporalLevel, message: `${temporalLevel} event`, meta: { source: 'test' } } );
+
+    expect( logMock.log ).toHaveBeenCalledWith( internalLevel, `${temporalLevel} event`, { source: 'test' } );
+  } );
+
   it( 'applies a case-insensitive configured log level to SDK and Core logs', () => {
     vi.stubEnv( 'OUTPUT_TEMPORAL_LOG_LEVEL', 'debug' );
 
