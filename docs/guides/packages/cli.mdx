@@ -32,7 +32,7 @@ npx output workflow run lead_enrichment acme
 | `output workflow list` | List available workflows |
 | `output workflow runs list` | List recent workflow runs |
 | `output workflow run` | Run a workflow and wait for the result |
-| `output workflow start` | Start a workflow without waiting |
+| `output workflow start` | Start a workflow without waiting (`--monitor` to attach and stream) |
 | `output workflow status` | Check workflow execution status |
 | `output workflow monitor` | Attach to a run and stream status updates until it ends |
 | `output workflow result` | Get a completed workflow's result |
@@ -300,6 +300,48 @@ output workflow start <workflowName> [scenario]
 |------|---------|-------------|
 | `--input, -i` | — | JSON input or file path (overrides scenario) |
 | `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog name (the deprecated `--task-queue, -q` aliases still work) |
+| `--monitor, -m` | false | Attach after starting and stream status updates until the workflow ends |
+
+Add `--monitor` to start a workflow and watch it in one command, instead of
+copying the workflow ID into a separate [`workflow monitor`](#output-workflow-monitor) call:
+
+```bash
+output workflow start lead_enrichment --input ./test_input.json --monitor
+```
+
+```
+Starting workflow: lead_enrichment...
+
+Workflow started successfully
+
+Workflow ID: wf-12345
+
+Monitoring wf-12345 (run 2fe0b36b-...)... (Ctrl+C to detach)
+  Fetch Company running
+  Fetch Company  1.2s
+  Score Lead running
+  Score Lead  3.4s
+✓ workflow completed · 4.8s
+```
+
+Monitoring attaches to the exact run that was just started, so a rapid re-start
+can't leave you watching a different execution. Everything else matches
+`workflow monitor` — Ctrl+C detaches without stopping the workflow (exit `130`),
+and the command exits `1` if the workflow fails.
+
+`--monitor` cannot be combined with `--json`. Under `--json` the CLI suppresses
+progress output and prints a single JSON object when the command finishes, which
+would silently swallow every streamed update and leave the command looking hung
+until the workflow ended. Use `workflow run --json` to wait for a result as JSON,
+or `workflow monitor <id> --format json` to stream newline-delimited JSON.
+
+These flags tune the stream and require `--monitor`:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--interval` | 2500 | Poll interval in milliseconds |
+| `--include-payloads` | false | Include decoded step input/output payloads |
+| `--color` | true | Colorize status output (`--no-color` to disable) |
 
 ### output workflow status
 
@@ -351,6 +393,10 @@ output workflow monitor wf-12345
 output workflow monitor wf-12345 --run-id 2fe0b36b-...
 output workflow monitor wf-12345 --format json
 ```
+
+To start a workflow and attach in a single step, use
+[`workflow start --monitor`](#output-workflow-start) instead of copying the ID
+between two commands.
 
 <Note>
   `--format json` here is **not** the same thing as the native `--json` flag used by `workflow run`, `workflow status`, and other commands migrated in OUT-419 (see the [changelog](/changelog)). Native `--json` suppresses all in-progress log output and prints a single JSON object once the command finishes. `monitor` has no single final result to print — it's a long-running command that emits a stream of discrete events (a step starting or finishing, a continue-as-new notice, a final summary) while the workflow is still running. `--format json` prints each event as its own line of newline-delimited JSON as it happens, so the output can be piped into `jq` or read incrementally by another process — often another automated or agent process rather than a person, which is the primary reason this command keeps its own JSON mode instead of adopting `--json`.
