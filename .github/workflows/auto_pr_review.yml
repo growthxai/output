@@ -37,9 +37,8 @@ jobs:
         uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1 as of 2026-08-04
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # track_progress wraps the sticky with "Claude finished…" / job / branch chrome — leave off.
+          track_progress: true
           use_sticky_comment: true
-          include_fix_links: false
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
@@ -54,8 +53,8 @@ jobs:
           STRUCTURED_OUTPUT: ${{ steps.review.outputs.structured_output }}
         run: |
           if [ -z "${STRUCTURED_OUTPUT}" ]; then
-            echo 'Skipping: no structured_output (review did not run — often workflow file differs from default branch).'
-            exit 0
+            echo 'Missing structured_output from PR review (expected {"verdict":"PASS"|"FAIL"}).'
+            exit 1
           fi
           VERDICT="$(printf '%s' "${STRUCTURED_OUTPUT}" | jq -r '.verdict // empty')"
           echo "PR review verdict: ${VERDICT}"

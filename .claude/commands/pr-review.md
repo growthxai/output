@@ -128,28 +128,14 @@ When unsure between the two, prefer **Must-fix** only if shipping as-is would be
 
 ## Output format
 
-The review process (draft → Temporal → adversarial → finalize) is **internal only**. Do not narrate it in the comment.
+1. **Summary comment (canonical):** only after the Review process (draft -> Temporal lens when triggered -> adversarial challenge -> finalize). Verdict (`✅ PASS` or `⛔ FAIL` only), findings by priority (each with checklist category), full checklist - the complete review.
+2. **Inline comments (pointers only):** use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. On specific lines, briefly name the problem as `Must-fix (Category)` or `Nice-to-have (Category)`. Do not paste the full finding writeup; the summary already has that. One or two sentences is enough.
 
-1. **Summary comment (canonical):** post **only** after finalize. The comment body must be **exactly** the markdown template below — nothing else.
-2. **Inline comments (pointers only):** use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. On specific lines, briefly name the problem as `Must-fix (Category)` or `Nice-to-have (Category)`. Do not paste the full finding writeup; the summary already has that. Prefer one short sentence.
-
-### Summary comment — hard constraints
-
-The sticky/summary comment body **must match this template and only this template**. Allowed top-level sections, in this order: `## PR review`, `### Verdict`, `### Findings`, `### Checklist`. No other headings, sections, or prose outside those blocks.
-
-**Forbidden in the summary comment (non-exhaustive):**
-- Preamble / epilogue (e.g. "Claude finished…", "Branch:", job links, elapsed time)
-- Process narration ("Verified and fine", "Temporal lens not triggered", "adversarial challenge", "I checked…")
-- Extra sections, bullet lists, or paragraphs under Verdict/Findings/Checklist that are not part of the template
-- Soft status words on Verdict or Checklist rows (`concern`, `n/a`, `skip`, explanations on the same line)
-
-**Verdict:** exactly one line under `### Verdict`: `✅ PASS` or `⛔ FAIL` — icon + status text only; no other words, punctuation, or explanation on that line.
+**Verdict:** exactly `✅ PASS` or `⛔ FAIL` - icon + status text, no other words, punctuation, or explanation on that line.
 - **⛔ FAIL** - one or more **Must-fix** findings
 - **✅ PASS** - no **Must-fix** findings (Nice-to-have alone does not fail)
 
 The GitHub check **fails** when Verdict is `⛔ FAIL`. Session structured output must be `{"verdict":"PASS"}` or `{"verdict":"FAIL"}` (no icons in JSON) and must match the PASS/FAIL word in the `### Verdict` line.
-
-**Findings:** only `- **Must-fix** (<Checklist>): …` / `- **Nice-to-have** (<Checklist>): …` bullets. Prefer short, direct wording (often one sentence). Longer text is fine when needed to state the issue clearly — do not pad with alternatives, process notes, or "also verified" asides. If there are no findings, put a single line under `### Findings`: `None.`
 
 **Checklist rows:** each is exactly `✅ PASS` or `⛔ FAIL` - icon + status text; no `concern`, `n/a`, or other words.
 - **⛔ FAIL** - that category has one or more **Must-fix** findings
@@ -157,7 +143,7 @@ The GitHub check **fails** when Verdict is `⛔ FAIL`. Session structured output
 
 Overall **Verdict** is `⛔ FAIL` if any checklist row is `⛔ FAIL` (equivalently: if any **Must-fix** exists).
 
-**Exact summary template** (fill in Verdict, Findings bullets or `None.`, and Checklist statuses — do not add or remove sections):
+Shape the summary like:
 
 ```markdown
 ## PR review
@@ -182,4 +168,4 @@ Overall **Verdict** is `⛔ FAIL` if any checklist row is `⛔ FAIL` (equivalent
 
 In findings, `<Checklist>` is one of: Design, Quality, Correctness, Documentation, Changeset, Tests, Security, Compatibility. Either priority may use any checklist item.
 
-Favor short, direct, concise findings. Only report noteworthy findings.
+Be concise. Only report noteworthy findings. If there are no issues, say so clearly.
