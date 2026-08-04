@@ -79,7 +79,9 @@ This starts:
 - Temporal server and UI (http://localhost:8080)
 - PostgreSQL and Redis databases
 - Output.ai API server (http://localhost:3001)
-- Worker process for executing workflows
+- Worker process for executing workflows (auto-reloads on `src/` changes)
+
+Dependency changes (`package.json` / lockfile) are not picked up by hot-reload. Run `npm install` and restart `output:dev`.
 
 ### 4. Run a workflow
 

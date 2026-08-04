@@ -77,10 +77,12 @@ This starts:
 |---------|-----|-------------|
 | **Temporal UI** | [http://localhost:8080](http://localhost:8080) | Monitor and debug workflows |
 | **API Server** | [http://localhost:3001](http://localhost:3001) | REST API for running workflows |
-| **Worker** | — | Processes workflows with auto-reload |
+| **Worker** | — | Processes workflows with auto-reload on `src/` changes |
 | **PostgreSQL** | — | Temporal persistence (container-internal) |
 | **Redis** | — | Caching layer (container-internal) |
 | **Temporal Server** | — | gRPC endpoint (container-internal) |
+
+Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install` and restart `output:dev`.
 
 | Flag | Default | Description |
 |------|---------|-------------|
