@@ -1,0 +1,68 @@
+name: Automatic PR review
+
+on:
+  pull_request:
+    # opened: runs only when opened non-draft (draft opens are skipped by the job if).
+    # ready_for_review: first review when a draft is marked ready.
+    # synchronize / reopened: re-review on new commits / reopen.
+    types: [opened, synchronize, ready_for_review, reopened]
+
+concurrency:
+  group: auto-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review
+    if: |
+      github.event.pull_request.draft == false &&
+      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["OWNER", "MEMBER"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Pin to commit SHA (not floating @v1). Bump deliberately when upgrading.
+      - name: Run PR review
+        id: review
+        uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1 as of 2026-08-04
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          timeout_minutes: "15"
+          track_progress: true
+          use_sticky_comment: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            /pr-review
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep,WebSearch,WebFetch"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"],"description":"Same as ### Verdict in the PR summary comment"}},"required":["verdict"]}'
+
+      - name: Export Verdict
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          if [ -z "${STRUCTURED_OUTPUT}" ]; then
+            echo 'Missing structured_output from PR review (expected {"verdict":"PASS"|"FAIL"}).'
+            exit 1
+          fi
+          VERDICT="$(printf '%s' "${STRUCTURED_OUTPUT}" | jq -r '.verdict // empty')"
+          echo "PR review verdict: ${VERDICT}"
+          if [ "${VERDICT}" = 'FAIL' ]; then
+            echo 'Review verdict is FAIL (Must-fix findings). Failing the check.'
+            exit 1
+          fi
+          if [ "${VERDICT}" != 'PASS' ]; then
+            echo "Unexpected verdict '${VERDICT}' (expected PASS or FAIL)."
+            exit 1
+          fi
