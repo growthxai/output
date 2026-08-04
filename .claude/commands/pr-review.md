@@ -6,7 +6,7 @@ Review this pull request. The PR branch is already checked out (shallow clone: `
 
 Use `gh pr view`, `gh pr diff`, and the local checkout to understand the change.
 For file-specific issues, add inline comments as short pointers (see Output format).
-Post one top-level summary comment with `gh pr comment` (or update the sticky review comment if present).
+Post the summary by updating the sticky tracking comment (see Summary posting). Do not create extra top-level review comments.
 Do not modify code. Review only.
 
 **Scope - PR delta only:** Focus on what this PR **adds, changes, or deletes**. Do not hunt pre-existing issues in untouched code. Reading neighboring files for conventions is fine; filing findings against unchanged lines is not - unless the PR's change newly exposes, triggers, or depends on that problem (then say so explicitly). Drive-by nits on legacy code = out of scope.
@@ -133,12 +133,16 @@ The review process (draft → Temporal → adversarial → finalize) is **intern
 1. **Summary comment (canonical):** post **only** after finalize. The comment body must be **exactly** the markdown template below — nothing else.
 2. **Inline comments (pointers only):** use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. On specific lines, briefly name the problem as `Must-fix (Category)` or `Nice-to-have (Category)`. Do not paste the full finding writeup; the summary already has that. Prefer one short sentence.
 
+### Summary posting (sticky — required)
+
+The workflow uses `track_progress` + sticky comments. Update the existing tracking comment with `mcp__github_comment__update_claude_comment` — pass **only** the template markdown as `body`. Do **not** use `gh pr comment` or otherwise create a second summary. The action may wrap the sticky with its own job chrome; do not add chrome yourself.
+
 ### Summary comment — hard constraints
 
-The sticky/summary comment body **must match this template and only this template**. Allowed top-level sections, in this order: `## PR review`, `### Verdict`, `### Findings`, `### Checklist`. No other headings, sections, or prose outside those blocks.
+The body you pass to `update_claude_comment` **must match this template and only this template**. Allowed top-level sections, in this order: `## PR review`, `### Verdict`, `### Findings`, `### Checklist`. No other headings, sections, or prose outside those blocks.
 
-**Forbidden in the summary comment (non-exhaustive):**
-- Preamble / epilogue (e.g. "Claude finished…", "Branch:", job links, elapsed time)
+**Forbidden in the summary body you write (non-exhaustive):**
+- Your own preamble / epilogue (e.g. "Claude finished…", "Branch:", job links, elapsed time) — the action may add job chrome around the sticky; that is separate
 - Process narration ("Verified and fine", "Temporal lens not triggered", "adversarial challenge", "I checked…")
 - Extra sections, bullet lists, or paragraphs under Verdict/Findings/Checklist that are not part of the template
 - Soft status words on Verdict or Checklist rows (`concern`, `n/a`, `skip`, explanations on the same line)
