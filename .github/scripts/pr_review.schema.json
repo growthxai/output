@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "required": ["verdict", "findings", "categories"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["PASS", "FAIL"]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "category", "text"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["Must-fix", "Nice-to-have"]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Design",
+              "Quality",
+              "Correctness",
+              "Documentation",
+              "Changeset",
+              "Tests",
+              "Security",
+              "Compatibility"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "categories": {
+      "type": "object",
+      "required": [
+        "Design",
+        "Quality",
+        "Correctness",
+        "Documentation",
+        "Changeset",
+        "Tests",
+        "Security",
+        "Compatibility"
+      ],
+      "properties": {
+        "Design": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Quality": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Correctness": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Documentation": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Changeset": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Tests": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Security": { "type": "string", "enum": ["PASS", "FAIL"] },
+        "Compatibility": { "type": "string", "enum": ["PASS", "FAIL"] }
+      }
+    }
+  }
+}

@@ -8,7 +8,7 @@ Review this pull request. Do not modify code.
 
 The PR branch is already checked out (shallow clone: `fetch-depth: 1` — no full git history/blame). Use `gh pr view`, `gh pr diff`, and the local tree.
 
-Tools: `gh pr comment` for the summary; `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for line pointers. Post the summary only after **Finalize** (see Review process).
+Tools: `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for line pointers only. Do **not** post a PR summary comment — CI renders it from your structured output.
 
 ## Scope
 
@@ -18,7 +18,7 @@ Tools: `gh pr comment` for the summary; `mcp__github_inline_comment__create_inli
 
 ## Review process
 
-Work in this order. Do not post the summary until step 4. Do not narrate this process in the comment.
+Work in this order. Do not emit structured output until step 4.
 
 1. **Draft** — Walk **Review categories** once. Provisional verdict, findings, and category scorecard.
 2. **Temporal lens** (when triggered) — In-process only (no subagent). Focus only on **Temporal TypeScript SDK** correctness, alignment, and wiring. No separate Temporal category; fold into normal findings.
@@ -26,13 +26,13 @@ Work in this order. Do not post the summary until step 4. Do not narrate this pr
    - **Review:** workflow determinism / sandbox; activity boundaries; retries; heartbeats; cancellation; signals/queries/updates; payloads; replay / patching / versioning; client/worker lifecycle; APIs match the SDK version in use; workers, clients, task queues, interceptors, sinks, schedules coherent with the SDK model.
    - When unsure, check Temporal TS SDK docs or upstream for the version this PR uses — do not guess.
    - Skipping this step when triggered = incomplete review.
-3. **Adversarial challenge** — Attack the draft before publishing (not a second category walk, not a scorecard row):
+3. **Adversarial challenge** — Attack the draft before finishing (not a second category walk, not a scorecard row):
    - Claims the diff does not fully support
    - Half-finished wiring (exported but unused, flags with no path, TODOs that leave behavior broken)
    - Silent compatibility / contract changes under-called
    - Failure modes the happy path ignores
-   - Generous `✅ PASS` rows — upgrade to `⛔ FAIL` and add a **Must-fix** if the challenge sticks
-4. **Finalize** — Merge surviving Temporal/adversarial points into normal findings (upgrade to **Must-fix** when needed). Drop weak speculation. Then post the summary and any inline comments.
+   - Generous `PASS` category rows — upgrade to `FAIL` and add a **Must-fix** finding if the challenge sticks
+4. **Finalize** — Merge surviving Temporal/adversarial points into normal findings (upgrade to **Must-fix** when needed). Drop weak speculation. Emit structured output and any inline comments.
 
 ## Code structure
 
@@ -123,16 +123,9 @@ Missing the required bar → **Must-fix**. Intentional Output break that already
 
 ## Findings
 
-Each issue is **one** finding. Number findings `1.`, `2.`, `3.`, … in the summary (and match that number in the related inline comment when useful).
+Each issue is **one** finding in structured output.
 
-**Order:** list **Must-fix** findings first (ascending numbers), then **Nice-to-have**. Shape:
-
-```text
-1. **Must-fix** (<Category>): …
-2. **Nice-to-have** (<Category>): …
-```
-
-`<Category>` is exactly one name from **Review categories** (same spelling as the Output scorecard).
+**Order:** **Must-fix** first, then **Nice-to-have**.
 
 **Severity** (closed set — do not invent others). Category sections say *what* to look for; use judgment for *how bad* it is:
 
@@ -145,38 +138,14 @@ Gray areas are expected — interpret against the category rules and impact. Whe
 
 **Deduplicate:** one root cause → one finding. Prefer the strongest category; mention a second angle in the same finding if needed. No Adversarial/Temporal severity or category labels.
 
-Only report noteworthy findings.
+`category` must be exactly one **Review categories** name. `text` may include Markdown (links, backticks). Only report noteworthy findings.
+
+Inline comments: short pointers only (`Must-fix` / `Nice-to-have` + category); full text stays in structured `findings`.
 
 ## Output
 
-After Finalize:
+After Finalize, emit **only** session structured output (no summary comment, no narrative). Shape is enforced by the session JSON schema; CI posts the PR comment from that JSON.
 
-1. **Summary** — once. Body = **exactly** the template below (nothing else). Each run may add a new comment.
-2. **Inline comments** — short pointers only; same severity/category shape (include the finding number when it helps); full text stays in the summary.
-
-**Rules:**
-
-- **Verdict:** only `✅ PASS` or `⛔ FAIL`. `⛔ FAIL` if any Must-fix; else `✅ PASS` (Nice-to-have alone does not fail). Session `verdict` must match that word (`PASS` / `FAIL`, no icons).
-- **Findings:** numbered list in Must-fix-then-Nice-to-have order, or `None.`
-- **Categories** scorecard: each row only `✅ PASS` or `⛔ FAIL`. Row fails iff it has a Must-fix; skipped or Nice-to-have-only → PASS.
-
-```markdown
-## PR review
-
-### Verdict
-✅ PASS
-
-### Findings
-1. **Must-fix** (<Category>): ...
-2. **Nice-to-have** (<Category>): ...
-
-### Categories
-- Design: ✅ PASS
-- Quality: ✅ PASS
-- Correctness: ✅ PASS
-- Documentation: ✅ PASS
-- Changeset: ✅ PASS
-- Tests: ✅ PASS
-- Security: ✅ PASS
-- Compatibility: ✅ PASS
-```
+- `verdict`: `PASS` if no Must-fix; else `FAIL`
+- `findings`: empty if none; otherwise severity + category + text per the rules above
+- `categories`: every Review categories name → `PASS` or `FAIL` (`FAIL` iff that category has a Must-fix; skipped / Nice-to-have-only → `PASS`)
