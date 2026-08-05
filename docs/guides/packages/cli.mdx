@@ -77,7 +77,7 @@ This starts:
 |---------|-----|-------------|
 | **Temporal UI** | [http://localhost:8080](http://localhost:8080) | Monitor and debug workflows |
 | **API Server** | [http://localhost:3001](http://localhost:3001) | REST API for running workflows |
-| **Worker** | — | Processes workflows with auto-reload |
+| **Worker** | — | Processes workflows with auto-reload on `src/` changes |
 | **PostgreSQL** | — | Temporal persistence (container-internal) |
 | **Redis** | — | Caching layer (container-internal) |
 | **Temporal Server** | — | gRPC endpoint (container-internal) |
@@ -87,6 +87,10 @@ This starts:
 | `--compose-file, -f` | — | Path to custom docker-compose file |
 | `--detached, -d` | false | Start services in the background and exit immediately |
 | `--image-pull-policy` | `always` | Image pull policy: `always`, `missing`, or `never` |
+
+<Note>
+Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then bring the stack down and start `output dev` again so the worker container reinstalls into its `node_modules` volume. Quitting a foreground `output dev` that owns the stack tears it down and is enough; if the stack is still running (an attached session, or one started with `output dev -d`), run `output dev down` first, then `output dev` again.
+</Note>
 
 #### Running multiple dev stacks
 
