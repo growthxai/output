@@ -1,6 +1,6 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, child workflow activity-option precedence, and Temporal TypeScript SDK v1.20.3."
 ---
 
 This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, and API request logging in `output-api`.
@@ -643,3 +643,7 @@ Step-level `options.activityOptions` still have final precedence. Review step de
 - Audit parent and child workflows that configure the same retry or timeout fields.
 - Pass `activityOptions` on child invocations where the parent must override the child's definition.
 - Update tests that assert inherited parent options override child definition options.
+
+## Temporal TypeScript SDK version
+
+Output now ships the Temporal TypeScript SDK (`@temporalio/*`) at **v1.20.3** (previously **v1.17.0**). Re-test any project code that imports `@temporalio/*` directly against that version.
