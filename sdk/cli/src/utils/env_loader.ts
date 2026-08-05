@@ -20,5 +20,9 @@ export function loadEnvironment(): void {
   }
 
   debug( `Loading env from: ${envPath}` );
-  process.loadEnvFile( envPath );
+  try {
+    process.loadEnvFile( envPath );
+  } catch ( err ) {
+    debug( `Warning: Failed to load env file ${envPath}: ${err}` );
+  }
 }
