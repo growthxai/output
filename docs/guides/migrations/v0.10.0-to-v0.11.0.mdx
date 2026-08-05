@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, and strict prompt Liquid rendering."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
 ---
 
-This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, prompt rendering in `@outputai/llm`, and API request logging in `output-api`.
+This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
 
 ## API HTTP request logging
 
@@ -647,6 +647,25 @@ Step-level `options.activityOptions` still have final precedence. Review step de
 ## Temporal TypeScript SDK version
 
 Output now ships the Temporal TypeScript SDK (`@temporalio/*`) at **v1.20.3** (previously **v1.17.0**). Re-test any project code that imports `@temporalio/*` directly against that version.
+
+## CLI: `workflow test_eval` renamed to `workflow test`
+
+The workflow evaluation command id is now `workflow:test`. The previous primary id `workflow:test_eval` is removed (it was only the filename-derived id; published docs already used `output workflow test`).
+
+```bash
+# Before
+npx output workflow test_eval <workflowName>
+
+# After
+npx output workflow test <workflowName>
+```
+
+`output workflow test` continues to work the same way; only the `test_eval` name stops resolving.
+
+### CLI rename checklist
+
+- Replace any scripts, CI steps, or aliases that call `output workflow test_eval` with `output workflow test`.
+- No change if you already use `output workflow test`.
 
 ## Prompt Liquid rendering is strict
 
