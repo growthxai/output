@@ -57,12 +57,12 @@ describe( 'workflow test command', () => {
 
   describe( 'command definition', () => {
     it( 'enables the built-in --json flag', async () => {
-      const WorkflowTest = ( await import( './test_eval.js' ) ).default;
+      const WorkflowTest = ( await import( './test.js' ) ).default;
       expect( WorkflowTest.enableJsonFlag ).toBe( true );
     } );
 
     it( 'binds the catalog flag to OUTPUT_CATALOG_ID', async () => {
-      const WorkflowTest = ( await import( './test_eval.js' ) ).default;
+      const WorkflowTest = ( await import( './test.js' ) ).default;
       expect( WorkflowTest.flags ).toHaveProperty( 'catalog' );
       expect( WorkflowTest.flags.catalog.env ).toBe( 'OUTPUT_CATALOG_ID' );
       expect( WorkflowTest.flags.catalog.char ).toBe( 'c' );
@@ -71,7 +71,7 @@ describe( 'workflow test command', () => {
 
   describe( 'run()', () => {
     const createCommand = async ( jsonEnabled: boolean ) => {
-      const WorkflowTest = ( await import( './test_eval.js' ) ).default;
+      const WorkflowTest = ( await import( './test.js' ) ).default;
       const { postWorkflowRun } = await import( '#api/generated/api.js' );
 
       const cmd = new WorkflowTest( [ 'simple' ], {} as any );
@@ -128,7 +128,7 @@ describe( 'workflow test command', () => {
     } );
 
     it( 'routes registration, dataset runs, and the eval run to the resolved catalog', async () => {
-      const WorkflowTest = ( await import( './test_eval.js' ) ).default;
+      const WorkflowTest = ( await import( './test.js' ) ).default;
       const { postWorkflowRun } = await import( '#api/generated/api.js' );
       const { fetchWorkflowCatalog } = await import( '#api/workflow_catalog.js' );
 
