@@ -78,6 +78,13 @@ npx output workflow start data-migration --input src/data_migration/scenarios/la
 
 This attaches to the exact run that was just started. Ctrl+C detaches without
 stopping the workflow (exit 130), and the command exits 1 if the workflow fails.
+If monitoring itself drops (an API restart, a reset connection), the workflow
+keeps running and the command exits 3 instead — so a retry keyed on a failed
+workflow can't re-submit one that is already in flight.
+
+Monitoring reports progress, not the return value; the command closes by naming
+the follow-up — `npx output workflow result <id>` after a run that completed,
+`npx output workflow debug <id>` after one that failed.
 
 These flags tune the stream and require `--monitor`:
 

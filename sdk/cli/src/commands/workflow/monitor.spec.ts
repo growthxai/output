@@ -44,9 +44,11 @@ const update = ( status: string, overrides: Record<string, unknown> = {} ): Reco
 } );
 
 describe( 'workflow monitor command', () => {
-  beforeEach( () => {
+  beforeEach( async () => {
     vi.clearAllMocks();
     process.exitCode = undefined;
+    const { sleep } = await import( '#utils/sleep.js' );
+    vi.mocked( sleep ).mockResolvedValue( undefined );
   } );
 
   describe( 'command definition', () => {
@@ -206,12 +208,36 @@ describe( 'workflow monitor command', () => {
       await expect( cmd.run() ).rejects.toThrow( /new run ID could not be determined/ );
     } );
 
-    it( 'propagates a failure on the very first poll', async () => {
+    it( 'propagates a non-transient failure on the very first poll', async () => {
       const { cmd, fetchWorkflowHistory } = await createCommand();
       fetchWorkflowHistory.mockRejectedValue( new Error( 'network down' ) );
 
       await expect( cmd.run() ).rejects.toThrow( 'network down' );
       expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'retries a transient failure on the very first poll instead of aborting', async () => {
+      const { cmd, fetchWorkflowHistory } = await createCommand();
+      // `start --monitor` polls milliseconds after the API accepted the start, so
+      // the first poll is the one most likely to catch a restart — giving up there
+      // would abandon a workflow that is already running.
+      fetchWorkflowHistory
+        .mockRejectedValueOnce( new HttpError( 'Service unavailable', { status: 503 } ) )
+        .mockResolvedValueOnce( history( 'completed', { totalDurationMs: 1000 } ) as any );
+
+      await cmd.run();
+
+      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 2 );
+      expect( cmd.warn ).toHaveBeenCalledWith( expect.stringContaining( '(1/5)' ) );
+      expect( process.exitCode ).toBeUndefined();
+    } );
+
+    it( 'gives up on the first poll once the retry budget is exhausted', async () => {
+      const { cmd, fetchWorkflowHistory } = await createCommand();
+      fetchWorkflowHistory.mockRejectedValue( new HttpError( 'Service unavailable', { status: 503 } ) );
+
+      await expect( cmd.run() ).rejects.toThrow( 'Service unavailable' );
+      expect( fetchWorkflowHistory ).toHaveBeenCalledTimes( 5 );
     } );
 
     it( 'retries a transient network failure after the first successful poll instead of crashing', async () => {
@@ -271,8 +297,46 @@ describe( 'workflow monitor command', () => {
 
       handler();
 
+      // The exit is deferred until stdout drains, so it can't truncate the
+      // workflow ID `start --monitor` printed moments earlier.
+      expect( exitSpy ).not.toHaveBeenCalled();
+      await new Promise( resolve => setImmediate( resolve ) );
+
       expect( exitSpy ).toHaveBeenCalledWith( 130 );
-      expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( 'Detached' ) );
+      // The detach message names the follow-up commands, since the workflow is
+      // still running and the user has nothing else on screen to act on.
+      const detached = ( cmd.log as any ).mock.calls
+        .map( ( [ line ]: [ string ] ) => line )
+        .find( ( line: string ) => line.includes( 'Detached' ) );
+      expect( detached ).toContain( 'workflow status wf-1' );
+      expect( detached ).toContain( 'workflow result wf-1' );
+
+      onSpy.mockRestore();
+      exitSpy.mockRestore();
+    } );
+
+    it( 'records exit 130 on detach even when the command unwinds first', async () => {
+      const { cmd, fetchWorkflowHistory } = await createCommand();
+      const { sleep } = await import( '#utils/sleep.js' );
+      // Still running, so the loop sleeps — that's where Ctrl+C lands in practice.
+      fetchWorkflowHistory.mockResolvedValue( history( 'running' ) as any );
+
+      const onSpy = vi.spyOn( process, 'on' );
+      const exitSpy = vi.spyOn( process, 'exit' ).mockImplementation( ( () => undefined ) as any );
+      vi.mocked( sleep ).mockImplementation( async () => {
+        const sigint = onSpy.mock.calls.find( ( [ event ] ) => event === 'SIGINT' );
+        ( sigint![1] as () => void )();
+      } );
+
+      await cmd.run();
+
+      // The deferred exit races the command returning normally; if the natural
+      // unwind wins, only the recorded code decides what the shell sees.
+      expect( process.exitCode ).toBe( 130 );
+
+      // Let the deferred flush land while process.exit is still stubbed.
+      await new Promise( resolve => setImmediate( resolve ) );
+      expect( exitSpy ).toHaveBeenCalledWith( 130 );
 
       onSpy.mockRestore();
       exitSpy.mockRestore();
