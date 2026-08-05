@@ -313,7 +313,7 @@ copying the workflow ID into a separate [`workflow monitor`](#output-workflow-mo
 output workflow start lead_enrichment --input ./test_input.json --monitor
 ```
 
-```
+```text
 Starting workflow: lead_enrichment...
 
 Workflow started successfully
@@ -326,12 +326,29 @@ Monitoring wf-12345 (run 2fe0b36b-...)... (Ctrl+C to detach)
   Score Lead running
   Score Lead  3.4s
 ✓ workflow completed · 4.8s
+
+Use "workflow result wf-12345" to get the workflow result
 ```
 
 Monitoring attaches to the exact run that was just started, so a rapid re-start
 can't leave you watching a different execution. Everything else matches
 `workflow monitor` — Ctrl+C detaches without stopping the workflow (exit `130`),
 and the command exits `1` if the workflow fails.
+
+The stream reports progress, not the return value, so the command closes by
+naming the follow-up: [`workflow result`](#output-workflow-result) after a run
+that completed, [`workflow debug`](#output-workflow-debug) after one that failed.
+
+If monitoring itself drops — the API restarts, the connection resets — the
+workflow it started keeps running, and the command says so and exits `3` rather
+than `1`. Retry logic keyed on a failed workflow therefore can't re-submit a
+workflow that is already in flight:
+
+```text
+Error: Workflow wf-12345 started, but monitoring stopped:
+Connection refused to http://localhost:3001. Is the API server running?
+The workflow is still running. Use "workflow status wf-12345" to check on it.
+```
 
 `--monitor` cannot be combined with `--json`. Under `--json` the CLI suppresses
 progress output and prints a single JSON object when the command finishes, which

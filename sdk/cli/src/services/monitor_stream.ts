@@ -3,19 +3,18 @@ import {
   type WorkflowHistoryCursor, type WorkflowHistoryResult
 } from '#services/workflow_history.js';
 import type { SpanStatus } from '#services/workflow_history/correlator.js';
-import type { WorkflowResultStatus } from '#api/generated/api.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { formatDurationLabel } from '#utils/waterfall.js';
 import { diffSpanUpdates, formatContinuedAsNew, formatSpanUpdate } from '#utils/monitor_log.js';
-import { ERROR_STATUSES, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
+import { isErrorStatus, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { sleep } from '#utils/sleep.js';
 import { shouldColorize } from '#utils/color.js';
 import { HttpError } from '#api/http_client.js';
 
-export const DEFAULT_INTERVAL_MS = 2500;
-export const MAX_CONSECUTIVE_ERRORS = 5;
-export const SIGINT_EXIT_CODE = 130;
+const MAX_CONSECUTIVE_ERRORS = 5;
+const SIGINT_EXIT_CODE = 130;
+const FLUSH_TIMEOUT_MS = 2000;
 const TRANSIENT_ERROR_CODES = new Set( [ 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND' ] );
 
 export type MonitorStreamOptions = {
@@ -42,6 +41,26 @@ export type MonitorStreamIo = {
 };
 
 /**
+ * Adapts an oclif command to the above. Late-bound arrows rather than
+ * `command.log.bind( command )`: oclif (and the unit tests) replace these as own
+ * properties on the instance, so they must resolve at call time. Structurally
+ * typed so a test double satisfies it without a real oclif `Config`.
+ */
+export function commandStreamIo( command: {
+  log: ( message: string ) => void;
+  warn: ( message: string ) => unknown;
+  error: ( message: string, options: { exit: number } ) => never;
+} ): MonitorStreamIo {
+  return {
+    log: message => command.log( message ),
+    warn: message => {
+      command.warn( message );
+    },
+    error: message => command.error( message, { exit: 1 } )
+  };
+}
+
+/**
  * Distinguishes blips worth retrying from errors that will fail identically on
  * every attempt: network hiccups, a client-side request timeout, and 5xx/408/429
  * responses are transient. Everything else — a 4xx like a stale/invalid resume
@@ -65,14 +84,18 @@ function isTransientPollError( error: unknown ): boolean {
 }
 
 /**
- * Wraps a single poll: a failure on the very first tick propagates (there's
- * nothing to fall back on), but a transient blip (see `isTransientPollError`)
- * after we've already been monitoring successfully just returns `null` so the
- * loop can retry — matching the dev TUI's `useStepGraph` behavior of keeping
- * the last good state on a poll hiccup. A non-transient error (e.g. a stale
- * resume cursor, or a bug in the parsing pipeline) rethrows immediately since
- * retrying it cannot succeed. `MAX_CONSECUTIVE_ERRORS` bounds how long we'll
- * retry transient failures before giving up.
+ * Wraps a single poll: a transient blip (see `isTransientPollError`) returns
+ * `null` so the loop can retry — matching the dev TUI's `useStepGraph` behavior
+ * of keeping the last good state on a poll hiccup. A non-transient error (e.g. a
+ * 404 for a mistyped workflow id, a stale resume cursor, or a bug in the parsing
+ * pipeline) rethrows immediately since retrying it cannot succeed.
+ * `MAX_CONSECUTIVE_ERRORS` bounds how long we'll retry transient failures before
+ * giving up.
+ *
+ * The retry budget deliberately covers the *first* poll too. `workflow start
+ * --monitor` issues it milliseconds after the API accepted the start request, so
+ * the first poll is the one most likely to catch a rolling restart or a single
+ * 503 — and aborting there abandons a workflow that is already running.
  *
  * Fetch strategy is driven by `state.cursor`, not tick count: no cursor yet
  * (the very first poll, or the first poll of a run chained via continue-as-new)
@@ -82,9 +105,8 @@ function isTransientPollError( error: unknown ): boolean {
  * for why a full re-fetch every tick is expensive for long-running workflows.
  */
 async function poll(
-  workflowId: string,
-  options: { includePayloads: boolean; interval: number },
-  state: { runId: string | undefined; firstTick: boolean; consecutiveErrors: number; cursor: WorkflowHistoryCursor | undefined },
+  options: { workflowId: string; includePayloads: boolean; interval: number },
+  state: { runId: string | undefined; consecutiveErrors: number; cursor: WorkflowHistoryCursor | undefined },
   io: MonitorStreamIo
 ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor } | null> {
   try {
@@ -94,7 +116,7 @@ async function poll(
     // effect once resuming (i.e. from the second tick onward); `fetchWorkflowHistory`
     // ignores it on the initial full walk.
     const fetchOptions = {
-      workflowId,
+      workflowId: options.workflowId,
       runId: state.runId,
       includePayloads: options.includePayloads,
       longPollTimeoutMs: options.interval
@@ -105,12 +127,36 @@ async function poll(
     }
     return await fetchWorkflowHistoryUpdates( fetchOptions, state.cursor );
   } catch ( error ) {
-    if ( state.firstTick || !isTransientPollError( error ) || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
+    if ( !isTransientPollError( error ) || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
       throw error;
     }
     io.warn( `Poll failed (${state.consecutiveErrors + 1}/${MAX_CONSECUTIVE_ERRORS}), retrying: ${getErrorMessage( error )}` );
     return null;
   }
+}
+
+/**
+ * `process.exit` discards whatever is still queued on an asynchronous stdout —
+ * a pipe or a file, where writes are buffered, unlike a TTY. Detaching from
+ * `workflow start --monitor` that way can drop the `Workflow ID:` line the
+ * command printed moments earlier, leaving the user with no way to reattach to a
+ * workflow that is still running. So queue an empty write behind the pending
+ * output and exit once it drains, with a ceiling in case the reader has stalled.
+ */
+function exitAfterFlush( code: number ): void {
+  const state = { exited: false };
+  const exit = (): void => {
+    if ( state.exited ) {
+      return;
+    }
+    state.exited = true;
+    process.exit( code );
+  };
+  const timer = setTimeout( exit, FLUSH_TIMEOUT_MS );
+  process.stdout.write( '', () => {
+    clearTimeout( timer );
+    exit();
+  } );
 }
 
 /**
@@ -121,18 +167,25 @@ async function poll(
  *
  * Sets `process.exitCode = 1` on a terminal error status rather than throwing,
  * so the caller's own output (e.g. `start`'s "Workflow started successfully")
- * is still the command's primary result.
+ * is still the command's primary result. Returns the terminal status it stopped
+ * on — `undefined` if it stopped because the user detached — so a caller can
+ * tailor its own follow-up (`workflow result` vs `workflow debug`).
  */
-export async function streamWorkflowUpdates( options: MonitorStreamOptions, io: MonitorStreamIo ): Promise<void> {
+export async function streamWorkflowUpdates(
+  options: MonitorStreamOptions,
+  io: MonitorStreamIo
+): Promise<string | undefined> {
   const color = shouldColorize( options.color );
-  const json = options.json;
 
   // Threaded via mutable properties (not `let` reassignment) so state
   // persists across polls without local variable reassignment.
   const state = {
     runId: options.runId,
     consecutiveErrors: 0,
-    firstTick: true,
+    // Set by the SIGINT handler so an in-flight poll can't print another update
+    // on top of "Detached" while stdout drains (see `exitAfterFlush`).
+    detached: false,
+    terminalStatus: undefined as string | undefined,
     // Undefined until a resumable cursor is established (see `poll` and
     // `fetchWorkflowHistoryUpdates`); reset on continue-as-new since a new run's
     // cursor position is meaningless carried over from the old one.
@@ -149,7 +202,7 @@ export async function streamWorkflowUpdates( options: MonitorStreamOptions, io: 
   // One emit point for both output formats: json mode wraps `fields` (plus
   // the ambient workflow/run id) as a line of NDJSON, text mode prints `text`.
   const emit = ( fields: Record<string, unknown>, text: string ): void => {
-    io.log( json ?
+    io.log( options.json ?
       JSON.stringify( { workflowId: options.workflowId, runId: state.runId, ...fields } ) :
       text );
   };
@@ -160,21 +213,35 @@ export async function streamWorkflowUpdates( options: MonitorStreamOptions, io: 
   );
 
   const sigintHandler = (): void => {
-    emit( { detached: true }, '\nDetached (the workflow keeps running).' );
-    process.exit( SIGINT_EXIT_CODE );
+    state.detached = true;
+    // Recorded as well as exited with: deferring the exit for a stdout flush
+    // lets the loop unwind and the command return normally in the meantime, and
+    // whichever of the two finishes first has to land on 130.
+    process.exitCode = SIGINT_EXIT_CODE;
+    emit(
+      { detached: true },
+      `\nDetached (the workflow keeps running). Use "workflow status ${options.workflowId}" to check on it, ` +
+      `or "workflow result ${options.workflowId}" once it finishes.`
+    );
+    exitAfterFlush( SIGINT_EXIT_CODE );
   };
   process.on( 'SIGINT', sigintHandler );
 
   try {
     while ( true ) {
-      const outcome = await poll( options.workflowId, options, state, io );
+      if ( state.detached ) {
+        break;
+      }
+      const outcome = await poll( options, state, io );
+      if ( state.detached ) {
+        break;
+      }
       if ( outcome === null ) {
         state.consecutiveErrors += 1;
         await sleep( options.interval );
         continue;
       }
       state.consecutiveErrors = 0;
-      state.firstTick = false;
       state.cursor = outcome.cursor;
 
       const result = outcome.result;
@@ -207,12 +274,16 @@ export async function streamWorkflowUpdates( options: MonitorStreamOptions, io: 
       }
 
       if ( status && TERMINAL_STATUSES.has( status ) ) {
-        const summary = `${status === 'completed' ? '✓' : '✗'} workflow ${status} · ${formatDurationLabel( result.totalDurationMs )}`;
-        emit( { status }, summary );
-        if ( ERROR_STATUSES.has( status as WorkflowResultStatus ) ) {
+        const failed = isErrorStatus( status );
+        emit(
+          { status },
+          `${failed ? '✗' : '✓'} workflow ${status} · ${formatDurationLabel( result.totalDurationMs )}`
+        );
+        if ( failed ) {
           process.exitCode = 1;
         }
-        return;
+        state.terminalStatus = status;
+        break;
       }
 
       await sleep( options.interval );
@@ -220,6 +291,8 @@ export async function streamWorkflowUpdates( options: MonitorStreamOptions, io: 
   } finally {
     process.removeListener( 'SIGINT', sigintHandler );
   }
+
+  return state.terminalStatus;
 }
 
 /**

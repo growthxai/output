@@ -1,8 +1,17 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowStart, type PostWorkflowStart200 } from '#api/generated/api.js';
-import { DEFAULT_INTERVAL_MS, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { commandStreamIo, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
+import { handleApiError, handleCommandError } from '#utils/error_handler.js';
+import { isErrorStatus } from '#utils/format_workflow_result.js';
+import { DEFAULT_INTERVAL_MS, gatedMonitorStreamFlags } from '#utils/monitor_flags.js';
 import { resolveInput } from '#utils/resolve_input.js';
+
+/**
+ * Distinct from 1 (the workflow itself failed) and 2 (usage): the workflow was
+ * started and is still running, only the attached stream gave up. A caller that
+ * retries on exit 1 would otherwise re-submit a workflow that is already running.
+ */
+const MONITOR_FAILED_EXIT_CODE = 3;
 
 export default class WorkflowStart extends Command {
   static override description = 'Start a workflow asynchronously without waiting for completion';
@@ -43,55 +52,31 @@ export default class WorkflowStart extends Command {
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
     } ),
-    // No `default: false` — oclif treats a defaulted flag as "present", which
-    // would silently satisfy the `dependsOn: [ 'monitor' ]` guards below and let
-    // `--interval` be accepted (and then ignored) without `--monitor`.
+    // No `default: false` — see `gatedMonitorStreamFlags`: a defaulted flag
+    // counts as "present" and would satisfy its own `dependsOn` guards.
+    //
+    // No `exclusive: [ 'json' ]` either: oclif's own rejection would fire first
+    // and print a bare "--json=true cannot also be provided", pre-empting the
+    // guard in `run()` that explains what to use instead. That guard covers both
+    // triggers (`--json` on argv, and `CONTENT_TYPE=json`) with one message.
     monitor: Flags.boolean( {
       char: 'm',
       description: 'After starting, attach and stream status updates until the workflow ends ' +
-        '(Ctrl+C detaches; the workflow keeps running). Cannot be combined with --json',
-      exclusive: [ 'json' ]
+        '(Ctrl+C detaches; the workflow keeps running). Cannot be combined with --json'
     } ),
-    // The three flags below forward to the monitor stream. They deliberately
-    // declare no `default` — `dependsOn` rejects a flag whose value is present,
-    // and an oclif default counts as present, so defaulting them here would make
-    // every plain `workflow start` fail with "--interval depends on --monitor".
-    // Defaults are applied in `run()` instead.
-    'include-payloads': Flags.boolean( {
-      description: 'Include decoded step input/output payloads (requires --monitor)',
-      dependsOn: [ 'monitor' ],
-      helpGroup: 'MONITOR'
-    } ),
-    interval: Flags.integer( {
-      description: `Poll interval in milliseconds while monitoring (requires --monitor) [default: ${DEFAULT_INTERVAL_MS}]`,
-      dependsOn: [ 'monitor' ],
-      helpGroup: 'MONITOR',
-      min: 1
-    } ),
-    color: Flags.boolean( {
-      description: 'Colorize status output, use --no-color to disable (requires --monitor)',
-      dependsOn: [ 'monitor' ],
-      helpGroup: 'MONITOR',
-      allowNo: true
-    } )
+    ...gatedMonitorStreamFlags( 'monitor' )
   };
-
-  /**
-   * Once monitoring begins the workflow itself started fine, so `catch` must stop
-   * blaming the workflow *name* for a 404 and use the monitor's own error mapping.
-   */
-  private monitoring = false;
 
   async run(): Promise<PostWorkflowStart200> {
     const { args, flags } = await this.parse( WorkflowStart );
 
-    // Belt-and-braces alongside `exclusive: [ 'json' ]`: the built-in `--json`
-    // flag is injected by `enableJsonFlag` rather than declared above, and
-    // `CONTENT_TYPE=json` turns it on without it appearing on argv at all — in
-    // which case oclif's relationship check has nothing to reject. Streaming
-    // under `--json` is worse than useless: `Command.log()` is a no-op while
-    // json is enabled, so every update would be swallowed and the command would
-    // simply hang until the workflow ended.
+    // The built-in `--json` flag is injected by `enableJsonFlag`, and
+    // `CONTENT_TYPE=json` turns it on without it appearing on argv at all, so
+    // this runtime check — not an oclif flag relationship — is what catches
+    // every route into json mode. Streaming under `--json` is worse than
+    // useless: `Command.log()` is a no-op while json is enabled, so every update
+    // would be swallowed and the command would simply hang until the workflow
+    // ended.
     if ( flags.monitor && this.jsonEnabled() ) {
       this.error(
         'Cannot combine --monitor with --json. Use "workflow run --json" to wait for the result, ' +
@@ -122,57 +107,79 @@ export default class WorkflowStart extends Command {
     }
 
     const result = response.data as PostWorkflowStart200;
-    const output = [
+    const started = [
       'Workflow started successfully',
       '',
-      `Workflow ID: ${result.workflowId || 'unknown'}`,
-      // The follow-up hints tell the user how to do what --monitor is already
-      // doing, so they'd only be noise above a live stream.
-      ...flags.monitor ? [] : [
+      `Workflow ID: ${result.workflowId || 'unknown'}`
+    ];
+
+    if ( !flags.monitor ) {
+      this.log( `\n${[
+        ...started,
         '',
         `Use "workflow status ${result.workflowId || '<workflow-id>'}" to check the workflow status`,
         `Use "workflow result ${result.workflowId || '<workflow-id>'}" to get the workflow result when complete`
-      ]
-    ].join( '\n' );
-
-    this.log( `\n${output}` );
-
-    if ( !flags.monitor ) {
+      ].join( '\n' )}` );
       return result;
     }
 
+    // Checked before the banner prints: "Workflow started successfully" followed
+    // immediately by "Cannot monitor" contradicts itself, and the `unknown`
+    // placeholder id it would show is not something the user can act on.
     if ( !result.workflowId ) {
       this.error( 'Cannot monitor: the API did not return a workflow ID.', { exit: 1 } );
     }
 
+    this.log( `\n${started.join( '\n' )}` );
     this.log( '' );
-    this.monitoring = true;
-    await streamWorkflowUpdates( {
-      workflowId: result.workflowId,
-      // Pin to the run just started rather than letting the monitor resolve
-      // "latest run" — with a retry or a rapid re-start those can differ.
-      runId: result.runId ?? undefined,
-      includePayloads: flags['include-payloads'] ?? false,
-      interval: flags.interval ?? DEFAULT_INTERVAL_MS,
-      // Always text: --monitor and --json are mutually exclusive, so json mode
-      // is unreachable here. `workflow monitor --format json` is the NDJSON path.
-      json: false,
-      color: flags.color ?? true
-    }, {
-      log: message => this.log( message ),
-      warn: message => {
-        this.warn( message );
-      },
-      error: message => this.error( message, { exit: 1 } )
-    } );
+
+    try {
+      const status = await streamWorkflowUpdates( {
+        workflowId: result.workflowId,
+        // Pin to the run just started rather than letting the monitor resolve
+        // "latest run" — with a retry or a rapid re-start those can differ.
+        runId: result.runId ?? undefined,
+        includePayloads: flags['include-payloads'] ?? false,
+        interval: flags.interval ?? DEFAULT_INTERVAL_MS,
+        // Always text: monitoring under json mode is rejected above, so the
+        // NDJSON path is `workflow monitor --format json`.
+        json: false,
+        color: flags.color ?? true
+      }, commandStreamIo( this ) );
+
+      // Monitoring reports the workflow's *progress*; the return value still has
+      // to be fetched separately, so name the command that does it. A failed run
+      // has no result to fetch, so point at the one that explains the failure.
+      if ( status ) {
+        this.log( isErrorStatus( status ) ?
+          `\nUse "workflow debug ${result.workflowId}" to inspect the failure` :
+          `\nUse "workflow result ${result.workflowId}" to get the workflow result` );
+      }
+    } catch ( error ) {
+      // The workflow was started and is still running — only the stream gave up.
+      // Say so explicitly and exit on a code of its own, so this can't be read
+      // (by a human or by a CI job retrying on exit 1) as a failed start.
+      //
+      // `handleApiError`, not `handleCommandError`: an error the stream raised
+      // through `io.error` is already a CLIError, and passing it through would
+      // report it as a plain exit-1 failure rather than a live workflow.
+      handleApiError(
+        error,
+        message => this.error(
+          `Workflow ${result.workflowId} started, but monitoring stopped:\n${message}\n` +
+          `The workflow is still running. Use "workflow status ${result.workflowId}" to check on it.`,
+          { exit: MONITOR_FAILED_EXIT_CODE }
+        ),
+        monitorErrorOverrides( error as Error )
+      );
+    }
 
     return result;
   }
 
   async catch( error: Error ): Promise<void> {
-    const overrides = this.monitoring ?
-      monitorErrorOverrides( error ) :
-      { 404: 'Workflow not found. Check the workflow name.' };
-    return handleApiError( error, ( ...args ) => this.error( ...args ), overrides );
+    return handleCommandError( error, ( ...args ) => this.error( ...args ), {
+      404: 'Workflow not found. Check the workflow name.'
+    } );
   }
 }

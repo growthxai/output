@@ -1,8 +1,7 @@
 import { Args, Command, Flags } from '@oclif/core';
-import {
-  DEFAULT_INTERVAL_MS, monitorErrorOverrides, streamWorkflowUpdates
-} from '#services/monitor_stream.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { commandStreamIo, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
+import { handleCommandError } from '#utils/error_handler.js';
+import { monitorStreamFlags } from '#utils/monitor_flags.js';
 
 const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
 
@@ -50,32 +49,12 @@ export default class WorkflowMonitor extends Command {
       options: [ OUTPUT_FORMAT.TEXT, OUTPUT_FORMAT.JSON ],
       default: OUTPUT_FORMAT.TEXT
     } ),
-    'include-payloads': Flags.boolean( {
-      description: 'Include decoded step input/output payloads',
-      default: false
-    } ),
-    interval: Flags.integer( {
-      description: 'Poll interval in milliseconds. Once a resumed poll is long-polling ' +
-        'server-side for new events, this also bounds how long that block may last (capped ' +
-        'at the server\'s configured max), so an idle workflow\'s update cadence is roughly ' +
-        'twice this value (the long-poll bound, then this sleep) rather than a much longer, ' +
-        'separate server default.',
-      default: DEFAULT_INTERVAL_MS,
-      min: 1
-    } ),
-    color: Flags.boolean( {
-      description: 'Colorize status output (use --no-color to disable)',
-      default: true,
-      allowNo: true
-    } )
+    ...monitorStreamFlags()
   };
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse( WorkflowMonitor );
 
-    // Late-bound arrow functions, not `this.log.bind( this )`: oclif (and the
-    // unit tests) replace these as own properties on the instance, so they must
-    // resolve at call time rather than being captured here.
     await streamWorkflowUpdates( {
       workflowId: args.workflowId,
       runId: flags['run-id'],
@@ -83,16 +62,10 @@ export default class WorkflowMonitor extends Command {
       interval: flags.interval,
       json: flags.format === OUTPUT_FORMAT.JSON,
       color: flags.color
-    }, {
-      log: message => this.log( message ),
-      warn: message => {
-        this.warn( message );
-      },
-      error: message => this.error( message, { exit: 1 } )
-    } );
+    }, commandStreamIo( this ) );
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), monitorErrorOverrides( error ) );
+    return handleCommandError( error, ( ...args ) => this.error( ...args ), monitorErrorOverrides( error ) );
   }
 }

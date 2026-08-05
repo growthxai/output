@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CLIError } from '@oclif/core/errors';
 
 vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowStart: vi.fn()
@@ -9,7 +10,7 @@ vi.mock( '#utils/resolve_input.js', () => ( {
   resolveInput: vi.fn()
 } ) );
 
-// Only the streaming loop is stubbed; DEFAULT_INTERVAL_MS and monitorErrorOverrides
+// Only the streaming loop is stubbed; monitorErrorOverrides and commandStreamIo
 // stay real so the default-application and error-mapping branches are exercised
 // against the values `workflow monitor` actually uses.
 vi.mock( '#services/monitor_stream.js', async importOriginal => ( {
@@ -65,11 +66,13 @@ describe( 'workflow start command', () => {
       expect( WorkflowStart.flags.monitor.default ).toBeUndefined();
     } );
 
-    it( 'declares --monitor exclusive with --json', async () => {
+    it( 'leaves the --monitor/--json conflict to the runtime guard', async () => {
       const WorkflowStart = ( await import( './start.js' ) ).default;
-      // Streaming under --json is silently useless: oclif's Command.log() is a
-      // no-op while json is enabled, so every update would be swallowed.
-      expect( WorkflowStart.flags.monitor.exclusive ).toEqual( [ 'json' ] );
+      // An `exclusive: [ 'json' ]` relationship would fire first and print a bare
+      // "--json=true cannot also be provided", pre-empting the guard in run()
+      // that explains what to use instead — and it still wouldn't catch
+      // CONTENT_TYPE=json, which never reaches argv.
+      expect( WorkflowStart.flags.monitor.exclusive ).toBeUndefined();
     } );
 
     it( 'gates every monitor passthrough flag behind --monitor and leaves them undefaulted', async () => {
@@ -99,6 +102,9 @@ describe( 'workflow start command', () => {
 
       return { cmd, postWorkflowStart: vi.mocked( postWorkflowStart ), resolveInput: vi.mocked( resolveInput ) };
     };
+
+    const logged = ( cmd: { log: unknown } ): string[] =>
+      ( cmd.log as any ).mock.calls.map( ( [ line ]: [ string ] ) => line );
 
     it( 'threads the resolved catalog to resolveInput and postWorkflowStart', async () => {
       const { cmd, postWorkflowStart, resolveInput } = await createCommand( { catalog: 'my-catalog' } );
@@ -168,7 +174,7 @@ describe( 'workflow start command', () => {
         await cmd.run();
 
         expect( streamWorkflowUpdates ).not.toHaveBeenCalled();
-        const printed = ( cmd.log as any ).mock.calls.map( ( [ line ]: [ string ] ) => line ).join( '\n' );
+        const printed = logged( cmd ).join( '\n' );
         expect( printed ).toContain( 'workflow status wf-123' );
         expect( printed ).toContain( 'workflow result wf-123' );
       } );
@@ -195,16 +201,58 @@ describe( 'workflow start command', () => {
         await expect( cmd.run() ).resolves.toEqual( { workflowId: 'wf-123', runId: 'run-1' } );
       } );
 
-      it( 'drops the status/result hints that duplicate what monitoring already does', async () => {
+      it( 'drops the up-front status hint that duplicates what monitoring already does', async () => {
         const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
         postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123', runId: 'run-1' } ) );
 
         await cmd.run();
 
-        const printed = ( cmd.log as any ).mock.calls.map( ( [ line ]: [ string ] ) => line ).join( '\n' );
+        const printed = logged( cmd ).join( '\n' );
         expect( printed ).toContain( 'Workflow ID: wf-123' );
         expect( printed ).not.toContain( 'workflow status wf-123' );
+      } );
+
+      it( 'points at "workflow result" once monitoring finishes', async () => {
+        const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
+        const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
+        postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123', runId: 'run-1' } ) );
+        vi.mocked( streamWorkflowUpdates ).mockResolvedValue( 'completed' );
+
+        await cmd.run();
+
+        // The stream reports progress, never the return value, so the command
+        // that fetches it has to be named somewhere.
+        const printed = logged( cmd );
+        expect( printed.at( -1 ) ).toContain( 'workflow result wf-123' );
+      } );
+
+      it( 'points at "workflow debug" instead when the workflow failed', async () => {
+        const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
+        const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
+        postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123', runId: 'run-1' } ) );
+        vi.mocked( streamWorkflowUpdates ).mockResolvedValue( 'failed' );
+
+        await cmd.run();
+
+        // A failed run has no result to fetch.
+        const printed = logged( cmd );
+        expect( printed.at( -1 ) ).toContain( 'workflow debug wf-123' );
+        expect( printed.at( -1 ) ).not.toContain( 'workflow result' );
+      } );
+
+      it( 'adds no follow-up hint when the user detached mid-run', async () => {
+        const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
+        const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
+        postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123', runId: 'run-1' } ) );
+        // Detaching returns no terminal status; the detach message carries its
+        // own hints, so a second one guessing at the outcome would be wrong.
+        vi.mocked( streamWorkflowUpdates ).mockResolvedValue( undefined );
+
+        await cmd.run();
+
+        const printed = logged( cmd ).join( '\n' );
         expect( printed ).not.toContain( 'workflow result wf-123' );
+        expect( printed ).not.toContain( 'workflow debug wf-123' );
       } );
 
       it( 'applies monitor defaults for the passthrough flags left unset', async () => {
@@ -256,6 +304,11 @@ describe( 'workflow start command', () => {
 
         await expect( cmd.run() ).rejects.toThrow();
         expect( streamWorkflowUpdates ).not.toHaveBeenCalled();
+        // Claiming success and then failing on the next line contradicts itself,
+        // and the "unknown" placeholder id isn't something the user can act on.
+        const printed = logged( cmd ).join( '\n' );
+        expect( printed ).not.toContain( 'Workflow started successfully' );
+        expect( printed ).not.toContain( 'unknown' );
       } );
 
       it( 'refuses to monitor under --json instead of silently swallowing the stream', async () => {
@@ -288,21 +341,34 @@ describe( 'workflow start command', () => {
         );
       } );
 
-      it( 'blames the workflow ID once monitoring has begun, since the name already resolved', async () => {
+      it( 'reports a monitoring failure as a live workflow, not a failed start', async () => {
         const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
         const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
         postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123' } ) );
-        const error = notFound();
-        vi.mocked( streamWorkflowUpdates ).mockRejectedValue( error );
+        vi.mocked( streamWorkflowUpdates ).mockRejectedValue( notFound() );
 
         await expect( cmd.run() ).rejects.toThrow();
-        await expect( cmd.catch( error ) ).rejects.toThrow();
 
-        // The workflow started fine, so a 404 here is about the run being polled.
-        expect( cmd.error ).toHaveBeenCalledWith(
-          'Workflow not found. Check the workflow ID.',
-          expect.objectContaining( { exit: 1 } )
-        );
+        const [ message, options ] = ( cmd.error as any ).mock.calls.at( -1 );
+        // The workflow started fine, so a 404 here is about the run being polled,
+        // and the user needs to know the workflow is still running.
+        expect( message ).toContain( 'Workflow not found. Check the workflow ID.' );
+        expect( message ).toContain( 'wf-123 started, but monitoring stopped' );
+        expect( message ).toContain( 'workflow status wf-123' );
+        // Exit 3, not 1: a caller retrying on a failed workflow must not
+        // re-submit one that is already running.
+        expect( options ).toEqual( expect.objectContaining( { exit: 3 } ) );
+      } );
+
+      it( 'rethrows oclif errors instead of flattening them to exit 1', async () => {
+        const { cmd } = await createCommand();
+        // `catch` re-raising a CLIError through handleApiError would discard both
+        // its exit code (2 for usage, 3 for a dropped stream) and oclif's own
+        // formatted flag-validation output.
+        const usageError = new CLIError( 'Cannot combine --monitor with --json.', { exit: 2 } );
+
+        await expect( cmd.catch( usageError ) ).rejects.toBe( usageError );
+        expect( cmd.error ).not.toHaveBeenCalled();
       } );
     } );
   } );

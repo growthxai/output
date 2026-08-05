@@ -15,6 +15,14 @@ export const isErrorWorkflowStatus = ( status: string | null | undefined ): bool
 // the dev TUI's `useRunDetail`/`useStepGraph` so both agree on what "done" means.
 export const TERMINAL_STATUSES: ReadonlySet<string> = new Set( [ 'completed', ...ERROR_STATUSES ] as string[] );
 
+/**
+ * Wraps the cast that every caller of `ERROR_STATUSES` would otherwise repeat:
+ * statuses arrive as bare strings from the history API.
+ */
+export function isErrorStatus( status: string | undefined ): boolean {
+  return ERROR_STATUSES.has( status as WorkflowResultStatus );
+}
+
 export function formatWorkflowResult( result: WorkflowResult ): string {
   const status = normalizeWorkflowStatus( result.status );
   const lines = [
