@@ -8,7 +8,8 @@
  * left untouched.
  *
  * Migration guides are hand-authored MDX pages under docs/guides/migrations/
- * and are NOT regenerated.
+ * and are NOT regenerated. Filenames matching `v{from}-to-v{to}.mdx` are
+ * discovered so matching release blocks can link to them.
  *
  * Reads only. Does not parse changesets, does not run `pnpm changeset version`.
  */
@@ -24,11 +25,41 @@ const repoRoot = path.resolve( guidesDir, '../..' );
 
 const MARKER_START_PREFIX = '{/* AUTO-GENERATED:START';
 const MARKER_END = '{/* AUTO-GENERATED:END */}';
+const MIGRATION_FILE_RE = /^v(.+)-to-v(.+)\.mdx$/;
 
 const paths = {
   releasesJson: path.join( guidesDir, 'data/releases.json' ),
-  changelogPage: path.join( guidesDir, 'changelog/index.mdx' )
+  changelogPage: path.join( guidesDir, 'changelog/index.mdx' ),
+  migrationsDir: path.join( guidesDir, 'migrations' )
 };
+
+/**
+ * Map each migration guide's "to" version → { from, to, slug }.
+ * @param {string} migrationsDir
+ * @returns {Promise<Map<string, { from: string, to: string, slug: string }>>}
+ */
+async function loadMigrationGuides( migrationsDir ) {
+  let entries;
+  try {
+    entries = await fs.readdir( migrationsDir );
+  } catch ( err ) {
+    if ( err.code === 'ENOENT' ) {
+      return new Map();
+    }
+    throw err;
+  }
+
+  const byTo = new Map();
+  for ( const name of entries ) {
+    const match = MIGRATION_FILE_RE.exec( name );
+    if ( !match ) {
+      continue;
+    }
+    const [ , from, to ] = match;
+    byTo.set( to, { from, to, slug: name.slice( 0, -'.mdx'.length ) } );
+  }
+  return byTo;
+}
 
 // Replace everything between the markers with `body`, leaving the surrounding
 // page intact. Returns null when the markers are missing or out of order so
@@ -48,8 +79,9 @@ function spliceBody( current, body ) {
 
 async function main() {
   const data = await readReleasesJson( paths.releasesJson );
+  const migrationByToVersion = await loadMigrationGuides( paths.migrationsDir );
   const current = await fs.readFile( paths.changelogPage, 'utf8' );
-  const next = spliceBody( current, renderChangelogBody( data ) );
+  const next = spliceBody( current, renderChangelogBody( data, migrationByToVersion ) );
 
   if ( next === null ) {
     console.error(

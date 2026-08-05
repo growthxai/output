@@ -11,6 +11,8 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 <Update label="v0.10.0" description="2026-07-09 · minor release">
 
+See the [v0.9.0 → v0.10.0 migration guide](/migrations/v0.9.0-to-v0.10.0).
+
 **`output-api`** — Workflow result endpoints no longer include unavailable trace destinations instead of returning them as `null`.
 This affects:
 - `POST /workflow/run`
@@ -158,6 +160,8 @@ The same waterfall is available in the `output dev` TUI: from the Recent Runs ta
 
 <Update label="v0.9.0" description="2026-06-26 · minor release">
 
+See the [v0.8.0 → v0.9.0 migration guide](/migrations/v0.8.0-to-v0.9.0).
+
 **`@outputai/core`** — Added activity lifecycle hooks: `onActivityStart`, `onActivityEnd`, `onActivityError`.
 
 Payload:
@@ -232,6 +236,8 @@ The default displayed level is debug in development and info in production. Over
 </Update>
 
 <Update label="v0.8.0" description="2026-06-22 · minor release">
+
+See the [v0.7.0 → v0.8.0 migration guide](/migrations/v0.7.0-to-v0.8.0).
 
 **`output-api`** — `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
 
@@ -316,6 +322,8 @@ In the CLI, the old value is still supported.
 </Update>
 
 <Update label="v0.7.0" description="2026-06-10 · minor release">
+
+See the [v0.6.0 → v0.7.0 migration guide](/migrations/v0.6.0-to-v0.7.0).
 
 **`@outputai/core`** — ## Workflow hooks
 Updated `onWorkflowStart()`, `onWorkflowEnd()`, `onWorkflowError()` hooks payload:
@@ -513,6 +521,8 @@ No object generated: response did not match schema. First issue is "Invalid inpu
 
 <Update label="v0.6.0" description="2026-05-29 · minor release">
 
+See the [v0.5.2 → v0.6.0 migration guide](/migrations/v0.5.2-to-v0.6.0).
+
 **`output-api`** — Removed `.attributes` field from workflow results (both `/run` and `/results` endpoints)
 
 **`@outputai/core`** — Rewriting the catalog workflow startup logic to better handle multiple instances of the worker and avoiding restarting the workflow unnecessarily.
@@ -585,6 +595,8 @@ The CLI's dev docker-compose forwards the flag from the host shell, so `OUTPUT_E
 
 <Update label="v0.5.0" description="2026-05-20 · minor release">
 
+See the [v0.4.0 → v0.5.0 migration guide](/migrations/v0.4.0-to-v0.5.0).
+
 **`@outputai/core`, `@outputai/http`, `@outputai/llm`, `output-api`** — Workflow runs now return durable usage and cost metadata alongside the workflow output. Each completed or failed run can include raw `attributes` plus convenient `aggregations` for total cost, token usage, and HTTP request counts.
 
 For example, API and CLI JSON results can now include:
@@ -605,7 +617,7 @@ For example, API and CLI JSON results can now include:
 
 Cost events now emit the same attribute-shaped payloads used in workflow results, making hook handlers and saved run metadata easier to reconcile. This also updates `@outputai/http` request cost tracking and `@outputai/llm` response cost data to use the new attribute format.
 
-Learn more in the [workflow result docs](https://docs.output.ai/api), [CLI result format](https://docs.output.ai/packages/cli#workflow-result-json-format), [cost events guide](https://docs.output.ai/costs/cost-events), and [v0.4.0 to v0.5.0 migration guide](https://docs.output.ai/migrations/v0.4.0-to-v0.5.0).
+Learn more in the [workflow result docs](/api), [CLI result format](/packages/cli#workflow-result-json-format), and [cost events guide](/costs/cost-events).
 
 **`@outputai/cli`** — Improved the dev TUI experience with clearer workflow run views, expanded full-screen modals, and more consistent layout and interaction patterns across screens.
 
@@ -639,6 +651,8 @@ Default AI SDK `maxRetries` to 0 so workflow retries are handled by Temporal.
 </Update>
 
 <Update label="v0.4.0" description="2026-05-12 · minor release">
+
+See the [v0.3.0 → v0.4.0 migration guide](/migrations/v0.3.0-to-v0.4.0).
 
 **`@outputai/cli`** — Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original.
 
@@ -676,6 +690,8 @@ Rename the Output.ai settings property in `package.json` from `output` to `outpu
 </Update>
 
 <Update label="v0.3.0" description="2026-05-05 · minor release">
+
+See the [v0.2.0 → v0.3.0 migration guide](/migrations/v0.2.0-to-v0.3.0).
 
 **`@outputai/cli`, `output-api`** — Use `catalog` as the public name for the routing/filtering target across the CLI and HTTP API:
 
@@ -774,6 +790,8 @@ Refactored `httpClient` exported by "http" to use the custom _fetch_ internally 
 </Update>
 
 <Update label="v0.2.0" description="2026-04-22 · minor release">
+
+See the [v0.1.12 → v0.2.0 migration guide](/migrations/v0.1.12-to-v0.2.0).
 
 **`@outputai/cli`** — Fix `workflow generate` success message to show actual workflow ID and scenario name
 
