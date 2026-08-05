@@ -61,7 +61,7 @@ variables: {
 }
 ```
 
-Undefined variables render as empty strings — no error is thrown, but your prompt may not make sense. Validate inputs in your step before calling the LLM.
+Undefined variables and unknown filters throw a non-retryable `FatalError` at render time (`strictVariables` / `strictFilters`). Pass every variable the template references, and only use known Liquid filters. Validate inputs in your step before calling the LLM.
 
 ## Conditionals
 
