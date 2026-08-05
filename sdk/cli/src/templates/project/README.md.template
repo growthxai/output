@@ -81,7 +81,7 @@ This starts:
 - Output.ai API server (http://localhost:3001)
 - Worker process for executing workflows (auto-reloads on `src/` changes)
 
-Dependency changes (`package.json` / lockfile) are not picked up by hot-reload. Run `npm install` and restart `output:dev`.
+Dependency changes (`package.json` / lockfile) are not picked up by hot-reload. Run `npm install`, then stop and re-run `npm run output:dev` so the worker container reinstalls. A hot-reload alone is not enough.
 
 ### 4. Run a workflow
 

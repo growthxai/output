@@ -21,7 +21,7 @@ npm run output:worker:watch  # Build + restart on src/ file changes
 npm run output:worker        # Build and start worker
 ```
 
-Hot-reload watches `src/` only. After changing dependencies (`package.json` / lockfile), run `npm install` and restart `output:dev`.
+Hot-reload watches `src/` only. After changing dependencies (`package.json` / lockfile), run `npm install`, then stop and re-run `npm run output:dev` so the worker container reinstalls. A hot-reload alone is not enough.
 
 ## Project Structure
 
