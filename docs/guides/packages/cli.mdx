@@ -89,7 +89,7 @@ This starts:
 | `--image-pull-policy` | `always` | Image pull policy: `always`, `missing`, or `never` |
 
 <Note>
-Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then `output dev down` and `output dev` again so the worker container reinstalls into its `node_modules` volume. Stopping an attached session or running `output dev -d` is not enough — the stack must be brought down and started again.
+Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then bring the stack down and start `output dev` again so the worker container reinstalls into its `node_modules` volume. Quitting a foreground `output dev` that owns the stack tears it down and is enough; if the stack is still running (an attached session, or one started with `output dev -d`), run `output dev down` first, then `output dev` again.
 </Note>
 
 #### Running multiple dev stacks
