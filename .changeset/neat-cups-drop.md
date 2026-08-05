@@ -2,4 +2,4 @@
 "@outputai/llm": patch
 ---
 
-Upgraded @ai-sdk/amazon-bedrock from v4.0.111 to v4.0.138
+- Upgraded `liquidJS` from v10.25.7 to v10.27.2 (`.prompt` files template parser).
