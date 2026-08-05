@@ -82,13 +82,15 @@ This starts:
 | **Redis** | — | Caching layer (container-internal) |
 | **Temporal Server** | — | gRPC endpoint (container-internal) |
 
-Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then stop `output dev` and start it again so the worker container reinstalls into its `node_modules` volume. A nodemon reload or `output dev -d` against an already-running stack is not enough.
-
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--compose-file, -f` | — | Path to custom docker-compose file |
 | `--detached, -d` | false | Start services in the background and exit immediately |
 | `--image-pull-policy` | `always` | Image pull policy: `always`, `missing`, or `never` |
+
+<Note>
+Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then `output dev down` and `output dev` again so the worker container reinstalls into its `node_modules` volume. Stopping an attached session or running `output dev -d` is not enough — the stack must be brought down and started again.
+</Note>
 
 #### Running multiple dev stacks
 

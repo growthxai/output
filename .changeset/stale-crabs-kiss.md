@@ -2,4 +2,5 @@
 "@outputai/cli": patch
 ---
 
-- Removed install step from hot-reload when developing workflows (`output dev`). Nodemon (hot-reload daemon) re-installs (`npm install`) the dependencies on every reload, which is slow, even with cache. Also remove package.json from watched files.
+- Removed install from hot-reload when developing workflows (`output dev`): nodemon no longer runs `npm install` on every reload, and `package.json` is no longer watched. After dependency changes, run `npm install`, then `output dev down` and `output dev` again.
+- `npm run output:worker` also no longer installs first — run `output:worker:install` (or rely on `output dev`, which still installs on worker start) before build/start. `output:fix` will rewrite `output:worker` in existing projects when you apply it.
