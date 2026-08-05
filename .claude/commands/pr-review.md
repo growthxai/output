@@ -2,166 +2,163 @@
 description: Automated PR review for Output.ai
 ---
 
-Review this pull request. The PR branch is already checked out (shallow clone: `fetch-depth: 1` - no full git history/blame; rely on `gh pr diff`, the current tree, and neighboring files).
+## Objective
 
-Use `gh pr view`, `gh pr diff`, and the local checkout to understand the change.
-For file-specific issues, add inline comments as short pointers (see Output format).
-Post the summary by updating the sticky tracking comment (see Summary posting). Do not create extra top-level review comments.
-Do not modify code. Review only.
+Review this pull request. Do not modify code.
 
-**Scope - PR delta only:** Focus on what this PR **adds, changes, or deletes**. Do not hunt pre-existing issues in untouched code. Reading neighboring files for conventions is fine; filing findings against unchanged lines is not - unless the PR's change newly exposes, triggers, or depends on that problem (then say so explicitly). Drive-by nits on legacy code = out of scope.
+The PR branch is already checked out (shallow clone: `fetch-depth: 1` — no full git history/blame). Use `gh pr view`, `gh pr diff`, and the local tree.
 
-**Finding rule:**
-- Report each issue **once**, as **Must-fix** or **Nice-to-have**, with the single best checklist category in parentheses (Design, Quality, Correctness, Documentation, Changeset, Tests, Security, Compatibility).
-- Format every finding as: `Must-fix (Category): ...` or `Nice-to-have (Category): ...`
-- **Deduplicate aggressively:** do not restate the same underlying problem under a second category, priority, inline comment *and* summary paragraph, or Temporal/adversarial "also". One root cause -> one finding. If two angles apply, pick the strongest category and mention the other angle in that same finding if needed.
-- Do not invent "Adversarial" or "Temporal" priority labels or checklist rows.
+Tools: `gh pr comment` for the summary; `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for line pointers. Post the summary only after **Finalize** (see Review process).
 
-**PR description:** Use title/body as claims to verify (intent, scope, claimed breaks) - not as something to grade. A concise description is fine and must not trigger findings. An empty description may be at most **Nice-to-have**; never **Must-fix** for "bad PR writeup." If the body claims X and the diff does not support X -> finding under the matching checklist category.
+## Scope
 
-## Review process (mandatory)
+**Code:** Only what this PR adds, changes, or deletes. Neighboring files are fine for conventions; do not file findings against untouched lines unless this PR newly exposes or depends on that problem. No drive-by nits on legacy code.
 
-Work in this order. Do **not** post the summary until the final step is done.
+**PR description:** Claims to verify (intent, scope, breaks) — not something to grade. Concise is fine. Empty description → at most **Nice-to-have**; never **Must-fix** for a weak writeup. If the body claims X and the diff does not support X → a finding under the matching **category**.
 
-1. **Draft** - Walk the review checklist once. Build a provisional verdict, findings, and scorecard.
-2. **Temporal lens** (when triggered) - Apply in-process (no subagent). Focus **only** on **Temporal TypeScript SDK** correctness, alignment, and integration. There is no Temporal scorecard row; fold findings into the normal checklist findings.
-   - **Trigger when the PR touches any of:**
-     - `sdk/core/**`
-     - `api/**`
-     - `@temporalio/*` dependency adds or version changes (manifest/lockfile)
-   - **Review for:**
-     - **SDK usage** - workflow determinism / sandbox rules, activity boundaries, retries, heartbeats, cancellation, signals/queries/updates, payloads, replay and patching/versioning hazards, client/worker lifecycle mistakes
-     - **API alignment** - APIs and semantics match the Temporal TS SDK version in use (options, return types, error types, deprecated/replaced surfaces)
-     - **Wiring** - workers, clients, task queues, interceptors, sinks, schedules, or other SDK entry points are coherent and not fighting the SDK model
-   - **When unsure:** check Temporal TypeScript SDK documentation and/or upstream source (e.g. via WebSearch/WebFetch) for the SDK version this PR uses - do not guess SDK behavior.
-   - Skipping this beat when triggered = incomplete review.
-3. **Adversarial challenge** - Attack the draft and the PR before publishing. This is not a second checklist walk and not a separate scorecard row. Try to break optimism:
-   - Falsify PR title/body claims the diff does not fully support
-   - Incomplete / half-finished wiring (exported but unused, flags with no path, TODOs that leave behavior broken)
-   - Silent compatibility / contract changes you under-called or marked too lightly
-   - Failure modes the happy path ignores (retries, cancellation, partial failure, bad input)
-   - Scorecard honesty - any checklist `✅ PASS` that was generous; change to `⛔ FAIL` and add a **Must-fix** finding if the challenge sticks
-4. **Finalize** - Merge surviving Temporal and adversarial challenges into the normal findings (upgrade to **Must-fix** if needed). Drop weak or speculative attacks. Then post the summary and inline pointers.
+## Review process
 
-The Temporal (when triggered) and adversarial beats have weight: a review that skips a required beat is incomplete.
+Work in this order. Do not post the summary until step 4. Do not narrate this process in the comment.
 
-## Sources of truth (priority order)
+1. **Draft** — Walk **Review categories** once. Provisional verdict, findings, and category scorecard.
+2. **Temporal lens** (when triggered) — In-process only (no subagent). Focus only on **Temporal TypeScript SDK** correctness, alignment, and wiring. No separate Temporal category; fold into normal findings.
+   - **Trigger** if the PR touches `sdk/core/**`, `api/**`, or `@temporalio/*` dependency adds/version changes (manifest/lockfile).
+   - **Review:** workflow determinism / sandbox; activity boundaries; retries; heartbeats; cancellation; signals/queries/updates; payloads; replay / patching / versioning; client/worker lifecycle; APIs match the SDK version in use; workers, clients, task queues, interceptors, sinks, schedules coherent with the SDK model.
+   - When unsure, check Temporal TS SDK docs or upstream for the version this PR uses — do not guess.
+   - Skipping this step when triggered = incomplete review.
+3. **Adversarial challenge** — Attack the draft before publishing (not a second category walk, not a scorecard row):
+   - Claims the diff does not fully support
+   - Half-finished wiring (exported but unused, flags with no path, TODOs that leave behavior broken)
+   - Silent compatibility / contract changes under-called
+   - Failure modes the happy path ignores
+   - Generous `✅ PASS` rows — upgrade to `⛔ FAIL` and add a **Must-fix** if the challenge sticks
+4. **Finalize** — Merge surviving Temporal/adversarial points into normal findings (upgrade to **Must-fix** when needed). Drop weak speculation. Then post the summary and any inline comments.
 
-1. **Existing code** - primary. Infer conventions from neighboring packages, similar modules, and established patterns in the diff's area.
-2. **Product docs** (`docs/guides/`) - secondary.
-3. **LLM/agent files** (`CLAUDE.md`, `.claude/**`, skills, agents) - lowest weight. Useful hints only; they may be stale. Never treat them as authoritative over code or docs.
+## Code structure
 
-## Public-facing code (docs candidates)
+**Sources of truth** (highest first):
 
-User-visible product code lives in:
+1. **Existing code** — conventions from neighboring packages and patterns in the diff’s area.
+2. **Product docs** (`docs/guides/`) — secondary.
+3. **LLM/agent files** (`CLAUDE.md`, `.claude/**`, skills, agents) — hints only; may be stale. Never override code or docs.
 
-- **`sdk/*`** - published npm packages (`@outputai/*`)
-- **`api/`** - public HTTP API (`output-api`), distributed as a Docker image
+**Public-facing code** (docs candidates):
 
-Docs to evaluate live in **`docs/guides/`** (Mintlify), e.g. `packages/`, `api/`, `workflows/`, `steps/`, `prompts/`, `llm/`, `evaluators/`, `operations/`, `clients/`, `costs/`, `cookbook/`, `start-here/`, `migrations/`, plus `docs/guides/openapi.json` when the HTTP contract changes.
+- `sdk/*` — published `@outputai/*` packages
+- `api/` — public HTTP API (`output-api`, Docker image)
 
-**Not** the docs surface: `sdk/*/README.md` (stubs), generated `docs/reference/` HTML (unless the PR changes that pipeline). `test_workflows/` and CI/ops-only scripts are rarely docs candidates.
+Docs live under `docs/guides/` (Mintlify), including `migrations/` and `docs/guides/openapi.json` when the HTTP contract changes.
 
-## Review checklist
+Skip for docs review: `sdk/*/README.md` (stubs); generated `docs/reference/` HTML (unless this PR changes that pipeline). `test_workflows/` and CI/ops-only scripts are rarely docs candidates.
 
-Cover each area that applies. Skip irrelevant ones briefly in the summary.
+## Review categories
 
-1. **Design** - Feature review only: for new features or refactors, is this the right *product* capability for Output.ai? Wrong problem, misaligned with the product story, or a speculative capability we should not build at all?
-   - Before judging, ground "makes sense" in product context - read enough of:
-     - **`docs/guides/`** - how Output presents workflows, steps, packages, and ops to users
-     - **`test_workflows/`** - canonical usage patterns and examples in-repo
-     - **https://output.ai/** - optional; use when guides/`test_workflows` leave product intent unclear
-   - Prefer changes that fit those patterns and the product story; flag features that fight the framework's model, duplicate existing capabilities oddly, or solve a problem Output is not aiming at
-2. **Quality** - Craft and footprint of the implementation:
-   - **Code standards** - Matches **existing code** in the same area (style, naming, ESM, layout, abstractions). Docs/LLM files are secondary/tertiary only.
-   - **Principles**
-     - **KISS** - prefer the straightforward approach already used nearby over clever abstractions
-     - **YAGNI** - no unnecessary *implementation* generality on an otherwise accepted feature (extra options, abstractions, knobs, or layers "for later")
-     - **DRY** - avoid copy-paste, but do not invent shared abstractions for a one-off
-   - **Keep dependencies minimal** - always question whether a new dependency (or a version bump) is necessary. Prefer existing packages/utilities in the monorepo. Unjustified additions -> **Must-fix**.
-3. **Correctness** - Does the changed code do the right thing for callers and runtime behavior? Check explicitly:
-   - **Logic** - control flow, conditionals, invariants, off-by-ones, wrong branches
-   - **Edge cases** - empty inputs, null/undefined, boundaries, concurrency/timing where relevant
-   - **Error handling** - failures surfaced correctly; no swallowed errors or misleading success paths
-   - **Type safety / contracts** - types, schemas, and API contracts match callers and callees
-   - **Bugs** - races, resource leaks, incorrect assumptions, state corruption
-4. **Documentation** - Review `docs/guides/**` (and OpenAPI when relevant) against the PR for additive guide quality. Judge by **effect of the diff**, not path alone: a change under `sdk/*` or `api/` does not automatically need docs if external behavior/contracts are unchanged. When docs *are* in scope, check:
-   - **Sync with public-facing features** - guides match what `sdk/*` / `api/` actually expose or do after this PR (APIs, options, defaults, errors, CLI UX, config, ops semantics)
-   - **Completeness** - new or changed user-facing capability has enough guide coverage to use it; missing pages/sections for public additions are findings
-   - **Staleness** - existing guide text, examples, or names that this PR makes wrong or outdated
-   - **Tone consistency** - new/edited docs match neighboring `docs/guides` voice and structure (not a full style-guide rewrite of untouched pages)
-   - Skip: behavior-neutral refactors, internal-only wiring, pure test/CI edits, and drive-by rewrites of unrelated guides
-5. **Changeset** - `.changeset/config.json` keeps `@outputai/*` and `output-api` in one **fixed** version group. Require a new `.changeset/*.md` naming the affected package(s) according to the change kind (do not name specific third-party packages in findings unless they appear in the diff):
-   - **Output-controlled behavior** - public APIs, CLI/HTTP semantics, or documented contracts Output owns → changeset **required**; describe *Output's* change
-   - **Main / user-affecting dependency** - a dependency bump that can break or force retest of **user** code even when Output's own API text is unchanged → changeset **required** as a **version notice** (now ships dependency X at Y). Do not turn the changeset into an upstream changelog
-   - **Internal dependency / maintenance** - vuln-driven subdependency overrides/transitive pins, audit lockfile churn, unused dep removal, internal-only additive wiring, or deps users do not couple to → changeset **not** required
-   - Exempt: docs-only, CI/ops-only, test-only (`test_workflows`), or non-released paths. Do not waive `api/` because it ships as Docker - when its **user-facing** / Output-controlled behavior changes, it still versions with the fixed group.
-6. **Tests** - Judge the PR's test changes and whether new/changed behavior is adequately covered (qualitative - do not invent coverage percentages). **Missing tests are usually Nice-to-have**, not Must-fix - only escalate when shipping with no coverage would be a clear bad call for this area.
-   - **Unit tests** (`*.spec.js` / `*.spec.ts` next to source, without `integration` in the name) - test the **target file only**. Mock all dependencies. Prefer asserting **wiring** (this module called X with Y / returned Z from collaborators) over re-testing collaborator or third-party library behavior. Avoid cross-testing other first-party modules in unit specs in most cases.
-   - **Integration tests** (filename contains `integration`, e.g. `*.integration.spec.ts`) - cross-module / real-collaborator testing is OK and expected.
-   - **Adequacy** - is coverage of the changed behavior good enough for how this area is usually tested?
-   - **Gaps** - missing cases (happy path, error/edge paths neighbors test, integrations via `test_workflows/` when that is the local pattern). Default **Nice-to-have**.
-   - **Duplicates** - redundant tests that restate the same assertion without adding signal
-   - **Pointless tests** - tests that cannot fail meaningfully (e.g. mock the value then assert the mock; assert only that a stub was called with no behavior check; pure tautologies). Flag these **Must-fix**.
-   - Colocate unit specs next to source under `sdk/*` or `api/` when that is the repo pattern. Skip pure docs/changeset/CI-only PRs.
-7. **Security** - Review the PR delta for exploitability and trust-boundary issues (instruction, not a separate agent):
-   - Vulnerabilities introduced or worsened by the change (injection, SSRF, path traversal, unsafe deserialization, secret leakage, etc.)
-   - Unsafe code patterns (e.g. `eval`, unchecked `exec`, weak crypto, trusting user input)
-   - Permissions / authZ too broad (API routes, tokens, workflow privileges, file/network access)
-   - **Dependency CVEs** - when the PR adds a dependency or changes a dependency version, check for known open CVEs (e.g. GitHub Advisory / OSV / npm audit style sources). Flag affected packages with advisory severity and **include links** to the advisory/CVE. Only packages added or version-changed in this PR - no whole-repo dependency audit.
-   - Real exploitable or high-confidence issues -> **Must-fix**; speculative hardening -> **Nice-to-have** or drop
-8. **Compatibility** - Breaking or surprising contract/behavior changes for existing users/callers. Documentation depth depends on change kind (same three kinds as Changeset):
-   - **Output-controlled behavior** - Output owns the break → **full migration bar** under **`docs/guides/migrations/`** (index link + `vX.Y.Z-to-vA.B.C.mdx` with before/after patterns and checklist). Version range must match the bump implied by the PR's changeset(s) / release intent. A changeset, PR summary, or other `docs/guides` page alone is **not** enough.
-   - **Main / user-affecting dependency** - Output did not change its own API, but the shipped dependency version can affect user code → require a **version notice** in the migration guide and/or changeset (that Output now ships that dependency at the new version). Do **not** require documenting upstream breaking changes, migrate-how-to, or examples for the dependency's own APIs.
-   - **Internal dependency / maintenance** - no migration guide required
-   - **Must-fix** - missing the required bar for the change kind above (full guide for Output-controlled breaks; version notice for main/user-affecting dependency bumps), or users would be blindsided
-   - **Nice-to-have** - intentional Output-controlled break that already meets the full migration bar (brief note only), or minor surprise with low impact
+Cover each that applies. Category names below are the only valid names for findings and for the Output scorecard.
 
-## Priority
+### Design
 
-| Priority | Use for |
+Feature / refactor fit for Output.ai as a product. Wrong problem, misaligned story, or speculative capability we should not build.
+
+Ground “makes sense” in `docs/guides/`, `test_workflows/`, and optionally https://output.ai/. Prefer changes that fit those patterns; flag features that fight the framework model or duplicate capabilities oddly.
+
+### Quality
+
+Craft and footprint:
+
+- Matches **existing code** in the area (style, naming, ESM, layout, abstractions)
+- **KISS** / **YAGNI** / **DRY** — straightforward over clever; no generality “for later”; avoid copy-paste without inventing one-off abstractions
+- **Dependencies** — question new deps and bumps; prefer monorepo utilities. Unjustified additions → **Must-fix**
+
+### Correctness
+
+Does the changed code do the right thing?
+
+- Logic, edge cases, error handling, type/API contracts, bugs (races, leaks, bad assumptions)
+
+### Documentation
+
+Judge by **effect of the diff**, not path alone. `sdk/*` / `api/` changes do not automatically need docs if external behavior is unchanged. When docs are in scope (`docs/guides/**`, OpenAPI when relevant):
+
+- Sync with what public code actually exposes after this PR
+- Completeness for new/changed user-facing capability
+- Staleness this PR introduces
+- Tone matches neighboring guides (not a rewrite of untouched pages)
+
+Skip: behavior-neutral refactors, internal wiring, pure test/CI, drive-by unrelated guide edits.
+
+### Changeset
+
+`.changeset/config.json` keeps `@outputai/*` and `output-api` in one **fixed** version group. New `.changeset/*.md` naming affected package(s) when required (do not name third-party packages in findings unless they appear in the diff):
+
+- **Output-controlled behavior** — public APIs, CLI/HTTP semantics, Output-owned contracts → changeset **required**
+- **Main / user-affecting dependency** — bump that can break or force retest of **user** code → changeset **required** as a **version notice** (ships X at Y); not an upstream changelog
+- **Internal / maintenance** — transitive pins, audit lockfile churn, unused dep removal, internal-only wiring → changeset **not** required
+
+Exempt: docs-only, CI/ops-only, test-only (`test_workflows`), non-released paths. Do not waive `api/` because it ships as Docker when **user-facing** behavior changes.
+
+### Tests
+
+Qualitative coverage of new/changed behavior. **Missing tests default to Nice-to-have**; escalate to Must-fix only when shipping with no coverage would be a clear bad call.
+
+- **Unit** (`*.spec.js` / `*.spec.ts`, no `integration` in the name) — target file only; mock dependencies; assert wiring, not collaborator/library re-tests
+- **Integration** (filename contains `integration`) — cross-module OK
+- Gaps / duplicates → usually Nice-to-have; **pointless tests** (tautologies, assert-the-mock) → **Must-fix**
+- Colocate under `sdk/*` / `api/` when that is the pattern. Skip pure docs/changeset/CI PRs.
+
+### Security
+
+PR delta only: exploitability and trust boundaries (injection, SSRF, path traversal, secrets, unsafe `eval`/`exec`, weak crypto, over-broad authZ/permissions).
+
+**Dependency CVEs** — only packages added or version-changed in this PR; include advisory links. Real/high-confidence → **Must-fix**; speculative hardening → Nice-to-have or drop.
+
+### Compatibility
+
+Breaking or surprising contracts for existing callers. Same three change kinds as Changeset:
+
+- **Output-controlled** — full migration bar under `docs/guides/migrations/` (index link + `vX.Y.Z-to-vA.B.C.mdx` with before/after patterns and an upgrade checklist). Version range must match the PR’s bump intent. A changeset or other guide page alone is not enough.
+- **Main / user-affecting dependency** — version notice in migration guide and/or changeset; do **not** document upstream migrate-how-to
+- **Internal / maintenance** — no migration guide
+
+Missing the required bar → **Must-fix**. Intentional Output break that already meets the full bar → at most Nice-to-have (brief note).
+
+## Findings
+
+Each issue is **one** finding. Number findings `1.`, `2.`, `3.`, … in the summary (and match that number in the related inline comment when useful).
+
+**Order:** list **Must-fix** findings first (ascending numbers), then **Nice-to-have**. Shape:
+
+```text
+1. **Must-fix** (<Category>): …
+2. **Nice-to-have** (<Category>): …
+```
+
+`<Category>` is exactly one name from **Review categories** (same spelling as the Output scorecard).
+
+**Severity** (closed set — do not invent others). Category sections say *what* to look for; use judgment for *how bad* it is:
+
+| Severity | Use when |
 | --- | --- |
-| **Must-fix** | Should be addressed before merge (or explicitly waived): bugs, security issues in the diff (incl. dependency CVEs introduced/worsened by version changes), structural problems, incomplete features, undocumented Output-controlled breaks (full migration bar), missing version notice for main/user-affecting dependency bumps, missing changeset when Changeset rules require one, serious correctness issues, unjustified new dependencies, pointless tests, missing/stale guides that leave a public capability unusable or wrong |
-| **Nice-to-have** | Optional: nits, style polish, speculative hardening, tone-only docs polish, fully migration-documented intentional breaks (brief note), **missing or incomplete tests** (default), minor doc gaps that do not block safe use |
+| **Must-fix** | Shipping as-is would be a bad call: broken or incorrect behavior, harmful side effects, security exposure, users blindsided on a contract change, or a required release artifact missing (changeset / migration bar) when the matching category says it is required. Must be fixed before merge. |
+| **Nice-to-have** | Real issue, but safe to merge without it: polish, nits, speculative hardening, incomplete tests by default, minor doc gaps, or an intentional break that already meets its documentation bar. |
 
-When unsure between the two, prefer **Must-fix** only if shipping as-is would be a bad call; otherwise **Nice-to-have**.
+Gray areas are expected — interpret against the category rules and impact. When still unsure: **Nice-to-have**, unless leaving it would clearly break users or the release process.
 
-## Output format
+**Deduplicate:** one root cause → one finding. Prefer the strongest category; mention a second angle in the same finding if needed. No Adversarial/Temporal severity or category labels.
 
-The review process (draft → Temporal → adversarial → finalize) is **internal only**. Do not narrate it in the comment.
+Only report noteworthy findings.
 
-1. **Summary comment (canonical):** post **only** after finalize. The comment body must be **exactly** the markdown template below — nothing else.
-2. **Inline comments (pointers only):** use `mcp__github_inline_comment__create_inline_comment` with `confirmed: true`. On specific lines, briefly name the problem as `Must-fix (Category)` or `Nice-to-have (Category)`. Do not paste the full finding writeup; the summary already has that. Prefer one short sentence.
+## Output
 
-### Summary posting (sticky — required)
+After Finalize:
 
-The workflow uses `track_progress` + sticky comments. Update the existing tracking comment with `mcp__github_comment__update_claude_comment` — pass **only** the template markdown as `body`. Do **not** use `gh pr comment` or otherwise create a second summary. The action may wrap the sticky with its own job chrome; do not add chrome yourself.
+1. **Summary** — once. Body = **exactly** the template below (nothing else). Each run may add a new comment.
+2. **Inline comments** — short pointers only; same severity/category shape (include the finding number when it helps); full text stays in the summary.
 
-### Summary comment — hard constraints
+**Rules:**
 
-The body you pass to `update_claude_comment` **must match this template and only this template**. Allowed top-level sections, in this order: `## PR review`, `### Verdict`, `### Findings`, `### Checklist`. No other headings, sections, or prose outside those blocks.
-
-**Forbidden in the summary body you write (non-exhaustive):**
-- Your own preamble / epilogue (e.g. "Claude finished…", "Branch:", job links, elapsed time) — the action may add job chrome around the sticky; that is separate
-- Process narration ("Verified and fine", "Temporal lens not triggered", "adversarial challenge", "I checked…")
-- Extra sections, bullet lists, or paragraphs under Verdict/Findings/Checklist that are not part of the template
-- Soft status words on Verdict or Checklist rows (`concern`, `n/a`, `skip`, explanations on the same line)
-
-**Verdict:** exactly one line under `### Verdict`: `✅ PASS` or `⛔ FAIL` — icon + status text only; no other words, punctuation, or explanation on that line.
-- **⛔ FAIL** - one or more **Must-fix** findings
-- **✅ PASS** - no **Must-fix** findings (Nice-to-have alone does not fail)
-
-The GitHub check **fails** when Verdict is `⛔ FAIL`. Session structured output must be `{"verdict":"PASS"}` or `{"verdict":"FAIL"}` (no icons in JSON) and must match the PASS/FAIL word in the `### Verdict` line.
-
-**Findings:** only `- **Must-fix** (<Checklist>): …` / `- **Nice-to-have** (<Checklist>): …` bullets. Prefer short, direct wording (often one sentence). Longer text is fine when needed to state the issue clearly — do not pad with alternatives, process notes, or "also verified" asides. If there are no findings, put a single line under `### Findings`: `None.`
-
-**Checklist rows:** each is exactly `✅ PASS` or `⛔ FAIL` - icon + status text; no `concern`, `n/a`, or other words.
-- **⛔ FAIL** - that category has one or more **Must-fix** findings
-- **✅ PASS** - otherwise (including skipped / not applicable, or only Nice-to-have in that category)
-
-Overall **Verdict** is `⛔ FAIL` if any checklist row is `⛔ FAIL` (equivalently: if any **Must-fix** exists).
-
-**Exact summary template** (fill in Verdict, Findings bullets or `None.`, and Checklist statuses — do not add or remove sections):
+- **Verdict:** only `✅ PASS` or `⛔ FAIL`. `⛔ FAIL` if any Must-fix; else `✅ PASS` (Nice-to-have alone does not fail). Session `verdict` must match that word (`PASS` / `FAIL`, no icons).
+- **Findings:** numbered list in Must-fix-then-Nice-to-have order, or `None.`
+- **Categories** scorecard: each row only `✅ PASS` or `⛔ FAIL`. Row fails iff it has a Must-fix; skipped or Nice-to-have-only → PASS.
 
 ```markdown
 ## PR review
@@ -170,10 +167,10 @@ Overall **Verdict** is `⛔ FAIL` if any checklist row is `⛔ FAIL` (equivalent
 ✅ PASS
 
 ### Findings
-- **Must-fix** (<Checklist>): ...
-- **Nice-to-have** (<Checklist>): ...
+1. **Must-fix** (<Category>): ...
+2. **Nice-to-have** (<Category>): ...
 
-### Checklist
+### Categories
 - Design: ✅ PASS
 - Quality: ✅ PASS
 - Correctness: ✅ PASS
@@ -183,7 +180,3 @@ Overall **Verdict** is `⛔ FAIL` if any checklist row is `⛔ FAIL` (equivalent
 - Security: ✅ PASS
 - Compatibility: ✅ PASS
 ```
-
-In findings, `<Checklist>` is one of: Design, Quality, Correctness, Documentation, Changeset, Tests, Security, Compatibility. Either priority may use any checklist item.
-
-Favor short, direct, concise findings. Only report noteworthy findings.
