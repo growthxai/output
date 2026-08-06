@@ -2,4 +2,4 @@
 "output-api": minor
 ---
 
-API: removed morgan library, refactored logs to include more information in message, and changed 'status' to 'http.status_code'
+Removed morgan library, refactored logs to include more information in the message, and renamed the request-log field from `status` to `statusCode`.

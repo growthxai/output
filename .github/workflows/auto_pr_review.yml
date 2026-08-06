@@ -31,39 +31,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Load review schema
+        id: schema
+        run: echo "json=$(jq -c . .github/scripts/pr_review.schema.json)" >> "$GITHUB_OUTPUT"
+
       # Pin to commit SHA (not floating @v1). Bump deliberately when upgrading.
       - name: Run PR review
         id: review
         uses: anthropics/claude-code-action@86180fa9e4d311eed10c9cc49854c53dab5d517a # v1 as of 2026-08-04
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          track_progress: true
-          use_sticky_comment: true
-          include_fix_links: false
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             /pr-review
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep,WebSearch,WebFetch"
-            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"],"description":"Same as ### Verdict in the PR summary comment"}},"required":["verdict"]}'
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep,WebSearch,WebFetch"
+            --json-schema '${{ steps.schema.outputs.json }}'
 
-      - name: Export Verdict
+      - name: Post review comment
         env:
+          GH_TOKEN: ${{ github.token }}
           STRUCTURED_OUTPUT: ${{ steps.review.outputs.structured_output }}
-        run: |
-          if [ -z "${STRUCTURED_OUTPUT}" ]; then
-            echo 'Skipping: no structured_output (review did not run — often workflow file differs from default branch).'
-            exit 0
-          fi
-          VERDICT="$(printf '%s' "${STRUCTURED_OUTPUT}" | jq -r '.verdict // empty')"
-          echo "PR review verdict: ${VERDICT}"
-          if [ "${VERDICT}" = 'FAIL' ]; then
-            echo 'Review verdict is FAIL (Must-fix findings). Failing the check.'
-            exit 1
-          fi
-          if [ "${VERDICT}" != 'PASS' ]; then
-            echo "Unexpected verdict '${VERDICT}' (expected PASS or FAIL)."
-            exit 1
-          fi
+        run: node .github/scripts/post_pr_review_comment.mjs "${{ github.event.pull_request.number }}"

@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, and child workflow activity-option precedence."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
 ---
 
-This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, and API request logging in `output-api`.
+This guide covers customer-facing changes to `@outputai/http`, hooks and workflow execution in `@outputai/core`, prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
 
 ## API HTTP request logging
 
@@ -643,3 +643,51 @@ Step-level `options.activityOptions` still have final precedence. Review step de
 - Audit parent and child workflows that configure the same retry or timeout fields.
 - Pass `activityOptions` on child invocations where the parent must override the child's definition.
 - Update tests that assert inherited parent options override child definition options.
+
+## Temporal TypeScript SDK version
+
+Output now ships the Temporal TypeScript SDK (`@temporalio/*`) at **v1.20.3** (previously **v1.17.0**). Re-test any project code that imports `@temporalio/*` directly against that version.
+
+## CLI: `workflow test_eval` renamed to `workflow test`
+
+The workflow evaluation command id is now `workflow:test`. The previous primary id `workflow:test_eval` is removed (it was only the filename-derived id; published docs already used `output workflow test`).
+
+```bash
+# Before
+npx output workflow test_eval <workflowName>
+
+# After
+npx output workflow test <workflowName>
+```
+
+`output workflow test` continues to work the same way; only the `test_eval` name stops resolving.
+
+### CLI rename checklist
+
+- Replace any scripts, CI steps, or aliases that call `output workflow test_eval` with `output workflow test`.
+- No change if you already use `output workflow test`.
+
+## Prompt Liquid rendering is strict
+
+`@outputai/llm` now renders `.prompt` files with Liquid `strictVariables: true` and `strictFilters: true` (plus `lenientIf: true`).
+
+### What changed
+
+| Case | Before (v0.10.0) | After (v0.11.0) |
+| --- | --- | --- |
+| Undefined variable (`{{ missing }}`) | Rendered as an empty string | Throws a non-retryable `FatalError` |
+| Unknown filter (`{{ x \| not_a_filter }}`) | Rendered without failing closed | Throws a non-retryable `FatalError` |
+| Falsy / missing values in `{% if %}` | Omitted / falsey as usual | Unchanged (`lenientIf` still allows this) |
+
+### Migration steps
+
+1. Audit `.prompt` files for placeholders that are not always passed in `variables`.
+2. Pass every referenced variable (or remove / guard the placeholder). Prefer `{% if var %}` / `| default:` only when the variable is still provided or you intentionally rely on `lenientIf` conditionals.
+3. Replace custom or misspelled filters with [supported Liquid filters](https://liquidjs.com/filters/overview.html).
+4. Expect render failures to surface as `FatalError` (no Temporal retry) — fix the prompt or inputs rather than catching and retrying.
+
+### Prompt strictness checklist
+
+- Grep prompts for `{{` and confirm each name is supplied by callers.
+- Run critical workflows once after upgrade and watch for `Prompt "…" could not be rendered` fatals.
+- Update any docs or tests that assumed empty-string rendering for missing variables.

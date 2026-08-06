@@ -4,7 +4,8 @@
  * renderChangelogBody() returns the <Update> blocks that get spliced into the
  * hand-written changelog page (docs/guides/changelog/index.mdx) between its
  * AUTO-GENERATED markers. Migration guides are hand-authored under
- * docs/guides/migrations/ and are not generated.
+ * docs/guides/migrations/; when a guide's "to" version matches a release, a
+ * relative link is prepended to that release's block.
  */
 
 // MDX reads a bare `<` as the start of a JSX tag and `{` as an expression, so
@@ -28,11 +29,20 @@ function renderChangeBlock( change ) {
   return `**${inner}** — ${escapeMdxText( change.summary )}`;
 }
 
-function renderUpdateBlock( release ) {
+function renderMigrationLink( guide ) {
+  return `See the [v${guide.from} → v${guide.to} migration guide](/migrations/${guide.slug}).`;
+}
+
+function renderUpdateBlock( release, migrationByToVersion ) {
   const lines = [
     `<Update label="v${release.version}" description="${release.date} · ${release.level} release">`,
     ''
   ];
+
+  const guide = migrationByToVersion.get( release.version );
+  if ( guide ) {
+    lines.push( renderMigrationLink( guide ), '' );
+  }
 
   for ( const change of release.changes ) {
     lines.push( renderChangeBlock( change ), '' );
@@ -42,8 +52,13 @@ function renderUpdateBlock( release ) {
   return lines.join( '\n' );
 }
 
-export function renderChangelogBody( data ) {
-  const updateBlocks = ( data.releases ?? [] ).map( renderUpdateBlock );
+/**
+ * @param {{ releases?: Array<{ version: string, date: string, level: string, changes: unknown[] }> }} data
+ * @param {Map<string, { from: string, to: string, slug: string }>} [migrationByToVersion]
+ */
+export function renderChangelogBody( data, migrationByToVersion = new Map() ) {
+  const updateBlocks = ( data.releases ?? [] )
+    .map( release => renderUpdateBlock( release, migrationByToVersion ) );
 
   if ( updateBlocks.length === 0 ) {
     return [ '<Note>', 'No releases yet.', '</Note>' ].join( '\n' );

@@ -17,9 +17,11 @@ claude plugin install outputai@outputai --scope project
 npm run output:dev           # Start dev environment (worker + Temporal)
 npm run output:worker:build  # Build TypeScript to dist/
 npm run output:worker:check  # Optional: bundle-check workflows for bad imports (node: built-ins)
-npm run output:worker:watch  # Build + restart on file changes
-npm run output:worker        # Install, build, and start worker
+npm run output:worker:watch  # Build + restart on src/ file changes
+npm run output:worker        # Build and start worker
 ```
+
+Hot-reload watches `src/` only. After changing dependencies (`package.json` / lockfile), run `npm install`, then `npx output dev down` and `npm run output:dev` again so the worker container reinstalls. A hot-reload alone is not enough; if the stack is still running, `npx output dev down` is required.
 
 ## Project Structure
 

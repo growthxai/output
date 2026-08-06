@@ -18,11 +18,11 @@
     "@outputai/core": "workspace:",
     "entities": "8.0.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.25.7",
+    "liquidjs": "10.27.2",
     "undici": "catalog:"
   },
   "devDependencies": {
-    "@ai-sdk/amazon-bedrock": "4.0.111",
+    "@ai-sdk/amazon-bedrock": "4.0.138",
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/azure": "3.0.68",
     "@ai-sdk/google-vertex": "4.0.140",

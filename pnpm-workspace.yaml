@@ -3,23 +3,23 @@ packages:
   - sdk/*
   - test_workflows
 
-auditLevel: moderate
+auditLevel: low
 
 blockExoticSubdeps: true
 
 catalog:
   '@aws-sdk/client-s3': 3.1038.0
-  '@temporalio/activity': 1.17.0
-  '@temporalio/client': 1.17.0
-  '@temporalio/common': 1.17.0
-  '@temporalio/proto': 1.17.0
-  '@temporalio/worker': 1.17.0
-  '@temporalio/workflow': 1.17.0
+  '@temporalio/activity': 1.20.3
+  '@temporalio/client': 1.20.3
+  '@temporalio/common': 1.20.3
+  '@temporalio/proto': 1.20.3
+  '@temporalio/worker': 1.20.3
+  '@temporalio/workflow': 1.20.3
   '@types/js-yaml': 4.0.9
-  js-yaml: 4.1.1
+  js-yaml: 4.3.0
   ky: 2.0.2
   semver: 7.7.4
-  undici: 8.5.0
+  undici: 8.9.0
   winston: 3.19.0
   zod: 4.3.6
 
@@ -31,35 +31,30 @@ minimumReleaseAgeExclude:
   - '@growthxlabs/*'
 
 overrides:
-  '@anthropic-ai/sdk@>=0.79.0 <0.91.1': '>=0.91.1'
-  '@grpc/grpc-js@>=1.14.0 <1.14.4': '>=1.14.4'
-  '@hono/node-server@<1.19.13': '>=1.19.13'
-  '@types/node@<24': '>=24.10.15'
-  axios@>=1.0.0 <1.16.0: '>=1.16.1'
-  body-parser@<1.20.3: '>=1.20.3'
-  cookie@<0.7.0: '>=0.7.0'
-  esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
-  express@<4.20.0: '>=4.20.0'
-  follow-redirects@<=1.15.11: '>=1.16.0'
-  form-data@>=4.0.0 <4.0.6: '>=4.0.6'
-  hono@<4.12.14: '>=4.12.25'
-  js-yaml@>=4.0.0 <4.1.1: '>=4.1.1'
-  liquidjs@<10.26.0: '>=10.26.0'
-  lodash@<=4.17.23: '>=4.18.0'
-  markdown-it@<=14.1.1: '>=14.2.0'
-  minimatch@<3.1.4: '>=3.1.4'
-  path-to-regexp@<0.1.13: '>=0.1.13'
-  path-to-regexp@>=8.0.0 <8.4.0: '>=8.4.0'
-  postcss@<8.5.10: '>=8.5.10'
-  protobufjs@<=7.6.2: '>=7.6.3'
-  protobufjs@>=8.0.0 <=8.5.0: '>=8.6.0'
-  qs@>=6.11.1 <=6.15.1: '>=6.15.2'
-  send@<0.19.0: '>=0.19.0'
-  serve-static@<1.16.0: '>=1.16.0'
-  tar@<=7.5.10: '>=7.5.16'
-  uuid@<14.0.0: '>=14.0.0'
-  ws@>=8.0.0 <8.20.1: '>=8.21.0'
-  zod@<=3.22.2: '>=3.22.3'
+  '@anthropic-ai/sdk@>=0.79.0 <0.91.1': '0.96.0'
+  '@hono/node-server@<=2.0.9': '2.0.10'
+  '@types/node@<24': '24.10.15'
+  adm-zip@<0.6.0: '0.6.0'
+  axios@>=1.0.0 <1.18.0: '1.18.1'
+  brace-expansion@<=5.0.7: '5.0.8'
+  body-parser@<1.20.6: '1.20.6'
+  body-parser@>=2.0.0 <2.3.0: '2.3.0'
+  esbuild@>=0.27.3 <0.28.1: '0.28.1'
+  ip-address@<10.3.1: 10.3.1
+  js-yaml@>=4.0.0 <4.3.0: '4.3.0'
+  lodash@<=4.17.23: '4.18.1'
+  postcss@<8.5.23: 8.5.23
+  qs@>=6.11.1 <=6.15.1: '6.15.2'
+  sharp@<0.35.0: '0.35.0'
+  socket.io-parser@<4.2.7: 4.2.7
+  tar@<=7.5.20: '7.5.21'
+  uuid@<14.0.0: '14.0.0'
+  ws@>=8.0.0 <8.20.1: '8.21.0'
+  zod@<=3.22.2: '3.24.0'
+
+peerDependencyRules:
+  allowedVersions:
+    react: 19.2.3
 
 strictDepBuilds: true
 

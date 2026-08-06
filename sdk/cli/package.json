@@ -38,7 +38,6 @@
     "cli-table3": "0.6.5",
     "date-fns": "4.1.0",
     "debug": "4.4.3",
-    "dotenv": "17.4.2",
     "handlebars": "4.7.9",
     "ink": "7.0.1",
     "ink-spinner": "5.0.0",
@@ -47,8 +46,7 @@
     "ky": "catalog:",
     "react": "19.2.5",
     "semver": "catalog:",
-    "undici": "catalog:",
-    "yaml": "^2.8.3"
+    "undici": "catalog:"
   },
   "devDependencies": {
     "@types/cli-progress": "3.11.6",
