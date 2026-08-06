@@ -4,11 +4,9 @@
  * Env: STRUCTURED_OUTPUT (JSON). Arg: <pr-number>
  */
 import { spawnSync } from 'node:child_process';
-import schema from './pr_review.schema.json' with { type: 'json' };
+import { renderReviewMarkdown } from './pr_review_markdown.js';
 
-const CATEGORIES = schema.properties.categories.required;
-
-const prNumber = process.argv[ 2 ];
+const prNumber = process.argv[2];
 const raw = process.env.STRUCTURED_OUTPUT ?? '';
 
 if ( !prNumber ) {
@@ -21,39 +19,7 @@ if ( !raw ) {
   process.exit( 0 );
 }
 
-const data = JSON.parse( raw );
-const icon = status => ( status === 'PASS' ? '✅ PASS' : '⛔ FAIL' );
-
-const findings = [ ...( data.findings ?? [] ) ].sort( ( a, b ) => {
-  if ( a.severity === b.severity ) {
-    return 0;
-  }
-  return a.severity === 'Must-fix' ? -1 : 1;
-} );
-
-const findingsBlock = findings.length === 0
-  ? 'None.'
-  : findings
-    .map( ( f, i ) => `${i + 1}. **${f.severity}** (${f.category}): ${f.text}` )
-    .join( '\n' );
-
-const categoriesBlock = CATEGORIES
-  .map( name => `- ${name}: ${icon( data.categories?.[ name ] ?? 'PASS' )}` )
-  .join( '\n' );
-
-const body = [
-  '## PR review',
-  '',
-  '### Verdict',
-  icon( data.verdict ),
-  '',
-  '### Findings',
-  findingsBlock,
-  '',
-  '### Categories',
-  categoriesBlock,
-  ''
-].join( '\n' );
+const body = renderReviewMarkdown( JSON.parse( raw ) );
 
 const result = spawnSync(
   'gh',

@@ -92,21 +92,21 @@ const commonLanguageOptions = {
 export default [
   {
     ignores: [
-      '**/docs/**',
+      '.changeset/**',
+      '.claude/**/*',
+      '.claude-plugin/**/*',
+      '.pnpm-store/**',
+      '**/*.min.js',
+      '**/*.yaml',
+      '**/*.yml',
       '**/dist/**',
-      '**/temp/**',
+      '**/docs/**',
       '**/fixtures/**',
       '**/generated/**',
-      'sdk/cli/orval.config.ts',
       '**/node_modules/**',
-      '**/*.min.js',
-      '**/*.yml',
-      '**/*.yaml',
-      '.github/**/*',
-      '.claude/**/*',
-      '.agent-os/**/*',
-      '**/viz_examples/**',
-      '.pnpm-store/**'
+      '**/temp/**',
+      'coding_assistants/**',
+      'sdk/cli/orval.config.ts'
     ]
   },
 
@@ -132,7 +132,8 @@ export default [
         'error',
         {
           '**/*': 'SNAKE_CASE'
-        }
+        },
+        { ignoreWords: [ '.github' ] }
       ]
     }
   },
