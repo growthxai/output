@@ -138,9 +138,16 @@ Gray areas are expected — interpret against the category rules and impact. Whe
 
 **Deduplicate:** one root cause → one finding. Prefer the strongest category; mention a second angle in the same finding if needed. No Adversarial/Temporal severity or category labels.
 
+**Finding `text` — keep it short:**
+
+- **Aim for 1–3 sentences** (roughly under ~400 characters). Lead with the problem; add one concrete pointer (path, symbol, or behavior) if useful; optionally one fix hint.
+- **Do not write essays.** No multi-paragraph defenses, no severity self-justification (“downgraded because…”, “rest of the bar is met…”), no long enumerated inventories, no courtroom evidence dumps.
+- Prefer one tight paragraph. A second short paragraph is OK only when a single line would be unreadable (e.g. a tiny before/after). Never three+ paragraphs.
+- Put deep proof on an **inline comment** (path/line) if needed; structured `text` stays skim-friendly for the PR summary list.
+
 `category` must be exactly one **Review categories** name. `text` may include Markdown (links, backticks). Only report noteworthy findings.
 
-Inline comments: short pointers only (`Must-fix` / `Nice-to-have` + category); full text stays in structured `findings`.
+Inline comments: short pointers only (`Must-fix` / `Nice-to-have` + category + one-liner); the finding claim stays in structured `findings` (still short).
 
 ## Output
 
