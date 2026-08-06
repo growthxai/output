@@ -6,13 +6,23 @@ import type { SpanStatus } from '#services/workflow_history/correlator.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { formatDurationLabel } from '#utils/waterfall.js';
 import { diffSpanUpdates, formatContinuedAsNew, formatSpanUpdate } from '#utils/monitor_log.js';
-import { isErrorStatus, TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
+import { isErrorStatus, isTerminalStatus, type TerminalStatus } from '#utils/format_workflow_result.js';
 import { getErrorMessage } from '#utils/error_utils.js';
 import { sleep } from '#utils/sleep.js';
 import { shouldColorize } from '#utils/color.js';
 import { HttpError } from '#api/http_client.js';
 
 const MAX_CONSECUTIVE_ERRORS = 5;
+/**
+ * Retry sleep ceiling while no poll has succeeded yet. The retry budget covers
+ * the first poll for `start --monitor`'s sake (see `poll`), but `workflow
+ * monitor wf-x` against a server that was never reachable pays for that too —
+ * and with a large `--interval` it would sit through the whole budget before
+ * reporting a connection it could never make. Capping only the pre-first-success
+ * sleep keeps the retry useful without making "the API is down" take minutes to
+ * surface; once a poll has succeeded, the user's `--interval` is honored.
+ */
+const UNESTABLISHED_RETRY_MS = 1000;
 const SIGINT_EXIT_CODE = 130;
 const FLUSH_TIMEOUT_MS = 2000;
 const TRANSIENT_ERROR_CODES = new Set( [ 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND' ] );
@@ -95,7 +105,10 @@ function isTransientPollError( error: unknown ): boolean {
  * The retry budget deliberately covers the *first* poll too. `workflow start
  * --monitor` issues it milliseconds after the API accepted the start request, so
  * the first poll is the one most likely to catch a rolling restart or a single
- * 503 — and aborting there abandons a workflow that is already running.
+ * 503 — and aborting there abandons a workflow that is already running. The
+ * sleep between those pre-first-success retries is capped so `workflow monitor`
+ * against an unreachable server doesn't pay the full budget at `--interval`
+ * (see `UNESTABLISHED_RETRY_MS`).
  *
  * Fetch strategy is driven by `state.cursor`, not tick count: no cursor yet
  * (the very first poll, or the first poll of a run chained via continue-as-new)
@@ -106,7 +119,12 @@ function isTransientPollError( error: unknown ): boolean {
  */
 async function poll(
   options: { workflowId: string; includePayloads: boolean; interval: number },
-  state: { runId: string | undefined; consecutiveErrors: number; cursor: WorkflowHistoryCursor | undefined },
+  state: {
+    runId: string | undefined;
+    consecutiveErrors: number;
+    cursor: WorkflowHistoryCursor | undefined;
+    detached: boolean;
+  },
   io: MonitorStreamIo
 ): Promise<{ result: WorkflowHistoryResult; cursor: WorkflowHistoryCursor } | null> {
   try {
@@ -127,6 +145,15 @@ async function poll(
     }
     return await fetchWorkflowHistoryUpdates( fetchOptions, state.cursor );
   } catch ( error ) {
+    // Whatever this poll was doing stopped mattering the moment the user
+    // detached: reporting a retry would contradict the "Detached" line already
+    // printed, and rethrowing would unwind past the loop's own detach guards
+    // into the caller's "monitoring stopped" handling, racing exit 3 against the
+    // 130 the detach already recorded. The loop breaks on `detached` right after
+    // this returns, so `null` here is not a retry.
+    if ( state.detached ) {
+      return null;
+    }
     if ( !isTransientPollError( error ) || state.consecutiveErrors + 1 >= MAX_CONSECUTIVE_ERRORS ) {
       throw error;
     }
@@ -137,7 +164,8 @@ async function poll(
 
 /**
  * `process.exit` discards whatever is still queued on an asynchronous stdout —
- * a pipe or a file, where writes are buffered, unlike a TTY. Detaching from
+ * a pipe on macOS, where writes are buffered rather than synchronous (TTY and
+ * file writes are synchronous on POSIX and are not truncated). Detaching from
  * `workflow start --monitor` that way can drop the `Workflow ID:` line the
  * command printed moments earlier, leaving the user with no way to reattach to a
  * workflow that is still running. So queue an empty write behind the pending
@@ -174,7 +202,7 @@ function exitAfterFlush( code: number ): void {
 export async function streamWorkflowUpdates(
   options: MonitorStreamOptions,
   io: MonitorStreamIo
-): Promise<string | undefined> {
+): Promise<TerminalStatus | undefined> {
   const color = shouldColorize( options.color );
 
   // Threaded via mutable properties (not `let` reassignment) so state
@@ -185,7 +213,7 @@ export async function streamWorkflowUpdates(
     // Set by the SIGINT handler so an in-flight poll can't print another update
     // on top of "Detached" while stdout drains (see `exitAfterFlush`).
     detached: false,
-    terminalStatus: undefined as string | undefined,
+    terminalStatus: undefined as TerminalStatus | undefined,
     // Undefined until a resumable cursor is established (see `poll` and
     // `fetchWorkflowHistoryUpdates`); reset on continue-as-new since a new run's
     // cursor position is meaningless carried over from the old one.
@@ -238,7 +266,7 @@ export async function streamWorkflowUpdates(
       }
       if ( outcome === null ) {
         state.consecutiveErrors += 1;
-        await sleep( options.interval );
+        await sleep( state.cursor ? options.interval : Math.min( options.interval, UNESTABLISHED_RETRY_MS ) );
         continue;
       }
       state.consecutiveErrors = 0;
@@ -260,6 +288,11 @@ export async function streamWorkflowUpdates(
       if ( status === 'continued_as_new' ) {
         if ( !result.continuedAsNewRunId ) {
           io.error( 'Workflow continued as a new run, but the new run ID could not be determined.' );
+          // `io.error` is typed `never`, but nothing enforces that at runtime.
+          // Without this, an `io` whose `error` returns would fall through to
+          // re-poll the latest run with the cursor cleared — replaying the whole
+          // span history every interval, forever, with a zero exit code.
+          break;
         }
         emit(
           { continuedAsNewRunId: result.continuedAsNewRunId },
@@ -273,7 +306,7 @@ export async function streamWorkflowUpdates(
         continue;
       }
 
-      if ( status && TERMINAL_STATUSES.has( status ) ) {
+      if ( isTerminalStatus( status ) ) {
         const failed = isErrorStatus( status );
         emit(
           { status },

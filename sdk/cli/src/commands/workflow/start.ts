@@ -3,7 +3,7 @@ import { postWorkflowStart, type PostWorkflowStart200 } from '#api/generated/api
 import { commandStreamIo, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
 import { handleApiError, handleCommandError } from '#utils/error_handler.js';
 import { isErrorStatus } from '#utils/format_workflow_result.js';
-import { DEFAULT_INTERVAL_MS, gatedMonitorStreamFlags } from '#utils/monitor_flags.js';
+import { gatedMonitorStreamFlags, MONITOR_DEFAULTS } from '#utils/monitor_flags.js';
 import { resolveInput } from '#utils/resolve_input.js';
 
 /**
@@ -52,8 +52,11 @@ export default class WorkflowStart extends Command {
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
     } ),
-    // No `default: false` — see `gatedMonitorStreamFlags`: a defaulted flag
-    // counts as "present" and would satisfy its own `dependsOn` guards.
+    // No `default: false`: a defaulted flag counts as present, so it would
+    // satisfy the `dependsOn` guard the three flags in `gatedMonitorStreamFlags`
+    // point at, letting `--interval` and friends be accepted (and then ignored)
+    // on a plain `workflow start`. Those three omit their own defaults for a
+    // different reason — see `gatedMonitorStreamFlags`.
     //
     // No `exclusive: [ 'json' ]` either: oclif's own rejection would fire first
     // and print a bare "--json=true cannot also be provided", pre-empting the
@@ -124,10 +127,15 @@ export default class WorkflowStart extends Command {
     }
 
     // Checked before the banner prints: "Workflow started successfully" followed
-    // immediately by "Cannot monitor" contradicts itself, and the `unknown`
-    // placeholder id it would show is not something the user can act on.
+    // immediately by a failure contradicts itself, and the `unknown` placeholder
+    // id it would show is not something the user can act on. Exit 3, not 1 — the
+    // start itself succeeded, so this is the "started but unmonitorable" case.
     if ( !result.workflowId ) {
-      this.error( 'Cannot monitor: the API did not return a workflow ID.', { exit: 1 } );
+      this.error(
+        'The workflow was started, but the API did not return a workflow ID, so it cannot be monitored. ' +
+        'Use "workflow runs list" to find it.',
+        { exit: MONITOR_FAILED_EXIT_CODE }
+      );
     }
 
     this.log( `\n${started.join( '\n' )}` );
@@ -139,12 +147,12 @@ export default class WorkflowStart extends Command {
         // Pin to the run just started rather than letting the monitor resolve
         // "latest run" — with a retry or a rapid re-start those can differ.
         runId: result.runId ?? undefined,
-        includePayloads: flags['include-payloads'] ?? false,
-        interval: flags.interval ?? DEFAULT_INTERVAL_MS,
+        includePayloads: flags['include-payloads'] ?? MONITOR_DEFAULTS.includePayloads,
+        interval: flags.interval ?? MONITOR_DEFAULTS.interval,
         // Always text: monitoring under json mode is rejected above, so the
         // NDJSON path is `workflow monitor --format json`.
         json: false,
-        color: flags.color ?? true
+        color: flags.color ?? MONITOR_DEFAULTS.color
       }, commandStreamIo( this ) );
 
       // Monitoring reports the workflow's *progress*; the return value still has
