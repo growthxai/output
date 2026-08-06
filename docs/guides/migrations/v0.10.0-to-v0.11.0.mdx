@@ -553,6 +553,12 @@ Because schemas run at the component boundary, `.transform()`, `z.coerce`, `.pre
 - **Idempotency (re-parse):** Every workflow run parses its Temporal args again — including runs started with `continueAsNew`. The next run does not know it is a continuation. If you pass values that were already transformed, a non-idempotent transform runs twice (for example appending a suffix on each continue-as-new). Prefer idempotent transforms, or pass wire-format input into `continueAsNew` (the same shape you would pass when starting the workflow).
 - **Catalog JSON Schema:** The worker catalog still converts Zod schemas with `z.toJSONSchema`. Bare `.transform()` often cannot be represented and may omit the schema from the catalog; `z.coerce` and `.pipe()` usually convert. Authors who control both the schema and catalog consumers should treat catalog JSON Schema as best-effort for advanced Zod features.
 
+### Published workflow package types
+
+`WorkflowFunctionWrapper`, `StepFunctionWrapper`, and `EvaluatorFunctionWrapper` are now typed as `Wrapper<InputSchema, OutputSchema>` (schema generics), not `Wrapper<Fn<In, Out>>`. Runtime is unchanged; TypeScript breaks for packages that still ship `.d.ts` built against the old arity (for example a published workflows catalog).
+
+Rebuild and republish those packages against `@outputai/core` v0.11.0 so their declarations match, or release them together with the core bump.
+
 ### Migration steps
 
 Review the `inputSchema` and `outputSchema` of every workflow, step, and evaluator:
@@ -562,6 +568,7 @@ Review the `inputSchema` and `outputSchema` of every workflow, step, and evaluat
 - Check object schemas for unknown properties that Zod strips by default. Use `z.looseObject( { ... } )` when those properties must be preserved.
 - Ensure transforms on **workflow** schemas are deterministic for Temporal replay.
 - Ensure workflow `inputSchema` transforms are idempotent if you `continueAsNew` with values that will be parsed again, or pass wire-format input instead.
+- Republish any package that exports workflow/step/evaluator wrappers so its `.d.ts` matches the new `Wrapper` arity.
 
 ## Workflow runtime changes
 
