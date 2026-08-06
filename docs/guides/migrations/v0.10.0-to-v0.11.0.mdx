@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: parsed component schemas, HTTP clients, hook event envelopes, API request logging, workflow result contracts, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: parsed component schemas, HTTP clients, hook event envelopes, API request logging, workflow result contracts, workflow and activity error handling, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
 ---
 
-This guide covers customer-facing changes to `@outputai/http`, schemas, hooks and workflow execution in `@outputai/core`, prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
+This guide covers customer-facing changes to `@outputai/http`, schemas, hooks, workflow execution and error handling in `@outputai/core`, prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
 
 ## API HTTP request logging
 
@@ -632,6 +632,40 @@ The previous `trace.destinations` object is removed. API and CLI JSON results cr
 ```
 
 The API continues to return the legacy unversioned shape for workflows started by older workers. Consumers that can read results from both versions should branch on `result.v === "2"`.
+
+## Workflow and activity error handling
+
+v0.11.0 changes how the workflow and activity interceptors classify failures. The goal is to follow Temporal's model: only explicit fatal failures complete the workflow run; other workflow code bugs retry the Workflow Task.
+
+### Workflow interceptor
+
+In v0.10.x, **root** workflows attached trace metadata to every thrown error after `ContinueAsNew` / cancellation handling, and the interceptor converted any error carrying that metadata into an `ApplicationFailure`, so the workflow run failed. **Child** workflows did not attach that metadata, so those errors were rethrown unchanged. Cancellation always rethrew before that wrap, on both root and child. v0.11.0 replaces the blanket root wrap with explicit classification:
+
+| Error | v0.10.x | v0.11.0 |
+| ----- | ------- | ------- |
+| `ContinueAsNew` | Ends the trace as continued-as-new and rethrows | Same |
+| Cancellation (`isCancellation`) | Sinks the `Error` and rethrows (never wrapped in `ApplicationFailure`) | Sinks a serialized error (no `stack`) and rethrows |
+| `FatalError` / `ValidationError` | Root: sunk, then converted to `ApplicationFailure` (workflow fails). Child: sunk and rethrown. (`ValidationError` did not extend `FatalError` yet.) | Sinks the serialized error and throws a non-retryable `ApplicationFailure` with the serialized error in `.details[0].error`. `TransparentFatalError` is unwrapped to its cause first |
+| Temporal failures (`ActivityFailure`, `ChildWorkflowFailure`, other `TemporalFailure`) | Root: sunk, then converted to `ApplicationFailure` when trace metadata was attached. Child: sunk and rethrown. (`CancelledFailure` usually matches `isCancellation` first.) | Sinks the serialized error and rethrows unchanged. (`CancelledFailure` still matches `isCancellation` first when applicable.) |
+| Other errors (`TypeError`, syntax/`JSON.parse` failures, unexpected throws) | Root: sunk, then converted to `ApplicationFailure` → workflow **failed**, masking Temporal Workflow Task retries. Child: sunk and rethrown | Rethrown unchanged **without** sinking → the **Workflow Task retries** (or stays open until timeout). The CLI can look "stuck" until the task succeeds, times out, or you throw `FatalError` / an `ApplicationFailure` |
+
+### Activity interceptor
+
+| Error | v0.10.x | v0.11.0 |
+| ----- | ------- | ------- |
+| `CompleteAsyncError` | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present) | Recorded as an async handoff in the trace (not an error). No activity error hook. Rethrown |
+| Temporal failures (`TemporalFailure`) | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present) | Error hook and trace error fire, then rethrown unchanged |
+| `FatalError` / `ValidationError` | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present). Non-retryable mainly via activity `nonRetryableErrorTypes` (defaults included both names) | Converted to `ApplicationFailure` with serialized error in `.details[0].error`. Always `nonRetryable: true` via `instanceof FatalError`. User `nonRetryableErrorTypes` cannot make these retryable. `TransparentFatalError` is unwrapped to its cause first |
+| Other errors | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present). Retry followed the activity retry policy / `nonRetryableErrorTypes` | Converted to `ApplicationFailure` with serialized error in `.details[0].error`. `nonRetryable` when the error class name is listed in `activityInfo.retryPolicy.nonRetryableErrorTypes` |
+
+`ValidationError` and `TransparentFatalError` both extend `FatalError` in v0.11.0, so they share the fatal rows above. `TransparentFatalError` did not exist in v0.10.x; it is a transport whose `.cause` is used for logs, traces, hooks, and failure details.
+
+### What to do
+
+- Throw `FatalError` (or `ValidationError`) when the workflow or activity must end without Temporal Task retries.
+- Expect ordinary bugs in workflow code (for example a bad `JSON.parse`) to retry the Workflow Task instead of failing the run immediately.
+- Read structured failures from `ApplicationFailure.details[0].error` (and from API/CLI `error` on result `v: "2"`) instead of relying on a plain message string alone.
+- Update monitors that assumed every root-workflow throw became a failed workflow execution.
 
 ## Workflow runtime changes
 
