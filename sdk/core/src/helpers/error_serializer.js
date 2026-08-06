@@ -1,4 +1,3 @@
-import { inspect } from 'util';
 import { tryOrUndefined } from './function.js';
 import { redactUrl } from './redact.js';
 import { isUrl } from './string.js';
@@ -10,6 +9,7 @@ const MAX_OBJECT_KEYS = 50;
 const MAX_OBJECT_KEY_LEN = 256;
 const MAX_ARRAY_SIZE = 50;
 const MAX_SERIALIZED_VALUES = 1000;
+const MAX_BIGINT = 10n ** BigInt( MAX_STRING_LEN - 1 ); // room for sign + trailing "n"
 const GLOBAL_IGNORED_KEYS = [
   '__proto__',
   // Raw Temporal wire failure; duplicates normalized causes/details and may contain encoded payloads.
@@ -39,11 +39,13 @@ const GLOBAL_IGNORED_KEYS = [
 ];
 
 const Marker = {
+  BigIntTooLarge: '[BigInt too large]',
   Circular: '[Circular Reference]',
   MaxDepth: '[Maximum Depth Reached]',
   MaxKeys: '[Maximum Object Properties Reached]',
   MaxSelfCalls: '[Serialization Limit Reached]',
   Unserializable: '[Unserializable]',
+  InvalidDate: '[Invalid Date]',
   TruncatedArray: '... [:v more items omitted]',
   TruncatedString: '... [:v more characters omitted]'
 };
@@ -53,18 +55,6 @@ export const truncateString = ( v, max = MAX_STRING_LEN ) =>
 
 export const truncateArray = ( v, max = MAX_ARRAY_SIZE ) =>
   v.length <= max ? v : v.slice( 0, max ).concat( Marker.TruncatedArray.replace( ':v', v.length - max ) );
-
-export const toStringRepresentation = ( target, maxStringLength = MAX_STRING_LEN, maxArrayLength = MAX_ARRAY_SIZE ) =>
-  truncateString(
-    inspect( target, { depth: 0, maxStringLength, maxArrayLength, breakLength: Infinity, colors: false, customInspect: false } ),
-    maxStringLength
-  );
-
-/** Detect non-recursive complex types */
-export const shouldUseStringRepresentation = v =>
-  [ RegExp, Date ].some( C => v instanceof C ) ||
-  [ 'bigint', 'function', 'symbol' ].includes( typeof v ) ||
-  ArrayBuffer.isView( v );
 
 /** Converts a prototype chain to a max sized array */
 export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth = MAX_PROTOTYPE_DEPTH ) =>
@@ -131,17 +121,37 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
   };
 
   try {
-    // Non-recursive complex values are "inspected"
-    if ( shouldUseStringRepresentation( target ) ) {
-      return toStringRepresentation( target );
+    if ( target instanceof Date ) {
+      return Number.isNaN( target.getTime() ) ? Marker.InvalidDate : target.toISOString();
     }
 
-    // Strings
+    if ( target instanceof RegExp ) {
+      return target.toString();
+    }
+
+    if ( typeof target === 'bigint' ) {
+      return ( target >= MAX_BIGINT || target <= -MAX_BIGINT ) ? Marker.BigIntTooLarge : `${target}n`;
+    }
+
+    if ( typeof target === 'symbol' ) {
+      return truncateString( target.toString() );
+    }
+
+    if ( typeof target === 'function' ) {
+      return `[Function: ${target.name || '(anonymous)'}]`;
+    }
+
+    // Buffers, typed arrays, and raw ArrayBuffers
+    if ( ArrayBuffer.isView( target ) || target instanceof ArrayBuffer ) {
+      const sizeKey = target instanceof ArrayBuffer || target instanceof DataView ? 'byteLength' : 'length';
+      return `${target.constructor.name}(${target[sizeKey]})`;
+    }
+
     if ( typeof target === 'string' ) {
       return truncateString( isUrl( target ) ? redactUrl( target ) : target );
     }
 
-    // Primitives are returned as they are
+    // Other primitives are returned as they are
     if ( typeof target !== 'object' || target === null ) {
       return target;
     }

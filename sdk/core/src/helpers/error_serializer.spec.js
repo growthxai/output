@@ -3,8 +3,6 @@ import {
   flattenPrototypeChain,
   resolveErrorName,
   serializeError,
-  shouldUseStringRepresentation,
-  toStringRepresentation,
   truncateArray,
   truncateString
 } from './error_serializer.js';
@@ -31,39 +29,6 @@ describe( 'error serializer helpers', () => {
       expect( truncateArray( exact, 2 ) ).toBe( exact );
       expect( truncateArray( long, 2 ) ).toEqual( [ 1, 2, '... [1 more items omitted]' ] );
       expect( long ).toEqual( [ 1, 2, 3 ] );
-    } );
-  } );
-
-  describe( 'toStringRepresentation', () => {
-    it( 'creates bounded representations without invoking custom inspectors', () => {
-      const custom = {
-        [Symbol.for( 'nodejs.util.inspect.custom' )]: () => 'unsafe custom output',
-        visible: true
-      };
-
-      expect( toStringRepresentation( 42n ) ).toBe( '42n' );
-      expect( toStringRepresentation( new Uint8Array( [ 1, 2, 3 ] ), 100, 2 ) ).toContain( '... 1 more item' );
-      expect( toStringRepresentation( custom ) ).toContain( 'visible: true' );
-      expect( toStringRepresentation( custom ) ).not.toContain( 'unsafe custom output' );
-      expect( toStringRepresentation( 10n ** 20n, 10 ) ).toBe( '1000000000... [12 more characters omitted]' );
-    } );
-  } );
-
-  describe( 'shouldUseStringRepresentation', () => {
-    it( 'identifies terminal values represented as strings', () => {
-      const terminalValues = [
-        /failed/i,
-        new Date(),
-        42n,
-        () => undefined,
-        Symbol( 'diagnostic' ),
-        new Uint16Array(),
-        Buffer.alloc( 0 )
-      ];
-      const recursiveOrPrimitiveValues = [ {}, [], new Map(), new Set(), 'value', 42, null, undefined ];
-
-      expect( terminalValues.every( shouldUseStringRepresentation ) ).toBe( true );
-      expect( recursiveOrPrimitiveValues.some( shouldUseStringRepresentation ) ).toBe( false );
     } );
   } );
 
@@ -213,18 +178,52 @@ describe( 'serializeError', () => {
     } );
   } );
 
-  it( 'returns primitives and bounded string representations', () => {
-    function namedFunction() {}
-
+  it( 'returns primitives as-is', () => {
     expect( serializeError( undefined ) ).toBeUndefined();
     expect( serializeError( null ) ).toBeNull();
     expect( serializeError( 42 ) ).toBe( 42 );
-    expect( serializeError( namedFunction ) ).toBe( '[Function: namedFunction]' );
-    expect( serializeError( Symbol( 'request' ) ) ).toBe( 'Symbol(request)' );
+    expect( serializeError( true ) ).toBe( true );
+  } );
+
+  it( 'serializes Date values as ISO strings and marks invalid dates', () => {
     expect( serializeError( new Date( '2026-07-22T16:30:00.000Z' ) ) ).toBe( '2026-07-22T16:30:00.000Z' );
+    expect( serializeError( new Date( 'foo' ) ) ).toBe( '[Invalid Date]' );
+  } );
+
+  it( 'serializes RegExp values with toString', () => {
     expect( serializeError( /request-\d+/gi ) ).toBe( '/request-\\d+/gi' );
-    expect( serializeError( new Uint16Array( [ 1, 2 ] ) ) ).toBe( 'Uint16Array(2) [ 1, 2 ]' );
-    expect( serializeError( Buffer.from( [ 1, 2 ] ) ) ).toBe( 'Buffer(2) [Uint8Array] [ 1, 2 ]' );
+  } );
+
+  it( 'serializes bigint values with an n suffix', () => {
+    expect( serializeError( 42n ) ).toBe( '42n' );
+    expect( serializeError( -42n ) ).toBe( '-42n' );
+  } );
+
+  it( 'marks bigints that would exceed the string length budget', () => {
+    const maxDigits = 16_383; // MAX_STRING_LEN - 1
+    const tooLarge = 10n ** BigInt( maxDigits );
+
+    expect( serializeError( tooLarge - 1n ) ).toBe( `${tooLarge - 1n}n` );
+    expect( serializeError( tooLarge ) ).toBe( '[BigInt too large]' );
+    expect( serializeError( -tooLarge ) ).toBe( '[BigInt too large]' );
+    expect( serializeError( 10n ** 20_000n ) ).toBe( '[BigInt too large]' );
+  } );
+
+  it( 'serializes symbol values', () => {
+    expect( serializeError( Symbol( 'request' ) ) ).toBe( 'Symbol(request)' );
+  } );
+
+  it( 'serializes functions by name', () => {
+    function namedFunction() {}
+    expect( serializeError( namedFunction ) ).toBe( '[Function: namedFunction]' );
+    expect( serializeError( () => undefined ) ).toBe( '[Function: (anonymous)]' );
+  } );
+
+  it( 'serializes ArrayBuffers and views as type and size without dumping contents', () => {
+    expect( serializeError( new Uint16Array( [ 1, 2 ] ) ) ).toBe( 'Uint16Array(2)' );
+    expect( serializeError( Buffer.from( [ 1, 2 ] ) ) ).toBe( 'Buffer(2)' );
+    expect( serializeError( new DataView( new ArrayBuffer( 8 ) ) ) ).toBe( 'DataView(8)' );
+    expect( serializeError( new ArrayBuffer( 16 ) ) ).toBe( 'ArrayBuffer(16)' );
   } );
 
   it( 'redacts URL strings and URL instances with redactUrl', () => {
