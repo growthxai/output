@@ -118,6 +118,17 @@ describe( 'workflow monitor command', () => {
       expect( process.exitCode ).toBeUndefined();
     } );
 
+    it( 'pins the fetch to an explicit run id instead of resolving the latest run', async () => {
+      const { cmd, fetchWorkflowHistory } = await createCommand( { 'run-id': 'run-9' } );
+      fetchWorkflowHistory.mockResolvedValueOnce( history( 'completed', { runId: 'run-9' } ) as any );
+
+      await cmd.run();
+
+      // The whole point of `start --monitor` pinning the run it just started: the
+      // id has to survive options -> state -> the first fetch, not just be accepted.
+      expect( fetchWorkflowHistory ).toHaveBeenCalledWith( expect.objectContaining( { runId: 'run-9' } ) );
+    } );
+
     it( 'sets exit code 1 when the workflow ends in a failed status', async () => {
       const { cmd, fetchWorkflowHistory } = await createCommand();
       fetchWorkflowHistory.mockResolvedValueOnce( history( 'failed', {

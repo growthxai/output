@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Parser } from '@oclif/core';
 import { CLIError } from '@oclif/core/errors';
 
 vi.mock( '#api/generated/api.js', () => ( {
@@ -61,7 +62,7 @@ describe( 'workflow start command', () => {
     it( 'exposes --monitor with no default so dependsOn stays enforceable', async () => {
       const WorkflowStart = ( await import( './start.js' ) ).default;
       expect( WorkflowStart.flags.monitor.char ).toBe( 'm' );
-      // An oclif default counts as "provided", which would silently satisfy the
+      // A defaulted flag counts as present, so a default here would satisfy the
       // dependsOn guards below and let --interval through without --monitor.
       expect( WorkflowStart.flags.monitor.default ).toBeUndefined();
     } );
@@ -79,8 +80,47 @@ describe( 'workflow start command', () => {
       const WorkflowStart = ( await import( './start.js' ) ).default;
       for ( const name of [ 'interval', 'include-payloads', 'color' ] as const ) {
         expect( WorkflowStart.flags[name].dependsOn ).toEqual( [ 'monitor' ] );
+        // A default would count as present and trigger this flag's own dependsOn
+        // check, failing every invocation that omits --monitor.
         expect( WorkflowStart.flags[name].default ).toBeUndefined();
       }
+    } );
+
+    // The properties asserted above are only the inputs; what matters is what
+    // oclif does with them. Parser.parse needs no oclif Config, so the actual
+    // gating is cheap to pin — worth doing because the no-default design is
+    // subtle enough that someone will try to "fix" it by adding one.
+    describe( 'flag parsing', () => {
+      const parse = async ( argv: string[] ) => {
+        const WorkflowStart = ( await import( './start.js' ) ).default;
+        return Parser.parse( argv, { flags: WorkflowStart.flags, strict: false } );
+      };
+
+      it( 'accepts a plain start with none of the monitor flags', async () => {
+        await expect( parse( [ 'my_workflow' ] ) ).resolves.toBeDefined();
+      } );
+
+      it( 'accepts the passthrough flags once --monitor is given', async () => {
+        const { flags } = await parse( [ 'my_workflow', '--monitor', '--interval', '500', '--include-payloads' ] );
+        expect( flags ).toMatchObject( { monitor: true, interval: 500, 'include-payloads': true } );
+      } );
+
+      it( 'rejects a passthrough flag without --monitor', async () => {
+        await expect( parse( [ 'my_workflow', '--interval', '500' ] ) ).rejects.toThrow( /--monitor/ );
+      } );
+
+      it( 'gates --no-color behind --monitor as well', async () => {
+        // A consequence of gating --color, not an independent decision: --no-color
+        // is reflexive enough that this is worth stating outright rather than
+        // leaving as a surprise.
+        await expect( parse( [ 'my_workflow', '--no-color' ] ) ).rejects.toThrow( /--monitor/ );
+        await expect( parse( [ 'my_workflow', '--monitor', '--no-color' ] ) )
+          .resolves.toMatchObject( { flags: { color: false } } );
+      } );
+
+      it( 'rejects an interval below the minimum', async () => {
+        await expect( parse( [ 'my_workflow', '--monitor', '--interval', '0' ] ) ).rejects.toThrow();
+      } );
     } );
   } );
 
@@ -258,13 +298,20 @@ describe( 'workflow start command', () => {
       it( 'applies monitor defaults for the passthrough flags left unset', async () => {
         const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
         const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
+        const { MONITOR_DEFAULTS } = await import( '#utils/monitor_flags.js' );
         postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123' } ) );
 
         await cmd.run();
 
-        // These carry no oclif default (that would defeat dependsOn), so run() must supply them.
+        // These carry no oclif default (that would defeat dependsOn), so run() must
+        // supply them — asserted against the shared source rather than re-stating
+        // the literals, which is exactly how the two commands would drift apart.
         expect( streamWorkflowUpdates ).toHaveBeenCalledWith(
-          expect.objectContaining( { interval: 2500, color: true, includePayloads: false } ),
+          expect.objectContaining( {
+            interval: MONITOR_DEFAULTS.interval,
+            color: MONITOR_DEFAULTS.color,
+            includePayloads: MONITOR_DEFAULTS.includePayloads
+          } ),
           expect.anything()
         );
       } );
@@ -304,6 +351,15 @@ describe( 'workflow start command', () => {
 
         await expect( cmd.run() ).rejects.toThrow();
         expect( streamWorkflowUpdates ).not.toHaveBeenCalled();
+
+        const [ message, options ] = ( cmd.error as any ).mock.calls.at( -1 );
+        // The start succeeded — only monitoring is impossible — so this is the
+        // exit-3 case. Exit 1 here would tell a CI job retrying a failed workflow
+        // to re-submit one that is already running.
+        expect( message ).toContain( 'started' );
+        expect( message ).toContain( 'cannot be monitored' );
+        expect( options ).toEqual( expect.objectContaining( { exit: 3 } ) );
+
         // Claiming success and then failing on the next line contradicts itself,
         // and the "unknown" placeholder id isn't something the user can act on.
         const printed = logged( cmd ).join( '\n' );
@@ -357,6 +413,26 @@ describe( 'workflow start command', () => {
         expect( message ).toContain( 'workflow status wf-123' );
         // Exit 3, not 1: a caller retrying on a failed workflow must not
         // re-submit one that is already running.
+        expect( options ).toEqual( expect.objectContaining( { exit: 3 } ) );
+      } );
+
+      it( 'still reports a live workflow when the stream raises its own CLIError', async () => {
+        const { cmd, postWorkflowStart } = await createCommand( { monitor: true } );
+        const { streamWorkflowUpdates } = await import( '#services/monitor_stream.js' );
+        postWorkflowStart.mockResolvedValue( startResponse( { workflowId: 'wf-123' } ) );
+        // What `io.error` produces — e.g. the continue-as-new branch. run() must
+        // use handleApiError here, not handleCommandError: the latter rethrows a
+        // CLIError untouched, which would surface this as a bare exit 1 and lose
+        // the "still running" message entirely.
+        vi.mocked( streamWorkflowUpdates ).mockRejectedValue(
+          new CLIError( 'Workflow continued as a new run, but the new run ID could not be determined.' )
+        );
+
+        await expect( cmd.run() ).rejects.toThrow();
+
+        const [ message, options ] = ( cmd.error as any ).mock.calls.at( -1 );
+        expect( message ).toContain( 'wf-123 started, but monitoring stopped' );
+        expect( message ).toContain( 'The workflow is still running' );
         expect( options ).toEqual( expect.objectContaining( { exit: 3 } ) );
       } );
 

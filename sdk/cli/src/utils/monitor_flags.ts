@@ -1,11 +1,18 @@
 import { Flags } from '@oclif/core';
 
 /**
- * Poll cadence when `--interval` is not given. A caller-side default, not a
- * property of the loop: `streamWorkflowUpdates` takes `interval` as a required
- * option and never falls back.
+ * The stream's defaults when the tuning flags are not given. Caller-side, not a
+ * property of the loop: `streamWorkflowUpdates` takes all three as required
+ * options and never falls back. Single-sourced because only `workflow monitor`
+ * can hand them to oclif — `workflow start --monitor` has to apply them itself
+ * (see `gatedMonitorStreamFlags`), and a literal repeated on that side would
+ * drift the moment one of these changes.
  */
-export const DEFAULT_INTERVAL_MS = 2500;
+export const MONITOR_DEFAULTS = {
+  interval: 2500,
+  color: true,
+  includePayloads: false
+} as const;
 
 /**
  * Descriptions and constraints for the three flags that tune
@@ -25,16 +32,16 @@ export function monitorStreamFlags() {
   return {
     'include-payloads': Flags.boolean( {
       description: PAYLOADS_DESCRIPTION,
-      default: false
+      default: MONITOR_DEFAULTS.includePayloads
     } ),
     interval: Flags.integer( {
       description: INTERVAL_DESCRIPTION,
-      default: DEFAULT_INTERVAL_MS,
+      default: MONITOR_DEFAULTS.interval,
       min: 1
     } ),
     color: Flags.boolean( {
       description: COLOR_DESCRIPTION,
-      default: true,
+      default: MONITOR_DEFAULTS.color,
       allowNo: true
     } )
   };
@@ -43,11 +50,13 @@ export function monitorStreamFlags() {
 /**
  * For a command where monitoring is opt-in (`workflow start --monitor`).
  *
- * These carry no oclif `default` on purpose: a default counts as "provided" and
- * would silently satisfy `dependsOn`, letting `--interval` be accepted (and then
- * ignored) on a plain `workflow start`. The caller applies the defaults in
- * `run()`, so the interval's default is spelled out in the help text rather than
- * rendered by oclif.
+ * These carry no oclif `default` on purpose: a defaulted flag counts as present
+ * (`validateFlags` runs a relationship check whenever the parsed value is not
+ * `undefined`, and `validateDependsOn` has no `setFromDefault` exemption the way
+ * `validateExclusive` does), which triggers its own `dependsOn` check and fails
+ * every invocation that omits `--monitor` — including a plain `workflow start`.
+ * The caller applies the defaults in `run()`, so the interval's default is
+ * spelled out in the help text rather than rendered by oclif.
  */
 export function gatedMonitorStreamFlags( gatedBy: string ) {
   const gate = { dependsOn: [ gatedBy ], helpGroup: 'MONITOR' };
@@ -59,7 +68,7 @@ export function gatedMonitorStreamFlags( gatedBy: string ) {
       ...gate
     } ),
     interval: Flags.integer( {
-      description: `${INTERVAL_DESCRIPTION}${requires} [default: ${DEFAULT_INTERVAL_MS}]`,
+      description: `${INTERVAL_DESCRIPTION}${requires} [default: ${MONITOR_DEFAULTS.interval}]`,
       min: 1,
       ...gate
     } ),
