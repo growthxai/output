@@ -633,6 +633,8 @@ The previous `trace.destinations` object is removed. API and CLI JSON results cr
 
 v2 also drops legacy `errorDetails.retryable`. That flag was after-the-fact Temporal metadata on a link in the failure chain (whether that failure had been marked retryable while running), not a signal that the API or client should retry — by the time a result is returned the execution is already terminal. The structured `error` object carries the failure content instead.
 
+`POST /workflow/run` no longer hardcodes `status` to only `completed` or `failed`. It now uses the same path as the other result builders (`/workflow/.../result`, list/status, and related endpoints): Temporal's terminal execution status, formatted for the API (`cancelled`, `terminated`, `timed_out`, and so on). If you treated every unsuccessful `/run` as `status === "failed"`, broaden that check — cancellation used to appear as `failed` there even though result endpoints already returned the real status.
+
 The API continues to return the legacy unversioned shape for workflows started by older workers. Consumers that can read results from both versions should branch on `result.v === "2"`.
 
 ## Workflow and activity error handling
