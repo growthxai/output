@@ -80,25 +80,6 @@ export interface WorkflowDetails {
 }
 
 /**
- * Attribute totals collected while an activity executes.
- */
-export interface Aggregations {
-  /** Cost totals collected from HTTP request cost and LLM usage attributes. */
-  cost: {
-    total: number;
-  };
-  /** Token totals collected from LLM usage attributes. */
-  tokens: {
-    [tokenType: string]: number | undefined;
-    total: number;
-  };
-  /** HTTP request count totals. */
-  httpRequests: {
-    total: number;
-  };
-}
-
-/**
  * Common hook payload fields
  */
 export interface HookPayloadBase {

@@ -53,8 +53,7 @@ export class ActivityExecutionInterceptor {
     }
 
     const state = {
-      heartbeat: null,
-      attributes: []
+      heartbeat: null
     };
 
     // Adds context accessible information
