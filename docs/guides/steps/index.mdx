@@ -45,15 +45,15 @@ Steps are called from workflows like regular async functions — `await lookupCo
 |----------|------|-------------|
 | `name` | `string` | Unique identifier for the step |
 | `description` | `string` | Human-readable description |
-| `inputSchema` | `ZodSchema` | Zod schema for input validation |
-| `outputSchema` | `ZodSchema` | Zod schema for output validation |
+| `inputSchema` | `ZodSchema` | Zod schema for input; values are **parsed** before `fn` runs |
+| `outputSchema` | `ZodSchema` | Zod schema for output; values are **parsed** before returning to callers |
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `fn` | `function` | The step implementation |
 
 Step names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
 
 <Note>
-  Schemas parse step values; they do not only validate them. The step `fn` receives the value returned by `inputSchema`, and the caller receives the value returned by `outputSchema`. Zod transforms, coercions, defaults, and object-key stripping therefore apply at runtime.
+  Schemas parse step values; they do not only validate them. The step `fn` receives the value returned by `inputSchema`, and the caller receives the value returned by `outputSchema`. Zod transforms, coercions, defaults, and object-key stripping therefore apply at runtime. If you feed a step's parsed output back into the same (or another) schema as input, transforms run again — keep them idempotent or pass wire-format values when that round-trip matters.
 </Note>
 
 ## Steps vs Workflows

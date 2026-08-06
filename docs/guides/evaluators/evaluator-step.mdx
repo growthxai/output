@@ -102,7 +102,7 @@ Evaluators are called from workflows like regular async functions — `await jud
 |----------|------|-------------|
 | `name` | `string` | Unique identifier for the evaluator |
 | `description` | `string` | Human-readable description |
-| `inputSchema` | `ZodSchema` | Zod schema for input validation |
+| `inputSchema` | `ZodSchema` | Zod schema for input; values are **parsed** before `fn` runs |
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `fn` | `function` | The evaluator implementation (must return an `EvaluationResult`) |
 

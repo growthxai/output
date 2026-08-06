@@ -87,6 +87,8 @@ fn: async (input, context) => {
 
 If your workflow has an `inputSchema`, pass the input object for the new execution. If it has no `inputSchema`, call without arguments: `context.control.continueAsNew()`.
 
+The new run parses that payload with `inputSchema` like any other workflow start — there is no “already parsed” shortcut. Pass wire-format input (what you would pass when starting the workflow), especially if `inputSchema` uses `.transform()` or other helpers that are not safe to apply twice.
+
 The function's return type matches your `outputSchema` for type-checking, but it never actually returns — the execution is replaced.
 
 See the [Temporal continue-as-new documentation](https://docs.temporal.io/develop/typescript/continue-as-new) for more details.

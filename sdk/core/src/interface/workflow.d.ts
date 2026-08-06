@@ -21,6 +21,8 @@ export type WorkflowContext<
      * It acts as a checkpoint when the workflow gets too long or approaches certain scaling limits.
      *
      * It accepts input with the same schema as the parent workflow function (`inputSchema`).
+     * The next run parses that input like any other workflow start; pass wire-format values if
+     * `inputSchema` transforms are not safe to apply twice.
      *
      * Calling this function must be the last statement in the workflow, accompanied by a `return`:
      *

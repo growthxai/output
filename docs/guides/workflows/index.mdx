@@ -47,8 +47,8 @@ The `fn` function is your workflow logic. It calls steps in sequence, and each s
 |--------|------|-------------|
 | `name` | `string` | Unique identifier for the workflow |
 | `description` | `string` | Human-readable description |
-| `inputSchema` | `ZodSchema` | Zod schema for input validation |
-| `outputSchema` | `ZodSchema` | Zod schema for output validation |
+| `inputSchema` | `ZodSchema` | Zod schema for input; values are **parsed** before `fn` runs |
+| `outputSchema` | `ZodSchema` | Zod schema for output; values are **parsed** before returning to callers |
 | `fn` | `function` | The workflow implementation |
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `aliases` | `string[]` | Optional alternative names for backward-compatible renaming (see [Aliases](#aliases)) |
@@ -56,8 +56,17 @@ The `fn` function is your workflow logic. It calls steps in sequence, and each s
 Workflow names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
 
 <Note>
-  Schemas parse workflow values; they do not only validate them. The workflow `fn` receives the value returned by `inputSchema`, and the workflow caller receives the value returned by `outputSchema`. Zod transforms, coercions, defaults, and object-key stripping therefore apply at runtime. Any schema transform used by a workflow must be deterministic so Temporal can replay it safely.
+  Schemas parse workflow values; they do not only validate them. The workflow `fn` receives the value returned by `inputSchema`, and the workflow caller receives the value returned by `outputSchema`. Zod transforms, coercions, defaults, and object-key stripping therefore apply at runtime.
 </Note>
+
+### Schema transforms and Temporal
+
+Workflow `inputSchema` / `outputSchema` run inside the Temporal workflow sandbox on every activation, including replay and every `continueAsNew` run (continuations are not special-cased — args are parsed like any other start).
+
+- Prefer wire-format schemas on workflows: types, `.default()`, and careful use of `z.coerce`.
+- Any `.transform()` / `.preprocess()` on a workflow schema must be **deterministic** (safe under Temporal replay).
+- Prefer **idempotent** transforms on workflow `inputSchema`, or pass wire-format payloads into `continueAsNew`. A non-idempotent transform applied to already-parsed values will run again on the next execution.
+- One-shot or non-idempotent shaping belongs in a [step](/steps) or inside `fn` after you have accepted wire input.
 
 ## Workflow Rules
 
