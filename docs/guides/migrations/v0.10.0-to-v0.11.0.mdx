@@ -516,14 +516,15 @@ In v0.10.x, workflow, step, and evaluator schemas validated values, but componen
 
 For example:
 
-```ts
+```js
 const calculateTotal = step( {
   name: 'calculate_total',
   inputSchema: z.object( {
     count: z.coerce.number().default( 1 )
   } ),
   outputSchema: z.object( {
-    total: z.number()
+    total: z.number(),
+    currency: z.string().default( 'USD' )
   } ),
   fn: async input => ( {
     total: input.count * 10,
@@ -535,9 +536,10 @@ const result = await calculateTotal( {
   count: '2',
   requestId: 'request-123'
 } );
+// result => { total: 20, currency: 'USD' }
 ```
 
-In v0.10.x, `input.count` was the string `'2'`, `input.requestId` remained available, and `result.internalNote` was returned. In v0.11.0, `input.count` is the number `2`, Zod's default object behavior removes `requestId`, and the returned result is `{ total: 20 }`.
+In v0.10.x, `input.count` was the string `'2'`, `input.requestId` remained available, `result.internalNote` was returned, and `currency` was absent because `fn` did not set it. In v0.11.0, `input.count` is the number `2`, Zod's default object behavior removes `requestId` from the handler input and `internalNote` from the caller result, and `outputSchema` fills `currency` with `'USD'`, so the returned result is `{ total: 20, currency: 'USD' }`.
 
 ### Migration steps
 
@@ -545,7 +547,7 @@ Review the `inputSchema` and `outputSchema` of every workflow, step, and evaluat
 
 - Update handlers and callers to use the parsed Zod input and output types.
 - Check schemas using `.transform()`, `z.coerce`, `.default()`, `.catch()`, or `.preprocess()` for values that now change at runtime.
-- Check object schemas for unknown properties that Zod strips by default. Use `.passthrough()` when those properties must be preserved.
+- Check object schemas for unknown properties that Zod strips by default. Use `z.looseObject( { ... } )` when those properties must be preserved.
 - Ensure transforms used by workflow schemas are deterministic because they run during Temporal workflow replay.
 
 ## Workflow runtime changes

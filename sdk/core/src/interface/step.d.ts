@@ -15,31 +15,32 @@ export type StepOptions = {
 /**
  * The handler function of a step.
  *
- * @param input - The step input; it matches the schema defined by `inputSchema`.
+ * @param input - Parsed step input (`z.infer<inputSchema>`).
  *
- * @returns A value matching the schema defined by `outputSchema`.
+ * @returns A value accepted by `outputSchema` before parse (`z.input<outputSchema>`).
  */
 export type StepFunction<
   InputSchema extends AnyZodSchema | undefined = undefined,
   OutputSchema extends AnyZodSchema | undefined = undefined
 > = InputSchema extends AnyZodSchema ?
-  ( input: z.infer<InputSchema> ) => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void> :
-  () => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void>;
+  ( input: z.infer<InputSchema> ) => Promise<OutputSchema extends AnyZodSchema ? z.input<OutputSchema> : void> :
+  () => Promise<OutputSchema extends AnyZodSchema ? z.input<OutputSchema> : void>;
 
 /**
  * A wrapper around the user defined `fn` handler function.
  *
- * It accepts the same input and returns the same value, calling the user function inside.
+ * Callers pass values accepted by `inputSchema` (`z.input`). The wrapper parses input,
+ * invokes `fn`, parses output, and returns `z.infer<outputSchema>`.
  *
- * It adds input and output validation based on the `inputSchema`, `outputSchema`.
- *
- * @param input - The Step input; it matches the schema defined by `inputSchema`.
- * @returns A value matching the schema defined by `outputSchema`.
+ * @param input - The step input before `inputSchema` parse.
+ * @returns The step output after `outputSchema` parse.
  */
-export type StepFunctionWrapper<StepFunction extends ( ...args: any ) => any> = // eslint-disable-line @typescript-eslint/no-explicit-any
-  Parameters<StepFunction> extends [infer Input] ?
-    ( input: Input ) => ReturnType<StepFunction> :
-    () => ReturnType<StepFunction>;
+export type StepFunctionWrapper<
+  InputSchema extends AnyZodSchema | undefined = undefined,
+  OutputSchema extends AnyZodSchema | undefined = undefined
+> = InputSchema extends AnyZodSchema ?
+  ( input: z.input<InputSchema> ) => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void> :
+  () => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void>;
 
 /**
  * Creates a step.
@@ -123,7 +124,7 @@ export type StepFunctionWrapper<StepFunction extends ( ...args: any ) => any> = 
  * @param params.outputSchema - Zod schema for the `fn` output
  * @param params.fn - A handler function containing the step code
  * @param params.options - Optional step options.
- * @returns The same handler function set at `fn`
+ * @returns A wrapper that parses input/output around `fn`
  */
 export declare function step<
   InputSchema extends AnyZodSchema | undefined = undefined,
@@ -135,4 +136,4 @@ export declare function step<
   outputSchema?: OutputSchema;
   fn: StepFunction<InputSchema, OutputSchema>;
   options?: StepOptions;
-} ): StepFunctionWrapper<StepFunction<InputSchema, OutputSchema>>;
+} ): StepFunctionWrapper<InputSchema, OutputSchema>;
