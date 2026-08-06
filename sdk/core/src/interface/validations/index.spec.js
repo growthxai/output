@@ -53,9 +53,11 @@ describe( 'interface validators', () => {
     it( 'validates workflow definitions, input, output, and invocation options', () => {
       expect( () => WorkflowValidator.validateDefinition( workflowArgs ) ).not.toThrow();
       const validator = new WorkflowValidator( workflowArgs );
+      const input = { value: 'ok' };
+      const output = { result: 'ok' };
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { result: 'ok' } ) ).not.toThrow();
+      expect( validator.validateInput( input ) ).toEqual( input );
+      expect( validator.validateOutput( output ) ).toEqual( output );
       expect( () => validator.validateInvocationOptions( {
         detached: true,
         activityOptions: { retry: { maximumAttempts: 1 } },
@@ -84,9 +86,11 @@ describe( 'interface validators', () => {
         name: 'schema_less_workflow',
         fn
       } );
+      const input = { anything: true };
+      const output = { anything: true };
 
-      expect( () => validator.validateInput( { anything: true } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { anything: true } ) ).not.toThrow();
+      expect( validator.validateInput( input ) ).toBe( input );
+      expect( validator.validateOutput( output ) ).toBe( output );
     } );
   } );
 
@@ -94,9 +98,11 @@ describe( 'interface validators', () => {
     it( 'validates step definitions, input, and output', () => {
       expect( () => StepValidator.validateDefinition( stepArgs ) ).not.toThrow();
       const validator = new StepValidator( stepArgs );
+      const input = { value: 'ok' };
+      const output = { result: 'ok' };
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { result: 'ok' } ) ).not.toThrow();
+      expect( validator.validateInput( input ) ).toEqual( input );
+      expect( validator.validateOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError with useful prefixes for invalid step data', () => {
@@ -115,9 +121,11 @@ describe( 'interface validators', () => {
     it( 'validates evaluator definitions, input, and EvaluationResult output', () => {
       expect( () => EvaluatorValidator.validateDefinition( evaluatorArgs ) ).not.toThrow();
       const validator = new EvaluatorValidator( evaluatorArgs );
+      const input = { value: 'ok' };
+      const output = new EvaluationResult( { value: 'pass', confidence: 1 } );
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( new EvaluationResult( { value: 'pass', confidence: 1 } ) ) ).not.toThrow();
+      expect( validator.validateInput( input ) ).toEqual( input );
+      expect( validator.validateOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError for output schemas and invalid evaluator output', () => {
