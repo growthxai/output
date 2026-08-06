@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ValidationError } from '#errors';
 
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
-const validateInputMock = vi.hoisted( () => vi.fn() );
-const validateOutputMock = vi.hoisted( () => vi.fn() );
+const validateInputMock = vi.hoisted( () => vi.fn( input => input ) );
+const validateOutputMock = vi.hoisted( () => vi.fn( output => output ) );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
 const createStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 

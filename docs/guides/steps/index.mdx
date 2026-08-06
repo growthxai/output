@@ -52,6 +52,10 @@ Steps are called from workflows like regular async functions — `await lookupCo
 
 Step names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
 
+<Note>
+  Schemas parse step values; they do not only validate them. The step `fn` receives the value returned by `inputSchema`, and the caller receives the value returned by `outputSchema`. Zod transforms, coercions, defaults, and object-key stripping therefore apply at runtime.
+</Note>
+
 ## Steps vs Workflows
 
 <CardGroup cols={2}>

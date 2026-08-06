@@ -15,9 +15,9 @@ const executeChildMock = vi.hoisted( () => vi.fn() );
 const workflowInfoMock = vi.hoisted( () => vi.fn() );
 const continueAsNewMock = vi.hoisted( () => vi.fn() );
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
-const validateInputMock = vi.hoisted( () => vi.fn() );
-const validateOutputMock = vi.hoisted( () => vi.fn() );
-const validateInvocationOptionsMock = vi.hoisted( () => vi.fn() );
+const validateInputMock = vi.hoisted( () => vi.fn( input => input ) );
+const validateOutputMock = vi.hoisted( () => vi.fn( output => output ) );
+const validateInvocationOptionsMock = vi.hoisted( () => vi.fn( options => options ) );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
 const createWorkflowMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 

@@ -108,6 +108,10 @@ Evaluators are called from workflows like regular async functions — `await jud
 
 Evaluator names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
 
+<Note>
+  The input schema parses evaluator input; it does not only validate it. The evaluator `fn` receives the value returned by `inputSchema`, so Zod transforms, coercions, defaults, and object-key stripping apply at runtime.
+</Note>
+
 ## EvaluationResult Types
 
 Evaluators must return an `EvaluationResult`. Three types are available depending on what you're scoring:
