@@ -95,12 +95,40 @@ export const resolveErrorName = target => {
   return target.constructor?.name; // eslint-disable-line consistent-return
 };
 
+/** Check is target is in ancestor chain */
+const isAncestor = ( ancestor, target ) =>
+  ancestor !== null && ( ancestor.value === target || isAncestor( ancestor.ancestor, target ) );
+
+class GlobalCounter {
+  value = 0;
+  count() {
+    this.value++;
+    return this;
+  };
+}
+
 /** Recursive serialize a value, recursion comes for Array-like values and objects */
-const serializeValue = ( target, state, depth = 0 ) => {
+const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCounter(), ancestor: null } ) => {
+  // If the same object was already seen in this branch, it is a circular reference
+  if ( isAncestor( state.ancestor, target ) ) {
+    return Marker.Circular;
+  }
+
   // Reached the maximum times the function can self call
-  if ( ++state.valuesCount > MAX_SERIALIZED_VALUES ) {
+  if ( state.seen.value >= MAX_SERIALIZED_VALUES ) {
     return Marker.MaxSelfCalls;
   }
+
+  // Depth control
+  if ( state.depth >= MAX_VALUE_DEPTH ) {
+    return Marker.MaxDepth;
+  }
+
+  const nextState = {
+    depth: state.depth + 1,
+    seen: state.seen.count(),
+    ancestor: { value: target, ancestor: state.ancestor }
+  };
 
   try {
     // Non-recursive complex values are "inspected"
@@ -117,38 +145,21 @@ const serializeValue = ( target, state, depth = 0 ) => {
     if ( typeof target !== 'object' || target === null ) {
       return target;
     }
-  } catch {
-    return Marker.Unserializable;
-  }
 
-  // Depth control
-  if ( depth >= MAX_VALUE_DEPTH ) {
-    return Marker.MaxDepth;
-  }
+    if ( target instanceof URL ) {
+      return truncateString( redactUrl( target ) );
+    }
 
-  // If the same object was already seem in this branch, it is a circular reference
-  if ( state.seenObjects.has( target ) ) {
-    return Marker.Circular;
-  }
-
-  if ( target instanceof URL ) {
-    return truncateString( redactUrl( target ) );
-  }
-
-  // Mark this object as seen to track circular dependency
-  state.seenObjects.add( target );
-
-  try {
     // Maps/Sets use a helper function
     if ( [ Map, Set ].some( I => target instanceof I ) ) {
       const iterator = target instanceof Set ? target.values() : target.entries();
-      const values = iterator.take( MAX_ARRAY_SIZE ).toArray().map( v => serializeValue( v, state, depth + 1 ) );
+      const values = iterator.take( MAX_ARRAY_SIZE ).toArray().map( v => serializeValue( v, options, nextState ) );
       return values.concat( target.size > MAX_ARRAY_SIZE ? Marker.TruncatedArray.replace( ':v', target.size - MAX_ARRAY_SIZE ) : [] );
     }
 
     // Array as also recursively serialized
     if ( Array.isArray( target ) ) {
-      return truncateArray( target ).map( value => serializeValue( value, state, depth + 1 ) );
+      return truncateArray( target ).map( value => serializeValue( value, options, nextState ) );
     }
 
     // Objects
@@ -162,7 +173,7 @@ const serializeValue = ( target, state, depth = 0 ) => {
 
       const keys = Object.getOwnPropertyNames( proto );
       for ( const key of keys ) {
-        if ( state.ignoredKeys.some( e => e.test ? e.test( key ) : e === key ) ) {
+        if ( options.ignoredKeys.some( e => e.test ? e.test( key ) : e === key ) ) {
           continue;
         }
 
@@ -182,12 +193,13 @@ const serializeValue = ( target, state, depth = 0 ) => {
           return Object.assign( projection, { ['...']: Marker.MaxKeys } );
         }
 
-        projection[sanitizedKey] = serializeValue( value, state, depth + 1 );
+        projection[sanitizedKey] = serializeValue( value, options, nextState );
       };
       return projection;
     }, {} );
 
-    if ( !state.ignoredKeys.includes( 'name' ) && target instanceof Error ) {
+    // name resolver
+    if ( !options.ignoredKeys.includes( 'name' ) && target instanceof Error ) {
       const name = resolveErrorName( target );
       if ( name !== undefined ) {
         props.name = name;
@@ -197,8 +209,6 @@ const serializeValue = ( target, state, depth = 0 ) => {
     return props;
   } catch {
     return Marker.Unserializable;
-  } finally {
-    state.seenObjects.delete( target );
   }
 };
 
@@ -213,8 +223,4 @@ const serializeValue = ( target, state, depth = 0 ) => {
  * @returns {*} Serialized value
  */
 export const serializeError = ( target, { dropKeys } = {} ) =>
-  serializeValue( target, {
-    ignoredKeys: GLOBAL_IGNORED_KEYS.concat( dropKeys ?? [] ),
-    seenObjects: new WeakSet(),
-    valuesCount: 0
-  } );
+  serializeValue( target, { ignoredKeys: GLOBAL_IGNORED_KEYS.concat( dropKeys ?? [] ) } );
