@@ -41,7 +41,7 @@ Errors are emitted from three origins. Every payload includes `eventId`, `eventD
 
 | Source | When it fires | Fields besides `eventId`, `eventDate`, `source`, and `error` |
 |--------|----------------|----------------------------------------|
-| `activity` | A step, evaluator, or internal activity fails (after retries are exhausted). | `activityInfo`, `workflowDetails`, `outputActivityKind` |
+| `activity` | A step, evaluator, or internal activity attempt fails (including attempts that Temporal will retry). | `activityInfo`, `workflowDetails`, `outputActivityKind` |
 | `workflow` | The workflow function itself throws (e.g. uncaught step error or logic error). | `workflowDetails` |
 | `runtime` | An error outside workflow/activity scope (e.g. in the worker/runtime). | — |
 
