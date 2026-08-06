@@ -41,12 +41,12 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
   const handler = async ( input, rawInvocationOptions = {} ) => {
-    const invocationOptions = validator.validateInvocationOptions( rawInvocationOptions );
+    const invocationOptions = validator.parseInvocationOptions( rawInvocationOptions );
 
     // If called outside Temporal workflow context, just execute the handler function
     if ( !inWorkflowContext() ) {
-      return validator.validateOutput(
-        await fn( validator.validateInput( input ), deepMerge( WorkflowContext.build(), invocationOptions?.context ) )
+      return validator.parseOutput(
+        await fn( validator.parseInput( input ), deepMerge( WorkflowContext.build(), invocationOptions?.context ) )
       );
     }
 
@@ -90,7 +90,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     };
 
     try {
-      const output = validator.validateOutput( await fn( validator.validateInput( input ), WorkflowContext.build() ) );
+      const output = validator.parseOutput( await fn( validator.parseInput( input ), WorkflowContext.build() ) );
 
       return { [C.WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
     } catch ( error ) {

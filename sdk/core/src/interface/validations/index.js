@@ -39,11 +39,11 @@ export class Validator {
     this.prefix = `${this.constructor.label} "${this.name}"`;
   }
 
-  validateInput( input ) {
+  parseInput( input ) {
     return validate( this.inputSchema, input, `${this.prefix} input` );
   }
 
-  validateOutput( output ) {
+  parseOutput( output ) {
     return validate( this.outputSchema, output, `${this.prefix} output` );
   }
 }
@@ -52,7 +52,7 @@ export class WorkflowValidator extends Validator {
   static label = capitalize( ComponentType.WORKFLOW );
   static definitionSchema = workflowSchema;
 
-  validateInvocationOptions( options ) {
+  parseInvocationOptions( options ) {
     return validate( workflowInvocationOptionsSchema, options, `${this.prefix} invocation options` );
   }
 }

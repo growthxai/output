@@ -13,6 +13,6 @@ export function evaluator( { name, description, inputSchema, fn, options } ) {
     description,
     inputSchema,
     options,
-    handler: async input => validator.validateOutput( await fn( validator.validateInput( input ) ) )
+    handler: async input => validator.parseOutput( await fn( validator.parseInput( input ) ) )
   } );
 }

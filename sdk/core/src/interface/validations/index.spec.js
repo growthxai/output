@@ -56,9 +56,9 @@ describe( 'interface validators', () => {
       const input = { value: 'ok' };
       const output = { result: 'ok' };
 
-      expect( validator.validateInput( input ) ).toEqual( input );
-      expect( validator.validateOutput( output ) ).toEqual( output );
-      expect( () => validator.validateInvocationOptions( {
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
+      expect( () => validator.parseInvocationOptions( {
         detached: true,
         activityOptions: { retry: { maximumAttempts: 1 } },
         context: { info: { workflowId: 'test-workflow' } }
@@ -73,10 +73,10 @@ describe( 'interface validators', () => {
 
       const validator = new WorkflowValidator( workflowArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( ValidationError );
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Workflow "valid_workflow" input validation failed/ );
-      expect( () => validator.validateOutput( { result: 1 } ) ).toThrow( /Workflow "valid_workflow" output validation failed/ );
-      expect( () => validator.validateInvocationOptions( {
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( ValidationError );
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Workflow "valid_workflow" input validation failed/ );
+      expect( () => validator.parseOutput( { result: 1 } ) ).toThrow( /Workflow "valid_workflow" output validation failed/ );
+      expect( () => validator.parseInvocationOptions( {
         options: { activityOptions: { retry: { maximumAttempts: 1 } } }
       } ) ).toThrow( /Workflow "valid_workflow" invocation options validation failed/ );
     } );
@@ -89,8 +89,8 @@ describe( 'interface validators', () => {
       const input = { anything: true };
       const output = { anything: true };
 
-      expect( validator.validateInput( input ) ).toBe( input );
-      expect( validator.validateOutput( output ) ).toBe( output );
+      expect( validator.parseInput( input ) ).toBe( input );
+      expect( validator.parseOutput( output ) ).toBe( output );
     } );
   } );
 
@@ -101,8 +101,8 @@ describe( 'interface validators', () => {
       const input = { value: 'ok' };
       const output = { result: 'ok' };
 
-      expect( validator.validateInput( input ) ).toEqual( input );
-      expect( validator.validateOutput( output ) ).toEqual( output );
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError with useful prefixes for invalid step data', () => {
@@ -112,8 +112,8 @@ describe( 'interface validators', () => {
 
       const validator = new StepValidator( stepArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Step "valid_step" input validation failed/ );
-      expect( () => validator.validateOutput( { result: 1 } ) ).toThrow( /Step "valid_step" output validation failed/ );
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Step "valid_step" input validation failed/ );
+      expect( () => validator.parseOutput( { result: 1 } ) ).toThrow( /Step "valid_step" output validation failed/ );
     } );
   } );
 
@@ -124,8 +124,8 @@ describe( 'interface validators', () => {
       const input = { value: 'ok' };
       const output = new EvaluationResult( { value: 'pass', confidence: 1 } );
 
-      expect( validator.validateInput( input ) ).toEqual( input );
-      expect( validator.validateOutput( output ) ).toEqual( output );
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError for output schemas and invalid evaluator output', () => {
@@ -136,8 +136,8 @@ describe( 'interface validators', () => {
 
       const validator = new EvaluatorValidator( evaluatorArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Evaluator "valid_evaluator" input validation failed/ );
-      expect( () => validator.validateOutput( { value: 'pass', confidence: 1 } ) ).toThrow(
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Evaluator "valid_evaluator" input validation failed/ );
+      expect( () => validator.parseOutput( { value: 'pass', confidence: 1 } ) ).toThrow(
         /Evaluator "valid_evaluator" output validation failed/
       );
     } );
