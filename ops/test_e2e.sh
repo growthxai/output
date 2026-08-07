@@ -58,7 +58,13 @@ npm run dev:up -- --detached
 
 # Run the simple workflow using the CLI since everything is up
 print "Executing test workflow..."
-OUT=$(npx --prefix=sdk/cli output workflow run e2e_test --input '{}' --json)
+OUT=$(npx --prefix=sdk/cli output workflow run e2e_test --input '{}' --json) || {
+  if [ -n "${OUT:-}" ]; then
+    printf '%s\n' "$OUT"
+  fi
+  ERROR="Workflow execution failed"
+  exit 1
+}
 
 print "Test Workflow Output"
 printf '%s\n' "$OUT"
@@ -66,7 +72,7 @@ printf '%s\n' "$OUT"
 # Matches the result against the expectation
 PASSED=$(echo "$OUT" | jq -r '.output.passed')
 if [ "$PASSED" != "true" ]; then
-  ERROR="Workflow tests didn't pass"
+  ERROR="Workflow tests failed"
   exit 1
 fi
 
