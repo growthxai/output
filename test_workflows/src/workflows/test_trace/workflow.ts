@@ -1,6 +1,5 @@
 import { workflow, z } from '@outputai/core';
 import { assertTrace, runWorkflow } from './steps.js';
-import { sleep } from '@temporalio/workflow';
 
 export default workflow( {
   name: 'test_trace',
@@ -10,8 +9,14 @@ export default workflow( {
   } ),
   fn: async () => {
     const workflowId = await runWorkflow();
-    await sleep( '10s' );
     await assertTrace( workflowId );
     return { passed: true };
+  },
+  options: {
+    activityOptions: {
+      retry: {
+        maximumAttempts: 1
+      }
+    }
   }
 } );

@@ -21,8 +21,9 @@ const parseJson = ( value: string ): Trace | null => {
     return null;
   }
 };
+const oneSecond = 1_000;
 
-const readTrace = async ( workflowId: string, attempts = 20 ): Promise<Trace> => {
+const readTrace = async ( workflowId: string, attempts = 30 ): Promise<Trace> => {
   const files = await readdir( traceDir ).catch( () => [] );
   const filename = files.find( file => file.endsWith( `_${workflowId}.json` ) );
   const trace = filename ? parseJson( await readFile( join( traceDir, filename ), 'utf8' ) ) : null;
@@ -32,7 +33,7 @@ const readTrace = async ( workflowId: string, attempts = 20 ): Promise<Trace> =>
   if ( attempts === 1 ) {
     throw new Error( `Trace not found for workflow ${workflowId}` );
   }
-  await delay( 500 );
+  await delay( oneSecond );
   return readTrace( workflowId, attempts - 1 );
 };
 
@@ -51,9 +52,11 @@ export const runWorkflow = step( {
       status: string;
       output?: { values: string[] };
       workflowId: string;
+      trace?: { local?: string };
     };
     assert.equal( result.status, 'completed' );
     assert.deepEqual( result.output?.values, [ 'child-1', 'child-2', 'child-3' ] );
+    assert.ok( result.trace?.local?.endsWith( `_${result.workflowId}.json` ) );
     return result.workflowId as string;
   }
 } );
