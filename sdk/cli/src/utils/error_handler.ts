@@ -1,3 +1,4 @@
+import { CLIError } from '@oclif/core/errors';
 import { config } from '#config.js';
 
 interface ApiError extends Error {
@@ -121,4 +122,22 @@ export function handleApiError(
 
   const detailedMessage = getDetailedErrorMessage( error );
   errorFn( detailedMessage, { exit: 1 } );
+}
+
+/**
+ * `catch()` handling for a command that raises oclif errors of its own. Flag
+ * relationship failures and every `this.error( ..., { exit } )` already carry an
+ * exit code and formatted output, and `handleApiError` would flatten all of it
+ * to a bare exit 1 — so pass those straight through and only map what actually
+ * came back from the API.
+ */
+export function handleCommandError(
+  error: Error,
+  errorFn: ( ...args: [ message: string, options: { exit: number } ] ) => never,
+  overrides: ErrorOverrides = {}
+): never {
+  if ( error instanceof CLIError ) {
+    throw error;
+  }
+  return handleApiError( error, errorFn, overrides );
 }

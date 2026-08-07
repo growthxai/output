@@ -1,6 +1,6 @@
 import { Args, Command } from '@oclif/core';
 import { getWorkflowIdResult, type WorkflowResultResponse } from '#api/generated/api.js';
-import { formatWorkflowResult, ERROR_STATUSES } from '#utils/format_workflow_result.js';
+import { formatWorkflowResult, isErrorStatus } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowResult extends Command {
@@ -35,7 +35,7 @@ export default class WorkflowResult extends Command {
 
     this.log( `\n${formatWorkflowResult( data )}` );
 
-    if ( ERROR_STATUSES.has( data.status ) ) {
+    if ( isErrorStatus( data.status ) ) {
       process.exitCode = 1;
     }
 

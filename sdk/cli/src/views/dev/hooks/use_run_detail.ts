@@ -9,7 +9,7 @@ import {
 } from '#api/generated/api.js';
 import type { TraceData, DebugNode } from '#types/trace.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
-import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
+import { isTerminalStatus } from '#utils/format_workflow_result.js';
 import { createBoundedCache } from '#views/dev/utils/bounded_cache.js';
 
 export interface RunStep {
@@ -139,9 +139,9 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
 
 // The cache is intentionally only populated for terminal statuses — partial results
 // from a still-running workflow would otherwise stick and stall the UI when the run
-// eventually finishes. `TERMINAL_STATUSES` is shared with `workflow monitor`.
+// eventually finishes. `isTerminalStatus` is shared with `workflow monitor`.
 export const isTerminalRunStatus = ( status: string | null | undefined ): boolean =>
-  Boolean( status && TERMINAL_STATUSES.has( status ) );
+  isTerminalStatus( status );
 
 export const useRunDetail = (
   workflowId: string | undefined,
