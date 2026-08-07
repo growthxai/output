@@ -353,6 +353,37 @@ describe( 'workflow monitor command', () => {
       exitSpy.mockRestore();
     } );
 
+    it( 'blames the workflow id for a 404, which is the argument the user typed', async () => {
+      const { cmd } = await createCommand();
+      const notFound = Object.assign( new Error( 'not found' ), {
+        response: { status: 404, data: { error: 'WorkflowNotFoundError', message: 'Workflow "wf-1" not found' } }
+      } );
+
+      // The override lives on this command rather than in the shared
+      // `monitorErrorOverrides`: under `start --monitor` the id came back from the
+      // API, so the same advice would misdirect the user.
+      await expect( cmd.catch( notFound ) ).rejects.toThrow();
+
+      expect( cmd.error ).toHaveBeenCalledWith(
+        'Workflow not found. Check the workflow ID.',
+        expect.objectContaining( { exit: 1 } )
+      );
+    } );
+
+    it( 'explains a stale resume cursor behind the API\'s generic 400', async () => {
+      const { cmd } = await createCommand();
+      const staleCursor = Object.assign( new Error( 'bad request' ), {
+        response: { status: 400, data: { error: 'InvalidPageTokenError' } }
+      } );
+
+      await expect( cmd.catch( staleCursor ) ).rejects.toThrow();
+
+      expect( cmd.error ).toHaveBeenCalledWith(
+        expect.stringContaining( 'Resume cursor is no longer valid' ),
+        expect.objectContaining( { exit: 1 } )
+      );
+    } );
+
     it( 'emits NDJSON lines under --format json', async () => {
       const { cmd, fetchWorkflowHistory } = await createCommand( { format: 'json' } );
       fetchWorkflowHistory.mockResolvedValueOnce(

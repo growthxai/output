@@ -241,6 +241,13 @@ export async function streamWorkflowUpdates(
   );
 
   const sigintHandler = (): void => {
+    // The listener stays registered until the loop unwinds through `finally`, and
+    // the exit is deferred behind a stdout flush — so an impatient second Ctrl+C
+    // lands here again and would print a second "Detached" line and schedule a
+    // second exit.
+    if ( state.detached ) {
+      return;
+    }
     state.detached = true;
     // Recorded as well as exited with: deferring the exit for a stdout flush
     // lets the loop unwind and the command return normally in the meantime, and
@@ -334,14 +341,18 @@ export async function streamWorkflowUpdates(
  * longPollTimeoutMs) — only override it with the stale-cursor message when the
  * server actually identifies that specific cause; otherwise let the real
  * validation error surface instead of misdiagnosing an unrelated 400.
+ *
+ * Deliberately no 404 here: "check the workflow ID" only reads correctly where
+ * the user typed the id, so `workflow monitor` adds it and `start --monitor`
+ * doesn't — there the id came back from `postWorkflowStart`, and the server's own
+ * message is left to surface inside the "started, but monitoring stopped" wrapper
+ * instead of advising a fix that isn't the user's to make.
  */
 export function monitorErrorOverrides( error: Error ): Record<number, string> {
   const response = ( error as { response?: { status?: number; data?: { error?: string } } } ).response;
   const isStaleCursor = response?.status === 400 && response.data?.error === 'InvalidPageTokenError';
 
-  const overrides: Record<number, string> = { 404: 'Workflow not found. Check the workflow ID.' };
-  if ( isStaleCursor ) {
-    overrides[400] = 'Resume cursor is no longer valid for this workflow; restart the monitor.';
-  }
-  return overrides;
+  return isStaleCursor ?
+    { 400: 'Resume cursor is no longer valid for this workflow; restart the monitor.' } :
+    {};
 }
