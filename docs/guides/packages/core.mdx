@@ -412,6 +412,8 @@ OUTPUT_LOG_LEVEL=debug
 
 When unset, development defaults to `debug` and production defaults to `info`.
 
+Use `OUTPUT_TEMPORAL_LOG_LEVEL` for Temporal SDK / Core runtime logs. It takes Temporal levels (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), not Winston levels. Default: `INFO`.
+
 ### Metadata
 
 The second logger argument is metadata. It should be a plain object with fields you want attached to the log record:
