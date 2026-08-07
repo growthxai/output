@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: parsed component schemas, HTTP clients, hook event envelopes, API request logging, workflow result contracts, workflow and activity error handling, LLM permanent-error surfacing, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: workflow results and error handling, parsed component schemas, Temporal worker cutover, and other breaking changes."
 ---
 
-This guide covers customer-facing changes to `@outputai/http`, schemas, hooks, workflow execution and error handling in `@outputai/core`, LLM error surfacing and prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
+This guide covers breaking changes across `@outputai/core`, `@outputai/http`, `@outputai/llm`, `@outputai/cli`, and `output-api`. The main ones are unwrapped workflow results and error handling, Zod schemas that return parsed values, and a Temporal worker runtime that is not replay-compatible with open v0.10.x executions.
 
 ## API HTTP request logging
 
