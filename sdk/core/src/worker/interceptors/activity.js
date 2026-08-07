@@ -1,12 +1,14 @@
-import { Context, activityInfo as activityInfoFn } from '@temporalio/activity';
+import { Context, activityInfo as activityInfoFn, ApplicationFailure } from '@temporalio/activity';
+import { CompleteAsyncError, TemporalFailure } from '@temporalio/common';
 import { Storage } from '#async_storage';
 import * as Tracing from '#tracing';
 import { headersToObject } from './headers.js';
-import { ACTIVITY_WRAPPER_VERSION_FIELD, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
+import { ActivitySpecialOutput, BusEventType, METADATA_ACCESS_SYMBOL } from '#consts';
 import { activityHeartbeatEnabled, activityHeartbeatIntervalMs } from '../configs.js';
 import { mainEventBus } from '#bus';
-import { aggregateAttributes } from '#helpers/aggregations';
-import { buildApplicationFailureWithDetails } from '#helpers/errors';
+import { inheritsFromAnyNamedType } from '#helpers/errors';
+import { serializeError } from '#helpers/error_serializer';
+import { FatalError, TransparentFatalError } from '#errors';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -51,11 +53,8 @@ export class ActivityExecutionInterceptor {
     }
 
     const state = {
-      heartbeat: null,
-      attributes: []
+      heartbeat: null
     };
-
-    const addAttribute = attribute => state.attributes.push( attribute );
 
     // Adds context accessible information
     const storageContext = {
@@ -64,8 +63,7 @@ export class ActivityExecutionInterceptor {
       activityInfo,
       workflowDetails,
       workflowFilename,
-      traceInfo,
-      addAttribute
+      traceInfo
     };
 
     mainEventBus.emit( BusEventType.ACTIVITY_START, { activityInfo, workflowDetails, outputActivityKind } );
@@ -77,19 +75,34 @@ export class ActivityExecutionInterceptor {
 
       const output = await Storage.runWithContext( async _ => next( input ), storageContext );
 
-      const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
-
-      mainEventBus.emit( BusEventType.ACTIVITY_END, { activityInfo, aggregations, workflowDetails, outputActivityKind } );
+      mainEventBus.emit( BusEventType.ACTIVITY_END, { activityInfo, workflowDetails, outputActivityKind } );
       Tracing.addEventEnd( { id: activityId, details: output, traceInfo } );
 
-      return { [ACTIVITY_WRAPPER_VERSION_FIELD]: 1, output, aggregations };
+      return output;
 
     } catch ( error ) {
-      const aggregations = state.attributes.length > 0 ? aggregateAttributes( state.attributes ) : null;
-      mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, aggregations, workflowDetails, outputActivityKind, error } );
-      Tracing.addEventError( { id: activityId, details: error, traceInfo } );
+      // Record async completion handoff as a trace end without emitting a bus event.
+      if ( error instanceof CompleteAsyncError ) {
+        Tracing.addEventEnd( { id: activityId, details: ActivitySpecialOutput.ASYNC_HANDOFF, traceInfo } );
+        throw error;
+      }
 
-      throw aggregations ? buildApplicationFailureWithDetails( error, { aggregations } ) : error;
+      const unwrappedError = error instanceof TransparentFatalError ? error.cause : error;
+
+      Tracing.addEventError( { id: activityId, details: unwrappedError, traceInfo } );
+      mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error: unwrappedError } );
+
+      // Native Temporal errors are just re-thrown
+      if ( error instanceof TemporalFailure ) {
+        throw error;
+      }
+
+      const nonRetryable = error instanceof FatalError || inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] );
+      throw ApplicationFailure.fromError( unwrappedError, {
+        nonRetryable,
+        cause: unwrappedError,
+        details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
+      } );
     } finally {
       clearInterval( state.heartbeat );
     }

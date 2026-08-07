@@ -5,7 +5,8 @@ vi.mock( '#consts', () => ( {
   ACTIVITY_GET_TRACE_DESTINATIONS: '__internal#getTraceDestinations',
   WORKFLOWS_INDEX_FILENAME: '__workflows_entrypoint.js',
   WORKFLOW_CATALOG: 'catalog',
-  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js'
+  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js',
+  WORKFLOW_OPTIONS_FILENAME: '__workflow_options.js'
 } ) );
 
 const { importComponentsMock, findWorkflowsInNodeModulesMock, matchFilesMock, writeFileInTempDirMock } = vi.hoisted( () => ( {
@@ -44,7 +45,7 @@ describe( 'loadWorkflows', () => {
     matchFilesMock.mockReset();
     matchFilesMock.mockReturnValue( [] );
     writeFileInTempDirMock.mockReset();
-    writeFileInTempDirMock.mockReturnValue( '/tmp/__workflows_entrypoint.js' );
+    writeFileInTempDirMock.mockImplementation( ( _, filename ) => `/tmp/${filename}` );
     workflowPathHasSharedMock.mockReset();
     workflowPathHasSharedMock.mockReturnValue( false );
   } );
@@ -58,9 +59,10 @@ describe( 'loadWorkflows', () => {
       yield { metadata: { name: 'Flow1', description: 'd' }, path: '/b/workflow.js' };
     } );
 
-    const { workflows, entrypoint } = await loadWorkflows( '/root' );
+    const { workflows, entrypoint, optionsFile } = await loadWorkflows( '/root' );
     expect( workflows ).toEqual( [ { name: 'Flow1', description: 'd', path: '/b/workflow.js', external: false } ] );
     expect( entrypoint ).toBe( '/tmp/__workflows_entrypoint.js' );
+    expect( optionsFile ).toBe( '/tmp/__workflow_options.js' );
     expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, localFiles );
     expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledOnce();
     expect( findWorkflowsInNodeModulesMock ).toHaveBeenCalledWith( '/root' );
@@ -244,12 +246,42 @@ describe( 'loadWorkflows', () => {
     const { entrypoint } = await loadWorkflows( '/root' );
 
     expect( entrypoint ).toBe( '/tmp/__workflows_entrypoint.js' );
-    expect( writeFileInTempDirMock ).toHaveBeenCalledTimes( 1 );
-    const [ contents, filename ] = writeFileInTempDirMock.mock.calls[0];
+    expect( writeFileInTempDirMock ).toHaveBeenCalledTimes( 2 );
+    const [ contents, filename ] = writeFileInTempDirMock.mock.calls.find( ( [ , calledFilename ] ) =>
+      calledFilename === '__workflows_entrypoint.js'
+    );
     expect( filename ).toBe( '__workflows_entrypoint.js' );
     expect( contents ).toContain( 'export { default as W } from \'/abs/wf.js\';' );
     expect( contents ).toContain( 'export { default as W_old } from \'/abs/wf.js\';' );
     expect( contents ).toContain( 'export { default as W_legacy } from \'/abs/wf.js\';' );
     expect( contents ).toContain( 'export { default as catalog }' );
+  } );
+
+  it( 'writes trace options for workflow names, aliases, and the catalog workflow', async () => {
+    const { loadWorkflows } = await import( './workflows.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {
+      yield {
+        metadata: { name: 'Traced', aliases: [ 'Traced_old' ] },
+        path: '/abs/traced.js'
+      };
+      yield {
+        metadata: { name: 'Untraced', aliases: [ 'Untraced_old' ], options: { disableTrace: true } },
+        path: '/abs/untraced.js'
+      };
+    } );
+
+    await loadWorkflows( '/root' );
+
+    const [ contents, filename ] = writeFileInTempDirMock.mock.calls.find( ( [ , calledFilename ] ) =>
+      calledFilename === '__workflow_options.js'
+    );
+    expect( filename ).toBe( '__workflow_options.js' );
+    expect( contents ).toBe( `export default ${JSON.stringify( {
+      Traced: { disableTrace: false },
+      Traced_old: { disableTrace: false },
+      Untraced: { disableTrace: true },
+      Untraced_old: { disableTrace: true },
+      catalog: { disableTrace: true }
+    }, undefined, 2 )};` );
   } );
 } );

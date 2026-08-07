@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock( '../../api/generated/api.js', () => ( {
   getWorkflowIdStatus: vi.fn(),
   GetWorkflowIdStatus200Status: {
-    canceled: 'canceled',
+    cancelled: 'cancelled',
     completed: 'completed',
     continued_as_new: 'continued_as_new',
     failed: 'failed',

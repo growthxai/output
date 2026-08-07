@@ -28,3 +28,13 @@ export const toUrlSafeBase64 = uuid => {
  * @returns
  */
 export const rxEscape = v => v.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
+
+const URL_SCHEME_RX = /^[a-z][a-z\d+.-]*:\/\//i;
+
+/**
+ * Detects if string is an URL starting with `<protocol>://`
+ *
+ * @param {string} s
+ * @returns {boolean}
+ */
+export const isUrl = s => typeof s === 'string' && URL_SCHEME_RX.test( s.trim() ) && URL.canParse( s );

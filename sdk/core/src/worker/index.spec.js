@@ -14,7 +14,9 @@ const {
   mockWorker,
   promises,
   resetPromises,
+  serializeErrorMock,
   setupInterruptionHandlerMock,
+  setupTemporalLoggerMock,
   setupTelemetryMock
 } = vi.hoisted( () => {
   const createDeferred = () => {
@@ -117,16 +119,19 @@ const {
     mockWorker,
     promises,
     resetPromises,
+    serializeErrorMock: vi.fn( error => ( {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    } ) ),
     setupInterruptionHandlerMock: vi.fn(),
+    setupTemporalLoggerMock: vi.fn(),
     setupTelemetryMock: vi.fn()
   };
 } );
 
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
-vi.mock( '#consts', async importOriginal => {
-  const actual = await importOriginal();
-  return { ...actual };
-} );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 const initTracing = vi.fn().mockResolvedValue( undefined );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
@@ -161,6 +166,7 @@ vi.mock( './catalog_workflow/catalog_job.js', () => ( {
   } )
 } ) );
 vi.mock( './log_hooks.js', () => ( {} ) );
+vi.mock( './temporal_logger.js', () => ( { setupTemporalLogger: setupTemporalLoggerMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
   Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
@@ -217,6 +223,7 @@ describe( 'worker/index', () => {
     await vi.waitFor( () => expect( Worker.create ).toHaveBeenCalled() );
 
     expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
+    expect( setupTemporalLoggerMock ).toHaveBeenCalledOnce();
     expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
     expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
     expect( initTracing ).toHaveBeenCalled();
@@ -356,9 +363,10 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'Big Failure'
+        error: expect.objectContaining( { message: 'Big Failure' } )
       } ) );
     } );
+    expect( serializeErrorMock ).toHaveBeenCalledWith( error );
     expect( mainEventBusMock.emit ).toHaveBeenCalledWith( expect.any( String ), { error } );
     await vi.waitFor( () => expect( exitMock ).toHaveBeenCalledWith( 1 ) );
     expect( flushPendingHooksMock ).toHaveBeenCalledOnce();
@@ -378,7 +386,7 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'connection lost'
+        error: expect.objectContaining( { message: 'connection lost' } )
       } ) );
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
@@ -398,7 +406,7 @@ describe( 'worker/index', () => {
 
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'catalog failed'
+        error: expect.objectContaining( { message: 'catalog failed' } )
       } ) );
     } );
     expect( mockWorker.shutdown ).toHaveBeenCalledOnce();
@@ -418,7 +426,7 @@ describe( 'worker/index', () => {
     expect( catalogJobInstance.interrupt ).not.toHaveBeenCalled();
     await vi.waitFor( () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Fatal error', expect.objectContaining( {
-        error: 'worker create failed'
+        error: expect.objectContaining( { message: 'worker create failed' } )
       } ) );
     } );
   } );

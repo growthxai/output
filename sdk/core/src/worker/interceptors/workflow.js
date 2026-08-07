@@ -1,13 +1,17 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { workflowInfo, proxySinks, ContinueAsNew, isCancellation } from '@temporalio/workflow';
+import { workflowInfo, proxySinks, ContinueAsNew, isCancellation, ApplicationFailure, TemporalFailure, upsertMemo } from '@temporalio/workflow';
 import { memoToHeaders } from './headers.js';
 import { deepMerge } from '#helpers/object';
-import { buildApplicationFailureWithDetails } from '#helpers/errors';
-import { METADATA_ACCESS_SYMBOL, WorkflowSpecialOutput } from '#consts';
+import { WorkflowSpecialOutput } from '#consts';
 import { createWorkflowDetails } from '#helpers/temporal_context';
+import { TraceInfo } from '#helpers/trace_info';
+import { FatalError, TransparentFatalError } from '#errors';
+import { serializeError } from '#helpers/error_serializer';
+import { enforceActivityOptions } from '#helpers/activity_options';
 
-// this is a dynamic generated file with activity configs overwrites
+// these are a dynamic generated file with activity configs overwrites and workflow options
 import activityOptionsMap from '../temp/__activity_options.js';
+import workflowOptionsMap from '../temp/__workflow_options.js';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.
@@ -27,6 +31,8 @@ class HeadersInjectionInterceptor {
     if ( activityOptionsOverrides ) {
       input.options = deepMerge( input.options ?? {}, activityOptionsOverrides );
     }
+    // Re-enforce framework options after component overrides
+    input.options = enforceActivityOptions( input.options );
     return next( input );
   }
 };
@@ -35,6 +41,15 @@ const sinks = proxySinks();
 
 class WorkflowExecutionInterceptor {
   async execute( input, next ) {
+    const { workflowType, root } = workflowInfo();
+    const traceEnabled = workflowOptionsMap[workflowType]?.disableTrace !== true;
+    const isRoot = !root; // root workflow doesn't have the root block
+
+    upsertMemo( {
+      payloadVersion: '2',
+      ...( isRoot && traceEnabled && { traceInfo: TraceInfo.build() } )
+    } );
+
     sinks.workflow.start( input.args[0] );
     try {
       const output = await next( input );
@@ -51,19 +66,46 @@ class WorkflowExecutionInterceptor {
         throw error;
       }
 
+      /**
+       * We send serialized error to the sink, because temporal loses Error meta-information, like name, type, etc
+       * when crossing the workflow sandbox barrier. The plain object doesn't lose anything.
+       */
+      /**
+       * This happens when the workflow is cancelled.
+       * Re-throw the error as it is.
+       * Sink back the error without stack (not necessary for this).
+       */
       if ( isCancellation( error ) ) {
-        sinks.workflow.error( error );
+        sinks.workflow.error( serializeError( error, { dropKeys: [ 'stack' ] } ) );
         throw error;
       }
 
-      sinks.workflow.error( error );
-
-      /*
-       * Add internal error .details to Temporal's ApplicationFailure .details
-       * This make it possible for this information be retrieved by Temporal's client instance.
-       * Ref: https://typescript.temporal.io/api/classes/common.ApplicationFailure#details
+      /**
+       * This represents an error in the workflow itself, in this case the sink receives the error serialize with stack
+       * An Application failure is constructed to finish the workflow run and the serialized error is added to its details
+       * so the API or other consumers can read it. Stack is omitted
        */
-      throw error[METADATA_ACCESS_SYMBOL] ? buildApplicationFailureWithDetails( error, error[METADATA_ACCESS_SYMBOL] ) : error;
+      if ( error instanceof FatalError ) {
+        const unwrappedError = error instanceof TransparentFatalError ? error.cause : error;
+        sinks.workflow.error( serializeError( unwrappedError ) );
+        throw ApplicationFailure.fromError( unwrappedError, {
+          cause: unwrappedError,
+          nonRetryable: true,
+          details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
+        } );
+      };
+
+      /**
+       * This is mostly likely an error in one Activity (or other Temporal parts)
+       * Re-throw as it is and sink back the error without failure, for the same reason as in cancellation.
+       */
+      if ( error instanceof TemporalFailure ) {
+        sinks.workflow.error( serializeError( error ) );
+        throw error;
+      }
+
+      // Workflow Task failure, do not sink as this retries the Task only,  not the Workflow
+      throw error;
     }
   }
 };

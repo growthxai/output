@@ -1,13 +1,38 @@
 ---
 title: "Error Handling"
-description: "How errors in steps, evaluators, and workflows are handled and when execution stops"
+description: "How workflow and activity interceptors classify errors, when execution retries or stops, and how to match causes with hasErrorType"
 ---
 
-When something throws in your workflow, Output handles it differently depending on where it happens. Steps and evaluators are retried automatically. Workflow-level errors fail the execution. You can control this behavior with retry options, non-retryable errors, and try/catch.
+When something throws in your workflow, Output handles it differently depending on where it happens. Steps and evaluators are retried automatically. In workflow code, only explicit fatal failures end the run immediately — other throws retry the Workflow Task. You can control this with retry options, non-retryable errors, and try/catch.
+
+## How interceptors classify errors
+
+Output's workflow and activity interceptors decide whether a failure ends the execution, retries, or is rethrown as Temporal already classified it.
+
+### Workflow
+
+| Error | Behavior |
+| ----- | -------- |
+| `ContinueAsNew` | Ends the trace as continued-as-new and rethrows |
+| Cancellation (`isCancellation`) | Sinks a serialized error (without `stack`) and rethrows |
+| `FatalError` / `ValidationError` / `TransparentFatalError` | Unwraps `TransparentFatalError` to its cause, sinks the serialized error, and throws a non-retryable `ApplicationFailure` with the serialized error in `.details[0].error` — the workflow **fails** |
+| Temporal failures (`ActivityFailure`, `ChildWorkflowFailure`, other `TemporalFailure`) | Sinks the serialized error and rethrows unchanged. (`CancelledFailure` usually matches `isCancellation` first.) |
+| Other errors (`TypeError`, bad `JSON.parse`, unexpected throws) | Rethrown unchanged **without** sinking — the **Workflow Task retries** (or stays open until timeout). The CLI can look "stuck" until the task succeeds, times out, or you throw `FatalError` / an `ApplicationFailure` |
+
+### Activity (steps and evaluators)
+
+| Error | Behavior |
+| ----- | -------- |
+| `CompleteAsyncError` | Recorded as an async handoff in the trace (not an error). No activity error hook. Rethrown |
+| Temporal failures (`TemporalFailure`) | Activity error hook and trace error fire, then rethrown unchanged |
+| `FatalError` / `ValidationError` / `TransparentFatalError` | Activity error hook and trace error fire (using the unwrapped cause for `TransparentFatalError`), then converted to `ApplicationFailure` with serialized error in `.details[0].error`. Always `nonRetryable: true`. User `nonRetryableErrorTypes` cannot make these retryable |
+| Other errors | Activity error hook and trace error fire, then converted to `ApplicationFailure` with serialized error in `.details[0].error`. `nonRetryable` when the error class name is listed in the activity retry policy's `nonRetryableErrorTypes` |
+
+`ValidationError` and `TransparentFatalError` both extend `FatalError`, so they share the fatal rows above. `TransparentFatalError` is only a transport: interceptors use its `.cause` for logs, traces, hooks, and failure details. See [FatalError, ValidationError, and TransparentFatalError](#fatalerror-validationerror-and-transparentfatalerror) for when to throw each.
 
 ## Steps and Evaluators
 
-When a step or evaluator throws, we retry it automatically with exponential backoff. After all retries are exhausted, the error propagates to the workflow and the execution fails.
+When a step or evaluator throws, we retry it automatically with exponential backoff. After all retries are exhausted, the error propagates to the workflow (typically as an `ActivityFailure` cause chain).
 
 Default retry behavior:
 
@@ -16,13 +41,13 @@ Default retry behavior:
 | `initialInterval` | 10s |
 | `backoffCoefficient` | 2.0 |
 | `maximumAttempts` | 3 |
-| `nonRetryableErrorTypes` | `['ValidationError', 'FatalError']` |
+| `nonRetryableErrorTypes` | `['FatalError']` |
 
-This means a failing step waits 10s, then 20s, then fails for good. You can override these per step via the `options.activityOptions` property — see [Step Options](/steps#options).
+This means a failing step waits 10s, then 20s, then fails for good. You can override these per step via the `options.activityOptions` property — see [Step Options](/steps#options). Custom `nonRetryableErrorTypes` are added alongside `FatalError`; Output always keeps `FatalError` non-retryable.
 
 ## Workflows
 
-Errors in the workflow `fn` itself are **not retried**. If the workflow function throws — or if a step throws after exhausting retries — the workflow execution fails.
+Errors in the workflow `fn` itself are classified as in the table above. Throw `FatalError` or `ValidationError` when the run must fail immediately. Ordinary bugs (for example a bad `JSON.parse`) retry the Workflow Task instead of failing the execution right away.
 
 You can catch step errors with try/catch and handle them however you want:
 
@@ -63,13 +88,13 @@ export default workflow({
 // });
 ```
 
-If you don't catch the error, the workflow fails.
+If you don't catch a step failure, it surfaces to the workflow as a Temporal failure and the workflow fails (unless you handle it).
 
 ### Checking error types in workflows
 
-Errors thrown by steps and evaluators cross Temporal's Activity boundary before they reach workflow code. Temporal serializes them into a failure cause chain, so a direct `error instanceof CustomError` check is not reliable inside a workflow.
+Errors thrown by steps and evaluators cross Temporal's Activity boundary before they reach workflow code. Temporal serializes them into a failure cause chain, so a direct `error instanceof CustomError` check is not reliable inside a workflow. The same applies when Output wraps a failure in `ApplicationFailure` or `TransparentFatalError` — the error you care about is often on `.cause`, not the outer object.
 
-Use `hasErrorType(error, CustomError)` to inspect the complete cause chain. It matches native error instances as well as Temporal's serialized `type` and `name` fields.
+Use `hasErrorType(error, CustomError)` from `@outputai/core` to walk the complete cause chain. It matches native instances as well as Temporal's serialized `type` and `name` fields.
 
 Define the custom error in a shared module imported by both the step and workflow:
 
@@ -115,25 +140,25 @@ Always rethrow errors that do not match the type the workflow explicitly handles
 
 ### Error metadata
 
-When a root workflow fails, Output can attach trace metadata to the Temporal error returned by the runtime.
+Trace destinations are stored in Temporal memo and exposed as the workflow result's `trace` field. They are available independently of whether the workflow succeeds or fails.
 
-The CLI and API expose this metadata on failed workflow results alongside the error message when it is available.
+Current API responses expose failures as a serialized `error` object with `name`, `message`, and any additional diagnostic properties captured from the original error. Activity failures also include `activityType` when available.
 
-If you inspect raw errors directly, remember that workflow failures are native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. The metadata is stored in a Temporal failure's `details`, which may be on a nested error in the `.cause` chain rather than on the top-level error object. Walk the `.cause` chain and look for `details` containing `trace`.
+If you inspect Temporal errors directly, workflow failures remain native Temporal errors such as `ApplicationFailure` or `ChildWorkflowFailure`. Output may store the serialized original error under `details[0].error` on a nested failure in the `.cause` chain.
 
 ```typescript
-function getWorkflowErrorMetadata(error: unknown) {
+function getSerializedWorkflowError(error: unknown) {
   let current = error as { cause?: unknown; details?: unknown[] } | null;
 
   while (current) {
-    const metadata = current.details?.find((detail) =>
-      detail &&
-      typeof detail === 'object' &&
-      'trace' in detail
+    const detail = current.details?.find((value) =>
+      value &&
+      typeof value === 'object' &&
+      'error' in value
     );
 
-    if (metadata) {
-      return metadata;
+    if (detail && typeof detail === 'object' && 'error' in detail) {
+      return detail.error;
     }
 
     current = current.cause as typeof current;
@@ -143,16 +168,19 @@ function getWorkflowErrorMetadata(error: unknown) {
 }
 ```
 
-## FatalError and ValidationError
+## FatalError, ValidationError, and TransparentFatalError
 
 Sometimes retrying won't help — the API key is invalid, the resource doesn't exist, or the data is fundamentally wrong. For these cases, throw `FatalError` or `ValidationError` to fail immediately without retries.
+
+`ValidationError` and `TransparentFatalError` extend `FatalError`. The entire `FatalError` family is always non-retryable and cannot be made retryable through activity options. Throw a regular or custom `Error` when retry configuration should control the behavior.
 
 | Error | Use when |
 |-------|----------|
 | `FatalError` | The failure is not recoverable. Retrying would not help (e.g. invalid API key, resource not found, business rule violation). |
 | `ValidationError` | The data is invalid. Use for custom validation checks alongside the framework's built-in schema validation. |
+| `TransparentFatalError` | An existing error must be non-retryable, but its original type, message, cause chain, and diagnostic properties should remain visible. |
 
-Both are exported from `@outputai/core`:
+All three are exported from `@outputai/core`:
 
 ```typescript steps.ts
 import { step, FatalError, ValidationError } from '@outputai/core';
@@ -184,6 +212,21 @@ export const lookupContact = step({
     };
   }
 });
+```
+
+`TransparentFatalError` accepts an existing `Error` as its cause. It has the same non-retryable behavior as `FatalError`, but Output removes the wrapper when reporting or propagating the failure. Logs, traces, hooks, and workflow results therefore show the original error rather than a generic fatal-error message.
+
+```typescript
+import { TransparentFatalError } from '@outputai/core';
+
+try {
+  await callProvider();
+} catch (error) {
+  if (error instanceof ProviderError && !error.isRetryable) {
+    throw new TransparentFatalError(error);
+  }
+  throw error;
+}
 ```
 
 ## Schema Validation

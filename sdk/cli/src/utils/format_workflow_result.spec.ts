@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatWorkflowResult } from './format_workflow_result.js';
+import { formatWorkflowResult, isErrorWorkflowStatus } from './format_workflow_result.js';
 
 describe( 'formatWorkflowResult', () => {
   it( 'should display output for completed workflows', () => {
@@ -16,7 +16,7 @@ describe( 'formatWorkflowResult', () => {
     expect( result ).not.toContain( 'Status:' );
   } );
 
-  it( 'should display error details for failed workflows', () => {
+  it( 'should display legacy string errors for failed workflows', () => {
     const result = formatWorkflowResult( {
       workflowId: 'wf-456',
       status: 'failed',
@@ -28,6 +28,33 @@ describe( 'formatWorkflowResult', () => {
     expect( result ).toContain( 'Status: failed' );
     expect( result ).toContain( 'Error: Activity task failed' );
     expect( result ).not.toContain( 'Output:' );
+  } );
+
+  it( 'should display the message from structured errors', () => {
+    const result = formatWorkflowResult( {
+      workflowId: 'wf-v2',
+      status: 'failed',
+      output: null,
+      error: {
+        name: 'ValidationError',
+        message: 'Input is invalid',
+        code: 'INVALID_INPUT'
+      }
+    } );
+
+    expect( result ).toContain( 'Error: Input is invalid' );
+    expect( result ).not.toContain( '[object Object]' );
+  } );
+
+  it( 'should serialize structured errors without a message', () => {
+    const result = formatWorkflowResult( {
+      workflowId: 'wf-v2',
+      status: 'failed',
+      output: null,
+      error: { code: 'UNKNOWN' }
+    } );
+
+    expect( result ).toContain( '"code": "UNKNOWN"' );
   } );
 
   it( 'should display status for terminated workflows', () => {
@@ -42,16 +69,28 @@ describe( 'formatWorkflowResult', () => {
     expect( result ).toContain( 'Error: Workflow terminated by user' );
   } );
 
-  it( 'should display status for canceled workflows', () => {
+  it( 'should display status for cancelled workflows', () => {
     const result = formatWorkflowResult( {
+      workflowId: 'wf-cancel',
+      status: 'cancelled',
+      output: null,
+      error: 'Workflow was cancelled'
+    } );
+
+    expect( result ).toContain( 'Status: cancelled' );
+    expect( result ).toContain( 'Error: Workflow was cancelled' );
+  } );
+
+  it( 'normalizes canceled responses without changing the current status type', () => {
+    const legacyResult = {
       workflowId: 'wf-cancel',
       status: 'canceled',
       output: null,
       error: 'Workflow was canceled'
-    } );
+    } as unknown as Parameters<typeof formatWorkflowResult>[0];
 
-    expect( result ).toContain( 'Status: canceled' );
-    expect( result ).toContain( 'Error: Workflow was canceled' );
+    expect( formatWorkflowResult( legacyResult ) ).toContain( 'Status: cancelled' );
+    expect( isErrorWorkflowStatus( 'canceled' ) ).toBe( true );
   } );
 
   it( 'should display status without error line for continued_as_new workflows', () => {

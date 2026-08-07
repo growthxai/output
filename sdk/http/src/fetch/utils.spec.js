@@ -1,49 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Headers, Request, Response } from 'undici';
 import { requestIdSymbol } from '../consts.js';
-import { addRequestIdToResponse, parseBody, redactHeaders, serializeError } from './utils.js';
-
-const createErrorChain = levels => {
-  const root = new Error( 'level-1' );
-  Array.from( { length: levels - 1 }, ( _, index ) => index + 2 ).reduce( ( current, level ) => {
-    const cause = new Error( `level-${level}` );
-    current.cause = cause;
-    return cause;
-  }, root );
-  return root;
-};
+import { addRequestIdToResponse, parseBody, redactHeaders } from './utils.js';
 
 describe( 'instrumented_fetch/utils', () => {
-  describe( 'serializeError', () => {
-    it( 'serializes standard error properties and a nested cause', () => {
-      const cause = new TypeError( 'cause' );
-      const error = new Error( 'failure', { cause } );
-      error.code = 'E_FAILURE';
-
-      expect( serializeError( error ) ).toEqual( {
-        name: 'Error',
-        message: 'failure',
-        stack: error.stack,
-        code: 'E_FAILURE',
-        cause: {
-          name: 'TypeError',
-          message: 'cause',
-          stack: cause.stack,
-          code: undefined,
-          cause: undefined
-        }
-      } );
-    } );
-
-    it( 'limits the serialized cause depth', () => {
-      const serialized = serializeError( createErrorChain( 7 ) );
-      const current = Array.from( { length: 5 } ).reduce( cause => cause.cause, serialized );
-
-      expect( current.message ).toBe( 'level-6' );
-      expect( current.cause ).toBe( '<Max recursion depth reached>' );
-    } );
-  } );
-
   describe( 'redactHeaders', () => {
     it( 'redacts sensitive header names while preserving safe values', () => {
       const headers = new Headers( {

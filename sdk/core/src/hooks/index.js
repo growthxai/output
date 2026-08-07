@@ -1,5 +1,6 @@
 import { mainEventBus, stepEventBus } from '#bus';
 import { BusEventType } from '#consts';
+import { serializeError } from '#helpers/error_serializer';
 import { createChildLogger } from '#logger';
 import { pendingHooks } from './pending_hooks.js';
 
@@ -15,7 +16,7 @@ const log = createChildLogger( 'Hooks' );
 const callHookCb = ( fn, args, hookName ) => {
   const promise = Promise.resolve()
     .then( () => fn( args ) )
-    .catch( e => log.error( `${hookName} hook error`, { message: e.message, stack: e.stack } ) )
+    .catch( e => log.error( `${hookName} hook error`, { error: serializeError( e ) } ) )
     .finally( () => pendingHooks.delete( promise ) );
   pendingHooks.add( promise );
   return promise;

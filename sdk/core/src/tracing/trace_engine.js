@@ -1,12 +1,13 @@
 import { Storage } from '#async_storage';
 import { EventEmitter } from 'node:events';
-import { serializeError } from './tools/utils.js';
+import { serializeError } from '#helpers/error_serializer';
 import { isStringboolTrue } from '#helpers/string';
 import * as localProcessor from './processors/local/index.js';
 import * as s3Processor from './processors/s3/index.js';
 import { createChildLogger } from '#logger';
 import { EventAction } from './trace_consts.js';
 import { BaseAttribute } from './trace_attribute.js';
+import { TransparentFatalError } from '#errors';
 
 const log = createChildLogger( 'Tracing' );
 
@@ -51,7 +52,7 @@ export const init = async () => {
       try {
         await p.exec( ...args );
       } catch ( error ) {
-        log.error( 'Processor execution error', { processor: p.name, error: error.message, stack: error.stack } );
+        log.error( 'Processor execution error', { processor: p.name, error: serializeError( error ) } );
       }
     } );
   }
@@ -87,15 +88,12 @@ export const addEventAction = ( action, { kind, name, id, parentId, details, tra
 export function addEventActionWithContext( action, options ) {
   const storeContent = Storage.load();
   if ( storeContent ) { // If there is no storageContext this was not called from a Temporal environment
-    const { parentId, traceInfo, addAttribute } = storeContent;
-    if ( action === EventAction.ADD_ATTR ) {
-      const attribute = options.details;
-      if ( !( attribute instanceof BaseAttribute ) ) {
-        throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
-      } else {
-        addAttribute( options.details );
-      }
+    const { parentId, traceInfo } = storeContent;
+    if ( action === EventAction.ADD_ATTR && !( options.details instanceof BaseAttribute ) ) {
+      throw new Error( `Event ${EventAction.ADD_ATTR} argument is not a BaseAttribute instance` );
     }
-    addEventAction( action, { ...options, parentId, traceInfo } );
+    /** Unwraps Transparent error set in details so it behaves like in the interceptors */
+    const details = options.details instanceof TransparentFatalError ? options.details.cause : options.details;
+    addEventAction( action, { ...options, details, parentId, traceInfo } );
   }
 };

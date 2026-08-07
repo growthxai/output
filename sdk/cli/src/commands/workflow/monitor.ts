@@ -4,7 +4,7 @@ import {
   type WorkflowHistoryCursor, type WorkflowHistoryResult
 } from '#services/workflow_history.js';
 import type { SpanStatus } from '#services/workflow_history/correlator.js';
-import type { WorkflowResultResponseStatus } from '#api/generated/api.js';
+import type { WorkflowResultStatus } from '#api/generated/api.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import { formatDurationLabel } from '#utils/waterfall.js';
 import { diffSpanUpdates, formatContinuedAsNew, formatSpanUpdate } from '#utils/monitor_log.js';
@@ -192,7 +192,7 @@ export default class WorkflowMonitor extends Command {
         if ( status && TERMINAL_STATUSES.has( status ) ) {
           const summary = `${status === 'completed' ? '✓' : '✗'} workflow ${status} · ${formatDurationLabel( result.totalDurationMs )}`;
           emit( { status }, summary );
-          if ( ERROR_STATUSES.has( status as WorkflowResultResponseStatus ) ) {
+          if ( ERROR_STATUSES.has( status as WorkflowResultStatus ) ) {
             process.exitCode = 1;
           }
           return;

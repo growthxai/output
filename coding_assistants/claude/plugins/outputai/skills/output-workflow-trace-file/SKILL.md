@@ -16,10 +16,10 @@ The argument the user provided is either a workflow name (e.g. `context_competit
    - If a run ID is given, search across all `logs/runs/*/` folders for a file containing that ID in its filename
    - If no argument, find the most recently modified `.json` file across all `logs/runs/*/` folders
 
-2. **Extract the output from the trace file.** You only need `output.output` from the JSON root — skip `children` and `input`.
+2. **Extract the output from the trace file.** You only need `output` from the JSON root — skip `children` and `input`.
 
    **Strategy for large files** (trace files can be 10k+ lines):
-   - First, try `jq '.output.output' <file>` to extract directly — this is the fastest path
+   - First, try `jq '.output' <file>` to extract directly — this is the fastest path
    - If `jq` is not available: read the **last 500 lines** of the file (the `output` field is at the root level, near the end of the JSON). Work backwards in chunks if needed
    - Do NOT read the entire file from the top — the `children` array with step details can be thousands of lines and you don't need any of it
 
@@ -29,7 +29,7 @@ The argument the user provided is either a workflow name (e.g. `context_competit
    - One line: workflow name, ID, duration
 
    ### Result
-   Render `output.output` as clean, readable markdown:
+   Render `output` as clean, readable markdown:
    - String fields that contain markdown → render directly
    - Arrays of objects → render each as a sub-section with key fields
    - Arrays of strings → numbered lists

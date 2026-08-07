@@ -1,9 +1,9 @@
 ---
 title: "v0.10.0 → v0.11.0"
-description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: parsed component schemas, HTTP clients, hook event envelopes, API request logging, Temporal rollout safety, shared activity names, child workflow activity-option precedence, Temporal TypeScript SDK v1.20.3, CLI workflow test rename, and strict prompt Liquid rendering."
+description: "Upgrading Output.ai projects from v0.10.0 to v0.11.0: workflow results and error handling, parsed component schemas, Temporal worker cutover, and other breaking changes."
 ---
 
-This guide covers customer-facing changes to `@outputai/http`, schemas, hooks and workflow execution in `@outputai/core`, prompt rendering in `@outputai/llm`, the `@outputai/cli` workflow test command name, and API request logging in `output-api`.
+This guide covers breaking changes across `@outputai/core`, `@outputai/http`, `@outputai/llm`, `@outputai/cli`, and `output-api`. The main ones are unwrapped workflow results and error handling, Zod schemas that return parsed values, and a Temporal worker runtime that is not replay-compatible with open v0.10.x executions.
 
 ## API HTTP request logging
 
@@ -227,6 +227,35 @@ on<{ companyId: string }>( 'company:enriched', event => {
 
 When an event is emitted outside an activity context, `activityInfo`, `workflowDetails`, and `outputActivityKind` are omitted. These fields are therefore optional on `ExternalHookPayload<T>`; check any context field before using it.
 
+### Activity lifecycle hooks no longer include `aggregations`
+
+`onActivityEnd`, `onActivityError`, and activity-sourced `onError` payloads no longer include the `aggregations` field. Remove reads of `event.aggregations` from hook handlers and use the dedicated cost and request events when those measurements are needed.
+
+```ts
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:llm:request', event => {
+  console.log( event.payload );
+} );
+```
+
+### Workflow error hooks receive serialized objects
+
+Workflow errors are serialized before crossing Temporal's workflow sandbox boundary. The `error` field passed to `onWorkflowError` and workflow-sourced `onError` handlers is now a plain error-like object rather than an `Error` instance.
+
+```ts
+import { onError } from '@outputai/core/hooks';
+
+onError( event => {
+  if ( event.source === 'workflow' ) {
+    console.log( event.error.name, event.error.message );
+    // event.error instanceof Error === false
+  }
+} );
+```
+
+Activity and runtime error hooks continue to receive `Error` instances.
+
 ### Update imported hook payload types
 
 The exported base and envelope types were simplified in v0.11.0. If your hook files import these types directly, make the following replacements:
@@ -297,6 +326,8 @@ No migration is needed unless an `onError` handler explicitly relied on `$catalo
 - Update every `on()` handler to read event-specific fields from `event.payload`.
 - Guard `event.payload` before accessing its fields.
 - Keep framework fields such as `eventId`, `workflowDetails`, and `activityInfo` at the top level.
+- Remove reads of `aggregations` from activity lifecycle and error hooks.
+- Treat workflow hook errors as serialized error-like objects rather than `Error` instances.
 - Filter `outputActivityKind === 'internal_step'` in activity lifecycle hooks when internal activities should remain hidden.
 - Remove assumptions that `onError` reports `$catalog` workflow failures.
 
@@ -570,6 +601,76 @@ Review the `inputSchema` and `outputSchema` of every workflow, step, and evaluat
 - Ensure workflow `inputSchema` transforms are idempotent if you `continueAsNew` with values that will be parsed again, or pass wire-format input instead.
 - Republish any package that exports workflow/step/evaluator wrappers so its `.d.ts` matches the new `Wrapper` arity.
 
+## Workflow result changes
+
+New workflows return their declared value directly instead of an internal Output wrapper. Activity results are also no longer wrapped. Code should consume the declared return value without reading a nested `.output`.
+
+Trace destinations now live in Temporal memo and use a flat shape:
+
+```json
+{
+  "trace": {
+    "local": "/path/to/trace.json",
+    "remote": "s3://trace-bucket/path/to/trace.json"
+  }
+}
+```
+
+The previous `trace.destinations` object is removed. API and CLI JSON results created by v0.11.0 workers include `v: "2"`, and failures expose a structured `error` object instead of only an error string:
+
+```json
+{
+  "v": "2",
+  "status": "failed",
+  "output": null,
+  "trace": null,
+  "error": {
+    "name": "ValidationError",
+    "message": "companyDomain is required"
+  }
+}
+```
+
+v2 also drops legacy `errorDetails.retryable`. That flag was after-the-fact Temporal metadata on a link in the failure chain (whether that failure had been marked retryable while running), not a signal that the API or client should retry — by the time a result is returned the execution is already terminal. The structured `error` object carries the failure content instead.
+
+`POST /workflow/run` no longer hardcodes `status` to only `completed` or `failed`. It now uses the same path as the other result builders (`/workflow/.../result`, list/status, and related endpoints): Temporal's terminal execution status, formatted for the API (`cancelled`, `terminated`, `timed_out`, and so on). If you treated every unsuccessful `/run` as `status === "failed"`, broaden that check — cancellation used to appear as `failed` there even though result endpoints already returned the real status.
+
+The API continues to return the legacy unversioned shape for workflows started by older workers. Consumers that can read results from both versions should branch on `result.v === "2"`.
+
+## Workflow and activity error handling
+
+v0.11.0 changes how the workflow and activity interceptors classify failures. The goal is to follow Temporal's model: only explicit fatal failures complete the workflow run; other workflow code bugs retry the Workflow Task.
+
+### Workflow interceptor
+
+In v0.10.x, **root** workflows attached trace metadata to every thrown error after `ContinueAsNew` / cancellation handling, and the interceptor converted any error carrying that metadata into an `ApplicationFailure`, so the workflow run failed. **Child** workflows did not attach that metadata, so those errors were rethrown unchanged. Cancellation always rethrew before that wrap, on both root and child. v0.11.0 replaces the blanket root wrap with explicit classification:
+
+| Error | v0.10.x | v0.11.0 |
+| ----- | ------- | ------- |
+| `ContinueAsNew` | Ends the trace as continued-as-new and rethrows | Same |
+| Cancellation (`isCancellation`) | Sinks the `Error` and rethrows (never wrapped in `ApplicationFailure`) | Sinks a serialized error (no `stack`) and rethrows |
+| `FatalError` / `ValidationError` | Root: sunk, then converted to `ApplicationFailure` (workflow fails). Child: sunk and rethrown. (`ValidationError` did not extend `FatalError` yet.) | Sinks the serialized error and throws a non-retryable `ApplicationFailure` with the serialized error in `.details[0].error`. `TransparentFatalError` is unwrapped to its cause first |
+| Temporal failures (`ActivityFailure`, `ChildWorkflowFailure`, other `TemporalFailure`) | Root: sunk, then converted to `ApplicationFailure` when trace metadata was attached. Child: sunk and rethrown. (`CancelledFailure` usually matches `isCancellation` first.) | Sinks the serialized error and rethrows unchanged. (`CancelledFailure` still matches `isCancellation` first when applicable.) |
+| Other errors (`TypeError`, syntax/`JSON.parse` failures, unexpected throws) | Root: sunk, then converted to `ApplicationFailure` → workflow **failed**, masking Temporal Workflow Task retries. Child: sunk and rethrown | Rethrown unchanged **without** sinking → the **Workflow Task retries** (or stays open until timeout). The CLI can look "stuck" until the task succeeds, times out, or you throw `FatalError` / an `ApplicationFailure` |
+
+### Activity interceptor
+
+| Error | v0.10.x | v0.11.0 |
+| ----- | ------- | ------- |
+| `CompleteAsyncError` | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present) | Recorded as an async handoff in the trace (not an error). No activity error hook. Rethrown |
+| Temporal failures (`TemporalFailure`) | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present) | Error hook and trace error fire, then rethrown unchanged |
+| `FatalError` / `ValidationError` | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present). Non-retryable mainly via activity `nonRetryableErrorTypes` (defaults included both names) | Converted to `ApplicationFailure` with serialized error in `.details[0].error`. Always `nonRetryable: true` via `instanceof FatalError`. User `nonRetryableErrorTypes` cannot make these retryable. `TransparentFatalError` is unwrapped to its cause first |
+| Other errors | Error hook and trace error fired, then rethrown (or wrapped in `ApplicationFailure` when aggregations were present). Retry followed the activity retry policy / `nonRetryableErrorTypes` | Converted to `ApplicationFailure` with serialized error in `.details[0].error`. `nonRetryable` when the error class name is listed in `activityInfo.retryPolicy.nonRetryableErrorTypes` |
+
+`ValidationError` and `TransparentFatalError` both extend `FatalError` in v0.11.0, so they share the fatal rows above. `TransparentFatalError` did not exist in v0.10.x; it is a transport whose `.cause` is used for logs, traces, hooks, and failure details.
+
+### What to do
+
+- Throw `FatalError` (or `ValidationError`) when the workflow or activity must end without Temporal Task retries.
+- Expect ordinary bugs in workflow code (for example a bad `JSON.parse`) to retry the Workflow Task instead of failing the run immediately.
+- Read structured failures from `ApplicationFailure.details[0].error` (and from API/CLI `error` on result `v: "2"`) instead of relying on a plain message string alone.
+- Update monitors that assumed every root-workflow throw became a failed workflow execution.
+
 ## Workflow runtime changes
 
 This section covers the workflow execution changes in `@outputai/core` v0.11.0.
@@ -584,27 +685,30 @@ This section covers the workflow execution changes in `@outputai/core` v0.11.0.
 ### Before upgrading running workers
 
 <Warning>
-Do not deploy v0.10.x and v0.11.0 workers to the same Temporal task queue, and do not replace a v0.10.x worker while affected workflow executions are still open.
+v0.11.0 is **not replay-compatible** with open v0.10.x workflow executions. Do not deploy v0.10.x and v0.11.0 workers to the same Temporal task queue, and do not replace a v0.10.x worker while any v0.10.x executions are still open on that queue.
 </Warning>
 
-The v0.11.0 runtime changes Temporal command attributes:
+The v0.11.0 runtime changes Temporal history commands and attributes on paths that every workflow hits, not only shared activities or child workflows:
 
+- Every workflow run issues an early `upsertMemo` (`ModifyWorkflowProperties`) for `payloadVersion` (and root `traceInfo` when tracing is enabled). v0.10.x histories do not contain that command at the same point.
+- Every scheduled activity gets framework-enforced `retry.nonRetryableErrorTypes` (at least `FatalError`), so activity schedule attributes differ from v0.10.x even when the activity type name is unchanged.
 - A shared activity previously scheduled as `$shared#send_event` is now scheduled as `lead_enrichment#send_event`.
 - A child workflow is now started with its invocation-level activity options in its argument payload instead of inherited through memo.
+- Memo shape and usage changed (flat `trace`, resolved `activityOptions`, no legacy result-wrapper metadata).
 
-Temporal replays a workflow's existing history when another worker processes it. If a v0.11.0 worker replays a history produced by v0.10.x and reaches one of these commands, the new command can differ from the recorded event. Temporal then reports a nondeterminism failure.
+Temporal replays a workflow's existing history when another worker processes it. If a v0.11.0 worker replays a history produced by v0.10.x, command type or attributes can differ from the recorded events. Temporal then reports a nondeterminism failure.
 
-A mixed-version rollout is also unsafe. The two versions use different memo and child-argument contracts, so an old parent and new child, or a new parent and old child, can lose inherited activity options even when replay does not fail immediately.
+Treat **all** open v0.10.x executions as unsafe to replay on v0.11.0. There is no supported mixed-version or rolling cutover on the same task queue. An old parent and new child (or the reverse) can also disagree on memo and child-argument contracts even when replay does not fail immediately.
 
 #### Choose a safe rollout strategy
 
 Use one of these strategies before changing the worker version:
 
-1. **Drain the existing task queue.** Stop starting new workflows on the v0.10.x queue, wait for affected executions to complete, and then replace the worker.
-2. **Move v0.11.0 to a new task queue.** Keep the v0.10.x worker serving its existing queue while new executions are routed to a separate v0.11.0 queue.
-3. **Restart affected executions.** If an execution can be safely terminated and restarted from its original input or a checkpoint, restart it after the v0.11.0 cutover.
+1. **Drain the existing task queue.** Stop starting new workflows on the v0.10.x queue, wait for **all** open executions to complete, and then replace the worker.
+2. **Move v0.11.0 to a new task queue.** Keep the v0.10.x worker serving its existing queue until that queue is empty, while new executions are routed to a separate v0.11.0 queue.
+3. **Restart open executions.** If executions can be safely terminated and restarted from their original input or a checkpoint, restart them after the v0.11.0 cutover rather than letting v0.11.0 replay v0.10.x history.
 
-At minimum, treat executions that call shared activities or child workflows as affected. Do not rely on a normal rolling restart on the same task queue.
+Do not rely on a normal rolling restart on the same task queue.
 
 #### Update activity-type consumers
 
@@ -700,8 +804,8 @@ Step-level `options.activityOptions` still have final precedence. Review step de
 
 ### Workflow runtime checklist
 
-- Inventory open v0.10.x executions that call shared activities or child workflows.
-- Drain the old task queue, keep a v0.10.x worker for old executions, or restart affected executions before the cutover.
+- Inventory **all** open v0.10.x executions on queues you plan to upgrade — assume none are safe to replay on v0.11.0.
+- Drain the old task queue, keep a v0.10.x worker until that queue is empty, route new work to a v0.11.0 queue, or restart open executions before the cutover.
 - Do not run v0.10.x and v0.11.0 workers on the same Temporal task queue.
 - Update dashboards and history tooling that match `$shared#<activity-name>`.
 - Audit parent and child workflows that configure the same retry or timeout fields.
@@ -730,6 +834,22 @@ npx output workflow test <workflowName>
 
 - Replace any scripts, CI steps, or aliases that call `output workflow test_eval` with `output workflow test`.
 - No change if you already use `output workflow test`.
+
+## LLM permanent errors and schema-mismatch messages
+
+`@outputai/llm` still maps non-retryable AI SDK failures so Temporal does not retry them, but the transport and some messages changed. This can break log queries, monitors, or tests that matched the old strings or `FatalError` name.
+
+| Case | Before (v0.10.x) | After (v0.11.0) |
+| --- | --- | --- |
+| Non-retryable AI SDK / API failures (`APICallError` with `isRetryable: false`, `InvalidArgumentError`, `NoSuchModelError`, …) | Wrapped in `FatalError` with message `AI-SDK fatal error…: <original>` | Wrapped in `TransparentFatalError`; logs, traces, hooks, and result `error` use the **original** AI SDK error |
+| `NoObjectGeneratedError` whose message includes `No object generated: response did not match schema.` and has a `ZodError` in the cause chain | Rebuilt as a new `NoObjectGeneratedError` with `First issue is "<message>" at path [<path>].` appended | Same `NoObjectGeneratedError` returned unchanged (no message rewrite). Still not mapped to a fatal transport |
+
+`NoObjectGeneratedError` was not turned into `FatalError` in v0.10.x either; only the optional message enrichment was removed.
+
+### Migration steps
+
+- Prefer matching AI SDK error names/types (or structured result `error`) instead of `FatalError` / the `AI-SDK fatal error` prefix.
+- If you parsed the appended `First issue is … at path […]` suffix, read issues from the error cause chain (or Zod error) instead.
 
 ## Prompt Liquid rendering is strict
 

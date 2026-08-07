@@ -193,21 +193,12 @@ describe( 'instrumented_fetch/logger', () => {
   } );
 
   describe( 'logFailure', () => {
-    it( 'records a serialized error', () => {
+    it( 'records the error', () => {
       const error = new TypeError( 'network unavailable' );
 
       logFailure( { requestId: 'request-failure', error } );
 
-      expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'request-failure',
-        details: {
-          name: 'TypeError',
-          message: 'network unavailable',
-          stack: error.stack,
-          code: undefined,
-          cause: undefined
-        }
-      } );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( { id: 'request-failure', details: error } );
     } );
   } );
 } );

@@ -1,16 +1,25 @@
-import { ApplicationFailure } from '@temporalio/common';
-
 /**
- * Builds a Temporal ApplicationFailure based on an error attaching info to its details
- * @param {Error} error
- * @param {unknown} info
- * @returns {ApplicationFailure}
+ * Checks whether a value inherits from a constructor matching any supplied class name.
+ * @param {*} obj - Value whose prototype chain to inspect
+ * @param {string[]} classNames - Constructor names to match
+ * @returns {boolean} Whether a matching constructor exists
  */
-export const buildApplicationFailureWithDetails = ( error, info ) =>
-  ApplicationFailure.create( {
-    message: error.message,
-    type: error.type ?? error.constructor?.name ?? error.name,
-    nonRetryable: error.nonRetryable,
-    details: ( Array.isArray( error.details ) ? error.details : [] ).concat( info ),
-    cause: error
-  } );
+export const inheritsFromAnyNamedType = ( obj, classNames ) => {
+  if ( classNames.length === 0 ) {
+    return false;
+  }
+  if ( obj === null || ( typeof obj !== 'object' && typeof obj !== 'function' ) ) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf( obj );
+  if ( !prototype ) {
+    return false;
+  }
+
+  const constructor = Object.getOwnPropertyDescriptor( prototype, 'constructor' )?.value;
+  if ( constructor?.name && classNames.includes( constructor.name ) ) {
+    return true;
+  }
+  return inheritsFromAnyNamedType( prototype, classNames );
+};

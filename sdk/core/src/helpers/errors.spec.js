@@ -1,89 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { ApplicationFailure } from '@temporalio/common';
-import { buildApplicationFailureWithDetails } from './errors.js';
+import { inheritsFromAnyNamedType } from './errors.js';
 
-class CustomFailure extends Error {}
+describe( 'inheritsFromAnyNamedType', () => {
+  class BaseFailure extends Error {}
+  class DomainFailure extends BaseFailure {}
+  class RequestFailure extends DomainFailure {}
+  class UnrelatedFailure extends Error {}
 
-describe( 'buildApplicationFailureWithDetails', () => {
-  it( 'wraps a regular error in an ApplicationFailure with appended details', () => {
-    const error = new Error( 'step failed' );
-    const info = { aggregations: { cost: { total: 1 } } };
+  it( 'matches exact, parent, and grandparent constructor names', () => {
+    const error = new RequestFailure( 'request failed' );
 
-    const failure = buildApplicationFailureWithDetails( error, info );
-
-    expect( failure ).toBeInstanceOf( ApplicationFailure );
-    expect( failure ).toMatchObject( {
-      message: 'step failed',
-      type: 'Error',
-      nonRetryable: false,
-      details: [ info ],
-      cause: error
-    } );
+    expect( inheritsFromAnyNamedType( error, [ 'RequestFailure' ] ) ).toBe( true );
+    expect( inheritsFromAnyNamedType( error, [ 'DomainFailure' ] ) ).toBe( true );
+    expect( inheritsFromAnyNamedType( error, [ 'BaseFailure' ] ) ).toBe( true );
+    expect( inheritsFromAnyNamedType( error, [ 'OtherFailure', 'BaseFailure' ] ) ).toBe( true );
   } );
 
-  it( 'uses the original constructor name for custom errors', () => {
-    const error = new CustomFailure( 'custom failed' );
-    const info = { trace: { destinations: { local: '/tmp/trace' } } };
-
-    const failure = buildApplicationFailureWithDetails( error, info );
-
-    expect( failure ).toMatchObject( {
-      message: 'custom failed',
-      type: 'CustomFailure',
-      details: [ info ],
-      cause: error
-    } );
+  it( 'does not match unrelated or descendant constructor names', () => {
+    expect( inheritsFromAnyNamedType( new RequestFailure(), [ 'UnrelatedFailure' ] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( new BaseFailure(), [ 'RequestFailure' ] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( new UnrelatedFailure(), [ 'BaseFailure' ] ) ).toBe( false );
   } );
 
-  it( 'preserves existing details and appends new info without mutating the original error', () => {
-    const existingDetails = [ { domain: { reason: 'bad-input' } } ];
-    const error = new Error( 'step failed' );
-    error.details = existingDetails;
-    const info = { aggregations: { httpRequests: { total: 1 } } };
+  it( 'ignores a spoofed own constructor property', () => {
+    const error = new RequestFailure();
+    Object.defineProperty( error, 'constructor', {
+      value: { name: 'SpoofedFailure' }
+    } );
 
-    const failure = buildApplicationFailureWithDetails( error, info );
-
-    expect( failure.details ).toEqual( [
-      { domain: { reason: 'bad-input' } },
-      info
-    ] );
-    expect( error.details ).toBe( existingDetails );
-    expect( error.details ).toEqual( [ { domain: { reason: 'bad-input' } } ] );
+    expect( inheritsFromAnyNamedType( error, [ 'SpoofedFailure' ] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( error, [ 'RequestFailure' ] ) ).toBe( true );
   } );
 
-  it( 'ignores non-array details on the original error', () => {
-    const error = new Error( 'step failed' );
-    error.details = { domain: { reason: 'bad-input' } };
-    const info = { aggregations: { tokens: { total: 3 } } };
+  it( 'rejects empty names and invalid values without false positives', () => {
+    const unnamedConstructor = function NamedConstructor() {};
+    Object.defineProperty( unnamedConstructor, 'name', { value: '' } );
+    const value = Object.create( { constructor: unnamedConstructor } );
 
-    const failure = buildApplicationFailureWithDetails( error, info );
-
-    expect( failure.details ).toEqual( [ info ] );
-  } );
-
-  it( 'preserves ApplicationFailure type, nonRetryable flag, and details while avoiding self-cause', () => {
-    const original = ApplicationFailure.create( {
-      message: 'application failed',
-      type: 'DomainFailure',
-      nonRetryable: true,
-      details: [ { domain: { reason: 'bad-input' } } ]
-    } );
-    const info = { aggregations: { cost: { total: 2 } } };
-
-    const failure = buildApplicationFailureWithDetails( original, info );
-
-    expect( failure ).toBeInstanceOf( ApplicationFailure );
-    expect( failure ).not.toBe( original );
-    expect( failure.cause ).toBe( original );
-    expect( failure.cause ).not.toBe( failure );
-    expect( failure ).toMatchObject( {
-      message: 'application failed',
-      type: 'DomainFailure',
-      nonRetryable: true,
-      details: [
-        { domain: { reason: 'bad-input' } },
-        info
-      ]
-    } );
+    expect( inheritsFromAnyNamedType( value, [ '', undefined ] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( value, [] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( null, [ 'BaseFailure' ] ) ).toBe( false );
+    expect( inheritsFromAnyNamedType( 'failure', [ 'String' ] ) ).toBe( false );
   } );
 } );

@@ -19,6 +19,8 @@ import { setupTelemetry } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
 import { runOnce } from '#helpers/function';
+import { serializeError } from '#helpers/error_serializer';
+import { setupTemporalLogger } from './temporal_logger.js';
 
 import './log_hooks.js';
 
@@ -51,6 +53,9 @@ const state = {
 const callerDir = process.argv[2];
 
 const execute = async () => {
+  log.info( 'Setup Temporal Logger' );
+  setupTemporalLogger();
+
   log.info( 'Loading config...', { callerDir } );
   await loadHooks( callerDir );
 
@@ -219,7 +224,7 @@ execute()
     log.info( 'Bye' );
   } )
   .catch( async error => {
-    log.error( 'Fatal error', { error: error.message, stack: error.stack } );
+    log.error( 'Fatal error', { error: serializeError( error ) } );
 
     mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error } );
 

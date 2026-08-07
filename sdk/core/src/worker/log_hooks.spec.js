@@ -27,9 +27,14 @@ const mainEventBusMock = vi.hoisted( () => ( {
     onHandlers[eventType] = handler;
   } )
 } ) );
+const serializeErrorMock = vi.hoisted( () => vi.fn( error => ( {
+  name: error.name,
+  message: error.message
+} ) ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: createChildLoggerMock } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 
 import './log_hooks.js';
 
@@ -104,6 +109,7 @@ describe( 'log_hooks', () => {
 
     it( 'ACTIVITY_ERROR logs full message and second arg', () => {
       const err = new Error( 'step failed' );
+      err.name = 'ProviderError';
       onHandlers[BusEventType.ACTIVITY_ERROR]( {
         ...basePayload,
         duration: 100,
@@ -112,7 +118,7 @@ describe( 'log_hooks', () => {
 
       expect( activityLogMock.error ).toHaveBeenCalledTimes( 1 );
       expect( activityLogMock.error ).toHaveBeenCalledWith(
-        'Error myWorkflow#myStep step: Error',
+        'Error myWorkflow#myStep step: ProviderError',
         {
           event: LifecycleEvent.ERROR,
           activityId: 'act-1',
@@ -120,9 +126,10 @@ describe( 'log_hooks', () => {
           workflowId: 'wf-1',
           workflowType: 'myWorkflow',
           runId: 'run-1',
-          error: 'step failed'
+          error: { name: 'ProviderError', message: 'step failed' }
         }
       );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { dropKeys: [ 'stack' ] } );
     } );
 
     it( 'ACTIVITY_ERROR does not log trace destination activity', () => {
@@ -229,7 +236,7 @@ describe( 'log_hooks', () => {
     } );
 
     it( 'WORKFLOW_ERROR logs full message and second arg', () => {
-      const err = new TypeError( 'workflow boom' );
+      const err = { name: 'TypeError', message: 'workflow boom' };
       onHandlers[BusEventType.WORKFLOW_ERROR]( {
         ...basePayload,
         duration: 150,
@@ -244,9 +251,10 @@ describe( 'log_hooks', () => {
           workflowId: 'wf-1',
           workflowType: 'myWorkflow',
           runId: 'run-1',
-          error: 'workflow boom'
+          error: { name: 'TypeError', message: 'workflow boom' }
         }
       );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( err, { dropKeys: [ 'stack' ] } );
     } );
 
     it( 'WORKFLOW_ERROR does not log when workflowType is WORKFLOW_CATALOG', () => {

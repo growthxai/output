@@ -1,6 +1,7 @@
 import { mainEventBus } from '#bus';
 import { createChildLogger } from '#logger';
 import { ACTIVITY_GET_TRACE_DESTINATIONS, BusEventType, LifecycleEvent, WORKFLOW_CATALOG } from '#consts';
+import { serializeError } from '#helpers/error_serializer';
 
 const activityLog = createChildLogger( 'Activity' );
 const workflowLog = createChildLogger( 'Workflow' );
@@ -40,11 +41,12 @@ mainEventBus.on( BusEventType.ACTIVITY_END, ( { activityInfo, outputActivityKind
 );
 
 mainEventBus.on( BusEventType.ACTIVITY_ERROR, ( { activityInfo, outputActivityKind, error } ) =>
-  shouldLogActivity( activityInfo ) && activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.constructor.name}`, {
-    event: LifecycleEvent.ERROR,
-    ...serializedActivityFields( activityInfo ),
-    error: error.message
-  } )
+  shouldLogActivity( activityInfo ) &&
+    activityLog.error( `Error ${activityInfo.activityType} ${outputActivityKind}: ${error.name ?? error.constructor.name}`, {
+      event: LifecycleEvent.ERROR,
+      ...serializedActivityFields( activityInfo ),
+      error: serializeError( error, { dropKeys: [ 'stack' ] } )
+    } )
 );
 
 mainEventBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activityInfo } ) =>
@@ -83,11 +85,12 @@ mainEventBus.on( BusEventType.WORKFLOW_END, ( { workflowDetails } ) =>
 );
 
 mainEventBus.on( BusEventType.WORKFLOW_ERROR, ( { workflowDetails, error } ) =>
-  shouldLogWorkflow( workflowDetails ) && workflowLog.error( `Error ${workflowDetails.workflowType} workflow: ${error.constructor.name}`, {
-    event: LifecycleEvent.ERROR,
-    ...serializeWorkflowFields( workflowDetails ),
-    error: error.message
-  } )
+  shouldLogWorkflow( workflowDetails ) &&
+    workflowLog.error( `Error ${workflowDetails.workflowType} workflow: ${error.name ?? error.constructor.name}`, {
+      event: LifecycleEvent.ERROR,
+      ...serializeWorkflowFields( workflowDetails ),
+      error: serializeError( error, { dropKeys: [ 'stack' ] } )
+    } )
 );
 
 mainEventBus.on( BusEventType.WORKFLOW_LOG, ( { level, message, metadata, workflowDetails } ) =>

@@ -1,12 +1,12 @@
 // THIS RUNS IN THE TEMPORAL'S SANDBOX ENVIRONMENT
-import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy } from '@temporalio/workflow';
+import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy, upsertMemo } from '@temporalio/workflow';
 import { WorkflowValidator } from './validations/index.js';
 import { toUrlSafeBase64 } from '#helpers/string';
 import { WorkflowContext } from '#helpers/workflow_context';
-import { TraceInfo } from '#helpers/trace_info';
 import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
 import { createWorkflow } from '#helpers/component';
+import { enforceActivityOptions } from '#helpers/activity_options';
 import { FatalError } from '#errors';
 import * as C from '#consts';
 
@@ -18,7 +18,7 @@ import * as C from '#consts';
  * so Temporal's reusable VM can delete it when switching workflow scopes.
  */
 const createGlobalDispatcher = ( { runId, workflowType, activities } ) => {
-  const dispatcher = async ( activityType, ...args ) => activities[`${workflowType}#${activityType}`]( ...args ).then( r => r.output );
+  const dispatcher = async ( activityType, ...args ) => activities[`${workflowType}#${activityType}`]( ...args );
   dispatcher.runId = runId;
   globalThis[C.INVOKE_ACTIVITY_SYMBOL] = dispatcher;
 };
@@ -36,8 +36,6 @@ const checkGlobalContextContamination = runId => {
 export function workflow( { name, description, inputSchema, outputSchema, fn, options = {}, aliases = [] } ) {
   WorkflowValidator.validateDefinition( { name, description, inputSchema, outputSchema, fn, options, aliases } );
 
-  // Disable trace can only be defined at the definition level
-  const disableTrace = options.disableTrace ?? defaultOptions.disableTrace;
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
   const handler = async ( input, rawInvocationOptions = {} ) => {
@@ -51,6 +49,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     }
 
     const { workflowId, runId, memo, root } = workflowInfo();
+    const isRoot = !root;
 
     checkGlobalContextContamination( runId );
 
@@ -60,46 +59,30 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       const parentClosePolicy = ParentClosePolicy[invocationOptions?.detached ? 'ABANDON' : 'TERMINATE'];
       const childWorkflowId = `${workflowId}-${toUrlSafeBase64( uuid4() )}`;
       const args = [ input, { activityOptions: invocationOptions?.activityOptions } ];
-      return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } ).then( r => r.output );
+      return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } );
     }
 
-    const isRoot = !root; // Check if this is the root most workflow
-
-    // Trace info is only added in the root and only when trace is not disabled
-    if ( isRoot && !disableTrace ) {
-      memo.traceInfo = TraceInfo.build();
-    }
-
-    // Resolve the activity options: invocation options > definition options > parent options > default options
-    const activityOptions = deepMerge(
+    // Resolve the activity options: invocation options > definition options > parent options > default options, then enforce final SDK options
+    const activityOptions = enforceActivityOptions( deepMerge(
       defaultOptions.activityOptions, // default
-      memo?.parentActivityOptions, // parent options
+      memo?.activityOptions, // parent options
       options?.activityOptions, // definition options
       invocationOptions.activityOptions // invocation options
-    );
-    // Resolved activity options are added to memo so child workflow executions can continue the policy chain.
-    memo.parentActivityOptions = activityOptions;
-    const activities = proxyActivities( activityOptions );
+    ) );
 
+    const activities = proxyActivities( activityOptions );
     createGlobalDispatcher( { runId, workflowType: name, activities } );
 
-    const traceDestinations = isRoot && {
-      trace: {
-        destinations: disableTrace ? {} : await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo ).then( r => r.output ) ?? {}
-      }
-    };
+    upsertMemo( {
+      activityOptions, // Resolved activity options are added to memo so child workflow executions can continue the policy chain
+      ...( isRoot && memo.traceInfo && {
+        trace: await activities[C.ACTIVITY_GET_TRACE_DESTINATIONS]( memo.traceInfo )
+      } )
+    } );
 
-    try {
-      const output = validator.parseOutput( await fn( validator.parseInput( input ), WorkflowContext.build() ) );
-
-      return { [C.WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
-    } catch ( error ) {
-      if ( traceDestinations ) {
-        // Append the trace destinations so it is carried to interceptor
-        error[C.METADATA_ACCESS_SYMBOL] = traceDestinations;
-      }
-      throw error;
-    }
+    return validator.parseOutput(
+      await fn( validator.parseInput( input ), WorkflowContext.build() )
+    );
   };
 
   return createWorkflow( { name, description, inputSchema, outputSchema, options, aliases, handler } );

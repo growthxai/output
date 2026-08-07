@@ -200,12 +200,13 @@ Default values:
     backoffCoefficient: 2.0,
     maximumInterval: '2m',
     maximumAttempts: 3,
-    nonRetryableErrorTypes: [ ValidationError.name, FatalError.name ]
+    nonRetryableErrorTypes: [ 'FatalError' ]
   }
 }
 ```
 
 Steps that throw `ValidationError` or `FatalError` are never retried — these signal problems that won't fix themselves on retry (bad input, missing credentials).
+Custom `nonRetryableErrorTypes` are added alongside `FatalError`; activity options cannot make `FatalError`, `ValidationError`, or `TransparentFatalError` retryable.
 
 ### Native options
 
