@@ -1,5 +1,33 @@
 # @outputai/llm
 
+## 0.11.0
+
+### Minor Changes
+
+- 09ed166: Added stricter LiquidJs settings for prompt files parsing. The following configurations were added:
+  ```js
+  {
+    strictFilters: true,
+    strictVariables: true,
+    lenientIf: true
+  }
+  ```
+- 46d9d66: - Permanent AI SDK failures now surface in logs, traces, hooks, and workflow results as the original AI SDK error (for example `AI_APICallError`) instead of a wrapping `FatalError` whose message started with `AI-SDK fatal error`.
+  - Schema-mismatch `NoObjectGeneratedError` messages are no longer rewritten to append `First issue is "…" at path […]`. The AI SDK error (and its Zod cause chain) is returned unchanged.
+
+### Patch Changes
+
+- 2caa4a1: - Upgraded `liquidJS` from v10.25.7 to v10.27.2 (`.prompt` files template parser).
+- Updated dependencies [46d9d66]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [af37678]
+- Updated dependencies [3d1f9bd]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [be4ec7f]
+- Updated dependencies [cbef793]
+- Updated dependencies [d815a8e]
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes

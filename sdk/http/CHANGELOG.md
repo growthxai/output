@@ -1,5 +1,54 @@
 # @outputai/http
 
+## 0.11.0
+
+### Minor Changes
+
+- af37678: ## HTTP clients
+
+  - Replaced `fetch` with `outputFetch`, the explicitly named Fetch-compatible API for traced HTTP requests.
+
+    - Uses Undici as its canonical internal implementation while accepting Node and Undici `Request` inputs and request options containing either realm's `Headers` or `FormData` objects.
+    - Normalizes Node request objects at the API boundary instead of replacing Node's global Fetch classes with `undici.install()`.
+    - Rejects mixed request families, such as a Node `Request` combined with Undici `FormData`.
+    - Removed the top-level `RequestInfo` and `RequestInit` type exports.
+
+    ```ts
+    import { outputFetch } from "@outputai/http";
+
+    const response = await outputFetch("https://api.example.com/status");
+    ```
+
+  - Replaced `httpClient` with `createKyClient`, which returns a standard Ky client configured to use `outputFetch`.
+
+    - Upgraded Ky from 1.14.3 to 2.0.2. Public Ky behavior now follows Ky 2, including the `prefix` option, state-object hook arguments, empty-response JSON parsing, `searchParams` merging, and pre-parsed `HTTPError.data`.
+    - Removed the top-level `HTTPError`, `TimeoutError`, `HttpClientOptions` exports.
+    - Added the complete Ky namespace as a named export `ky`.
+
+    ```ts
+    import { createKyClient, type ky } from "@outputai/http";
+
+    const options: ky.Options = {
+      prefix: "https://api.example.com",
+      timeout: 30_000,
+    };
+    const client: ky.KyInstance = createKyClient(options);
+    ```
+
+  - Changed Ky and Undici from bundled dependencies to peer dependencies.
+
+### Patch Changes
+
+- Updated dependencies [46d9d66]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [af37678]
+- Updated dependencies [3d1f9bd]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [be4ec7f]
+- Updated dependencies [cbef793]
+- Updated dependencies [d815a8e]
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes
