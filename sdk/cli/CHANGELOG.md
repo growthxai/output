@@ -1,5 +1,45 @@
 # @outputai/cli
 
+## 0.11.0
+
+### Minor Changes
+
+- 46d9d66: - Added support for legacy and V2 workflow results from the API, including structured errors;
+- 64a9df7: Add workflow monitor command, update workflow history API to be resumable
+- c717e35: Renamed the workflow eval CLI command to `output workflow test` (was `output workflow test_eval`). The short `test` name is now the only command id; the `test_eval` name is removed.
+- 2cbd0a2: Add TUI attaching and re-attaching and `dev down` teardown command
+
+  `output dev` now detects an existing stack with `docker compose ps` instead of an
+  unconditional host-port probe, so a re-run attaches to a running project stack
+  rather than aborting on a collision with its own containers. Attached sessions
+  leave the stack up on quit; `output dev down` stops it.
+
+  A stack whose containers are all stopped counts as a fresh start, not an attach —
+  `output dev` restarts it in the foreground and still tears it down on quit.
+
+  `output dev -d` gained the pre-flight port probe the foreground path has. This
+  matters on Docker Desktop, where a non-container process holding a published port
+  does not fail `compose up -d`: the container starts and the port keeps answering
+  the other process, with no error from Docker.
+
+  Note: `-d` now pipes Docker's output rather than inheriting the terminal, so
+  Docker drops its redrawing progress bars for plain scrolling lines.
+
+### Patch Changes
+
+- 14a191e: CLI env loading now uses Node's `process.loadEnvFile` instead of the `dotenv` package.
+- 52bedcf: Restore the terminal on abnormal `output dev` exit. Uncaught exceptions and unhandled rejections now leave the alternate-screen buffer and unmount the TUI before exiting, so scrollback and the error stack stay readable.
+- 6ce5320: Fix `--json` output on the `workflow start` and `workflow run` commands. `workflow start` did not support `--json` at all and errored on the flag; it now emits the workflow result as JSON. `workflow run --json` corrupted its JSON output when given a scenario argument, because the "Using scenario:" notice was written to stdout. That notice now goes to stderr, and is suppressed entirely under `--json` so that on success both commands write exactly one JSON object to stdout and nothing else.
+- 3c76007: - Removed install from hot-reload when developing workflows (`output dev`): nodemon no longer runs `npm install` on every reload, and `package.json` is no longer watched. After dependency changes, run `npm install`, bring the stack down (`output dev down` if it is still running), and start `output dev` again.
+  - `npm run output:worker` also no longer installs first — run `npm run output:worker:install` (or rely on `output dev`, which still installs on worker start) before build/start. `npx output fix` rewrites `output:worker` in existing projects when you apply it.
+- f6a7c1a: fix `output dev` memory leak in TUI where workflow run details grew unbounded
+- Updated dependencies [09ed166]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [46d9d66]
+  - @outputai/llm@0.11.0
+  - @outputai/credentials@0.11.0
+  - @outputai/evals@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

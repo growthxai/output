@@ -1,5 +1,141 @@
 # @outputai/core
 
+## 0.11.0
+
+### Minor Changes
+
+- 46d9d66: - Removed workflow and activity wrappers, so both return their original output;
+  - Moved trace information to the root workflow's `memo`, in a new format:
+    ```json
+    {
+      "trace": {
+        "local": "...",
+        "remote": "..."
+      }
+    }
+    ```
+  - Removed `aggregations` from activity lifecycle and error hook payloads.
+  - Added `TransparentFatalError`, a non-retryable wrapper that surfaces its cause as the original error in logs, traces, hooks and workflow results.
+  - Refactored workflow and activity error handling:
+    - Workflow
+      - `ContinueAsNew`, throw;
+      - Cancellation, throw;
+      - `FatalError`/`ValidationError`, create an `ApplicationFailure` and serialize the original error in `.details[0].error`;
+      - `TemporalFailure`, throw;
+      - Other errors, throw;
+    - Activity
+      - `CompleteAsyncError`, throw;
+      - `TemporalFailure`, throw;
+      - Other errors, create an `ApplicationFailure`, serialize the original error in `.details[0].error`, and determine whether it is non-retryable from the error class name and `activityInfo.retryPolicy.nonRetryableErrorTypes`;
+  - Refactored hook error payloads:
+    - Workflow errors are now serialized plain objects that preserve `name`, `message`, `cause`, and additional diagnostic properties;
+    - Activity and runtime errors remain `Error` instances;
+  - `ValidationError` now extends from `FatalError`.
+  - `FatalError` is now always handled as non retryable, user configurable `activityOptions.retry.nonRetryableErrorTypes` will not overwrite it anymore.
+  - Forwarded Temporal SDK and native Core logs through Output's logger for consistent production/development formatting, omitted redundant failure logs (workflow/activity failures), and added `OUTPUT_TEMPORAL_LOG_LEVEL` to configure verbosity;
+  - Refactored workflow and activity error logs:
+    - Workflow
+      - `ContinueAsNew`, log a successful workflow end instead of an error;
+      - Cancellation, log the serialized error chain without `stack` or Temporal's internal `.failure`;
+      - `FatalError`/`ValidationError`, log the serialized original error without `stack`;
+      - `TemporalFailure`, log the serialized Temporal error chain without `stack` or `.failure`;
+      - Other errors, do not log because Temporal retries the Workflow Task;
+    - Activity
+      - `CompleteAsyncError`, do not log an error and close the trace node as an asynchronous handoff;
+      - `TemporalFailure`, log the serialized error without `stack`;
+      - Other errors, log the serialized original error without `stack` before converting it to an `ApplicationFailure`.
+- eaf62a3: ## Workflow Activity Invocation
+
+  - Refactored workflow activity invocation so steps, evaluators, and shared activities use the same runtime dispatcher
+    instead of `this`-based handler dispatch.
+
+    Workflow handlers no longer need to be rewritten from arrow functions into regular functions for activity dispatch,
+    reducing AST rewrite complexity during worker startup and making bundling more predictable.
+
+  - Step and evaluator calls can now be placed in helper functions and imported helper modules used by a workflow.
+    Helpers no longer need to pass a workflow-bound `this` value through their call chain.
+
+  ## Child Workflow Activity Options
+
+  - A child workflow's definition-level `options.activityOptions` now override activity options inherited from its parent. Invocation-level `activityOptions` still override both, and a step or evaluator's own `options.activityOptions` remain the most specific.
+
+  - If a parent must override a child's retry or timeout configuration, pass `activityOptions` explicitly when invoking the child workflow.
+
+  ## Shared Activity Namespaces
+
+  - Removed the previous `"$shared"` activity namespace by registering shared activities into each workflow namespace. This means workflows can call local and shared activities through the same activity resolution path.
+
+  - Shared activity types now use `"<workflow-name>#<activity-name>"` instead of `"$shared#<activity-name>"`.
+
+  - Added validation that prevents workflow-scoped activities from using the same activity name as a shared activity. If a workflow defines an activity with the same name as a shared activity, worker startup now fails validation instead of allowing ambiguous activity resolution.
+
+  ## Workflow Code Validation
+
+  - Added fail-fast validation for default exports and `export *` declarations in steps/evaluators files. Steps and evaluators already needed to be exposed through named exports for workflow rewriting. The worker now reports these unsupported forms directly during startup.
+
+    ```js
+    // valid
+    export const foo = step({ name: "foo" });
+
+    // invalid
+    export default step({ name: "foo" });
+    export * from "./other_steps.js";
+    ```
+
+  - Added fail-fast validation for unsupported steps/evaluators import shapes. Imports from steps/evaluators files already needed to use named imports or destructured requires for workflow rewriting.
+
+    The worker now fails fast with a validation error for unsupported import shapes like default imports, namespace imports, or non-destructured requires.
+
+    ```js
+    // valid
+    import { foo } from "./steps.js";
+    const { bar } = require("./evaluators.js");
+
+    // invalid
+    import foo from "./steps.js";
+    import * as steps from "./steps.js";
+    const steps = require("./steps.js");
+    ```
+
+  - Added validation that activity calls must happen inside functions.
+    Calling a step or evaluator at module top level now fails validation.
+
+    ```js
+    import { foo } from "./steps.js";
+
+    // invalid
+    foo();
+    ```
+
+- af37678: ## Global proxy
+
+  - Removed Core worker’s automatic global Undici proxy setup. Starting a worker no longer calls `setGlobalDispatcher()` when proxy environment variables are detected. `@outputai/http` and `@outputai/llm` continue configuring their own proxy-aware dispatchers.
+    - This affects direct and third-party Fetch/Undici calls that relied on Core’s global dispatcher; calls through @outputai/http or @outputai/llm retain proxy support.
+
+- cbef793: - `workflow()`, `step()`, and `evaluator()` now pass the value returned by the Zod `inputSchema` parser to their handler. Workflows and steps also return the value produced by their `outputSchema` parser. Zod transforms, coercions, defaults, and object-key stripping therefore affect the values handled and returned by these components instead of only validating them.
+- d815a8e: - Added `emit()` to `/hooks` entrypoint to emit custom events. Emitted events can be listened using `on()` and will have their payload wrapped in an envelope:
+  ```js
+  {
+    eventId: string,
+    eventDate: number,
+    outputActivityKind?: string,
+    workflowDetails?: {},
+    activityInfo?: {},
+    payload: <original emitted payload>
+  }
+  ```
+  Events emitted outside an activity context omit `outputActivityKind`, `workflowDetails`, and `activityInfo`.
+  - Added the same wrapping envelope to all other events listened to with `on()`: `http:request`, `cost:llm:request`, `cost:http:request`;
+  - Added internal activity events to activity lifecycle: `onActivityStart`, `onActivityEnd`, `onActivityError`;
+  - Updated internal triggers so `onError()` no longer receives errors from the internal `$catalog` workflow.
+
+### Patch Changes
+
+- 3d1f9bd: Added `hasErrorType()` workflow tool. It allows detecting if an error has a given Error class in its error chain, either in `.name`, `.type` or `instanceof`. It can be used to test typed errors thrown from activities.
+- 2caa4a1: - Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
+  - Upgraded `undici` from v.8.5.0 to v8.9.0
+- be4ec7f: Added a mechanism to await for all hook callbacks to complete before shutting down the worker. Max awaiting period is 30s.
+
 ## 0.10.0
 
 ### Minor Changes
