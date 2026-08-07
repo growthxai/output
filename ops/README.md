@@ -18,7 +18,7 @@ Reference for what each script is **for** and what to watch out for. Behavior an
 
 | Script | Purpose | Caveats |
 |--------|---------|---------|
-| `test_e2e.sh` | Exercise the dev stack end-to-end: build artifacts, run the API and worker via Docker, then run a deterministic workflow and assert its result and local trace. | Needs Docker and enough time for images, startup, and polling (often several minutes). Assumes a minimal test env; touches compose and temp files under the repo. |
+| `test_e2e.sh` | Exercise the dev stack end-to-end: build artifacts, run the API and worker via Docker, then invoke the `e2e_test` workflow (which runs and asserts other test workflows). | Needs Docker and enough time for images, startup, and the suite (often several minutes). Assumes a minimal test env; touches compose and temp files under the repo. |
 
 ## Formatting and repository checks
 

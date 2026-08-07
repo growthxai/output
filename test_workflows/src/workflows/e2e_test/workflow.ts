@@ -12,53 +12,37 @@ type SerializedError = {
   message: string;
 };
 
-/** Temporal / ApplicationFailure extras that may appear on the cause chain. */
 type ChainError = Error & {
   cause?: unknown;
   details?: Array<{ error?: unknown }>;
   type?: string;
 };
 
-const flattenErrorChain = ( e: unknown, depth = 0 ): ChainError[] =>
-  !( e instanceof Error ) || depth >= 10 ? [] : [ e, ...flattenErrorChain( e.cause, depth + 1 ) ];
+const flattenErrorChain = ( error: unknown, depth = 0 ): ChainError[] =>
+  !( error instanceof Error ) || depth >= 10 ? [] : [ error, ...flattenErrorChain( error.cause, depth + 1 ) ];
 
-const asSerializedError = ( value: unknown ): SerializedError | null => {
-  if ( !value || typeof value !== 'object' || Array.isArray( value ) ) {
-    return null;
-  }
-  const { name, message } = value as Partial<SerializedError>;
-  if ( typeof name !== 'string' || typeof message !== 'string' ) {
-    return null;
-  }
-  return { name, message };
-};
-
-/**
- * Prefer the SDK-serialized error in ApplicationFailure.details when present; otherwise the root cause.
- */
-export const serializeError = ( error: Error ): SerializedError | null => {
+/** Pull { name, message } from a Temporal failure chain for e2e check output. */
+const serializeError = ( error: Error ): SerializedError => {
   const chain = flattenErrorChain( error );
-  if ( chain.length === 0 ) {
-    return null;
-  }
-
   const embedded = chain.flatMap( e => e.details ?? [] ).find( detail => detail?.error )?.error;
-  const fromDetails = asSerializedError( embedded );
-  if ( fromDetails ) {
-    return fromDetails;
+  if ( embedded && typeof embedded === 'object' && !Array.isArray( embedded ) ) {
+    const { name, message } = embedded as Partial<SerializedError>;
+    if ( typeof name === 'string' && typeof message === 'string' ) {
+      return { name, message };
+    }
   }
 
-  const rootError = chain.at( -1 )!;
+  const root = chain.at( -1 )!;
   return {
-    name: rootError.type || rootError.constructor.name || rootError.name,
-    message: rootError.message
+    name: root.type || root.constructor.name || root.name,
+    message: root.message
   };
 };
 
 const checkSchema = z.object( {
   name: z.string(),
   passed: z.boolean(),
-  error: z.looseObject( {
+  error: z.object( {
     name: z.string(),
     message: z.string()
   } ).optional()
@@ -84,7 +68,7 @@ const invokeWf = async <T>(
     return { passed: true };
   } catch ( e ) {
     if ( e instanceof Error ) {
-      return { passed: false, error: serializeError( e ) ?? { name: e.name, message: e.message } };
+      return { passed: false, error: serializeError( e ) };
     }
     return { passed: false, error: { name: 'Error', message: String( e ) } };
   }

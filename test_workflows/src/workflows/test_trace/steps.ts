@@ -5,7 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { step, z } from '@outputai/core';
 
 const apiUrl = process.env.TEST_API_URL ?? 'http://api:3001';
-const traceDir = join( process.argv[2] ?? process.cwd(), 'logs/runs/nested_parallel_children' );
+const workflowName = 'nested_parallel_children';
+const traceDir = join( process.argv[2], 'logs/runs', workflowName );
 
 type Trace = {
   kind: string;
@@ -44,7 +45,7 @@ export const runWorkflow = step( {
     const response = await fetch( `${apiUrl}/workflow/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify( { workflowName: 'nested_parallel_children', input: {} } )
+      body: JSON.stringify( { workflowName, input: {} } )
     } );
     assert.equal( response.ok, true );
 
@@ -67,10 +68,10 @@ export const assertTrace = step( {
   fn: async ( workflowId: string ) => {
     const trace = await readTrace( workflowId );
     assert.equal( trace.kind, 'workflow' );
-    assert.equal( trace.name, 'nested_parallel_children' );
+    assert.equal( trace.name, workflowName );
     assert.deepEqual( trace.output?.values, [ 'child-1', 'child-2', 'child-3' ] );
 
-    const children = trace.children.filter( child => child.name === 'nested_parallel_children_child' );
+    const children = trace.children.filter( child => child.name === `${workflowName}_child` );
     assert.equal( children.length, 3 );
     assert.deepEqual( children.map( child => child.output.value ).sort(), [ 'child-1', 'child-2', 'child-3' ] );
   }
