@@ -384,7 +384,12 @@ describe( 'workflow start command', () => {
         expect( streamWorkflowUpdates ).not.toHaveBeenCalled();
       } );
 
-      const notFound = () => Object.assign( new Error( 'not found' ), { response: { status: 404 } } );
+      // Shaped like the API's real 404 body so the two 404 paths below differ the
+      // way they do in practice: `catch()`'s override replaces the body, while
+      // monitoring has no override and lets the body through.
+      const notFound = () => Object.assign( new Error( 'not found' ), {
+        response: { status: 404, data: { error: 'WorkflowNotFoundError', message: 'Workflow "wf-123" not found' } }
+      } );
 
       it( 'blames the workflow name for a 404 raised before monitoring begins', async () => {
         const { cmd } = await createCommand();
@@ -406,9 +411,12 @@ describe( 'workflow start command', () => {
         await expect( cmd.run() ).rejects.toThrow();
 
         const [ message, options ] = ( cmd.error as any ).mock.calls.at( -1 );
-        // The workflow started fine, so a 404 here is about the run being polled,
-        // and the user needs to know the workflow is still running.
-        expect( message ).toContain( 'Workflow not found. Check the workflow ID.' );
+        // The workflow started fine, so a 404 here is about the run being polled.
+        // The server's own message surfaces; `workflow monitor`'s "Check the
+        // workflow ID" must not, since this id came back from postWorkflowStart —
+        // it would both misdirect the user and contradict the "still running" line.
+        expect( message ).toContain( 'WorkflowNotFoundError' );
+        expect( message ).not.toContain( 'Check the workflow ID' );
         expect( message ).toContain( 'wf-123 started, but monitoring stopped' );
         expect( message ).toContain( 'workflow status wf-123' );
         // Exit 3, not 1: a caller retrying on a failed workflow must not

@@ -66,6 +66,11 @@ export default class WorkflowMonitor extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleCommandError( error, ( ...args ) => this.error( ...args ), monitorErrorOverrides( error ) );
+    return handleCommandError( error, ( ...args ) => this.error( ...args ), {
+      ...monitorErrorOverrides( error ),
+      // Owned by this command rather than the shared overrides: here the id is the
+      // argument the user typed, so pointing at it is actionable advice.
+      404: 'Workflow not found. Check the workflow ID.'
+    } );
   }
 }
