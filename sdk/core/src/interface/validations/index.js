@@ -1,4 +1,5 @@
 import { ValidationError } from '#errors';
+import { ComponentType } from '#consts';
 import { prettifyError } from 'zod';
 import {
   evaluatorOutputSchema,
@@ -10,84 +11,63 @@ import {
   workflowSchema
 } from './schemas.js';
 
-/**
- * Validates data using a Zod schema
- * @param {unknown} data
- * @param {ZodType} schema
- * @param {string} prefix - Validation error prefix
- * @throws {ValidationError} If validation fails
- * @returns {void}
- */
-const validate = ( data, schema, prefix = '' ) => {
-  if ( !schema ) {
-    return;
-  }
+const capitalize = word => word.at( 0 ).toUpperCase() + word.slice( 1 );
 
+const validate = ( schema, data, prefix ) => {
+  if ( !schema ) {
+    return data;
+  }
   const result = schema.safeParse( data );
-  if ( !result.success ) {
+  if ( result.success === false ) {
     throw new ValidationError( `${prefix} validation failed: ${prettifyError( result.error ) }` );
   }
+  return result.data;
 };
 
-export class WorkflowValidator {
+export class Validator {
+  static label;
+  static definitionSchema;
+
   static validateDefinition( definition ) {
-    validate( definition, workflowSchema, 'Workflow' );
+    validate( this.definitionSchema, definition, this.label );
   }
 
   constructor( { name, inputSchema, outputSchema } ) {
     this.name = name;
     this.inputSchema = inputSchema;
     this.outputSchema = outputSchema;
+    this.prefix = `${this.constructor.label} "${this.name}"`;
   }
 
-  validateInput( input ) {
-    validate( input, this.inputSchema, `Workflow "${this.name}" input` );
+  parseInput( input ) {
+    return validate( this.inputSchema, input, `${this.prefix} input` );
   }
 
-  validateOutput( output ) {
-    validate( output, this.outputSchema, `Workflow "${this.name}" output` );
-  }
-
-  validateInvocationOptions( options ) {
-    validate( options, workflowInvocationOptionsSchema, `Workflow "${this.name}" invocation options` );
+  parseOutput( output ) {
+    return validate( this.outputSchema, output, `${this.prefix} output` );
   }
 }
 
-export class StepValidator {
-  static validateDefinition( definition ) {
-    validate( definition, stepSchema, 'Step' );
-  }
+export class WorkflowValidator extends Validator {
+  static label = capitalize( ComponentType.WORKFLOW );
+  static definitionSchema = workflowSchema;
 
-  constructor( { name, inputSchema, outputSchema } ) {
-    this.name = name;
-    this.inputSchema = inputSchema;
-    this.outputSchema = outputSchema;
-  }
-
-  validateInput( input ) {
-    validate( input, this.inputSchema, `Step "${this.name}" input` );
-  }
-
-  validateOutput( output ) {
-    validate( output, this.outputSchema, `Step "${this.name}" output` );
+  parseInvocationOptions( options ) {
+    return validate( workflowInvocationOptionsSchema, options, `${this.prefix} invocation options` );
   }
 }
 
-export class EvaluatorValidator {
-  static validateDefinition( definition ) {
-    validate( definition, evaluatorSchema, 'Evaluator' );
-  }
+export class StepValidator extends Validator {
+  static label = capitalize( ComponentType.STEP );
+  static definitionSchema = stepSchema;
+}
+
+export class EvaluatorValidator extends Validator {
+  static label = capitalize( ComponentType.EVALUATOR );
+  static definitionSchema = evaluatorSchema;
+
   constructor( { name, inputSchema } ) {
-    this.name = name;
-    this.inputSchema = inputSchema;
-  }
-
-  validateInput( input ) {
-    validate( input, this.inputSchema, `Evaluator "${this.name}" input` );
-  }
-
-  validateOutput( output ) {
-    validate( output, evaluatorOutputSchema, `Evaluator "${this.name}" output` );
+    super( { name, inputSchema, outputSchema: evaluatorOutputSchema } );
   }
 }
 
@@ -96,7 +76,7 @@ export class EvaluatorValidator {
  * @param {object} args - The request arguments
  */
 export function validateRequestPayload( args ) {
-  validate( args, httpRequestSchema, 'Request payload' );
+  validate( httpRequestSchema, args, 'Request payload' );
 };
 
 /**
@@ -104,5 +84,5 @@ export function validateRequestPayload( args ) {
  * @param {object} args - The request arguments
  */
 export function validateExecuteInParallel( args ) {
-  validate( args, executeInParallelSchema, 'ExecuteInParallel' );
+  validate( executeInParallelSchema, args, 'ExecuteInParallel' );
 };

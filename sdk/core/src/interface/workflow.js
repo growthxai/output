@@ -11,17 +11,6 @@ import { FatalError } from '#errors';
 import * as C from '#consts';
 
 /**
- * Execute the workflow without temporal, using the fn handler function.
- * This is important to allow for workflows to have unit tests
- */
-const executeWithoutTemporal = async ( { input, validator, handler, contextOverrides = {} } ) => {
-  validator.validateInput( input );
-  const output = await handler( input, deepMerge( WorkflowContext.build(), contextOverrides ) );
-  validator.validateOutput( output );
-  return output;
-};
-
-/**
  * Add a global dispatcher function to be used to invoke activities.
  * This will replace direct activity invocation in the user code by the webpack loader.
  *
@@ -51,12 +40,14 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
   const disableTrace = options.disableTrace ?? defaultOptions.disableTrace;
   const validator = new WorkflowValidator( { name, inputSchema, outputSchema } );
 
-  const handler = async ( input, invocationOptions = {} ) => {
-    validator.validateInvocationOptions( invocationOptions );
+  const handler = async ( input, rawInvocationOptions = {} ) => {
+    const invocationOptions = validator.parseInvocationOptions( rawInvocationOptions );
 
     // If called outside Temporal workflow context, just execute the handler function
     if ( !inWorkflowContext() ) {
-      return executeWithoutTemporal( { input, validator, handler: fn, contextOverrides: invocationOptions?.context } );
+      return validator.parseOutput(
+        await fn( validator.parseInput( input ), deepMerge( WorkflowContext.build(), invocationOptions?.context ) )
+      );
     }
 
     const { workflowId, runId, memo, root } = workflowInfo();
@@ -99,9 +90,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
     };
 
     try {
-      validator.validateInput( input );
-      const output = await fn( input, WorkflowContext.build() );
-      validator.validateOutput( output );
+      const output = validator.parseOutput( await fn( validator.parseInput( input ), WorkflowContext.build() ) );
 
       return { [C.WORKFLOW_WRAPPER_VERSION_FIELD]: 1, output, ...traceDestinations };
     } catch ( error ) {

@@ -16,7 +16,7 @@ export type EvaluatorOptions = {
 /**
  * The handler function of an evaluator.
  *
- * @param input - The evaluator input; it matches the schema defined by `inputSchema`.
+ * @param input - Parsed evaluator input (`z.infer<inputSchema>`).
  *
  * @returns The result of the evaluation.
  */
@@ -30,14 +30,15 @@ export type EvaluatorFunction<
 /**
  * A wrapper around the user defined `fn` handler function.
  *
- * It has the same signature and returns the same value, calling the user function inside.
- *
- * It adds input validation based on the `inputSchema`.
+ * Callers pass values accepted by `inputSchema` (`z.input`). The wrapper parses input
+ * and invokes `fn`.
  */
-export type EvaluatorFunctionWrapper<EvaluatorFunction extends ( ...args: any ) => any> = // eslint-disable-line @typescript-eslint/no-explicit-any
-  Parameters<EvaluatorFunction> extends [infer Input] ?
-    ( input: Input ) => ReturnType<EvaluatorFunction> :
-    () => ReturnType<EvaluatorFunction>;
+export type EvaluatorFunctionWrapper<
+  InputSchema extends AnyZodSchema | undefined = undefined,
+  Result extends EvaluationResult = EvaluationResult
+> = InputSchema extends AnyZodSchema ?
+  ( input: z.input<InputSchema> ) => Promise<Result> :
+  () => Promise<Result>;
 
 /**
  * Creates an evaluation function. It is similar to a step, but must return an EvaluationResult.
@@ -67,4 +68,4 @@ export declare function evaluator<
   inputSchema: InputSchema;
   fn: EvaluatorFunction<InputSchema, Result>;
   options?: EvaluatorOptions;
-} ): EvaluatorFunctionWrapper<EvaluatorFunction<InputSchema, Result>>;
+} ): EvaluatorFunctionWrapper<InputSchema, Result>;

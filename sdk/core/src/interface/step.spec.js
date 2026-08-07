@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ValidationError } from '#errors';
 
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
-const validateInputMock = vi.hoisted( () => vi.fn() );
-const validateOutputMock = vi.hoisted( () => vi.fn() );
+const parseInputMock = vi.hoisted( () => vi.fn( input => input ) );
+const parseOutputMock = vi.hoisted( () => vi.fn( output => output ) );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
 const createStepMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
@@ -15,8 +15,8 @@ vi.mock( './validations/index.js', () => {
 
     constructor( ...args ) {
       validatorConstructorMock( ...args );
-      this.validateInput = validateInputMock;
-      this.validateOutput = validateOutputMock;
+      this.parseInput = parseInputMock;
+      this.parseOutput = parseOutputMock;
     }
   }
 
@@ -86,15 +86,15 @@ describe( 'step()', () => {
 
     await expect( wrapper( { value: 'input' } ) ).resolves.toBe( output );
 
-    expect( validateInputMock ).toHaveBeenCalledWith( { value: 'input' } );
+    expect( parseInputMock ).toHaveBeenCalledWith( { value: 'input' } );
     expect( fn ).toHaveBeenCalledWith( { value: 'input' } );
-    expect( validateOutputMock ).toHaveBeenCalledWith( output );
+    expect( parseOutputMock ).toHaveBeenCalledWith( output );
   } );
 
   it( 'does not call the step function when input validation throws', async () => {
     const { step } = await import( './step.js' );
     const error = new ValidationError( 'invalid input' );
-    validateInputMock.mockImplementationOnce( () => {
+    parseInputMock.mockImplementationOnce( () => {
       throw error;
     } );
     const fn = vi.fn();
@@ -105,13 +105,13 @@ describe( 'step()', () => {
 
     await expect( wrapper( { value: 'bad' } ) ).rejects.toBe( error );
     expect( fn ).not.toHaveBeenCalled();
-    expect( validateOutputMock ).not.toHaveBeenCalled();
+    expect( parseOutputMock ).not.toHaveBeenCalled();
   } );
 
   it( 'propagates output validation errors after the step function runs', async () => {
     const { step } = await import( './step.js' );
     const error = new ValidationError( 'invalid output' );
-    validateOutputMock.mockImplementationOnce( () => {
+    parseOutputMock.mockImplementationOnce( () => {
       throw error;
     } );
     const output = { ok: false };
@@ -123,6 +123,6 @@ describe( 'step()', () => {
 
     await expect( wrapper( { value: 'input' } ) ).rejects.toBe( error );
     expect( fn ).toHaveBeenCalledOnce();
-    expect( validateOutputMock ).toHaveBeenCalledWith( output );
+    expect( parseOutputMock ).toHaveBeenCalledWith( output );
   } );
 } );

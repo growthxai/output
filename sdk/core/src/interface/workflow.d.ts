@@ -21,6 +21,8 @@ export type WorkflowContext<
      * It acts as a checkpoint when the workflow gets too long or approaches certain scaling limits.
      *
      * It accepts input with the same schema as the parent workflow function (`inputSchema`).
+     * The next run parses that input like any other workflow start; pass wire-format values if
+     * `inputSchema` transforms are not safe to apply twice.
      *
      * Calling this function must be the last statement in the workflow, accompanied by a `return`:
      *
@@ -38,7 +40,7 @@ export type WorkflowContext<
      * @returns The workflow output type for type-checking; never returns at runtime.
      */
     continueAsNew: InputSchema extends AnyZodSchema ?
-      ( input: z.infer<InputSchema> ) => ( OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void ) :
+      ( input: z.input<InputSchema> ) => ( OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void ) :
       () => ( OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void ),
 
     /**
@@ -122,39 +124,44 @@ export type WorkflowOptions = {
 /**
  * The handler function of a workflow.
  *
- * @param input - The workflow input; it matches the schema defined by `inputSchema`.
+ * @param input - Parsed workflow input (`z.infer<inputSchema>`).
  * @param context - A context object with tools and information.
  *
- * @returns A value matching the schema defined by `outputSchema`.
+ * @returns A value accepted by `outputSchema` before parse (`z.input<outputSchema>`).
  */
 export type WorkflowFunction<
   InputSchema extends AnyZodSchema | undefined = undefined,
   OutputSchema extends AnyZodSchema | undefined = undefined
 > = InputSchema extends AnyZodSchema ?
   ( input: z.infer<InputSchema>, context: WorkflowContext<InputSchema, OutputSchema> ) =>
-  Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void> :
+  Promise<OutputSchema extends AnyZodSchema ? z.input<OutputSchema> : void> :
   ( input: undefined | null, context: WorkflowContext<InputSchema, OutputSchema> ) =>
-  Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void>;
+  Promise<OutputSchema extends AnyZodSchema ? z.input<OutputSchema> : void>;
 
 /**
  * A wrapper around the user defined `fn` handler function.
  *
- * It accepts the same input and returns the same value, calling the user function inside.
+ * Callers pass values accepted by `inputSchema` (`z.input`). The wrapper parses input,
+ * invokes `fn`, parses output, and returns `z.infer<outputSchema>`.
  *
  * The second argument is a WorkflowInvocationOptions object, allowing workflows configuration overwrite.
  *
- * It adds input and output validation based on the `inputSchema`, `outputSchema`.
- *
- * @param input - The workflow input; it matches the schema defined by `inputSchema`.
+ * @param input - The workflow input before `inputSchema` parse.
  * @param options - Additional options for the invocation.
- * @returns A value matching the schema defined by `outputSchema`.
+ * @returns The workflow output after `outputSchema` parse.
  */
-export type WorkflowFunctionWrapper<WorkflowFunction extends ( ...args: any ) => any> = // eslint-disable-line @typescript-eslint/no-explicit-any
-  [Parameters<WorkflowFunction>[0]] extends [undefined | null] ?
-    ( input?: undefined | null, options?: WorkflowInvocationOptions ) =>
-    ReturnType<WorkflowFunction> :
-    ( input: Parameters<WorkflowFunction>[0], options?: WorkflowInvocationOptions ) =>
-    ReturnType<WorkflowFunction>;
+export type WorkflowFunctionWrapper<
+  InputSchema extends AnyZodSchema | undefined = undefined,
+  OutputSchema extends AnyZodSchema | undefined = undefined
+> = InputSchema extends AnyZodSchema ?
+  (
+    input: z.input<InputSchema>,
+    options?: WorkflowInvocationOptions
+  ) => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void> :
+  (
+    input?: undefined | null,
+    options?: WorkflowInvocationOptions
+  ) => Promise<OutputSchema extends AnyZodSchema ? z.infer<OutputSchema> : void>;
 
 /**
  * Creates a workflow.
@@ -270,7 +277,7 @@ export type WorkflowFunctionWrapper<WorkflowFunction extends ( ...args: any ) =>
  * @param params.outputSchema - Zod schema for workflow output
  * @param params.fn - A function containing the workflow code
  * @param params.options - Optional workflow options.
- * @returns The same handler function set at `fn` with a different signature
+ * @returns A wrapper that parses input/output around `fn`
  */
 export declare function workflow<
   InputSchema extends AnyZodSchema | undefined = undefined,
@@ -288,4 +295,4 @@ export declare function workflow<
    * while maintaining backward compatibility with existing callers.
    */
   aliases?: string[];
-} ): WorkflowFunctionWrapper<WorkflowFunction<InputSchema, OutputSchema>>;
+} ): WorkflowFunctionWrapper<InputSchema, OutputSchema>;

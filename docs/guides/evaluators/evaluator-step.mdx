@@ -102,11 +102,15 @@ Evaluators are called from workflows like regular async functions — `await jud
 |----------|------|-------------|
 | `name` | `string` | Unique identifier for the evaluator |
 | `description` | `string` | Human-readable description |
-| `inputSchema` | `ZodSchema` | Zod schema for input validation |
+| `inputSchema` | `ZodSchema` | Zod schema for input; values are **parsed** before `fn` runs |
 | `options` | `object` | Optional workflow options (see [Options](#options)) |
 | `fn` | `function` | The evaluator implementation (must return an `EvaluationResult`) |
 
 Evaluator names must start with a letter or underscore, followed by letters, numbers, or underscores. Hyphens, spaces, dots, and other punctuation are not allowed.
+
+<Note>
+  The input schema parses evaluator input; it does not only validate it. The evaluator `fn` receives the value returned by `inputSchema`, so Zod transforms, coercions, defaults, and object-key stripping apply at runtime.
+</Note>
 
 ## EvaluationResult Types
 

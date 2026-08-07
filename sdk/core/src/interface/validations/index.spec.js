@@ -53,10 +53,12 @@ describe( 'interface validators', () => {
     it( 'validates workflow definitions, input, output, and invocation options', () => {
       expect( () => WorkflowValidator.validateDefinition( workflowArgs ) ).not.toThrow();
       const validator = new WorkflowValidator( workflowArgs );
+      const input = { value: 'ok' };
+      const output = { result: 'ok' };
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { result: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateInvocationOptions( {
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
+      expect( () => validator.parseInvocationOptions( {
         detached: true,
         activityOptions: { retry: { maximumAttempts: 1 } },
         context: { info: { workflowId: 'test-workflow' } }
@@ -71,10 +73,10 @@ describe( 'interface validators', () => {
 
       const validator = new WorkflowValidator( workflowArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( ValidationError );
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Workflow "valid_workflow" input validation failed/ );
-      expect( () => validator.validateOutput( { result: 1 } ) ).toThrow( /Workflow "valid_workflow" output validation failed/ );
-      expect( () => validator.validateInvocationOptions( {
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( ValidationError );
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Workflow "valid_workflow" input validation failed/ );
+      expect( () => validator.parseOutput( { result: 1 } ) ).toThrow( /Workflow "valid_workflow" output validation failed/ );
+      expect( () => validator.parseInvocationOptions( {
         options: { activityOptions: { retry: { maximumAttempts: 1 } } }
       } ) ).toThrow( /Workflow "valid_workflow" invocation options validation failed/ );
     } );
@@ -84,9 +86,11 @@ describe( 'interface validators', () => {
         name: 'schema_less_workflow',
         fn
       } );
+      const input = { anything: true };
+      const output = { anything: true };
 
-      expect( () => validator.validateInput( { anything: true } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { anything: true } ) ).not.toThrow();
+      expect( validator.parseInput( input ) ).toBe( input );
+      expect( validator.parseOutput( output ) ).toBe( output );
     } );
   } );
 
@@ -94,9 +98,11 @@ describe( 'interface validators', () => {
     it( 'validates step definitions, input, and output', () => {
       expect( () => StepValidator.validateDefinition( stepArgs ) ).not.toThrow();
       const validator = new StepValidator( stepArgs );
+      const input = { value: 'ok' };
+      const output = { result: 'ok' };
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( { result: 'ok' } ) ).not.toThrow();
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError with useful prefixes for invalid step data', () => {
@@ -106,8 +112,8 @@ describe( 'interface validators', () => {
 
       const validator = new StepValidator( stepArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Step "valid_step" input validation failed/ );
-      expect( () => validator.validateOutput( { result: 1 } ) ).toThrow( /Step "valid_step" output validation failed/ );
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Step "valid_step" input validation failed/ );
+      expect( () => validator.parseOutput( { result: 1 } ) ).toThrow( /Step "valid_step" output validation failed/ );
     } );
   } );
 
@@ -115,9 +121,11 @@ describe( 'interface validators', () => {
     it( 'validates evaluator definitions, input, and EvaluationResult output', () => {
       expect( () => EvaluatorValidator.validateDefinition( evaluatorArgs ) ).not.toThrow();
       const validator = new EvaluatorValidator( evaluatorArgs );
+      const input = { value: 'ok' };
+      const output = new EvaluationResult( { value: 'pass', confidence: 1 } );
 
-      expect( () => validator.validateInput( { value: 'ok' } ) ).not.toThrow();
-      expect( () => validator.validateOutput( new EvaluationResult( { value: 'pass', confidence: 1 } ) ) ).not.toThrow();
+      expect( validator.parseInput( input ) ).toEqual( input );
+      expect( validator.parseOutput( output ) ).toEqual( output );
     } );
 
     it( 'throws ValidationError for output schemas and invalid evaluator output', () => {
@@ -128,8 +136,8 @@ describe( 'interface validators', () => {
 
       const validator = new EvaluatorValidator( evaluatorArgs );
 
-      expect( () => validator.validateInput( { value: 1 } ) ).toThrow( /Evaluator "valid_evaluator" input validation failed/ );
-      expect( () => validator.validateOutput( { value: 'pass', confidence: 1 } ) ).toThrow(
+      expect( () => validator.parseInput( { value: 1 } ) ).toThrow( /Evaluator "valid_evaluator" input validation failed/ );
+      expect( () => validator.parseOutput( { value: 'pass', confidence: 1 } ) ).toThrow(
         /Evaluator "valid_evaluator" output validation failed/
       );
     } );

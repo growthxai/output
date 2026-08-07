@@ -14,11 +14,6 @@ export function step( { name, description, inputSchema, outputSchema, fn, option
     inputSchema,
     outputSchema,
     options,
-    handler: async input => {
-      validator.validateInput( input );
-      const output = await fn( input );
-      validator.validateOutput( output );
-      return output;
-    }
+    handler: async input => validator.parseOutput( await fn( validator.parseInput( input ) ) )
   } );
 }

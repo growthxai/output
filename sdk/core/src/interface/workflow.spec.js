@@ -15,9 +15,9 @@ const executeChildMock = vi.hoisted( () => vi.fn() );
 const workflowInfoMock = vi.hoisted( () => vi.fn() );
 const continueAsNewMock = vi.hoisted( () => vi.fn() );
 const validateDefinitionMock = vi.hoisted( () => vi.fn() );
-const validateInputMock = vi.hoisted( () => vi.fn() );
-const validateOutputMock = vi.hoisted( () => vi.fn() );
-const validateInvocationOptionsMock = vi.hoisted( () => vi.fn() );
+const parseInputMock = vi.hoisted( () => vi.fn( input => input ) );
+const parseOutputMock = vi.hoisted( () => vi.fn( output => output ) );
+const parseInvocationOptionsMock = vi.hoisted( () => vi.fn( options => options ) );
 const validatorConstructorMock = vi.hoisted( () => vi.fn() );
 const createWorkflowMock = vi.hoisted( () => vi.fn( ( { handler } ) => handler ) );
 
@@ -29,9 +29,9 @@ vi.mock( './validations/index.js', () => {
 
     constructor( ...args ) {
       validatorConstructorMock( ...args );
-      this.validateInput = validateInputMock;
-      this.validateOutput = validateOutputMock;
-      this.validateInvocationOptions = validateInvocationOptionsMock;
+      this.parseInput = parseInputMock;
+      this.parseOutput = parseOutputMock;
+      this.parseInvocationOptions = parseInvocationOptionsMock;
     }
   }
 
@@ -210,9 +210,9 @@ describe( 'workflow()', () => {
         value: 'test-workflow-ok',
         extra: 'custom'
       } );
-      expect( validateInvocationOptionsMock ).toHaveBeenCalledWith( { context: { extra: 'custom' } } );
-      expect( validateInputMock ).toHaveBeenCalledWith( { suffix: '-ok' } );
-      expect( validateOutputMock ).toHaveBeenCalledWith( { value: 'test-workflow-ok', extra: 'custom' } );
+      expect( parseInvocationOptionsMock ).toHaveBeenCalledWith( { context: { extra: 'custom' } } );
+      expect( parseInputMock ).toHaveBeenCalledWith( { suffix: '-ok' } );
+      expect( parseOutputMock ).toHaveBeenCalledWith( { value: 'test-workflow-ok', extra: 'custom' } );
       expect( workflowInfoMock ).not.toHaveBeenCalled();
       expect( proxyActivitiesMock ).not.toHaveBeenCalled();
     } );
@@ -220,7 +220,7 @@ describe( 'workflow()', () => {
     it( 'does not run fn when plain function input validation fails', async () => {
       const { workflow } = await import( './workflow.js' );
       const error = new ValidationError( 'invalid input' );
-      validateInputMock.mockImplementationOnce( () => {
+      parseInputMock.mockImplementationOnce( () => {
         throw error;
       } );
       const fn = vi.fn();
@@ -234,13 +234,13 @@ describe( 'workflow()', () => {
 
       await expect( wf( { value: 1 } ) ).rejects.toBe( error );
       expect( fn ).not.toHaveBeenCalled();
-      expect( validateOutputMock ).not.toHaveBeenCalled();
+      expect( parseOutputMock ).not.toHaveBeenCalled();
     } );
 
     it( 'propagates plain function output validation errors after fn runs', async () => {
       const { workflow } = await import( './workflow.js' );
       const error = new ValidationError( 'invalid output' );
-      validateOutputMock.mockImplementationOnce( () => {
+      parseOutputMock.mockImplementationOnce( () => {
         throw error;
       } );
       const output = { result: 1 };
@@ -257,7 +257,7 @@ describe( 'workflow()', () => {
       expect( fn ).toHaveBeenCalledWith( { value: 'ok' }, expect.objectContaining( {
         info: { workflowId: 'test-workflow', runId: 'test-run' }
       } ) );
-      expect( validateOutputMock ).toHaveBeenCalledWith( output );
+      expect( parseOutputMock ).toHaveBeenCalledWith( output );
     } );
   } );
 
@@ -294,7 +294,7 @@ describe( 'workflow()', () => {
           retry: { maximumAttempts: 7 }
         }
       } ) ).resolves.toEqual( { child: 'ok' } );
-      expect( validateInvocationOptionsMock ).toHaveBeenCalledWith( {
+      expect( parseInvocationOptionsMock ).toHaveBeenCalledWith( {
         detached: true,
         context: { testOnly: true },
         activityOptions: {
@@ -543,7 +543,7 @@ describe( 'workflow()', () => {
         fn: async () => ( { result: 1 } )
       } ) );
 
-      validateInputMock.mockImplementationOnce( () => {
+      parseInputMock.mockImplementationOnce( () => {
         throw inputError;
       } );
       await expect( wf( { value: 1 } ) ).rejects.toBe( inputError );
@@ -551,7 +551,7 @@ describe( 'workflow()', () => {
 
       delete globalThis[INVOKE_ACTIVITY_SYMBOL];
       setWorkflowInfo( { workflowType: 'runtime_validation_wf', memo: {} } );
-      validateOutputMock.mockImplementationOnce( () => {
+      parseOutputMock.mockImplementationOnce( () => {
         throw outputError;
       } );
       await expect( wf( { value: 'ok' } ) ).rejects.toBe( outputError );

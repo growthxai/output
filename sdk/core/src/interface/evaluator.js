@@ -13,11 +13,6 @@ export function evaluator( { name, description, inputSchema, fn, options } ) {
     description,
     inputSchema,
     options,
-    handler: async input => {
-      validator.validateInput( input );
-      const output = await fn( input );
-      validator.validateOutput( output );
-      return output;
-    }
+    handler: async input => validator.parseOutput( await fn( validator.parseInput( input ) ) )
   } );
 }
