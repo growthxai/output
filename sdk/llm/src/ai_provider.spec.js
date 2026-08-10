@@ -184,6 +184,17 @@ describe( 'registerProvider', () => {
     expect( () => registerProvider( '', vi.fn() ) ).toThrow( 'Provider name must be a non-empty string' );
     expect( () => registerProvider( 'custom', 'not-a-function' ) ).toThrow( 'expected function, received string' );
   } );
+
+  it.each( [
+    [ 'vertex', 'google-vertex' ],
+    [ 'bedrock', 'amazon-bedrock' ]
+  ] )( 'rejects registering deprecated provider alias %s', async ( alias, canonical ) => {
+    const { registerProvider } = await importWithMockedProviders();
+
+    expect( () => registerProvider( alias, vi.fn() ) ).toThrow(
+      `Cannot register provider "${alias}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
+    );
+  } );
 } );
 
 describe( 'getProviderNames', () => {

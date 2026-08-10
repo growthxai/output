@@ -693,6 +693,8 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged — register under a models.dev provider id if you need automatic pricing.
+
 ## Prompt Caching
 
 When a prompt sends the same large prefix on every call — a long system prompt, few-shot examples, a pasted reference document — you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.

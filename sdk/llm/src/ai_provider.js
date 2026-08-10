@@ -7,6 +7,7 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createPerplexity } from '@ai-sdk/perplexity';
 import { createVertex } from '@ai-sdk/google-vertex';
+import { deprecatedProviderAliases } from './deprecated_provider_aliases.js';
 
 /** This custom dispatcher has longer timeouts. */
 const customDispatcher = new EnvHttpProxyAgent( {
@@ -56,6 +57,12 @@ export function registerProvider( name, providerFn ) {
   const result = registerProviderSchema.safeParse( { name, providerFn } );
   if ( !result.success ) {
     throw new ValidationError( `Invalid provider registration: ${z.prettifyError( result.error )}` );
+  }
+  const canonical = deprecatedProviderAliases[name];
+  if ( canonical ) {
+    throw new ValidationError(
+      `Cannot register provider "${name}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
+    );
   }
   registeredProviders[name] = providerFn;
 }

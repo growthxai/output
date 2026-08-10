@@ -118,6 +118,44 @@ describe( 'calculateLLMCallCost', () => {
     } );
   } );
 
+  it( 'uses each provider pricing when the same model id exists under two providers', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'gpt-4o', { input: 2, output: 10 } ],
+      [ 'azure', 'gpt-4o', { input: 3, output: 12 } ]
+    ] ) );
+    const usage = { inputTokens: 1_000_000, outputTokens: 0 };
+
+    const openai = await calculateLLMCallCost( {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      usage
+    } );
+    const azure = await calculateLLMCallCost( {
+      providerId: 'azure',
+      modelId: 'gpt-4o',
+      usage
+    } );
+
+    expectLLMUsage( openai, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 2, amount: 1_000_000, total: 2 },
+        { type: 'output', ppm: 10, amount: 0, total: 0 }
+      ],
+      total: 2,
+      tokensUsed: 1_000_000
+    } );
+    expectLLMUsage( azure, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 3, amount: 1_000_000, total: 3 },
+        { type: 'output', ppm: 12, amount: 0, total: 0 }
+      ],
+      total: 3,
+      tokensUsed: 1_000_000
+    } );
+  } );
+
   it( 'splits input into non-cached and cached usage at respective rates', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricingMap( [
       [ 'openai', 'cached-model', { input: 4, cache_read: 1, output: 10 } ]

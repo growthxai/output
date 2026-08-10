@@ -4,6 +4,7 @@ import { loadContent } from './load_content.js';
 import { validatePrompt } from './validations.js';
 import { FatalError, Logger } from '@outputai/core';
 import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
+import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
 
 const liquid = new Liquid( {
   strictFilters: true,
@@ -19,11 +20,6 @@ const renderPrompt = ( { name, escapedContent, values } ) => {
   } catch ( error ) {
     throw new FatalError( `Prompt "${name}" could not be rendered: ${error.message}`, { cause: error } );
   }
-};
-
-const deprecatedProviderAliases = {
-  vertex: 'google-vertex',
-  bedrock: 'amazon-bedrock'
 };
 
 /**

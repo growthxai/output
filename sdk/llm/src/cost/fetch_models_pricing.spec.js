@@ -65,6 +65,18 @@ describe( 'fetchModelsPricing', () => {
     expect( result.get( `anthropic/${anthropicModelId}` ) ).toEqual( fixture.anthropic.models[anthropicModelId].cost );
   } );
 
+  it( 'keeps separate costs when the same model id exists under two providers', async () => {
+    stubFetch( okResponse( fixture ) );
+
+    const result = await fetchModelsPricing();
+    const sharedModelId = 'gpt-4o-2024-11-20';
+
+    expect( result.get( sharedModelId ) ).toBeUndefined();
+    expect( result.get( `openai/${sharedModelId}` ) ).toEqual( fixture.openai.models[sharedModelId].cost );
+    expect( result.get( `azure/${sharedModelId}` ) ).toEqual( fixture.azure.models[sharedModelId].cost );
+    expect( result.get( `openai/${sharedModelId}` ) ).not.toEqual( result.get( `azure/${sharedModelId}` ) );
+  } );
+
   it( 'returns null when response is not ok and no cache', async () => {
     const status = 500;
     stubFetch( { ok: false, status } );
