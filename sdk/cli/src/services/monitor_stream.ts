@@ -313,16 +313,17 @@ export async function streamWorkflowUpdates(
         continue;
       }
 
-      if ( isTerminalStatus( status ) ) {
-        const failed = isErrorStatus( status );
+      const terminalStatus = isTerminalStatus( status );
+      if ( terminalStatus ) {
+        const failed = isErrorStatus( terminalStatus );
         emit(
-          { status },
-          `${failed ? '✗' : '✓'} workflow ${status} · ${formatDurationLabel( result.totalDurationMs )}`
+          { status: terminalStatus },
+          `${failed ? '✗' : '✓'} workflow ${terminalStatus} · ${formatDurationLabel( result.totalDurationMs )}`
         );
         if ( failed ) {
           process.exitCode = 1;
         }
-        state.terminalStatus = status;
+        state.terminalStatus = terminalStatus;
         break;
       }
 

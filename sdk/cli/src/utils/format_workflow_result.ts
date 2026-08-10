@@ -20,21 +20,33 @@ const ERROR_STATUSES: ReadonlySet<string> = new Set( ERROR_STATUS_VALUES );
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set<string>( [ 'completed', ...ERROR_STATUS_VALUES ] );
 
 /**
- * Type predicates, not bare `Set.has` calls: statuses arrive as bare strings from
- * the history API (`WorkflowMeta.status` is `string`, and the server can emit
- * values outside the union such as `unspecified`), so a caller that cast to the
- * union to satisfy a typed set would silently classify an unrecognized status as
- * neither terminal nor failed — a failing workflow exiting 0. Narrowing instead
- * removes the cast and carries the union through to callers.
- *
- * Legacy spellings (`canceled`) are normalized before the set check so `run` /
- * `result` exit codes match main until `normalizeWorkflowStatus` is removed.
+ * Maps a raw status to a canonical error status, or `undefined` if it is not one.
+ * Legacy spellings (`canceled`) are normalized so callers only ever see the
+ * current API vocabulary — until `normalizeWorkflowStatus` is removed.
  */
-export const isErrorStatus = ( status: string | null | undefined ): status is ErrorStatus =>
-  typeof status === 'string' && ERROR_STATUSES.has( normalizeWorkflowStatus( status ) );
+/* eslint-disable consistent-return -- returns ErrorStatus | undefined via early exit */
+export function isErrorStatus( status: string | null | undefined ): ErrorStatus | undefined {
+  if ( typeof status !== 'string' ) {
+    return undefined;
+  }
+  const normalized = normalizeWorkflowStatus( status );
+  return ERROR_STATUSES.has( normalized ) ? normalized as ErrorStatus : undefined;
+}
+/* eslint-enable consistent-return */
 
-export const isTerminalStatus = ( status: string | null | undefined ): status is TerminalStatus =>
-  typeof status === 'string' && TERMINAL_STATUSES.has( normalizeWorkflowStatus( status ) );
+/**
+ * Maps a raw status to a canonical terminal status, or `undefined` if it is not
+ * one. Same normalization contract as `isErrorStatus`.
+ */
+/* eslint-disable consistent-return -- returns TerminalStatus | undefined via early exit */
+export function isTerminalStatus( status: string | null | undefined ): TerminalStatus | undefined {
+  if ( typeof status !== 'string' ) {
+    return undefined;
+  }
+  const normalized = normalizeWorkflowStatus( status );
+  return TERMINAL_STATUSES.has( normalized ) ? normalized as TerminalStatus : undefined;
+}
+/* eslint-enable consistent-return */
 
 export function formatWorkflowResult( result: WorkflowResult ): string {
   const status = normalizeWorkflowStatus( result.status );

@@ -141,7 +141,7 @@ const fetchResult = async ( workflowId: string, runId: string | undefined ): Pro
 // from a still-running workflow would otherwise stick and stall the UI when the run
 // eventually finishes. `isTerminalStatus` is shared with `workflow monitor`.
 export const isTerminalRunStatus = ( status: string | null | undefined ): boolean =>
-  isTerminalStatus( status );
+  isTerminalStatus( status ) !== undefined;
 
 export const useRunDetail = (
   workflowId: string | undefined,

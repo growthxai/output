@@ -90,7 +90,7 @@ describe( 'formatWorkflowResult', () => {
     } as unknown as Parameters<typeof formatWorkflowResult>[0];
 
     expect( formatWorkflowResult( legacyResult ) ).toContain( 'Status: cancelled' );
-    expect( isErrorStatus( 'canceled' ) ).toBe( true );
+    expect( isErrorStatus( 'canceled' ) ).toBe( 'cancelled' );
   } );
 
   it( 'should display status without error line for continued_as_new workflows', () => {

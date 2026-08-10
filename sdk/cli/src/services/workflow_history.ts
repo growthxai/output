@@ -70,7 +70,7 @@ export interface WorkflowHistoryCursor {
 // set), so it can report the run closed before the closing event has been paged in.
 function isRunClosed( meta: WorkflowMeta | null ): boolean {
   const status = normalizeWorkflowStatus( meta?.status );
-  return status === 'continued_as_new' || isTerminalStatus( status );
+  return status === 'continued_as_new' || isTerminalStatus( status ) !== undefined;
 }
 
 function numericEventId( event: HistoryEvent ): number {
