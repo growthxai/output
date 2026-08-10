@@ -54,9 +54,9 @@ providerOptions:
 
 ---
 
-❌ **Mistake 3: Wrong namespace for Vertex Gemini**
+❌ **Mistake 3: Wrong namespace for Google Vertex Gemini**
 ```yaml
-provider: vertex
+provider: google-vertex
 model: gemini-2.0-flash
 providerOptions:
   vertex:               # WRONG: Gemini uses 'google' namespace
@@ -65,7 +65,7 @@ providerOptions:
 
 ✅ **Correct:**
 ```yaml
-provider: vertex
+provider: google-vertex
 model: gemini-2.0-flash
 providerOptions:
   google:               # Correct: Gemini is a Google model
@@ -109,31 +109,31 @@ providerOptions:
     reasoningEffort: high
 ```
 
-**Vertex with Gemini**
+**Google Vertex with Gemini**
 ```yaml
-provider: vertex
+provider: google-vertex
 model: gemini-2.0-flash
 providerOptions:
-  google:               # Note: 'google', not 'vertex'
+  google:               # Note: 'google', not 'google-vertex'
     useSearchGrounding: true
 ```
 
-**Vertex with Claude**
+**Google Vertex with Claude**
 ```yaml
-provider: vertex
+provider: google-vertex
 model: claude-sonnet-4-20250514@vertex
 providerOptions:
-  anthropic:            # Note: 'anthropic', not 'vertex'
+  anthropic:            # Note: 'anthropic', not 'google-vertex'
     effort: medium
 ```
 
 **Amazon Bedrock**
 ```yaml
-provider: bedrock
+provider: amazon-bedrock
 model: anthropic.claude-sonnet-4-20250514-v1:0
 maxTokens: 64000              # Recommended: Bedrock has no client-side defaults
 providerOptions:
-  bedrock:                    # Note: 'bedrock', not 'anthropic'
+  bedrock:                    # Note: AI SDK 'bedrock' namespace, not 'anthropic'
     guardrailConfig:
       guardrailIdentifier: my-guardrail
       guardrailVersion: "1"

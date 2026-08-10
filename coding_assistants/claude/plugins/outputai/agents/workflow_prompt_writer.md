@@ -44,7 +44,7 @@ maxTokens: 2000
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | string | LLM provider: `anthropic`, `openai`, `vertex`, `bedrock`, `azure`, `perplexity` |
+| `provider` | string | LLM provider: `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, `perplexity` |
 | `model` | string | Model identifier (provider-specific) |
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |
