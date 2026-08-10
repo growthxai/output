@@ -15,7 +15,7 @@
     "@aws-sdk/client-s3": "catalog:",
     "@temporalio/client": "catalog:",
     "express": "5.2.1",
-    "nanoid": "5.1.9",
+    "nanoid": "5.1.16",
     "winston": "catalog:",
     "zod": "catalog:"
   },
