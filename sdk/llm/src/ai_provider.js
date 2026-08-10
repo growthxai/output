@@ -58,8 +58,8 @@ export function registerProvider( name, providerFn ) {
   if ( !result.success ) {
     throw new ValidationError( `Invalid provider registration: ${z.prettifyError( result.error )}` );
   }
-  const canonical = deprecatedProviderAliases[name];
-  if ( canonical ) {
+  if ( Object.hasOwn( deprecatedProviderAliases, name ) ) {
+    const canonical = deprecatedProviderAliases[name];
     throw new ValidationError(
       `Cannot register provider "${name}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
     );

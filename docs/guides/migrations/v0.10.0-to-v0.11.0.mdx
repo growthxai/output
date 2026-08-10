@@ -875,3 +875,70 @@ npx output workflow test <workflowName>
 - Grep prompts for `{{` and confirm each name is supplied by callers.
 - Run critical workflows once after upgrade and watch for `Prompt "…" could not be rendered` fatals.
 - Update any docs or tests that assumed empty-string rendering for missing variables.
+
+## LLM provider names: `google-vertex` and `amazon-bedrock`
+
+`@outputai/llm` renames the built-in Vertex and Bedrock prompt `provider` values to match the underlying AI SDK packages and the [models.dev](https://models.dev) catalog. LLM cost lookup is also keyed by `provider` + `model` in that catalog (not by model id alone).
+
+| Before (v0.10.x) | After (v0.11.0) |
+| --- | --- |
+| `provider: vertex` | `provider: google-vertex` (preferred). `vertex` still works as a deprecated alias and is rewritten at prompt load with a warning. |
+| `provider: bedrock` | `provider: amazon-bedrock` (preferred). `bedrock` still works as a deprecated alias and is rewritten at prompt load with a warning. |
+| `registerProvider('vertex', …)` / `registerProvider('bedrock', …)` | Throws `ValidationError`. Register under `google-vertex` or `amazon-bedrock` instead. |
+| Custom `registerProvider` name sharing a model id with another models.dev provider | Previously could pick that other provider’s rates. Now `response.cost` is `null` unless the registered name is a models.dev provider id. |
+
+Prompt files that still use the old names keep working. Overrides registered under the old names do **not**.
+
+### Custom providers and pricing
+
+If you registered a custom provider under a name that is **not** a [models.dev](https://models.dev) provider id (for example `my-proxy` or a private gateway), cost used to fall back to whatever catalog entry matched the model id alone — often the wrong vendor’s rates. That fallback is removed: those calls still run, but pricing is unavailable (`null`) instead of incorrect. To get catalog pricing again, register and reference a models.dev provider id (such as `openai`, `google-vertex`, or `amazon-bedrock`).
+
+### Before
+
+```ts
+import { createVertex } from '@ai-sdk/google-vertex';
+import { registerProvider } from '@outputai/llm';
+
+registerProvider('vertex', createVertex({
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION
+}));
+```
+
+```yaml
+---
+provider: vertex
+model: gemini-2.5-flash-lite
+---
+```
+
+### After
+
+```ts
+import { createVertex } from '@ai-sdk/google-vertex';
+import { registerProvider } from '@outputai/llm';
+
+registerProvider('google-vertex', createVertex({
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION
+}));
+```
+
+```yaml
+---
+provider: google-vertex
+model: gemini-2.5-flash-lite
+---
+```
+
+### Migration steps
+
+1. Replace `registerProvider('vertex', …)` with `registerProvider('google-vertex', …)` and `registerProvider('bedrock', …)` with `registerProvider('amazon-bedrock', …)`.
+2. Prefer updating prompt front matter to `google-vertex` / `amazon-bedrock` (aliases remain until they are removed in a later release).
+3. Grep for `registerProvider\(\s*['"]vertex['"]` and `registerProvider\(\s*['"]bedrock['"]` before upgrading.
+
+### Provider rename checklist
+
+- Update any `registerProvider` calls that used `vertex` or `bedrock`.
+- Optionally update `.prompt` files to the canonical names to silence deprecation warnings.
+- Expect `response.cost === null` (and no `cost:llm:request` event) for custom provider names that are not models.dev ids — they no longer inherit another provider’s pricing by model name alone.
