@@ -2,7 +2,7 @@ import { parsePrompt } from './parser.js';
 import { Liquid } from 'liquidjs';
 import { loadContent } from './load_content.js';
 import { validatePrompt } from './validations.js';
-import { FatalError } from '@outputai/core';
+import { FatalError, Logger } from '@outputai/core';
 import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
 
 const liquid = new Liquid( {
@@ -19,6 +19,11 @@ const renderPrompt = ( { name, escapedContent, values } ) => {
   } catch ( error ) {
     throw new FatalError( `Prompt "${name}" could not be rendered: ${error.message}`, { cause: error } );
   }
+};
+
+const deprecatedProviderAliases = {
+  vertex: 'google-vertex',
+  bedrock: 'amazon-bedrock'
 };
 
 /**
@@ -46,6 +51,12 @@ export const loadPrompt = ( name, values = {}, dir ) => {
     messages: messages.map( m => ( { ...m, content: decode( m.content ) } ) ),
     instructions: instructions === null ? null : decode( instructions )
   };
+
+  const provider = prompt.config.provider;
+  if ( deprecatedProviderAliases[provider] ) {
+    Logger.warn( `Using deprecated provider alias "${provider}". Use "${deprecatedProviderAliases[provider]}" instead.`, { namespace: 'LLM' } );
+    prompt.config.provider = deprecatedProviderAliases[provider];
+  }
 
   validatePrompt( prompt );
 

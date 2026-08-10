@@ -52,6 +52,7 @@ const makeAiSdkImageResponse = () => generateImage( {
 
 describe( 'wrapTextResponse', () => {
   const traceId = 'trace-1';
+  const providerId = 'openai';
   const modelId = 'test-model';
   const mockCost = { total: 0.001, components: [ { name: 'input_tokens', value: 0.001 } ] };
 
@@ -65,13 +66,14 @@ describe( 'wrapTextResponse', () => {
   it( 'uses a text response fixture to calculate cost, end trace, and attach cost', async () => {
     const response = clone( textResponseFixture );
 
-    const wrapped = await wrapTextResponse( { traceId, modelId, response } );
+    const wrapped = await wrapTextResponse( { traceId, providerId, modelId, response } );
 
     expect( wrapped.result ).toBe( response.text );
     expect( wrapped.cost ).toEqual( mockCost );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.totalUsage,
-      modelId
+      modelId,
+      providerId
     } );
     expect( mocks.extractSourcesFromSteps ).toHaveBeenCalledWith( response.steps );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
@@ -92,7 +94,7 @@ describe( 'wrapTextResponse', () => {
     response.sources = nativeSources;
     mocks.extractSourcesFromSteps.mockReturnValue( [] );
 
-    const wrapped = await wrapTextResponse( { traceId, modelId, response } );
+    const wrapped = await wrapTextResponse( { traceId, providerId, modelId, response } );
 
     expect( wrapped.sources ).toBe( nativeSources );
     expect( mocks.combineSources ).not.toHaveBeenCalled();
@@ -119,7 +121,7 @@ describe( 'wrapTextResponse', () => {
     mocks.extractSourcesFromSteps.mockReturnValue( [ toolSource ] );
     mocks.combineSources.mockReturnValue( mergedSources );
 
-    const wrapped = await wrapTextResponse( { traceId, modelId, response } );
+    const wrapped = await wrapTextResponse( { traceId, providerId, modelId, response } );
 
     expect( wrapped.sources ).toBe( mergedSources );
     expect( mocks.combineSources ).toHaveBeenCalledWith( {
@@ -131,6 +133,7 @@ describe( 'wrapTextResponse', () => {
 
 describe( 'wrapStreamOnFinishResponse', () => {
   const traceId = 'stream-trace';
+  const providerId = 'openai';
   const modelId = 'stream-model';
   const mockCost = { total: 0.002, components: [] };
 
@@ -146,6 +149,7 @@ describe( 'wrapStreamOnFinishResponse', () => {
 
     const callbacks = wrapStreamOnFinishResponse( {
       traceId,
+      providerId,
       modelId,
       onFinish: userOnFinish
     } );
@@ -173,6 +177,7 @@ describe( 'wrapStreamOnFinishResponse', () => {
 
     const callbacks = wrapStreamOnFinishResponse( {
       traceId,
+      providerId,
       modelId
     } );
 
@@ -188,13 +193,15 @@ describe( 'wrapStreamOnFinishResponse', () => {
     } );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.totalUsage,
-      modelId
+      modelId,
+      providerId
     } );
   } );
 } );
 
 describe( 'wrapImageResponse', () => {
   const traceId = 'image-trace';
+  const providerId = 'openai';
   const modelId = 'image-model';
   const mockCost = { total: 0.003, components: [] };
 
@@ -207,13 +214,14 @@ describe( 'wrapImageResponse', () => {
   it( 'uses an image response fixture to trace image metadata and attach cost', async () => {
     const response = await makeAiSdkImageResponse();
 
-    const wrapped = await wrapImageResponse( { traceId, modelId, response } );
+    const wrapped = await wrapImageResponse( { traceId, providerId, modelId, response } );
 
     expect( wrapped.result ).toBe( response.images[0] );
     expect( wrapped.cost ).toEqual( mockCost );
     expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
       usage: response.usage,
-      modelId
+      modelId,
+      providerId
     } );
     expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64 );
     expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {

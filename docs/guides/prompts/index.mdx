@@ -84,7 +84,7 @@ The YAML frontmatter configures the LLM call.
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `provider` | LLM provider | `anthropic`, `openai`, `azure`, `vertex`, `bedrock` |
+| `provider` | LLM provider | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity` (legacy aliases: `bedrock`, `vertex`) |
 | `model` | Model identifier | `claude-sonnet-4-20250514`, `gpt-4o` |
 
 ### Optional Fields
@@ -164,13 +164,13 @@ providerOptions:
 ---
 ```
 
-**Vertex with Gemini (important namespace note):**
+**Google Vertex with Gemini (important namespace note):**
 ```yaml
 ---
-provider: vertex
+provider: google-vertex
 model: gemini-2.0-flash
 providerOptions:
-  google:               # Use 'google' for Gemini, not 'vertex'!
+  google:               # Use 'google' for Gemini, not 'google-vertex'!
     useSearchGrounding: true
 ---
 ```
@@ -201,9 +201,9 @@ providerOptions:
 | AI SDK | `thinking` | Top-level | Extended thinking (not under provider) |
 | AI Gateway | `order` | Top-level | Provider routing order |
 
-**Vertex Provider Namespace Guide:**
+**Google Vertex Provider Namespace Guide:**
 
-When using `provider: vertex`, the `providerOptions` namespace depends on the model:
+When using `provider: google-vertex` (or the legacy alias `vertex`), the `providerOptions` namespace depends on the model:
 
 - **Gemini models** → Use `google:` namespace
 - **Claude models** → Use `anthropic:` namespace

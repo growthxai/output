@@ -20,12 +20,12 @@ const customFetch = ( input, init ) => fetch( input, { dispatcher: customDispatc
 
 /** Available provider to initialize. */
 const providerInitializers = {
+  'amazon-bedrock': createAmazonBedrock,
   anthropic: createAnthropic,
   azure: createAzure,
-  bedrock: createAmazonBedrock,
+  'google-vertex': createVertex,
   openai: createOpenAI,
-  perplexity: createPerplexity,
-  vertex: createVertex
+  perplexity: createPerplexity
 };
 
 /** Providers already initialized due usage */

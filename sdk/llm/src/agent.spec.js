@@ -100,7 +100,7 @@ const importSut = async () => import( './agent.js' );
 
 const loadedPrompt = {
   name: 'test@v1',
-  config: { model: 'test-model' },
+  config: { provider: 'openai', model: 'test-model' },
   messages: [
     { role: 'system', content: 'You are concise.' },
     { role: 'user', content: 'Initial user message' }
@@ -373,6 +373,7 @@ describe( 'Agent', () => {
     } );
     expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
+      providerId: 'openai',
       modelId: 'test-model',
       response: aiResponse
     } );
@@ -422,6 +423,7 @@ describe( 'Agent', () => {
     } );
     expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
+      providerId: 'openai',
       modelId: 'test-model',
       onFinish
     } );

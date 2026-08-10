@@ -575,7 +575,7 @@ Company size: {{ size }} employees
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | `string` | `anthropic`, `openai`, `azure`, `vertex`, `bedrock`, `perplexity`, or a provider registered with `registerProvider` |
+| `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted. |
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
@@ -591,9 +591,11 @@ Company size: {{ size }} employees
 | `anthropic` | `@ai-sdk/anthropic` | `>=3 <4` |
 | `openai` | `@ai-sdk/openai` | `>=3 <4` |
 | `azure` | `@ai-sdk/azure` | `>=3 <4` |
-| `vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
-| `bedrock` | `@ai-sdk/amazon-bedrock` | `>=4 <5` |
+| `amazon-bedrock` | `@ai-sdk/amazon-bedrock` | `>=4 <5` |
+| `google-vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
 | `perplexity` | `@ai-sdk/perplexity` | `>=3 <4` |
+
+Legacy aliases `bedrock` → `amazon-bedrock` and `vertex` → `google-vertex` are deprecated but still work; using them logs a deprecation warning.
 
 Built-in provider instances are initialized lazily. Output creates the provider instance only when a prompt or API call first requests that provider, then reuses it for later calls.
 
@@ -630,33 +632,33 @@ model: gpt-4o
 
 Requires `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, and `AZURE_OPENAI_API_VERSION`.
 
-### Vertex AI
+### Google Vertex AI
 
 ```yaml
 ---
-provider: vertex
+provider: google-vertex
 model: gemini-1.5-pro
 ---
 ```
 
-Requires Google Cloud authentication and configuration.
+Requires Google Cloud authentication and configuration. The legacy alias `vertex` is still accepted.
 
 ### Amazon Bedrock
 
 ```yaml
 ---
-provider: bedrock
+provider: amazon-bedrock
 model: anthropic.claude-sonnet-4-20250514-v1:0
 ---
 ```
 
-Requires AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) or IAM role-based authentication. Set `AWS_SESSION_TOKEN` when using temporary credentials (e.g., from `aws sts assume-role`).
+Requires AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) or IAM role-based authentication. Set `AWS_SESSION_TOKEN` when using temporary credentials (e.g., from `aws sts assume-role`). The legacy alias `bedrock` is still accepted.
 
 For cross-region inference, use the regional inference profile format: `us.anthropic.claude-sonnet-4-20250514-v1:0`.
 
 Always set `maxTokens` in your Bedrock prompt files. Unlike the direct Anthropic provider (which auto-detects per-model limits), the Bedrock SDK has no client-side defaults and relies on server-side defaults that may be lower than the model's capacity.
 
-When using `providerOptions`, use the `bedrock` namespace (not `anthropic`):
+When using `providerOptions`, use the AI SDK `bedrock` namespace (not `anthropic`):
 
 ```yaml
 providerOptions:
@@ -765,7 +767,7 @@ Many providers offer built-in tools like web search. Configure them in YAML fron
 
 ```yaml prompts/research@v1.prompt
 ---
-provider: vertex
+provider: google-vertex
 model: gemini-2.0-flash
 tools:
   googleSearch:
@@ -778,7 +780,7 @@ Research {{ topic }} and provide sources
 </user>
 ```
 
-This is equivalent to calling `vertex.tools.googleSearch({ mode: 'MODE_DYNAMIC', dynamicThreshold: 0.8 })` at the code level, but keeps your prompt self-contained.
+This is equivalent to calling the Vertex provider's `tools.googleSearch({ mode: 'MODE_DYNAMIC', dynamicThreshold: 0.8 })` at the code level, but keeps your prompt self-contained.
 
 YAML tools are merged with code-level tools, so you can combine provider tools (from YAML) with custom tools (from code). Code-level tools take precedence if names conflict.
 

@@ -5,11 +5,12 @@ import { Logger } from '@outputai/core';
 /**
  * Calculates the cost of an llm call based on the model and usage.
  * @param {object} args
- * @param {string} args.modelId - Name of the model, provider prefix is optional
+ * @param {string} args.providerId - Id of the provider
+ * @param {string} args.modelId - Id of the model
  * @param {object} args.usage - Usage, as returned from AI SDK
  * @returns {object} The cost with total value and components
  */
-export const calculateLLMCallCost = async ( { modelId, usage } ) => {
+export const calculateLLMCallCost = async ( { providerId, modelId, usage } ) => {
   try {
     const models = await fetchModelsPricing();
 
@@ -18,9 +19,9 @@ export const calculateLLMCallCost = async ( { modelId, usage } ) => {
       return null;
     }
 
-    const pricing = models.get( modelId );
+    const pricing = models.get( `${providerId}/${modelId}` );
     if ( !pricing ) {
-      Logger.warn( 'Missing cost reference for model', { namespace: 'LLM' } );
+      Logger.warn( 'Missing cost reference for model', { namespace: 'LLM', modelId, providerId } );
       return null;
     }
 

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const SHIPPED_PROVIDERS = [
+  { name: 'amazon-bedrock', pkg: '@ai-sdk/amazon-bedrock', exportName: 'createAmazonBedrock' },
   { name: 'anthropic', pkg: '@ai-sdk/anthropic', exportName: 'createAnthropic' },
   { name: 'azure', pkg: '@ai-sdk/azure', exportName: 'createAzure' },
-  { name: 'bedrock', pkg: '@ai-sdk/amazon-bedrock', exportName: 'createAmazonBedrock' },
+  { name: 'google-vertex', pkg: '@ai-sdk/google-vertex', exportName: 'createVertex' },
   { name: 'openai', pkg: '@ai-sdk/openai', exportName: 'createOpenAI' },
-  { name: 'perplexity', pkg: '@ai-sdk/perplexity', exportName: 'createPerplexity' },
-  { name: 'vertex', pkg: '@ai-sdk/google-vertex', exportName: 'createVertex' }
+  { name: 'perplexity', pkg: '@ai-sdk/perplexity', exportName: 'createPerplexity' }
 ];
 
 const makeProviderModules = () => Object.fromEntries(
@@ -194,12 +194,12 @@ describe( 'getProviderNames', () => {
     registerProvider( 'openai', vi.fn() );
 
     expect( getProviderNames() ).toEqual( [
+      'amazon-bedrock',
       'anthropic',
       'azure',
-      'bedrock',
+      'google-vertex',
       'openai',
       'perplexity',
-      'vertex',
       'custom'
     ] );
   } );

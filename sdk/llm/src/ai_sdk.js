@@ -17,7 +17,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
 
   const traceId = startTrace( { name: 'generateText', prompt, variables, loadedPrompt } );
-  const { model: modelId } = loadedPrompt.config;
+  const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
     const response = await AI.generateText( {
@@ -28,7 +28,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
       ...( tools && { tools } ),
       ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
     } );
-    return wrapTextResponse( { traceId, modelId, response } );
+    return wrapTextResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {
     const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );
@@ -46,7 +46,7 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
   const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
 
   const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
-  const { model: modelId } = loadedPrompt.config;
+  const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
     return AI.streamText( {
@@ -56,7 +56,7 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
       ...aiSdkArgs,
       ...( tools && { tools } ),
       ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
-      ...wrapStreamOnFinishResponse( { traceId, modelId, onFinish } ),
+      ...wrapStreamOnFinishResponse( { traceId, modelId, providerId, onFinish } ),
       onError( event ) {
         const error = mapAiError( event.error );
         endTraceWithError( { traceId, error } );
@@ -75,7 +75,7 @@ export async function generateImage( { prompt, variables, promptDir, images, mas
 
   const loadedPrompt = loadPrompt( prompt, variables, promptDir );
   const traceId = startTrace( { name: 'generateImage', prompt, variables, loadedPrompt } );
-  const { model: modelId } = loadedPrompt.config;
+  const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
     const response = await AI.generateImage( {
@@ -83,7 +83,7 @@ export async function generateImage( { prompt, variables, promptDir, images, mas
       maxRetries: 0,
       ...aiSdkArgs
     } );
-    return wrapImageResponse( { traceId, modelId, response } );
+    return wrapImageResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {
     const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );
