@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatWorkflowResult, isErrorWorkflowStatus } from './format_workflow_result.js';
+import { formatWorkflowResult, isErrorStatus } from './format_workflow_result.js';
 
 describe( 'formatWorkflowResult', () => {
   it( 'should display output for completed workflows', () => {
@@ -90,7 +90,7 @@ describe( 'formatWorkflowResult', () => {
     } as unknown as Parameters<typeof formatWorkflowResult>[0];
 
     expect( formatWorkflowResult( legacyResult ) ).toContain( 'Status: cancelled' );
-    expect( isErrorWorkflowStatus( 'canceled' ) ).toBe( true );
+    expect( isErrorStatus( 'canceled' ) ).toBe( 'cancelled' );
   } );
 
   it( 'should display status without error line for continued_as_new workflows', () => {

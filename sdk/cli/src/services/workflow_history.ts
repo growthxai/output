@@ -10,7 +10,7 @@
 import { getWorkflowIdHistory, type GetWorkflowIdHistory200 } from '#api/generated/api.js';
 import { correlate, eventAttributes, eventTypeName, type HistoryEvent, type Span } from '#services/workflow_history/correlator.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
-import { TERMINAL_STATUSES } from '#utils/format_workflow_result.js';
+import { isTerminalStatus } from '#utils/format_workflow_result.js';
 
 const PAGE_SIZE = 50;
 
@@ -70,7 +70,7 @@ export interface WorkflowHistoryCursor {
 // set), so it can report the run closed before the closing event has been paged in.
 function isRunClosed( meta: WorkflowMeta | null ): boolean {
   const status = normalizeWorkflowStatus( meta?.status );
-  return status === 'continued_as_new' || ( status !== undefined && TERMINAL_STATUSES.has( status ) );
+  return status === 'continued_as_new' || isTerminalStatus( status ) !== undefined;
 }
 
 function numericEventId( event: HistoryEvent ): number {
