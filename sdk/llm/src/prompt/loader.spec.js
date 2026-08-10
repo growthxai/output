@@ -294,34 +294,35 @@ model: gpt-4
     );
   } );
 
-  it( 'rewrites provider aliases after config decode', () => {
+  it( 'rewrites provider aliases on the decoded config', () => {
     const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    const encodedConfig = {
-      provider: 'vertex',
-      model: 'gemini-2.5-flash-lite'
+    const parsedConfig = {
+      provider: 'bedrock',
+      model: 'test-model'
+    };
+    const decodedConfig = {
+      provider: 'bedrock',
+      model: 'test-model'
     };
     loadContent.mockReturnValue( {
       content: '<user>Hello</user>',
       dir: '/mock/dir'
     } );
     parsePrompt.mockReturnValue( {
-      config: encodedConfig,
+      config: parsedConfig,
       messages: [ { role: 'user', content: 'Hello' } ],
       instructions: null
     } );
-    decode.mockImplementation( value => {
-      if ( value === encodedConfig ) {
-        return {
-          provider: 'bedrock',
-          model: 'gemini-2.5-flash-lite'
-        };
-      }
-      return value;
-    } );
+    decode.mockImplementation( value => ( value === parsedConfig ? decodedConfig : value ) );
 
     const result = loadPrompt( 'test' );
 
+    expect( decode ).toHaveBeenCalledWith( parsedConfig );
+    expect( result.config ).toBe( decodedConfig );
     expect( result.config.provider ).toBe( 'amazon-bedrock' );
+    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: decodedConfig
+    } ) );
     expect( warn ).toHaveBeenCalledWith(
       'Using deprecated provider alias "bedrock". Use "amazon-bedrock" instead.',
       { namespace: 'LLM' }
