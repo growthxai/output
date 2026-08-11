@@ -8,6 +8,15 @@
  * relative link is prepended to that release's block.
  */
 
+// Apply a transform only outside fenced code blocks (``` … ```).
+function mapOutsideFences( text, transform ) {
+  const fences = /(```[\s\S]*?```)/g;
+  return text
+    .split( fences )
+    .map( ( segment, i ) => ( i % 2 === 1 ? segment : transform( segment ) ) )
+    .join( '' );
+}
+
 // Apply a transform only outside inline/fenced code so changeset examples stay
 // verbatim while surrounding MDX prose can be escaped or rewritten.
 function mapProse( text, transform ) {
@@ -31,14 +40,29 @@ function escapeMdxText( text ) {
 // Changeset summaries often use `##` section titles. If left as ATX headings
 // they become page-level <h2>s inside <Update> and leak into Mintlify's TOC.
 function demoteMarkdownHeadings( text ) {
-  // Headings often sit immediately before a fenced block. mapProse puts the
-  // fence in the next segment, so the prose segment ends with `\n`. With the
-  // `m` flag, `\s*$` consumes that final newline (`\s*` + `$` at EOS), and the
-  // join becomes `**Title**```js` — Mintlify then parses the fence body as JS.
-  // Only strip spaces/tabs at EOL.
-  return mapProse( text, segment =>
-    segment.replace( /^(#{1,6})[ \t]+(.+?)[ \t]*$/gm, ( _match, _hashes, title ) => `**${title}**` )
+  // Split on fences only — not inline code. mapProse would carve
+  // `## `workflow start --monitor`` into "## " + "`…`" and the heading regex
+  // (which needs [ \t]+(.+?)) would miss, leaving a real <h2>. Mid-title
+  // inline code would also mangle `## Update `x` here` into `**Update**`x` here`.
+  //
+  // Emit an extra newline after the bold title so a following GFM table is
+  // separated from the paragraph (tables cannot interrupt a paragraph; lists
+  // and fences can).
+  //
+  // Only strip spaces/tabs at EOL — not `\s`. With fence splitting the prose
+  // segment often ends in `\n`; `\s*$` would eat it and glue `**Title**```js`.
+  return mapOutsideFences( text, segment =>
+    segment.replace(
+      /^(#{1,6})[ \t]+(.+?)[ \t]*$/gm,
+      ( _match, _hashes, title ) => `**${title}**\n`
+    )
   );
+}
+
+// The extra newline after demotion stacks with blank lines already in the
+// changeset (`## A\n\n## B` → three newlines). Keep a single blank line.
+function collapseExtraBlankLines( text ) {
+  return mapOutsideFences( text, segment => segment.replace( /\n{3,}/g, '\n\n' ) );
 }
 
 /**
@@ -50,19 +74,19 @@ export function renderChangeBlock( change ) {
   const inner = change.packages.length === 0
     ? 'All packages'
     : change.packages.map( p => `\`${p.name}\`` ).join( ', ' );
-  // Keep the summary on its own line so a leading `##` / `-` is not glued onto
-  // the `**pkg** —` paragraph (which rendered as literal `##` / a stray `-`).
-  const summary = escapeMdxText( demoteMarkdownHeadings( change.summary ) );
-  return `**${inner}** —\n\n${summary}`;
+  // Package label on its own line, then the summary, so a leading `##` or `-`
+  // in the summary stays a block construct instead of trailing the label.
+  const summary = escapeMdxText( collapseExtraBlankLines( demoteMarkdownHeadings( change.summary ) ) );
+  return `**${inner}**\n\n${summary}`;
 }
 
 function renderMigrationLink( guide ) {
-  return `See the [v${guide.from} → v${guide.to} migration guide](/migrations/${guide.slug}).`;
+  return `See the [v${guide.from} - v${guide.to} migration guide](/migrations/${guide.slug}).`;
 }
 
 function renderUpdateBlock( release, migrationByToVersion ) {
   const lines = [
-    `<Update label="v${release.version}" description="${release.date} · ${release.level} release">`,
+    `<Update label="v${release.version}" description="${release.date} - ${release.level} release">`,
     ''
   ];
 
