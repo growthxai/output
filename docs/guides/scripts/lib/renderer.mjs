@@ -8,25 +8,42 @@
  * relative link is prepended to that release's block.
  */
 
+// Apply a transform only outside inline/fenced code so changeset examples stay
+// verbatim while surrounding MDX prose can be escaped or rewritten.
+function mapProse( text, transform ) {
+  const codeSpans = /(```[\s\S]*?```|`[^`]*`)/g;
+  return text
+    .split( codeSpans )
+    .map( ( segment, i ) => ( i % 2 === 1 ? segment : transform( segment ) ) )
+    .join( '' );
+}
+
 // MDX reads a bare `<` as the start of a JSX tag and `{` as an expression, so
 // arbitrary changeset prose (e.g. `hono@<4.12.12`, `</style>`) breaks parsing
 // and drops the whole page. Escape those two characters in the prose parts of
 // the summary, leaving inline-code spans and fenced code blocks verbatim.
 function escapeMdxText( text ) {
-  const codeSpans = /(```[\s\S]*?```|`[^`]*`)/g;
-  return text
-    .split( codeSpans )
-    .map( ( segment, i ) => i % 2 === 1
-      ? segment
-      : segment.replace( /</g, '&lt;' ).replace( /\{/g, '&#123;' ) )
-    .join( '' );
+  return mapProse( text, segment =>
+    segment.replace( /</g, '&lt;' ).replace( /\{/g, '&#123;' )
+  );
+}
+
+// Changeset summaries often use `##` section titles. If left as ATX headings
+// they become page-level <h2>s inside <Update> and leak into Mintlify's TOC.
+function demoteMarkdownHeadings( text ) {
+  return mapProse( text, segment =>
+    segment.replace( /^(#{1,6})[ \t]+(.+?)\s*$/gm, ( _match, _hashes, title ) => `**${title}**` )
+  );
 }
 
 function renderChangeBlock( change ) {
   const inner = change.packages.length === 0
     ? 'All packages'
     : change.packages.map( p => `\`${p.name}\`` ).join( ', ' );
-  return `**${inner}** — ${escapeMdxText( change.summary )}`;
+  // Keep the summary on its own line so a leading `##` / `-` is not glued onto
+  // the `**pkg** —` paragraph (which rendered as literal `##` / a stray `-`).
+  const summary = escapeMdxText( demoteMarkdownHeadings( change.summary ) );
+  return `**${inner}** —\n\n${summary}`;
 }
 
 function renderMigrationLink( guide ) {
