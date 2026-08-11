@@ -47,7 +47,7 @@ describe( 'fetchModelsPricing', () => {
     const firstModel = Object.values( fixture )[0];
     const firstModelId = Object.keys( firstModel.models )[0];
     const cost = firstModel.models[firstModelId].cost;
-    expect( result.get( firstModelId ) ).toEqual( cost );
+    expect( result.get( firstModelId ) ).toBeUndefined();
     expect( result.get( `${firstModel.id}/${firstModelId}` ) ).toEqual( cost );
   } );
 
@@ -58,11 +58,23 @@ describe( 'fetchModelsPricing', () => {
 
     const openaiProvider = fixture.openai;
     const openaiModelId = Object.keys( openaiProvider.models )[0];
-    expect( result.get( openaiModelId ) ).toBeDefined();
+    expect( result.get( openaiModelId ) ).toBeUndefined();
     expect( result.get( `openai/${openaiModelId}` ) ).toEqual( openaiProvider.models[openaiModelId].cost );
 
     const anthropicModelId = Object.keys( fixture.anthropic.models )[0];
-    expect( result.get( anthropicModelId ) ).toBeDefined();
+    expect( result.get( `anthropic/${anthropicModelId}` ) ).toEqual( fixture.anthropic.models[anthropicModelId].cost );
+  } );
+
+  it( 'keeps separate costs when the same model id exists under two providers', async () => {
+    stubFetch( okResponse( fixture ) );
+
+    const result = await fetchModelsPricing();
+    const sharedModelId = 'gpt-4o-2024-11-20';
+
+    expect( result.get( sharedModelId ) ).toBeUndefined();
+    expect( result.get( `openai/${sharedModelId}` ) ).toEqual( fixture.openai.models[sharedModelId].cost );
+    expect( result.get( `azure/${sharedModelId}` ) ).toEqual( fixture.azure.models[sharedModelId].cost );
+    expect( result.get( `openai/${sharedModelId}` ) ).not.toEqual( result.get( `azure/${sharedModelId}` ) );
   } );
 
   it( 'returns null when response is not ok and no cache', async () => {
@@ -149,7 +161,8 @@ describe( 'fetchModelsPricing', () => {
 
     const result = await fetchModelsPricing();
 
-    expect( result.get( 'withCost' ) ).toEqual( { input: 1, output: 2 } );
-    expect( result.get( 'noCost' ) ).toBeUndefined();
+    expect( result.get( 'p1/withCost' ) ).toEqual( { input: 1, output: 2 } );
+    expect( result.get( 'withCost' ) ).toBeUndefined();
+    expect( result.get( 'p1/noCost' ) ).toBeUndefined();
   } );
 } );

@@ -74,7 +74,7 @@ const importSut = async () => import( './ai_sdk.js' );
 
 const loadedPrompt = {
   name: 'test@v1',
-  config: { model: 'test-model' },
+  config: { provider: 'openai', model: 'test-model' },
   messages: [ { role: 'user', content: 'Hello' } ]
 };
 
@@ -198,6 +198,7 @@ describe( 'ai_sdk', () => {
       } );
       expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
+        providerId: 'openai',
         modelId: 'test-model',
         response: textResponse
       } );
@@ -322,6 +323,7 @@ describe( 'ai_sdk', () => {
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
       expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
+        providerId: 'openai',
         modelId: 'test-model',
         onFinish
       } );
@@ -505,6 +507,7 @@ describe( 'ai_sdk', () => {
       } );
       expect( wrapMocks.wrapImageResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
+        providerId: 'openai',
         modelId: 'test-model',
         response: imageResponse
       } );

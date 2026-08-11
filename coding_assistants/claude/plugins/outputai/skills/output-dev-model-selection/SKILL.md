@@ -93,9 +93,9 @@ Output SDK `provider:` values don't always line up with the snapshot keys, since
 |---|---|
 | `anthropic` | `anthropic` |
 | `openai` | `openai` |
-| `vertex` (Gemini models) | `google` |
-| `vertex` (Claude models) | `anthropic` (then re-add the `@vertex` suffix manually) |
-| `bedrock` | `anthropic` (then translate to bedrock namespace manually) |
+| `google-vertex` (Gemini models) | `google` |
+| `google-vertex` (Claude models) | `anthropic` (then re-add the `@vertex` suffix manually) |
+| `amazon-bedrock` | `anthropic` (then translate to bedrock namespace manually) |
 
 ### Step 4 — Pick a model from the provider's list
 

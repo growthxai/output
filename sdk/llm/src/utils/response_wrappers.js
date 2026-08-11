@@ -12,14 +12,15 @@ import { calculateBase64FileSize } from './image.js';
  *
  * @param {object} args
  * @param {string} args.traceId - id created by the startTrace
+ * @param {string} args.providerId - id of the provider used
  * @param {string} args.modelId - id of the model used
  * @param {object} args.response - AI SDK's text response
  * @returns {object} Proxied response
  */
-export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
+export const wrapTextResponse = async ( { traceId, providerId, modelId, response } ) => {
   const { totalUsage: usage, providerMetadata, text: result, steps, sources } = response;
 
-  const cost = await calculateLLMCallCost( { usage, modelId } );
+  const cost = await calculateLLMCallCost( { usage, modelId, providerId } );
   const sourcesFromTools = extractSourcesFromSteps( steps );
 
   endTraceWithSuccess( { traceId, usage, cost, result, providerMetadata, sourcesFromTools } );
@@ -48,13 +49,14 @@ export const wrapTextResponse = async ( { traceId, modelId, response } ) => {
  *
  * @param {object} args
  * @param {string} args.traceId - id created by the startTrace
+ * @param {string} args.providerId - id of the provider used
  * @param {string} args.modelId - id of the model used
  * @param {Function} args.onFinish - Original callback to call with the proxied response
  * @returns {object} Proxied response
  */
-export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFinish } ) => ( {
+export const wrapStreamOnFinishResponse = ( { traceId, providerId, modelId, onFinish: _onFinish } ) => ( {
   async onFinish( response ) {
-    const proxiedResponse = await wrapTextResponse( { traceId, modelId, response } );
+    const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
     _onFinish?.( proxiedResponse );
   }
 } );
@@ -68,13 +70,14 @@ export const wrapStreamOnFinishResponse = ( { traceId, modelId, onFinish: _onFin
  *
  * @param {object} args
  * @param {string} args.traceId - id created by the startTrace
+ * @param {string} args.providerId - id of the provider used
  * @param {string} args.modelId - id of the model used
  * @param {object} args.response - AI SDK's image response
  * @returns {object} Proxied response
  */
-export const wrapImageResponse = async ( { traceId, modelId, response } ) => {
+export const wrapImageResponse = async ( { traceId, providerId, modelId, response } ) => {
   const { usage, providerMetadata } = response;
-  const cost = await calculateLLMCallCost( { usage, modelId } );
+  const cost = await calculateLLMCallCost( { usage, providerId, modelId } );
 
   const result = response.images.map( ( { mediaType, base64 } ) => ( {
     size: calculateBase64FileSize( base64 ),

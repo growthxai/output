@@ -91,7 +91,13 @@ export type Prompt = {
 
   /** General configuration for the LLM */
   config: {
-    /** LLM provider (built-in: 'anthropic', 'openai', 'azure', 'vertex', 'bedrock', 'perplexity'; or any registered custom provider) */
+    /**
+     * LLM provider.
+     *
+     * Built-in: `'anthropic'`, `'openai'`, `'azure'`, `'amazon-bedrock'`, `'google-vertex'`,
+     * `'perplexity'`. Legacy aliases `'bedrock'` and `'vertex'` are deprecated but still accepted.
+     * Custom providers registered via {@link registerProvider} are also accepted.
+     */
     provider: string;
 
     /** Model name/identifier */

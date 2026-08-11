@@ -47,6 +47,11 @@ vi.mock( '@outputai/core/sdk/runtime', () => {
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { calculateLLMCallCost } from './index.js';
 
+const pricingMap = entries => new Map( entries.map( ( [ providerId, modelId, cost ] ) => [
+  `${providerId}/${modelId}`,
+  cost
+] ) );
+
 const expectLLMUsage = ( result, { modelId, usage, total, tokensUsed } ) => {
   expect( result ).toBeInstanceOf( Tracing.Attribute.LLMUsage );
   expect( result ).toEqual( expect.objectContaining( {
@@ -71,6 +76,7 @@ describe( 'calculateLLMCallCost', () => {
     mockFetchModelsPricing.mockResolvedValue( null );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'gpt-4o',
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
@@ -82,6 +88,7 @@ describe( 'calculateLLMCallCost', () => {
     mockFetchModelsPricing.mockResolvedValue( new Map() );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'unknown-model',
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
@@ -90,9 +97,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'calculates input and output usage from model pricing', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'gpt-4o', { input: 2, output: 10, cache_read: 1 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'gpt-4o', { input: 2, output: 10, cache_read: 1 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'gpt-4o',
       usage: { inputTokens: 1_000_000, outputTokens: 500_000 }
     } );
@@ -108,10 +118,51 @@ describe( 'calculateLLMCallCost', () => {
     } );
   } );
 
+  it( 'uses each provider pricing when the same model id exists under two providers', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'gpt-4o', { input: 2, output: 10 } ],
+      [ 'azure', 'gpt-4o', { input: 3, output: 12 } ]
+    ] ) );
+    const usage = { inputTokens: 1_000_000, outputTokens: 0 };
+
+    const openai = await calculateLLMCallCost( {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      usage
+    } );
+    const azure = await calculateLLMCallCost( {
+      providerId: 'azure',
+      modelId: 'gpt-4o',
+      usage
+    } );
+
+    expectLLMUsage( openai, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 2, amount: 1_000_000, total: 2 },
+        { type: 'output', ppm: 10, amount: 0, total: 0 }
+      ],
+      total: 2,
+      tokensUsed: 1_000_000
+    } );
+    expectLLMUsage( azure, {
+      modelId: 'gpt-4o',
+      usage: [
+        { type: 'input', ppm: 3, amount: 1_000_000, total: 3 },
+        { type: 'output', ppm: 12, amount: 0, total: 0 }
+      ],
+      total: 3,
+      tokensUsed: 1_000_000
+    } );
+  } );
+
   it( 'splits input into non-cached and cached usage at respective rates', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'cached-model', { input: 4, cache_read: 1, output: 10 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'cached-model', { input: 4, cache_read: 1, output: 10 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'cached-model',
       usage: { inputTokens: 1_000_000, cachedInputTokens: 500_000, outputTokens: 100_000 }
     } );
@@ -129,9 +180,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'still counts cached tokens when the model has no cache_read rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-cache', { input: 2, output: 10 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'no-cache', { input: 2, output: 10 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'no-cache',
       usage: { inputTokens: 1_000_000, cachedInputTokens: 200_000, outputTokens: 0 }
     } );
@@ -151,9 +205,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'omits input usage when pricing has no input rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'out-only', { output: 10 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'out-only', { output: 10 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'out-only',
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
@@ -169,9 +226,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'omits output usage when pricing has no output rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'in-only', { input: 1 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'in-only', { input: 1 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'in-only',
       usage: { inputTokens: 100, outputTokens: 50 }
     } );
@@ -187,12 +247,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'includes reasoning usage when present', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [
-      'with-reasoning',
-      { input: 1, output: 10, reasoning: 60 }
-    ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'with-reasoning', { input: 1, output: 10, reasoning: 60 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'with-reasoning',
       usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 50 }
     } );
@@ -210,9 +270,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'omits reasoning usage when reasoning cost is missing', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'no-reasoning', { input: 1, output: 10 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'no-reasoning', { input: 1, output: 10 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'no-reasoning',
       usage: { inputTokens: 100, outputTokens: 20, reasoningTokens: 50 }
     } );
@@ -229,12 +292,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'includes reasoning usage with zero amount when reasoningTokens is zero', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [
-      'full',
-      { input: 2, output: 8, reasoning: 60 }
-    ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'full', { input: 2, output: 8, reasoning: 60 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'full',
       usage: { inputTokens: 100, outputTokens: 50, reasoningTokens: 0 }
     } );
@@ -252,9 +315,12 @@ describe( 'calculateLLMCallCost', () => {
   } );
 
   it( 'omits usage entries for non-finite token counts', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map( [ [ 'm', { input: 1, output: 2 } ] ] ) );
+    mockFetchModelsPricing.mockResolvedValue( pricingMap( [
+      [ 'openai', 'm', { input: 1, output: 2 } ]
+    ] ) );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'm',
       usage: { inputTokens: null, outputTokens: undefined }
     } );
@@ -274,6 +340,7 @@ describe( 'calculateLLMCallCost', () => {
     mockFetchModelsPricing.mockRejectedValue( error );
 
     const result = await calculateLLMCallCost( {
+      providerId: 'openai',
       modelId: 'gpt-4o',
       usage: { inputTokens: 100, outputTokens: 50 }
     } );

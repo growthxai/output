@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Logger } from '@outputai/core';
 import { loadPrompt } from './loader.js';
 
 vi.mock( './parser.js', () => ( {
@@ -261,6 +262,92 @@ model: gpt-4
         }
       }
     } );
+  } );
+
+  it.each( [
+    [ 'vertex', 'google-vertex' ],
+    [ 'bedrock', 'amazon-bedrock' ]
+  ] )( 'rewrites deprecated provider alias %s to %s and warns', ( alias, canonical ) => {
+    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
+    loadContent.mockReturnValue( {
+      content: '<user>Hello</user>',
+      dir: '/mock/dir'
+    } );
+    parsePrompt.mockReturnValue( {
+      config: {
+        provider: alias,
+        model: 'test-model'
+      },
+      messages: [ { role: 'user', content: 'Hello' } ],
+      instructions: null
+    } );
+
+    const result = loadPrompt( 'test' );
+
+    expect( result.config.provider ).toBe( canonical );
+    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: expect.objectContaining( { provider: canonical } )
+    } ) );
+    expect( warn ).toHaveBeenCalledWith(
+      `Using deprecated provider alias "${alias}". Use "${canonical}" instead.`,
+      { namespace: 'LLM' }
+    );
+  } );
+
+  it( 'rewrites provider aliases on the decoded config', () => {
+    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
+    const parsedConfig = {
+      provider: 'bedrock',
+      model: 'test-model'
+    };
+    const decodedConfig = {
+      provider: 'bedrock',
+      model: 'test-model'
+    };
+    loadContent.mockReturnValue( {
+      content: '<user>Hello</user>',
+      dir: '/mock/dir'
+    } );
+    parsePrompt.mockReturnValue( {
+      config: parsedConfig,
+      messages: [ { role: 'user', content: 'Hello' } ],
+      instructions: null
+    } );
+    decode.mockImplementation( value => ( value === parsedConfig ? decodedConfig : value ) );
+
+    const result = loadPrompt( 'test' );
+
+    expect( decode ).toHaveBeenCalledWith( parsedConfig );
+    expect( result.config ).toBe( decodedConfig );
+    expect( result.config.provider ).toBe( 'amazon-bedrock' );
+    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: decodedConfig
+    } ) );
+    expect( warn ).toHaveBeenCalledWith(
+      'Using deprecated provider alias "bedrock". Use "amazon-bedrock" instead.',
+      { namespace: 'LLM' }
+    );
+  } );
+
+  it( 'leaves canonical provider names unchanged', () => {
+    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
+    loadContent.mockReturnValue( {
+      content: '<user>Hello</user>',
+      dir: '/mock/dir'
+    } );
+    parsePrompt.mockReturnValue( {
+      config: {
+        provider: 'google-vertex',
+        model: 'gemini-2.5-flash-lite'
+      },
+      messages: [ { role: 'user', content: 'Hello' } ],
+      instructions: null
+    } );
+
+    const result = loadPrompt( 'test' );
+
+    expect( result.config.provider ).toBe( 'google-vertex' );
+    expect( warn ).not.toHaveBeenCalled();
   } );
 
   it( 'throws error when prompt file not found', () => {

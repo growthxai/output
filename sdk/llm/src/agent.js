@@ -19,6 +19,7 @@ export const createMemoryConversationStore = () => {
 export class Agent extends AIToolLoopAgent {
   #prompt;
   #modelId;
+  #providerId;
   #initialMessages;
   #store;
 
@@ -57,6 +58,7 @@ export class Agent extends AIToolLoopAgent {
 
     this.#prompt = prompt;
     this.#modelId = loadedPrompt.config.model;
+    this.#providerId = loadedPrompt.config.provider;
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
@@ -79,7 +81,7 @@ export class Agent extends AIToolLoopAgent {
     try {
       const messages = await this.#fetchMessages( userMessages );
       const response = await super.generate( { messages, allowSystemInMessages: true, ...callOptions } );
-      const wrapped = await wrapTextResponse( { traceId, response, modelId: this.#modelId } );
+      const wrapped = await wrapTextResponse( { traceId, response, providerId: this.#providerId, modelId: this.#modelId } );
       await this.#storeMessages( userMessages, wrapped );
       return wrapped;
     } catch ( error ) {
@@ -96,7 +98,7 @@ export class Agent extends AIToolLoopAgent {
         messages,
         allowSystemInMessages: true,
         ...callOptions,
-        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, onFinish } ),
+        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, providerId: this.#providerId, onFinish } ),
         onError( event ) {
           endTraceWithError( { traceId, error: event.error } );
           onError?.( event );

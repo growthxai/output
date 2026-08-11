@@ -7,6 +7,7 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createPerplexity } from '@ai-sdk/perplexity';
 import { createVertex } from '@ai-sdk/google-vertex';
+import { deprecatedProviderAliases } from './deprecated_provider_aliases.js';
 
 /** This custom dispatcher has longer timeouts. */
 const customDispatcher = new EnvHttpProxyAgent( {
@@ -20,12 +21,12 @@ const customFetch = ( input, init ) => fetch( input, { dispatcher: customDispatc
 
 /** Available provider to initialize. */
 const providerInitializers = {
+  'amazon-bedrock': createAmazonBedrock,
   anthropic: createAnthropic,
   azure: createAzure,
-  bedrock: createAmazonBedrock,
+  'google-vertex': createVertex,
   openai: createOpenAI,
-  perplexity: createPerplexity,
-  vertex: createVertex
+  perplexity: createPerplexity
 };
 
 /** Providers already initialized due usage */
@@ -56,6 +57,12 @@ export function registerProvider( name, providerFn ) {
   const result = registerProviderSchema.safeParse( { name, providerFn } );
   if ( !result.success ) {
     throw new ValidationError( `Invalid provider registration: ${z.prettifyError( result.error )}` );
+  }
+  if ( Object.hasOwn( deprecatedProviderAliases, name ) ) {
+    const canonical = deprecatedProviderAliases[name];
+    throw new ValidationError(
+      `Cannot register provider "${name}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
+    );
   }
   registeredProviders[name] = providerFn;
 }

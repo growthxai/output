@@ -2,8 +2,9 @@ import { parsePrompt } from './parser.js';
 import { Liquid } from 'liquidjs';
 import { loadContent } from './load_content.js';
 import { validatePrompt } from './validations.js';
-import { FatalError } from '@outputai/core';
+import { FatalError, Logger } from '@outputai/core';
 import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
+import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
 
 const liquid = new Liquid( {
   strictFilters: true,
@@ -46,6 +47,13 @@ export const loadPrompt = ( name, values = {}, dir ) => {
     messages: messages.map( m => ( { ...m, content: decode( m.content ) } ) ),
     instructions: instructions === null ? null : decode( instructions )
   };
+
+  const provider = prompt.config.provider;
+  if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
+    const canonical = deprecatedProviderAliases[provider];
+    Logger.warn( `Using deprecated provider alias "${provider}". Use "${canonical}" instead.`, { namespace: 'LLM' } );
+    prompt.config.provider = canonical;
+  }
 
   validatePrompt( prompt );
 

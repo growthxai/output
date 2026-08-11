@@ -135,6 +135,20 @@
       }
     }
   },
+  "azure": {
+    "id": "azure",
+    "models": {
+      "gpt-4o-2024-11-20": {
+        "id": "gpt-4o-2024-11-20",
+        "name": "GPT-4o (2024-11-20)",
+        "cost": {
+          "input": 3,
+          "output": 12,
+          "cache_read": 1.5
+        }
+      }
+    }
+  },
   "anthropic": {
     "id": "anthropic",
     "models": {

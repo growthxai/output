@@ -75,7 +75,7 @@ User message with {{ variable }} placeholders.
 
 ```yaml
 ---
-provider: anthropic    # LLM provider: anthropic, openai, vertex
+provider: anthropic    # LLM provider: anthropic, openai, google-vertex, amazon-bedrock, azure, perplexity
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 ---
@@ -145,11 +145,11 @@ maxTokens: 4096
 ---
 ```
 
-#### Vertex (Gemini)
+#### Google Vertex (Gemini)
 
 ```yaml
 ---
-provider: vertex
+provider: google-vertex
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: gemini-3-pro
 temperature: 0.7

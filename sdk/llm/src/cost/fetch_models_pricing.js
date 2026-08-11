@@ -18,7 +18,6 @@ const buildModelMap = data => {
   for ( const provider of Object.values( data ) ) {
     for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
       if ( cost ) { // some models don't have cost
-        map.set( modelName, cost );
         map.set( `${provider.id}/${modelName}`, cost );
       }
     }
