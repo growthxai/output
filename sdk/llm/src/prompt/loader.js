@@ -49,9 +49,10 @@ export const loadPrompt = ( name, values = {}, dir ) => {
   };
 
   const provider = prompt.config.provider;
-  if ( deprecatedProviderAliases[provider] ) {
-    Logger.warn( `Using deprecated provider alias "${provider}". Use "${deprecatedProviderAliases[provider]}" instead.`, { namespace: 'LLM' } );
-    prompt.config.provider = deprecatedProviderAliases[provider];
+  if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
+    const canonical = deprecatedProviderAliases[provider];
+    Logger.warn( `Using deprecated provider alias "${provider}". Use "${canonical}" instead.`, { namespace: 'LLM' } );
+    prompt.config.provider = canonical;
   }
 
   validatePrompt( prompt );

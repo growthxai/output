@@ -1,5 +1,5 @@
 ---
-"@outputai/llm": patch
+"@outputai/llm": minor
 ---
 
 - Added `'google-vertex'` provider name support to use the `@ai-sdk/google-vertex` provider, the previous `'vertex'` is still supported as an alias, and it is deprecated;
