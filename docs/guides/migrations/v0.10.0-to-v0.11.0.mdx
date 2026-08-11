@@ -681,6 +681,19 @@ This section covers the workflow execution changes in `@outputai/core` v0.11.0.
 - Shared activities are registered as `<workflow-name>#<activity-name>` instead of `$shared#<activity-name>`.
 - Child workflow invocation options are passed as workflow arguments instead of being propagated through Temporal memo.
 - A child workflow's definition-level `activityOptions` now override inherited parent options. Invocation-level and step-level options remain more specific.
+- Worker startup fails if a workflow-scoped activity uses the same name as a shared activity.
+- Steps/evaluators files that use unsupported export or import shapes (or top-level activity calls) fail worker startup instead of bundling with broken rewrites.
+
+### Steps and evaluators file shape
+
+These forms were already unsupported by workflow rewriting. The worker now rejects them during bundling:
+
+| Invalid | Valid |
+| --- | --- |
+| `export default step(…)` / `export * from './other.js'` | `export const foo = step(…)` (named exports only) |
+| `import foo from './steps.js'` / `import * as steps from './steps.js'` | `import { foo } from './steps.js'` |
+| `const steps = require( './steps.js' )` | `const { foo } = require( './steps.js' )` |
+| `foo()` at module top level | Call `foo()` inside a function |
 
 ### Before upgrading running workers
 
@@ -808,6 +821,8 @@ Step-level `options.activityOptions` still have final precedence. Review step de
 - Drain the old task queue, keep a v0.10.x worker until that queue is empty, route new work to a v0.11.0 queue, or restart open executions before the cutover.
 - Do not run v0.10.x and v0.11.0 workers on the same Temporal task queue.
 - Update dashboards and history tooling that match `$shared#<activity-name>`.
+- Rename any workflow activity that shares a name with a shared activity.
+- Replace default/`export *` exports and default/namespace/non-destructured imports in steps and evaluators with named bindings; move top-level activity calls into functions.
 - Audit parent and child workflows that configure the same retry or timeout fields.
 - Pass `activityOptions` on child invocations where the parent must override the child's definition.
 - Update tests that assert inherited parent options override child definition options.
@@ -834,6 +849,49 @@ npx output workflow test <workflowName>
 
 - Replace any scripts, CI steps, or aliases that call `output workflow test_eval` with `output workflow test`.
 - No change if you already use `output workflow test`.
+
+## CLI: worker hot-reload and install scripts
+
+### What changed
+
+In v0.10.x, worker hot-reload watched `package.json` and `output:worker` ran `npm install` on every restart. Editing dependencies (or even touching `package.json`) triggered a full install cycle through nodemon.
+
+In v0.11.0, hot-reload only watches source under `src`. Dependency installs are explicit:
+
+- `output:worker` builds and starts; it no longer runs install.
+- `output:worker:watch` no longer passes `--watch package.json` to nodemon.
+- `output:worker:install` remains the script that runs `npm install`.
+- `output dev` still runs `output:worker:install` once when the worker container starts, then uses watch for source changes only.
+
+### Update project scripts
+
+Existing projects keep their old `package.json` scripts until you sync them. From the project root:
+
+```bash
+npx output fix
+```
+
+That rewrites `scripts` to the current scaffold template, including the new `output:worker` and `output:worker:watch` definitions. It does not install packages and does not change your dependencies list.
+
+### After you change dependencies
+
+Hot-reload will not pick up new or updated packages. After editing `package.json` / the lockfile:
+
+1. Run `npm install` on the host.
+2. Recreate the worker so it reinstalls into its `node_modules` volume:
+   - Foreground `output dev` that owns the stack: quit it, then start `output dev` again.
+   - Attached session or `output dev -d`: run `output dev down`, then `output dev` again.
+
+If you start the worker yourself (without `output dev`), run `npm run output:worker:install` before `npm run output:worker` whenever dependencies change.
+
+### Worker scripts checklist
+
+- Run `npx output fix` once after upgrading so `output:worker` / `output:worker:watch` match the v0.11.0 scaffold.
+- Treat dependency changes as an install + worker recreate, not a hot-reload.
+
+## CLI: `.env` loading
+
+The CLI loads `.env` with Node's `process.loadEnvFile` instead of `dotenv`. Values are taken literally — `${OTHER}` is not expanded. Put the final value in the file (or export the variable in the shell). `OUTPUT_CLI_ENV` still selects which file to load.
 
 ## LLM permanent errors and schema-mismatch messages
 
