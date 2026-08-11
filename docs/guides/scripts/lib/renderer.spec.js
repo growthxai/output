@@ -165,6 +165,23 @@ describe( 'renderChangeBlock', () => {
 
     expect( out ).toContain( '```md\n## Still a heading in the example\n```' );
   } );
+
+  it( 'does not collapse consecutive blank lines inside fenced code', () => {
+    const out = renderChangeBlock( {
+      packages: [ pkg( '@outputai/cli' ) ],
+      summary: [
+        'Example:',
+        '```txt',
+        'before',
+        '',
+        '',
+        'after',
+        '```'
+      ].join( '\n' )
+    } );
+
+    expect( out ).toContain( '```txt\nbefore\n\n\nafter\n```' );
+  } );
 } );
 
 describe( 'renderChangelogBody', () => {

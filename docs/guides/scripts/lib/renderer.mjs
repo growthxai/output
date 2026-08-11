@@ -1,5 +1,5 @@
 /**
- * Pure rendering functions — turn releases.json data into MDX strings.
+ * Pure rendering functions - turn releases.json data into MDX strings.
  *
  * renderChangelogBody() returns the <Update> blocks that get spliced into the
  * hand-written changelog page (docs/guides/changelog/index.mdx) between its
@@ -8,21 +8,13 @@
  * relative link is prepended to that release's block.
  */
 
-// Apply a transform only outside fenced code blocks (``` … ```).
-function mapOutsideFences( text, transform ) {
-  const fences = /(```[\s\S]*?```)/g;
-  return text
-    .split( fences )
-    .map( ( segment, i ) => ( i % 2 === 1 ? segment : transform( segment ) ) )
-    .join( '' );
-}
+const FENCE_RE = /(```[\s\S]*?```)/g;
+const CODE_OR_FENCE_RE = /(```[\s\S]*?```|`[^`]*`)/g;
 
-// Apply a transform only outside inline/fenced code so changeset examples stay
-// verbatim while surrounding MDX prose can be escaped or rewritten.
-function mapProse( text, transform ) {
-  const codeSpans = /(```[\s\S]*?```|`[^`]*`)/g;
+// Apply a transform only outside segments matched by `splitRe` (odd split parts).
+function mapOutside( splitRe, text, transform ) {
   return text
-    .split( codeSpans )
+    .split( splitRe )
     .map( ( segment, i ) => ( i % 2 === 1 ? segment : transform( segment ) ) )
     .join( '' );
 }
@@ -32,7 +24,7 @@ function mapProse( text, transform ) {
 // and drops the whole page. Escape those two characters in the prose parts of
 // the summary, leaving inline-code spans and fenced code blocks verbatim.
 function escapeMdxText( text ) {
-  return mapProse( text, segment =>
+  return mapOutside( CODE_OR_FENCE_RE, text, segment =>
     segment.replace( /</g, '&lt;' ).replace( /\{/g, '&#123;' )
   );
 }
@@ -40,7 +32,7 @@ function escapeMdxText( text ) {
 // Changeset summaries often use `##` section titles. If left as ATX headings
 // they become page-level <h2>s inside <Update> and leak into Mintlify's TOC.
 function demoteMarkdownHeadings( text ) {
-  // Split on fences only — not inline code. mapProse would carve
+  // Split on fences only - not inline code. Splitting on inline code would carve
   // `## `workflow start --monitor`` into "## " + "`…`" and the heading regex
   // (which needs [ \t]+(.+?)) would miss, leaving a real <h2>. Mid-title
   // inline code would also mangle `## Update `x` here` into `**Update**`x` here`.
@@ -49,20 +41,20 @@ function demoteMarkdownHeadings( text ) {
   // separated from the paragraph (tables cannot interrupt a paragraph; lists
   // and fences can).
   //
-  // Only strip spaces/tabs at EOL — not `\s`. With fence splitting the prose
+  // Only strip spaces/tabs at EOL - not `\s`. With fence splitting the prose
   // segment often ends in `\n`; `\s*$` would eat it and glue `**Title**```js`.
-  return mapOutsideFences( text, segment =>
+  return mapOutside( FENCE_RE, text, segment =>
     segment.replace(
-      /^(#{1,6})[ \t]+(.+?)[ \t]*$/gm,
-      ( _match, _hashes, title ) => `**${title}**\n`
+      /^(?:#{1,6})[ \t]+(.+?)[ \t]*$/gm,
+      ( _match, title ) => `**${title}**\n`
     )
   );
 }
 
 // The extra newline after demotion stacks with blank lines already in the
-// changeset (`## A\n\n## B` → three newlines). Keep a single blank line.
+// changeset (`## A\n\n## B` becomes three newlines). Keep a single blank line.
 function collapseExtraBlankLines( text ) {
-  return mapOutsideFences( text, segment => segment.replace( /\n{3,}/g, '\n\n' ) );
+  return mapOutside( FENCE_RE, text, segment => segment.replace( /\n{3,}/g, '\n\n' ) );
 }
 
 /**
