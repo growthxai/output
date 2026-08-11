@@ -31,12 +31,22 @@ function escapeMdxText( text ) {
 // Changeset summaries often use `##` section titles. If left as ATX headings
 // they become page-level <h2>s inside <Update> and leak into Mintlify's TOC.
 function demoteMarkdownHeadings( text ) {
+  // Headings often sit immediately before a fenced block. mapProse puts the
+  // fence in the next segment, so the prose segment ends with `\n`. With the
+  // `m` flag, `\s*$` consumes that final newline (`\s*` + `$` at EOS), and the
+  // join becomes `**Title**```js` — Mintlify then parses the fence body as JS.
+  // Only strip spaces/tabs at EOL.
   return mapProse( text, segment =>
-    segment.replace( /^(#{1,6})[ \t]+(.+?)\s*$/gm, ( _match, _hashes, title ) => `**${title}**` )
+    segment.replace( /^(#{1,6})[ \t]+(.+?)[ \t]*$/gm, ( _match, _hashes, title ) => `**${title}**` )
   );
 }
 
-function renderChangeBlock( change ) {
+/**
+ * Render one changelog change as MDX (package line + summary).
+ * @param {{ packages: Array<{ name: string }>, summary: string }} change
+ * @returns {string}
+ */
+export function renderChangeBlock( change ) {
   const inner = change.packages.length === 0
     ? 'All packages'
     : change.packages.map( p => `\`${p.name}\`` ).join( ', ' );

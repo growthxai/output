@@ -376,6 +376,7 @@ Add per-message provider options to `.prompt` files via `messageOptions`.
 The `continued` workflow status was renamed to `continued_as_new` in API responses.
 
 **Explicit Status Fields**
+
 | Endpoint | HTTP response JSON path | Generated client path |
 | --- | --- | --- |
 | `POST /workflow/run` | `status` | `response.data.status` |
@@ -386,6 +387,7 @@ The `continued` workflow status was renamed to `continued_as_new` in API respons
 | `GET /workflow/runs` | `runs[].status` | `response.data.runs[].status` |
 
 **History Metadata Status Fields**
+
 These endpoints also return workflow status in the history metadata object. The OpenAPI schema currently leaves this nested object unexpanded.
 
 | Endpoint | HTTP response JSON path | Generated client path |
@@ -394,6 +396,7 @@ These endpoints also return workflow status in the history metadata object. The 
 | `GET /workflow/{id}/runs/{rid}/history` | `workflow.status` | `response.data.workflow.status` |
 
 **Backwards support**
+
 In the CLI, the old value is still supported.
 
 </Update>
@@ -439,12 +442,14 @@ Where `workflowDetails` is an abstraction over [Temporal's `workflowInfo()`](htt
 **Error hook**
 Updated `onError()` hooks payload. The fields change according to the `source`:
 
-**Source is "workflow"**```js
+**Source is "workflow"**
+```js
 { eventId, eventDate, source, workflowDetails, error }
 ```
 Where `workflowDetails` is the same as in workflow hooks.
 
-**Source is "activity"**```js
+**Source is "activity"**
+```js
 { eventId, eventDate, source, workflowDetails, activityInfo, outputActivityKind, error }
 ```
 
@@ -452,7 +457,8 @@ Where `activityInfo` is Temporal's `activityInfo()` [function return](https://ty
 
 And `outputActivityKind` is the framework flavor of the Temporal Activity: `step`, `evaluator` or `internal_step`.
 
-**Source is "runtime"**```js
+**Source is "runtime"**
+```js
 { eventId, eventDate, source, error }
 ```
 
@@ -495,11 +501,13 @@ Updated trace workflow node ids to use Temporal `runId`, instead of `workflowId`
 Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` env var. Default `0` - off.
 
 Message examples:
-**Dev**```
+**Dev**
+```
 [info] Telemetry: Worker { status: { runState: "RUNNING", numHeartbeatingActivities: 0, workflowPollerState: "POLLING", activityPollerState: "POLLING", hasOutstandingWorkflowPoll: true, hasOutstandingActivityPoll: true, numCachedWorkflows: 1, numInFlightWorkflowActivations: 0, numInFlightActivities: 0, numInFlightNonLocalActivities: 0, numInFlightLocalActivities: 0 }, memory: { availableMemory: 7500000000, constrainedMemory: 20000000000000000000, memoryUsage: { rss: 582348800, heapTotal: 400000000, heapUsed: 200000000, external: 800000000, arrayBuffers: 300000000 } } }
 ```
 
-**Prod**```json
+**Prod**
+```json
 {
   "environment": "production",
   "level": "info",
@@ -858,6 +866,7 @@ Optimizing local trace to use less memory and avoid "RangeError: Invalid string 
 **`@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/output`, `@outputai/http`** —
 
 **Dependencies updates**
+
 **Vulnerabilities fixed:**
 - uuid: Missing buffer bounds check in v3/v5/v6 when buf: (bump to `>=14.0.0`)
 - postcss: PostCSS has XSS via Unescaped &lt;/style> in its CSS Stringify Output (bump to `>=8.5.10`)
