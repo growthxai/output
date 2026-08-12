@@ -28,7 +28,7 @@ export const inheritsFromAnyNamedType = ( obj, classNames ) => {
 
 /**
  * Builds an error attributing all enumerable properties from a given object.
- * Property `clause` is serialized recursively.
+ * Property `cause` is rehydrated recursively when it is a plain object.
  *
  * If object is already an error, it is returned as it is.
  *
@@ -41,10 +41,14 @@ export const rehydrateError = target => {
   }
   const error = new Error();
   error.stack = undefined;
-  if ( target !== null && target !== undefined ) {
+  if ( target === null || target === undefined ) {
+    return error;
+  }
+  if ( typeof target === 'object' ) {
     for ( const [ p, v ] of Object.entries( target ) ) {
       error[p] = ( p === 'cause' && isPlainObject( v ) ) ? rehydrateError( v ) : v;
     }
+    return error;
   }
-  return error;
+  return new Error( String( target ) );
 };

@@ -130,4 +130,60 @@ describe( 'rehydrateError', () => {
     expect( fromUndefined.message ).toBe( '' );
     expect( fromUndefined.stack ).toBeUndefined();
   } );
+
+  it.each( [
+    [ 'string', 'boom', 'boom' ],
+    [ 'number', 42, '42' ],
+    [ 'boolean', true, 'true' ],
+    [ 'bigint', 1n, '1' ],
+    [ 'symbol', Symbol( 'x' ), 'Symbol(x)' ],
+    [ 'named function', function named() {}, 'function named() {}' ],
+    [ 'arrow function', () => {}, '() => {}' ]
+  ] )( 'stringifies a %s into Error.message', ( _label, input, message ) => {
+    const result = rehydrateError( input );
+
+    expect( result ).toBeInstanceOf( Error );
+    expect( result.message ).toBe( message );
+    expect( typeof result.stack ).toBe( 'string' );
+  } );
+
+  it( 'copies enumerable array indexes onto an empty Error', () => {
+    const result = rehydrateError( [ 'a', 'b' ] );
+
+    expect( result ).toBeInstanceOf( Error );
+    expect( result.message ).toBe( '' );
+    expect( result.stack ).toBeUndefined();
+    expect( result[0] ).toBe( 'a' );
+    expect( result[1] ).toBe( 'b' );
+  } );
+
+  it( 'returns an empty Error for RegExp and Date (no enumerable own props)', () => {
+    const fromRegexp = rehydrateError( /foo/gi );
+    const fromDate = rehydrateError( new Date( '2020-01-01T00:00:00.000Z' ) );
+
+    expect( fromRegexp ).toBeInstanceOf( Error );
+    expect( fromRegexp.message ).toBe( '' );
+    expect( fromRegexp.stack ).toBeUndefined();
+
+    expect( fromDate ).toBeInstanceOf( Error );
+    expect( fromDate.message ).toBe( '' );
+    expect( fromDate.stack ).toBeUndefined();
+  } );
+
+  it( 'copies enumerable own props from a custom class instance', () => {
+    class Widget {
+      constructor() {
+        this.x = 1;
+        this.name = 'WidgetError';
+      }
+    }
+
+    const result = rehydrateError( new Widget() );
+
+    expect( result ).toBeInstanceOf( Error );
+    expect( result.message ).toBe( '' );
+    expect( result.stack ).toBeUndefined();
+    expect( result.x ).toBe( 1 );
+    expect( result.name ).toBe( 'WidgetError' );
+  } );
 } );
