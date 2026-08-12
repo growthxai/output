@@ -239,22 +239,22 @@ on( 'cost:llm:request', event => {
 } );
 ```
 
-### Workflow error hooks receive serialized objects
+### Workflow error hooks receive rehydrated `Error` instances
 
-Workflow errors are serialized before crossing Temporal's workflow sandbox boundary. The `error` field passed to `onWorkflowError` and workflow-sourced `onError` handlers is now a plain error-like object rather than an `Error` instance.
+Workflow errors are still serialized to cross Temporal's workflow sandbox boundary (so `name`, `message`, `cause`, and other diagnostics survive). Before hooks run, the worker rehydrates that payload into an `Error`. `onWorkflowError` and workflow-sourced `onError` handlers therefore receive an `Error` instance again — the same shape as activity and runtime error hooks.
 
 ```ts
 import { onError } from '@outputai/core/hooks';
 
 onError( event => {
   if ( event.source === 'workflow' ) {
+    console.log( event.error instanceof Error ); // true
     console.log( event.error.name, event.error.message );
-    // event.error instanceof Error === false
   }
 } );
 ```
 
-Activity and runtime error hooks continue to receive `Error` instances.
+The rehydrated value is always a bare `Error`, not the original subclass. `instanceof FatalError` is false even when `error.name === 'FatalError'`. Use `error.name`, or `hasErrorType(error, FatalError)` from `@outputai/core` (matches `.name` and walks `.cause`), to distinguish failure kinds after the boundary. Extra enumerable fields may still be present at runtime; narrow or cast in TypeScript when you need them.
 
 ### Update imported hook payload types
 
@@ -327,7 +327,7 @@ No migration is needed unless an `onError` handler explicitly relied on `$catalo
 - Guard `event.payload` before accessing its fields.
 - Keep framework fields such as `eventId`, `workflowDetails`, and `activityInfo` at the top level.
 - Remove reads of `aggregations` from activity lifecycle and error hooks.
-- Treat workflow hook errors as serialized error-like objects rather than `Error` instances.
+- Treat workflow hook errors as reconstructed `Error` instances (not plain serialized objects). `instanceof FatalError` is always false after rehydration — use `error.name` or `hasErrorType(error, FatalError)` when subclass identity matters.
 - Filter `outputActivityKind === 'internal_step'` in activity lifecycle hooks when internal activities should remain hidden.
 - Remove assumptions that `onError` reports `$catalog` workflow failures.
 

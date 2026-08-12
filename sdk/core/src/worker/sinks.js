@@ -2,6 +2,7 @@ import { BusEventType, ComponentType } from '#consts';
 import * as Tracing from '#tracing';
 import { mainEventBus } from '#bus';
 import { createWorkflowDetails } from '#helpers/temporal_context';
+import { rehydrateError } from '#helpers/errors';
 
 // This sink allow for sandbox Temporal environment to send trace logs back to the main thread.
 export const sinks = {
@@ -48,7 +49,8 @@ export const sinks = {
     error: {
       fn: ( workflowInfo, error ) => {
         const { runId, memo: { traceInfo } } = workflowInfo;
-        mainEventBus.emit( BusEventType.WORKFLOW_ERROR, { workflowDetails: createWorkflowDetails( workflowInfo ), error } );
+        // re-hydrate workflow error
+        mainEventBus.emit( BusEventType.WORKFLOW_ERROR, { workflowDetails: createWorkflowDetails( workflowInfo ), error: rehydrateError( error ) } );
         if ( traceInfo ) {
           Tracing.addEventError( { id: runId, details: error, traceInfo } );
         }

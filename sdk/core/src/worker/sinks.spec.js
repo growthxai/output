@@ -15,6 +15,8 @@ const createWorkflowDetailsMock = vi.hoisted( () => vi.fn( workflowInfo => ( {
   runId: workflowInfo.runId
 } ) ) );
 
+const rehydrateErrorMock = vi.hoisted( () => vi.fn( error => error ) );
+
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 vi.mock( '#tracing', () => ( {
   addEventStart: addEventStartMock,
@@ -23,6 +25,9 @@ vi.mock( '#tracing', () => ( {
 } ) );
 vi.mock( '#helpers/temporal_context', () => ( {
   createWorkflowDetails: createWorkflowDetailsMock
+} ) );
+vi.mock( '#helpers/errors', () => ( {
+  rehydrateError: rehydrateErrorMock
 } ) );
 
 describe( 'worker/sinks', () => {
@@ -128,11 +133,17 @@ describe( 'worker/sinks', () => {
 
   it( 'workflow.error emits workflow error events and trace error events', async () => {
     const { sinks } = await import( './sinks.js' );
-    const error = new Error( 'workflow failed' );
+    const error = { name: 'Error', message: 'workflow failed' };
+    const rehydrated = new Error( 'workflow failed' );
+    rehydrateErrorMock.mockReturnValueOnce( rehydrated );
 
     sinks.workflow.error.fn( workflowInfo, error );
 
-    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
+    expect( rehydrateErrorMock ).toHaveBeenCalledWith( error );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith(
+      BusEventType.WORKFLOW_ERROR,
+      { workflowDetails, error: rehydrated }
+    );
     expect( addEventErrorMock ).toHaveBeenCalledWith( {
       id: 'run-1',
       details: error,
@@ -142,11 +153,17 @@ describe( 'worker/sinks', () => {
 
   it( 'workflow.error skips tracing when trace info is absent', async () => {
     const { sinks } = await import( './sinks.js' );
-    const error = new Error( 'workflow failed' );
+    const error = { name: 'Error', message: 'workflow failed' };
+    const rehydrated = new Error( 'workflow failed' );
+    rehydrateErrorMock.mockReturnValueOnce( rehydrated );
 
     sinks.workflow.error.fn( { ...workflowInfo, memo: {} }, error );
 
-    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, { workflowDetails, error } );
+    expect( rehydrateErrorMock ).toHaveBeenCalledWith( error );
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith(
+      BusEventType.WORKFLOW_ERROR,
+      { workflowDetails, error: rehydrated }
+    );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 

@@ -90,22 +90,6 @@ export interface HookPayloadBase {
 }
 
 /**
- * A serialized error-like object emitted from a workflow.
- *
- * Additional enumerable properties from the original error may also be present.
- */
-export interface SerializedError {
-  /** Error name. */
-  name: string;
-  /** Error message. */
-  message: string;
-  /** Serialized underlying cause, when present. */
-  cause?: SerializedError;
-  /** Additional properties captured from the original error. */
-  [property: string]: unknown;
-}
-
-/**
  * Common hook payload fields for events associated with an workflow.
  */
 export interface WorkflowPayloadBase extends HookPayloadBase {
@@ -127,8 +111,14 @@ export type WorkflowEndHookPayload = WorkflowPayloadBase;
  * Payload passed to the onWorkflowError() handler when a workflow run fails.
  */
 export interface WorkflowErrorHookPayload extends WorkflowPayloadBase {
-  /** Serialized workflow error. */
-  error: SerializedError;
+  /**
+   * Workflow error rehydrated after crossing the Temporal sandbox boundary.
+   * Preserves `name`, `message`, `cause`, and other enumerable properties from
+   * the serialized form; it is a reconstructed `Error`, not the original class.
+   * Extra fields are present at runtime but not on the `Error` type — narrow or
+   * cast in TypeScript when you need them.
+   */
+  error: Error;
 }
 
 /**
@@ -168,8 +158,14 @@ export type ErrorHookPayload =
   ( WorkflowPayloadBase & {
     /** Workflow error origin. */
     source: 'workflow';
-    /** Serialized workflow error. */
-    error: SerializedError;
+    /**
+     * Workflow error rehydrated after crossing the Temporal sandbox boundary.
+     * Preserves `name`, `message`, `cause`, and other enumerable properties from
+     * the serialized form; it is a reconstructed `Error`, not the original class.
+     * Extra fields are present at runtime but not on the `Error` type — narrow or
+     * cast in TypeScript when you need them.
+     */
+    error: Error;
   } ) |
   ( ActivityErrorHookPayload & {
     /** Activity error origin. */
