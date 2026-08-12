@@ -115,6 +115,8 @@ export interface WorkflowErrorHookPayload extends WorkflowPayloadBase {
    * Workflow error rehydrated after crossing the Temporal sandbox boundary.
    * Preserves `name`, `message`, `cause`, and other enumerable properties from
    * the serialized form; it is a reconstructed `Error`, not the original class.
+   * Extra fields are present at runtime but not on the `Error` type — narrow or
+   * cast in TypeScript when you need them.
    */
   error: Error;
 }
@@ -160,6 +162,8 @@ export type ErrorHookPayload =
      * Workflow error rehydrated after crossing the Temporal sandbox boundary.
      * Preserves `name`, `message`, `cause`, and other enumerable properties from
      * the serialized form; it is a reconstructed `Error`, not the original class.
+     * Extra fields are present at runtime but not on the `Error` type — narrow or
+     * cast in TypeScript when you need them.
      */
     error: Error;
   } ) |

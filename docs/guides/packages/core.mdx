@@ -186,11 +186,7 @@ type WorkflowDetails = {
 - **`workflow`** — `eventId`, `eventDate`, `source`, `workflowDetails`, `error`
 - **`runtime`** — `eventId`, `eventDate`, `source`, `error`
 
-Activity, runtime, and workflow error hooks all receive `Error` instances. Workflow
-errors are still serialized to cross Temporal's sandbox boundary, then rehydrated
-before hooks run — so `name`, `message`, an optional recursive `cause`, and other
-enumerable diagnostic properties survive, but the value is a reconstructed `Error`
-(not the original subclass).
+Activity, runtime, and workflow error hooks all receive `Error` instances. Workflow errors are still serialized to cross Temporal's sandbox boundary, then rehydrated before hooks run — so `name`, `message`, an optional recursive `cause`, and other enumerable diagnostic properties survive. The value is always a bare `Error`, not the original subclass (`instanceof FatalError` is false even when `error.name === 'FatalError'`). Use `error.name`, or `hasErrorType(error, FatalError)` from `@outputai/core`, to distinguish failure kinds.
 
 The internal `$catalog` workflow is excluded from lifecycle and error hooks. Activity hooks include internal activities, identified by `outputActivityKind: 'internal_step'`.
 

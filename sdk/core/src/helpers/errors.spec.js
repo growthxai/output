@@ -144,7 +144,7 @@ describe( 'rehydrateError', () => {
 
     expect( result ).toBeInstanceOf( Error );
     expect( result.message ).toBe( message );
-    expect( typeof result.stack ).toBe( 'string' );
+    expect( result.stack ).toBeUndefined();
   } );
 
   it( 'copies enumerable array indexes onto an empty Error', () => {

@@ -32,6 +32,8 @@ export const inheritsFromAnyNamedType = ( obj, classNames ) => {
  *
  * If object is already an error, it is returned as it is.
  *
+ * If is a primitive, it will only set message to its string value.
+ *
  * @param {unknown} target
  * @returns {Error}
  */
@@ -41,6 +43,7 @@ export const rehydrateError = target => {
   }
   const error = new Error();
   error.stack = undefined;
+
   if ( target === null || target === undefined ) {
     return error;
   }
@@ -50,5 +53,6 @@ export const rehydrateError = target => {
     }
     return error;
   }
-  return new Error( String( target ) );
+  error.message = String( target );
+  return error;
 };
