@@ -1,5 +1,46 @@
 # output-api
 
+## 0.11.0
+
+### Minor Changes
+
+- 46d9d66: - Added support for new workflow results without wrappers and with trace information in `memo`;
+  - Added support for the new structured error format, including error details;
+  - Added the new workflow result format V2 while preserving support for legacy results:
+    ```json
+    {
+      "v": "2",
+      "workflowId": "xxx",
+      "runId": "xxx",
+      "status": "failed",
+      "input": null,
+      "output": null,
+      "trace": {
+        "local": "...",
+        "remote": "..."
+      },
+      "error": {
+        "name": "TypeError",
+        "message": "fetch failed",
+        "cause": {
+          "name": "Error",
+          "message": "getaddrinfo ENOTFOUND coolbeans.sofax",
+          "errno": -3008,
+          "code": "ENOTFOUND",
+          "syscall": "getaddrinfo",
+          "hostname": "coolbeans.sofax"
+        }
+      }
+    }
+    ```
+- 64a9df7: Add workflow monitor command, update workflow history API to be resumable
+- b7b2fbe: Removed morgan library, refactored logs to include more information in the message, and renamed the request-log field from `status` to `statusCode`.
+
+### Patch Changes
+
+- bf95a6f: Updated `nanoid` from `5.1.9` to `5.1.16`
+- 2caa4a1: Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
+
 ## 0.10.0
 
 ### Minor Changes

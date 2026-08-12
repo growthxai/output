@@ -1,5 +1,42 @@
 # @outputai/output
 
+## 0.11.0
+
+### Patch Changes
+
+- Updated dependencies [14a191e]
+- Updated dependencies [46d9d66]
+- Updated dependencies [09ed166]
+- Updated dependencies [46d9d66]
+- Updated dependencies [64a9df7]
+- Updated dependencies [52bedcf]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [74e6a3d]
+- Updated dependencies [6ce5320]
+- Updated dependencies [a5da6b5]
+- Updated dependencies [af37678]
+- Updated dependencies [46d9d66]
+- Updated dependencies [af37678]
+- Updated dependencies [3d1f9bd]
+- Updated dependencies [c717e35]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [bf95a6f]
+- Updated dependencies [3c76007]
+- Updated dependencies [be4ec7f]
+- Updated dependencies [f6a7c1a]
+- Updated dependencies [cbef793]
+- Updated dependencies [47f491f]
+- Updated dependencies [2cbd0a2]
+- Updated dependencies [d815a8e]
+- Updated dependencies [82e6b25]
+  - @outputai/cli@0.11.0
+  - @outputai/llm@0.11.0
+  - @outputai/core@0.11.0
+  - @outputai/http@0.11.0
+  - @outputai/credentials@0.11.0
+  - @outputai/evals@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes

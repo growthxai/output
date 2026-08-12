@@ -9,6 +9,347 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.11.0" description="2026-08-12 - minor release">
+
+See the [v0.10.0 - v0.11.0 migration guide](/migrations/v0.10.0-to-v0.11.0).
+
+**`@outputai/cli`**
+
+CLI env loading now uses Node's `process.loadEnvFile` instead of the `dotenv` package.
+
+**`@outputai/cli`**
+
+- Added support for legacy and V2 workflow results from the API, including structured errors;
+
+**`output-api`**
+
+- Added support for new workflow results without wrappers and with trace information in `memo`;
+- Added support for the new structured error format, including error details;
+- Added the new workflow result format V2 while preserving support for legacy results:
+  ```json
+  {
+    "v": "2",
+    "workflowId": "xxx",
+    "runId": "xxx",
+    "status": "failed",
+    "input": null,
+    "output": null,
+    "trace": {
+      "local": "...",
+      "remote": "..."
+    },
+    "error": {
+      "name": "TypeError",
+      "message": "fetch failed",
+      "cause": {
+        "name": "Error",
+        "message": "getaddrinfo ENOTFOUND coolbeans.sofax",
+        "errno": -3008,
+        "code": "ENOTFOUND",
+        "syscall": "getaddrinfo",
+        "hostname": "coolbeans.sofax"
+      }
+    }
+  }
+  ```
+
+**`@outputai/llm`**
+
+Added stricter LiquidJs settings for prompt files parsing. The following configurations were added:
+```js
+{
+  strictFilters: true,
+  strictVariables: true,
+  lenientIf: true
+}
+```
+
+**`@outputai/core`**
+
+- Removed workflow and activity wrappers, so both return their original output;
+- Moved trace information to the root workflow's `memo`, in a new format:
+  ```json
+  {
+    "trace": {
+      "local": "...",
+      "remote": "..."
+    }
+  }
+  ```
+- Removed `aggregations` from activity lifecycle and error hook payloads.
+- Added `TransparentFatalError`, a non-retryable wrapper that surfaces its cause as the original error in logs, traces, hooks and workflow results.
+- Refactored workflow and activity error handling:
+  - Workflow
+    - `ContinueAsNew`, throw;
+    - Cancellation, throw;
+    - `FatalError`/`ValidationError`, create an `ApplicationFailure` and serialize the original error in `.details[0].error`;
+    - `TemporalFailure`, throw;
+    - Other errors, throw;
+  - Activity
+    - `CompleteAsyncError`, throw;
+    - `TemporalFailure`, throw;
+    - Other errors, create an `ApplicationFailure`, serialize the original error in `.details[0].error`, and determine whether it is non-retryable from the error class name and `activityInfo.retryPolicy.nonRetryableErrorTypes`;
+- `ValidationError` now extends from `FatalError`.
+- `FatalError` is now always handled as non retryable, user configurable `activityOptions.retry.nonRetryableErrorTypes` will not overwrite it anymore.
+- Forwarded Temporal SDK and native Core logs through Output's logger for consistent production/development formatting, omitted redundant failure logs (workflow/activity failures), and added `OUTPUT_TEMPORAL_LOG_LEVEL` to configure verbosity;
+- Refactored workflow and activity error logs:
+  - Workflow
+    - `ContinueAsNew`, log a successful workflow end instead of an error;
+    - Cancellation, log the serialized error chain without `stack` or Temporal's internal `.failure`;
+    - `FatalError`/`ValidationError`, log the serialized original error without `stack`;
+    - `TemporalFailure`, log the serialized Temporal error chain without `stack` or `.failure`;
+    - Other errors, do not log because Temporal retries the Workflow Task;
+  - Activity
+    - `CompleteAsyncError`, do not log an error and close the trace node as an asynchronous handoff;
+    - `TemporalFailure`, log the serialized error without `stack`;
+    - Other errors, log the serialized original error without `stack` before converting it to an `ApplicationFailure`.
+
+**`output-api`**
+
+Updated `nanoid` from `5.1.9` to `5.1.16`
+
+**`@outputai/cli`, `output-api`**
+
+Add workflow monitor command, update workflow history API to be resumable
+
+**`output-api`**
+
+Removed morgan library, refactored logs to include more information in the message, and renamed the request-log field from `status` to `statusCode`.
+
+**`@outputai/cli`**
+
+Restore the terminal on abnormal `output dev` exit. Uncaught exceptions and unhandled rejections now leave the alternate-screen buffer and unmount the TUI before exiting, so scrollback and the error stack stay readable.
+
+**`@outputai/core`**
+
+**Workflow Activity Invocation**
+
+- Refactored workflow activity invocation so steps, evaluators, and shared activities use the same runtime dispatcher
+instead of `this`-based handler dispatch.
+
+  Workflow handlers no longer need to be rewritten from arrow functions into regular functions for activity dispatch,
+  reducing AST rewrite complexity during worker startup and making bundling more predictable.
+
+- Step and evaluator calls can now be placed in helper functions and imported helper modules used by a workflow.
+  Helpers no longer need to pass a workflow-bound `this` value through their call chain.
+
+**Child Workflow Activity Options**
+
+- A child workflow's definition-level `options.activityOptions` now override activity options inherited from its parent. Invocation-level `activityOptions` still override both, and a step or evaluator's own `options.activityOptions` remain the most specific.
+
+- If a parent must override a child's retry or timeout configuration, pass `activityOptions` explicitly when invoking the child workflow.
+
+**Shared Activity Namespaces**
+
+- Removed the previous `"$shared"` activity namespace by registering shared activities into each workflow namespace. This means workflows can call local and shared activities through the same activity resolution path.
+
+- Shared activity types now use `"<workflow-name>#<activity-name>"` instead of `"$shared#<activity-name>"`.
+
+- Added validation that prevents workflow-scoped activities from using the same activity name as a shared activity. If a workflow defines an activity with the same name as a shared activity, worker startup now fails validation instead of allowing ambiguous activity resolution.
+
+**Workflow Code Validation**
+
+- Added fail-fast validation for default exports and `export *` declarations in steps/evaluators files. Steps and evaluators already needed to be exposed through named exports for workflow rewriting. The worker now reports these unsupported forms directly during startup.
+
+  ```js
+  // valid
+  export const foo = step( { name: 'foo' } );
+
+  // invalid
+  export default step( { name: 'foo' } );
+  export * from './other_steps.js';
+  ```
+
+- Added fail-fast validation for unsupported steps/evaluators import shapes. Imports from steps/evaluators files already needed to use named imports or destructured requires for workflow rewriting.
+
+  The worker now fails fast with a validation error for unsupported import shapes like default imports, namespace imports, or non-destructured requires.
+
+  ```js
+  // valid
+  import { foo } from './steps.js';
+  const { bar } = require( './evaluators.js' );
+
+  // invalid
+  import foo from './steps.js';
+  import * as steps from './steps.js';
+  const steps = require( './steps.js' );
+  ```
+
+- Added validation that activity calls must happen inside functions.
+  Calling a step or evaluator at module top level now fails validation.
+
+  ```js
+  import { foo } from './steps.js';
+
+  // invalid
+  foo();
+  ```
+
+**`@outputai/llm`**
+
+- Upgraded `liquidJS` from v10.25.7 to v10.27.2 (`.prompt` files template parser).
+
+**`@outputai/cli`**
+
+**`workflow start --monitor`**
+
+Added a `--monitor` (`-m`) flag to `output workflow start` that attaches and streams step updates as soon as the workflow is started, so you no longer have to copy the workflow ID into a separate `workflow monitor` call.
+
+```bash
+output workflow start lead_enrichment --input ./test_input.json --monitor
+```
+
+- Monitoring is pinned to the run id returned by `start`, so a rapid re-start can't leave you watching a different execution.
+- Behavior matches `workflow monitor`: Ctrl+C detaches without stopping the workflow (exit `130`), and a failed workflow exits `1`.
+- If the stream itself drops after the workflow was started, the command reports that the workflow is still running and exits `3` — distinct from `1`, so retry logic keyed on a failed workflow can't re-submit one that is already in flight.
+- `--interval`, `--include-payloads`, and `--color` tune the stream and require `--monitor`.
+- `--monitor` cannot be combined with `--json`, which suppresses progress output and prints a single object at the end — that would swallow the whole stream. Use `workflow run --json` to wait for a result, or `workflow monitor --format json` for streaming NDJSON.
+
+The polling loop moved to a shared module so `workflow monitor` and `workflow start --monitor` run the same code path. Two fixes fall out of that for `workflow monitor` as well: a transient failure on the *first* poll is now retried like any other (it used to abort immediately), and Ctrl+C waits for output to flush before exiting, so a piped session can't lose its last lines. Detaching now also names `workflow status`/`workflow result` for the run you left behind.
+
+**`@outputai/cli`**
+
+Fix `--json` output on the `workflow start` and `workflow run` commands. `workflow start` did not support `--json` at all and errored on the flag; it now emits the workflow result as JSON. `workflow run --json` corrupted its JSON output when given a scenario argument, because the "Using scenario:" notice was written to stdout. That notice now goes to stderr, and is suppressed entirely under `--json` so that on success both commands write exactly one JSON object to stdout and nothing else.
+
+**`@outputai/core`**
+
+- Workflow errors passed to `onWorkflowError` and workflow-sourced `onError` are rehydrated to `Error` instances after crossing the Temporal sandbox (preserving `name`, `message`, `cause`, and other enumerable properties).
+
+**`@outputai/http`**
+
+**HTTP clients**
+
+- Replaced `fetch` with `outputFetch`, the explicitly named Fetch-compatible API for traced HTTP requests.
+  - Uses Undici as its canonical internal implementation while accepting Node and Undici `Request` inputs and request options containing either realm's `Headers` or `FormData` objects.
+  - Normalizes Node request objects at the API boundary instead of replacing Node's global Fetch classes with `undici.install()`.
+  - Rejects mixed request families, such as a Node `Request` combined with Undici `FormData`.
+  - Removed the top-level `RequestInfo` and `RequestInit` type exports.
+  ```ts
+  import { outputFetch } from '@outputai/http';
+
+  const response = await outputFetch( 'https://api.example.com/status' );
+  ```
+
+- Replaced `httpClient` with `createKyClient`, which returns a standard Ky client configured to use `outputFetch`.
+  - Upgraded Ky from 1.14.3 to 2.0.2. Public Ky behavior now follows Ky 2, including the `prefix` option, state-object hook arguments, empty-response JSON parsing, `searchParams` merging, and pre-parsed `HTTPError.data`.
+  - Removed the top-level `HTTPError`, `TimeoutError`, `HttpClientOptions` exports.
+  - Added the complete Ky namespace as a named export `ky`.
+  ```ts
+  import { createKyClient, type ky } from '@outputai/http';
+
+  const options: ky.Options = {
+    prefix: 'https://api.example.com',
+    timeout: 30_000
+  };
+  const client: ky.KyInstance = createKyClient( options );
+  ```
+
+- Changed Ky and Undici from bundled dependencies to peer dependencies.
+
+**`@outputai/llm`**
+
+- Permanent AI SDK failures now surface in logs, traces, hooks, and workflow results as the original AI SDK error (for example `AI_APICallError`) instead of a wrapping `FatalError` whose message started with `AI-SDK fatal error`.
+- Schema-mismatch `NoObjectGeneratedError` messages are no longer rewritten to append `First issue is "…" at path […]`. The AI SDK error (and its Zod cause chain) is returned unchanged.
+
+**`output-api`**
+
+Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
+
+**`@outputai/core`**
+
+**Global proxy**
+
+- Removed Core worker’s automatic global Undici proxy setup. Starting a worker no longer calls `setGlobalDispatcher()` when proxy environment variables are detected. `@outputai/http` and `@outputai/llm` continue configuring their own proxy-aware dispatchers.
+  - This affects direct and third-party Fetch/Undici calls that relied on Core’s global dispatcher; calls through @outputai/http or @outputai/llm retain proxy support.
+
+**`@outputai/core`**
+
+Added `hasErrorType()` workflow tool. It allows detecting if an error has a given Error class in its error chain, either in `.name`, `.type` or `instanceof`. It can be used to test typed errors thrown from activities.
+
+**`@outputai/cli`**
+
+Renamed the workflow eval CLI command to `output workflow test` (was `output workflow test_eval`). The short `test` name is now the only command id; the `test_eval` name is removed.
+
+**`@outputai/core`**
+
+- Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
+- Upgraded `undici` from v8.5.0 to v8.9.0
+
+**`@outputai/cli`, `@outputai/credentials`**
+
+Updated `js-yaml` from `4.3.0` to `4.3.1`
+
+**`@outputai/cli`**
+
+- Removed install from hot-reload when developing workflows (`output dev`): nodemon no longer runs `npm install` on every reload, and `package.json` is no longer watched. After dependency changes, run `npm install`, bring the stack down (`output dev down` if it is still running), and start `output dev` again.
+- `npm run output:worker` also no longer installs first — run `npm run output:worker:install` (or rely on `output dev`, which still installs on worker start) before build/start. `npx output fix` rewrites `output:worker` in existing projects when you apply it.
+
+**`@outputai/core`**
+
+Added a mechanism to await for all hook callbacks to complete before shutting down the worker. Max awaiting period is 30s.
+
+**`@outputai/cli`**
+
+fix `output dev` memory leak in TUI where workflow run details grew unbounded
+
+**`@outputai/core`**
+
+- `workflow()`, `step()`, and `evaluator()` now pass the value returned by the Zod `inputSchema` parser to their handler. Workflows and steps also return the value produced by their `outputSchema` parser. Zod transforms, coercions, defaults, and object-key stripping therefore affect the values handled and returned by these components instead of only validating them.
+
+**`@outputai/core`**
+
+- Added `@outputai/core/temporal` for worker-side Temporal access that shares the running worker's connection and namespace;
+- Added `createTemporalClient()`, which returns a Temporal `Client` for operations on any workflow; do not close `client.connection` — the worker owns it;
+- Added `getCurrentWorkflowHandle()`, which returns a handle pinned to the invoking workflow's `workflowId` + `runId` (Temporal Activities only);
+- Both helpers throw a non-retryable `FatalError` outside the worker runtime (and outside an activity context for `getCurrentWorkflowHandle()`); never import `@outputai/core/temporal` from `workflow.ts`.
+
+**`@outputai/cli`**
+
+Add TUI attaching and re-attaching and `dev down` teardown command
+
+`output dev` now detects an existing stack with `docker compose ps` instead of an
+unconditional host-port probe, so a re-run attaches to a running project stack
+rather than aborting on a collision with its own containers. Attached sessions
+leave the stack up on quit; `output dev down` stops it.
+
+A stack whose containers are all stopped counts as a fresh start, not an attach —
+`output dev` restarts it in the foreground and still tears it down on quit.
+
+`output dev -d` gained the pre-flight port probe the foreground path has. This
+matters on Docker Desktop, where a non-container process holding a published port
+does not fail `compose up -d`: the container starts and the port keeps answering
+the other process, with no error from Docker.
+
+Note: `-d` now pipes Docker's output rather than inheriting the terminal, so
+Docker drops its redrawing progress bars for plain scrolling lines.
+
+**`@outputai/core`**
+
+- Added `emit()` to `/hooks` entrypoint to emit custom events. Emitted events can be listened using `on()` and will have their payload wrapped in an envelope:
+  ```js
+  {
+    eventId: string,
+    eventDate: number,
+    outputActivityKind?: string,
+    workflowDetails?: {},
+    activityInfo?: {},
+    payload: <original emitted payload>
+  }
+  ```
+  Events emitted outside an activity context omit `outputActivityKind`, `workflowDetails`, and `activityInfo`.
+- Added the same wrapping envelope to all other events listened to with `on()`: `http:request`, `cost:llm:request`, `cost:http:request`;
+- Added internal activity events to activity lifecycle: `onActivityStart`, `onActivityEnd`, `onActivityError`;
+- Updated internal triggers so `onError()` no longer receives errors from the internal `$catalog` workflow.
+
+**`@outputai/llm`**
+
+- Added `'google-vertex'` provider name support to use the `@ai-sdk/google-vertex` provider, the previous `'vertex'` is still supported as an alias, and it is deprecated;
+- Added `'amazon-bedrock'` provider name support to use the `@ai-sdk/amazon-bedrock` provider, the previous `'bedrock'` is still supported as an alias, and it is deprecated;
+- `registerProvider('vertex', …)` and `registerProvider('bedrock', …)` now throw — register under `'google-vertex'` or `'amazon-bedrock'` instead (see the v0.10 → v0.11 migration guide);
+- Fixed a bug causing the wrong model to be used to calculate LLM costs when the model name was referenced by another provider. Cost lookup is now `provider` + `model` against the [models.dev](https://models.dev) catalog, so custom `registerProvider` names that are not models.dev ids correctly get `null` cost instead of an arbitrary provider's rates.
+
+</Update>
+
 <Update label="v0.10.0" description="2026-07-09 - minor release">
 
 See the [v0.9.0 - v0.10.0 migration guide](/migrations/v0.9.0-to-v0.10.0).

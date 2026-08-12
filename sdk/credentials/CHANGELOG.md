@@ -1,5 +1,22 @@
 # @outputai/credentials
 
+## 0.11.0
+
+### Patch Changes
+
+- bf95a6f: Updated `js-yaml` from `4.3.0` to `4.3.1`
+- Updated dependencies [46d9d66]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [a5da6b5]
+- Updated dependencies [af37678]
+- Updated dependencies [3d1f9bd]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [be4ec7f]
+- Updated dependencies [cbef793]
+- Updated dependencies [47f491f]
+- Updated dependencies [d815a8e]
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes

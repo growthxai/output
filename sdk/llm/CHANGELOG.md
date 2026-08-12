@@ -1,5 +1,39 @@
 # @outputai/llm
 
+## 0.11.0
+
+### Minor Changes
+
+- 09ed166: Added stricter LiquidJs settings for prompt files parsing. The following configurations were added:
+  ```js
+  {
+    strictFilters: true,
+    strictVariables: true,
+    lenientIf: true
+  }
+  ```
+- 46d9d66: - Permanent AI SDK failures now surface in logs, traces, hooks, and workflow results as the original AI SDK error (for example `AI_APICallError`) instead of a wrapping `FatalError` whose message started with `AI-SDK fatal error`.
+  - Schema-mismatch `NoObjectGeneratedError` messages are no longer rewritten to append `First issue is "…" at path […]`. The AI SDK error (and its Zod cause chain) is returned unchanged.
+- 82e6b25: - Added `'google-vertex'` provider name support to use the `@ai-sdk/google-vertex` provider, the previous `'vertex'` is still supported as an alias, and it is deprecated;
+  - Added `'amazon-bedrock'` provider name support to use the `@ai-sdk/amazon-bedrock` provider, the previous `'bedrock'` is still supported as an alias, and it is deprecated;
+  - `registerProvider('vertex', …)` and `registerProvider('bedrock', …)` now throw — register under `'google-vertex'` or `'amazon-bedrock'` instead (see the v0.10 → v0.11 migration guide);
+  - Fixed a bug causing the wrong model to be used to calculate LLM costs when the model name was referenced by another provider. Cost lookup is now `provider` + `model` against the [models.dev](https://models.dev) catalog, so custom `registerProvider` names that are not models.dev ids correctly get `null` cost instead of an arbitrary provider's rates.
+
+### Patch Changes
+
+- 2caa4a1: - Upgraded `liquidJS` from v10.25.7 to v10.27.2 (`.prompt` files template parser).
+- Updated dependencies [46d9d66]
+- Updated dependencies [eaf62a3]
+- Updated dependencies [a5da6b5]
+- Updated dependencies [af37678]
+- Updated dependencies [3d1f9bd]
+- Updated dependencies [2caa4a1]
+- Updated dependencies [be4ec7f]
+- Updated dependencies [cbef793]
+- Updated dependencies [47f491f]
+- Updated dependencies [d815a8e]
+  - @outputai/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes
