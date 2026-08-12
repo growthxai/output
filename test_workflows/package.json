@@ -16,7 +16,7 @@
     "output:worker:watch": "npx nodemon --watch src --ext ts,js,json,prompt,md --ignore 'dist/**' --ignore '**/*.test.*' --exec 'npm run output:worker'"
   },
   "dependencies": {
-    "@growthxlabs/workflows_catalog": "0.0.13",
+    "@growthxlabs/workflows_catalog": "0.0.14",
     "@outputai/core": "workspace:^",
     "@outputai/credentials": "workspace:^",
     "@outputai/evals": "workspace:^",
