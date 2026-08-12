@@ -1,3 +1,5 @@
+import { isPlainObject } from './object.js';
+
 /**
  * Checks whether a value inherits from a constructor matching any supplied class name.
  * @param {*} obj - Value whose prototype chain to inspect
@@ -22,4 +24,27 @@ export const inheritsFromAnyNamedType = ( obj, classNames ) => {
     return true;
   }
   return inheritsFromAnyNamedType( prototype, classNames );
+};
+
+/**
+ * Builds an error attributing all enumerable properties from a given object.
+ * Property `clause` is serialized recursively.
+ *
+ * If object is already an error, it is returned as it is.
+ *
+ * @param {unknown} target
+ * @returns {Error}
+ */
+export const rehydrateError = target => {
+  if ( target instanceof Error ) {
+    return target;
+  }
+  const error = new Error();
+  error.stack = undefined;
+  if ( target !== null && target !== undefined ) {
+    for ( const [ p, v ] of Object.entries( target ) ) {
+      error[p] = ( p === 'cause' && isPlainObject( v ) ) ? rehydrateError( v ) : v;
+    }
+  }
+  return error;
 };
