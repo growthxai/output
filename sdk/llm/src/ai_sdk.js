@@ -5,7 +5,7 @@ import { ValidationError } from '@outputai/core';
 import { validateGenerateTextArgs, validateStreamTextArgs, validateGenerateImageArgs } from './validations.js';
 import { loadPrompt } from './prompt/loader.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse, wrapStreamResult, wrapImageResponse } from './utils/response_wrappers.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { mapAiError } from './utils/error_handler.js';
@@ -36,7 +36,7 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   }
 }
 
-export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError: _onError, ...aiSdkArgs } ) {
+export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError, ...aiSdkArgs } ) {
   validateStreamTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
 
   const parsedSkills = typeof skills === 'function' ? skills( variables ) : skills;
@@ -49,20 +49,26 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
   const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
-    return AI.streamText( {
+    const state = { error: null };
+    const result = AI.streamText( {
       ...loadAiSdkTextOptions( loadedPrompt ),
       allowSystemInMessages: true,
       maxRetries: 0,
       ...aiSdkArgs,
       ...( tools && { tools } ),
       ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
-      ...wrapStreamOnFinishResponse( { traceId, modelId, providerId, onFinish } ),
+      async onFinish( response ) {
+        const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
+        onFinish?.( proxiedResponse );
+      },
       onError( event ) {
         const error = mapAiError( event.error );
+        state.error = error;
         endTraceWithError( { traceId, error } );
-        _onError?.( { ...event, error } );
+        onError?.( { ...event, error } );
       }
     } );
+    return wrapStreamResult( result, state );
   } catch ( originalError ) {
     const error = mapAiError( originalError );
     endTraceWithError( { traceId, error } );

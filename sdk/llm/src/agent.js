@@ -4,7 +4,7 @@ import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse, wrapStreamResult } from './utils/response_wrappers.js';
 import { ROLE, isRole } from './utils/message.js';
 export { skill } from './prompt/skill.js';
 
@@ -93,17 +93,23 @@ export class Agent extends AIToolLoopAgent {
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
     const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
     try {
+      const state = { error: null };
       const messages = await this.#fetchMessages( userMessages );
-      return super.stream( {
+      const result = super.stream( {
         messages,
         allowSystemInMessages: true,
         ...callOptions,
-        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, providerId: this.#providerId, onFinish } ),
+        onFinish: async response => {
+          const proxiedResponse = await wrapTextResponse( { traceId, providerId: this.#providerId, modelId: this.#modelId, response } );
+          onFinish?.( proxiedResponse );
+        },
         onError( event ) {
+          state.error = event.error;
           endTraceWithError( { traceId, error: event.error } );
           onError?.( event );
         }
       } );
+      return wrapStreamResult( result, state );
     } catch ( error ) {
       endTraceWithError( { traceId, error } );
       throw error;

@@ -30,7 +30,7 @@ const traceMocks = vi.hoisted( () => ( {
 
 const wrapMocks = vi.hoisted( () => ( {
   wrapTextResponse: vi.fn(),
-  wrapStreamOnFinishResponse: vi.fn(),
+  wrapStreamResult: vi.fn( result => result ),
   wrapImageResponse: vi.fn()
 } ) );
 
@@ -62,7 +62,7 @@ vi.mock( './utils/trace.js', () => ( {
 
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapStreamOnFinishResponse: ( ...args ) => wrapMocks.wrapStreamOnFinishResponse( ...args ),
+  wrapStreamResult: ( ...args ) => wrapMocks.wrapStreamResult( ...args ),
   wrapImageResponse: ( ...args ) => wrapMocks.wrapImageResponse( ...args )
 } ) );
 
@@ -132,9 +132,7 @@ describe( 'ai_sdk', () => {
     traceMocks.endTraceWithError.mockReset();
 
     wrapMocks.wrapTextResponse.mockReset().mockResolvedValue( { wrapped: textResponse } );
-    wrapMocks.wrapStreamOnFinishResponse.mockReset().mockReturnValue( {
-      onFinish: vi.fn()
-    } );
+    wrapMocks.wrapStreamResult.mockReset().mockImplementation( result => result );
     wrapMocks.wrapImageResponse.mockReset().mockResolvedValue( { wrapped: imageResponse } );
 
     errorMocks.mapAiError.mockReset().mockImplementation( error => error );
@@ -321,12 +319,7 @@ describe( 'ai_sdk', () => {
         loadedPrompt
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-      expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        onFinish
-      } );
+      expect( wrapMocks.wrapStreamResult ).toHaveBeenCalledWith( streamResult, { error: null } );
       expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
@@ -430,6 +423,36 @@ describe( 'ai_sdk', () => {
 
       expect( callOptions.onFinish ).not.toBe( onFinish );
       expect( callOptions.onError ).not.toBe( onError );
+    } );
+
+    it( 'wraps onFinish responses with wrapTextResponse', async () => {
+      const onFinish = vi.fn();
+      wrapMocks.wrapTextResponse.mockResolvedValueOnce( { wrapped: true } );
+      const { streamText } = await importSut();
+
+      streamText( { prompt: 'test@v1', onFinish } );
+      await aiFns.streamText.mock.calls[0][0].onFinish( textResponse );
+
+      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+        traceId: 'trace-id',
+        providerId: 'openai',
+        modelId: 'test-model',
+        response: textResponse
+      } );
+      expect( onFinish ).toHaveBeenCalledWith( { wrapped: true } );
+    } );
+
+    it( 'stores the mapped onError on the wrapStreamResult state', async () => {
+      const { streamText } = await importSut();
+      const error = new Error( 'Stream failed' );
+      const mappedError = new Error( 'Mapped stream failed' );
+      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
+
+      streamText( { prompt: 'test@v1' } );
+      const state = wrapMocks.wrapStreamResult.mock.calls[0][1];
+      aiFns.streamText.mock.calls[0][0].onError( { error } );
+
+      expect( state.error ).toBe( mappedError );
     } );
 
     it( 'propagates validation errors before loading or tracing', async () => {

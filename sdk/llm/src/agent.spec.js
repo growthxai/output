@@ -31,7 +31,7 @@ const traceMocks = vi.hoisted( () => ( {
 
 const wrapMocks = vi.hoisted( () => ( {
   wrapTextResponse: vi.fn(),
-  wrapStreamOnFinishResponse: vi.fn()
+  wrapStreamResult: vi.fn( result => result )
 } ) );
 
 const skillMocks = vi.hoisted( () => ( {
@@ -88,8 +88,7 @@ vi.mock( './utils/trace.js', () => ( {
 
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapStreamOnFinishResponse: ( ...args ) =>
-    wrapMocks.wrapStreamOnFinishResponse( ...args )
+  wrapStreamResult: ( ...args ) => wrapMocks.wrapStreamResult( ...args )
 } ) );
 
 vi.mock( './prompt/skill.js', () => ( {
@@ -152,9 +151,7 @@ describe( 'Agent', () => {
     wrapMocks.wrapTextResponse
       .mockReset()
       .mockImplementation( async ( { response } ) => response );
-    wrapMocks.wrapStreamOnFinishResponse.mockReset().mockReturnValue( {
-      onFinish: vi.fn()
-    } );
+    wrapMocks.wrapStreamResult.mockReset().mockImplementation( result => result );
 
     skillMocks.skill.mockClear();
   } );
@@ -421,12 +418,10 @@ describe( 'Agent', () => {
       name: 'Agent.stream',
       prompt: 'test@v1'
     } );
-    expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      onFinish
-    } );
+    expect( wrapMocks.wrapStreamResult ).toHaveBeenCalledWith(
+      { textStream: 'stream' },
+      { error: null }
+    );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
         { role: 'user', content: 'Initial user message' },
@@ -457,6 +452,36 @@ describe( 'Agent', () => {
       error
     } );
     expect( onError ).toHaveBeenCalledWith( { error } );
+  } );
+
+  it( 'stores onError on the wrapStreamResult state', async () => {
+    const error = new Error( 'Stream failed' );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.stream();
+    const state = wrapMocks.wrapStreamResult.mock.calls[0][1];
+    aiMocks.superStream.mock.calls[0][0].onError( { error } );
+
+    expect( state.error ).toBe( error );
+  } );
+
+  it( 'wraps stream onFinish responses with wrapTextResponse', async () => {
+    const onFinish = vi.fn();
+    wrapMocks.wrapTextResponse.mockResolvedValueOnce( { wrapped: true } );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.stream( { onFinish } );
+    await aiMocks.superStream.mock.calls[0][0].onFinish( aiResponse );
+
+    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+      traceId: 'trace-id',
+      providerId: 'openai',
+      modelId: 'test-model',
+      response: aiResponse
+    } );
+    expect( onFinish ).toHaveBeenCalledWith( { wrapped: true } );
   } );
 
   it( 'traces and rethrows stream errors', async () => {

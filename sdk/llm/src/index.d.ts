@@ -473,6 +473,10 @@ export function generateText<
  * `streamText` options are accepted via {@link StreamTextAiSdkOptions}, except `onFinish`, which
  * Output wraps to add optional cost data.
  *
+ * Consuming `textStream` or awaiting result promises (`text`, `usage`, `finishReason`, ...) throws
+ * the provider/stream error when generation fails. `onError` still runs first and does not swallow
+ * that throw. `fullStream` is unchanged: inspect its `error` parts yourself.
+ *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
  */
@@ -561,6 +565,8 @@ export declare class Agent<
   /**
    * Stream the agent's response.
    * `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`cost` optional), matching {@link streamText}.
+   * Consuming `textStream` or awaiting result promises throws the stream error when generation fails.
+   * `onError` still runs first and does not swallow that throw.
    */
   stream( options?: OutputAgentStreamParameters ): Promise<
     AIStreamTextResult<ToolSet, OutputSpec>

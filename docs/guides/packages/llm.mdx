@@ -122,7 +122,7 @@ const result = streamText({
 });
 ```
 
-Use streaming callbacks for side effects without consuming the stream manually:
+Use streaming callbacks for side effects. `onChunk` and `onFinish` run as the stream progresses. `onError` runs when the provider or stream fails - it does not replace consuming the result, and it does not swallow the error:
 
 ```typescript
 const result = streamText({
@@ -135,10 +135,17 @@ const result = streamText({
     // Called when generation completes
   },
   onError({ error }) {
-    // Called on stream error
+    // Called first on stream error. Iterate textStream or await result.text
+    // so the same error still fails the step.
   }
 });
 ```
+
+Provider failures (unknown model, schema reject, abort, mid-stream disconnect) arrive after `streamText` has already returned a result object. The `for await` loops above throw the real provider error (for example `AI_APICallError`) when generation fails before any tokens. Awaiting `result.text`, `result.usage`, or `result.finishReason` rejects with the same error. In v0.11 that consume path often completed as an empty success or rejected with `AI_NoOutputGeneratedError` ("Check the stream for errors"). See the [v0.11.0 to v0.12.0 migration](/migrations/v0.11.0-to-v0.12.0).
+
+`onError` still runs first (the AI SDK awaits it, including your handler). Treat it as logging or metrics, not EventEmitter-style handling.
+
+`fullStream` still delivers `error` parts as stream events. Iterate it if you need those parts yourself - Output does not rethrow a captured error when `fullStream` ends. `generateText` is unchanged: it throws when the call fails.
 
 ### Object Output
 
@@ -422,7 +429,7 @@ for await (const chunk of stream.textStream) {
 }
 ```
 
-Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
+Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion. Consuming `textStream` or awaiting those promises throws the stream error when generation fails. `onError` still runs first and does not swallow that throw.
 
 ### Structured Output
 
@@ -829,7 +836,7 @@ All generate functions accept additional [AI SDK options](https://sdk.vercel.ai/
 | `topK` | `number` | Top-K sampling |
 | `onChunk` | `Function` | Callback for each stream chunk (streamText only) |
 | `onFinish` | `Function` | Callback when stream completes (streamText only) |
-| `onError` | `Function` | Callback on stream error (streamText only) |
+| `onError` | `Function` | Callback on stream error (streamText only). Runs before consume throws; does not swallow the error. |
 | `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streamText only) |
 
 Options set in the prompt file (temperature, maxTokens) can be overridden at call time.

@@ -30,7 +30,7 @@ vi.mock( './image.js', () => ( {
   calculateBase64FileSize: mocks.calculateBase64FileSize
 } ) );
 
-import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './response_wrappers.js';
+import { wrapTextResponse, wrapStreamResult, wrapImageResponse } from './response_wrappers.js';
 
 const clone = value => structuredClone( value );
 
@@ -131,71 +131,119 @@ describe( 'wrapTextResponse', () => {
   } );
 } );
 
-describe( 'wrapStreamOnFinishResponse', () => {
-  const traceId = 'stream-trace';
-  const providerId = 'openai';
-  const modelId = 'stream-model';
-  const mockCost = { total: 0.002, components: [] };
+describe( 'wrapStreamResult', () => {
+  const captured = new Error( 'provider 400' );
 
-  beforeEach( () => {
-    vi.clearAllMocks();
-    mocks.calculateLLMCallCost.mockResolvedValue( mockCost );
-    mocks.extractSourcesFromSteps.mockReturnValue( [] );
+  const iterable = ( chunks = [], throwOnEnd ) => ( {
+    async *[Symbol.asyncIterator]() {
+      for ( const chunk of chunks ) {
+        yield chunk;
+      }
+      if ( throwOnEnd ) {
+        throw throwOnEnd;
+      }
+    }
   } );
 
-  it( 'uses the stream response fixture to finish trace and call the user callback with a proxied response', async () => {
-    const userOnFinish = vi.fn();
-    const response = clone( streamResponseFixture );
+  const collect = async stream => {
+    const chunks = [];
+    for await ( const chunk of stream ) {
+      chunks.push( chunk );
+    }
+    return chunks;
+  };
 
-    const callbacks = wrapStreamOnFinishResponse( {
-      traceId,
-      providerId,
-      modelId,
-      onFinish: userOnFinish
-    } );
+  it( 'throws the captured error when textStream ends empty', async () => {
+    const wrapped = wrapStreamResult(
+      { textStream: iterable() },
+      { error: captured }
+    );
 
-    await callbacks.onFinish( response );
-
-    expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
-      traceId,
-      usage: response.totalUsage,
-      cost: mockCost,
-      result: response.text,
-      providerMetadata: response.providerMetadata,
-      sourcesFromTools: []
-    } );
-    expect( userOnFinish ).toHaveBeenCalledTimes( 1 );
-    const proxied = userOnFinish.mock.calls[0][0];
-    expect( proxied.result ).toBe( response.text );
-    expect( proxied.cost ).toEqual( mockCost );
-    expect( proxied.finishReason ).toBe( response.finishReason );
-    expect( mocks.extractSourcesFromSteps ).toHaveBeenCalledWith( response.steps );
+    await expect( collect( wrapped.textStream ) ).rejects.toBe( captured );
   } );
 
-  it( 'finishes trace even when no user onFinish callback is provided', async () => {
-    const response = clone( streamResponseFixture );
+  it( 'throws the captured error after textStream yields chunks', async () => {
+    const wrapped = wrapStreamResult(
+      { textStream: iterable( [ 'a', 'b' ] ) },
+      { error: captured }
+    );
 
-    const callbacks = wrapStreamOnFinishResponse( {
-      traceId,
-      providerId,
-      modelId
-    } );
+    await expect( collect( wrapped.textStream ) ).rejects.toBe( captured );
+  } );
 
-    await callbacks.onFinish( response );
+  it( 'returns chunks when textStream ends without a captured error', async () => {
+    const wrapped = wrapStreamResult(
+      { textStream: iterable( [ 'a', 'b' ] ) },
+      { error: null }
+    );
 
-    expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
-      traceId,
-      usage: response.totalUsage,
-      cost: mockCost,
-      result: response.text,
-      providerMetadata: response.providerMetadata,
-      sourcesFromTools: []
-    } );
-    expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
-      usage: response.totalUsage,
-      modelId,
-      providerId
-    } );
+    await expect( collect( wrapped.textStream ) ).resolves.toEqual( [ 'a', 'b' ] );
+  } );
+
+  it( 'prefers the captured error when textStream throws', async () => {
+    const streamError = new Error( 'No output generated' );
+    const wrapped = wrapStreamResult(
+      { textStream: iterable( [], streamError ) },
+      { error: captured }
+    );
+
+    await expect( collect( wrapped.textStream ) ).rejects.toBe( captured );
+  } );
+
+  it( 'rethrows the stream error when nothing was captured', async () => {
+    const streamError = new Error( 'socket closed' );
+    const wrapped = wrapStreamResult(
+      { textStream: iterable( [], streamError ) },
+      { error: null }
+    );
+
+    await expect( collect( wrapped.textStream ) ).rejects.toBe( streamError );
+  } );
+
+  it( 'throws the captured error when a result promise resolves', async () => {
+    const wrapped = wrapStreamResult(
+      { text: Promise.resolve( 'partial' ) },
+      { error: captured }
+    );
+
+    await expect( wrapped.text ).rejects.toBe( captured );
+  } );
+
+  it( 'prefers the captured error when a result promise rejects', async () => {
+    const wrapped = wrapStreamResult(
+      { text: Promise.reject( new Error( 'No output generated' ) ) },
+      { error: captured }
+    );
+
+    await expect( wrapped.text ).rejects.toBe( captured );
+  } );
+
+  it( 'returns the resolved value when nothing was captured', async () => {
+    const wrapped = wrapStreamResult(
+      { text: Promise.resolve( 'hello' ) },
+      { error: null }
+    );
+
+    await expect( wrapped.text ).resolves.toBe( 'hello' );
+  } );
+
+  it( 'binds methods to the original result', () => {
+    const result = {
+      ok: 1,
+      consumeStream() {
+        return this.ok;
+      }
+    };
+    const wrapped = wrapStreamResult( result, { error: null } );
+
+    expect( wrapped.consumeStream() ).toBe( 1 );
+  } );
+
+  it( 'leaves fullStream unwrapped', async () => {
+    const fullStream = iterable( [ { type: 'error', error: captured } ] );
+    const wrapped = wrapStreamResult( { fullStream }, { error: captured } );
+
+    expect( wrapped.fullStream ).toBe( fullStream );
   } );
 } );
 

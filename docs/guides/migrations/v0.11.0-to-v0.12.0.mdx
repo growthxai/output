@@ -1,0 +1,75 @@
+---
+title: "v0.11.0 → v0.12.0"
+description: "Functions streamText and Agent.stream throw the real provider error when you consume the result."
+---
+
+This guide covers the `streamText` and `Agent.stream` error-surfacing change in v0.12.0. It affects steps that consume `textStream` or await stream result promises. `generateText` is unchanged.
+
+## What changed
+
+In v0.11, a mid-stream or pre-token provider failure often did not fail the step. The AI SDK delivered the real error to `onError`, then flush invented `AI_NoOutputGeneratedError` ("Check the stream for errors") with no `cause`. Iterating `textStream` only forwards text deltas, so `for await` could complete with zero chunks and look like success.
+
+In v0.12, Output captures that `onError` error and throws it when you **consume** the result:
+
+- iterating `textStream` to completion
+- awaiting promise getters (`text`, `usage`, `finishReason`, and other native Promises on the result)
+
+`onError` still runs first (the AI SDK awaits it, including your handler). It does not swallow the throw. Treat it as logging or metrics, not EventEmitter-style handling.
+
+`fullStream` is unchanged: it still delivers `error` parts as stream events. Output does not rethrow a captured error when `fullStream` ends. Helpers that talk to the raw AI SDK result (`consumeStream`, `toTextStreamResponse`, `pipeTo`, `getReader`) also do not get this wrap.
+
+## Migration steps
+
+### Let consume fail the step
+
+If your step already iterates `textStream` (or awaits `result.text`) and lets errors propagate, you are done. A missing model, schema reject, abort, or disconnect now fails the activity with the provider error instead of returning empty text.
+
+```typescript steps.ts
+const result = streamText({
+  prompt: 'draft@v1',
+  variables: { topic }
+});
+
+const chunks: string[] = [];
+for await (const chunk of result.textStream) {
+  chunks.push(chunk);
+}
+
+return { content: chunks.join('') };
+```
+
+In v0.11 this could finish with `chunks.length === 0` even when the provider failed. In v0.12 the loop throws. Leave it uncaught so the step fails and Temporal retries according to your workflow policy, or catch the real error if the step should recover.
+
+`Agent.stream()` uses the same consume-path throw.
+
+### Stop treating `onError` as handling
+
+`onError` is extra. If you only registered `onError` and never consumed `textStream` or awaited a result promise, the step still does not fail. Consume the result if the activity should fail.
+
+```typescript
+const result = streamText({
+  prompt: 'draft@v1',
+  variables: { topic },
+  onError({ error }) {
+    // logging / metrics only - this does not prevent the throw
+  }
+});
+
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+### Replace `AI_NoOutputGeneratedError` checks
+
+If you caught `AI_NoOutputGeneratedError` or matched `"Check the stream for errors"`, catch the underlying provider error instead (`AI_APICallError`, abort, schema validation, or a mapped `TransparentFatalError`).
+
+`fullStream` consumers that already inspect `error` parts do not need to change.
+
+## Checklist
+
+- Confirm every `streamText` / `Agent.stream` call that should fail the step iterates `textStream` or awaits a result promise.
+- Do not rely on `onError` alone to fail the step.
+- Replace catches and logs that look for `AI_NoOutputGeneratedError`.
+- Keep using `fullStream` error parts if that is your consume path; that behavior is unchanged.
+- Leave `generateText` error handling as it is.

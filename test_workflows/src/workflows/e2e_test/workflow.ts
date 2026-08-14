@@ -1,4 +1,5 @@
 import { workflow, z } from '@outputai/core';
+import wfStreamTextError from '../llm/stream_text_error/workflow.js';
 import wfContinueAsNew from '../continue_as_new/workflow.js';
 import wfErrorType from '../error/type/workflow.js';
 import wfExecuteInParallel from '../execute_in_parallel/workflow.js';
@@ -108,7 +109,14 @@ export default workflow( {
           output.operationsLog.queryResult === 3 &&
           output.operationsLog.updateResult === 4 )
       },
-      { name: 'trace', ...await invokeWf( () => wfTraceTest() ) }
+      { name: 'trace', ...await invokeWf( () => wfTraceTest() ) },
+      {
+        name: 'stream_text_error',
+        ...await invokeWf(
+          () => wfStreamTextError(),
+          output => output.failed && !output.isMasked
+        )
+      }
     ];
 
     return {
