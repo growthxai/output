@@ -7,12 +7,13 @@ The `@outputai/llm` package is how you call LLMs from your steps and evaluators.
 
 ## Generate Functions
 
-`generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. Use `streamText` for streaming responses:
+`generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. When you need progress as text arrives, prefer `generateTextWithStreaming` in workflow steps: it uses streaming internally but returns a complete result and rejects on provider or transport errors. Use `streamText` when you need direct control over the stream:
 
 | Output Shape | How | Use when you need |
 |--------------|-----|-------------------|
 | Unstructured text | `generateText({ prompt })` | Summaries, emails, explanations |
-| Streamed text | `streamText({ prompt })` | Real-time output, long responses, UX responsiveness |
+| Complete text with streaming callbacks | `generateTextWithStreaming({ prompt, onChunk })` | Progress updates with normal promise-based error handling |
+| Raw text stream | `streamText({ prompt })` | Direct access to `textStream`, `fullStream`, and stream promises |
 | Typed object | `generateText({ prompt, output: Output.object({ schema }) })` | Structured data, evaluator judgments |
 | Array of objects | `generateText({ prompt, output: Output.array({ element }) })` | Lists, multiple items |
 | One of N choices | `generateText({ prompt, output: Output.choice({ options }) })` | Classification, routing |
@@ -62,81 +63,105 @@ export const generateSummary = step({
 
 ### Streaming
 
-Stream text from a prompt file. Unlike `generateText`, `streamText` returns immediately with a stream result — properties like `text`, `usage`, and `finishReason` are promises that resolve when the stream completes.
+#### Complete result over streaming transport
+
+`generateTextWithStreaming` behaves like `generateText`: await it to receive the complete response, including `result`, `text`, `output`, `usage`, `finishReason`, and `cost`. Internally it uses streaming transport and invokes `onChunk` as parts arrive.
+
+This is the recommended streaming API for Output workflow steps. Provider, transport, and abort errors reject the returned promise, so the step fails and Temporal can apply its retry policy.
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { streamText } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/llm';
 import { GenerateContentInput, GenerateContentOutput } from './types.js';
 
 export const generateContent = step({
   name: 'generateContent',
-  description: 'Streams text generation and collects chunks',
+  description: 'Generates content with streaming progress',
   inputSchema: GenerateContentInput,
   outputSchema: GenerateContentOutput,
   fn: async ({ topic }) => {
-    const result = streamText({
+    const chunks: string[] = [];
+    const result = await generateTextWithStreaming({
       prompt: 'stream_content@v1',
-      variables: { topic }
+      variables: { topic },
+      onChunk({ chunk }) {
+        if (chunk.type === 'text-delta') {
+          chunks.push(chunk.text);
+        }
+      }
     });
 
-    const chunks: string[] = [];
-    for await (const chunk of result.textStream) {
-      chunks.push(chunk);
-    }
-
-    const content = chunks.join('');
     return {
-      content,
+      content: result.result,
       chunkCount: chunks.length,
-      avgChunkSize: Math.round(content.length / chunks.length)
+      avgChunkSize: chunks.length > 0 ? Math.round(result.result.length / chunks.length) : 0
     };
   }
 });
 ```
 
-Note that `streamText` is not `async` — it returns a stream result synchronously. Iterate `textStream` to process chunks as they arrive. You can also `await result.text` to get the full text in one shot, but that collapses the stream and is functionally identical to `generateText`.
-
-To process chunks with side effects (e.g., writing to stdout):
+Use `onFinish` and `onError` for observation or side effects. Errors are still thrown after `onError` runs:
 
 ```typescript
-const result = streamText({
-  prompt: 'generate@v1',
-  variables: { topic: 'AI safety' }
-});
-
-for await (const chunk of result.textStream) {
-  process.stdout.write(chunk);
-}
-```
-
-You can apply stream transforms like `smoothStream` for more natural output pacing:
-
-```typescript
-import { streamText, smoothStream } from '@outputai/llm';
-
-const result = streamText({
-  prompt: 'generate@v1',
-  variables: { topic },
-  experimental_transform: smoothStream()
-});
-```
-
-Use streaming callbacks for side effects without consuming the stream manually:
-
-```typescript
-const result = streamText({
+const result = await generateTextWithStreaming({
   prompt: 'generate@v1',
   variables: { topic },
   onChunk({ chunk }) {
-    // Called for each chunk
+    if (chunk.type === 'text-delta') {
+      process.stdout.write(chunk.text);
+    }
   },
-  onFinish({ text, usage }) {
-    // Called when generation completes
+  onFinish(response) {
+    // Receives the same complete result shape returned below
+    console.log('Generation complete', response.result, response.usage);
   },
   onError({ error }) {
-    // Called on stream error
+    console.error('Generation failed', error);
   }
+});
+```
+
+`generateTextWithStreaming` also supports structured output. Pass an `Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
+
+#### Direct stream access
+
+`streamText` remains available when you need to choose how the stream is consumed. It is not `async`: it returns a stream result synchronously, with `textStream` and `fullStream` iterables plus promise-based properties such as `text`, `usage`, and `finishReason`.
+
+AI SDK streaming reports provider and transport failures through `onError`; consuming `textStream` does not reliably throw that original error. In a workflow step, capture the mapped error and throw it after consumption so Temporal records a failed activity instead of an empty successful result:
+
+```typescript
+let streamError: unknown;
+const result = streamText({
+  prompt: 'generate@v1',
+  variables: { topic: 'AI safety' },
+  onError({ error }) {
+    streamError = error;
+  }
+});
+
+const chunks: string[] = [];
+for await (const chunk of result.textStream) {
+  chunks.push(chunk);
+}
+
+if (streamError) {
+  throw streamError;
+}
+
+const content = chunks.join('');
+```
+
+Registering `onError` alone is not enough to fail the step. The callback does not throw for you, and awaiting a completion property can produce a generic no-output error instead of the original provider error.
+
+Both streaming APIs accept stream transforms such as `smoothStream` for more natural output pacing:
+
+```typescript
+import { generateTextWithStreaming, smoothStream } from '@outputai/llm';
+
+const result = await generateTextWithStreaming({
+  prompt: 'generate@v1',
+  variables: { topic },
+  experimental_transform: smoothStream()
 });
 ```
 
@@ -410,9 +435,32 @@ const result = await agent.generate({
 });
 ```
 
+### generateWithStreaming()
+
+Use `generateWithStreaming()` when you want streaming progress and a complete result:
+
+```typescript
+const result = await agent.generateWithStreaming({
+  onChunk({ chunk }) {
+    if (chunk.type === 'text-delta') {
+      process.stdout.write(chunk.text);
+    }
+  },
+  onFinish(response) {
+    // Receives the same complete result shape returned by generateWithStreaming()
+    console.log('Generation complete', response.result, response.usage);
+  },
+  onError({ error }) {
+    console.error('Generation failed', error);
+  }
+});
+```
+
+Like `generate()`, the method returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in workflow steps unless you need direct access to the stream result.
+
 ### stream()
 
-Stream the agent's response:
+Use `stream()` when you need direct access to the agent's stream result:
 
 ```typescript
 const stream = await agent.stream();
@@ -486,7 +534,7 @@ interface ConversationStore {
 `createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
 
 <Note>
-`stream()` does not automatically append messages to the conversation store. If you use streaming with a conversation store, persist messages manually in the `onFinish` callback.
+`generate()` and `generateWithStreaming()` automatically append messages to the conversation store. `stream()` does not; if you use direct streaming with a conversation store, persist messages manually in the `onFinish` callback.
 </Note>
 
 ### When to Use Agent vs generateText
@@ -504,7 +552,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 
 ## Response Object
 
-`generateText` returns the full [AI SDK response](https://sdk.vercel.ai/docs/reference/ai-sdk-core/generate-text#returns):
+`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` return the complete [AI SDK response](https://sdk.vercel.ai/docs/reference/ai-sdk-core/generate-text#returns):
 
 | Field | Description |
 |-------|-------------|
@@ -535,7 +583,7 @@ The `cost` property is an LLM usage attribute:
 
 Only available, finite usage dimensions are included in `usage`. For example, `reasoning` is omitted when the model does not define separate reasoning pricing.
 
-**Streaming response shape.** `streamText` returns a different result type. Stream iterables (`textStream`, `fullStream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
+**Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `fullStream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -816,27 +864,29 @@ const { result, toolCalls } = await generateText({
 
 ## AI SDK Pass-Through Options
 
-All generate functions accept additional [AI SDK options](https://sdk.vercel.ai/docs) passed through to the provider:
+Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) passed through to the provider. Availability depends on whether the API uses streaming:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `tools` | `ToolSet` | Tools the model can call (generateText and streamText) |
+| `tools` | `ToolSet` | Tools the model can call |
 | `toolChoice` | `'auto' \| 'none' \| 'required'` | Tool selection strategy |
 | `maxRetries` | `number` | Max retry attempts (default: 0) |
 | `seed` | `number` | Seed for deterministic output |
 | `abortSignal` | `AbortSignal` | Cancel the request |
 | `topP` | `number` | Nucleus sampling (0-1) |
 | `topK` | `number` | Top-K sampling |
-| `onChunk` | `Function` | Callback for each stream chunk (streamText only) |
-| `onFinish` | `Function` | Callback when stream completes (streamText only) |
-| `onError` | `Function` | Callback on stream error (streamText only) |
-| `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streamText only) |
+| `onChunk` | `Function` | Callback for each chunk (streaming APIs) |
+| `onFinish` | `Function` | Complete response callback for `*WithStreaming`; finish event callback for direct streams |
+| `onError` | `Function` | Callback when a stream error occurs (streaming APIs) |
+| `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streaming APIs) |
 
 Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
 
 ### Retries and Network Timeouts
 
-`generateText` and `streamText` set `maxRetries: 0` by default. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error is allowed to fail the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+`generateText`, `generateTextWithStreaming`, and `streamText` set `maxRetries: 0` by default. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error is allowed to fail the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+
+`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` usage, capture the error in `onError` and throw it after consuming the stream, as shown under [direct stream access](#direct-stream-access).
 
 AI SDK retries are still available, but they happen inside one activity attempt. Use them when you want quick provider-level retries before the step fails. Keep the default when you want Temporal to be the single place that controls retries.
 
@@ -853,7 +903,7 @@ Built-in providers are initialized with a custom fetch that extends Undici's `he
 
 ## LLM call cost event
 
-Each `generateText` and `streamText` call emits a `cost:llm:request` event after the LLM responds and cost can be computed. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The handler receives an event envelope whose `payload` field is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
+Each completed text generation call emits a `cost:llm:request` event after the LLM responds and cost can be computed. For direct streams, the event is emitted when the stream finishes. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The handler receives an event envelope whose `payload` field is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
 
 ## loadPrompt
 

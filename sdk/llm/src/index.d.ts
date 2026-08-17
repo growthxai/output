@@ -249,10 +249,26 @@ type GenerateImagePrompt = Parameters<typeof aiGenerateImage>[0]['prompt'];
 type GenerateImagePromptWithImages = Exclude<GenerateImagePrompt, string>;
 type GenerateImageInput = GenerateImagePromptWithImages['images'][number];
 
+type OutputAgentStreamingParameters<
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = {
+  messages?: ModelMessage[];
+  tools?: CompatibleToolSet;
+} & Omit<StreamTextAiSdkOptions<ToolSet, OutputSpec>, 'system' | 'output' | 'onFinish'>;
+
 /** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
 export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish' | 'tools'> & {
   tools?: CompatibleToolSet;
   onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
+};
+
+/** Agent {@link Agent.generateWithStreaming} options with a complete `onFinish` response. */
+export type OutputAgentGenerateWithStreamingParameters<
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = OutputAgentStreamingParameters<OutputSpec> & {
+  onFinish?: (
+    response: GenerateTextWithStreamingResult<ToolSet, OutputSpec>
+  ) => void | PromiseLike<void>;
 };
 
 /** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files and skills. */
@@ -300,6 +316,27 @@ export type GenerateTextParameters<
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
 } & GenerateTextAiSdkOptions<Tools, OutputSpec>;
+
+/** Parameters accepted by {@link generateTextWithStreaming}. */
+export type GenerateTextWithStreamingParameters<
+  Tools extends ToolSet = ToolSet,
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = {
+  /** Prompt file name */
+  prompt: string;
+  /** Variables to interpolate into the prompt file */
+  variables?: Record<string, string | number | boolean>;
+  /** Override the stack-resolved prompt directory */
+  promptDir?: string;
+  /** Skill packages to provide to the LLM through the `load_skill` tool */
+  skills?: SkillsArg<Record<string, string | number | boolean> | undefined>;
+  /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
+  maxSteps?: number;
+  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
+  tools?: CompatibleToolSet;
+  /** Callback when generation finishes. Receives the completed wrapped response. */
+  onFinish?: ( response: GenerateTextWithStreamingResult<Tools, OutputSpec> ) => void | PromiseLike<void>;
+} & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish'>;
 
 /** Parameters accepted by {@link streamText}. */
 export type StreamTextParameters<
@@ -398,6 +435,12 @@ export type GenerateTextResult<
   sources: ExtractedSource[];
 };
 
+/** Completed result from {@link generateTextWithStreaming}. */
+export type GenerateTextWithStreamingResult<
+  Tools extends ToolSet = ToolSet,
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = Omit<GenerateTextResult<Tools, OutputSpec>, 'experimental_output'>;
+
 /** Result from generateImage including a unified `result` field pointing at the first image. */
 export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
@@ -463,6 +506,22 @@ export function generateText<
 >(
   args: GenerateTextParameters<Tools, OutputSpec>
 ): Promise<GenerateTextResult<Tools, OutputSpec>>;
+
+/**
+ * Generate text over streaming transport and return a completed response.
+ *
+ * The stream is consumed internally. `onChunk` runs as parts arrive, and provider or
+ * transport errors reject the returned promise with the mapped error.
+ *
+ * @param args - Streaming arguments. See {@link GenerateTextWithStreamingParameters}.
+ * @returns Completed response with parsed output and generateText-compatible metadata.
+ */
+export function generateTextWithStreaming<
+  Tools extends ToolSet = ToolSet,
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+>(
+  args: GenerateTextWithStreamingParameters<Tools, OutputSpec>
+): Promise<GenerateTextWithStreamingResult<Tools, OutputSpec>>;
 
 /**
  * Use an LLM model to stream text generation.
@@ -557,6 +616,14 @@ export declare class Agent<
    * Same augmented shape as {@link generateText}: `result`, optional `cost`, merged `sources`.
    */
   generate( options?: OutputAgentGenerateParameters ): Promise<GenerateTextResult<ToolSet, OutputSpec>>;
+
+  /**
+   * Run the agent over streaming transport and return a completed response.
+   * `onChunk` runs as parts arrive; provider and transport errors reject with the mapped error.
+   */
+  generateWithStreaming(
+    options?: OutputAgentGenerateWithStreamingParameters<OutputSpec>
+  ): Promise<GenerateTextWithStreamingResult<ToolSet, OutputSpec>>;
 
   /**
    * Stream the agent's response.

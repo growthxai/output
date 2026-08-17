@@ -30,7 +30,7 @@ vi.mock( './image.js', () => ( {
   calculateBase64FileSize: mocks.calculateBase64FileSize
 } ) );
 
-import { wrapTextResponse, wrapStreamOnFinishResponse, wrapImageResponse } from './response_wrappers.js';
+import { wrapTextResponse, wrapImageResponse } from './response_wrappers.js';
 
 const clone = value => structuredClone( value );
 
@@ -129,73 +129,21 @@ describe( 'wrapTextResponse', () => {
       sourcesFromResponse: [ responseSource ]
     } );
   } );
-} );
 
-describe( 'wrapStreamOnFinishResponse', () => {
-  const traceId = 'stream-trace';
-  const providerId = 'openai';
-  const modelId = 'stream-model';
-  const mockCost = { total: 0.002, components: [] };
-
-  beforeEach( () => {
-    vi.clearAllMocks();
-    mocks.calculateLLMCallCost.mockResolvedValue( mockCost );
-    mocks.extractSourcesFromSteps.mockReturnValue( [] );
-  } );
-
-  it( 'uses the stream response fixture to finish trace and call the user callback with a proxied response', async () => {
-    const userOnFinish = vi.fn();
+  it( 'exposes extra properties without mutating the response', async () => {
     const response = clone( streamResponseFixture );
+    const output = { summary: 'Structured result' };
 
-    const callbacks = wrapStreamOnFinishResponse( {
+    const wrapped = await wrapTextResponse( {
       traceId,
       providerId,
       modelId,
-      onFinish: userOnFinish
+      response,
+      extraProperties: { output }
     } );
 
-    await callbacks.onFinish( response );
-
-    expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
-      traceId,
-      usage: response.totalUsage,
-      cost: mockCost,
-      result: response.text,
-      providerMetadata: response.providerMetadata,
-      sourcesFromTools: []
-    } );
-    expect( userOnFinish ).toHaveBeenCalledTimes( 1 );
-    const proxied = userOnFinish.mock.calls[0][0];
-    expect( proxied.result ).toBe( response.text );
-    expect( proxied.cost ).toEqual( mockCost );
-    expect( proxied.finishReason ).toBe( response.finishReason );
-    expect( mocks.extractSourcesFromSteps ).toHaveBeenCalledWith( response.steps );
-  } );
-
-  it( 'finishes trace even when no user onFinish callback is provided', async () => {
-    const response = clone( streamResponseFixture );
-
-    const callbacks = wrapStreamOnFinishResponse( {
-      traceId,
-      providerId,
-      modelId
-    } );
-
-    await callbacks.onFinish( response );
-
-    expect( mocks.endTraceWithSuccess ).toHaveBeenCalledWith( {
-      traceId,
-      usage: response.totalUsage,
-      cost: mockCost,
-      result: response.text,
-      providerMetadata: response.providerMetadata,
-      sourcesFromTools: []
-    } );
-    expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
-      usage: response.totalUsage,
-      modelId,
-      providerId
-    } );
+    expect( wrapped.output ).toBe( output );
+    expect( Object.hasOwn( response, 'output' ) ).toBe( false );
   } );
 } );
 

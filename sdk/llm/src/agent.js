@@ -4,7 +4,8 @@ import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse } from './utils/response_wrappers.js';
+import { mapAiError } from './utils/error_handler.js';
 import { ROLE, isRole } from './utils/message.js';
 export { skill } from './prompt/skill.js';
 
@@ -84,27 +85,93 @@ export class Agent extends AIToolLoopAgent {
       const wrapped = await wrapTextResponse( { traceId, response, providerId: this.#providerId, modelId: this.#modelId } );
       await this.#storeMessages( userMessages, wrapped );
       return wrapped;
-    } catch ( error ) {
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
+      throw error;
+    }
+  }
+
+  /**
+   * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
+   */
+  async generateWithStreaming( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
+    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
+    const state = {
+      response: null
+    };
+
+    try {
+      const messages = await this.#fetchMessages( userMessages );
+      const stream = await super.stream( {
+        messages,
+        allowSystemInMessages: true,
+        ...callOptions,
+        onFinish( response ) {
+          state.response = response;
+        },
+        onError( event ) {
+          throw event.error;
+        }
+      } );
+
+      for await ( const part of stream.fullStream ) {
+        if ( part.type === 'abort' ) {
+          const reason = callOptions.abortSignal?.reason;
+          throw reason instanceof Error ?
+            reason :
+            new Error( part.reason ?? 'Agent streaming generation aborted.', { cause: reason } );
+        }
+      }
+
+      if ( !state.response ) {
+        throw new Error( 'Agent streaming generation completed without a response.' );
+      }
+
+      const output = await stream.output;
+      const response = await wrapTextResponse( {
+        traceId,
+        providerId: this.#providerId,
+        modelId: this.#modelId,
+        response: state.response,
+        extraProperties: { output }
+      } );
+      await this.#storeMessages( userMessages, response );
+      await onFinish?.( response );
+      return response;
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
+      endTraceWithError( { traceId, error } );
+      try {
+        await onError?.( { error } );
+      } catch {
+        // Preserve the generation error if the observer fails.
+      }
       throw error;
     }
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
     const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
+
     try {
       const messages = await this.#fetchMessages( userMessages );
-      return super.stream( {
+      return await super.stream( {
         messages,
         allowSystemInMessages: true,
         ...callOptions,
-        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, providerId: this.#providerId, onFinish } ),
+        onFinish: async response => {
+          const proxiedResponse = await wrapTextResponse( { traceId, providerId: this.#providerId, modelId: this.#modelId, response } );
+          return onFinish?.( proxiedResponse );
+        },
         onError( event ) {
-          endTraceWithError( { traceId, error: event.error } );
-          onError?.( event );
+          const error = mapAiError( event.error );
+          endTraceWithError( { traceId, error } );
+          return onError?.( { ...event, error } );
         }
       } );
-    } catch ( error ) {
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
       throw error;
     }

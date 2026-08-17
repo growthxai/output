@@ -15,9 +15,10 @@ import { calculateBase64FileSize } from './image.js';
  * @param {string} args.providerId - id of the provider used
  * @param {string} args.modelId - id of the model used
  * @param {object} args.response - AI SDK's text response
+ * @param {object} args.extraProperties - Arbitrary properties to add the response
  * @returns {object} Proxied response
  */
-export const wrapTextResponse = async ( { traceId, providerId, modelId, response } ) => {
+export const wrapTextResponse = async ( { traceId, providerId, modelId, response, extraProperties = {} } ) => {
   const { totalUsage: usage, providerMetadata, text: result, steps, sources } = response;
 
   const cost = await calculateLLMCallCost( { usage, modelId, providerId } );
@@ -36,30 +37,14 @@ export const wrapTextResponse = async ( { traceId, providerId, modelId, response
       if ( prop === 'sources' && sourcesFromTools.length > 0 ) {
         return combineSources( { sourcesFromTools, sourcesFromResponse: sources } );
       }
+      // Access the extra property only if it doesn't overshadow an existing property
+      if ( Object.hasOwn( extraProperties, prop ) && !Object.hasOwn( target, prop ) ) {
+        return extraProperties[prop];
+      }
       return Reflect.get( target, prop, receiver );
     }
   } );
 };
-
-/**
- * Wraps the response returned by the onFinish callback from the stream.
- *
- * When the onFinish is triggered, concludes the trace event, calculates cost and emits `cost:llm:request`.
- * Returns a proxy around the response with `cost` property.
- *
- * @param {object} args
- * @param {string} args.traceId - id created by the startTrace
- * @param {string} args.providerId - id of the provider used
- * @param {string} args.modelId - id of the model used
- * @param {Function} args.onFinish - Original callback to call with the proxied response
- * @returns {object} Proxied response
- */
-export const wrapStreamOnFinishResponse = ( { traceId, providerId, modelId, onFinish: _onFinish } ) => ( {
-  async onFinish( response ) {
-    const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
-    _onFinish?.( proxiedResponse );
-  }
-} );
 
 /**
  * Calculates the cost and wraps an AI SDK image response in a Proxy with shortcut for 'result' and 'cost'

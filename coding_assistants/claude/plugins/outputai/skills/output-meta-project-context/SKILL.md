@@ -164,6 +164,7 @@ src/
 | `output-dev-workflow-function` | Writing deterministic workflow files |
 | `output-dev-step-function` | Writing step functions for I/O |
 | `output-dev-agent-class` | Build multi-step tool-loop agents with the Agent class |
+| `output-dev-llm-streaming` | Stream LLM progress with Temporal-safe error handling |
 | `output-dev-types-file` | Zod schema definitions |
 | `output-dev-evaluator-function` | Quality assessment functions |
 | `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
@@ -404,6 +405,8 @@ const { result } = await generateText( {
   variables: { content: 'Article text...' }
 } );
 ```
+
+For progress callbacks inside a step, prefer `generateTextWithStreaming()` or `Agent.generateWithStreaming()`. They return complete results and reject on stream failures. If direct `streamText()` access is required, capture `onError` and throw the captured error after consuming the stream. See `output-dev-llm-streaming`.
 
 **Provider & model selection:** the SDK supports `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, and `perplexity` (the registered list lives in the SDK's provider registry, `sdk/llm/src/ai_provider.js`). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 

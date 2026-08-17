@@ -338,6 +338,30 @@ export const generateSummary = step( {
 
 **Related Skill**: `output-dev-prompt-file` for creating prompt files
 
+### Streaming LLM Progress
+
+Prefer `generateTextWithStreaming()` in steps when the caller needs progress callbacks and a complete result:
+
+```typescript
+import { generateTextWithStreaming } from '@outputai/llm';
+
+const reportProgress = ( chunk: string ) => process.stdout.write( chunk );
+
+const result = await generateTextWithStreaming( {
+  prompt: 'summarize@v1',
+  variables: { content },
+  onChunk( { chunk } ) {
+    if ( chunk.type === 'text-delta' ) {
+      reportProgress( chunk.text );
+    }
+  }
+} );
+
+return result.result;
+```
+
+The returned promise rejects on stream failures, allowing Temporal to retry the activity. Use `streamText()` only when direct stream access is required; capture `onError` and throw the captured error after consumption. See `output-dev-llm-streaming` for complete patterns.
+
 ## Error Handling
 
 ### FatalError (Non-Retryable)
@@ -586,6 +610,7 @@ fn: async input => {
 - `output-dev-types-file` - Defining step input/output schemas
 - `output-dev-code-style` - Code formatting and style conventions
 - `output-dev-http-client-create` - Creating shared HTTP clients
+- `output-dev-llm-streaming` - Streaming LLM progress with Temporal-safe failures
 - `output-dev-prompt-file` - Creating prompt files for LLM operations
 - `output-error-try-catch` - Proper error handling patterns
 - `output-error-direct-io` - Avoiding direct I/O in workflows

@@ -15,6 +15,11 @@ const generateTextArgsSchema = z.object( {
   maxSteps: z.number().int().positive().optional()
 } );
 
+const streamTextArgsSchema = generateTextArgsSchema.extend( {
+  onFinish: z.function().optional(),
+  onError: z.function().optional()
+} );
+
 const base64StringSchema = z.string()
   .min( 1 )
   .regex(
@@ -64,8 +69,12 @@ export function validateGenerateTextArgs( args ) {
   validateSchema( generateTextArgsSchema, args, 'Invalid generateText() arguments' );
 }
 
+export function validateGenerateTextWithStreamingArgs( args ) {
+  validateSchema( streamTextArgsSchema, args, 'Invalid generateTextWithStreaming() arguments' );
+}
+
 export function validateStreamTextArgs( args ) {
-  validateSchema( generateTextArgsSchema, args, 'Invalid streamText() arguments' );
+  validateSchema( streamTextArgsSchema, args, 'Invalid streamText() arguments' );
 }
 
 export function validateGenerateImageArgs( args ) {
