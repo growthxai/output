@@ -420,10 +420,11 @@ describe( 'Agent', () => {
     const chunk = { type: 'text-delta', text: 'response' };
     const onChunk = vi.fn();
     const stream = { output: Promise.resolve( output ) };
+    const response = { ...aiResponse };
     wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
     aiMocks.superStream.mockImplementationOnce( options => {
       options.onChunk( { chunk } );
-      options.onFinish( aiResponse );
+      options.onFinish( response );
       return stream;
     } );
     const { Agent } = await importSut();
@@ -455,8 +456,7 @@ describe( 'Agent', () => {
       traceId: 'trace-id',
       providerId: 'openai',
       modelId: 'test-model',
-      response: aiResponse,
-      extraProperties: { output }
+      response: { ...aiResponse, output }
     } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,

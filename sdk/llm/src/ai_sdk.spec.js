@@ -291,10 +291,11 @@ describe( 'ai_sdk', () => {
       const onChunk = vi.fn();
       const wrappedResponse = { wrapped: textResponse, output };
       const stream = { output: Promise.resolve( output ) };
+      const response = { ...textResponse };
       wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
       aiFns.streamText.mockImplementationOnce( options => {
         options.onChunk( { chunk } );
-        options.onFinish( textResponse );
+        options.onFinish( response );
         return stream;
       } );
 
@@ -329,8 +330,7 @@ describe( 'ai_sdk', () => {
         traceId: 'trace-id',
         providerId: 'openai',
         modelId: 'test-model',
-        response: textResponse,
-        extraProperties: { output }
+        response: { ...textResponse, output }
       } );
       expect( result ).toBe( wrappedResponse );
     } );
@@ -341,7 +341,7 @@ describe( 'ai_sdk', () => {
       const resolvedSkills = [ { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' } ];
       const skills = vi.fn().mockResolvedValue( resolvedSkills );
       aiFns.streamText.mockImplementationOnce( options => {
-        options.onFinish( textResponse );
+        options.onFinish( { ...textResponse } );
         return { output: Promise.resolve( undefined ) };
       } );
 

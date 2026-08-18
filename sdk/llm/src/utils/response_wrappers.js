@@ -15,10 +15,9 @@ import { calculateBase64FileSize } from './image.js';
  * @param {string} args.providerId - id of the provider used
  * @param {string} args.modelId - id of the model used
  * @param {object} args.response - AI SDK's text response
- * @param {object} args.extraProperties - Arbitrary properties to add the response
  * @returns {object} Proxied response
  */
-export const wrapTextResponse = async ( { traceId, providerId, modelId, response, extraProperties = {} } ) => {
+export const wrapTextResponse = async ( { traceId, providerId, modelId, response } ) => {
   const { totalUsage: usage, providerMetadata, text: result, steps, sources } = response;
 
   const cost = await calculateLLMCallCost( { usage, modelId, providerId } );
@@ -36,10 +35,6 @@ export const wrapTextResponse = async ( { traceId, providerId, modelId, response
       }
       if ( prop === 'sources' && sourcesFromTools.length > 0 ) {
         return combineSources( { sourcesFromTools, sourcesFromResponse: sources } );
-      }
-      // Access the extra property only if it doesn't overshadow an existing property
-      if ( Object.hasOwn( extraProperties, prop ) && !Object.hasOwn( target, prop ) ) {
-        return extraProperties[prop];
       }
       return Reflect.get( target, prop, receiver );
     }

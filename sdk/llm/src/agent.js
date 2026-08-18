@@ -98,10 +98,7 @@ export class Agent extends AIToolLoopAgent {
    */
   async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
     const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
-    const state = {
-      response: null,
-      wrappedResponse: null
-    };
+    const state = { response: null };
 
     try {
       const messages = await this.#fetchMessages( userMessages );
@@ -121,15 +118,16 @@ export class Agent extends AIToolLoopAgent {
         throw new Error( 'Agent streaming generation completed without a response.' );
       }
 
-      const output = await stream.output;
-      state.wrappedResponse = await wrapTextResponse( {
+      state.response.output = await stream.output;
+      const wrappedResponse = await wrapTextResponse( {
         traceId,
         providerId: this.#providerId,
         modelId: this.#modelId,
-        response: state.response,
-        extraProperties: { output }
+        response: state.response
       } );
-      await this.#storeMessages( userMessages, state.wrappedResponse );
+      await this.#storeMessages( userMessages, wrappedResponse );
+
+      return wrappedResponse;
 
     } catch ( originalError ) {
       const error = mapAiError( originalError );
@@ -137,7 +135,6 @@ export class Agent extends AIToolLoopAgent {
       throw error;
     }
 
-    return state.wrappedResponse;
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {

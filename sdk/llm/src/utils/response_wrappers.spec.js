@@ -129,22 +129,6 @@ describe( 'wrapTextResponse', () => {
       sourcesFromResponse: [ responseSource ]
     } );
   } );
-
-  it( 'exposes extra properties without mutating the response', async () => {
-    const response = clone( streamResponseFixture );
-    const output = { summary: 'Structured result' };
-
-    const wrapped = await wrapTextResponse( {
-      traceId,
-      providerId,
-      modelId,
-      response,
-      extraProperties: { output }
-    } );
-
-    expect( wrapped.output ).toBe( output );
-    expect( Object.hasOwn( response, 'output' ) ).toBe( false );
-  } );
 } );
 
 describe( 'wrapImageResponse', () => {

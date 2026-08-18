@@ -92,10 +92,7 @@ export async function generateTextWithStreaming( { prompt, variables, promptDir,
   const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
   const traceId = startTrace( { name: 'generateTextWithStreaming', prompt, variables, loadedPrompt } );
   const { model: modelId, provider: providerId } = loadedPrompt.config;
-  const state = {
-    response: null,
-    wrappedResponse: null
-  };
+  const state = { response: null };
 
   try {
     const stream = AI.streamText( {
@@ -116,15 +113,13 @@ export async function generateTextWithStreaming( { prompt, variables, promptDir,
       throw new Error( 'Streaming generation completed without a response.' );
     }
 
-    const output = await stream.output;
-    state.wrappedResponse = await wrapTextResponse( { traceId, providerId, modelId, response: state.response, extraProperties: { output } } );
+    state.response.output = await stream.output;
+    return await wrapTextResponse( { traceId, providerId, modelId, response: state.response } );
   } catch ( error ) {
     const mappedError = mapAiError( error );
     endTraceWithError( { traceId, error: mappedError } );
     throw mappedError;
   }
-
-  return state.wrappedResponse;
 }
 
 export async function generateImage( { prompt, variables, promptDir, images, mask, ...aiSdkArgs } ) {
