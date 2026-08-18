@@ -1,9 +1,9 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, and loaded prompt shape changes in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, loaded prompt shape, and LLM trace details in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Skills now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools.
+This guide covers breaking changes in `@outputai/llm`. Skills now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
 
 ## Skills load only from the prompt file
 
@@ -175,6 +175,45 @@ const dir = prompt.fileDir;
 
 The `SkillsArg` type is removed. `Skill.description` is required on the loaded skill shape.
 
+## LLM trace details
+
+Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) renamed two keys. Agent traces now use the same fields as the text APIs.
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `prompt` (filename string) | `promptFile` |
+| `loadedPrompt` (loaded object) | `prompt` |
+
+Agent previously recorded only the filename as `prompt`. It now records `promptFile`, `variables`, and the loaded `prompt` object.
+
+#### Before
+
+```json
+{
+  "prompt": "generate_summary@v1",
+  "variables": { "companyName": "Acme Corp" },
+  "loadedPrompt": {
+    "name": "generate_summary@v1",
+    "config": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
+  }
+}
+```
+
+#### After
+
+```json
+{
+  "promptFile": "generate_summary@v1",
+  "variables": { "companyName": "Acme Corp" },
+  "prompt": {
+    "name": "generate_summary@v1",
+    "config": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
+  }
+}
+```
+
+If you read `input.prompt` as a filename, switch to `input.promptFile`. If you read `input.loadedPrompt`, switch to `input.prompt`.
+
 ## Agent constructor validation
 
 `new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
@@ -190,4 +229,5 @@ That includes a missing/empty `prompt`, an empty `promptDir`, `maxSteps` that is
 - Pass `stopWhen: stepCountIs(1)` on YAML-only grounding calls that must stay one-shot.
 - Rename `promptFileDir` to `fileDir`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
+- Rename LLM trace `input.prompt` (filename) to `input.promptFile` and `input.loadedPrompt` to `input.prompt`.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

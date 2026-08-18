@@ -3,7 +3,7 @@ import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse } from './utils/response_wrappers.js';
 import { mapAiError } from './utils/error_handler.js';
-import { ROLE, isRole } from './utils/message.js';
+import { Role, isRole } from './utils/message.js';
 import { drainStream } from './utils/stream.js';
 import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
@@ -19,31 +19,17 @@ export const createMemoryConversationStore = () => {
 
 export class Agent extends AIToolLoopAgent {
   #prompt;
+  #traceFields;
   #initialMessages;
   #store;
 
-  constructor( {
-    prompt,
-    promptDir,
-    variables = {},
-    tools: toolsArg,
-    stopWhen,
-    maxSteps = 10,
-    conversationStore,
-    skills,
-    ...rest
-  } ) {
-    validateAgentArgs( { prompt, promptDir, variables, maxSteps, tools: toolsArg, skills } );
+  constructor( { prompt: promptFile, promptDir, variables, tools, stopWhen, maxSteps = 10, conversationStore, skills: skillsArg, ...rest } ) {
+    validateAgentArgs( { prompt: promptFile, promptDir, variables, maxSteps, tools, skills: skillsArg } );
 
-    const loadedPrompt = loadPrompt( prompt, variables, promptDir );
-    const loadedSkills = loadSkills( loadedPrompt );
+    const prompt = loadPrompt( promptFile, variables, promptDir );
+    const skills = loadSkills( prompt );
 
-    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( {
-      prompt: loadedPrompt,
-      skills: loadedSkills,
-      tools: toolsArg,
-      maxSteps
-    } );
+    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } );
 
     // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
     // per-message providerOptions); pass them as the agent's `instructions`.
@@ -54,10 +40,11 @@ export class Agent extends AIToolLoopAgent {
       ...rest
     } );
 
-    this.#prompt = loadedPrompt;
+    this.#prompt = prompt;
+    this.#traceFields = { promptFile, prompt, variables };
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
-    this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
+    this.#initialMessages = messages.filter( isRole( Role.USER ) );
     this.#store = conversationStore ?? null;
   }
 
@@ -73,7 +60,7 @@ export class Agent extends AIToolLoopAgent {
   }
 
   async generate( { messages: userMessages = [], ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt.name } );
+    const traceId = startTrace( { name: 'Agent.generate', ...this.#traceFields } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
 
     try {
@@ -93,7 +80,7 @@ export class Agent extends AIToolLoopAgent {
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
   async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt.name } );
+    const traceId = startTrace( { name: 'Agent.generateWithStreaming', ...this.#traceFields } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
     const state = { response: null };
 
@@ -126,11 +113,10 @@ export class Agent extends AIToolLoopAgent {
       endTraceWithError( { traceId, error } );
       throw error;
     }
-
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt.name } );
+    const traceId = startTrace( { name: 'Agent.stream', ...this.#traceFields } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
 
     try {

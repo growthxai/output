@@ -210,7 +210,7 @@ describe( 'Agent', () => {
 
     expect( validators.validateAgentArgs ).toHaveBeenCalledWith( expect.objectContaining( {
       prompt: 'test@v1',
-      variables: {},
+      variables: undefined,
       promptDir: undefined,
       maxSteps: 10,
       tools: undefined,
@@ -374,7 +374,9 @@ describe( 'Agent', () => {
 
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
-      prompt: 'test@v1'
+      promptFile: 'test@v1',
+      prompt: loadedPrompt,
+      variables: undefined
     } );
     expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
@@ -431,7 +433,9 @@ describe( 'Agent', () => {
 
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
-      prompt: 'test@v1'
+      promptFile: 'test@v1',
+      prompt: loadedPrompt,
+      variables: undefined
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -521,7 +525,9 @@ describe( 'Agent', () => {
 
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
-      prompt: 'test@v1'
+      promptFile: 'test@v1',
+      prompt: loadedPrompt,
+      variables: undefined
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [

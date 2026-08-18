@@ -1,7 +1,7 @@
 import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
 import { resolveMessageProviderOptions } from './prompt/block_options.js';
 import { buildLoadSkillTool } from './utils/tools.js';
-import { ROLE, isRole } from './utils/message.js';
+import { Role, isRole } from './utils/message.js';
 import { FatalError } from '@outputai/core';
 import { stepCountIs } from 'ai';
 
@@ -26,7 +26,7 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, maxSteps } ) => {
   if ( prompt.messages.length === 0 ) {
     throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
   }
-  const isSystem = isRole( ROLE.SYSTEM );
+  const isSystem = isRole( Role.SYSTEM );
   const resolvedMessages = resolveMessageProviderOptions( prompt );
 
   const systemMessages = resolvedMessages.filter( isSystem );
@@ -37,7 +37,7 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, maxSteps } ) => {
     if ( systemMessages.length > 0 ) {
       systemMessages[0] = { ...systemMessages[0], content: `${systemMessages[0].content}\n\n${skillsMessageContent}` };
     } else {
-      systemMessages.push( { role: ROLE.SYSTEM, content: skillsMessageContent } );
+      systemMessages.push( { role: Role.SYSTEM, content: skillsMessageContent } );
     }
   }
 

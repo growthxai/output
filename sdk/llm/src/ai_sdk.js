@@ -18,20 +18,20 @@ const defaultAiSdkOptions = {
   maxRetries: 0
 };
 
-export async function generateText( { prompt, variables, promptDir, maxSteps = 10, tools, skills, ...aiSdkArgs } ) {
-  validateGenerateTextArgs( { prompt, variables, promptDir, maxSteps, tools, skills } );
+export async function generateText( { prompt: promptFile, variables, promptDir, maxSteps = 10, tools, skills: skillsArg, ...rest } ) {
+  validateGenerateTextArgs( { prompt: promptFile, variables, promptDir, maxSteps, tools, skills: skillsArg } );
 
-  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
-  const loadedSkills = loadSkills( loadedPrompt );
+  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateText', prompt, variables, loadedPrompt } );
-  const { model: modelId, provider: providerId } = loadedPrompt.config;
+  const traceId = startTrace( { name: 'generateText', promptFile, variables, prompt } );
+  const { model: modelId, provider: providerId } = prompt.config;
 
   try {
     const response = await AI.generateText( {
-      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
-      ...aiSdkArgs
+      ...rest
     } );
     return wrapTextResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {
@@ -41,20 +41,20 @@ export async function generateText( { prompt, variables, promptDir, maxSteps = 1
   }
 }
 
-export function streamText( { prompt, variables, promptDir, maxSteps = 10, onFinish, onError, tools, skills, ...aiSdkArgs } ) {
-  validateStreamTextArgs( { prompt, variables, promptDir, maxSteps, onFinish, onError, tools, skills } );
+export function streamText( { prompt: promptFile, variables, promptDir, maxSteps = 10, onFinish, onError, tools, skills: skillsArg, ...rest } ) {
+  validateStreamTextArgs( { prompt: promptFile, variables, promptDir, maxSteps, onFinish, onError, tools, skills: skillsArg } );
 
-  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
-  const loadedSkills = loadSkills( loadedPrompt );
+  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
-  const { model: modelId, provider: providerId } = loadedPrompt.config;
+  const traceId = startTrace( { name: 'streamText', promptFile, variables, prompt } );
+  const { model: modelId, provider: providerId } = prompt.config;
 
   try {
     return AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
-      ...aiSdkArgs,
+      ...rest,
       async onFinish( response ) {
         const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
         return onFinish?.( proxiedResponse );
@@ -75,29 +75,29 @@ export function streamText( { prompt, variables, promptDir, maxSteps = 10, onFin
 /**
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
-export async function generateTextWithStreaming( { prompt, variables, promptDir, maxSteps = 10, tools, skills, ...aiSdkArgs } ) {
-  validateGenerateTextWithStreamingArgs( { prompt, variables, promptDir, maxSteps, tools, skills } );
+export async function generateTextWithStreaming( { prompt: promptFile, variables, promptDir, maxSteps = 10, tools, skills: skillsArg, ...rest } ) {
+  validateGenerateTextWithStreamingArgs( { prompt: promptFile, variables, promptDir, maxSteps, tools, skills: skillsArg } );
 
-  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
-  const loadedSkills = loadSkills( loadedPrompt );
+  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateTextWithStreaming', prompt, variables, loadedPrompt } );
+  const traceId = startTrace( { name: 'generateTextWithStreaming', promptFile, variables, prompt } );
 
-  const { model: modelId, provider: providerId } = loadedPrompt.config;
+  const { model: modelId, provider: providerId } = prompt.config;
   const state = { response: null };
 
   try {
     const stream = AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
-      ...aiSdkArgs,
+      ...rest,
       onFinish( response ) {
         state.response = response;
       },
       onError: _ => {} // Suppress AI-SDK console printing
     } );
 
-    await drainStream( stream, aiSdkArgs?.abortSignal );
+    await drainStream( stream, rest?.abortSignal );
 
     if ( !state.response ) {
       throw new Error( 'Streaming generation completed without a response.' );
@@ -112,18 +112,18 @@ export async function generateTextWithStreaming( { prompt, variables, promptDir,
   }
 }
 
-export async function generateImage( { prompt, variables, promptDir, images, mask, ...aiSdkArgs } ) {
-  validateGenerateImageArgs( { prompt, variables, promptDir, images, mask } );
+export async function generateImage( { prompt: promptFile, variables, promptDir, images, mask, ...rest } ) {
+  validateGenerateImageArgs( { prompt: promptFile, variables, promptDir, images, mask } );
 
-  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
-  const traceId = startTrace( { name: 'generateImage', prompt, variables, loadedPrompt } );
-  const { model: modelId, provider: providerId } = loadedPrompt.config;
+  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const traceId = startTrace( { name: 'generateImage', promptFile, variables, prompt } );
+  const { model: modelId, provider: providerId } = prompt.config;
 
   try {
     const response = await AI.generateImage( {
-      ...loadAiSdkImageOptions( { prompt: loadedPrompt, images, mask } ),
+      ...loadAiSdkImageOptions( { prompt, images, mask } ),
       maxRetries: defaultAiSdkOptions.maxRetries,
-      ...aiSdkArgs
+      ...rest
     } );
     return wrapImageResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {

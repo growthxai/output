@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ROLE, getContent, isRole } from './message.js';
+import { Role, getContent, isRole } from './message.js';
 
 describe( 'message utils', () => {
-  describe( 'ROLE', () => {
+  describe( 'Role', () => {
     it( 'exposes expected role string constants', () => {
-      expect( ROLE ).toEqual( {
+      expect( Role ).toEqual( {
         SYSTEM: 'system',
         USER: 'user',
         ASSISTANT: 'assistant',
@@ -15,7 +15,7 @@ describe( 'message utils', () => {
 
   describe( 'isRole', () => {
     it( 'returns a predicate that matches messages by role', () => {
-      const isUser = isRole( ROLE.USER );
+      const isUser = isRole( Role.USER );
       expect( isUser( { role: 'user', content: 'hi' } ) ).toBe( true );
       expect( isUser( { role: 'assistant', content: 'bye' } ) ).toBe( false );
     } );
