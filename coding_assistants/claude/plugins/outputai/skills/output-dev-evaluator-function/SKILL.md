@@ -102,7 +102,7 @@ import { z } from 'zod';
 
 ```typescript
 // CORRECT - Use @outputai/llm wrapper
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -346,13 +346,13 @@ export const evaluateSentiment = evaluator( {
 
 ## LLM-Powered Evaluator Examples
 
-**Note**: Evaluators are self-contained components that don't share schemas across steps, so defining `Output.object()` schemas inline is acceptable here. For workflow steps that share schemas, define them in `types.ts` instead.
+**Note**: Evaluators are self-contained components that don't share schemas across steps, so defining `aiSdk.Output.object()` schemas inline is acceptable here. For workflow steps that share schemas, define them in `types.ts` instead.
 
-### Using generateText with Output.object() for Evaluation
+### Using generateText with aiSdk.Output.object() for Evaluation
 
 ```typescript
 import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const evaluateSignalToNoise = evaluator( {
   name: 'evaluate_signal_to_noise',
@@ -368,7 +368,7 @@ export const evaluateSignalToNoise = evaluator( {
         title,
         content
       },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           score: z.number().describe( 'Signal-to-noise score 0-100' )
         } )
@@ -387,7 +387,7 @@ export const evaluateSignalToNoise = evaluator( {
 
 ```typescript
 import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const evaluateFactualAccuracy = evaluator( {
   name: 'evaluate_factual_accuracy',
@@ -400,7 +400,7 @@ export const evaluateFactualAccuracy = evaluator( {
     const { output } = await generateText( {
       prompt: 'factual_check@v1',
       variables: { content, topic },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           isFactual: z.boolean().describe( 'Whether content appears factually accurate' ),
           confidence: z.number().describe( 'Confidence in assessment 0-1' ),
@@ -424,7 +424,7 @@ export const evaluateFactualAccuracy = evaluator( {
 
 ```typescript
 import { evaluator, z, EvaluationStringResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const evaluateContentCategory = evaluator( {
   name: 'evaluate_content_category',
@@ -440,7 +440,7 @@ export const evaluateContentCategory = evaluator( {
         content,
         categories: categories.join( ', ' )
       },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           category: z.string().describe( 'The best matching category' ),
           confidence: z.number().describe( 'Confidence in classification 0-1' ),
@@ -539,7 +539,7 @@ Based on a real workflow evaluator file:
 
 ```typescript
 import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { blogContentSchema } from './types.js';
 import type { BlogContent, QualityMetrics } from './types.js';
 
@@ -572,7 +572,7 @@ export const evaluateSignalToNoise = evaluator( {
         title: input.title,
         content: input.content
       },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           score: z.number().describe( 'Signal-to-noise score 0-100' )
         } )
@@ -599,7 +599,7 @@ export const evaluateRelevance = evaluator( {
     const { output } = await generateText( {
       prompt: 'relevance_check@v1',
       variables: { content, topic, keywords: keywords.join( ', ' ) },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           isRelevant: z.boolean(),
           relevanceScore: z.number().describe( 'Relevance score 0-1' ),

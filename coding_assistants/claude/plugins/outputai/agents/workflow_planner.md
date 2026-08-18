@@ -175,7 +175,7 @@ import { z } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
 
 // LLM operations - NEVER call providers directly
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 // Error types
 import { FatalError, ValidationError } from '@outputai/core';

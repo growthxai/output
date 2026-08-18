@@ -169,7 +169,7 @@ Content:
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 export const reviewContent = step( {
   name: 'reviewContent',
@@ -189,7 +189,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           summary: z.string().describe( '2-3 sentence overview' ),
           issues: z.array( z.string() ).describe( 'Specific problems found' ),

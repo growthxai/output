@@ -32,9 +32,9 @@ Verify the following conventions were followed:
 - [ ] Retry policies configured appropriately
 
 #### Schema Placement
-- [ ] All schemas for `Output.object()` defined in `types.ts`, not inline in step functions
+- [ ] All schemas for `aiSdk.Output.object()` defined in `types.ts`, not inline in step functions
 - [ ] LLM output schemas use `.describe()` only -- no `.min()/.max()/.length()` on numbers or arrays
-- [ ] Prompt files do not contain JSON output format instructions when `Output.object()` is used
+- [ ] Prompt files do not contain JSON output format instructions when `aiSdk.Output.object()` is used
 
 #### LLM Provider & Variables
 - [ ] All prompt files use the same provider (no mixing unless explicitly requested)

@@ -3,20 +3,20 @@ title: "@outputai/llm"
 description: "Generate and stream text, structured outputs, and images with prompt file management"
 ---
 
-The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place.
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. AI SDK helpers (`Output`, `tool`, `stepCountIs`, `smoothStream`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
 
 ## Generate Functions
 
-`generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. When you need progress as text arrives, prefer `generateTextWithStreaming` in workflow steps: it uses streaming internally but returns a complete result and rejects on provider or transport errors. Use `streamText` when you need direct control over the stream:
+`generateText` is the primary function for LLM calls. Use the `output` parameter with `aiSdk.Output.*` helpers to control the response shape. When you need progress as text arrives, prefer `generateTextWithStreaming` in workflow steps: it uses streaming internally but returns a complete result and rejects on provider or transport errors. Use `streamText` when you need direct control over the stream:
 
 | Output Shape | How | Use when you need |
 |--------------|-----|-------------------|
 | Unstructured text | `generateText({ prompt })` | Summaries, emails, explanations |
 | Complete text with streaming callbacks | `generateTextWithStreaming({ prompt, onChunk })` | Progress updates with normal promise-based error handling |
 | Raw text stream | `streamText({ prompt })` | Direct access to `textStream`, `fullStream`, and stream promises |
-| Typed object | `generateText({ prompt, output: Output.object({ schema }) })` | Structured data, evaluator judgments |
-| Array of objects | `generateText({ prompt, output: Output.array({ element }) })` | Lists, multiple items |
-| One of N choices | `generateText({ prompt, output: Output.choice({ options }) })` | Classification, routing |
+| Typed object | `generateText({ prompt, output: aiSdk.Output.object({ schema }) })` | Structured data, evaluator judgments |
+| Array of objects | `generateText({ prompt, output: aiSdk.Output.array({ element }) })` | Lists, multiple items |
+| One of N choices | `generateText({ prompt, output: aiSdk.Output.choice({ options }) })` | Classification, routing |
 | Image | `generateImage({ prompt })` | Text-to-image, image-to-image, and image edits |
 
 ### Text Output
@@ -135,12 +135,12 @@ Registering `onError` alone is not enough to fail the step. The callback does no
 Both streaming APIs accept stream transforms such as `smoothStream` for more natural output pacing:
 
 ```typescript
-import { generateTextWithStreaming, smoothStream } from '@outputai/llm';
+import { generateTextWithStreaming, aiSdk } from '@outputai/llm';
 
 const result = await generateTextWithStreaming({
   prompt: 'generate@v1',
   variables: { topic },
-  experimental_transform: smoothStream()
+  experimental_transform: aiSdk.smoothStream()
 });
 ```
 
@@ -150,7 +150,7 @@ Generate a structured object matching a Zod schema. This is what you'll use most
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -165,7 +165,7 @@ export const judgeSummaryQuality = evaluator({
         summary: input.summary,
         companyName: input.companyName
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           passes: z.boolean(),
@@ -301,13 +301,13 @@ Common image options can live in prompt front matter:
 Generate an array of structured items:
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { output } = await generateText({
   prompt: 'extract_contacts@v1',
   variables: { companyData: JSON.stringify(company) },
-  output: Output.array({
+  output: aiSdk.Output.array({
     element: z.object({
       name: z.string(),
       role: z.string(),
@@ -324,12 +324,12 @@ const { output } = await generateText({
 Select one value from a set of options:
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 const { output } = await generateText({
   prompt: 'classify_lead@v1',
   variables: { activity: leadActivity },
-  output: Output.choice({ options: ['hot', 'warm', 'cold', 'unknown'] })
+  output: aiSdk.Output.choice({ options: ['hot', 'warm', 'cold', 'unknown'] })
 });
 
 // output is one of 'hot', 'warm', 'cold', 'unknown'
@@ -345,7 +345,7 @@ The prompt file is loaded and rendered at construction time. Variables and tools
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 export const reviewContent = step({
   name: 'reviewContent',
@@ -360,7 +360,7 @@ export const reviewContent = step({
         focus: input.focus,
         content: input.content
       },
-      output: Output.object({ schema: reviewSchema }),
+      output: aiSdk.Output.object({ schema: reviewSchema }),
       maxSteps: 5
     });
     const { output } = await agent.generate();
@@ -378,7 +378,7 @@ export const reviewContent = step({
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
 | `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
 | `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
-| `output` | `Output` | - | Structured output spec (e.g. `Output.object({ schema })`) |
+| `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
 | `temperature` | `number` | - | Override prompt file temperature |
 | `onStepFinish` | `Function` | - | Callback after each tool-loop step |
@@ -391,7 +391,7 @@ Run the agent and return when complete:
 ```typescript
 const result = await agent.generate();
 console.log(result.text);   // Generated text
-console.log(result.output); // Structured output (when using Output.object)
+console.log(result.output); // Structured output (when using aiSdk.Output.object)
 console.log(result.usage);  // Token counts
 ```
 
@@ -437,10 +437,10 @@ Like `streamText`, the stream result provides `textStream` and `fullStream` iter
 
 ### Structured Output
 
-Use `Output.object()` with Agent to get typed responses:
+Use `aiSdk.Output.object()` with Agent to get typed responses:
 
 ```typescript steps.ts
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const reviewSchema = z.object({
@@ -453,7 +453,7 @@ const reviewSchema = z.object({
 const agent = new Agent({
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: Output.object({ schema: reviewSchema }),
+  output: aiSdk.Output.object({ schema: reviewSchema }),
   maxSteps: 5
 });
 
@@ -509,7 +509,7 @@ interface ConversationStore {
 | **Skills** | Supported | Supported |
 | **Conversation history** | Manual | Built-in with `conversationStore` |
 | **Reusable instance** | No (function call) | Yes (construct once, call many) |
-| **Structured output** | `Output.object()` | `Output.object()` |
+| **Structured output** | `aiSdk.Output.object()` | `aiSdk.Output.object()` |
 
 Start with `generateText`. Move to `Agent` when you need conversation state or a reusable instance with a fixed configuration.
 
@@ -808,14 +808,14 @@ For provider-specific tool options, see:
 Use tools with `generateText` to enable function calling:
 
 ```typescript
-import { generateText, tool } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { result, toolCalls } = await generateText({
   prompt: 'agent@v1',
   variables: { task: 'Research competitor pricing' },
   tools: {
-    searchWeb: tool({
+    searchWeb: aiSdk.tool({
       description: 'Search the web for information',
       parameters: z.object({ query: z.string() }),
       execute: async ({ query }) => fetchSearchResults(query)
@@ -841,7 +841,7 @@ Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) p
 | `onChunk` | `Function` | Callback for each chunk (streaming APIs) |
 | `onFinish` | `Function` | Finish event callback for `streamText` and `Agent.stream()` |
 | `onError` | `Function` | Callback when a stream error occurs (`streamText` and `Agent.stream()`) |
-| `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streaming APIs) |
+| `experimental_transform` | `Function` | Stream transform, e.g. `aiSdk.smoothStream()` (streaming APIs) |
 
 Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
 

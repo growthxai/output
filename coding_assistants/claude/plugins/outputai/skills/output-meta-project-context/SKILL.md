@@ -84,7 +84,7 @@ src/
 | HTTP client | `import { createKyClient } from '@outputai/http'` | `import axios from 'axios'` |
 | HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
 | Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
-| LLM calls | `import { generateText, Output } from '@outputai/llm'` | Direct provider SDK |
+| LLM calls | `import { generateText, aiSdk } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
 | Workflow I/O | Call steps for any I/O | Direct fetch/http in workflow |
 
@@ -387,14 +387,14 @@ Provide {{ numberOfPoints | default: 3 }} key insights.
 
 **Using in steps:**
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 // Structured output
 const { output } = await generateText( {
   prompt: 'analyze@v1',
   variables: { content: 'Article text...', numberOfPoints: 5 },
-  output: Output.object( {
+  output: aiSdk.Output.object( {
     schema: z.object( { insights: z.array( z.string() ) } )
   } )
 } );

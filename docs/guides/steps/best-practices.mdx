@@ -203,7 +203,7 @@ Here's an evaluator that judges the quality of an AI-generated company summary:
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { JudgeSummaryInput, JudgeSummaryOutput } from './types.js';
 
 export const judgeSummaryQuality = evaluator({
@@ -215,7 +215,7 @@ export const judgeSummaryQuality = evaluator({
     const { output } = await generateText({
       prompt: 'judge_summary@v1',
       variables: { summary: data.output, companyName: data.input.name },
-      output: Output.object({ schema: JudgeSummaryOutput })
+      output: aiSdk.Output.object({ schema: JudgeSummaryOutput })
     });
 
     return new EvaluationStringResult({

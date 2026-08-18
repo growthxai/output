@@ -18,7 +18,7 @@ You are an Output SDK prompt engineering specialist who creates, reviews, and de
 - **Liquid.js Templates**: Variable interpolation, conditionals, loops, and filters
 - **Provider Configuration**: Anthropic, OpenAI, Vertex, Bedrock, Azure, and Perplexity model settings
 - **Prompt Design**: System instructions, user prompts, and multi-turn conversations
-- **Output Optimization**: Structured output prompts for `generateText` with `Output.object()`
+- **Output Optimization**: Structured output prompts for `generateText` with `aiSdk.Output.object()`
 - **Skills System**: Prompt frontmatter `skills:` paths to `.md` skill files
 - **Agent Class**: Prompts work with both `generateText` and `Agent` for multi-step tool loops
 
@@ -94,7 +94,7 @@ Each message role serves a specific purpose. Understanding when to use each is c
 
 Structure system messages with clear markdown headers for readability and maintainability.
 
-This example is for a plain text output step (no `Output.object()`), so `## Output Format` is appropriate here. When using `Output.object()`, omit the Output Format section -- the schema handles structure.
+This example is for a plain text output step (no `aiSdk.Output.object()`), so `## Output Format` is appropriate here. When using `aiSdk.Output.object()`, omit the Output Format section -- the schema handles structure.
 
 ```yaml
 <system>
@@ -137,7 +137,7 @@ Return a structured analysis with:
 | `## Expertise` | List specific knowledge areas |
 | `## Task` | Describe what the AI should accomplish |
 | `## Methodology` | Step-by-step approach to follow |
-| `## Output Format` | Specify expected response structure (**only when NOT using `Output.object()`** -- when using structured output, the schema handles format) |
+| `## Output Format` | Specify expected response structure (**only when NOT using `aiSdk.Output.object()`** -- when using structured output, the schema handles format) |
 | `## Constraints` | Rules and limitations to follow |
 | `## Examples` | Few-shot examples (optional) |
 
@@ -389,7 +389,7 @@ Please work through each step of the methodology, showing your reasoning at each
 
 Provide examples in the system message for consistent output.
 
-**Note**: This technique is for plain-text output steps (no `Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
+**Note**: This technique is for plain-text output steps (no `aiSdk.Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
 
 ```yaml
 <system>
@@ -434,9 +434,9 @@ Extract key metrics from this description:
 </user>
 ```
 
-### Structured Output Prompts (with Output.object())
+### Structured Output Prompts (with aiSdk.Output.object())
 
-When `generateText` is called with `Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
+When `generateText` is called with `aiSdk.Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
 
 Instead, use `.describe()` on schema fields (in `types.ts`) for field-level guidance, and use the prompt for **task framing, methodology, and quality standards**:
 
@@ -477,7 +477,7 @@ const ContentExtractionSchema = z.object( {
 
 ```
 
-**When Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
+**When aiSdk.Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
 
 ## Skills System
 
@@ -511,12 +511,12 @@ See `output-dev-skill-file` for the full skill creation guide.
 Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent extends AI SDK's `ToolLoopAgent` with Output prompt files and skills:
 
 ```typescript
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  output: Output.object( { schema: reviewSchema } ),
+  output: aiSdk.Output.object( { schema: reviewSchema } ),
   maxSteps: 5
 } );
 const { output } = await agent.generate();
@@ -628,7 +628,7 @@ Writing system prompts as walls of text instead of using `## Headers`.
 Dumping data without wrapping in `<data>`, `<context>`, etc.
 
 ### 8. Duplicating Schema in Prompt
-Including `## Output Format` with JSON examples when the step uses `Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
+Including `## Output Format` with JSON examples when the step uses `aiSdk.Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
 
 ## Example Interactions
 

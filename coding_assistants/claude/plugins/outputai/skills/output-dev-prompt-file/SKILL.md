@@ -335,10 +335,10 @@ The prompt template then uses the pre-formatted string directly with `{{ stories
 
 ## Using Prompts in Steps
 
-### With generateText and Output.object()
+### With generateText and aiSdk.Output.object()
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { output } = await generateText( {
@@ -349,7 +349,7 @@ const { output } = await generateText( {
     colorPalette: 'blue and green tones',
     artDirection: 'minimalist style'
   },
-  output: Output.object( {
+  output: aiSdk.Output.object( {
     schema: z.object( {
       ideas: z.array( z.string() )
     } )
@@ -413,7 +413,7 @@ Do not pass `skills` as a call argument and do not use `skill()`. See `output-de
 Prompts work with both `generateText` and the `Agent` class. Use `Agent` for multi-step tool loops and stateful conversations. See `output-dev-agent-class` for the full guide.
 
 ```typescript
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
@@ -422,7 +422,7 @@ const agent = new Agent( {
     focus: 'clarity',
     content: input.content
   },
-  output: Output.object( { schema: reviewSchema } ),
+  output: aiSdk.Output.object( { schema: reviewSchema } ),
   maxSteps: 5
 } );
 const { output } = await agent.generate();
@@ -432,7 +432,7 @@ const { output } = await agent.generate();
 
 ### Do Not Duplicate the Schema in the Prompt
 
-When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
+When a step uses `aiSdk.Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
 
 This is a best practice documented by multiple LLM providers:
 
@@ -446,7 +446,7 @@ This is a best practice documented by multiple LLM providers:
 
 ### What NOT to Include in Prompts
 
-When `Output.object()` is used, do not include any of these in the prompt:
+When `aiSdk.Output.object()` is used, do not include any of these in the prompt:
 
 - `## Output Format` sections describing the JSON shape
 - JSON examples showing the expected response structure
@@ -455,7 +455,7 @@ When `Output.object()` is used, do not include any of these in the prompt:
 - Instructions like "Return only the JSON object with no surrounding explanation"
 
 ```
-<!-- WRONG - prompt duplicates what Output.object() already sends -->
+<!-- WRONG - prompt duplicates what aiSdk.Output.object() already sends -->
 <system>
 ## Output Format
 Return a JSON object with this shape:
@@ -495,9 +495,9 @@ const ArticleSummarySchema = z.object( {
 
 The schema handles structure AND field-level guidance; the prompt handles task framing, methodology, and quality standards.
 
-### When the Step Does NOT Use Output.object()
+### When the Step Does NOT Use aiSdk.Output.object()
 
-If `generateText` is called **without** `Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
+If `generateText` is called **without** `aiSdk.Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
 
 ## Best Practices
 
@@ -649,7 +649,7 @@ Requirements:
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
 - [ ] All required variables are documented or have defaults
 - [ ] Step code references correct prompt name
-- [ ] No JSON output format instructions when step uses `Output.object()` (schema handles structure)
+- [ ] No JSON output format instructions when step uses `aiSdk.Output.object()` (schema handles structure)
 - [ ] If the prompt uses skills, frontmatter lists `skills:` paths (a sibling `skills/` folder is not auto-loaded)
 
 ## Related Skills

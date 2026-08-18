@@ -7,3 +7,4 @@
 - Renamed `Prompt.promptFileDir` to `Prompt.fileDir`. `Prompt.config.skills` is always a `string[]` after load.
 - Renamed LLM start-trace details `prompt` (filename) to `promptFile` and `loadedPrompt` to `prompt` (loaded object) on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`. Agent traces now also include `variables` and the loaded `prompt`.
 - Added Agent constructor validation matching the text APIs (`Invalid Agent() arguments`).
+- Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`). Renamed the namespace re-export `ai` to `aiSdk`.

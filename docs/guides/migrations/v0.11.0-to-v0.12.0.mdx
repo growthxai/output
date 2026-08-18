@@ -1,6 +1,6 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, loaded prompt shape, and LLM trace details in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, loaded prompt shape, LLM traces, and aiSdk re-exports in @outputai/llm."
 ---
 
 This guide covers breaking changes in `@outputai/llm`. Skills now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
@@ -142,11 +142,11 @@ Previously that ceiling applied only when call-argument tools or `load_skill` we
 `stepCountIs(10)` is a ceiling. The model still stops when it emits a final answer. If you need the old one-step behavior:
 
 ```ts
-import { generateText, stepCountIs } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 await generateText( {
   prompt: 'grounded@v1',
-  stopWhen: stepCountIs( 1 )
+  stopWhen: aiSdk.stepCountIs( 1 )
 } );
 ```
 
@@ -214,6 +214,38 @@ Agent previously recorded only the filename as `prompt`. It now records `promptF
 
 If you read `input.prompt` as a filename, switch to `input.promptFile`. If you read `input.loadedPrompt`, switch to `input.prompt`.
 
+## AI SDK helpers come from `aiSdk`
+
+`@outputai/llm` no longer re-exports `tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, or `jsonSchema` as named exports. The namespace re-export `ai` is renamed to `aiSdk`.
+
+#### Before
+
+```ts
+import { generateText, Output, stepCountIs, tool } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'writer@v1',
+  output: Output.object( { schema } ),
+  stopWhen: stepCountIs( 1 ),
+  tools: { lookup: tool( { description: 'Lookup', parameters: schema, execute } ) }
+} );
+```
+
+#### After
+
+```ts
+import { generateText, aiSdk } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'writer@v1',
+  output: aiSdk.Output.object( { schema } ),
+  stopWhen: aiSdk.stepCountIs( 1 ),
+  tools: { lookup: aiSdk.tool( { description: 'Lookup', parameters: schema, execute } ) }
+} );
+```
+
+`import { ai } from '@outputai/llm'` becomes `import { aiSdk } from '@outputai/llm'`. Output APIs (`generateText`, `Agent`, `loadPrompt`, ...) stay named exports.
+
 ## Agent constructor validation
 
 `new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
@@ -226,8 +258,9 @@ That includes a missing/empty `prompt`, an empty `promptDir`, `maxSteps` that is
 - Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
-- Pass `stopWhen: stepCountIs(1)` on YAML-only grounding calls that must stay one-shot.
+- Pass `stopWhen: aiSdk.stepCountIs(1)` on YAML-only grounding calls that must stay one-shot.
 - Rename `promptFileDir` to `fileDir`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Rename LLM trace `input.prompt` (filename) to `input.promptFile` and `input.loadedPrompt` to `input.prompt`.
+- Import AI SDK helpers from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, ...). Replace `import { ai }` with `import { aiSdk }`.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

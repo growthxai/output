@@ -53,7 +53,7 @@ For subjective quality — accuracy, tone, relevance — you need an LLM to eval
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -68,7 +68,7 @@ export const judgeSummaryQuality = evaluator({
         summary: input.summary,
         companyName: input.companyName
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           passes: z.boolean(),
@@ -154,7 +154,7 @@ Pass/fail checks. Use these as quality gates — does this output meet the bar?
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { CheckFactualityInput } from './types.js';
 
@@ -169,7 +169,7 @@ export const checkFactuality = evaluator({
         summary: input.summary,
         sourceData: input.sourceData
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           issues: z.array(z.string()),
           isFactual: z.boolean(),
@@ -203,7 +203,7 @@ Numeric scores for when you need more granularity than pass/fail. In most cases,
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { ScoreEmailInput } from './types.js';
 
@@ -219,7 +219,7 @@ export const scoreEmailDraft = evaluator({
         recipientRole: input.recipientRole,
         companyName: input.companyName
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           score: z.number().min(1).max(10),
@@ -252,7 +252,7 @@ Category assignments — classifying content into labels.
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { ClassifyIntentInput } from './types.js';
 
@@ -267,7 +267,7 @@ export const classifyLeadIntent = evaluator({
         recentActivity: input.recentActivity,
         companySize: input.companySize
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           intent: z.enum(['high', 'medium', 'low', 'unknown']),
@@ -299,7 +299,7 @@ For more detailed evaluations, you can attach feedback (specific issues and sugg
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult, EvaluationNumberResult, EvaluationFeedback } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { ReviewProposalInput } from './types.js';
 
@@ -311,7 +311,7 @@ export const reviewProposal = evaluator({
     const { output } = await generateText({
       prompt: 'review_proposal@v1',
       variables: { proposal: input.proposal, prospect: input.prospectName },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           overall: z.enum(['ready', 'needs_revision', 'major_issues']),
@@ -442,7 +442,7 @@ When multiple workflows need the same evaluator, put it in `src/shared/evaluator
 
 ```typescript src/shared/evaluators/check_factuality.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { CheckFactualityInput } from './types.js';
 
@@ -454,7 +454,7 @@ export const checkFactuality = evaluator({
     const { output } = await generateText({
       prompt: 'check_factuality@v1',
       variables: { summary: input.summary, sourceData: input.sourceData },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           confidence: z.number(),
           isFactual: z.boolean()

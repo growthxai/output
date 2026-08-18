@@ -123,7 +123,7 @@ Define steps in `steps.ts` with schemas:
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const myStep = step( {
   name: 'my_step',
@@ -138,7 +138,7 @@ export const myStep = step( {
     const { output } = await generateText( {
       prompt: 'my_prompt@v1',
       variables: { text },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( { result: z.string() } )
       } )
     } );
@@ -153,7 +153,7 @@ Define evaluators in `evaluators.ts`:
 
 ```typescript
 import { evaluator, z, EvaluationVerdictResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const evaluateQuality = evaluator( {
   name: 'evaluate_quality',
@@ -166,7 +166,7 @@ export const evaluateQuality = evaluator( {
     const { output: evaluation } = await generateText( {
       prompt: 'evaluate@v1',
       variables: { input, output },
-      output: Output.object( { schema: EvaluationVerdictResult.schema } )
+      output: aiSdk.Output.object( { schema: EvaluationVerdictResult.schema } )
     } );
 
     return new EvaluationVerdictResult( evaluation );

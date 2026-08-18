@@ -2,5 +2,4 @@ export { generateText, generateTextWithStreaming, streamText, generateImage } fr
 export { Agent, createMemoryConversationStore } from './agent.js';
 export { loadPrompt } from './prompt/loader.js';
 export { registerProvider, getProviderNames } from './ai_provider.js';
-export { tool, Output, smoothStream, stepCountIs, hasToolCall, jsonSchema } from 'ai';
-export * as ai from 'ai';
+export * as aiSdk from 'ai';

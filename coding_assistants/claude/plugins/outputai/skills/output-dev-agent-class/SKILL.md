@@ -14,7 +14,7 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 
 - Building multi-step agents that call tools in a loop
 - Using skills (lazy-loaded instructions) with an agent
-- Creating agents with structured output via `Output.object()`
+- Creating agents with structured output via `aiSdk.Output.object()`
 - Implementing stateful conversations with `conversationStore`
 - Streaming Agent progress with `onChunk`
 - Deciding between `Agent` and `generateText`
@@ -22,7 +22,7 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 ## Import Pattern
 
 ```typescript
-import { Agent, createMemoryConversationStore, Output } from '@outputai/llm';
+import { Agent, createMemoryConversationStore, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 ```
 
@@ -40,7 +40,7 @@ const agent = new Agent( {
     focus: input.focus,
     content: input.content
   },
-  output: Output.object( { schema: reviewSchema } ),
+  output: aiSdk.Output.object( { schema: reviewSchema } ),
   maxSteps: 5
 } );
 ```
@@ -54,7 +54,7 @@ const agent = new Agent( {
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
 | `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
 | `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
-| `output` | `Output` | - | Structured output spec (e.g. `Output.object({ schema })`) |
+| `output` | `Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
 | `temperature` | `number` | - | Override prompt file temperature |
 | `onStepFinish` | `Function` | - | Callback after each tool-loop step |
@@ -67,7 +67,7 @@ Run the agent and return when complete:
 ```typescript
 const result = await agent.generate();
 console.log( result.text );   // Generated text
-console.log( result.output ); // Structured output (when using Output.object)
+console.log( result.output ); // Structured output (when using aiSdk.Output.object)
 console.log( result.usage );  // Token counts
 ```
 
@@ -119,7 +119,7 @@ Like `streamText`, the stream result provides `textStream` and `fullStream` iter
 
 ## Structured Output
 
-Use `Output.object()` to get typed responses:
+Use `aiSdk.Output.object()` to get typed responses:
 
 ```typescript
 const reviewSchema = z.object( {
@@ -132,7 +132,7 @@ const reviewSchema = z.object( {
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: Output.object( { schema: reviewSchema } ),
+  output: aiSdk.Output.object( { schema: reviewSchema } ),
   maxSteps: 5
 } );
 
@@ -185,7 +185,7 @@ In workflow steps, construct a new Agent per invocation. Variables come from the
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const reviewSchema = z.object( {
   summary: z.string().describe( 'Brief assessment' ),
@@ -207,7 +207,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object( { schema: reviewSchema } ),
+      output: aiSdk.Output.object( { schema: reviewSchema } ),
       maxSteps: 5
     } );
     const { output } = await agent.generate();
@@ -231,7 +231,7 @@ List skill paths in the prompt frontmatter. Do not pass `skills` to `Agent` and 
 | **Skills** | Supported | Supported |
 | **Conversation history** | Manual | Built-in with `conversationStore` |
 | **Reusable instance** | No (function call) | Yes (construct once, call many) |
-| **Structured output** | `Output.object()` | `Output.object()` |
+| **Structured output** | `aiSdk.Output.object()` | `aiSdk.Output.object()` |
 
 Start with `generateText`. Move to `Agent` when you need conversation state or a reusable instance with a fixed configuration.
 
@@ -256,7 +256,7 @@ const { result } = await generateText( {
 - [ ] Prompt file exists in `prompts/` folder
 - [ ] Variables match `{{ variable }}` placeholders in the prompt
 - [ ] `maxSteps` is set when using skills or tools (default 10)
-- [ ] `Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
+- [ ] `aiSdk.Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
 - [ ] Conversation store is only used when multi-turn history is needed
 - [ ] Agent is constructed inside the step `fn` (not at module level) for workflow steps
 - [ ] Prefer `generateWithStreaming()` when callbacks are sufficient

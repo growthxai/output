@@ -38,8 +38,8 @@ export type {
   TextStreamPart
 } from 'ai';
 
-// Re-export the tool helper function, Output, smoothStream, stop condition helpers, and jsonSchema
-export { tool, Output, smoothStream, stepCountIs, hasToolCall, jsonSchema } from 'ai';
+/** Full AI SDK module. Use this for `Output`, `tool`, `stepCountIs`, `smoothStream`, and other AI SDK APIs. */
+export * as aiSdk from 'ai';
 
 /**
  * Represents a single message in a prompt conversation.
@@ -552,7 +552,7 @@ export function createMemoryConversationStore(): ConversationStore;
  * ```ts
  * const reviewer = new Agent({
  *   prompt: 'reviewer@v1',
- *   output: Output.object({ schema: z.object({ summary: z.string() }) }),
+ *   output: aiSdk.Output.object({ schema: z.object({ summary: z.string() }) }),
  *   maxSteps: 5
  * });
  * const result = await reviewer.generate();

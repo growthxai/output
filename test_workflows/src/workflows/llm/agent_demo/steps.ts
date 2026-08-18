@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { Agent, Output, generateText } from '@outputai/llm';
+import { Agent, aiSdk, generateText } from '@outputai/llm';
 import { reviewOutputSchema } from './types.js';
 
 export const reviewContent = step( {
@@ -15,7 +15,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object( { schema: reviewOutputSchema } ),
+      output: aiSdk.Output.object( { schema: reviewOutputSchema } ),
       maxSteps: 5
     } );
     const result = await agent.generate();

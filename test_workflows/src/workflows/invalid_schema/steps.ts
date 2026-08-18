@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 const impossibleOutputSchema = z.object( {
   answer: z.string().refine( () => false, 'This schema is intentionally impossible to satisfy.' )
@@ -12,7 +12,7 @@ export const generateInvalidSchemaOutput = step( {
   fn: async () => {
     const { output } = await generateText( {
       prompt: 'invalid_schema@v1',
-      output: Output.object( { schema: impossibleOutputSchema } )
+      output: aiSdk.Output.object( { schema: impossibleOutputSchema } )
     } );
 
     return output;
