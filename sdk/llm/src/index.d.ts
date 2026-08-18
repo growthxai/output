@@ -254,7 +254,7 @@ type OutputAgentStreamingParameters<
 > = {
   messages?: ModelMessage[];
   tools?: CompatibleToolSet;
-} & Omit<StreamTextAiSdkOptions<ToolSet, OutputSpec>, 'system' | 'output' | 'onFinish'>;
+} & Omit<StreamTextAiSdkOptions<ToolSet, OutputSpec>, 'system' | 'output' | 'onFinish' | 'onError'>;
 
 /** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
 export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish' | 'tools'> & {
@@ -262,14 +262,10 @@ export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, Tool
   onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
 };
 
-/** Agent {@link Agent.generateWithStreaming} options with a complete `onFinish` response. */
+/** Agent {@link Agent.generateWithStreaming} options. Completion is the returned promise; use `onChunk` for progress. */
 export type OutputAgentGenerateWithStreamingParameters<
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = OutputAgentStreamingParameters<OutputSpec> & {
-  onFinish?: (
-    response: GenerateTextWithStreamingResult<ToolSet, OutputSpec>
-  ) => void | PromiseLike<void>;
-};
+> = OutputAgentStreamingParameters<OutputSpec>;
 
 /** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files and skills. */
 export type OutputAgentConstructorParameters<
@@ -334,9 +330,7 @@ export type GenerateTextWithStreamingParameters<
   maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
-  /** Callback when generation finishes. Receives the completed wrapped response. */
-  onFinish?: ( response: GenerateTextWithStreamingResult<Tools, OutputSpec> ) => void | PromiseLike<void>;
-} & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish'>;
+} & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish' | 'onError'>;
 
 /** Parameters accepted by {@link streamText}. */
 export type StreamTextParameters<
@@ -510,8 +504,9 @@ export function generateText<
 /**
  * Generate text over streaming transport and return a completed response.
  *
- * The stream is consumed internally. `onChunk` runs as parts arrive, and provider or
- * transport errors reject the returned promise with the mapped error.
+ * The stream is consumed internally. `onChunk` runs as parts arrive. Provider or
+ * transport errors reject the returned promise with the mapped error. Use {@link streamText}
+ * when you need `onFinish` / `onError` stream observers.
  *
  * @param args - Streaming arguments. See {@link GenerateTextWithStreamingParameters}.
  * @returns Completed response with parsed output and generateText-compatible metadata.
@@ -619,7 +614,8 @@ export declare class Agent<
 
   /**
    * Run the agent over streaming transport and return a completed response.
-   * `onChunk` runs as parts arrive; provider and transport errors reject with the mapped error.
+   * `onChunk` runs as parts arrive. Provider and transport errors reject with the mapped error.
+   * Use {@link Agent.stream} when you need `onFinish` / `onError` stream observers.
    */
   generateWithStreaming(
     options?: OutputAgentGenerateWithStreamingParameters<OutputSpec>

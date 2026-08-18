@@ -289,7 +289,6 @@ describe( 'ai_sdk', () => {
       const output = { summary: 'Structured result' };
       const chunk = { type: 'text-delta', text: 'TEXT' };
       const onChunk = vi.fn();
-      const onFinish = vi.fn();
       const wrappedResponse = { wrapped: textResponse, output };
       const stream = { output: Promise.resolve( output ) };
       wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
@@ -305,7 +304,6 @@ describe( 'ai_sdk', () => {
         promptDir: '/prompts',
         maxSteps: 4,
         onChunk,
-        onFinish,
         temperature: 0.2
       } );
 
@@ -314,9 +312,7 @@ describe( 'ai_sdk', () => {
         variables,
         promptDir: '/prompts',
         skills: [],
-        maxSteps: 4,
-        onFinish,
-        onError: undefined
+        maxSteps: 4
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
@@ -336,7 +332,6 @@ describe( 'ai_sdk', () => {
         response: textResponse,
         extraProperties: { output }
       } );
-      expect( onFinish ).toHaveBeenCalledWith( wrappedResponse );
       expect( result ).toBe( wrappedResponse );
     } );
 
@@ -358,20 +353,16 @@ describe( 'ai_sdk', () => {
       } ) );
     } );
 
-    it( 'maps stream errors and reports them to the user callback', async () => {
+    it( 'maps stream errors and rejects', async () => {
       const error = new Error( 'Provider failed' );
       const mappedError = new Error( 'Mapped provider failed' );
-      const onError = vi.fn();
       const stream = { output: Promise.resolve( undefined ) };
       errorMocks.mapAiError.mockReturnValueOnce( mappedError );
       streamMocks.drainStream.mockRejectedValueOnce( error );
       aiFns.streamText.mockReturnValueOnce( stream );
       const { generateTextWithStreaming } = await importSut();
 
-      await expect( generateTextWithStreaming( {
-        prompt: 'test@v1',
-        onError
-      } ) ).rejects.toThrow( mappedError );
+      await expect( generateTextWithStreaming( { prompt: 'test@v1' } ) ).rejects.toThrow( mappedError );
 
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
       expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
@@ -379,7 +370,6 @@ describe( 'ai_sdk', () => {
         traceId: 'trace-id',
         error: mappedError
       } );
-      expect( onError ).toHaveBeenCalledWith( { error: mappedError } );
     } );
 
     it( 'rejects with the abort reason', async () => {

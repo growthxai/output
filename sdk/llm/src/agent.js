@@ -96,7 +96,7 @@ export class Agent extends AIToolLoopAgent {
   /**
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
-  async generateWithStreaming( { messages: userMessages = [], onFinish, onError, ...options } = {} ) {
+  async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
     const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
     const state = {
       response: null,
@@ -112,9 +112,7 @@ export class Agent extends AIToolLoopAgent {
         onFinish( response ) {
           state.response = response;
         },
-        onError( event ) {
-          throw event.error;
-        }
+        onError: _ => {} // Suppress AI-SDK console printing
       } );
 
       await drainStream( stream, options?.abortSignal );
@@ -136,15 +134,9 @@ export class Agent extends AIToolLoopAgent {
     } catch ( originalError ) {
       const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
-      try {
-        await onError?.( { error } );
-      } catch {
-        // Preserve the generation error if the observer fails.
-      }
       throw error;
     }
 
-    await onFinish?.( state.wrappedResponse );
     return state.wrappedResponse;
   }
 

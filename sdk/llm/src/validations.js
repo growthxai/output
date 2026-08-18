@@ -70,7 +70,7 @@ export function validateGenerateTextArgs( args ) {
 }
 
 export function validateGenerateTextWithStreamingArgs( args ) {
-  validateSchema( streamTextArgsSchema, args, 'Invalid generateTextWithStreaming() arguments' );
+  validateSchema( generateTextArgsSchema, args, 'Invalid generateTextWithStreaming() arguments' );
 }
 
 export function validateStreamTextArgs( args ) {

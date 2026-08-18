@@ -109,18 +109,20 @@ describe( 'validateStreamTextArgs', () => {
 } );
 
 describe( 'validateGenerateTextWithStreamingArgs', () => {
-  it( 'accepts streaming callbacks', () => {
+  it( 'accepts a prompt with optional variables', () => {
     expect( () => validateGenerateTextWithStreamingArgs( {
       prompt: 'summary@v1',
-      onFinish: () => {},
-      onError: () => {}
+      variables: { topic: 'testing' },
+      promptDir: '/prompts',
+      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
+      maxSteps: 4
     } ) ).not.toThrow();
   } );
 
   it( 'uses the generateTextWithStreaming error prefix', () => {
     expect( () => validateGenerateTextWithStreamingArgs( {
       prompt: 'summary@v1',
-      onError: 'not a function'
+      maxSteps: 0
     } ) ).toThrow( /Invalid generateTextWithStreaming\(\) arguments/ );
   } );
 } );

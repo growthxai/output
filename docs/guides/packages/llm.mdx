@@ -100,27 +100,6 @@ export const generateContent = step({
 });
 ```
 
-Use `onFinish` and `onError` for observation or side effects. Errors are still thrown after `onError` runs:
-
-```typescript
-const result = await generateTextWithStreaming({
-  prompt: 'generate@v1',
-  variables: { topic },
-  onChunk({ chunk }) {
-    if (chunk.type === 'text-delta') {
-      process.stdout.write(chunk.text);
-    }
-  },
-  onFinish(response) {
-    // Receives the same complete result shape returned below
-    console.log('Generation complete', response.result, response.usage);
-  },
-  onError({ error }) {
-    console.error('Generation failed', error);
-  }
-});
-```
-
 `generateTextWithStreaming` also supports structured output. Pass an `Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
 
 #### Direct stream access
@@ -445,13 +424,6 @@ const result = await agent.generateWithStreaming({
     if (chunk.type === 'text-delta') {
       process.stdout.write(chunk.text);
     }
-  },
-  onFinish(response) {
-    // Receives the same complete result shape returned by generateWithStreaming()
-    console.log('Generation complete', response.result, response.usage);
-  },
-  onError({ error }) {
-    console.error('Generation failed', error);
   }
 });
 ```
@@ -876,8 +848,8 @@ Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) p
 | `topP` | `number` | Nucleus sampling (0-1) |
 | `topK` | `number` | Top-K sampling |
 | `onChunk` | `Function` | Callback for each chunk (streaming APIs) |
-| `onFinish` | `Function` | Complete response callback for `*WithStreaming`; finish event callback for direct streams |
-| `onError` | `Function` | Callback when a stream error occurs (streaming APIs) |
+| `onFinish` | `Function` | Finish event callback for `streamText` and `Agent.stream()` |
+| `onError` | `Function` | Callback when a stream error occurs (`streamText` and `Agent.stream()`) |
 | `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streaming APIs) |
 
 Options set in the prompt file (temperature, maxTokens) can be overridden at call time.

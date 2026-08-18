@@ -16,7 +16,7 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 - Using skills (lazy-loaded instructions) with an agent
 - Creating agents with structured output via `Output.object()`
 - Implementing stateful conversations with `conversationStore`
-- Streaming Agent progress with `onChunk`, `onFinish`, or `onError`
+- Streaming Agent progress with `onChunk`
 - Deciding between `Agent` and `generateText`
 
 ## Import Pattern
@@ -97,18 +97,11 @@ const result = await agent.generateWithStreaming( {
     if ( chunk.type === 'text-delta' ) {
       process.stdout.write( chunk.text );
     }
-  },
-  onFinish( response ) {
-    // Receives the same complete result shape returned below
-    console.log( 'Generation complete', response.result, response.usage );
-  },
-  onError( { error } ) {
-    console.error( 'Generation failed', error );
   }
 } );
 ```
 
-The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects after `onError` runs, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
+The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
 
 ## stream()
 

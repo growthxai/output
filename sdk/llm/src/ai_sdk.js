@@ -85,17 +85,8 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
 /**
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
-export async function generateTextWithStreaming( {
-  prompt,
-  variables,
-  promptDir,
-  skills = [],
-  maxSteps = 10,
-  onFinish,
-  onError,
-  ...aiSdkArgs
-} ) {
-  validateGenerateTextWithStreamingArgs( { prompt, variables, promptDir, skills, maxSteps, onFinish, onError } );
+export async function generateTextWithStreaming( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
+  validateGenerateTextWithStreamingArgs( { prompt, variables, promptDir, skills, maxSteps } );
 
   const parsedSkills = typeof skills === 'function' ? await skills( variables ) : skills;
   const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
@@ -116,9 +107,7 @@ export async function generateTextWithStreaming( {
       onFinish( response ) {
         state.response = response;
       },
-      onError( event ) {
-        throw event.error;
-      }
+      onError: _ => {} // Suppress AI-SDK console printing
     } );
 
     await drainStream( stream, aiSdkArgs?.abortSignal );
@@ -132,13 +121,9 @@ export async function generateTextWithStreaming( {
   } catch ( error ) {
     const mappedError = mapAiError( error );
     endTraceWithError( { traceId, error: mappedError } );
-    try {
-      await onError?.( { error: mappedError } );
-    } catch {}
     throw mappedError;
   }
 
-  await onFinish?.( state.wrappedResponse );
   return state.wrappedResponse;
 }
 

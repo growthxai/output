@@ -419,7 +419,6 @@ describe( 'Agent', () => {
     const wrappedResponse = { ...aiResponse, output };
     const chunk = { type: 'text-delta', text: 'response' };
     const onChunk = vi.fn();
-    const onFinish = vi.fn();
     const stream = { output: Promise.resolve( output ) };
     wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
     aiMocks.superStream.mockImplementationOnce( options => {
@@ -433,7 +432,6 @@ describe( 'Agent', () => {
     const result = await agent.generateWithStreaming( {
       messages: [ callerMessage ],
       onChunk,
-      onFinish,
       maxRetries: 1
     } );
 
@@ -465,14 +463,12 @@ describe( 'Agent', () => {
       { role: 'assistant', content: 'response' }
     ] );
     expect( onChunk ).toHaveBeenCalledWith( { chunk } );
-    expect( onFinish ).toHaveBeenCalledWith( wrappedResponse );
     expect( result ).toBe( wrappedResponse );
   } );
 
-  it( 'maps generateWithStreaming errors and calls onError', async () => {
+  it( 'maps generateWithStreaming errors and rejects', async () => {
     const error = new Error( 'Stream failed' );
     const mappedError = new Error( 'Mapped stream failed' );
-    const onError = vi.fn();
     const stream = { output: Promise.resolve( undefined ) };
     errorMocks.mapAiError.mockReturnValueOnce( mappedError );
     streamMocks.drainStream.mockRejectedValueOnce( error );
@@ -480,14 +476,13 @@ describe( 'Agent', () => {
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
-    await expect( agent.generateWithStreaming( { onError } ) ).rejects.toThrow( mappedError );
+    await expect( agent.generateWithStreaming() ).rejects.toThrow( mappedError );
 
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
     expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       error: mappedError
     } );
-    expect( onError ).toHaveBeenCalledWith( { error: mappedError } );
   } );
 
   it( 'rejects generateWithStreaming with the abort reason', async () => {
