@@ -83,12 +83,12 @@ AI SDK streaming delivers provider and transport failures through `onError`. Ite
 ```typescript
 import { streamText } from '@outputai/llm';
 
-let streamError: unknown;
+const captured: { error: unknown } = { error: null };
 const result = streamText( {
   prompt: 'draft@v1',
   variables: { topic },
   onError( { error } ) {
-    streamError = error;
+    captured.error = error;
   }
 } );
 
@@ -97,8 +97,8 @@ for await ( const chunk of result.textStream ) {
   chunks.push( chunk );
 }
 
-if ( streamError ) {
-  throw streamError;
+if ( captured.error ) {
+  throw captured.error;
 }
 
 return chunks.join( '' );

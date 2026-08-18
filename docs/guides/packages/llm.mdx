@@ -130,12 +130,12 @@ const result = await generateTextWithStreaming({
 AI SDK streaming reports provider and transport failures through `onError`; consuming `textStream` does not reliably throw that original error. In a workflow step, capture the mapped error and throw it after consumption so Temporal records a failed activity instead of an empty successful result:
 
 ```typescript
-let streamError: unknown;
+const captured: { error: unknown } = { error: null };
 const result = streamText({
   prompt: 'generate@v1',
   variables: { topic: 'AI safety' },
   onError({ error }) {
-    streamError = error;
+    captured.error = error;
   }
 });
 
@@ -144,8 +144,8 @@ for await (const chunk of result.textStream) {
   chunks.push(chunk);
 }
 
-if (streamError) {
-  throw streamError;
+if (captured.error) {
+  throw captured.error;
 }
 
 const content = chunks.join('');

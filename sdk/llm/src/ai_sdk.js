@@ -101,7 +101,8 @@ export async function generateTextWithStreaming( {
   const traceId = startTrace( { name: 'generateTextWithStreaming', prompt, variables, loadedPrompt } );
   const { model: modelId, provider: providerId } = loadedPrompt.config;
   const state = {
-    response: null
+    response: null,
+    wrappedResponse: null
   };
 
   try {
@@ -133,9 +134,7 @@ export async function generateTextWithStreaming( {
     }
 
     const output = await stream.output;
-    const response = await wrapTextResponse( { traceId, providerId, modelId, response: state.response, extraProperties: { output } } );
-    await onFinish?.( response );
-    return response;
+    state.wrappedResponse = await wrapTextResponse( { traceId, providerId, modelId, response: state.response, extraProperties: { output } } );
   } catch ( error ) {
     const mappedError = mapAiError( error );
     endTraceWithError( { traceId, error: mappedError } );
@@ -144,6 +143,9 @@ export async function generateTextWithStreaming( {
     } catch {}
     throw mappedError;
   }
+
+  await onFinish?.( state.wrappedResponse );
+  return state.wrappedResponse;
 }
 
 export async function generateImage( { prompt, variables, promptDir, images, mask, ...aiSdkArgs } ) {

@@ -98,7 +98,8 @@ export class Agent extends AIToolLoopAgent {
   async generateWithStreaming( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
     const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
     const state = {
-      response: null
+      response: null,
+      wrappedResponse: null
     };
 
     try {
@@ -129,16 +130,15 @@ export class Agent extends AIToolLoopAgent {
       }
 
       const output = await stream.output;
-      const response = await wrapTextResponse( {
+      state.wrappedResponse = await wrapTextResponse( {
         traceId,
         providerId: this.#providerId,
         modelId: this.#modelId,
         response: state.response,
         extraProperties: { output }
       } );
-      await this.#storeMessages( userMessages, response );
-      await onFinish?.( response );
-      return response;
+      await this.#storeMessages( userMessages, state.wrappedResponse );
+
     } catch ( originalError ) {
       const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
@@ -149,6 +149,9 @@ export class Agent extends AIToolLoopAgent {
       }
       throw error;
     }
+
+    await onFinish?.( state.wrappedResponse );
+    return state.wrappedResponse;
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
