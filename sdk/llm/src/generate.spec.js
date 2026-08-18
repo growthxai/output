@@ -160,7 +160,6 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
         tools,
         temperature: 0.2
       } );
@@ -169,7 +168,7 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
+        maxSteps: undefined,
         tools,
         skills: undefined
       } );
@@ -184,8 +183,7 @@ describe( 'generate', () => {
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools,
-        maxSteps: 4
+        tools
       } );
       expect( aiFns.generateText ).toHaveBeenCalledWith( {
         ...textOptions,
@@ -202,24 +200,27 @@ describe( 'generate', () => {
       expect( result ).toEqual( { wrapped: textResponse } );
     } );
 
-    it( 'defaults maxSteps to 10 and loads skills from the prompt, not the call', async () => {
+    it( 'forwards call-argument maxSteps and skills to validation, not to AI SDK options', async () => {
       const { generateText } = await importSut();
       const callSkills = [ { name: 'from-call' } ];
 
-      await generateText( { prompt: 'test@v1', skills: callSkills } );
+      await generateText( { prompt: 'test@v1', skills: callSkills, maxSteps: 4 } );
 
       expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( expect.objectContaining( {
         skills: callSkills,
-        maxSteps: 10,
+        maxSteps: 4,
         tools: undefined
       } ) );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools: undefined,
-        maxSteps: 10
+        tools: undefined
       } );
+      expect( aiFns.generateText ).toHaveBeenCalledWith( expect.not.objectContaining( {
+        maxSteps: 4,
+        skills: callSkills
+      } ) );
     } );
 
     it( 'lets caller stopWhen replace options stopWhen', async () => {
@@ -285,7 +286,6 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
         onChunk,
         temperature: 0.2
       } );
@@ -294,15 +294,14 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
+        maxSteps: undefined,
         tools: undefined,
         skills: undefined
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools: undefined,
-        maxSteps: 4
+        tools: undefined
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
@@ -376,7 +375,6 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
         onFinish,
         tools,
         temperature: 0.2
@@ -386,7 +384,7 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: 4,
+        maxSteps: undefined,
         onFinish,
         onError: undefined,
         tools,
@@ -403,8 +401,7 @@ describe( 'generate', () => {
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools,
-        maxSteps: 4
+        tools
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,

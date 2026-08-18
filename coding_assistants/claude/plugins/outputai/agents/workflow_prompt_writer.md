@@ -516,8 +516,7 @@ import { Agent, aiSdk } from '@outputai/llm';
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  output: aiSdk.Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 const { output } = await agent.generate();
 ```

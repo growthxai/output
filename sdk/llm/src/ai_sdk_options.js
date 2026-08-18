@@ -19,10 +19,9 @@ const buildSkillsMessageContent = skills =>
  * @param {object} args.prompt - Prompt object
  * @param {object} [args.tools] - Caller tools
  * @param {Skill[]} args.skills - Resolved skills
- * @param {number} args.maxSteps - Tool-loop step limit
  * @returns {object} AI SDK text options
  */
-export const loadAiSdkTextOptions = ( { prompt, tools, skills, maxSteps } ) => {
+export const loadAiSdkTextOptions = ( { prompt, tools, skills } ) => {
   if ( prompt.messages.length === 0 ) {
     throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
   }
@@ -61,7 +60,7 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, maxSteps } ) => {
   const mergedTools = { ...promptTools, ...tools, ...skillsTools };
   if ( Object.keys( mergedTools ).length > 0 ) {
     options.tools = mergedTools;
-    options.stopWhen = stepCountIs( maxSteps );
+    options.stopWhen = stepCountIs( prompt.config.maxSteps );
   }
 
   return options;

@@ -196,8 +196,7 @@ export const reviewContent = step( {
           suggestions: z.array( z.string() ).describe( 'Actionable improvements' ),
           score: z.number().describe( 'Quality score 0-100' )
         } )
-      } ),
-      maxSteps: 5
+      } )
     } );
     const { output } = await agent.generate();
     return output;
@@ -273,7 +272,7 @@ When applying this skill, flag any violations you find and suggest improvements.
 - [ ] Listed paths resolve relative to the prompt file
 - [ ] Prompts that should load no skills omit `skills` (or set `skills: []`)
 - [ ] Skills are focused (one area of expertise per file)
-- [ ] Step code passes `maxSteps` (default 10) to allow tool loop iterations
+- [ ] Prompt frontmatter sets `maxSteps` when the tool-loop ceiling should not be 10
 
 ## Related Skills
 

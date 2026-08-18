@@ -96,7 +96,7 @@ const importSut = async () => import( './agent.js' );
 
 const loadedPrompt = {
   name: 'test@v1',
-  config: { provider: 'openai', model: 'test-model' },
+  config: { provider: 'openai', model: 'test-model', maxSteps: 10 },
   messages: [
     { role: 'system', content: 'You are concise.' },
     { role: 'user', content: 'Initial user message' }
@@ -167,30 +167,33 @@ describe( 'Agent', () => {
   it( 'validates, loads prompt skills, and constructs ToolLoopAgent', async () => {
     const { Agent } = await importSut();
     const tools = { search: { description: 'Search' } };
+    const prompt = {
+      ...loadedPrompt,
+      config: { ...loadedPrompt.config, maxSteps: 4 }
+    };
+    promptMocks.loadPrompt.mockReturnValueOnce( prompt );
 
     new Agent( {
       prompt: 'test@v1',
       variables: { tone: 'brief' },
       promptDir: '/prompts',
-      tools,
-      maxSteps: 4
+      tools
     } );
 
     expect( validators.validateAgentArgs ).toHaveBeenCalledWith( {
       prompt: 'test@v1',
       promptDir: '/prompts',
       variables: { tone: 'brief' },
-      maxSteps: 4,
+      maxSteps: undefined,
       tools,
       skills: undefined
     } );
     expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', { tone: 'brief' }, '/prompts' );
-    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( prompt );
     expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
-      prompt: loadedPrompt,
+      prompt,
       skills: loadedSkills,
-      tools,
-      maxSteps: 4
+      tools
     } );
     expect( aiMocks.stepCountIs ).toHaveBeenCalledWith( 4 );
     expect( aiMocks.superConstructor ).toHaveBeenCalledWith( {
@@ -202,17 +205,17 @@ describe( 'Agent', () => {
     } );
   } );
 
-  it( 'defaults maxSteps to 10 and loads skills from the prompt, not the call', async () => {
+  it( 'forwards call-argument maxSteps and skills to validation, not to ToolLoopAgent', async () => {
     const { Agent } = await importSut();
     const callSkills = [ { name: 'from-call' } ];
 
-    new Agent( { prompt: 'test@v1', skills: callSkills } );
+    new Agent( { prompt: 'test@v1', skills: callSkills, maxSteps: 4 } );
 
     expect( validators.validateAgentArgs ).toHaveBeenCalledWith( expect.objectContaining( {
       prompt: 'test@v1',
       variables: undefined,
       promptDir: undefined,
-      maxSteps: 10,
+      maxSteps: 4,
       tools: undefined,
       skills: callSkills
     } ) );
@@ -220,9 +223,13 @@ describe( 'Agent', () => {
     expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
       prompt: loadedPrompt,
       skills: loadedSkills,
-      tools: undefined,
-      maxSteps: 10
+      tools: undefined
     } );
+    expect( aiMocks.stepCountIs ).toHaveBeenCalledWith( 10 );
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith( expect.not.objectContaining( {
+      maxSteps: 4,
+      skills: callSkills
+    } ) );
   } );
 
   it( 'passes option tools through to ToolLoopAgent', async () => {

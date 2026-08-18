@@ -1,9 +1,9 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, loaded prompt shape, LLM traces, and aiSdk re-exports in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, prompt-owned maxSteps, merged tools, loaded prompt shape, LLM traces, and aiSdk re-exports in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Skills now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
+This guide covers breaking changes in `@outputai/llm`. Skills and `maxSteps` now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
 
 ## Skills load only from the prompt file
 
@@ -133,13 +133,44 @@ await generateText( {
 
 Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, remove them from the prompt (or override that key on the call).
 
-## Native prompt tools use `maxSteps`
+## `maxSteps` lives on the prompt file
 
-Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` (default **10**).
+`generateText`, `streamText`, `generateTextWithStreaming`, and `Agent` no longer accept a `maxSteps` argument. Passing it throws:
 
-Previously that ceiling applied only when call-argument tools or `load_skill` were present. YAML-only grounding stayed at the AI SDK default of one step.
+```
+maxSteps must be set in the prompt file, not as a call argument
+```
 
-`stepCountIs(10)` is a ceiling. The model still stops when it emits a final answer. If you need the old one-step behavior:
+Set it in frontmatter. The default after load is **10**. Call-argument `stopWhen` still overrides it.
+
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value.
+
+Previously the ceiling applied only when call-argument tools or `load_skill` were present. YAML-only grounding stayed at the AI SDK default of one step.
+
+#### Before
+
+```ts
+await generateText( {
+  prompt: 'writer@v1',
+  maxSteps: 5
+} );
+```
+
+#### After
+
+```yaml prompts/writer@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-6
+maxSteps: 5
+---
+```
+
+```ts
+await generateText( { prompt: 'writer@v1' } );
+```
+
+If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
 
 ```ts
 import { generateText, aiSdk } from '@outputai/llm';
@@ -158,6 +189,7 @@ await generateText( {
 | --- | --- |
 | `prompt.promptFileDir` | `prompt.fileDir` (always set) |
 | `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
+| `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
 
 #### Before
 
@@ -250,17 +282,19 @@ await generateText( {
 
 `new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
 
-That includes a missing/empty `prompt`, an empty `promptDir`, `maxSteps` that is not a positive integer, and a call-argument `skills` field.
+That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument `skills` or `maxSteps` fields.
 
 ## Checklist
 
 - Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
+- Delete `maxSteps` from those same calls; set `maxSteps` in prompt frontmatter when the default of 10 is wrong.
 - Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
-- Pass `stopWhen: aiSdk.stepCountIs(1)` on YAML-only grounding calls that must stay one-shot.
+- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
 - Rename `promptFileDir` to `fileDir`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
+- Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
 - Rename LLM trace `input.prompt` (filename) to `input.promptFile` and `input.loadedPrompt` to `input.prompt`.
 - Import AI SDK helpers from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, ...). Replace `import { ai }` with `import { aiSdk }`.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

@@ -13,8 +13,7 @@ describe( 'validateGenerateTextArgs', () => {
     expect( () => validateGenerateTextArgs( {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
-      promptDir: '/prompts',
-      maxSteps: 4
+      promptDir: '/prompts'
     } ) ).not.toThrow();
   } );
 
@@ -42,7 +41,7 @@ describe( 'validateGenerateTextArgs', () => {
     expect( () => validateGenerateTextArgs( {
       prompt: 'summary@v1',
       maxSteps: 0
-    } ) ).toThrow( ValidationError );
+    } ) ).toThrow( /maxSteps must be set in the prompt file/ );
   } );
 } );
 
@@ -52,7 +51,6 @@ describe( 'validateStreamTextArgs', () => {
       prompt: 'summary@v1',
       variables: [ 'arrays are accepted by the current schema' ],
       promptDir: '/prompts',
-      maxSteps: 4,
       onFinish: () => {},
       onError: () => {}
     } ) ).not.toThrow();
@@ -77,7 +75,7 @@ describe( 'validateStreamTextArgs', () => {
     expect( () => validateStreamTextArgs( {
       prompt: 'summary@v1',
       maxSteps: 1.5
-    } ) ).toThrow( ValidationError );
+    } ) ).toThrow( /maxSteps must be set in the prompt file/ );
   } );
 
   it( 'throws ValidationError for invalid callbacks', () => {
@@ -98,8 +96,7 @@ describe( 'validateGenerateTextWithStreamingArgs', () => {
     expect( () => validateGenerateTextWithStreamingArgs( {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
-      promptDir: '/prompts',
-      maxSteps: 4
+      promptDir: '/prompts'
     } ) ).not.toThrow();
   } );
 
@@ -107,7 +104,7 @@ describe( 'validateGenerateTextWithStreamingArgs', () => {
     expect( () => validateGenerateTextWithStreamingArgs( {
       prompt: 'summary@v1',
       maxSteps: 0
-    } ) ).toThrow( /Invalid generateTextWithStreaming\(\) arguments/ );
+    } ) ).toThrow( /Invalid generateTextWithStreaming\(\) arguments[\s\S]*maxSteps must be set in the prompt file/ );
   } );
 } );
 
@@ -192,8 +189,7 @@ describe( 'validateAgentArgs', () => {
     expect( () => validateAgentArgs( {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
-      promptDir: '/prompts',
-      maxSteps: 4
+      promptDir: '/prompts'
     } ) ).not.toThrow();
   } );
 
@@ -216,6 +212,6 @@ describe( 'validateAgentArgs', () => {
     expect( () => validateAgentArgs( {
       prompt: 'summary@v1',
       maxSteps: 0
-    } ) ).toThrow( ValidationError );
+    } ) ).toThrow( /maxSteps must be set in the prompt file/ );
   } );
 } );

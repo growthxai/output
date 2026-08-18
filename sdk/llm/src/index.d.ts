@@ -109,6 +109,9 @@ export type Prompt = {
     /** Maximum number of tokens in the response */
     maxTokens?: number;
 
+    /** Tool-loop iterations when `stopWhen` is omitted. Defaults to 10 after load. */
+    maxSteps?: number;
+
     /** Number of images to generate */
     n?: number;
 
@@ -179,7 +182,7 @@ export type Skill = {
 };
 
 /** Prompt-owned AI SDK fields supplied by Output prompt files. */
-type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt' | 'tools';
+type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt' | 'tools' | 'maxSteps';
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
 type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
 type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;
@@ -263,7 +266,7 @@ export type OutputAgentGenerateWithStreamingParameters<
 /** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files. */
 export type OutputAgentConstructorParameters<
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = Omit<ConstructorParameters<typeof AIToolLoopAgent>[0], 'model' | 'instructions' | 'tools' | 'output'> & {
+> = Omit<ConstructorParameters<typeof AIToolLoopAgent>[0], 'model' | 'instructions' | 'tools' | 'output' | 'maxSteps'> & {
   /** Prompt file name (e.g. 'my_agent@v1') */
   prompt: string;
   /** Override the stack-resolved prompt directory */
@@ -274,8 +277,6 @@ export type OutputAgentConstructorParameters<
   output?: OutputSpec;
   /** AI SDK tools available during the reasoning loop */
   tools?: CompatibleToolSet;
-  /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
-  maxSteps?: number;
   /** Pluggable conversation store. Opt-in; stateless by default. */
   conversationStore?: ConversationStore;
 };
@@ -296,8 +297,6 @@ export type GenerateTextParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
-  maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
 } & GenerateTextAiSdkOptions<Tools, OutputSpec>;
@@ -313,8 +312,6 @@ export type GenerateTextWithStreamingParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
-  maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
 } & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish' | 'onError'>;
@@ -330,8 +327,6 @@ export type StreamTextParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
-  maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
   /** Callback when stream finishes. Receives the wrapped event with optional `cost`. */
@@ -552,8 +547,7 @@ export function createMemoryConversationStore(): ConversationStore;
  * ```ts
  * const reviewer = new Agent({
  *   prompt: 'reviewer@v1',
- *   output: aiSdk.Output.object({ schema: z.object({ summary: z.string() }) }),
- *   maxSteps: 5
+ *   output: aiSdk.Output.object({ schema: z.object({ summary: z.string() }) })
  * });
  * const result = await reviewer.generate();
  * ```

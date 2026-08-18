@@ -26,6 +26,7 @@ const makeTextPrompt = config => ( {
   config: {
     provider: 'anthropic',
     model: 'claude-haiku-4-5',
+    maxSteps: 10,
     ...config
   },
   messages: [
@@ -180,7 +181,7 @@ describe( 'ai_sdk_options', () => {
       const promptTools = { googleSearch: { type: 'google-search-tool' } };
       loadToolsImpl.mockReturnValue( promptTools );
 
-      const result = await loadText( { prompt: makeTextPrompt( { tools: { googleSearch: {} } } ), maxSteps: 4 } );
+      const result = await loadText( { prompt: makeTextPrompt( { tools: { googleSearch: {} }, maxSteps: 4 } ) } );
 
       expect( result.tools ).toEqual( promptTools );
       expect( result.stopWhen ).toEqual( { type: 'step-count', count: 4 } );
@@ -194,8 +195,7 @@ describe( 'ai_sdk_options', () => {
 
       const result = await loadText( {
         prompt: makeTextPrompt(),
-        tools: { googleSearch: { from: 'caller' } },
-        maxSteps: 10
+        tools: { googleSearch: { from: 'caller' } }
       } );
 
       expect( result.tools ).toEqual( {
@@ -207,8 +207,7 @@ describe( 'ai_sdk_options', () => {
     it( 'appends the skills catalog to the first system message and adds load_skill', async () => {
       const result = await loadText( {
         prompt: makeTextPrompt(),
-        skills: [ writerSkill ],
-        maxSteps: 10
+        skills: [ writerSkill ]
       } );
 
       expect( buildLoadSkillToolImpl ).toHaveBeenCalledWith( [ writerSkill ] );
@@ -225,12 +224,12 @@ describe( 'ai_sdk_options', () => {
     it( 'adds a system message for the skills catalog when none exists', async () => {
       const prompt = {
         name: 'no-system@v1',
-        config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+        config: { provider: 'anthropic', model: 'claude-haiku-4-5', maxSteps: 10 },
         messages: [ { role: 'user', content: 'Hello' } ],
         instructions: null
       };
 
-      const result = await loadText( { prompt, skills: [ writerSkill ], maxSteps: 10 } );
+      const result = await loadText( { prompt, skills: [ writerSkill ] } );
 
       expect( result.system ).toEqual( [ { role: 'system', content: skillsCatalog } ] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
@@ -240,8 +239,7 @@ describe( 'ai_sdk_options', () => {
       const result = await loadText( {
         prompt: makeTextPrompt(),
         tools: { load_skill: { from: 'caller' }, search: { from: 'caller' } },
-        skills: [ writerSkill ],
-        maxSteps: 10
+        skills: [ writerSkill ]
       } );
 
       expect( result.tools ).toEqual( {

@@ -41,6 +41,7 @@ describe( 'parsePromptSchema', () => {
     };
 
     expect( parse( minimalPrompt ).config.skills ).toEqual( [] );
+    expect( parse( minimalPrompt ).config.maxSteps ).toBe( 10 );
   } );
 
   it( 'should validate a prompt with thinking providerOptions', () => {
@@ -403,6 +404,44 @@ describe( 'parsePromptSchema', () => {
     };
 
     expect( parse( promptWithNullSkills ).config.skills ).toEqual( [] );
+  } );
+
+  it( 'should validate prompt maxSteps', () => {
+    const promptWithMaxSteps = {
+      name: 'max-steps-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        maxSteps: 4
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ]
+    };
+
+    expect( parse( promptWithMaxSteps ).config.maxSteps ).toBe( 4 );
+  } );
+
+  it( 'should throw ValidationError for invalid maxSteps', () => {
+    for ( const maxSteps of [ 0, -1, 1.5 ] ) {
+      expect( () => parse( {
+        name: 'invalid-max-steps',
+        config: {
+          provider: 'anthropic',
+          model: 'claude-3-opus-20240229',
+          maxSteps
+        },
+        messages: [
+          {
+            role: 'user',
+            content: 'Hello'
+          }
+        ]
+      } ) ).toThrow( ValidationError );
+    }
   } );
 
   it( 'throws ValidationError when fileDir is missing', () => {

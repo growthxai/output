@@ -96,6 +96,7 @@ provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7       # 0.0 to 1.0, default varies by provider
 maxTokens: 4096        # Maximum output tokens
+maxSteps: 5            # Tool-loop ceiling when tools or skills are present (default 10)
 skills:                # Skill file or directory paths, relative to this prompt
   - ./skills
 providerOptions:       # Provider-specific options
@@ -422,8 +423,7 @@ const agent = new Agent( {
     focus: 'clarity',
     content: input.content
   },
-  output: aiSdk.Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 const { output } = await agent.generate();
 ```
@@ -651,6 +651,7 @@ Requirements:
 - [ ] Step code references correct prompt name
 - [ ] No JSON output format instructions when step uses `aiSdk.Output.object()` (schema handles structure)
 - [ ] If the prompt uses skills, frontmatter lists `skills:` paths (a sibling `skills/` folder is not auto-loaded)
+- [ ] If the prompt uses skills or tools, set `maxSteps` when the default of 10 is wrong
 
 ## Related Skills
 

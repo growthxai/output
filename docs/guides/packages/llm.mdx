@@ -341,7 +341,7 @@ The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/pro
 
 ### Construction
 
-The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills come from the prompt file. The agent is ready to call `generate()` or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()` or `stream()` immediately.
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
@@ -360,8 +360,7 @@ export const reviewContent = step({
         focus: input.focus,
         content: input.content
       },
-      output: aiSdk.Output.object({ schema: reviewSchema }),
-      maxSteps: 5
+      output: aiSdk.Output.object({ schema: reviewSchema })
     });
     const { output } = await agent.generate();
     return output;
@@ -376,8 +375,7 @@ export const reviewContent = step({
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
 | `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
+| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides prompt `maxSteps`) |
 | `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
 | `temperature` | `number` | - | Override prompt file temperature |
@@ -453,8 +451,7 @@ const reviewSchema = z.object({
 const agent = new Agent({
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: aiSdk.Output.object({ schema: reviewSchema }),
-  maxSteps: 5
+  output: aiSdk.Output.object({ schema: reviewSchema })
 });
 
 const { output } = await agent.generate();
@@ -590,6 +587,7 @@ Company size: {{ size }} employees
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
+| `maxSteps` | `number` | Tool-loop iterations when tools or skills are present (default 10) |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
 | `providerOptions` | `object` | Provider-specific options — see [ProviderOptions Guide](/prompts#provider-options) |
 
@@ -843,7 +841,7 @@ Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) p
 | `onError` | `Function` | Callback when a stream error occurs (`streamText` and `Agent.stream()`) |
 | `experimental_transform` | `Function` | Stream transform, e.g. `aiSdk.smoothStream()` (streaming APIs) |
 
-Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
+Options set in the prompt file (`temperature`, `maxTokens`) can be overridden at call time. `maxSteps` is prompt-owned; pass `stopWhen` to override the loop ceiling.
 
 ### Retries and Network Timeouts
 

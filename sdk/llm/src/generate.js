@@ -18,8 +18,9 @@ const defaultAiSdkOptions = {
   maxRetries: 0
 };
 
-export async function generateText( { prompt: promptFile, variables, promptDir, maxSteps = 10, tools, skills: skillsArg, ...rest } ) {
-  validateGenerateTextArgs( { prompt: promptFile, variables, promptDir, maxSteps, tools, skills: skillsArg } );
+export async function generateText( { prompt: promptFile, variables, promptDir, tools, ...rest } ) {
+  const { maxSteps: maxStepsArg, skills: skillsArg, ...aiSdkOptions } = rest;
+  validateGenerateTextArgs( { prompt: promptFile, variables, promptDir, tools, skills: skillsArg, maxSteps: maxStepsArg } );
 
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
@@ -29,9 +30,9 @@ export async function generateText( { prompt: promptFile, variables, promptDir, 
 
   try {
     const response = await AI.generateText( {
-      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools } ),
       ...defaultAiSdkOptions,
-      ...rest
+      ...aiSdkOptions
     } );
     return wrapTextResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {
@@ -41,8 +42,9 @@ export async function generateText( { prompt: promptFile, variables, promptDir, 
   }
 }
 
-export function streamText( { prompt: promptFile, variables, promptDir, maxSteps = 10, onFinish, onError, tools, skills: skillsArg, ...rest } ) {
-  validateStreamTextArgs( { prompt: promptFile, variables, promptDir, maxSteps, onFinish, onError, tools, skills: skillsArg } );
+export function streamText( { prompt: promptFile, variables, promptDir, onFinish, onError, tools, ...rest } ) {
+  const { maxSteps: maxStepsArg, skills: skillsArg, ...aiSdkOptions } = rest;
+  validateStreamTextArgs( { prompt: promptFile, variables, promptDir, onFinish, onError, tools, maxSteps: maxStepsArg, skills: skillsArg } );
 
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
@@ -52,9 +54,9 @@ export function streamText( { prompt: promptFile, variables, promptDir, maxSteps
 
   try {
     return AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools } ),
       ...defaultAiSdkOptions,
-      ...rest,
+      ...aiSdkOptions,
       async onFinish( response ) {
         const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
         return onFinish?.( proxiedResponse );
@@ -75,8 +77,9 @@ export function streamText( { prompt: promptFile, variables, promptDir, maxSteps
 /**
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
-export async function generateTextWithStreaming( { prompt: promptFile, variables, promptDir, maxSteps = 10, tools, skills: skillsArg, ...rest } ) {
-  validateGenerateTextWithStreamingArgs( { prompt: promptFile, variables, promptDir, maxSteps, tools, skills: skillsArg } );
+export async function generateTextWithStreaming( { prompt: promptFile, variables, promptDir, tools, ...rest } ) {
+  const { maxSteps: maxStepsArg, skills: skillsArg, ...aiSdkOptions } = rest;
+  validateGenerateTextWithStreamingArgs( { prompt: promptFile, variables, promptDir, tools, maxSteps: maxStepsArg, skills: skillsArg } );
 
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
@@ -88,9 +91,9 @@ export async function generateTextWithStreaming( { prompt: promptFile, variables
 
   try {
     const stream = AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } ),
+      ...loadAiSdkTextOptions( { prompt, skills, tools } ),
       ...defaultAiSdkOptions,
-      ...rest,
+      ...aiSdkOptions,
       onFinish( response ) {
         state.response = response;
       },

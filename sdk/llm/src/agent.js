@@ -23,21 +23,22 @@ export class Agent extends AIToolLoopAgent {
   #initialMessages;
   #store;
 
-  constructor( { prompt: promptFile, promptDir, variables, tools, stopWhen, maxSteps = 10, conversationStore, skills: skillsArg, ...rest } ) {
-    validateAgentArgs( { prompt: promptFile, promptDir, variables, maxSteps, tools, skills: skillsArg } );
+  constructor( { prompt: promptFile, promptDir, variables, tools, stopWhen, conversationStore, ...rest } ) {
+    const { maxSteps: maxStepsArg, skills: skillsArg, ...aiSdkOptions } = rest;
+    validateAgentArgs( { prompt: promptFile, promptDir, variables, tools, maxSteps: maxStepsArg, skills: skillsArg } );
 
     const prompt = loadPrompt( promptFile, variables, promptDir );
     const skills = loadSkills( prompt );
 
-    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( { prompt, skills, tools, maxSteps } );
+    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( { prompt, skills, tools } );
 
     // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
     // per-message providerOptions); pass them as the agent's `instructions`.
     super( {
       ...constructorOptions,
       ...( system.length > 0 ? { instructions: system } : {} ),
-      stopWhen: stopWhen ?? stepCountIs( maxSteps ),
-      ...rest
+      stopWhen: stopWhen ?? stepCountIs( prompt.config.maxSteps ),
+      ...aiSdkOptions
     } );
 
     this.#prompt = prompt;

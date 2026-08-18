@@ -93,6 +93,7 @@ The YAML frontmatter configures the LLM call.
 |-------|-------------|---------|
 | `temperature` | Randomness (0-2) | `0` for judges, `0.3` for summaries, `0.7` for general |
 | `maxTokens` | Max output tokens | `2000` |
+| `maxSteps` | Tool-loop iterations when tools or skills are present (default 10) | `5` |
 | `skills` | Skill file or directory paths, relative to this prompt | `./skills`, `../shared/tone.md` |
 | `providerOptions` | Provider-specific config | See below |
 
@@ -117,6 +118,7 @@ provider: anthropic
 model: claude-sonnet-4-20250514
 temperature: 0.7        # Standard option
 maxTokens: 4000         # Standard option
+maxSteps: 5             # Tool-loop ceiling when tools or skills are present (default 10)
 ```
 
 **2. providerOptions** — Provider-specific and special options:
@@ -331,15 +333,7 @@ export const generateSummary = step({
 // export const GenerateSummaryOutput = z.string();
 ```
 
-`generateText` also supports [skills](/prompts/skills) for on-demand instruction loading. List skill paths in the prompt frontmatter. Do not pass `skills` as a call argument.
-
-```typescript
-const { result } = await generateText({
-  prompt: 'generate_summary@v1',
-  variables: { company_name: input.name, website_content: input.websiteContent },
-  maxSteps: 5
-});
-```
+`generateText` also supports [skills](/prompts/skills) for on-demand instruction loading. List skill paths in the prompt frontmatter. Do not pass `skills` as a call argument. Set `maxSteps` in the same frontmatter when the default of 10 is wrong.
 
 ### With Agent
 
@@ -362,8 +356,7 @@ export const reviewContent = step({
         content_type: 'documentation',
         focus: 'clarity',
         content: input.content
-      },
-      maxSteps: 5
+      }
     });
     const { text } = await agent.generate();
     return text;

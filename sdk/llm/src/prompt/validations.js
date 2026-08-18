@@ -20,24 +20,25 @@ const providerOptionsSchema = z.record( z.string(), z.record( z.string(), z.unkn
 export const promptSchema = z.object( {
   name: z.string(),
   config: z.object( {
-    provider: z.string().min( 1 ),
-    model: z.string(),
-    temperature: z.number().optional(),
-    maxTokens: z.number().optional(),
-    n: z.number().int().positive().optional(),
-    maxImagesPerCall: z.number().int().positive().optional(),
-    size: z.string().regex( /^\d+x\d+$/ ).optional(),
     aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
-    seed: z.number().int().optional(),
-    skills: z.preprocess( toSkillPaths, z.array( z.string().min( 1 ) ) ),
-    tools: toolsConfigSchema.optional(),
+    maxImagesPerCall: z.number().int().positive().optional(),
+    maxSteps: z.number().int().positive().default( 10 ),
+    maxTokens: z.number().optional(),
+    messageOptions: z.record( z.string(), providerOptionsSchema ).optional(),
+    model: z.string(),
+    n: z.number().int().positive().optional(),
+    provider: z.string().min( 1 ),
     providerOptions: z.object( {
       thinking: z.object( {
         type: z.enum( [ 'enabled', 'disabled' ] ),
         budgetTokens: z.number().optional()
       } ).loose().optional()
     } ).loose().optional(),
-    messageOptions: z.record( z.string(), providerOptionsSchema ).optional()
+    seed: z.number().int().optional(),
+    size: z.string().regex( /^\d+x\d+$/ ).optional(),
+    skills: z.preprocess( toSkillPaths, z.array( z.string().min( 1 ) ) ),
+    temperature: z.number().optional(),
+    tools: toolsConfigSchema.optional()
   } ).loose(),
   messages: z.array(
     z.object( {
@@ -68,14 +69,15 @@ export const promptSchema = z.object( {
 } );
 
 const SNAKE_CASE_WARNINGS = {
-  max_tokens: 'maxTokens',
-  max_images_per_call: 'maxImagesPerCall',
   aspect_ratio: 'aspectRatio',
   budget_tokens: 'budgetTokens',
-  top_p: 'topP',
-  top_k: 'topK',
+  max_images_per_call: 'maxImagesPerCall',
+  max_steps: 'maxSteps',
+  max_tokens: 'maxTokens',
+  options: 'providerOptions',
   stop_sequences: 'stopSequences',
-  options: 'providerOptions'
+  top_k: 'topK',
+  top_p: 'topP'
 };
 
 function warnSnakeCaseFields( config ) {

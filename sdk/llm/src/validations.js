@@ -5,7 +5,10 @@ const generateTextArgsSchema = z.object( {
   prompt: z.string().min( 1 ),
   variables: z.any().optional(),
   promptDir: z.string().min( 1 ).optional(),
-  maxSteps: z.number().int().positive().optional(),
+  maxSteps: z.any().optional().refine(
+    value => value === undefined,
+    'maxSteps must be set in the prompt file, not as a call argument'
+  ),
   skills: z.any().optional().refine(
     value => value === undefined,
     'skills must be set in the prompt file, not as a call argument'

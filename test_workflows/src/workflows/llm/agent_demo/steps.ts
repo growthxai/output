@@ -15,8 +15,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: aiSdk.Output.object( { schema: reviewOutputSchema } ),
-      maxSteps: 5
+      output: aiSdk.Output.object( { schema: reviewOutputSchema } )
     } );
     const result = await agent.generate();
     return result.output;
@@ -35,8 +34,7 @@ export const reviewContentFreeform = step( {
   fn: async input => {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
-      variables: input,
-      maxSteps: 5
+      variables: input
     } );
     const result = await agent.generate();
     return result.text;
@@ -55,8 +53,7 @@ export const reviewContentGenerateText = step( {
   fn: async input => {
     const result = await generateText( {
       prompt: 'writing_assistant@v1',
-      variables: input,
-      maxSteps: 5
+      variables: input
     } );
     return result.text;
   }

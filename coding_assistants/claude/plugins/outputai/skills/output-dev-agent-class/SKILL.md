@@ -30,7 +30,7 @@ import { z } from '@outputai/core';
 
 ## Construction
 
-The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 ```typescript
 const agent = new Agent( {
@@ -40,8 +40,7 @@ const agent = new Agent( {
     focus: input.focus,
     content: input.content
   },
-  output: aiSdk.Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 ```
 
@@ -52,8 +51,7 @@ const agent = new Agent( {
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
 | `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
+| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides prompt `maxSteps`) |
 | `output` | `Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
 | `temperature` | `number` | - | Override prompt file temperature |
@@ -132,8 +130,7 @@ const reviewSchema = z.object( {
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: aiSdk.Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 
 const { output } = await agent.generate();
@@ -207,8 +204,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: aiSdk.Output.object( { schema: reviewSchema } ),
-      maxSteps: 5
+      output: aiSdk.Output.object( { schema: reviewSchema } )
     } );
     const { output } = await agent.generate();
     return output;
@@ -255,7 +251,7 @@ const { result } = await generateText( {
 - [ ] Import `z` from `@outputai/core` (never from `zod`)
 - [ ] Prompt file exists in `prompts/` folder
 - [ ] Variables match `{{ variable }}` placeholders in the prompt
-- [ ] `maxSteps` is set when using skills or tools (default 10)
+- [ ] Prompt frontmatter sets `maxSteps` when skills or tools need a ceiling other than 10
 - [ ] `aiSdk.Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
 - [ ] Conversation store is only used when multi-turn history is needed
 - [ ] Agent is constructed inside the step `fn` (not at module level) for workflow steps

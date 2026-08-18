@@ -65,7 +65,8 @@ Three cars racing side-by-side through a banked turn`
       provider: 'openai',
       model: 'gpt-image-1',
       size: '1024x1024',
-      skills: []
+      skills: [],
+      maxSteps: 10
     } );
   } );
 
