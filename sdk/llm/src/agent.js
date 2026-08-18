@@ -1,14 +1,13 @@
-import { ValidationError } from '@outputai/core';
-import { Path } from '@outputai/core/sdk/helpers';
 import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
-import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse } from './utils/response_wrappers.js';
 import { mapAiError } from './utils/error_handler.js';
 import { ROLE, isRole } from './utils/message.js';
 import { drainStream } from './utils/stream.js';
-export { skill } from './prompt/skill.js';
+import { loadPrompt } from './prompt/loader.js';
+import { loadSkills } from './utils/skills.js';
+import { validateAgentArgs } from './validations.js';
 
 export const createMemoryConversationStore = () => {
   const messages = [];
@@ -29,31 +28,30 @@ export class Agent extends AIToolLoopAgent {
     prompt,
     promptDir,
     variables = {},
-    skills = [],
     tools: toolsArg,
     stopWhen,
     maxSteps = 10,
     conversationStore,
+    skills,
     ...rest
   } ) {
-    if ( !prompt ) {
-      throw new ValidationError( 'Agent requires a prompt' );
-    }
+    validateAgentArgs( { prompt, promptDir, variables, maxSteps, tools: toolsArg, skills } );
 
-    // Must be captured synchronously — Temporal async activity execution
-    // breaks the call stack, so Path.resolveInvocationDir() fails if called lazily.
-    const resolvedPromptDir = promptDir ?? Path.resolveInvocationDir();
+    const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+    const loadedSkills = loadSkills( loadedPrompt );
 
-    const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir: resolvedPromptDir, skills, tools: toolsArg } );
-
-    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
+    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( {
+      prompt: loadedPrompt,
+      skills: loadedSkills,
+      tools: toolsArg,
+      maxSteps
+    } );
 
     // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
     // per-message providerOptions); pass them as the agent's `instructions`.
     super( {
       ...constructorOptions,
       ...( system.length > 0 ? { instructions: system } : {} ),
-      ...( tools ? { tools } : {} ),
       stopWhen: stopWhen ?? stepCountIs( maxSteps ),
       ...rest
     } );

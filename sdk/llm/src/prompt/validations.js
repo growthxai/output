@@ -4,6 +4,16 @@ import { attributesSchema } from './block_options.js';
 const toolConfigSchema = z.record( z.string(), z.unknown() );
 const toolsConfigSchema = z.record( z.string(), toolConfigSchema );
 
+const toSkillPaths = value => {
+  if ( value === undefined || value === null ) {
+    return [];
+  }
+  if ( Array.isArray( value ) ) {
+    return value;
+  }
+  return [ value ];
+};
+
 // A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const providerOptionsSchema = z.record( z.string(), z.record( z.string(), z.unknown() ) );
 
@@ -19,7 +29,7 @@ export const promptSchema = z.object( {
     size: z.string().regex( /^\d+x\d+$/ ).optional(),
     aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
     seed: z.number().int().optional(),
-    skills: z.union( [ z.string().min( 1 ), z.array( z.string().min( 1 ) ) ] ).optional(),
+    skills: z.preprocess( toSkillPaths, z.array( z.string().min( 1 ) ) ),
     tools: toolsConfigSchema.optional(),
     providerOptions: z.object( {
       thinking: z.object( {
@@ -36,7 +46,8 @@ export const promptSchema = z.object( {
       attributes: attributesSchema.optional()
     } ).strict()
   ),
-  instructions: z.string().trim().min( 1 ).nullable().optional()
+  instructions: z.string().trim().min( 1 ).nullable().optional(),
+  fileDir: z.string()
 } ).strict().superRefine( ( prompt, ctx ) => {
   const hasMessages = prompt.messages.length > 0;
   const hasInstructions = !!prompt.instructions;
@@ -79,7 +90,7 @@ function warnSnakeCaseFields( config ) {
   }
 }
 
-export function validatePrompt( prompt ) {
+export function parsePromptSchema( prompt ) {
   const result = promptSchema.safeParse( prompt );
   if ( !result.success ) {
     const promptIdentifier = prompt?.name ? `"${prompt.name}"` : '(unnamed)';
@@ -92,4 +103,5 @@ export function validatePrompt( prompt ) {
   }
 
   warnSnakeCaseFields( result.data.config );
+  return result.data;
 }

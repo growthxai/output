@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const coreMocks = vi.hoisted( () => {
-  class ValidationError extends Error {}
-  return { ValidationError };
-} );
-
-const state = vi.hoisted( () => ( {
-  invocationDir: '/resolved/invocation'
-} ) );
-
 const aiMocks = vi.hoisted( () => ( {
   superConstructor: vi.fn(),
   superGenerate: vi.fn(),
@@ -16,8 +7,16 @@ const aiMocks = vi.hoisted( () => ( {
   stepCountIs: vi.fn( count => ( { type: 'step-count', count } ) )
 } ) );
 
+const validators = vi.hoisted( () => ( {
+  validateAgentArgs: vi.fn()
+} ) );
+
 const promptMocks = vi.hoisted( () => ( {
-  prepareTextPrompt: vi.fn()
+  loadPrompt: vi.fn()
+} ) );
+
+const skillMocks = vi.hoisted( () => ( {
+  loadSkills: vi.fn()
 } ) );
 
 const optionMocks = vi.hoisted( () => ( {
@@ -41,24 +40,6 @@ const streamMocks = vi.hoisted( () => ( {
   drainStream: vi.fn()
 } ) );
 
-const skillMocks = vi.hoisted( () => ( {
-  skill: vi.fn( ( { name, description, instructions } ) => ( {
-    name,
-    description: description ?? name,
-    instructions
-  } ) )
-} ) );
-
-vi.mock( '@outputai/core', () => ( {
-  ValidationError: coreMocks.ValidationError
-} ) );
-
-vi.mock( '@outputai/core/sdk/helpers', () => ( {
-  Path: {
-    resolveInvocationDir: () => state.invocationDir
-  }
-} ) );
-
 vi.mock( 'ai', () => {
   class MockToolLoopAgent {
     constructor( options ) {
@@ -80,8 +61,14 @@ vi.mock( 'ai', () => {
   };
 } );
 
-vi.mock( './prompt/prepare_text.js', () => ( {
-  prepareTextPrompt: ( ...args ) => promptMocks.prepareTextPrompt( ...args )
+vi.mock( './validations.js', () => validators );
+
+vi.mock( './prompt/loader.js', () => ( {
+  loadPrompt: ( ...args ) => promptMocks.loadPrompt( ...args )
+} ) );
+
+vi.mock( './utils/skills.js', () => ( {
+  loadSkills: ( ...args ) => skillMocks.loadSkills( ...args )
 } ) );
 
 vi.mock( './ai_sdk_options.js', () => ( {
@@ -105,10 +92,6 @@ vi.mock( './utils/stream.js', () => ( {
   drainStream: ( ...args ) => streamMocks.drainStream( ...args )
 } ) );
 
-vi.mock( './prompt/skill.js', () => ( {
-  skill: ( ...args ) => skillMocks.skill( ...args )
-} ) );
-
 const importSut = async () => import( './agent.js' );
 
 const loadedPrompt = {
@@ -120,9 +103,7 @@ const loadedPrompt = {
   ]
 };
 
-const preparedTools = {
-  load_skill: { description: 'Load skill' }
-};
+const loadedSkills = [ { name: 'writer', description: 'Writes', instructions: 'Do it.' } ];
 
 const model = { id: 'MODEL' };
 
@@ -143,8 +124,6 @@ const aiResponse = {
 
 describe( 'Agent', () => {
   beforeEach( () => {
-    state.invocationDir = '/resolved/invocation';
-
     aiMocks.superConstructor.mockReset();
     aiMocks.superGenerate.mockReset().mockResolvedValue( aiResponse );
     aiMocks.superStream.mockReset().mockReturnValue( { textStream: 'stream' } );
@@ -152,10 +131,9 @@ describe( 'Agent', () => {
       .mockReset()
       .mockImplementation( count => ( { type: 'step-count', count } ) );
 
-    promptMocks.prepareTextPrompt.mockReset().mockReturnValue( {
-      loadedPrompt,
-      tools: preparedTools
-    } );
+    validators.validateAgentArgs.mockReset();
+    promptMocks.loadPrompt.mockReset().mockReturnValue( loadedPrompt );
+    skillMocks.loadSkills.mockReset().mockReturnValue( loadedSkills );
 
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
 
@@ -167,82 +145,100 @@ describe( 'Agent', () => {
       .mockImplementation( async ( { response } ) => response );
     errorMocks.mapAiError.mockReset().mockImplementation( error => error );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
-
-    skillMocks.skill.mockClear();
   } );
 
   afterEach( async () => {
     await vi.resetModules();
   } );
 
-  it( 're-exports skill()', async () => {
-    const { skill } = await importSut();
-
-    const result = skill( { name: 'writer', instructions: '# Writer' } );
-
-    expect( result ).toEqual( {
-      name: 'writer',
-      description: 'writer',
-      instructions: '# Writer'
+  it( 'propagates validation errors before loading the prompt', async () => {
+    const validationError = new Error( 'Invalid Agent() arguments' );
+    validators.validateAgentArgs.mockImplementationOnce( () => {
+      throw validationError;
     } );
-  } );
-
-  it( 'throws when prompt is missing', async () => {
     const { Agent } = await importSut();
 
-    expect( () => new Agent( {} ) ).toThrow( coreMocks.ValidationError );
+    expect( () => new Agent( {} ) ).toThrow( validationError );
+    expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+    expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
+    expect( aiMocks.superConstructor ).not.toHaveBeenCalled();
   } );
 
-  it( 'prepares the prompt using the resolved invocation dir', async () => {
+  it( 'validates, loads prompt skills, and constructs ToolLoopAgent', async () => {
     const { Agent } = await importSut();
-    const skills = [
-      { name: 'style', description: 'Style', instructions: '# Style' }
-    ];
     const tools = { search: { description: 'Search' } };
 
     new Agent( {
       prompt: 'test@v1',
       variables: { tone: 'brief' },
-      skills,
-      tools
+      promptDir: '/prompts',
+      tools,
+      maxSteps: 4
     } );
 
-    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( {
+    expect( validators.validateAgentArgs ).toHaveBeenCalledWith( {
       prompt: 'test@v1',
+      promptDir: '/prompts',
       variables: { tone: 'brief' },
-      promptDir: state.invocationDir,
-      skills,
-      tools
+      maxSteps: 4,
+      tools,
+      skills: undefined
     } );
-  } );
-
-  it( 'uses an explicit promptDir when provided', async () => {
-    const { Agent } = await importSut();
-
-    new Agent( { prompt: 'test@v1', promptDir: '/explicit/prompts' } );
-
-    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        promptDir: '/explicit/prompts'
-      } )
-    );
-  } );
-
-  it( 'constructs ToolLoopAgent with text options, instructions, tools, and default stopWhen', async () => {
-    const { Agent } = await importSut();
-
-    new Agent( { prompt: 'test@v1' } );
-
-    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-    expect( aiMocks.stepCountIs ).toHaveBeenCalledWith( 10 );
+    expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', { tone: 'brief' }, '/prompts' );
+    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+      prompt: loadedPrompt,
+      skills: loadedSkills,
+      tools,
+      maxSteps: 4
+    } );
+    expect( aiMocks.stepCountIs ).toHaveBeenCalledWith( 4 );
     expect( aiMocks.superConstructor ).toHaveBeenCalledWith( {
       model,
       providerOptions: { test: true },
       temperature: 0.3,
       instructions: [ { role: 'system', content: 'You are concise.' } ],
-      tools: preparedTools,
-      stopWhen: { type: 'step-count', count: 10 }
+      stopWhen: { type: 'step-count', count: 4 }
     } );
+  } );
+
+  it( 'defaults maxSteps to 10 and loads skills from the prompt, not the call', async () => {
+    const { Agent } = await importSut();
+    const callSkills = [ { name: 'from-call' } ];
+
+    new Agent( { prompt: 'test@v1', skills: callSkills } );
+
+    expect( validators.validateAgentArgs ).toHaveBeenCalledWith( expect.objectContaining( {
+      prompt: 'test@v1',
+      variables: {},
+      promptDir: undefined,
+      maxSteps: 10,
+      tools: undefined,
+      skills: callSkills
+    } ) );
+    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+      prompt: loadedPrompt,
+      skills: loadedSkills,
+      tools: undefined,
+      maxSteps: 10
+    } );
+  } );
+
+  it( 'passes option tools through to ToolLoopAgent', async () => {
+    const { Agent } = await importSut();
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      ...textOptions,
+      tools: { load_skill: { description: 'Load skill' } }
+    } );
+
+    new Agent( { prompt: 'test@v1' } );
+
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        tools: { load_skill: { description: 'Load skill' } }
+      } )
+    );
   } );
 
   it( 'preserves per-message providerOptions on system messages passed as instructions', async () => {
@@ -267,22 +263,19 @@ describe( 'Agent', () => {
     );
   } );
 
-  it( 'omits tools when prompt preparation returns null tools', async () => {
+  it( 'omits instructions when there is no system message', async () => {
     const { Agent } = await importSut();
-    promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-      loadedPrompt,
-      tools: null
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      model,
+      system: [],
+      messages: [ { role: 'user', content: 'Hello' } ]
     } );
 
     new Agent( { prompt: 'test@v1' } );
 
-    expect( aiMocks.superConstructor ).toHaveBeenCalledWith( {
-      model,
-      providerOptions: { test: true },
-      temperature: 0.3,
-      instructions: [ { role: 'system', content: 'You are concise.' } ],
-      stopWhen: { type: 'step-count', count: 10 }
-    } );
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.not.objectContaining( { instructions: expect.anything() } )
+    );
   } );
 
   it( 'uses caller stopWhen instead of default maxSteps', async () => {

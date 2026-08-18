@@ -4,7 +4,8 @@ import {
   validateGenerateTextArgs,
   validateGenerateTextWithStreamingArgs,
   validateStreamTextArgs,
-  validateGenerateImageArgs
+  validateGenerateImageArgs,
+  validateAgentArgs
 } from './validations.js';
 
 describe( 'validateGenerateTextArgs', () => {
@@ -13,15 +14,7 @@ describe( 'validateGenerateTextArgs', () => {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
       promptDir: '/prompts',
-      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
       maxSteps: 4
-    } ) ).not.toThrow();
-  } );
-
-  it( 'accepts a dynamic skills function', () => {
-    expect( () => validateGenerateTextArgs( {
-      prompt: 'summary@v1',
-      skills: () => [ { name: 'style', description: 'Style', instructions: '# Style' } ]
     } ) ).not.toThrow();
   } );
 
@@ -35,7 +28,7 @@ describe( 'validateGenerateTextArgs', () => {
     } ) ).toThrow( /Invalid generateText\(\) arguments/ );
   } );
 
-  it( 'throws ValidationError for invalid promptDir, skills, or maxSteps', () => {
+  it( 'throws ValidationError for invalid promptDir, call-argument skills, or maxSteps', () => {
     expect( () => validateGenerateTextArgs( {
       prompt: 'summary@v1',
       promptDir: ''
@@ -43,8 +36,8 @@ describe( 'validateGenerateTextArgs', () => {
 
     expect( () => validateGenerateTextArgs( {
       prompt: 'summary@v1',
-      skills: [ { name: '', description: 'Style', instructions: '# Style' } ]
-    } ) ).toThrow( ValidationError );
+      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ]
+    } ) ).toThrow( /skills must be set in the prompt file/ );
 
     expect( () => validateGenerateTextArgs( {
       prompt: 'summary@v1',
@@ -59,17 +52,9 @@ describe( 'validateStreamTextArgs', () => {
       prompt: 'summary@v1',
       variables: [ 'arrays are accepted by the current schema' ],
       promptDir: '/prompts',
-      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
       maxSteps: 4,
       onFinish: () => {},
       onError: () => {}
-    } ) ).not.toThrow();
-  } );
-
-  it( 'accepts a dynamic skills function', () => {
-    expect( () => validateStreamTextArgs( {
-      prompt: 'summary@v1',
-      skills: () => [ { name: 'style', description: 'Style', instructions: '# Style' } ]
     } ) ).not.toThrow();
   } );
 
@@ -78,7 +63,7 @@ describe( 'validateStreamTextArgs', () => {
     expect( () => validateStreamTextArgs( { prompt: null } ) ).toThrow( /Invalid streamText\(\) arguments/ );
   } );
 
-  it( 'throws ValidationError for invalid promptDir, skills, or maxSteps', () => {
+  it( 'throws ValidationError for invalid promptDir, call-argument skills, or maxSteps', () => {
     expect( () => validateStreamTextArgs( {
       prompt: 'summary@v1',
       promptDir: ''
@@ -86,8 +71,8 @@ describe( 'validateStreamTextArgs', () => {
 
     expect( () => validateStreamTextArgs( {
       prompt: 'summary@v1',
-      skills: [ { name: 'style', description: 'Style', instructions: '' } ]
-    } ) ).toThrow( ValidationError );
+      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ]
+    } ) ).toThrow( /skills must be set in the prompt file/ );
 
     expect( () => validateStreamTextArgs( {
       prompt: 'summary@v1',
@@ -114,7 +99,6 @@ describe( 'validateGenerateTextWithStreamingArgs', () => {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
       promptDir: '/prompts',
-      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
       maxSteps: 4
     } ) ).not.toThrow();
   } );
@@ -200,5 +184,38 @@ describe( 'validateGenerateImageArgs', () => {
       prompt: 'image@v1',
       mask: Buffer.from( 'mask-bytes' )
     } ) ).toThrow( /mask requires images/ );
+  } );
+} );
+
+describe( 'validateAgentArgs', () => {
+  it( 'accepts a prompt with optional variables', () => {
+    expect( () => validateAgentArgs( {
+      prompt: 'summary@v1',
+      variables: { topic: 'testing' },
+      promptDir: '/prompts',
+      maxSteps: 4
+    } ) ).not.toThrow();
+  } );
+
+  it( 'throws ValidationError with Agent prefix for invalid args', () => {
+    expect( () => validateAgentArgs( {} ) ).toThrow( ValidationError );
+    expect( () => validateAgentArgs( { prompt: '' } ) ).toThrow( /Invalid Agent\(\) arguments/ );
+  } );
+
+  it( 'throws ValidationError for invalid promptDir, call-argument skills, or maxSteps', () => {
+    expect( () => validateAgentArgs( {
+      prompt: 'summary@v1',
+      promptDir: ''
+    } ) ).toThrow( ValidationError );
+
+    expect( () => validateAgentArgs( {
+      prompt: 'summary@v1',
+      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ]
+    } ) ).toThrow( /skills must be set in the prompt file/ );
+
+    expect( () => validateAgentArgs( {
+      prompt: 'summary@v1',
+      maxSteps: 0
+    } ) ).toThrow( ValidationError );
   } );
 } );

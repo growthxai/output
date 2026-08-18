@@ -4,7 +4,7 @@ import { reviewOutputSchema } from './types.js';
 
 export default workflow( {
   name: 'agent_demo',
-  description: 'Demonstrates Agent class and generateText with file-based and inline skills',
+  description: 'Demonstrates Agent class and generateText with skills loaded from prompt frontmatter',
   inputSchema: z.object( {
     content: z.string().describe( 'Content to review' ),
     content_type: z.string().default( 'documentation' ).describe( 'Type of content' ),

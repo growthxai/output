@@ -1,7 +1,4 @@
-import { types as utilTypes } from 'node:util';
 import * as AI from 'ai';
-import { stepCountIs } from 'ai';
-import { ValidationError } from '@outputai/core';
 import {
   validateGenerateTextArgs,
   validateGenerateTextWithStreamingArgs,
@@ -12,31 +9,29 @@ import { loadPrompt } from './prompt/loader.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse, wrapImageResponse } from './utils/response_wrappers.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
-import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { mapAiError } from './utils/error_handler.js';
 import { drainStream } from './utils/stream.js';
+import { loadSkills } from './utils/skills.js';
 
 const defaultAiSdkOptions = {
   allowSystemInMessages: true,
   maxRetries: 0
 };
 
-export async function generateText( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
-  validateGenerateTextArgs( { prompt, variables, promptDir, skills, maxSteps } );
+export async function generateText( { prompt, variables, promptDir, maxSteps = 10, tools, skills, ...aiSdkArgs } ) {
+  validateGenerateTextArgs( { prompt, variables, promptDir, maxSteps, tools, skills } );
 
-  const parsedSkills = typeof skills === 'function' ? await skills( variables ) : skills;
-  const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
+  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+  const loadedSkills = loadSkills( loadedPrompt );
 
   const traceId = startTrace( { name: 'generateText', prompt, variables, loadedPrompt } );
   const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
     const response = await AI.generateText( {
-      ...loadAiSdkTextOptions( loadedPrompt ),
+      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
-      ...aiSdkArgs,
-      ...( tools && { tools } ),
-      ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} )
+      ...aiSdkArgs
     } );
     return wrapTextResponse( { traceId, providerId, modelId, response } );
   } catch ( originalError ) {
@@ -46,25 +41,20 @@ export async function generateText( { prompt, variables, promptDir, skills = [],
   }
 }
 
-export function streamText( { prompt, variables, promptDir, skills = [], maxSteps = 10, onFinish, onError, ...aiSdkArgs } ) {
-  validateStreamTextArgs( { prompt, variables, promptDir, skills, maxSteps, onFinish, onError } );
+export function streamText( { prompt, variables, promptDir, maxSteps = 10, onFinish, onError, tools, skills, ...aiSdkArgs } ) {
+  validateStreamTextArgs( { prompt, variables, promptDir, maxSteps, onFinish, onError, tools, skills } );
 
-  const parsedSkills = typeof skills === 'function' ? skills( variables ) : skills;
-  if ( utilTypes.isPromise( parsedSkills ) ) {
-    throw new ValidationError( 'streamText() skills must be synchronous because streamText() returns a stream immediately.' );
-  }
-  const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
+  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+  const loadedSkills = loadSkills( loadedPrompt );
 
   const traceId = startTrace( { name: 'streamText', prompt, variables, loadedPrompt } );
   const { model: modelId, provider: providerId } = loadedPrompt.config;
 
   try {
     return AI.streamText( {
-      ...loadAiSdkTextOptions( loadedPrompt ),
+      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
       ...aiSdkArgs,
-      ...( tools && { tools } ),
-      ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
       async onFinish( response ) {
         const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
         return onFinish?.( proxiedResponse );
@@ -85,22 +75,22 @@ export function streamText( { prompt, variables, promptDir, skills = [], maxStep
 /**
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
-export async function generateTextWithStreaming( { prompt, variables, promptDir, skills = [], maxSteps = 10, ...aiSdkArgs } ) {
-  validateGenerateTextWithStreamingArgs( { prompt, variables, promptDir, skills, maxSteps } );
+export async function generateTextWithStreaming( { prompt, variables, promptDir, maxSteps = 10, tools, skills, ...aiSdkArgs } ) {
+  validateGenerateTextWithStreamingArgs( { prompt, variables, promptDir, maxSteps, tools, skills } );
 
-  const parsedSkills = typeof skills === 'function' ? await skills( variables ) : skills;
-  const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir, skills: parsedSkills, tools: aiSdkArgs.tools } );
+  const loadedPrompt = loadPrompt( prompt, variables, promptDir );
+  const loadedSkills = loadSkills( loadedPrompt );
+
   const traceId = startTrace( { name: 'generateTextWithStreaming', prompt, variables, loadedPrompt } );
+
   const { model: modelId, provider: providerId } = loadedPrompt.config;
   const state = { response: null };
 
   try {
     const stream = AI.streamText( {
-      ...loadAiSdkTextOptions( loadedPrompt ),
+      ...loadAiSdkTextOptions( { prompt: loadedPrompt, skills: loadedSkills, tools, maxSteps } ),
       ...defaultAiSdkOptions,
       ...aiSdkArgs,
-      ...( tools && { tools } ),
-      ...( tools && !aiSdkArgs.stopWhen ? { stopWhen: stepCountIs( maxSteps ) } : {} ),
       onFinish( response ) {
         state.response = response;
       },

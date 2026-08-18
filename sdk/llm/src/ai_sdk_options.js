@@ -1,30 +1,50 @@
 import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
 import { resolveMessageProviderOptions } from './prompt/block_options.js';
+import { buildLoadSkillTool } from './utils/tools.js';
 import { ROLE, isRole } from './utils/message.js';
 import { FatalError } from '@outputai/core';
+import { stepCountIs } from 'ai';
+
+const buildSkillsMessageContent = skills =>
+  'Available skills (use load_skill to get full instructions):\n' +
+  skills.map( s => `- ${s.name}: ${s.description}` ).join( '\n' );
 
 /**
- * Convert a loaded prompt into AI SDK text generation options.
+ * Build options for AI SDK text generation.
  *
- * System blocks are routed to the `system` option (as `SystemModelMessage[]`, so
- * per-message providerOptions like `cacheControl` are preserved) rather than left
- * in `messages` — the AI SDK flags system roles inside `messages` as a prompt
- * injection risk, and `system` is the provider-recommended slot.
+ * Returns `system` and `messages` split by role, generation config, and merged tools
+ * with a step limit when any tools are present.
  *
- * @param {object} prompt - Loaded prompt object
- * @returns {object} Options for AI SDK text calls
+ * @param {object} args
+ * @param {object} args.prompt - Prompt object
+ * @param {object} [args.tools] - Caller tools
+ * @param {Skill[]} args.skills - Resolved skills
+ * @param {number} args.maxSteps - Tool-loop step limit
+ * @returns {object} AI SDK text options
  */
-export const loadAiSdkTextOptions = prompt => {
+export const loadAiSdkTextOptions = ( { prompt, tools, skills, maxSteps } ) => {
   if ( prompt.messages.length === 0 ) {
     throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
   }
   const isSystem = isRole( ROLE.SYSTEM );
   const resolvedMessages = resolveMessageProviderOptions( prompt );
 
+  const systemMessages = resolvedMessages.filter( isSystem );
+  const allMessages = resolvedMessages.filter( m => !isSystem( m ) );
+
+  if ( skills.length > 0 ) {
+    const skillsMessageContent = buildSkillsMessageContent( skills );
+    if ( systemMessages.length > 0 ) {
+      systemMessages[0] = { ...systemMessages[0], content: `${systemMessages[0].content}\n\n${skillsMessageContent}` };
+    } else {
+      systemMessages.push( { role: ROLE.SYSTEM, content: skillsMessageContent } );
+    }
+  }
+
   const options = {
     model: loadTextModel( prompt ),
-    system: resolvedMessages.filter( isSystem ),
-    messages: resolvedMessages.filter( message => !isSystem( message ) ),
+    system: systemMessages,
+    messages: allMessages,
     providerOptions: prompt.config.providerOptions
   };
 
@@ -36,19 +56,28 @@ export const loadAiSdkTextOptions = prompt => {
     options.maxOutputTokens = prompt.config.maxTokens;
   }
 
-  const tools = loadTools( prompt );
-  if ( tools ) {
-    options.tools = tools;
+  const promptTools = loadTools( prompt );
+  const skillsTools = skills.length > 0 ? { load_skill: buildLoadSkillTool( skills ) } : {};
+  const mergedTools = { ...promptTools, ...tools, ...skillsTools };
+  if ( Object.keys( mergedTools ).length > 0 ) {
+    options.tools = mergedTools;
+    options.stopWhen = stepCountIs( maxSteps );
   }
 
   return options;
 };
 
 /**
- * Convert a loaded prompt into AI SDK image generation options.
+ * Build options for AI SDK image generation.
  *
- * @param {object} prompt - Loaded prompt object
- * @returns {object} Options for AI SDK image calls
+ * Returns the image model, instructions (with optional source images and mask), and
+ * image-specific config.
+ *
+ * @param {object} args
+ * @param {object} args.prompt - Prompt object
+ * @param {unknown} [args.images] - Source images
+ * @param {unknown} [args.mask] - Inpainting mask
+ * @returns {object} AI SDK image options
  */
 export const loadAiSdkImageOptions = ( { prompt, images, mask } ) => {
   if ( !prompt.instructions ) {

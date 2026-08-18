@@ -341,18 +341,11 @@ The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/pro
 
 ### Construction
 
-The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()` or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills come from the prompt file. The agent is ready to call `generate()` or `stream()` immediately.
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { Agent, Output, skill } from '@outputai/llm';
-import { z } from '@outputai/core';
-
-const audienceSkill = skill({
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: '# Audience Adaptation\n...'
-});
+import { Agent, Output } from '@outputai/llm';
 
 export const reviewContent = step({
   name: 'reviewContent',
@@ -367,7 +360,6 @@ export const reviewContent = step({
         focus: input.focus,
         content: input.content
       },
-      skills: [audienceSkill],
       output: Output.object({ schema: reviewSchema }),
       maxSteps: 5
     });
@@ -383,7 +375,6 @@ export const reviewContent = step({
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
 | `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `skills` | `Skill[]` | `[]` | [Skill](/prompts/skills) packages for the LLM |
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
 | `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
 | `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |

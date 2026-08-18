@@ -15,13 +15,13 @@ This skill documents how to create `.md` skill files for the Output framework's 
 ## When to Use This Skill
 
 - Adding reusable instruction sets to LLM prompts
-- Configuring how skills are loaded (auto-discovery, frontmatter, inline)
+- Listing skill paths in prompt frontmatter
 - Debugging skill resolution or `load_skill` tool issues
 - Organizing shared expertise across multiple prompts
 
 ## Location Convention
 
-Skill files live in a `skills/` folder next to the prompt file. Output auto-discovers them with no configuration needed:
+Skill files live in a `skills/` folder next to the prompt file. List that folder (or individual files) in the prompt frontmatter. A sibling `skills/` directory is not loaded unless the prompt names it:
 
 ```
 src/workflows/{workflow-name}/
@@ -82,15 +82,16 @@ Write good descriptions. They appear in the system message and are what the LLM 
 
 ## How Skills Are Loaded
 
-### Method 1: Colocated Auto-Discovery (Default)
-
-Place `.md` files in a `skills/` folder next to your prompt file. Output discovers them automatically. The prompt file needs no special configuration. (Model lines below are current as of 2026-05-04 — refresh via [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).)
+List skill paths in the prompt YAML frontmatter. Paths resolve relative to the prompt file and can be individual `.md` files or directories of `.md` files. (Model lines below are current as of 2026-05-04 - refresh via [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).)
 
 ```yaml
 ---
 provider: anthropic
 model: claude-sonnet-4-6
 maxTokens: 2048
+skills:
+  - ./skills
+  - ../shared_skills/tone_guide.md
 ---
 
 <system>
@@ -106,85 +107,13 @@ Content:
 </user>
 ```
 
-At runtime, Output finds the colocated `skills/` directory, loads all `.md` files, and:
+At runtime, Output loads the listed paths and:
 1. Adds a summary of available skills to the system message
 2. Injects a `load_skill` tool the LLM can call
 
-### Method 2: Frontmatter Paths (Explicit)
+Do not pass `skills` to `generateText`, `streamText`, `generateTextWithStreaming`, or `Agent`. That argument is rejected. Do not use `skill()` - it is not exported.
 
-Reference specific skill files or directories in the prompt YAML frontmatter. Paths resolve relative to the prompt file:
-
-```yaml
----
-provider: anthropic
-# current as of 2026-05-04 — run output-dev-model-selection for the latest
-model: claude-sonnet-4-6
-skills:
-  - ./skills/
-  - ../shared_skills/tone_guide.md
----
-```
-
-When `skills:` is set in frontmatter, auto-discovery is skipped. Only the listed paths are loaded.
-
-### Method 3: Inline Skills (Code)
-
-Create skills programmatically with the `skill()` function from `@outputai/llm`:
-
-```typescript
-import { skill } from '@outputai/llm';
-
-const audienceSkill = skill( {
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: `# Audience Adaptation
-
-When the target audience is specified, adjust your feedback:
-
-**Beginner**: Flag jargon as high-priority issues.
-**Expert**: Focus on accuracy and completeness.
-
-Always mention the audience level in your summary.`
-} );
-```
-
-Pass inline skills to `generateText` or `Agent`:
-
-```typescript
-const { result } = await generateText( {
-  prompt: 'writing_assistant@v1',
-  variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  skills: [ audienceSkill ],
-  maxSteps: 5
-} );
-```
-
-Inline skills are merged with any file-based skills.
-
-## Resolution Priority
-
-Skills are resolved in this order:
-
-1. **Frontmatter paths**: If `skills:` is set in the prompt frontmatter, those paths are loaded
-2. **Colocated auto-discovery**: If no `skills:` in frontmatter, the `skills/` directory next to the prompt file is scanned
-3. **Caller-provided skills**: Skills passed via code (`skills: [...]` in `generateText` or `Agent`) are always merged in
-
-Frontmatter paths and colocated auto-discovery are mutually exclusive. Setting `skills:` in frontmatter disables auto-discovery. Caller-provided skills are always added regardless of which file-based method is used.
-
-## Disabling Skills
-
-Set `skills: []` in the prompt frontmatter to opt out of auto-discovery:
-
-```yaml
----
-provider: anthropic
-# current as of 2026-05-04 — run output-dev-model-selection for the latest
-model: claude-haiku-4-5-20251001
-skills: []
----
-```
-
-This is useful when you have a `skills/` directory for other prompts in the same folder, but a specific prompt should not load any skills.
+Omit `skills` (or set `skills: []`) when a prompt should load none. A sibling `skills/` folder used by other prompts in the same directory is not inherited.
 
 ## Complete Example
 
@@ -215,9 +144,11 @@ OUTPUT_COMPLETE
 ```yaml
 ---
 provider: anthropic
-# current as of 2026-05-04 — run output-dev-model-selection for the latest
+# current as of 2026-05-04 - run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 maxTokens: 2048
+skills:
+  - ./skills
 ---
 
 <system>
@@ -335,12 +266,12 @@ When applying this skill, flag any violations you find and suggest improvements.
 
 ## Verification Checklist
 
-- [ ] Skill files are `.md` format in a `skills/` directory next to the prompt file
+- [ ] Prompt frontmatter lists skill paths (`skills: ./skills` or explicit files)
 - [ ] Each skill has a clear, descriptive `description` in frontmatter
 - [ ] Skill body contains actionable instructions
-- [ ] Prompt file mentions `load_skill` in system message (when using auto-discovery)
-- [ ] If using frontmatter paths, all paths resolve correctly
-- [ ] If using `skills: []`, auto-discovery is intentionally disabled
+- [ ] Prompt file mentions `load_skill` in the system message
+- [ ] Listed paths resolve relative to the prompt file
+- [ ] Prompts that should load no skills omit `skills` (or set `skills: []`)
 - [ ] Skills are focused (one area of expertise per file)
 - [ ] Step code passes `maxSteps` (default 10) to allow tool loop iterations
 

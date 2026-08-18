@@ -22,15 +22,15 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 ## Import Pattern
 
 ```typescript
-import { Agent, createMemoryConversationStore, skill, Output } from '@outputai/llm';
+import { Agent, createMemoryConversationStore, Output } from '@outputai/llm';
 import { z } from '@outputai/core';
 ```
 
-`Agent`, `createMemoryConversationStore`, `skill`, and `Output` all come from `@outputai/llm`. Import `z` from `@outputai/core` (never from `zod` directly).
+`Agent`, `createMemoryConversationStore`, and `Output` all come from `@outputai/llm`. Import `z` from `@outputai/core` (never from `zod` directly).
 
 ## Construction
 
-The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 ```typescript
 const agent = new Agent( {
@@ -40,7 +40,6 @@ const agent = new Agent( {
     focus: input.focus,
     content: input.content
   },
-  skills: [ audienceSkill ],
   output: Output.object( { schema: reviewSchema } ),
   maxSteps: 5
 } );
@@ -52,7 +51,6 @@ const agent = new Agent( {
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
 | `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `skills` | `Skill[]` | `[]` | Skill packages for the LLM (see `output-dev-skill-file`) |
 | `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
 | `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
 | `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
@@ -220,35 +218,9 @@ export const reviewContent = step( {
 
 This is the standard pattern. Each step invocation is independent, and Agent construction is cheap.
 
-## Using Agent with Inline Skills
+## Using Agent with Skills
 
-Combine inline skills with Agent for dynamic expertise:
-
-```typescript
-import { Agent, skill, Output } from '@outputai/llm';
-
-const audienceSkill = skill( {
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: `# Audience Adaptation
-
-When the target audience is specified, adjust your feedback:
-**Beginner**: Flag jargon as high-priority issues.
-**Expert**: Focus on accuracy and completeness.
-Always mention the audience level in your summary.`
-} );
-
-const agent = new Agent( {
-  prompt: 'writing_assistant@v1',
-  variables: input,
-  skills: [ audienceSkill ],
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
-} );
-const { output } = await agent.generate();
-```
-
-Inline skills are merged with any file-based skills from the prompt's colocated `skills/` directory or frontmatter paths. See `output-dev-skill-file` for the full skills guide.
+List skill paths in the prompt frontmatter. Do not pass `skills` to `Agent` and do not import `skill()`. See `output-dev-skill-file` for the full skills guide.
 
 ## When to Use Agent vs generateText
 

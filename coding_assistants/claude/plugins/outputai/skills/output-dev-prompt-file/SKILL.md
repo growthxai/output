@@ -96,6 +96,8 @@ provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7       # 0.0 to 1.0, default varies by provider
 maxTokens: 4096        # Maximum output tokens
+skills:                # Skill file or directory paths, relative to this prompt
+  - ./skills
 providerOptions:       # Provider-specific options
   thinking:
     type: enabled
@@ -375,7 +377,7 @@ const { result } = await generateText( {
 
 Prompts can load skill files that provide lazy-loaded instructions to the LLM. Skills keep the initial context small while giving the LLM access to deep expertise on demand. See `output-dev-skill-file` for the full guide on creating skill files.
 
-The simplest approach is colocated auto-discovery. Place `.md` files in a `skills/` folder next to your prompt file:
+Place `.md` files next to the prompt (commonly in `prompts/skills/`) and list the path in frontmatter. A sibling `skills/` folder is not loaded unless you list it:
 
 ```
 src/workflows/{workflow-name}/
@@ -386,7 +388,16 @@ src/workflows/{workflow-name}/
         └── structure_guide.md
 ```
 
-The prompt file does not need any special configuration. Output auto-discovers the `skills/` directory and injects a `load_skill` tool the LLM can call. Mention `load_skill` in the system message so the LLM knows to use it:
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-6
+skills:
+  - ./skills
+---
+```
+
+Mention `load_skill` in the system message so the LLM knows to use it:
 
 ```
 <system>
@@ -395,7 +406,7 @@ Use load_skill to get the full instructions for any skill before applying it.
 </system>
 ```
 
-You can also list skill paths explicitly in frontmatter, or create inline skills in code. See `output-dev-skill-file` for all three methods.
+Do not pass `skills` as a call argument and do not use `skill()`. See `output-dev-skill-file` for the file format and path rules.
 
 ## Using Prompts with Agent
 
@@ -639,6 +650,7 @@ Requirements:
 - [ ] All required variables are documented or have defaults
 - [ ] Step code references correct prompt name
 - [ ] No JSON output format instructions when step uses `Output.object()` (schema handles structure)
+- [ ] If the prompt uses skills, frontmatter lists `skills:` paths (a sibling `skills/` folder is not auto-loaded)
 
 ## Related Skills
 

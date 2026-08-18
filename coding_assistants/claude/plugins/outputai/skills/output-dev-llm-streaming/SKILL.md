@@ -28,8 +28,6 @@ In workflow steps, prefer `generateTextWithStreaming()` or `Agent.generateWithSt
 
 `streamText()` and `Agent.stream()` remain supported for code that needs direct control over stream consumption.
 
-`streamText()` returns synchronously, so dynamic skill resolvers passed to it must also resolve synchronously. Use `generateTextWithStreaming()` when skills need asynchronous resolution.
-
 ## generateTextWithStreaming()
 
 ```typescript

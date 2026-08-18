@@ -1,27 +1,6 @@
 import { step, z } from '@outputai/core';
-import { Agent, Output, generateText, skill } from '@outputai/llm';
+import { Agent, Output, generateText } from '@outputai/llm';
 import { reviewOutputSchema } from './types.js';
-
-const audienceAdaptationSkill = skill( {
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: `# Audience Adaptation
-
-When the target audience is specified, adjust your feedback accordingly:
-
-**Beginner audience**: Flag jargon and unexplained concepts as high-priority issues.
-Prioritize clarity and step-by-step instructions over conciseness.
-
-**Intermediate audience**: Balance clarity with depth. Flag gaps in conceptual explanation
-but allow some assumed knowledge.
-
-**Expert audience**: Focus on accuracy, completeness, and advanced concerns.
-Basic explanations are unnecessary but architectural decisions should be justified.
-
-Always mention the audience level in your summary.`
-} );
-
-const SKILLS = [ audienceAdaptationSkill ];
 
 export const reviewContent = step( {
   name: 'reviewContent',
@@ -37,7 +16,6 @@ export const reviewContent = step( {
       prompt: 'writing_assistant@v1',
       variables: input,
       output: Output.object( { schema: reviewOutputSchema } ),
-      skills: SKILLS,
       maxSteps: 5
     } );
     const result = await agent.generate();
@@ -58,7 +36,6 @@ export const reviewContentFreeform = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      skills: SKILLS,
       maxSteps: 5
     } );
     const result = await agent.generate();
@@ -68,7 +45,7 @@ export const reviewContentFreeform = step( {
 
 export const reviewContentGenerateText = step( {
   name: 'reviewContentGenerateText',
-  description: 'Review technical content using generateText directly with skills',
+  description: 'Review technical content using generateText directly',
   inputSchema: z.object( {
     content: z.string().describe( 'The content to review' ),
     content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),
@@ -79,7 +56,6 @@ export const reviewContentGenerateText = step( {
     const result = await generateText( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      skills: SKILLS,
       maxSteps: 5
     } );
     return result.text;
@@ -88,7 +64,7 @@ export const reviewContentGenerateText = step( {
 
 export const reviewContentNoSkills = step( {
   name: 'reviewContentNoSkills',
-  description: 'Review content using a prompt with skills: [] — confirms no skills are loaded',
+  description: 'Review content using a prompt with skills: [] - confirms no skills are loaded',
   inputSchema: z.object( {
     content: z.string().describe( 'The content to review' ),
     content_type: z.string().describe( 'Type of content (e.g. documentation, tutorial, README)' ),

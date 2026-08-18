@@ -3,8 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const aiFns = vi.hoisted( () => ( {
   generateText: vi.fn(),
   streamText: vi.fn(),
-  generateImage: vi.fn(),
-  stepCountIs: vi.fn( count => ( { type: 'step-count', count } ) )
+  generateImage: vi.fn()
 } ) );
 
 const validators = vi.hoisted( () => ( {
@@ -15,8 +14,11 @@ const validators = vi.hoisted( () => ( {
 } ) );
 
 const promptMocks = vi.hoisted( () => ( {
-  loadPrompt: vi.fn(),
-  prepareTextPrompt: vi.fn()
+  loadPrompt: vi.fn()
+} ) );
+
+const skillMocks = vi.hoisted( () => ( {
+  loadSkills: vi.fn()
 } ) );
 
 const optionMocks = vi.hoisted( () => ( {
@@ -50,8 +52,8 @@ vi.mock( './prompt/loader.js', () => ( {
   loadPrompt: ( ...args ) => promptMocks.loadPrompt( ...args )
 } ) );
 
-vi.mock( './prompt/prepare_text.js', () => ( {
-  prepareTextPrompt: ( ...args ) => promptMocks.prepareTextPrompt( ...args )
+vi.mock( './utils/skills.js', () => ( {
+  loadSkills: ( ...args ) => skillMocks.loadSkills( ...args )
 } ) );
 
 vi.mock( './ai_sdk_options.js', () => ( {
@@ -84,6 +86,8 @@ const loadedPrompt = {
   config: { provider: 'openai', model: 'test-model' },
   messages: [ { role: 'user', content: 'Hello' } ]
 };
+
+const loadedSkills = [ { name: 'writer', description: 'Writes', instructions: 'Do it.' } ];
 
 const textOptions = {
   model: 'MODEL',
@@ -120,7 +124,6 @@ describe( 'ai_sdk', () => {
     aiFns.generateText.mockReset().mockResolvedValue( textResponse );
     aiFns.streamText.mockReset().mockReturnValue( streamResult );
     aiFns.generateImage.mockReset().mockResolvedValue( imageResponse );
-    aiFns.stepCountIs.mockReset().mockImplementation( count => ( { type: 'step-count', count } ) );
 
     validators.validateGenerateTextArgs.mockReset();
     validators.validateGenerateTextWithStreamingArgs.mockReset();
@@ -128,10 +131,7 @@ describe( 'ai_sdk', () => {
     validators.validateGenerateImageArgs.mockReset();
 
     promptMocks.loadPrompt.mockReset().mockReturnValue( loadedPrompt );
-    promptMocks.prepareTextPrompt.mockReset().mockReturnValue( {
-      loadedPrompt,
-      tools: null
-    } );
+    skillMocks.loadSkills.mockReset().mockReturnValue( loadedSkills );
 
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
     optionMocks.loadAiSdkImageOptions.mockReset().mockReturnValue( imageOptions );
@@ -151,56 +151,47 @@ describe( 'ai_sdk', () => {
   } );
 
   describe( 'generateText', () => {
-    it( 'prepares, validates, traces, calls AI SDK, and wraps the response', async () => {
+    it( 'validates, loads prompt skills, traces, calls AI SDK, and wraps the response', async () => {
       const { generateText } = await importSut();
       const variables = { topic: 'testing' };
-      const tools = { calculator: { description: 'Calculator' } };
-      const skills = [ { name: 'style', description: 'Style', instructions: '# Style' } ];
-
-      promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-        loadedPrompt,
-        tools
-      } );
+      const tools = { userTool: true };
 
       const result = await generateText( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        skills,
         maxSteps: 4,
-        tools: { userTool: true },
+        tools,
         temperature: 0.2
       } );
 
-      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( {
-        prompt: 'test@v1',
-        variables,
-        promptDir: '/prompts',
-        skills,
-        tools: { userTool: true }
-      } );
       expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        skills,
-        maxSteps: 4
+        maxSteps: 4,
+        tools,
+        skills: undefined
       } );
+      expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'generateText',
         prompt: 'test@v1',
         variables,
         loadedPrompt
       } );
-      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-      expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        tools,
+        maxSteps: 4
+      } );
       expect( aiFns.generateText ).toHaveBeenCalledWith( {
         ...textOptions,
         allowSystemInMessages: true,
         maxRetries: 0,
-        tools,
-        temperature: 0.2,
-        stopWhen: { type: 'step-count', count: 4 }
+        temperature: 0.2
       } );
       expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
@@ -211,47 +202,37 @@ describe( 'ai_sdk', () => {
       expect( result ).toEqual( { wrapped: textResponse } );
     } );
 
-    it( 'uses resolved dynamic skills', async () => {
+    it( 'defaults maxSteps to 10 and loads skills from the prompt, not the call', async () => {
       const { generateText } = await importSut();
-      const variables = { topic: 'testing' };
-      const resolvedSkills = [ { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' } ];
-      const skills = vi.fn().mockResolvedValue( resolvedSkills );
+      const callSkills = [ { name: 'from-call' } ];
 
-      await generateText( { prompt: 'test@v1', variables, skills } );
+      await generateText( { prompt: 'test@v1', skills: callSkills } );
 
-      expect( skills ).toHaveBeenCalledWith( variables );
-      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-        skills: resolvedSkills
+      expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( expect.objectContaining( {
+        skills: callSkills,
+        maxSteps: 10,
+        tools: undefined
       } ) );
-    } );
-
-    it( 'omits tools and stopWhen when no tools are prepared', async () => {
-      const { generateText } = await importSut();
-
-      await generateText( { prompt: 'test@v1' } );
-
-      expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
-      expect( aiFns.generateText ).toHaveBeenCalledWith( {
-        ...textOptions,
-        allowSystemInMessages: true,
-        maxRetries: 0
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        tools: undefined,
+        maxSteps: 10
       } );
     } );
 
-    it( 'preserves caller-provided stopWhen when tools are prepared', async () => {
+    it( 'lets caller stopWhen replace options stopWhen', async () => {
       const { generateText } = await importSut();
       const stopWhen = { type: 'custom-stop' };
-      promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-        loadedPrompt,
-        tools: { load_skill: { description: 'Load skill' } }
+      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+        ...textOptions,
+        stopWhen: { type: 'step-count', count: 10 }
       } );
 
       await generateText( { prompt: 'test@v1', stopWhen } );
 
-      expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
-      expect( aiFns.generateText ).toHaveBeenCalledWith( expect.objectContaining( {
-        stopWhen
-      } ) );
+      expect( aiFns.generateText ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen } ) );
     } );
 
     it( 'propagates validation errors before tracing or calling AI SDK', async () => {
@@ -262,6 +243,7 @@ describe( 'ai_sdk', () => {
       const { generateText } = await importSut();
 
       await expect( generateText( { prompt: '' } ) ).rejects.toThrow( validationError );
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
       expect( traceMocks.startTrace ).not.toHaveBeenCalled();
       expect( aiFns.generateText ).not.toHaveBeenCalled();
     } );
@@ -312,7 +294,14 @@ describe( 'ai_sdk', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        skills: [],
+        maxSteps: 4,
+        tools: undefined,
+        skills: undefined
+      } );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        tools: undefined,
         maxSteps: 4
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
@@ -333,24 +322,6 @@ describe( 'ai_sdk', () => {
         response: { ...textResponse, output }
       } );
       expect( result ).toBe( wrappedResponse );
-    } );
-
-    it( 'supports asynchronously resolved skills', async () => {
-      const { generateTextWithStreaming } = await importSut();
-      const variables = { topic: 'testing' };
-      const resolvedSkills = [ { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' } ];
-      const skills = vi.fn().mockResolvedValue( resolvedSkills );
-      aiFns.streamText.mockImplementationOnce( options => {
-        options.onFinish( { ...textResponse } );
-        return { output: Promise.resolve( undefined ) };
-      } );
-
-      await generateTextWithStreaming( { prompt: 'test@v1', variables, skills } );
-
-      expect( skills ).toHaveBeenCalledWith( variables );
-      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-        skills: resolvedSkills
-      } ) );
     } );
 
     it( 'maps stream errors and rejects', async () => {
@@ -395,26 +366,19 @@ describe( 'ai_sdk', () => {
   } );
 
   describe( 'streamText', () => {
-    it( 'prepares, validates, traces, calls AI SDK, and returns the stream result', async () => {
+    it( 'validates, loads prompt skills, traces, calls AI SDK, and returns the stream result', async () => {
       const { streamText } = await importSut();
       const variables = { topic: 'testing' };
       const onFinish = vi.fn();
-      const tools = { calculator: { description: 'Calculator' } };
-      const skills = [ { name: 'style', description: 'Style', instructions: '# Style' } ];
-
-      promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-        loadedPrompt,
-        tools
-      } );
+      const tools = { userTool: true };
 
       const result = streamText( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        skills,
         maxSteps: 4,
         onFinish,
-        tools: { userTool: true },
+        tools,
         temperature: 0.2
       } );
 
@@ -422,33 +386,31 @@ describe( 'ai_sdk', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        skills,
         maxSteps: 4,
         onFinish,
-        onError: undefined
+        onError: undefined,
+        tools,
+        skills: undefined
       } );
-      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( {
-        prompt: 'test@v1',
-        variables,
-        promptDir: '/prompts',
-        skills,
-        tools: { userTool: true }
-      } );
+      expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'streamText',
         prompt: 'test@v1',
         variables,
         loadedPrompt
       } );
-      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-      expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        tools,
+        maxSteps: 4
+      } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
         allowSystemInMessages: true,
         maxRetries: 0,
-        tools,
         temperature: 0.2,
-        stopWhen: { type: 'step-count', count: 4 },
         onFinish: expect.any( Function ),
         onError: expect.any( Function )
       } );
@@ -464,64 +426,17 @@ describe( 'ai_sdk', () => {
       expect( result ).toBe( streamResult );
     } );
 
-    it( 'uses resolved dynamic skills', async () => {
-      const { streamText } = await importSut();
-      const variables = { topic: 'testing' };
-      const resolvedSkills = [ { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' } ];
-      const skills = vi.fn().mockReturnValue( resolvedSkills );
-
-      streamText( { prompt: 'test@v1', variables, skills } );
-
-      expect( skills ).toHaveBeenCalledWith( variables );
-      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-        skills: resolvedSkills
-      } ) );
-    } );
-
-    it( 'throws when dynamic skills resolve asynchronously', async () => {
-      const { streamText } = await importSut();
-      const variables = { topic: 'testing' };
-      const skills = vi.fn().mockResolvedValue( [
-        { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' }
-      ] );
-
-      expect( () => streamText( { prompt: 'test@v1', variables, skills } ) )
-        .toThrow( 'streamText() skills must be synchronous' );
-
-      expect( skills ).toHaveBeenCalledWith( variables );
-      expect( promptMocks.prepareTextPrompt ).not.toHaveBeenCalled();
-      expect( aiFns.streamText ).not.toHaveBeenCalled();
-    } );
-
-    it( 'omits tools and stopWhen when no tools are prepared', async () => {
-      const { streamText } = await importSut();
-
-      streamText( { prompt: 'test@v1' } );
-
-      expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
-      expect( aiFns.streamText ).toHaveBeenCalledWith( {
-        ...textOptions,
-        allowSystemInMessages: true,
-        maxRetries: 0,
-        onFinish: expect.any( Function ),
-        onError: expect.any( Function )
-      } );
-    } );
-
-    it( 'preserves caller-provided stopWhen when tools are prepared', async () => {
+    it( 'lets caller stopWhen replace options stopWhen', async () => {
       const { streamText } = await importSut();
       const stopWhen = { type: 'custom-stop' };
-      promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-        loadedPrompt,
-        tools: { load_skill: { description: 'Load skill' } }
+      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+        ...textOptions,
+        stopWhen: { type: 'step-count', count: 10 }
       } );
 
       streamText( { prompt: 'test@v1', stopWhen } );
 
-      expect( aiFns.stepCountIs ).not.toHaveBeenCalled();
-      expect( aiFns.streamText ).toHaveBeenCalledWith( expect.objectContaining( {
-        stopWhen
-      } ) );
+      expect( aiFns.streamText ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen } ) );
     } );
 
     it( 'traces stream onError events and calls the user callback', async () => {
@@ -563,7 +478,8 @@ describe( 'ai_sdk', () => {
       const { streamText } = await importSut();
 
       expect( () => streamText( { prompt: '' } ) ).toThrow( validationError );
-      expect( promptMocks.prepareTextPrompt ).not.toHaveBeenCalled();
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+      expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
       expect( traceMocks.startTrace ).not.toHaveBeenCalled();
       expect( aiFns.streamText ).not.toHaveBeenCalled();
     } );
@@ -611,6 +527,7 @@ describe( 'ai_sdk', () => {
         mask
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'image@v1', variables, '/prompts' );
+      expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'generateImage',
         prompt: 'image@v1',

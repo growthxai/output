@@ -17,13 +17,13 @@ vi.mock( './load_content.js', () => ( {
 } ) );
 
 vi.mock( './validations.js', () => ( {
-  validatePrompt: vi.fn()
+  parsePromptSchema: vi.fn( prompt => prompt )
 } ) );
 
 import { parsePrompt } from './parser.js';
 import { escape, decode } from './escape.js';
 import { loadContent } from './load_content.js';
-import { validatePrompt } from './validations.js';
+import { parsePromptSchema } from './validations.js';
 
 describe( 'loadPrompt', () => {
   beforeEach( () => {
@@ -59,7 +59,7 @@ describe( 'loadPrompt', () => {
       name: 'test',
       raw: '<user>Hello World!</user>'
     } );
-    expect( validatePrompt ).toHaveBeenCalledWith( {
+    expect( parsePromptSchema ).toHaveBeenCalledWith( {
       name: 'test',
       config: {
         provider: 'anthropic',
@@ -71,13 +71,14 @@ describe( 'loadPrompt', () => {
           content: 'Hello World!'
         }
       ],
-      instructions: null
+      instructions: null,
+      fileDir: '/mock/dir'
     } );
     expect( result.name ).toBe( 'test' );
     expect( result.config ).toEqual( { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' } );
     expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello World!' } ] );
     expect( result.instructions ).toBeNull();
-    expect( result.promptFileDir ).toBe( '/mock/dir' );
+    expect( result.fileDir ).toBe( '/mock/dir' );
   } );
 
   it( 'passes the provided prompt directory to loadContent', () => {
@@ -285,8 +286,9 @@ model: gpt-4
     const result = loadPrompt( 'test' );
 
     expect( result.config.provider ).toBe( canonical );
-    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-      config: expect.objectContaining( { provider: canonical } )
+    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: expect.objectContaining( { provider: canonical } ),
+      fileDir: '/mock/dir'
     } ) );
     expect( warn ).toHaveBeenCalledWith(
       `Using deprecated provider alias "${alias}". Use "${canonical}" instead.`,
@@ -320,8 +322,9 @@ model: gpt-4
     expect( decode ).toHaveBeenCalledWith( parsedConfig );
     expect( result.config ).toBe( decodedConfig );
     expect( result.config.provider ).toBe( 'amazon-bedrock' );
-    expect( validatePrompt ).toHaveBeenCalledWith( expect.objectContaining( {
-      config: decodedConfig
+    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: decodedConfig,
+      fileDir: '/mock/dir'
     } ) );
     expect( warn ).toHaveBeenCalledWith(
       'Using deprecated provider alias "bedrock". Use "amazon-bedrock" instead.',

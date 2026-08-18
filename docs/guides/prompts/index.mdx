@@ -93,6 +93,7 @@ The YAML frontmatter configures the LLM call.
 |-------|-------------|---------|
 | `temperature` | Randomness (0-2) | `0` for judges, `0.3` for summaries, `0.7` for general |
 | `maxTokens` | Max output tokens | `2000` |
+| `skills` | Skill file or directory paths, relative to this prompt | `./skills`, `../shared/tone.md` |
 | `providerOptions` | Provider-specific config | See below |
 
 All fields use **camelCase**. Using `max_tokens` instead of `maxTokens` will fail validation.
@@ -330,13 +331,12 @@ export const generateSummary = step({
 // export const GenerateSummaryOutput = z.string();
 ```
 
-`generateText` also supports [skills](/prompts/skills) for on-demand instruction loading:
+`generateText` also supports [skills](/prompts/skills) for on-demand instruction loading. List skill paths in the prompt frontmatter. Do not pass `skills` as a call argument.
 
 ```typescript
 const { result } = await generateText({
   prompt: 'generate_summary@v1',
   variables: { company_name: input.name, website_content: input.websiteContent },
-  skills: [audienceSkill],
   maxSteps: 5
 });
 ```

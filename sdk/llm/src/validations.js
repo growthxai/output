@@ -1,18 +1,15 @@
 import { Buffer } from 'node:buffer';
 import { ValidationError, z } from '@outputai/core';
 
-const skillArgSchema = z.object( {
-  name: z.string().min( 1 ),
-  description: z.string().optional(),
-  instructions: z.string().min( 1 )
-} ).strict();
-
 const generateTextArgsSchema = z.object( {
   prompt: z.string().min( 1 ),
   variables: z.any().optional(),
   promptDir: z.string().min( 1 ).optional(),
-  skills: z.union( [ z.array( skillArgSchema ), z.function() ] ).optional(),
-  maxSteps: z.number().int().positive().optional()
+  maxSteps: z.number().int().positive().optional(),
+  skills: z.any().optional().refine(
+    value => value === undefined,
+    'skills must be set in the prompt file, not as a call argument'
+  )
 } );
 
 const streamTextArgsSchema = generateTextArgsSchema.extend( {
@@ -79,4 +76,8 @@ export function validateStreamTextArgs( args ) {
 
 export function validateGenerateImageArgs( args ) {
   validateSchema( generateImageArgsSchema, args, 'Invalid generateImage() arguments' );
+}
+
+export function validateAgentArgs( args ) {
+  validateSchema( generateTextArgsSchema, args, 'Invalid Agent() arguments' );
 }

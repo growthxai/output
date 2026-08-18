@@ -1,5 +1,5 @@
 export { generateText, generateTextWithStreaming, streamText, generateImage } from './ai_sdk.js';
-export { Agent, createMemoryConversationStore, skill } from './agent.js';
+export { Agent, createMemoryConversationStore } from './agent.js';
 export { loadPrompt } from './prompt/loader.js';
 export { registerProvider, getProviderNames } from './ai_provider.js';
 export { tool, Output, smoothStream, stepCountIs, hasToolCall, jsonSchema } from 'ai';

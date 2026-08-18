@@ -1,0 +1,193 @@
+---
+title: "v0.11.0 → v0.12.0"
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, merged tools, and loaded prompt shape changes in @outputai/llm."
+---
+
+This guide covers breaking changes in `@outputai/llm`. Skills now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools.
+
+## Skills load only from the prompt file
+
+`generateText`, `streamText`, `generateTextWithStreaming`, and `Agent` no longer accept a `skills` argument. Dynamic skill resolvers (sync or async functions) are gone with it. Passing `skills` throws:
+
+```
+skills must be set in the prompt file, not as a call argument
+```
+
+`skill()` is no longer exported. Colocated `skills/` auto-discovery is gone: a `skills/` folder next to the prompt is not loaded unless you list it in frontmatter.
+
+### Move call-argument and inline skills into the prompt
+
+#### Before
+
+```ts
+import { generateText, skill } from '@outputai/llm';
+
+const audienceSkill = skill( {
+  name: 'audience',
+  description: 'Audience voice',
+  instructions: 'Write for operators, not executives.'
+} );
+
+await generateText( {
+  prompt: 'writer@v1',
+  skills: [ audienceSkill ]
+} );
+```
+
+#### After
+
+Put the instructions in a markdown file and list the path in frontmatter. Paths are relative to the prompt file.
+
+```markdown prompts/skills/audience.md
+---
+name: audience
+description: Audience voice
+---
+
+Write for operators, not executives.
+```
+
+```yaml prompts/writer@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-6
+skills:
+  - ./skills/audience.md
+---
+
+<system>
+You are a writer. Use load_skill before applying a skill.
+</system>
+
+<user>
+{{ task }}
+</user>
+```
+
+```ts
+import { generateText } from '@outputai/llm';
+
+await generateText( { prompt: 'writer@v1' } );
+```
+
+A directory path loads every `.md` file under it (recursive):
+
+```yaml
+skills:
+  - ./skills
+```
+
+A single string is still valid YAML and is coerced to an array at load time:
+
+```yaml
+skills: ./skills/audience.md
+```
+
+### Restore colocated skills that used auto-discovery
+
+#### Before
+
+```
+prompts/
+├── writer@v1.prompt
+└── skills/
+    └── audience.md
+```
+
+No `skills:` key in the prompt. Output discovered `./skills` automatically.
+
+#### After
+
+Keep the folder. Add an explicit path:
+
+```yaml
+skills:
+  - ./skills
+```
+
+## Prompt tools and call-argument tools merge
+
+Call-argument `tools` no longer replace the whole prompt YAML tools map.
+
+- Prompt YAML tools and call-argument tools are merged.
+- The same key: the caller wins.
+- When skills are present, `load_skill` is added last and cannot be overridden.
+
+#### Before
+
+```yaml
+tools:
+  googleSearch: {}
+```
+
+```ts
+await generateText( {
+  prompt: 'research@v1',
+  tools: { lookup: lookupTool }
+} );
+```
+
+`googleSearch` was dropped. Only `lookup` was sent.
+
+#### After
+
+Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, remove them from the prompt (or override that key on the call).
+
+## Native prompt tools use `maxSteps`
+
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` (default **10**).
+
+Previously that ceiling applied only when call-argument tools or `load_skill` were present. YAML-only grounding stayed at the AI SDK default of one step.
+
+`stepCountIs(10)` is a ceiling. The model still stops when it emits a final answer. If you need the old one-step behavior:
+
+```ts
+import { generateText, stepCountIs } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'grounded@v1',
+  stopWhen: stepCountIs( 1 )
+} );
+```
+
+## Loaded prompt shape
+
+`loadPrompt` returns the parsed prompt object.
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `prompt.promptFileDir` | `prompt.fileDir` (always set) |
+| `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
+
+#### Before
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+const dir = prompt.promptFileDir;
+```
+
+#### After
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+const dir = prompt.fileDir;
+```
+
+The `SkillsArg` type is removed. `Skill.description` is required on the loaded skill shape.
+
+## Agent constructor validation
+
+`new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
+
+That includes a missing/empty `prompt`, an empty `promptDir`, `maxSteps` that is not a positive integer, and a call-argument `skills` field.
+
+## Checklist
+
+- Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
+- Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
+- Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
+- Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
+- Pass `stopWhen: stepCountIs(1)` on YAML-only grounding calls that must stay one-shot.
+- Rename `promptFileDir` to `fileDir`.
+- Treat `config.skills` as always `string[]` after `loadPrompt`.
+- Update Agent tests and error matchers that expected `Agent requires a prompt`.

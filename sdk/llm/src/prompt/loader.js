@@ -1,7 +1,7 @@
 import { parsePrompt } from './parser.js';
 import { Liquid } from 'liquidjs';
 import { loadContent } from './load_content.js';
-import { validatePrompt } from './validations.js';
+import { parsePromptSchema } from './validations.js';
 import { FatalError, Logger } from '@outputai/core';
 import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
 import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
@@ -45,7 +45,8 @@ export const loadPrompt = ( name, values = {}, dir ) => {
     name,
     config: decode( config ),
     messages: messages.map( m => ( { ...m, content: decode( m.content ) } ) ),
-    instructions: instructions === null ? null : decode( instructions )
+    instructions: instructions === null ? null : decode( instructions ),
+    fileDir: file.dir
   };
 
   const provider = prompt.config.provider;
@@ -55,7 +56,5 @@ export const loadPrompt = ( name, values = {}, dir ) => {
     prompt.config.provider = canonical;
   }
 
-  validatePrompt( prompt );
-
-  return { ...prompt, promptFileDir: file.dir };
+  return parsePromptSchema( prompt );
 };

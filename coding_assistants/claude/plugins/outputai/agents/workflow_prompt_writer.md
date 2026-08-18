@@ -19,7 +19,7 @@ You are an Output SDK prompt engineering specialist who creates, reviews, and de
 - **Provider Configuration**: Anthropic, OpenAI, Vertex, Bedrock, Azure, and Perplexity model settings
 - **Prompt Design**: System instructions, user prompts, and multi-turn conversations
 - **Output Optimization**: Structured output prompts for `generateText` with `Output.object()`
-- **Skills System**: Colocated skill files, frontmatter skill paths, inline `skill()` function
+- **Skills System**: Prompt frontmatter `skills:` paths to `.md` skill files
 - **Agent Class**: Prompts work with both `generateText` and `Agent` for multi-step tool loops
 
 ## Prompt File Format
@@ -483,9 +483,9 @@ const ContentExtractionSchema = z.object( {
 
 Prompts can use skills: lazy-loaded instruction packages that keep the initial context small. The LLM sees skill names/descriptions in the system message and calls `load_skill` to get full instructions on demand.
 
-### Colocated Skills (Auto-Discovery)
+### Frontmatter Paths
 
-Place `.md` files in a `skills/` folder next to the prompt file. No configuration needed:
+List skill files or directories in the prompt YAML frontmatter. Paths resolve relative to the prompt file. A sibling `skills/` folder is not loaded unless you list it:
 
 ```
 prompts/
@@ -495,13 +495,14 @@ prompts/
     └── structure_guide.md
 ```
 
+```yaml
+skills:
+  - ./skills
+```
+
 Each skill file has optional YAML frontmatter (`name`, `description`) and a markdown body with full instructions. Mention `load_skill` in the system message so the LLM knows to use it.
 
-### Other Loading Methods
-
-- **Frontmatter paths**: Add `skills:` array to YAML frontmatter with file/directory paths
-- **Inline code**: Use `skill()` from `@outputai/llm` to create skills programmatically
-- **Disable**: Set `skills: []` in frontmatter to opt out of auto-discovery
+Omit `skills` (or set `skills: []`) when a prompt should load none. Do not pass `skills` to `generateText` / `Agent` and do not use `skill()`.
 
 See `output-dev-skill-file` for the full skill creation guide.
 

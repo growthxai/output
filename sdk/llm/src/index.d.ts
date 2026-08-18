@@ -87,7 +87,7 @@ export type Prompt = {
   name: string;
 
   /** Directory containing the resolved prompt file */
-  promptFileDir?: string;
+  fileDir: string;
 
   /** General configuration for the LLM */
   config: {
@@ -124,8 +124,8 @@ export type Prompt = {
     /** Random seed for deterministic image generation when supported */
     seed?: number;
 
-    /** Skill file or directory paths resolved relative to the prompt file */
-    skills?: string | string[];
+    /** Skill file or directory paths relative to the prompt file */
+    skills?: string[];
 
     /**
      * Provider-specific tools with configuration.
@@ -168,22 +168,15 @@ export type Prompt = {
 };
 
 /**
- * An instruction package that an agent can load on demand via the load_skill tool.
+ * An instruction package that the model can load on demand via `load_skill`.
  *
- * Skills are declared in prompt frontmatter or passed inline to generation APIs.
+ * Skills are declared as paths in prompt frontmatter and loaded from markdown files.
  */
 export type Skill = {
   name: string;
-  description?: string;
+  description: string;
   instructions: string;
 };
-
-/**
- * The skills argument for async generation APIs. Either a static list or a function
- * that receives the call input and may resolve skills asynchronously.
- */
-export type SkillsArg<Input = unknown> = Skill[] |
-  ( ( input: Input ) => Skill[] | Promise<Skill[]> );
 
 /** Prompt-owned AI SDK fields supplied by Output prompt files. */
 type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt' | 'tools';
@@ -267,7 +260,7 @@ export type OutputAgentGenerateWithStreamingParameters<
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = OutputAgentStreamingParameters<OutputSpec>;
 
-/** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files and skills. */
+/** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files. */
 export type OutputAgentConstructorParameters<
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = Omit<ConstructorParameters<typeof AIToolLoopAgent>[0], 'model' | 'instructions' | 'tools' | 'output'> & {
@@ -279,13 +272,11 @@ export type OutputAgentConstructorParameters<
   variables?: Record<string, unknown>;
   /** Structured output specification */
   output?: OutputSpec;
-  /** Static skill packages made available to the LLM */
-  skills?: Skill[];
   /** AI SDK tools available during the reasoning loop */
   tools?: CompatibleToolSet;
   /** Maximum tool-loop iterations when stopWhen is not specified (default: 10) */
   maxSteps?: number;
-  /** Pluggable conversation store — opt-in, stateless by default */
+  /** Pluggable conversation store. Opt-in; stateless by default. */
   conversationStore?: ConversationStore;
 };
 
@@ -305,8 +296,6 @@ export type GenerateTextParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Skill packages to provide to the LLM through the `load_skill` tool */
-  skills?: SkillsArg<Record<string, string | number | boolean> | undefined>;
   /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
   maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
@@ -324,8 +313,6 @@ export type GenerateTextWithStreamingParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Skill packages to provide to the LLM through the `load_skill` tool */
-  skills?: SkillsArg<Record<string, string | number | boolean> | undefined>;
   /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
   maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
@@ -343,8 +330,6 @@ export type StreamTextParameters<
   variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Skill packages to provide to the LLM through the `load_skill` tool. Function resolvers must be synchronous. */
-  skills?: Skill[] | ( ( input: Record<string, string | number | boolean> | undefined ) => Skill[] );
   /** Used to create a default `stepCountIs(maxSteps)` when tools are present and `stopWhen` is omitted */
   maxSteps?: number;
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
@@ -551,24 +536,6 @@ export function generateImage(
   args: GenerateImageParameters
 ): Promise<GenerateImageResult>;
 
-/**
- * Create an inline skill instruction package.
- *
- * @example
- * ```ts
- * const researchSkill = skill( {
- *   name: 'web_research',
- *   description: 'Search and synthesize web information',
- *   instructions: '# Web Research\n1. Break into queries\n2. Search\n3. Cite sources'
- * } );
- * ```
- */
-export function skill( params: {
-  name: string;
-  description?: string;
-  instructions: string;
-} ): Skill;
-
 /** Pluggable conversation store for multi-turn Agent interactions. */
 export interface ConversationStore {
   getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
@@ -579,8 +546,7 @@ export interface ConversationStore {
 export function createMemoryConversationStore(): ConversationStore;
 
 /**
- * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering
- * and the skill system.
+ * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering.
  *
  * @example Workflow step — variables per call, stateless
  * ```ts
