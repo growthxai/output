@@ -7,6 +7,7 @@ import { startTrace, endTraceWithError } from './utils/trace.js';
 import { wrapTextResponse } from './utils/response_wrappers.js';
 import { mapAiError } from './utils/error_handler.js';
 import { ROLE, isRole } from './utils/message.js';
+import { drainStream } from './utils/stream.js';
 export { skill } from './prompt/skill.js';
 
 export const createMemoryConversationStore = () => {
@@ -95,7 +96,7 @@ export class Agent extends AIToolLoopAgent {
   /**
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
-  async generateWithStreaming( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
+  async generateWithStreaming( { messages: userMessages = [], onFinish, onError, ...options } = {} ) {
     const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
     const state = {
       response: null,
@@ -107,7 +108,7 @@ export class Agent extends AIToolLoopAgent {
       const stream = await super.stream( {
         messages,
         allowSystemInMessages: true,
-        ...callOptions,
+        ...options,
         onFinish( response ) {
           state.response = response;
         },
@@ -116,14 +117,7 @@ export class Agent extends AIToolLoopAgent {
         }
       } );
 
-      for await ( const part of stream.fullStream ) {
-        if ( part.type === 'abort' ) {
-          const reason = callOptions.abortSignal?.reason;
-          throw reason instanceof Error ?
-            reason :
-            new Error( part.reason ?? 'Agent streaming generation aborted.', { cause: reason } );
-        }
-      }
+      await drainStream( stream, options?.abortSignal );
 
       if ( !state.response ) {
         throw new Error( 'Agent streaming generation completed without a response.' );

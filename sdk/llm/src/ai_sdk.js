@@ -14,6 +14,7 @@ import { wrapTextResponse, wrapImageResponse } from './utils/response_wrappers.j
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { mapAiError } from './utils/error_handler.js';
+import { drainStream } from './utils/stream.js';
 
 const defaultAiSdkOptions = {
   allowSystemInMessages: true,
@@ -120,14 +121,7 @@ export async function generateTextWithStreaming( {
       }
     } );
 
-    for await ( const part of stream.fullStream ) {
-      if ( part.type === 'abort' ) {
-        const reason = aiSdkArgs.abortSignal?.reason;
-        throw reason instanceof Error ?
-          reason :
-          new Error( part.reason ?? 'Streaming generation aborted.', { cause: reason } );
-      }
-    }
+    await drainStream( stream, aiSdkArgs?.abortSignal );
 
     if ( !state.response ) {
       throw new Error( 'Streaming generation completed without a response.' );

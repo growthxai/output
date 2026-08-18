@@ -38,6 +38,10 @@ const errorMocks = vi.hoisted( () => ( {
   mapAiError: vi.fn( error => error )
 } ) );
 
+const streamMocks = vi.hoisted( () => ( {
+  drainStream: vi.fn()
+} ) );
+
 vi.mock( 'ai', () => aiFns );
 
 vi.mock( './validations.js', () => validators );
@@ -69,6 +73,10 @@ vi.mock( './utils/error_handler.js', () => ( {
   mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
 } ) );
 
+vi.mock( './utils/stream.js', () => ( {
+  drainStream: ( ...args ) => streamMocks.drainStream( ...args )
+} ) );
+
 const importSut = async () => import( './ai_sdk.js' );
 
 const loadedPrompt = {
@@ -93,12 +101,6 @@ const streamResult = {
   textStream: 'TEXT_STREAM',
   fullStream: 'FULL_STREAM'
 };
-
-const asyncParts = parts => ( {
-  async *[Symbol.asyncIterator]() {
-    yield* parts;
-  }
-} );
 
 const imageOptions = {
   model: 'IMAGE_MODEL',
@@ -141,6 +143,7 @@ describe( 'ai_sdk', () => {
     wrapMocks.wrapImageResponse.mockReset().mockResolvedValue( { wrapped: imageResponse } );
 
     errorMocks.mapAiError.mockReset().mockImplementation( error => error );
+    streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
   } );
 
   afterEach( async () => {
@@ -288,14 +291,12 @@ describe( 'ai_sdk', () => {
       const onChunk = vi.fn();
       const onFinish = vi.fn();
       const wrappedResponse = { wrapped: textResponse, output };
+      const stream = { output: Promise.resolve( output ) };
       wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
       aiFns.streamText.mockImplementationOnce( options => {
         options.onChunk( { chunk } );
         options.onFinish( textResponse );
-        return {
-          fullStream: asyncParts( [ chunk ] ),
-          output: Promise.resolve( output )
-        };
+        return stream;
       } );
 
       const result = await generateTextWithStreaming( {
@@ -326,6 +327,7 @@ describe( 'ai_sdk', () => {
         onFinish: expect.any( Function ),
         onError: expect.any( Function )
       } );
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
       expect( onChunk ).toHaveBeenCalledWith( { chunk } );
       expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
@@ -345,10 +347,7 @@ describe( 'ai_sdk', () => {
       const skills = vi.fn().mockResolvedValue( resolvedSkills );
       aiFns.streamText.mockImplementationOnce( options => {
         options.onFinish( textResponse );
-        return {
-          fullStream: asyncParts( [] ),
-          output: Promise.resolve( undefined )
-        };
+        return { output: Promise.resolve( undefined ) };
       } );
 
       await generateTextWithStreaming( { prompt: 'test@v1', variables, skills } );
@@ -363,15 +362,10 @@ describe( 'ai_sdk', () => {
       const error = new Error( 'Provider failed' );
       const mappedError = new Error( 'Mapped provider failed' );
       const onError = vi.fn();
+      const stream = { output: Promise.resolve( undefined ) };
       errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-      aiFns.streamText.mockImplementationOnce( options => ( {
-        fullStream: {
-          async *[Symbol.asyncIterator]() {
-            options.onError( { error } );
-          }
-        },
-        output: Promise.resolve( undefined )
-      } ) );
+      streamMocks.drainStream.mockRejectedValueOnce( error );
+      aiFns.streamText.mockReturnValueOnce( stream );
       const { generateTextWithStreaming } = await importSut();
 
       await expect( generateTextWithStreaming( {
@@ -379,6 +373,7 @@ describe( 'ai_sdk', () => {
         onError
       } ) ).rejects.toThrow( mappedError );
 
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
       expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
       expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
@@ -390,11 +385,10 @@ describe( 'ai_sdk', () => {
     it( 'rejects with the abort reason', async () => {
       const abortController = new AbortController();
       const abortReason = new Error( 'Cancelled by caller' );
+      const stream = { output: Promise.resolve( undefined ) };
       abortController.abort( abortReason );
-      aiFns.streamText.mockReturnValueOnce( {
-        fullStream: asyncParts( [ { type: 'abort', reason: abortReason.message } ] ),
-        output: Promise.resolve( undefined )
-      } );
+      streamMocks.drainStream.mockRejectedValueOnce( abortReason );
+      aiFns.streamText.mockReturnValueOnce( stream );
       const { generateTextWithStreaming } = await importSut();
 
       await expect( generateTextWithStreaming( {
@@ -402,6 +396,7 @@ describe( 'ai_sdk', () => {
         abortSignal: abortController.signal
       } ) ).rejects.toBe( abortReason );
 
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
       expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
         error: abortReason

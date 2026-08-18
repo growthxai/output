@@ -37,6 +37,10 @@ const errorMocks = vi.hoisted( () => ( {
   mapAiError: vi.fn( error => error )
 } ) );
 
+const streamMocks = vi.hoisted( () => ( {
+  drainStream: vi.fn()
+} ) );
+
 const skillMocks = vi.hoisted( () => ( {
   skill: vi.fn( ( { name, description, instructions } ) => ( {
     name,
@@ -97,6 +101,10 @@ vi.mock( './utils/error_handler.js', () => ( {
   mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
 } ) );
 
+vi.mock( './utils/stream.js', () => ( {
+  drainStream: ( ...args ) => streamMocks.drainStream( ...args )
+} ) );
+
 vi.mock( './prompt/skill.js', () => ( {
   skill: ( ...args ) => skillMocks.skill( ...args )
 } ) );
@@ -133,12 +141,6 @@ const aiResponse = {
   }
 };
 
-const asyncParts = parts => ( {
-  async *[Symbol.asyncIterator]() {
-    yield* parts;
-  }
-} );
-
 describe( 'Agent', () => {
   beforeEach( () => {
     state.invocationDir = '/resolved/invocation';
@@ -164,6 +166,7 @@ describe( 'Agent', () => {
       .mockReset()
       .mockImplementation( async ( { response } ) => response );
     errorMocks.mapAiError.mockReset().mockImplementation( error => error );
+    streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
 
     skillMocks.skill.mockClear();
   } );
@@ -417,14 +420,12 @@ describe( 'Agent', () => {
     const chunk = { type: 'text-delta', text: 'response' };
     const onChunk = vi.fn();
     const onFinish = vi.fn();
+    const stream = { output: Promise.resolve( output ) };
     wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
     aiMocks.superStream.mockImplementationOnce( options => {
       options.onChunk( { chunk } );
       options.onFinish( aiResponse );
-      return {
-        fullStream: asyncParts( [ chunk ] ),
-        output: Promise.resolve( output )
-      };
+      return stream;
     } );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
@@ -451,6 +452,7 @@ describe( 'Agent', () => {
       onFinish: expect.any( Function ),
       onError: expect.any( Function )
     } );
+    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
     expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       providerId: 'openai',
@@ -471,20 +473,16 @@ describe( 'Agent', () => {
     const error = new Error( 'Stream failed' );
     const mappedError = new Error( 'Mapped stream failed' );
     const onError = vi.fn();
+    const stream = { output: Promise.resolve( undefined ) };
     errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-    aiMocks.superStream.mockImplementationOnce( options => ( {
-      fullStream: {
-        async *[Symbol.asyncIterator]() {
-          options.onError( { error } );
-        }
-      },
-      output: Promise.resolve( undefined )
-    } ) );
+    streamMocks.drainStream.mockRejectedValueOnce( error );
+    aiMocks.superStream.mockReturnValueOnce( stream );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
     await expect( agent.generateWithStreaming( { onError } ) ).rejects.toThrow( mappedError );
 
+    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
     expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       error: mappedError
@@ -495,11 +493,10 @@ describe( 'Agent', () => {
   it( 'rejects generateWithStreaming with the abort reason', async () => {
     const abortController = new AbortController();
     const abortReason = new Error( 'Cancelled by caller' );
+    const stream = { output: Promise.resolve( undefined ) };
     abortController.abort( abortReason );
-    aiMocks.superStream.mockReturnValueOnce( {
-      fullStream: asyncParts( [ { type: 'abort', reason: abortReason.message } ] ),
-      output: Promise.resolve( undefined )
-    } );
+    streamMocks.drainStream.mockRejectedValueOnce( abortReason );
+    aiMocks.superStream.mockReturnValueOnce( stream );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
@@ -507,6 +504,7 @@ describe( 'Agent', () => {
       abortSignal: abortController.signal
     } ) ).rejects.toBe( abortReason );
 
+    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
     expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
       error: abortReason
