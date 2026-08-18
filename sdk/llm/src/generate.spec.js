@@ -79,7 +79,7 @@ vi.mock( './utils/stream.js', () => ( {
   drainStream: ( ...args ) => streamMocks.drainStream( ...args )
 } ) );
 
-const importSut = async () => import( './ai_sdk.js' );
+const importSut = async () => import( './generate.js' );
 
 const loadedPrompt = {
   name: 'test@v1',
@@ -119,7 +119,7 @@ const imageResponse = {
   usage: { inputTokens: 1, outputTokens: 2 }
 };
 
-describe( 'ai_sdk', () => {
+describe( 'generate', () => {
   beforeEach( () => {
     aiFns.generateText.mockReset().mockResolvedValue( textResponse );
     aiFns.streamText.mockReset().mockReturnValue( streamResult );
