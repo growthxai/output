@@ -9,6 +9,7 @@ const aiFns = vi.hoisted( () => ( {
 
 const validators = vi.hoisted( () => ( {
   validateGenerateTextArgs: vi.fn(),
+  validateGenerateTextWithStreamingArgs: vi.fn(),
   validateStreamTextArgs: vi.fn(),
   validateGenerateImageArgs: vi.fn()
 } ) );
@@ -30,12 +31,15 @@ const traceMocks = vi.hoisted( () => ( {
 
 const wrapMocks = vi.hoisted( () => ( {
   wrapTextResponse: vi.fn(),
-  wrapStreamOnFinishResponse: vi.fn(),
   wrapImageResponse: vi.fn()
 } ) );
 
 const errorMocks = vi.hoisted( () => ( {
   mapAiError: vi.fn( error => error )
+} ) );
+
+const streamMocks = vi.hoisted( () => ( {
+  drainStream: vi.fn()
 } ) );
 
 vi.mock( 'ai', () => aiFns );
@@ -62,12 +66,15 @@ vi.mock( './utils/trace.js', () => ( {
 
 vi.mock( './utils/response_wrappers.js', () => ( {
   wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapStreamOnFinishResponse: ( ...args ) => wrapMocks.wrapStreamOnFinishResponse( ...args ),
   wrapImageResponse: ( ...args ) => wrapMocks.wrapImageResponse( ...args )
 } ) );
 
 vi.mock( './utils/error_handler.js', () => ( {
   mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
+} ) );
+
+vi.mock( './utils/stream.js', () => ( {
+  drainStream: ( ...args ) => streamMocks.drainStream( ...args )
 } ) );
 
 const importSut = async () => import( './ai_sdk.js' );
@@ -116,6 +123,7 @@ describe( 'ai_sdk', () => {
     aiFns.stepCountIs.mockReset().mockImplementation( count => ( { type: 'step-count', count } ) );
 
     validators.validateGenerateTextArgs.mockReset();
+    validators.validateGenerateTextWithStreamingArgs.mockReset();
     validators.validateStreamTextArgs.mockReset();
     validators.validateGenerateImageArgs.mockReset();
 
@@ -132,12 +140,10 @@ describe( 'ai_sdk', () => {
     traceMocks.endTraceWithError.mockReset();
 
     wrapMocks.wrapTextResponse.mockReset().mockResolvedValue( { wrapped: textResponse } );
-    wrapMocks.wrapStreamOnFinishResponse.mockReset().mockReturnValue( {
-      onFinish: vi.fn()
-    } );
     wrapMocks.wrapImageResponse.mockReset().mockResolvedValue( { wrapped: imageResponse } );
 
     errorMocks.mapAiError.mockReset().mockImplementation( error => error );
+    streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
   } );
 
   afterEach( async () => {
@@ -276,6 +282,118 @@ describe( 'ai_sdk', () => {
     } );
   } );
 
+  describe( 'generateTextWithStreaming', () => {
+    it( 'consumes the stream and returns a completed wrapped response', async () => {
+      const { generateTextWithStreaming } = await importSut();
+      const variables = { topic: 'testing' };
+      const output = { summary: 'Structured result' };
+      const chunk = { type: 'text-delta', text: 'TEXT' };
+      const onChunk = vi.fn();
+      const wrappedResponse = { wrapped: textResponse, output };
+      const stream = { output: Promise.resolve( output ) };
+      const response = { ...textResponse };
+      wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
+      aiFns.streamText.mockImplementationOnce( options => {
+        options.onChunk( { chunk } );
+        options.onFinish( response );
+        return stream;
+      } );
+
+      const result = await generateTextWithStreaming( {
+        prompt: 'test@v1',
+        variables,
+        promptDir: '/prompts',
+        maxSteps: 4,
+        onChunk,
+        temperature: 0.2
+      } );
+
+      expect( validators.validateGenerateTextWithStreamingArgs ).toHaveBeenCalledWith( {
+        prompt: 'test@v1',
+        variables,
+        promptDir: '/prompts',
+        skills: [],
+        maxSteps: 4
+      } );
+      expect( aiFns.streamText ).toHaveBeenCalledWith( {
+        ...textOptions,
+        allowSystemInMessages: true,
+        maxRetries: 0,
+        temperature: 0.2,
+        onChunk,
+        onFinish: expect.any( Function ),
+        onError: expect.any( Function )
+      } );
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
+      expect( onChunk ).toHaveBeenCalledWith( { chunk } );
+      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+        traceId: 'trace-id',
+        providerId: 'openai',
+        modelId: 'test-model',
+        response: { ...textResponse, output }
+      } );
+      expect( result ).toBe( wrappedResponse );
+    } );
+
+    it( 'supports asynchronously resolved skills', async () => {
+      const { generateTextWithStreaming } = await importSut();
+      const variables = { topic: 'testing' };
+      const resolvedSkills = [ { name: 'dynamic', description: 'Dynamic', instructions: '# Dynamic' } ];
+      const skills = vi.fn().mockResolvedValue( resolvedSkills );
+      aiFns.streamText.mockImplementationOnce( options => {
+        options.onFinish( { ...textResponse } );
+        return { output: Promise.resolve( undefined ) };
+      } );
+
+      await generateTextWithStreaming( { prompt: 'test@v1', variables, skills } );
+
+      expect( skills ).toHaveBeenCalledWith( variables );
+      expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( expect.objectContaining( {
+        skills: resolvedSkills
+      } ) );
+    } );
+
+    it( 'maps stream errors and rejects', async () => {
+      const error = new Error( 'Provider failed' );
+      const mappedError = new Error( 'Mapped provider failed' );
+      const stream = { output: Promise.resolve( undefined ) };
+      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
+      streamMocks.drainStream.mockRejectedValueOnce( error );
+      aiFns.streamText.mockReturnValueOnce( stream );
+      const { generateTextWithStreaming } = await importSut();
+
+      await expect( generateTextWithStreaming( { prompt: 'test@v1' } ) ).rejects.toThrow( mappedError );
+
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
+      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
+      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
+        traceId: 'trace-id',
+        error: mappedError
+      } );
+    } );
+
+    it( 'rejects with the abort reason', async () => {
+      const abortController = new AbortController();
+      const abortReason = new Error( 'Cancelled by caller' );
+      const stream = { output: Promise.resolve( undefined ) };
+      abortController.abort( abortReason );
+      streamMocks.drainStream.mockRejectedValueOnce( abortReason );
+      aiFns.streamText.mockReturnValueOnce( stream );
+      const { generateTextWithStreaming } = await importSut();
+
+      await expect( generateTextWithStreaming( {
+        prompt: 'test@v1',
+        abortSignal: abortController.signal
+      } ) ).rejects.toBe( abortReason );
+
+      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
+      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
+        traceId: 'trace-id',
+        error: abortReason
+      } );
+    } );
+  } );
+
   describe( 'streamText', () => {
     it( 'prepares, validates, traces, calls AI SDK, and returns the stream result', async () => {
       const { streamText } = await importSut();
@@ -305,7 +423,9 @@ describe( 'ai_sdk', () => {
         variables,
         promptDir: '/prompts',
         skills,
-        maxSteps: 4
+        maxSteps: 4,
+        onFinish,
+        onError: undefined
       } );
       expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( {
         prompt: 'test@v1',
@@ -321,12 +441,6 @@ describe( 'ai_sdk', () => {
         loadedPrompt
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-      expect( wrapMocks.wrapStreamOnFinishResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        onFinish
-      } );
       expect( aiFns.stepCountIs ).toHaveBeenCalledWith( 4 );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
@@ -338,6 +452,15 @@ describe( 'ai_sdk', () => {
         onFinish: expect.any( Function ),
         onError: expect.any( Function )
       } );
+      const callOptions = aiFns.streamText.mock.calls[0][0];
+      await callOptions.onFinish( textResponse );
+      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
+        traceId: 'trace-id',
+        providerId: 'openai',
+        modelId: 'test-model',
+        response: textResponse
+      } );
+      expect( onFinish ).toHaveBeenCalledWith( { wrapped: textResponse } );
       expect( result ).toBe( streamResult );
     } );
 

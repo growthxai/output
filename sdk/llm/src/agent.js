@@ -4,8 +4,10 @@ import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { prepareTextPrompt } from './prompt/prepare_text.js';
 import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapStreamOnFinishResponse } from './utils/response_wrappers.js';
+import { wrapTextResponse } from './utils/response_wrappers.js';
+import { mapAiError } from './utils/error_handler.js';
 import { ROLE, isRole } from './utils/message.js';
+import { drainStream } from './utils/stream.js';
 export { skill } from './prompt/skill.js';
 
 export const createMemoryConversationStore = () => {
@@ -84,27 +86,78 @@ export class Agent extends AIToolLoopAgent {
       const wrapped = await wrapTextResponse( { traceId, response, providerId: this.#providerId, modelId: this.#modelId } );
       await this.#storeMessages( userMessages, wrapped );
       return wrapped;
-    } catch ( error ) {
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
       throw error;
     }
   }
 
-  async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
+  /**
+   * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
+   */
+  async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
+    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
+    const state = { response: null };
+
     try {
       const messages = await this.#fetchMessages( userMessages );
-      return super.stream( {
+      const stream = await super.stream( {
+        messages,
+        allowSystemInMessages: true,
+        ...options,
+        onFinish( response ) {
+          state.response = response;
+        },
+        onError: _ => {} // Suppress AI-SDK console printing
+      } );
+
+      await drainStream( stream, options?.abortSignal );
+
+      if ( !state.response ) {
+        throw new Error( 'Agent streaming generation completed without a response.' );
+      }
+
+      state.response.output = await stream.output;
+      const wrappedResponse = await wrapTextResponse( {
+        traceId,
+        providerId: this.#providerId,
+        modelId: this.#modelId,
+        response: state.response
+      } );
+      await this.#storeMessages( userMessages, wrappedResponse );
+
+      return wrappedResponse;
+
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
+      endTraceWithError( { traceId, error } );
+      throw error;
+    }
+
+  }
+
+  async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
+    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
+
+    try {
+      const messages = await this.#fetchMessages( userMessages );
+      return await super.stream( {
         messages,
         allowSystemInMessages: true,
         ...callOptions,
-        ...wrapStreamOnFinishResponse( { traceId, modelId: this.#modelId, providerId: this.#providerId, onFinish } ),
+        onFinish: async response => {
+          const proxiedResponse = await wrapTextResponse( { traceId, providerId: this.#providerId, modelId: this.#modelId, response } );
+          return onFinish?.( proxiedResponse );
+        },
         onError( event ) {
-          endTraceWithError( { traceId, error: event.error } );
-          onError?.( event );
+          const error = mapAiError( event.error );
+          endTraceWithError( { traceId, error } );
+          return onError?.( { ...event, error } );
         }
       } );
-    } catch ( error ) {
+    } catch ( originalError ) {
+      const error = mapAiError( originalError );
       endTraceWithError( { traceId, error } );
       throw error;
     }

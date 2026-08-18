@@ -1,0 +1,10 @@
+---
+provider: anthropic
+model: claude-this-model-does-not-exist
+temperature: 0
+maxTokens: 64
+---
+
+<user>
+Say hello.
+</user>

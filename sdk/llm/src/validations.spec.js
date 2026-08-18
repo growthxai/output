@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { ValidationError } from '@outputai/core';
-import { validateGenerateTextArgs, validateStreamTextArgs, validateGenerateImageArgs } from './validations.js';
+import {
+  validateGenerateTextArgs,
+  validateGenerateTextWithStreamingArgs,
+  validateStreamTextArgs,
+  validateGenerateImageArgs
+} from './validations.js';
 
 describe( 'validateGenerateTextArgs', () => {
   it( 'accepts a prompt with optional variables', () => {
@@ -49,13 +54,15 @@ describe( 'validateGenerateTextArgs', () => {
 } );
 
 describe( 'validateStreamTextArgs', () => {
-  it( 'accepts a prompt with optional variables', () => {
+  it( 'accepts a prompt with optional variables and callbacks', () => {
     expect( () => validateStreamTextArgs( {
       prompt: 'summary@v1',
       variables: [ 'arrays are accepted by the current schema' ],
       promptDir: '/prompts',
       skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
-      maxSteps: 4
+      maxSteps: 4,
+      onFinish: () => {},
+      onError: () => {}
     } ) ).not.toThrow();
   } );
 
@@ -86,6 +93,37 @@ describe( 'validateStreamTextArgs', () => {
       prompt: 'summary@v1',
       maxSteps: 1.5
     } ) ).toThrow( ValidationError );
+  } );
+
+  it( 'throws ValidationError for invalid callbacks', () => {
+    expect( () => validateStreamTextArgs( {
+      prompt: 'summary@v1',
+      onFinish: 'not a function'
+    } ) ).toThrow( ValidationError );
+
+    expect( () => validateStreamTextArgs( {
+      prompt: 'summary@v1',
+      onError: {}
+    } ) ).toThrow( ValidationError );
+  } );
+} );
+
+describe( 'validateGenerateTextWithStreamingArgs', () => {
+  it( 'accepts a prompt with optional variables', () => {
+    expect( () => validateGenerateTextWithStreamingArgs( {
+      prompt: 'summary@v1',
+      variables: { topic: 'testing' },
+      promptDir: '/prompts',
+      skills: [ { name: 'style', description: 'Style', instructions: '# Style' } ],
+      maxSteps: 4
+    } ) ).not.toThrow();
+  } );
+
+  it( 'uses the generateTextWithStreaming error prefix', () => {
+    expect( () => validateGenerateTextWithStreamingArgs( {
+      prompt: 'summary@v1',
+      maxSteps: 0
+    } ) ).toThrow( /Invalid generateTextWithStreaming\(\) arguments/ );
   } );
 } );
 

@@ -286,22 +286,29 @@ Get a handle pinned to the exact workflow run that invoked the current step. The
 ```typescript steps.ts
 import { step } from '@outputai/core';
 import { getCurrentWorkflowHandle } from '@outputai/core/temporal';
-import { streamText } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/llm';
 
 export const draftWithProgress = step({
   name: 'draftWithProgress',
   inputSchema: DraftInput,
   outputSchema: DraftOutput,
   fn: async (input) => {
-    const stream = streamText({ prompt: 'draft@v1', variables: input });
     const handle = getCurrentWorkflowHandle();
-    for await (const chunk of stream.textStream) {
-      await handle.signal('progressToken', chunk);
-    }
-    return { text: await stream.text };
+    const result = await generateTextWithStreaming({
+      prompt: 'draft@v1',
+      variables: input,
+      async onChunk({ chunk }) {
+        if (chunk.type === 'text-delta') {
+          await handle.signal('progressToken', chunk.text);
+        }
+      }
+    });
+    return { text: result.result };
   }
 });
 ```
+
+`generateTextWithStreaming` reports chunks as they arrive but returns a complete result like `generateText`. Stream failures reject the step, allowing Temporal to record the failed activity attempt and apply its retry policy.
 
 The handle is resolved from the activity context and pinned to the exact `workflowId` + `runId`, so a stale activity from a retried or superseded run can never signal a newer run reusing the same workflow id. If the invoking run has already completed, operations on the handle reject and the activity fails — surfacing the problem instead of signaling into the void.
 

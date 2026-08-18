@@ -1,6 +1,6 @@
 ---
 name: output-dev-agent-class
-description: Use the Agent class for multi-step tool loops, conversation history, and reusable LLM agents. Use when building agents with skills, structured output, or stateful conversations.
+description: Use the Agent class for multi-step tool loops, conversation history, streaming progress, and reusable LLM agents. Use when building agents with skills, structured output, stateful conversations, or streaming callbacks.
 allowed-tools: [Read, Write, Edit]
 ---
 
@@ -16,6 +16,7 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 - Using skills (lazy-loaded instructions) with an agent
 - Creating agents with structured output via `Output.object()`
 - Implementing stateful conversations with `conversationStore`
+- Streaming Agent progress with `onChunk`
 - Deciding between `Agent` and `generateText`
 
 ## Import Pattern
@@ -29,7 +30,7 @@ import { z } from '@outputai/core';
 
 ## Construction
 
-The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()` or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 ```typescript
 const agent = new Agent( {
@@ -86,9 +87,25 @@ const result = await agent.generate( {
 
 Messages are appended after the initial prompt messages (and any conversation store history).
 
+## generateWithStreaming()
+
+Use `generateWithStreaming()` when you need progress callbacks and a complete result:
+
+```typescript
+const result = await agent.generateWithStreaming( {
+  onChunk( { chunk } ) {
+    if ( chunk.type === 'text-delta' ) {
+      process.stdout.write( chunk.text );
+    }
+  }
+} );
+```
+
+The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
+
 ## stream()
 
-Stream the agent's response:
+Use `stream()` when direct control over `textStream` or `fullStream` is required:
 
 ```typescript
 const stream = await agent.stream();
@@ -100,7 +117,7 @@ for await ( const chunk of stream.textStream ) {
 
 Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
 
-**Important**: `stream()` does not automatically append messages to the conversation store. If you use streaming with a conversation store, persist messages manually.
+**Important**: `stream()` does not automatically append messages to the conversation store. If you use direct streaming with a conversation store, persist messages manually in `onFinish`. See `output-dev-llm-streaming` for the complete streaming and error-handling guidance.
 
 ## Structured Output
 
@@ -270,10 +287,12 @@ const { result } = await generateText( {
 - [ ] `Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
 - [ ] Conversation store is only used when multi-turn history is needed
 - [ ] Agent is constructed inside the step `fn` (not at module level) for workflow steps
+- [ ] Prefer `generateWithStreaming()` when callbacks are sufficient
 
 ## Related Skills
 
 - `output-dev-skill-file` - Creating skill files for agents
+- `output-dev-llm-streaming` - Streaming progress and Temporal-safe error handling
 - `output-dev-prompt-file` - Creating .prompt files used by agents
 - `output-dev-step-function` - Using agents in step functions
 - `output-dev-types-file` - Defining Zod schemas for structured output
