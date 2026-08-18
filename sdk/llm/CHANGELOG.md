@@ -1,5 +1,16 @@
 # @outputai/llm
 
+## 0.12.0
+
+### Minor Changes
+
+- 90d8cc0: Added `generateTextWithStreaming()` and `Agent.generateWithStreaming()`, which return complete results like `generateText()` and `Agent.generate()` while using streaming internally. Callers can observe progress through `onChunk`. Failures reject the returned promise.
+
+### Patch Changes
+
+- 90d8cc0: Fixed `Agent.stream()` and `Agent.generate()` to map AI SDK failures to framework errors consistently with `generateText()`. `Agent.stream()` now also awaits asynchronous stream setup failures.
+  - @outputai/core@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
