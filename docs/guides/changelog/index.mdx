@@ -9,6 +9,18 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.12.0" description="2026-08-18 - minor release">
+
+**`@outputai/llm`**
+
+Fixed `Agent.stream()` and `Agent.generate()` to map AI SDK failures to framework errors consistently with `generateText()`. `Agent.stream()` now also awaits asynchronous stream setup failures.
+
+**`@outputai/llm`**
+
+Added `generateTextWithStreaming()` and `Agent.generateWithStreaming()`, which return complete results like `generateText()` and `Agent.generate()` while using streaming internally. Callers can observe progress through `onChunk`. Failures reject the returned promise.
+
+</Update>
+
 <Update label="v0.11.0" description="2026-08-12 - minor release">
 
 See the [v0.10.0 - v0.11.0 migration guide](/migrations/v0.10.0-to-v0.11.0).
