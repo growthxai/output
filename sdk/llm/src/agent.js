@@ -19,8 +19,6 @@ export const createMemoryConversationStore = () => {
 
 export class Agent extends AIToolLoopAgent {
   #prompt;
-  #modelId;
-  #providerId;
   #initialMessages;
   #store;
 
@@ -56,9 +54,7 @@ export class Agent extends AIToolLoopAgent {
       ...rest
     } );
 
-    this.#prompt = prompt;
-    this.#modelId = loadedPrompt.config.model;
-    this.#providerId = loadedPrompt.config.provider;
+    this.#prompt = loadedPrompt;
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
@@ -77,11 +73,13 @@ export class Agent extends AIToolLoopAgent {
   }
 
   async generate( { messages: userMessages = [], ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
+    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt.name } );
+    const { provider: providerId, model: modelId } = this.#prompt.config;
+
     try {
       const messages = await this.#fetchMessages( userMessages );
       const response = await super.generate( { messages, allowSystemInMessages: true, ...callOptions } );
-      const wrapped = await wrapTextResponse( { traceId, response, providerId: this.#providerId, modelId: this.#modelId } );
+      const wrapped = await wrapTextResponse( { traceId, response, providerId, modelId } );
       await this.#storeMessages( userMessages, wrapped );
       return wrapped;
     } catch ( originalError ) {
@@ -95,7 +93,8 @@ export class Agent extends AIToolLoopAgent {
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
   async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
+    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt.name } );
+    const { provider: providerId, model: modelId } = this.#prompt.config;
     const state = { response: null };
 
     try {
@@ -117,12 +116,7 @@ export class Agent extends AIToolLoopAgent {
       }
 
       state.response.output = await stream.output;
-      const wrappedResponse = await wrapTextResponse( {
-        traceId,
-        providerId: this.#providerId,
-        modelId: this.#modelId,
-        response: state.response
-      } );
+      const wrappedResponse = await wrapTextResponse( { traceId, providerId, modelId, response: state.response } );
       await this.#storeMessages( userMessages, wrappedResponse );
 
       return wrappedResponse;
@@ -136,7 +130,8 @@ export class Agent extends AIToolLoopAgent {
   }
 
   async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
+    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt.name } );
+    const { provider: providerId, model: modelId } = this.#prompt.config;
 
     try {
       const messages = await this.#fetchMessages( userMessages );
@@ -145,7 +140,7 @@ export class Agent extends AIToolLoopAgent {
         allowSystemInMessages: true,
         ...callOptions,
         onFinish: async response => {
-          const proxiedResponse = await wrapTextResponse( { traceId, providerId: this.#providerId, modelId: this.#modelId, response } );
+          const proxiedResponse = await wrapTextResponse( { traceId, providerId, modelId, response } );
           return onFinish?.( proxiedResponse );
         },
         onError( event ) {
