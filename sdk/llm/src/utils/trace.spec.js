@@ -28,17 +28,18 @@ describe( 'trace utils', () => {
   } );
 
   describe( 'startTrace', () => {
-    it( 'starts an llm trace with name-based id and passes remaining fields as details', () => {
+    it( 'starts an llm trace with name-based id and the loaded prompt as details', () => {
       vi.spyOn( Date, 'now' ).mockReturnValue( 9_000_000_000 );
+      const prompt = { name: 'p', variables: { k: 1 } };
 
-      const traceId = startTrace( { name: 'generateText', prompt: 'p', variables: { k: 1 } } );
+      const traceId = startTrace( { name: 'generateText', prompt } );
 
       expect( traceId ).toBe( 'generateText-9000000000' );
       expect( tracing.addEventStart ).toHaveBeenCalledWith( {
         kind: 'llm',
         name: 'generateText',
         id: 'generateText-9000000000',
-        details: { prompt: 'p', variables: { k: 1 } }
+        details: { prompt }
       } );
     } );
   } );

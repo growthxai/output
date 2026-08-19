@@ -3,7 +3,7 @@ title: "v0.11.0 → v0.12.0"
 description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM start-trace details are a single loaded `prompt` object.
 
 ## Skills load only from the prompt file
 
@@ -140,6 +140,7 @@ Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, r
 | v0.11.0 | v0.12.0 |
 | --- | --- |
 | `prompt.promptFileDir` | `prompt.fileDir` (always set) |
+| - | `prompt.variables` (`Record<string, string \| number \| boolean>`, default `{}`) |
 | `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
 | `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
 
@@ -161,14 +162,13 @@ The `SkillsArg` type is removed. `Skill.description` is required on the loaded s
 
 ## LLM trace details
 
-Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) renamed two keys. Agent traces now use the same fields as the text APIs.
+Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) is the loaded prompt object only. Filename, interpolation values, and rendered config live on that object. Agent traces use the same shape as the text APIs (v0.11 recorded only the filename as `prompt`).
 
 | v0.11.0 | v0.12.0 |
 | --- | --- |
-| `prompt` (filename string) | `promptFile` |
+| `prompt` (filename string) | `prompt.name` |
+| `variables` (sibling) | `prompt.variables` |
 | `loadedPrompt` (loaded object) | `prompt` |
-
-Agent previously recorded only the filename as `prompt`. It now records `promptFile`, `variables`, and the loaded `prompt` object.
 
 #### Before
 
@@ -187,16 +187,16 @@ Agent previously recorded only the filename as `prompt`. It now records `promptF
 
 ```json
 {
-  "promptFile": "generate_summary@v1",
-  "variables": { "companyName": "Acme Corp" },
   "prompt": {
     "name": "generate_summary@v1",
+    "fileDir": "/prompts",
+    "variables": { "companyName": "Acme Corp" },
     "config": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
   }
 }
 ```
 
-If you read `input.prompt` as a filename, switch to `input.promptFile`. If you read `input.loadedPrompt`, switch to `input.prompt`.
+If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `input.loadedPrompt`, switch to `input.prompt`. If you read sibling `input.variables`, use `input.prompt.variables`.
 
 ## AI SDK helpers come from `aiSdk`
 
@@ -329,10 +329,10 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
 - Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
-- Rename `promptFileDir` to `fileDir`.
+- Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
-- Rename LLM trace `input.prompt` (filename) to `input.promptFile` and `input.loadedPrompt` to `input.prompt`.
+- Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Expect `Agent.stream()` to persist conversation history on success.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

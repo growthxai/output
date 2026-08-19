@@ -26,18 +26,18 @@ const renderPrompt = ( { name, escapedContent, values } ) => {
  * Load a prompt file and render it with variables.
  *
  * @param {string} name - Name of the prompt file (without .prompt extension)
- * @param {Record<string, string | number | boolean>} [values] - Variables to interpolate
+ * @param {Record<string, string | number | boolean>} [variables] - Variables to interpolate
  * @param {string} [dir] - Directory to search for the prompt file (defaults to stack-resolved invocation dir)
- * @returns {Prompt} Loaded and rendered prompt object, including promptFileDir
+ * @returns {Prompt} Loaded and rendered prompt object.
  */
-export const loadPrompt = ( name, values = {}, dir ) => {
+export const loadPrompt = ( name, variables = {}, dir ) => {
   const file = loadContent( `${name}.prompt`, dir );
   if ( !file ) {
     throw new FatalError( `Prompt "${name}" not found.` );
   }
 
   const escapedContent = escape( file.content );
-  const renderedContent = renderPrompt( { name, escapedContent, values } );
+  const renderedContent = renderPrompt( { name, escapedContent, values: variables } );
 
   const { config, messages, instructions } = parsePrompt( { name, raw: renderedContent } );
 
@@ -46,7 +46,8 @@ export const loadPrompt = ( name, values = {}, dir ) => {
     config: decode( config ),
     messages: messages.map( m => ( { ...m, content: decode( m.content ) } ) ),
     instructions: instructions === null ? null : decode( instructions ),
-    fileDir: file.dir
+    fileDir: file.dir,
+    variables
   };
 
   const provider = prompt.config.provider;

@@ -37,7 +37,7 @@
   | `onFinish` | - | - | - | optional |
   | `onError` | - | - | - | optional |
 - Fixed prompt YAML tools and call-argument tools to merge (caller wins on the same key; `load_skill` is last). Prompt-only native tools now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
-- Renamed `Prompt.promptFileDir` to `Prompt.fileDir`. `Prompt.config.skills` is always a `string[]` after load.
-- Renamed LLM start-trace details `prompt` (filename) to `promptFile` and `loadedPrompt` to `prompt` (loaded object) on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`. Agent traces now also include `variables` and the loaded `prompt`.
+- Renamed `Prompt.promptFileDir` to `Prompt.fileDir`. Loaded `Prompt` includes `variables` (`Record<string, string | number | boolean>`, default `{}`). `Prompt.config.skills` is always a `string[]` after load.
+- LLM start-trace details are `{ prompt }` only: the loaded prompt object (`name`, `fileDir`, `variables`, rendered `config`/`messages`) on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`. Replaces v0.11 `prompt` (filename), sibling `variables`, and `loadedPrompt`.
 - Added Agent constructor validation matching the text APIs (`Invalid Agent() arguments`).
 - Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`) and cherry-picked AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, and others). Use the `aiSdk` namespace (or import from `ai`) for those. Renamed the namespace re-export `ai` to `aiSdk`.

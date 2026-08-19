@@ -14,7 +14,7 @@ export const generateText = async args => {
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateText', promptFile, variables, prompt } );
+  const traceId = startTrace( { name: 'generateText', prompt } );
   const { model: modelId, provider: providerId } = prompt.config;
 
   try {
@@ -33,7 +33,7 @@ export const streamText = args => {
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'streamText', promptFile, variables, prompt } );
+  const traceId = startTrace( { name: 'streamText', prompt } );
   const { model: modelId, provider: providerId } = prompt.config;
 
   try {
@@ -65,7 +65,7 @@ export const generateTextWithStreaming = async args => {
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateTextWithStreaming', promptFile, variables, prompt } );
+  const traceId = startTrace( { name: 'generateTextWithStreaming', prompt } );
 
   const { model: modelId, provider: providerId } = prompt.config;
   const state = { response: null };
@@ -99,7 +99,7 @@ export const generateImage = async args => {
   const { promptFile, promptDir, variables, ...aiOptions } = parseGenerateImageArgs( args );
 
   const prompt = loadPrompt( promptFile, variables, promptDir );
-  const traceId = startTrace( { name: 'generateImage', promptFile, variables, prompt } );
+  const traceId = startTrace( { name: 'generateImage', prompt } );
   const { model: modelId, provider: providerId } = prompt.config;
 
   try {

@@ -190,8 +190,6 @@ describe( 'generate', () => {
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'generateText',
-        promptFile: 'test@v1',
-        variables,
         prompt: loadedPrompt
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
@@ -382,8 +380,6 @@ describe( 'generate', () => {
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'streamText',
-        promptFile: 'test@v1',
-        variables,
         prompt: loadedPrompt
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
@@ -524,8 +520,6 @@ describe( 'generate', () => {
       expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
       expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
         name: 'generateImage',
-        promptFile: 'image@v1',
-        variables,
         prompt: loadedPrompt
       } );
       expect( optionMocks.loadAiSdkImageOptions ).toHaveBeenCalledWith( {

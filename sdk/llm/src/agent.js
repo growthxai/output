@@ -19,7 +19,6 @@ export const createMemoryConversationStore = () => {
 
 export class Agent extends AIToolLoopAgent {
   #prompt;
-  #traceFields;
   #initialMessages;
   #store;
 
@@ -39,7 +38,6 @@ export class Agent extends AIToolLoopAgent {
     } );
 
     this.#prompt = prompt;
-    this.#traceFields = { promptFile, prompt, variables };
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( isRole( Role.USER ) );
@@ -58,7 +56,7 @@ export class Agent extends AIToolLoopAgent {
 
   async generate( args ) {
     const { messages, abortSignal, toolChoice } = parseAgentGenerateArgs( args );
-    const traceId = startTrace( { name: 'Agent.generate', ...this.#traceFields } );
+    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
 
     try {
@@ -82,7 +80,7 @@ export class Agent extends AIToolLoopAgent {
    */
   async generateWithStreaming( args ) {
     const { messages, abortSignal, toolChoice, onChunk } = parseAgentGenerateWithStreamingArgs( args );
-    const traceId = startTrace( { name: 'Agent.generateWithStreaming', ...this.#traceFields } );
+    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
     const state = { response: null };
 
@@ -118,7 +116,7 @@ export class Agent extends AIToolLoopAgent {
 
   async stream( args ) {
     const { messages, abortSignal, toolChoice, onChunk, onFinish, onError } = parseAgentStreamArgs( args );
-    const traceId = startTrace( { name: 'Agent.stream', ...this.#traceFields } );
+    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
     const { provider: providerId, model: modelId } = this.#prompt.config;
 
     try {

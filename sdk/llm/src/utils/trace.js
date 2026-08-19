@@ -1,9 +1,9 @@
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 
-export const startTrace = ( { name, ...details } ) => {
-  const traceId = `${name}-${Date.now()}`;
-  Tracing.addEventStart( { kind: 'llm', name, id: traceId, details } );
-  return traceId;
+export const startTrace = ( { name, prompt } ) => {
+  const id = `${name}-${Date.now()}`;
+  Tracing.addEventStart( { kind: 'llm', id, name, details: { prompt } } );
+  return id;
 };
 
 export const endTraceWithError = ( { traceId, error } ) => {

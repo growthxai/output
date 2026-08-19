@@ -64,6 +64,9 @@ export type Prompt = {
   /** Directory containing the resolved prompt file */
   fileDir: string;
 
+  /** Interpolation values used when the prompt was loaded. Defaults to `{}`. */
+  variables: Record<string, string | number | boolean>;
+
   /** General configuration for the LLM */
   config: {
     /**

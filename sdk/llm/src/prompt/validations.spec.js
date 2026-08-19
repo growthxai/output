@@ -42,6 +42,7 @@ describe( 'parsePromptSchema', () => {
 
     expect( parse( minimalPrompt ).config.skills ).toEqual( [] );
     expect( parse( minimalPrompt ).config.maxSteps ).toBe( 10 );
+    expect( parse( minimalPrompt ).variables ).toEqual( {} );
   } );
 
   it( 'should validate a prompt with thinking providerOptions', () => {
@@ -457,6 +458,40 @@ describe( 'parsePromptSchema', () => {
           content: 'Hello'
         }
       ]
+    } ) ).toThrow( ValidationError );
+  } );
+
+  it( 'accepts string, number, and boolean variables', () => {
+    expect( parse( {
+      name: 'typed-variables',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ],
+      variables: { name: 'Acme', size: 250, active: true }
+    } ).variables ).toEqual( { name: 'Acme', size: 250, active: true } );
+  } );
+
+  it( 'throws ValidationError when a variable value is not a string, number, or boolean', () => {
+    expect( () => parse( {
+      name: 'nested-variables',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ],
+      variables: { company: { name: 'Acme' } }
     } ) ).toThrow( ValidationError );
   } );
 

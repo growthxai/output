@@ -352,9 +352,7 @@ describe( 'Agent', () => {
 
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
-      promptFile: 'test@v1',
-      prompt: loadedPrompt,
-      variables: undefined
+      prompt: loadedPrompt
     } );
     expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
       traceId: 'trace-id',
@@ -419,9 +417,7 @@ describe( 'Agent', () => {
     } );
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
-      promptFile: 'test@v1',
-      prompt: loadedPrompt,
-      variables: undefined
+      prompt: loadedPrompt
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -534,9 +530,7 @@ describe( 'Agent', () => {
     } );
     expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
-      promptFile: 'test@v1',
-      prompt: loadedPrompt,
-      variables: undefined
+      prompt: loadedPrompt
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [

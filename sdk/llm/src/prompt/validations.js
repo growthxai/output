@@ -48,7 +48,8 @@ export const promptSchema = z.object( {
     } ).strict()
   ),
   instructions: z.string().trim().min( 1 ).nullable().optional(),
-  fileDir: z.string()
+  fileDir: z.string(),
+  variables: z.record( z.string(), z.union( [ z.string(), z.number(), z.boolean() ] ) ).default( {} )
 } ).strict().superRefine( ( prompt, ctx ) => {
   const hasMessages = prompt.messages.length > 0;
   const hasInstructions = !!prompt.instructions;

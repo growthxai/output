@@ -72,13 +72,15 @@ describe( 'loadPrompt', () => {
         }
       ],
       instructions: null,
-      fileDir: '/mock/dir'
+      fileDir: '/mock/dir',
+      variables: { name: 'World' }
     } );
     expect( result.name ).toBe( 'test' );
     expect( result.config ).toEqual( { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' } );
     expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello World!' } ] );
     expect( result.instructions ).toBeNull();
     expect( result.fileDir ).toBe( '/mock/dir' );
+    expect( result.variables ).toEqual( { name: 'World' } );
   } );
 
   it( 'passes the provided prompt directory to loadContent', () => {
@@ -350,6 +352,7 @@ model: gpt-4
     const result = loadPrompt( 'test' );
 
     expect( result.config.provider ).toBe( 'google-vertex' );
+    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( { variables: {} } ) );
     expect( warn ).not.toHaveBeenCalled();
   } );
 
