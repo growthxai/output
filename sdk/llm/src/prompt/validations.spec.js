@@ -602,7 +602,7 @@ describe( 'parsePromptSchema', () => {
     expect( () => parse( invalidImagePrompt ) ).toThrow( ValidationError );
   } );
 
-  it( 'should accept extra config fields via passthrough', () => {
+  it( 'should reject unrecognized config fields', () => {
     const extraFieldsPrompt = {
       name: 'extra-fields-prompt',
       config: {
@@ -620,7 +620,7 @@ describe( 'parsePromptSchema', () => {
       ]
     };
 
-    expect( () => parse( extraFieldsPrompt ) ).not.toThrow();
+    expect( () => parse( extraFieldsPrompt ) ).toThrow( /unrecognized key/i );
   } );
 
   it( 'should throw ValidationError when provider is empty string', () => {
@@ -682,7 +682,7 @@ describe( 'parsePromptSchema', () => {
     expect( () => parse( promptWithBudgetTokensSnake ) ).not.toThrow();
   } );
 
-  it( 'should allow snake_case fields in config via passthrough (no longer strict)', () => {
+  it( 'should suggest camelCase when a snake_case config key matches a known field', () => {
     const maxTokensSnakeCase = {
       name: 'test-prompt',
       config: {
@@ -698,7 +698,7 @@ describe( 'parsePromptSchema', () => {
       ]
     };
 
-    expect( () => parse( maxTokensSnakeCase ) ).not.toThrow();
+    expect( () => parse( maxTokensSnakeCase ) ).toThrow( /"max_tokens" is not valid; use "maxTokens"/ );
   } );
 
   it( 'should validate the options attribute referencing messageOptions sets', () => {

@@ -97,7 +97,7 @@ The YAML frontmatter configures the LLM call.
 | `skills` | Skill file or directory paths, relative to this prompt | `./skills`, `../shared/tone.md` |
 | `providerOptions` | Provider-specific config | See below |
 
-All fields use **camelCase**. Using `max_tokens` instead of `maxTokens` will fail validation.
+All fields use **camelCase**. Unknown top-level keys throw. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Provider-specific keys such as `effort`, `reasoningEffort`, and `topP` belong under `providerOptions`, not at the top level.
 
 ```yaml
 ---
@@ -137,7 +137,7 @@ providerOptions:
 - Multi-provider configurations (Vertex with multiple model types)
 
 **When NOT to use providerOptions:**
-- Standard options: `temperature`, `maxTokens`, `topP`, etc.
+- Shared top-level fields: `temperature`, `maxTokens`, `maxSteps`, and the image fields (`n`, `size`, `aspectRatio`, `seed`)
 - These go at the top level alongside `provider` and `model`
 
 ### Provider Options

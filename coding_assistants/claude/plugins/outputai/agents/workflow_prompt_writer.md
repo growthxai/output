@@ -49,6 +49,10 @@ maxTokens: 2000
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |
 
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open.
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+
 ### Provider Consistency
 
 All prompt files in a workflow **must use the same provider** unless the user explicitly requests otherwise. Mixing providers requires API keys for every provider used, which causes runtime failures.

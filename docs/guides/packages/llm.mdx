@@ -575,8 +575,13 @@ Company size: {{ size }} employees
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
 | `maxSteps` | `number` | Tool-loop iterations when tools or skills are present (default 10) |
+| `skills` | `string` or `string[]` | Skill file or directory paths, relative to this prompt |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
 | `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
+| `messageOptions` | `object` | Named per-message `providerOptions` sets |
+| `n`, `size`, `aspectRatio`, `seed`, `maxImagesPerCall` | | Image generation fields |
+
+Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known fields (`max_tokens`) include a suggestion (`use "maxTokens"`). Put provider-specific keys such as `effort`, `reasoningEffort`, and `topP` under `providerOptions`.
 
 ## Providers
 

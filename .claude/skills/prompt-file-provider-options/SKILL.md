@@ -10,9 +10,9 @@ When creating `.prompt` files, understanding the `providerOptions` structure is 
 ### Decision Tree: Where Does This Option Go?
 
 ```
-Is it a standard AI SDK option (temperature, maxTokens, topP, etc.)?
+Is it a shared top-level field (provider, model, temperature, maxTokens, maxSteps, skills, tools, image n/size/aspectRatio/seed)?
 ├─ YES → Top-level config (alongside provider and model)
-└─ NO → providerOptions
+└─ NO → providerOptions (unknown top-level keys throw; snake_case aliases like max_tokens fail with a camelCase suggestion)
 
 In providerOptions:
 ├─ Is it 'thinking' or 'order'? → Top-level (special AI SDK features)
@@ -89,6 +89,28 @@ providerOptions:
   anthropic:
     effort: medium      # Provider-specific: nested
 ```
+
+---
+
+❌ **Mistake 5: Unknown or snake_case top-level keys**
+```yaml
+provider: openai
+max_tokens: 16000       # WRONG: snake_case alias of maxTokens
+topP: 0.9               # WRONG: not a shared top-level field
+reasoningEffort: medium # WRONG: OpenAI-specific
+```
+
+✅ **Correct:**
+```yaml
+provider: openai
+maxTokens: 16000
+providerOptions:
+  openai:
+    reasoningEffort: medium
+    topP: 0.9
+```
+
+Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Nested `providerOptions` stays open.
 
 ### Quick Reference: Common Provider Options
 

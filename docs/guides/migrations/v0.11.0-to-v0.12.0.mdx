@@ -3,7 +3,7 @@ title: "v0.11.0 → v0.12.0"
 description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
 
 ## Skills load only from the prompt file
 
@@ -394,6 +394,44 @@ await generateText( {
 
 That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument `skills` or `maxSteps` fields.
 
+## Prompt config is a strict key list
+
+Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. Nested `providerOptions` (including `thinking`) stays open.
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+
+Snake_case aliases of those keys fail with a suggestion:
+
+```
+Invalid prompt file "writer@v1": Unrecognized key: "max_tokens". "max_tokens" is not valid; use "maxTokens"
+```
+
+Move provider-specific fields under `providerOptions`. `effort` and `reasoningEffort` at the top level are unknown keys; they belong under `providerOptions.anthropic` and `providerOptions.openai`.
+
+#### Before
+
+```yaml
+---
+provider: openai
+model: gpt-5.4
+reasoningEffort: medium
+max_tokens: 16000
+---
+```
+
+#### After
+
+```yaml
+---
+provider: openai
+model: gpt-5.4
+maxTokens: 16000
+providerOptions:
+  openai:
+    reasoningEffort: medium
+---
+```
+
 ## Checklist
 
 - Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
@@ -410,3 +448,4 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
+- Move unknown prompt frontmatter keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`) onto the allowlist or under `providerOptions`. Expect `Invalid prompt file` for leftover extras.

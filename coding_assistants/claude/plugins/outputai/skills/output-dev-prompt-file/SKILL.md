@@ -106,6 +106,10 @@ providerOptions:       # Provider-specific options
 ---
 ```
 
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open. Nested `thinking` stays open too (`budgetTokens` is the documented key; extra nested keys are not rejected as unknown top-level config).
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+
 Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
 
 ### Common Provider Configurations
@@ -646,6 +650,7 @@ Requirements:
 - [ ] File located in `prompts/` folder inside workflow directory
 - [ ] File named `{promptName}@v{version}.prompt`
 - [ ] YAML frontmatter includes `provider` and `model`
+- [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
 - [ ] Message blocks use proper XML tags (`<system>`, `<user>`, `<assistant>`)
 - [ ] Variables use `{{ variableName }}` syntax
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
