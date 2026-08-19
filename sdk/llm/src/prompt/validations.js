@@ -81,7 +81,7 @@ const appendCamelCaseSuggestions = error => {
   }
 };
 
-export function parsePromptSchema( prompt ) {
+export const parsePromptSchema = prompt => {
   const result = promptSchema.safeParse( prompt );
   if ( !result.success ) {
     appendCamelCaseSuggestions( result.error );
@@ -92,4 +92,4 @@ export function parsePromptSchema( prompt ) {
     );
   }
   return result.data;
-}
+};

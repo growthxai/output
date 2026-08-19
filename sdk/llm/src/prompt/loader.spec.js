@@ -1,270 +1,140 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Logger } from '@outputai/core';
-import { loadPrompt } from './loader.js';
 
-vi.mock( './parser.js', () => ( {
-  parsePrompt: vi.fn()
+const liquidMocks = vi.hoisted( () => ( {
+  parseAndRenderSync: vi.fn(),
+  registerFilter: vi.fn()
 } ) );
 
-vi.mock( './escape.js', () => ( {
-  escape: vi.fn( value => value ),
-  decode: vi.fn( value => value ),
-  setupLiquidEncodeFilter: vi.fn()
+vi.mock( 'liquidjs', () => ( {
+  Liquid: class Liquid {
+    parseAndRenderSync = liquidMocks.parseAndRenderSync;
+    registerFilter = liquidMocks.registerFilter;
+  }
 } ) );
 
-vi.mock( './load_content.js', () => ( {
-  loadContent: vi.fn()
+vi.mock( 'gray-matter', () => ( {
+  default: vi.fn()
+} ) );
+
+vi.mock( '@outputai/core/sdk/helpers', () => ( {
+  Path: {
+    resolveInvocationDir: vi.fn( () => '/invocation' )
+  }
+} ) );
+
+vi.mock( './interpolations.js', () => ( {
+  pipeInterpolations: vi.fn( value => value ),
+  interpolationFilterToken: '__var_safe',
+  encode: vi.fn()
+} ) );
+
+vi.mock( '../utils/file.js', () => ( {
+  searchAndReadFile: vi.fn()
+} ) );
+
+vi.mock( './content.js', () => ( {
+  parseContent: vi.fn()
 } ) );
 
 vi.mock( './validations.js', () => ( {
   parsePromptSchema: vi.fn( prompt => prompt )
 } ) );
 
-import { parsePrompt } from './parser.js';
-import { escape, decode } from './escape.js';
-import { loadContent } from './load_content.js';
+import { loadPrompt } from './loader.js';
+import { Path } from '@outputai/core/sdk/helpers';
+import matter from 'gray-matter';
+import { pipeInterpolations } from './interpolations.js';
+import { searchAndReadFile } from '../utils/file.js';
+import { parseContent } from './content.js';
 import { parsePromptSchema } from './validations.js';
+
+const defaultConfig = {
+  provider: 'anthropic',
+  model: 'claude-3-5-sonnet-20241022'
+};
+
+const defaultParsed = {
+  messages: [ { role: 'user', content: 'Hi' } ],
+  instructions: null
+};
+
+const stubMatter = ( config = defaultConfig ) => {
+  matter.mockImplementation( ( _input, options ) => {
+    if ( options?.engines ) {
+      return { matter: 'RAW_YAML', content: 'RAW_BODY' };
+    }
+    return { data: { ...config } };
+  } );
+};
 
 describe( 'loadPrompt', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    escape.mockImplementation( value => value );
-    decode.mockImplementation( value => value );
-    parsePrompt.mockReturnValue( {
-      config: {
-        provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022'
-      },
-      messages: [
-        {
-          role: 'user',
-          content: 'Hello World!'
-        }
-      ],
-      instructions: null
-    } );
+    Path.resolveInvocationDir.mockReturnValue( '/invocation' );
+    searchAndReadFile.mockReturnValue( { content: 'FILE', dir: '/mock/dir' } );
+    pipeInterpolations.mockImplementation( value => value );
+    liquidMocks.parseAndRenderSync.mockImplementation( template => template );
+    parseContent.mockReturnValue( { ...defaultParsed, messages: [ ...defaultParsed.messages ] } );
+    parsePromptSchema.mockImplementation( prompt => prompt );
+    stubMatter();
   } );
 
-  it( 'loads prompt file, renders variables, parses content, validates, and returns prompt file dir', () => {
-    loadContent.mockReturnValue( {
-      content: '<user>Hello {{ name }}!</user>',
-      dir: '/mock/dir'
-    } );
+  afterEach( () => {
+    vi.restoreAllMocks();
+  } );
 
-    const result = loadPrompt( 'test', { name: 'World' } );
+  it( 'splits, renders, parses, and validates the prompt', () => {
+    const variables = { name: 'World' };
 
-    expect( loadContent ).toHaveBeenCalledWith( 'test.prompt', undefined );
-    expect( escape ).toHaveBeenCalledWith( '<user>Hello {{ name }}!</user>' );
-    expect( parsePrompt ).toHaveBeenCalledWith( {
-      name: 'test',
-      raw: '<user>Hello World!</user>'
-    } );
+    const result = loadPrompt( 'test', variables );
+
+    expect( searchAndReadFile ).toHaveBeenCalledWith( '/invocation', 'test.prompt' );
+    expect( matter ).toHaveBeenNthCalledWith( 1, 'FILE', expect.objectContaining( {
+      engines: { yaml: expect.any( Function ) }
+    } ) );
+    expect( pipeInterpolations ).toHaveBeenCalledWith( 'RAW_BODY' );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'RAW_BODY', variables );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'RAW_YAML', variables );
+    expect( matter ).toHaveBeenNthCalledWith( 2, '---\nRAW_YAML\n---\n' );
+    expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY' );
     expect( parsePromptSchema ).toHaveBeenCalledWith( {
       name: 'test',
-      config: {
-        provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022'
-      },
-      messages: [
-        {
-          role: 'user',
-          content: 'Hello World!'
-        }
-      ],
+      config: defaultConfig,
+      messages: defaultParsed.messages,
       instructions: null,
       fileDir: '/mock/dir',
-      variables: { name: 'World' }
+      variables
     } );
-    expect( result.name ).toBe( 'test' );
-    expect( result.config ).toEqual( { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' } );
-    expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello World!' } ] );
-    expect( result.instructions ).toBeNull();
-    expect( result.fileDir ).toBe( '/mock/dir' );
-    expect( result.variables ).toEqual( { name: 'World' } );
+    expect( result ).toEqual( parsePromptSchema.mock.calls[0][0] );
   } );
 
-  it( 'passes the provided prompt directory to loadContent', () => {
-    loadContent.mockReturnValue( {
-      content: '<user>Hello</user>',
-      dir: '/mock/dir'
-    } );
-
+  it( 'passes the provided prompt directory to searchAndReadFile', () => {
     loadPrompt( 'test', {}, '/custom/prompts' );
 
-    expect( loadContent ).toHaveBeenCalledWith( 'test.prompt', '/custom/prompts' );
+    expect( searchAndReadFile ).toHaveBeenCalledWith( '/custom/prompts', 'test.prompt' );
+    expect( Path.resolveInvocationDir ).not.toHaveBeenCalled();
   } );
 
-  it( 'renders template variables before parsing', () => {
-    loadContent.mockReturnValue( {
-      content: `---
-provider: {{ provider }}
-model: {{ model }}
----
-<user>Tell me about {{ topic }}</user>`,
-      dir: '/mock/dir'
-    } );
-
-    loadPrompt( 'test', {
-      provider: 'openai',
-      model: 'gpt-4',
-      topic: 'testing'
-    } );
-
-    expect( parsePrompt ).toHaveBeenCalledWith( {
-      name: 'test',
-      raw: `---
-provider: openai
-model: gpt-4
----
-<user>Tell me about testing</user>`
-    } );
-  } );
-
-  it( 'renders escaped content returned by the escape helper', () => {
-    loadContent.mockReturnValue( {
-      content: '<user>Hello {{ name }}!</user>',
-      dir: '/mock/dir'
-    } );
-    escape.mockReturnValueOnce( '<user>Escaped {{ name }}!</user>' );
+  it( 'renders the piped template, not the raw body', () => {
+    pipeInterpolations.mockReturnValue( 'PIPED' );
 
     loadPrompt( 'test', { name: 'World' } );
 
-    expect( parsePrompt ).toHaveBeenCalledWith( {
-      name: 'test',
-      raw: '<user>Escaped World!</user>'
-    } );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'PIPED', { name: 'World' } );
+    expect( parseContent ).toHaveBeenCalledWith( 'PIPED' );
   } );
 
-  it( 'renders liquid control flow before parsing', () => {
-    loadContent.mockReturnValue( {
-      content: '<user>{% if debug %}Debug mode enabled{% else %}Debug mode disabled{% endif %}</user>',
-      dir: '/mock/dir'
-    } );
-
-    loadPrompt( 'test', { debug: true } );
-
-    expect( parsePrompt ).toHaveBeenCalledWith( {
-      name: 'test',
-      raw: '<user>Debug mode enabled</user>'
-    } );
-  } );
-
-  it( 'decodes parser message output', () => {
-    loadContent.mockReturnValue( {
-      content: '<user>Evaluate this content: {{ content }}</user>',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: {
-        provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022'
-      },
-      messages: [
-        {
-          role: 'user',
-          content: 'Evaluate this content: &lt;system&gt;example&lt;/system&gt;'
-        }
-      ],
-      instructions: null
-    } );
-    decode.mockImplementation( value =>
-      value === 'Evaluate this content: &lt;system&gt;example&lt;/system&gt;' ?
-        'Evaluate this content: <system>example</system>' :
-        value
-    );
-
-    const result = loadPrompt( 'test', {
-      content: '<system>example</system>'
-    } );
-
-    expect( decode ).toHaveBeenCalledWith( 'Evaluate this content: &lt;system&gt;example&lt;/system&gt;' );
-    expect( result.messages ).toEqual( [
-      {
-        role: 'user',
-        content: 'Evaluate this content: <system>example</system>'
-      }
-    ] );
-  } );
-
-  it( 'decodes XML-escaped instructions returned by the parser', () => {
-    loadContent.mockReturnValue( {
-      content: 'Create a poster with this text: {{ copy }}',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: {
-        provider: 'openai',
-        model: 'gpt-image-1'
-      },
+  it( 'uses parseContent for messages and instructions', () => {
+    parseContent.mockReturnValue( {
       messages: [],
-      instructions: 'Create a poster with this text: R&amp;D &lt; Speed &gt; &quot;Limits&quot;'
-    } );
-    decode.mockImplementation( value =>
-      value === 'Create a poster with this text: R&amp;D &lt; Speed &gt; &quot;Limits&quot;' ?
-        'Create a poster with this text: R&D < Speed > "Limits"' :
-        value
-    );
-
-    const result = loadPrompt( 'image_prompt', {
-      copy: 'R&D < Speed > "Limits"'
+      instructions: 'Generate a poster.'
     } );
 
-    expect( decode ).toHaveBeenCalledWith( 'Create a poster with this text: R&amp;D &lt; Speed &gt; &quot;Limits&quot;' );
+    const result = loadPrompt( 'image_prompt' );
+
     expect( result.messages ).toEqual( [] );
-    expect( result.instructions ).toBe( 'Create a poster with this text: R&D < Speed > "Limits"' );
-  } );
-
-  it( 'decodes XML-escaped config values recursively', () => {
-    const encodedConfig = {
-      label: 'R&amp;D',
-      values: [ 'A &lt; B' ],
-      providerOptions: {
-        metadata: {
-          title: '&quot;Race&quot;'
-        }
-      }
-    };
-
-    loadContent.mockReturnValue( {
-      content: '<user>Hello</user>',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: encodedConfig,
-      messages: [
-        {
-          role: 'user',
-          content: 'Hello'
-        }
-      ],
-      instructions: null
-    } );
-    decode.mockImplementation( value => {
-      if ( value === encodedConfig ) {
-        return {
-          label: 'R&D',
-          values: [ 'A < B' ],
-          providerOptions: {
-            metadata: {
-              title: '"Race"'
-            }
-          }
-        };
-      }
-      return value;
-    } );
-
-    const result = loadPrompt( 'test' );
-
-    expect( result.config ).toEqual( {
-      label: 'R&D',
-      values: [ 'A < B' ],
-      providerOptions: {
-        metadata: {
-          title: '"Race"'
-        }
-      }
-    } );
+    expect( result.instructions ).toBe( 'Generate a poster.' );
   } );
 
   it.each( [
@@ -272,25 +142,13 @@ model: gpt-4
     [ 'bedrock', 'amazon-bedrock' ]
   ] )( 'rewrites deprecated provider alias %s to %s and warns', ( alias, canonical ) => {
     const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    loadContent.mockReturnValue( {
-      content: '<user>Hello</user>',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: {
-        provider: alias,
-        model: 'test-model'
-      },
-      messages: [ { role: 'user', content: 'Hello' } ],
-      instructions: null
-    } );
+    stubMatter( { provider: alias, model: 'test-model' } );
 
     const result = loadPrompt( 'test' );
 
     expect( result.config.provider ).toBe( canonical );
     expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
-      config: expect.objectContaining( { provider: canonical } ),
-      fileDir: '/mock/dir'
+      config: expect.objectContaining( { provider: canonical } )
     } ) );
     expect( warn ).toHaveBeenCalledWith(
       `Using deprecated provider alias "${alias}". Use "${canonical}" instead.`,
@@ -298,70 +156,70 @@ model: gpt-4
     );
   } );
 
-  it( 'rewrites provider aliases on the decoded config', () => {
-    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    const parsedConfig = {
-      provider: 'bedrock',
-      model: 'test-model'
-    };
-    const decodedConfig = {
-      provider: 'bedrock',
-      model: 'test-model'
-    };
-    loadContent.mockReturnValue( {
-      content: '<user>Hello</user>',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: parsedConfig,
-      messages: [ { role: 'user', content: 'Hello' } ],
-      instructions: null
-    } );
-    decode.mockImplementation( value => ( value === parsedConfig ? decodedConfig : value ) );
-
-    const result = loadPrompt( 'test' );
-
-    expect( decode ).toHaveBeenCalledWith( parsedConfig );
-    expect( result.config ).toBe( decodedConfig );
-    expect( result.config.provider ).toBe( 'amazon-bedrock' );
-    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
-      config: decodedConfig,
-      fileDir: '/mock/dir'
-    } ) );
-    expect( warn ).toHaveBeenCalledWith(
-      'Using deprecated provider alias "bedrock". Use "amazon-bedrock" instead.',
-      { namespace: 'LLM' }
-    );
-  } );
-
   it( 'leaves canonical provider names unchanged', () => {
     const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    loadContent.mockReturnValue( {
-      content: '<user>Hello</user>',
-      dir: '/mock/dir'
-    } );
-    parsePrompt.mockReturnValue( {
-      config: {
-        provider: 'google-vertex',
-        model: 'gemini-2.5-flash-lite'
-      },
-      messages: [ { role: 'user', content: 'Hello' } ],
-      instructions: null
-    } );
+    stubMatter( { provider: 'google-vertex', model: 'gemini-2.5-flash-lite' } );
 
     const result = loadPrompt( 'test' );
 
     expect( result.config.provider ).toBe( 'google-vertex' );
-    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( { variables: {} } ) );
     expect( warn ).not.toHaveBeenCalled();
   } );
 
-  it( 'throws error when prompt file not found', () => {
-    loadContent.mockReturnValue( null );
+  it( 'throws when the prompt file is not found', () => {
+    searchAndReadFile.mockReturnValue( null );
 
-    expect( () => {
-      loadPrompt( 'nonexistent' );
-    } ).toThrow( /Prompt "nonexistent" not found/ );
+    expect( () => loadPrompt( 'nonexistent' ) ).toThrow( /Prompt file "nonexistent" not found/ );
   } );
 
+  it( 'throws when rendered content is empty', () => {
+    liquidMocks.parseAndRenderSync.mockReturnValueOnce( '  ' );
+
+    expect( () => loadPrompt( 'empty_prompt' ) ).toThrow( /Prompt "empty_prompt" has no content/ );
+  } );
+
+  it( 'wraps split errors with the prompt name', () => {
+    matter.mockImplementation( () => {
+      throw new Error( 'bad delimiters' );
+    } );
+
+    expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
+      /Error parsing frontmatter on prompt "writer@v1": bad delimiters/
+    );
+  } );
+
+  it( 'wraps content render errors with the prompt name', () => {
+    liquidMocks.parseAndRenderSync.mockImplementation( () => {
+      throw new Error( 'unknown variable' );
+    } );
+
+    expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
+      /Error rendering content on prompt "writer@v1": unknown variable/
+    );
+  } );
+
+  it( 'wraps frontmatter render errors with the prompt name', () => {
+    liquidMocks.parseAndRenderSync
+      .mockReturnValueOnce( 'BODY' )
+      .mockImplementationOnce( () => {
+        throw new Error( 'unknown filter' );
+      } );
+
+    expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
+      /Error rendering frontmatter on prompt "writer@v1": unknown filter/
+    );
+  } );
+
+  it( 'wraps frontmatter yaml parse errors with the prompt name', () => {
+    matter.mockImplementation( ( _input, options ) => {
+      if ( options?.engines ) {
+        return { matter: 'RAW_YAML', content: 'RAW_BODY' };
+      }
+      throw new Error( 'invalid yaml' );
+    } );
+
+    expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
+      /Error converting frontmatter yaml to js on prompt "writer@v1": invalid yaml/
+    );
+  } );
 } );

@@ -1,7 +1,7 @@
 import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
 import { resolveMessageProviderOptions } from './prompt/block_options.js';
 import { buildLoadSkillTool } from './utils/tools.js';
-import { Role, isRole } from './utils/message.js';
+import { Role } from './consts.js';
 import { FatalError } from '@outputai/core';
 import { stepCountIs } from 'ai';
 
@@ -31,11 +31,10 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
   }
 
   // message parsing
-  const isSystem = isRole( Role.SYSTEM );
   const resolvedMessages = resolveMessageProviderOptions( prompt );
 
-  const systemMessages = resolvedMessages.filter( isSystem );
-  const allMessages = resolvedMessages.filter( m => !isSystem( m ) );
+  const systemMessages = resolvedMessages.filter( m => m.role === Role.SYSTEM );
+  const allMessages = resolvedMessages.filter( m => m.role !== Role.SYSTEM );
 
   if ( skills.length > 0 ) {
     const skillsMessageContent = buildSkillsMessageContent( skills );

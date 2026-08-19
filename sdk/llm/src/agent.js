@@ -1,7 +1,7 @@
 import { ToolLoopAgent as AIToolLoopAgent } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
 import { wrapGeneration, wrapStream } from './utils/wrap.js';
-import { Role, isRole } from './utils/message.js';
+import { Role } from './consts.js';
 import { drainStream } from './utils/stream.js';
 import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
@@ -30,7 +30,7 @@ export class Agent extends AIToolLoopAgent {
     this.#prompt = prompt;
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
-    this.#initialMessages = messages.filter( isRole( Role.USER ) );
+    this.#initialMessages = messages.filter( m => m.role === Role.USER );
     this.#store = messageStore ?? null;
   }
 

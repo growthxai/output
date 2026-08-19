@@ -1,6 +1,5 @@
 import { join } from 'path';
 import { readdirSync, readFileSync } from 'node:fs';
-import { Path } from '@outputai/core/sdk/helpers';
 import { FatalError } from '@outputai/core';
 
 const scanDir = dir => {
@@ -11,7 +10,7 @@ const scanDir = dir => {
   }
 };
 
-const loadFile = path => {
+const readFile = path => {
   try {
     return readFileSync( path, 'utf-8' );
   } catch ( error ) {
@@ -19,13 +18,21 @@ const loadFile = path => {
   }
 };
 
-const findContent = ( name, dir ) => {
+/**
+ * Recursively search for a file by name and return both its content and containing directory.
+ *
+ * @param {string} dir - Directory to search
+ * @param {string} name - File name to find
+ * @returns {{ content: string, dir: string } | null}
+ */
+export const searchAndReadFile = ( dir, name ) => {
   for ( const entry of scanDir( dir ) ) {
+    const path = join( dir, entry.name );
     if ( entry.name === name ) {
-      return { dir, content: loadFile( join( dir, entry.name ) ) };
+      return { dir, content: readFile( path ) };
     }
     if ( entry.isDirectory() && !entry.isSymbolicLink() ) {
-      const result = findContent( name, join( dir, entry.name ) );
+      const result = searchAndReadFile( path, name );
       if ( result ) {
         return result;
       }
@@ -33,13 +40,3 @@ const findContent = ( name, dir ) => {
   }
   return null;
 };
-
-/**
- * Recursively search for a file by name and return both its content and containing directory.
- *
- * @param {string} name - File name to find
- * @param {string} [dir] - Directory to search, defaults to invocation directory
- * @returns {{ content: string, dir: string } | null}
- */
-export const loadContent = ( name, dir = Path.resolveInvocationDir() ) =>
-  findContent( name, dir ) ?? null;
