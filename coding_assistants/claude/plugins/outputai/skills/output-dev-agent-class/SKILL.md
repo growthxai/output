@@ -26,7 +26,7 @@ import { Agent, createMemoryConversationStore, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 ```
 
-`Agent`, `createMemoryConversationStore`, and `Output` all come from `@outputai/llm`. Import `z` from `@outputai/core` (never from `zod` directly).
+`Agent` and `createMemoryConversationStore` come from `@outputai/llm`. Use `aiSdk.Output` for structured output. Import `z` from `@outputai/core` (never from `zod` directly).
 
 ## Construction
 
@@ -49,14 +49,12 @@ const agent = new Agent( {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
-| `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides prompt `maxSteps`) |
-| `output` | `Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
+| `promptDir` | `string` | - | Override the stack-resolved prompt directory |
+| `variables` | `Record<string, string \| number \| boolean>` | - | Template variables rendered at construction |
+| `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
+| `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
+| `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
-| `temperature` | `number` | - | Override prompt file temperature |
-| `onStepFinish` | `Function` | - | Callback after each tool-loop step |
-| `prepareStep` | `Function` | - | Customize each step before execution |
 
 ## generate()
 
@@ -81,7 +79,7 @@ const result = await agent.generate( {
 } );
 ```
 
-Messages are appended after the initial prompt messages (and any conversation store history).
+Messages are appended after the initial prompt messages (and any conversation store history). You can also pass `abortSignal` and `toolChoice`.
 
 ## generateWithStreaming()
 
@@ -97,11 +95,11 @@ const result = await agent.generateWithStreaming( {
 } );
 ```
 
-The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
+The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
 
 ## stream()
 
-Use `stream()` when direct control over `textStream` or `fullStream` is required:
+Use `stream()` when direct control over `textStream` or `fullStream` is required. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
 
 ```typescript
 const stream = await agent.stream();
@@ -113,7 +111,7 @@ for await ( const chunk of stream.textStream ) {
 
 Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
 
-**Important**: `stream()` does not automatically append messages to the conversation store. If you use direct streaming with a conversation store, persist messages manually in `onFinish`. See `output-dev-llm-streaming` for the complete streaming and error-handling guidance.
+`stream()` appends messages to the conversation store in its wrapped `onFinish` when `finishReason` is not `'error'`. See `output-dev-llm-streaming` for streaming and error-handling guidance.
 
 ## Structured Output
 
@@ -216,7 +214,7 @@ This is the standard pattern. Each step invocation is independent, and Agent con
 
 ## Using Agent with Skills
 
-List skill paths in the prompt frontmatter. Do not pass `skills` to `Agent` and do not import `skill()`. See `output-dev-skill-file` for the full skills guide.
+List skill paths in the prompt frontmatter. See `output-dev-skill-file` for the full skills guide.
 
 ## When to Use Agent vs generateText
 

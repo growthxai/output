@@ -1,9 +1,9 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: prompt-only skills, prompt-owned maxSteps, merged tools, loaded prompt shape, LLM traces, and aiSdk re-exports in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Skills and `maxSteps` now load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Native prompt tools use the same `maxSteps` loop ceiling as other tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM start-trace details use `promptFile` and a loaded `prompt` object.
 
 ## Skills load only from the prompt file
 
@@ -133,54 +133,6 @@ await generateText( {
 
 Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, remove them from the prompt (or override that key on the call).
 
-## `maxSteps` lives on the prompt file
-
-`generateText`, `streamText`, `generateTextWithStreaming`, and `Agent` no longer accept a `maxSteps` argument. Passing it throws:
-
-```
-maxSteps must be set in the prompt file, not as a call argument
-```
-
-Set it in frontmatter. The default after load is **10**. Call-argument `stopWhen` still overrides it.
-
-Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value.
-
-Previously the ceiling applied only when call-argument tools or `load_skill` were present. YAML-only grounding stayed at the AI SDK default of one step.
-
-#### Before
-
-```ts
-await generateText( {
-  prompt: 'writer@v1',
-  maxSteps: 5
-} );
-```
-
-#### After
-
-```yaml prompts/writer@v1.prompt
----
-provider: anthropic
-model: claude-sonnet-4-6
-maxSteps: 5
----
-```
-
-```ts
-await generateText( { prompt: 'writer@v1' } );
-```
-
-If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
-
-```ts
-import { generateText, aiSdk } from '@outputai/llm';
-
-await generateText( {
-  prompt: 'grounded@v1',
-  stopWhen: aiSdk.stepCountIs( 1 )
-} );
-```
-
 ## Loaded prompt shape
 
 `loadPrompt` returns the parsed prompt object.
@@ -278,6 +230,92 @@ await generateText( {
 
 `import { ai } from '@outputai/llm'` becomes `import { aiSdk } from '@outputai/llm'`. Output APIs (`generateText`, `Agent`, `loadPrompt`, ...) stay named exports.
 
+Cherry-picked AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, `StreamTextOnChunkCallback`, ...) are also gone. Import those from `ai`, or as `aiSdk.ToolSet`.
+
+## Call arguments are a fixed list
+
+Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Calls no longer accept `temperature`, `maxTokens`, `maxSteps`, `providerOptions`, image `n`/`size`/`seed`, `experimental_transform`, `onStepFinish`, and similar. Unknown keys throw. Set model and image config (including `maxSteps`, default 10) on the prompt file; call-argument `stopWhen` still overrides it.
+
+| Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
+|----------|----------------|-----------------------------|--------------|-----------------|
+| `prompt` | required | required | required | required |
+| `promptDir` | optional | optional | optional | optional |
+| `variables` | optional | optional | optional | optional |
+| `tools` | optional | optional | optional | - |
+| `output` | optional | optional | optional | - |
+| `toolChoice` | optional | optional | optional | - |
+| `stopWhen` | optional | optional | optional | - |
+| `abortSignal` | optional | optional | optional | optional |
+| `onChunk` | - | optional | optional | - |
+| `onFinish` | - | - | optional | - |
+| `onError` | - | - | optional | - |
+| `images` | - | - | - | optional |
+| `mask` | - | - | - | optional |
+
+| Argument | `new Agent` | `.generate` | `.generateWithStreaming` | `.stream` |
+|----------|-------------|--------------------------|-----------|-----------|
+| `prompt` | required | - | - | - |
+| `promptDir` | optional | - | - | - |
+| `variables` | optional | - | - | - |
+| `tools` | optional | - | - | - |
+| `output` | optional | - | - | - |
+| `stopWhen` | optional | - | - | - |
+| `conversationStore` | optional | - | - | - |
+| `messages` | - | optional | optional | optional |
+| `abortSignal` | - | optional | optional | optional |
+| `toolChoice` | - | optional | optional | optional |
+| `onChunk` | - | - | optional | optional |
+| `onFinish` | - | - | - | optional |
+| `onError` | - | - | - | optional |
+
+`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `conversationStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+
+### Move model config onto the prompt
+
+#### Before
+
+```ts
+await generateText( {
+  prompt: 'writer@v1',
+  temperature: 0.2,
+  maxSteps: 5,
+  maxRetries: 2
+} );
+
+await generateTextWithStreaming( {
+  prompt: 'writer@v1',
+  experimental_transform: aiSdk.smoothStream()
+} );
+```
+
+#### After
+
+```yaml prompts/writer@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-6
+temperature: 0.2
+maxSteps: 5
+---
+```
+
+```ts
+await generateText( { prompt: 'writer@v1' } );
+```
+
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
+
+If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
+
+```ts
+import { generateText, aiSdk } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'grounded@v1',
+  stopWhen: aiSdk.stepCountIs( 1 )
+} );
+```
+
 ## Agent constructor validation
 
 `new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
@@ -287,7 +325,6 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 ## Checklist
 
 - Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
-- Delete `maxSteps` from those same calls; set `maxSteps` in prompt frontmatter when the default of 10 is wrong.
 - Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
@@ -296,5 +333,6 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
 - Rename LLM trace `input.prompt` (filename) to `input.promptFile` and `input.loadedPrompt` to `input.prompt`.
-- Import AI SDK helpers from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, ...). Replace `import { ai }` with `import { aiSdk }`.
+- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
+- Expect `Agent.stream()` to persist conversation history on success.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

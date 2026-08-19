@@ -46,7 +46,7 @@ const result = await generateTextWithStreaming( {
 return result.result;
 ```
 
-The result has the same complete response fields as `generateText()`, including `result`, `text`, `output`, `usage`, `finishReason`, and `cost`. Structured output passed with `Output.*` is available through `result.output`.
+The result has the same complete response fields as `generateText()`, including `result`, `text`, `output`, `usage`, `finishReason`, and `cost`. Structured output passed with `aiSdk.Output.*` is available through `result.output`.
 
 ## Agent.generateWithStreaming()
 
@@ -92,7 +92,9 @@ return chunks.join( '' );
 
 Registering `onError` without throwing the captured error can let the step return an empty successful result, preventing Temporal from retrying it. Awaiting a completion property may also produce a generic no-output error instead of the original provider error.
 
-`Agent.stream()` does not automatically store conversation messages. Use `Agent.generateWithStreaming()` when a complete stored response meets the requirement.
+`Agent.stream()` stores conversation messages in its wrapped `onFinish` when `finishReason` is not `'error'`. Use `Agent.generateWithStreaming()` when a complete stored response meets the requirement.
+
+Streaming call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`, plus `onChunk` (`generateTextWithStreaming`) or `onChunk` / `onFinish` / `onError` (`streamText`). Agent methods: `messages`, `abortSignal`, `toolChoice`, plus those same stream callbacks.
 
 ## Rules
 

@@ -348,6 +348,8 @@ export const evaluateSentiment = evaluator( {
 
 **Note**: Evaluators are self-contained components that don't share schemas across steps, so defining `aiSdk.Output.object()` schemas inline is acceptable here. For workflow steps that share schemas, define them in `types.ts` instead.
 
+`generateText` arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`.
+
 ### Using generateText with aiSdk.Output.object() for Evaluation
 
 ```typescript
@@ -705,7 +707,7 @@ dimensions: [
 ## Verification Checklist
 
 - [ ] `evaluator`, `z`, result types imported from `@outputai/core`
-- [ ] `generateText` and `Output` imported from `@outputai/llm` if using LLM (not direct provider)
+- [ ] `generateText` and `aiSdk` imported from `@outputai/llm` if using LLM (not direct provider)
 - [ ] LLM output schemas use `.describe()` instead of `.min()/.max()` on `z.number()`
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each evaluator

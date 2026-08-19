@@ -84,6 +84,8 @@ describe( 'ai_sdk_options', () => {
       expect( loadModelImpl ).toHaveBeenCalledWith( prompt );
       expect( loadToolsImpl ).toHaveBeenCalledWith( prompt );
       expect( result ).toEqual( {
+        allowSystemInMessages: true,
+        maxRetries: 0,
         model: 'MODEL',
         system: [ { role: 'system', content: 'You are concise.' } ],
         messages: [ { role: 'user', content: 'Hello' } ],
@@ -247,6 +249,50 @@ describe( 'ai_sdk_options', () => {
         search: { from: 'caller' }
       } );
     } );
+
+    it( 'forwards output, abortSignal, and caller stopWhen', async () => {
+      const output = { type: 'object' };
+      const abortSignal = AbortSignal.abort();
+      const stopWhen = { type: 'custom-stop' };
+
+      const result = await loadText( {
+        prompt: makeTextPrompt(),
+        output,
+        abortSignal,
+        stopWhen
+      } );
+
+      expect( result.output ).toBe( output );
+      expect( result.abortSignal ).toBe( abortSignal );
+      expect( result.stopWhen ).toBe( stopWhen );
+    } );
+
+    it( 'does not replace caller stopWhen with maxSteps when tools are present', async () => {
+      loadToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
+      const stopWhen = { type: 'custom-stop' };
+
+      const result = await loadText( {
+        prompt: makeTextPrompt( { maxSteps: 4 } ),
+        stopWhen
+      } );
+
+      expect( result.stopWhen ).toBe( stopWhen );
+    } );
+
+    it( 'sets toolChoice only when tools are present', async () => {
+      const withoutTools = await loadText( {
+        prompt: makeTextPrompt(),
+        toolChoice: 'required'
+      } );
+      expect( withoutTools.toolChoice ).toBeUndefined();
+
+      loadToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
+      const withTools = await loadText( {
+        prompt: makeTextPrompt(),
+        toolChoice: 'required'
+      } );
+      expect( withTools.toolChoice ).toBe( 'required' );
+    } );
   } );
 
   describe( 'loadAiSdkImageOptions', () => {
@@ -271,6 +317,7 @@ describe( 'ai_sdk_options', () => {
       expect( loadModelImpl ).not.toHaveBeenCalled();
       expect( loadToolsImpl ).not.toHaveBeenCalled();
       expect( result ).toEqual( {
+        maxRetries: 0,
         model: 'IMAGE_MODEL',
         prompt: {
           text: 'Generate a cinematic image of a NASCAR race at sunset.',
@@ -293,6 +340,7 @@ describe( 'ai_sdk_options', () => {
       const result = loadAiSdkImageOptions( { prompt: makeImagePrompt( { seed: 0 } ) } );
 
       expect( result ).toEqual( {
+        maxRetries: 0,
         model: 'IMAGE_MODEL',
         prompt: 'Generate a cinematic image of a NASCAR race at sunset.',
         providerOptions: undefined,
@@ -307,6 +355,14 @@ describe( 'ai_sdk_options', () => {
         'Prompt "test@v1" has no instructions.'
       );
       expect( loadImageModelImpl ).not.toHaveBeenCalled();
+    } );
+
+    it( 'forwards abortSignal', async () => {
+      const abortSignal = AbortSignal.abort();
+      const { loadAiSdkImageOptions } = await importSut();
+      const result = loadAiSdkImageOptions( { prompt: makeImagePrompt(), abortSignal } );
+
+      expect( result.abortSignal ).toBe( abortSignal );
     } );
   } );
 } );

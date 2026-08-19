@@ -48,7 +48,7 @@ Content:
 </user>
 ```
 
-Do not pass `skills` to `generateText`, `streamText`, `generateTextWithStreaming`, or `Agent`. That argument is rejected. Put the paths on the prompt instead. Skills add a `load_skill` tool, so set `maxSteps` in the same frontmatter when the default of 10 is wrong.
+List skill paths in the prompt YAML frontmatter. Skills add a `load_skill` tool, so set `maxSteps` in the same frontmatter when the default of 10 is wrong.
 
 Omit `skills` (or set `skills: []`) when a prompt should load none. That is the default: a sibling `skills/` folder used by other prompts in the same directory is not inherited.
 

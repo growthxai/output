@@ -285,6 +285,8 @@ output: aiSdk.Output.object( {
 
 **Important**: The `variables` field only accepts `string | number | boolean` values. Arrays and objects must be pre-formatted into strings in the step before passing. See `output-dev-prompt-file` for the full constraint and examples.
 
+`generateText` arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`.
+
 ```typescript
 import { generateText, aiSdk } from '@outputai/llm';
 import {
@@ -589,7 +591,7 @@ fn: async input => {
 
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
 - [ ] `createKyClient` imported from `@outputai/http` (not axios)
-- [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
+- [ ] `generateText` and `aiSdk` imported from `@outputai/llm` (not direct provider)
 - [ ] Structured output uses `aiSdk.Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
 - [ ] Schemas for `aiSdk.Output.object()` are defined in `types.ts` and imported, not inline
 - [ ] All imports use `.js` extension

@@ -6,12 +6,17 @@ const aiFns = vi.hoisted( () => ( {
   generateImage: vi.fn()
 } ) );
 
-const validators = vi.hoisted( () => ( {
-  validateGenerateTextArgs: vi.fn(),
-  validateGenerateTextWithStreamingArgs: vi.fn(),
-  validateStreamTextArgs: vi.fn(),
-  validateGenerateImageArgs: vi.fn()
+const validations = vi.hoisted( () => ( {
+  parseGenerateTextArgs: vi.fn(),
+  parseGenerateTextWithStreamingArgs: vi.fn(),
+  parseStreamTextArgs: vi.fn(),
+  parseGenerateImageArgs: vi.fn()
 } ) );
+
+const toPromptFileArgs = ( { prompt, ...rest } ) => ( {
+  promptFile: prompt,
+  ...rest
+} );
 
 const promptMocks = vi.hoisted( () => ( {
   loadPrompt: vi.fn()
@@ -46,7 +51,7 @@ const streamMocks = vi.hoisted( () => ( {
 
 vi.mock( 'ai', () => aiFns );
 
-vi.mock( './validations.js', () => validators );
+vi.mock( './validations.js', () => validations );
 
 vi.mock( './prompt/loader.js', () => ( {
   loadPrompt: ( ...args ) => promptMocks.loadPrompt( ...args )
@@ -125,10 +130,10 @@ describe( 'generate', () => {
     aiFns.streamText.mockReset().mockReturnValue( streamResult );
     aiFns.generateImage.mockReset().mockResolvedValue( imageResponse );
 
-    validators.validateGenerateTextArgs.mockReset();
-    validators.validateGenerateTextWithStreamingArgs.mockReset();
-    validators.validateStreamTextArgs.mockReset();
-    validators.validateGenerateImageArgs.mockReset();
+    validations.parseGenerateTextArgs.mockReset().mockImplementation( toPromptFileArgs );
+    validations.parseGenerateTextWithStreamingArgs.mockReset().mockImplementation( toPromptFileArgs );
+    validations.parseStreamTextArgs.mockReset().mockImplementation( toPromptFileArgs );
+    validations.parseGenerateImageArgs.mockReset().mockImplementation( toPromptFileArgs );
 
     promptMocks.loadPrompt.mockReset().mockReturnValue( loadedPrompt );
     skillMocks.loadSkills.mockReset().mockReturnValue( loadedSkills );
@@ -151,26 +156,35 @@ describe( 'generate', () => {
   } );
 
   describe( 'generateText', () => {
-    it( 'validates, loads prompt skills, traces, calls AI SDK, and wraps the response', async () => {
+    it( 'parses args, loads prompt skills, traces, calls AI SDK, and wraps the response', async () => {
       const { generateText } = await importSut();
       const variables = { topic: 'testing' };
       const tools = { userTool: true };
+      const output = { type: 'object' };
+      const toolChoice = 'required';
+      const stopWhen = { type: 'custom-stop' };
+      const abortSignal = new AbortController().signal;
 
       const result = await generateText( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
         tools,
-        temperature: 0.2
+        output,
+        toolChoice,
+        stopWhen,
+        abortSignal
       } );
 
-      expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( {
+      expect( validations.parseGenerateTextArgs ).toHaveBeenCalledWith( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: undefined,
         tools,
-        skills: undefined
+        output,
+        toolChoice,
+        stopWhen,
+        abortSignal
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
@@ -183,14 +197,13 @@ describe( 'generate', () => {
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools
+        tools,
+        output,
+        toolChoice,
+        stopWhen,
+        abortSignal
       } );
-      expect( aiFns.generateText ).toHaveBeenCalledWith( {
-        ...textOptions,
-        allowSystemInMessages: true,
-        maxRetries: 0,
-        temperature: 0.2
-      } );
+      expect( aiFns.generateText ).toHaveBeenCalledWith( textOptions );
       expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
         providerId: 'openai',
@@ -200,45 +213,9 @@ describe( 'generate', () => {
       expect( result ).toEqual( { wrapped: textResponse } );
     } );
 
-    it( 'forwards call-argument maxSteps and skills to validation, not to AI SDK options', async () => {
-      const { generateText } = await importSut();
-      const callSkills = [ { name: 'from-call' } ];
-
-      await generateText( { prompt: 'test@v1', skills: callSkills, maxSteps: 4 } );
-
-      expect( validators.validateGenerateTextArgs ).toHaveBeenCalledWith( expect.objectContaining( {
-        skills: callSkills,
-        maxSteps: 4,
-        tools: undefined
-      } ) );
-      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
-      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
-        prompt: loadedPrompt,
-        skills: loadedSkills,
-        tools: undefined
-      } );
-      expect( aiFns.generateText ).toHaveBeenCalledWith( expect.not.objectContaining( {
-        maxSteps: 4,
-        skills: callSkills
-      } ) );
-    } );
-
-    it( 'lets caller stopWhen replace options stopWhen', async () => {
-      const { generateText } = await importSut();
-      const stopWhen = { type: 'custom-stop' };
-      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
-        ...textOptions,
-        stopWhen: { type: 'step-count', count: 10 }
-      } );
-
-      await generateText( { prompt: 'test@v1', stopWhen } );
-
-      expect( aiFns.generateText ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen } ) );
-    } );
-
-    it( 'propagates validation errors before tracing or calling AI SDK', async () => {
+    it( 'propagates parse errors before tracing or calling AI SDK', async () => {
       const validationError = new Error( 'Invalid args' );
-      validators.validateGenerateTextArgs.mockImplementationOnce( () => {
+      validations.parseGenerateTextArgs.mockImplementationOnce( () => {
         throw validationError;
       } );
       const { generateText } = await importSut();
@@ -286,28 +263,21 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        onChunk,
-        temperature: 0.2
+        onChunk
       } );
 
-      expect( validators.validateGenerateTextWithStreamingArgs ).toHaveBeenCalledWith( {
+      expect( validations.parseGenerateTextWithStreamingArgs ).toHaveBeenCalledWith( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: undefined,
-        tools: undefined,
-        skills: undefined
+        onChunk
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
-        skills: loadedSkills,
-        tools: undefined
+        skills: loadedSkills
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
-        allowSystemInMessages: true,
-        maxRetries: 0,
-        temperature: 0.2,
         onChunk,
         onFinish: expect.any( Function ),
         onError: expect.any( Function )
@@ -321,6 +291,20 @@ describe( 'generate', () => {
         response: { ...textResponse, output }
       } );
       expect( result ).toBe( wrappedResponse );
+    } );
+
+    it( 'omits onChunk when the caller does not provide it', async () => {
+      const { generateTextWithStreaming } = await importSut();
+      const stream = { output: Promise.resolve( undefined ) };
+      aiFns.streamText.mockImplementationOnce( options => {
+        options.onFinish( { ...textResponse } );
+        return stream;
+      } );
+
+      await generateTextWithStreaming( { prompt: 'test@v1' } );
+      const callOptions = aiFns.streamText.mock.calls[0][0];
+
+      expect( callOptions ).not.toHaveProperty( 'onChunk' );
     } );
 
     it( 'maps stream errors and rejects', async () => {
@@ -356,6 +340,11 @@ describe( 'generate', () => {
         abortSignal: abortController.signal
       } ) ).rejects.toBe( abortReason );
 
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        abortSignal: abortController.signal
+      } );
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
       expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
@@ -365,10 +354,11 @@ describe( 'generate', () => {
   } );
 
   describe( 'streamText', () => {
-    it( 'validates, loads prompt skills, traces, calls AI SDK, and returns the stream result', async () => {
+    it( 'parses args, loads prompt skills, traces, calls AI SDK, and returns the stream result', async () => {
       const { streamText } = await importSut();
       const variables = { topic: 'testing' };
       const onFinish = vi.fn();
+      const onChunk = vi.fn();
       const tools = { userTool: true };
 
       const result = streamText( {
@@ -376,19 +366,17 @@ describe( 'generate', () => {
         variables,
         promptDir: '/prompts',
         onFinish,
-        tools,
-        temperature: 0.2
+        onChunk,
+        tools
       } );
 
-      expect( validators.validateStreamTextArgs ).toHaveBeenCalledWith( {
+      expect( validations.parseStreamTextArgs ).toHaveBeenCalledWith( {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        maxSteps: undefined,
         onFinish,
-        onError: undefined,
-        tools,
-        skills: undefined
+        onChunk,
+        tools
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
@@ -405,9 +393,7 @@ describe( 'generate', () => {
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
-        allowSystemInMessages: true,
-        maxRetries: 0,
-        temperature: 0.2,
+        onChunk,
         onFinish: expect.any( Function ),
         onError: expect.any( Function )
       } );
@@ -423,17 +409,27 @@ describe( 'generate', () => {
       expect( result ).toBe( streamResult );
     } );
 
-    it( 'lets caller stopWhen replace options stopWhen', async () => {
+    it( 'omits onChunk when the caller does not provide it', async () => {
+      const { streamText } = await importSut();
+
+      streamText( { prompt: 'test@v1' } );
+      const callOptions = aiFns.streamText.mock.calls[0][0];
+
+      expect( callOptions ).not.toHaveProperty( 'onChunk' );
+    } );
+
+    it( 'lets caller stopWhen reach the options loader', async () => {
       const { streamText } = await importSut();
       const stopWhen = { type: 'custom-stop' };
-      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
-        ...textOptions,
-        stopWhen: { type: 'step-count', count: 10 }
-      } );
 
       streamText( { prompt: 'test@v1', stopWhen } );
 
-      expect( aiFns.streamText ).toHaveBeenCalledWith( expect.objectContaining( { stopWhen } ) );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills,
+        stopWhen
+      } );
+      expect( aiFns.streamText ).toHaveBeenCalledWith( expect.objectContaining( textOptions ) );
     } );
 
     it( 'traces stream onError events and calls the user callback', async () => {
@@ -469,7 +465,7 @@ describe( 'generate', () => {
 
     it( 'propagates validation errors before loading or tracing', async () => {
       const validationError = new Error( 'Invalid args' );
-      validators.validateStreamTextArgs.mockImplementationOnce( () => {
+      validations.parseStreamTextArgs.mockImplementationOnce( () => {
         throw validationError;
       } );
       const { streamText } = await importSut();
@@ -500,11 +496,12 @@ describe( 'generate', () => {
   } );
 
   describe( 'generateImage', () => {
-    it( 'validates, loads prompt, traces, calls AI SDK, and wraps the response', async () => {
+    it( 'parses args, loads prompt, traces, calls AI SDK, and wraps the response', async () => {
       const { generateImage } = await importSut();
       const variables = { scene: 'race cars' };
       const images = [ Buffer.from( 'image-bytes' ) ];
       const mask = Buffer.from( 'mask-bytes' );
+      const abortSignal = AbortSignal.abort();
 
       const result = await generateImage( {
         prompt: 'image@v1',
@@ -512,16 +509,16 @@ describe( 'generate', () => {
         promptDir: '/prompts',
         images,
         mask,
-        n: 2,
-        providerOptions: { openai: { background: 'transparent' } }
+        abortSignal
       } );
 
-      expect( validators.validateGenerateImageArgs ).toHaveBeenCalledWith( {
+      expect( validations.parseGenerateImageArgs ).toHaveBeenCalledWith( {
         prompt: 'image@v1',
         variables,
         promptDir: '/prompts',
         images,
-        mask
+        mask,
+        abortSignal
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'image@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
@@ -534,14 +531,10 @@ describe( 'generate', () => {
       expect( optionMocks.loadAiSdkImageOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         images,
-        mask
+        mask,
+        abortSignal
       } );
-      expect( aiFns.generateImage ).toHaveBeenCalledWith( {
-        ...imageOptions,
-        maxRetries: 0,
-        n: 2,
-        providerOptions: { openai: { background: 'transparent' } }
-      } );
+      expect( aiFns.generateImage ).toHaveBeenCalledWith( imageOptions );
       expect( wrapMocks.wrapImageResponse ).toHaveBeenCalledWith( {
         traceId: 'trace-id',
         providerId: 'openai',
@@ -556,23 +549,18 @@ describe( 'generate', () => {
 
       await generateImage( { prompt: 'image@v1' } );
 
-      expect( validators.validateGenerateImageArgs ).toHaveBeenCalledWith( {
-        prompt: 'image@v1',
-        variables: undefined,
-        promptDir: undefined,
-        images: undefined,
-        mask: undefined
+      expect( validations.parseGenerateImageArgs ).toHaveBeenCalledWith( {
+        prompt: 'image@v1'
       } );
       expect( optionMocks.loadAiSdkImageOptions ).toHaveBeenCalledWith( {
-        prompt: loadedPrompt,
-        images: undefined,
-        mask: undefined
+        prompt: loadedPrompt
       } );
+      expect( aiFns.generateImage ).toHaveBeenCalledWith( imageOptions );
     } );
 
-    it( 'propagates validation errors before loading or tracing', async () => {
+    it( 'propagates parse errors before loading or tracing', async () => {
       const validationError = new Error( 'Invalid image args' );
-      validators.validateGenerateImageArgs.mockImplementationOnce( () => {
+      validations.parseGenerateImageArgs.mockImplementationOnce( () => {
         throw validationError;
       } );
       const { generateImage } = await importSut();

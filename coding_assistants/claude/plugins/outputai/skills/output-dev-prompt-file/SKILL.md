@@ -106,6 +106,8 @@ providerOptions:       # Provider-specific options
 ---
 ```
 
+Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
+
 ### Common Provider Configurations
 
 > Each example below pins a model that was current as of 2026-05-04. Run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) when picking or refreshing.
@@ -407,7 +409,7 @@ Use load_skill to get the full instructions for any skill before applying it.
 </system>
 ```
 
-Do not pass `skills` as a call argument and do not use `skill()`. See `output-dev-skill-file` for the file format and path rules.
+List `skills:` paths in this prompt's frontmatter. See `output-dev-skill-file` for the file format and path rules.
 
 ## Using Prompts with Agent
 

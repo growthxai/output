@@ -3,7 +3,7 @@ title: "@outputai/llm"
 description: "Generate and stream text, structured outputs, and images with prompt file management"
 ---
 
-The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. AI SDK helpers (`Output`, `tool`, `stepCountIs`, `smoothStream`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) - version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. Call arguments are the lists under [Call arguments](#call-arguments). AI SDK helpers and types (`Output`, `tool`, `stepCountIs`, `ToolSet`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
 
 ## Generate Functions
 
@@ -132,18 +132,6 @@ const content = chunks.join('');
 
 Registering `onError` alone is not enough to fail the step. The callback does not throw for you, and awaiting a completion property can produce a generic no-output error instead of the original provider error.
 
-Both streaming APIs accept stream transforms such as `smoothStream` for more natural output pacing:
-
-```typescript
-import { generateTextWithStreaming, aiSdk } from '@outputai/llm';
-
-const result = await generateTextWithStreaming({
-  prompt: 'generate@v1',
-  variables: { topic },
-  experimental_transform: aiSdk.smoothStream()
-});
-```
-
 ### Object Output
 
 Generate a structured object matching a Zod schema. This is what you'll use most in evaluators:
@@ -266,14 +254,7 @@ const response = await generateImage({
   variables: {
     scene: 'Use the reference car as the hero car in a night race restart.'
   },
-  images: [referenceImage],
-  providerOptions: {
-    openai: {
-      background: 'auto',
-      quality: 'high',
-      output_format: 'png'
-    }
-  }
+  images: [referenceImage]
 });
 
 const image = response.result;
@@ -282,7 +263,7 @@ const image = response.result;
 Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBuffer`, raw base64 strings, or `{ data, mediaType }` objects. `mask` uses the same input shape and requires `images`.
 
 <Note>
-`generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and pass concrete provider options through prompt front matter or `providerOptions`.
+`generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and set concrete provider options in prompt front matter (`size`, `n`, `aspectRatio`, `seed`, `providerOptions`).
 </Note>
 
 Common image options can live in prompt front matter:
@@ -341,7 +322,7 @@ The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/pro
 
 ### Construction
 
-The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()` or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
@@ -373,14 +354,12 @@ export const reviewContent = step({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
-| `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides prompt `maxSteps`) |
+| `promptDir` | `string` | - | Override the stack-resolved prompt directory |
+| `variables` | `Record<string, string \| number \| boolean>` | - | Template variables rendered at construction |
+| `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
+| `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
 | `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
 | `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
-| `temperature` | `number` | - | Override prompt file temperature |
-| `onStepFinish` | `Function` | - | Callback after each tool-loop step |
-| `prepareStep` | `Function` | - | Customize each step before execution |
 
 ### generate()
 
@@ -395,7 +374,7 @@ console.log(result.usage);  // Token counts
 
 The result has the same shape as `generateText`: `text`, `result` (alias for `text`), `output`, `usage`, `finishReason`, `toolCalls`, etc.
 
-Pass additional messages to extend the conversation:
+Pass additional messages to extend the conversation. You can also pass `abortSignal` and `toolChoice`:
 
 ```typescript
 const result = await agent.generate({
@@ -405,7 +384,7 @@ const result = await agent.generate({
 
 ### generateWithStreaming()
 
-Use `generateWithStreaming()` when you want streaming progress and a complete result:
+Use `generateWithStreaming()` when you want streaming progress and a complete result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`:
 
 ```typescript
 const result = await agent.generateWithStreaming({
@@ -421,7 +400,7 @@ Like `generate()`, the method returns the complete response, rejects on stream e
 
 ### stream()
 
-Use `stream()` when you need direct access to the agent's stream result:
+Use `stream()` when you need direct access to the agent's stream result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
 
 ```typescript
 const stream = await agent.stream();
@@ -491,10 +470,10 @@ interface ConversationStore {
 }
 ```
 
-`createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
+`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). `createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
 
 <Note>
-`generate()` and `generateWithStreaming()` automatically append messages to the conversation store. `stream()` does not; if you use direct streaming with a conversation store, persist messages manually in the `onFinish` callback.
+`generate()`, `generateWithStreaming()`, and `stream()` append messages to the conversation store. `stream()` stores in its wrapped `onFinish` when `finishReason` is not `'error'`.
 </Note>
 
 ### When to Use Agent vs generateText
@@ -589,7 +568,7 @@ Company size: {{ size }} employees
 | `maxTokens` | `number` | Maximum output tokens |
 | `maxSteps` | `number` | Tool-loop iterations when tools or skills are present (default 10) |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
-| `providerOptions` | `object` | Provider-specific options — see [ProviderOptions Guide](/prompts#provider-options) |
+| `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
 
 ## Providers
 
@@ -702,15 +681,15 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged — register under a models.dev provider id if you need automatic pricing.
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged - register under a models.dev provider id if you need automatic pricing.
 
 ## Prompt Caching
 
-When a prompt sends the same large prefix on every call — a long system prompt, few-shot examples, a pasted reference document — you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
+When a prompt sends the same large prefix on every call - a long system prompt, few-shot examples, a pasted reference document - you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
 
 ### Anthropic
 
-Anthropic caches only what you explicitly mark. Define a `cacheControl` set in `messageOptions` and attach it — with `options` — to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
+Anthropic caches only what you explicitly mark. Define a `cacheControl` set in `messageOptions` and attach it - with `options` - to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
 
 ```text prompts/generate_summary@v1.prompt
 ---
@@ -733,17 +712,17 @@ Summarize {{ companyName }}.
 </user>
 ```
 
-Only the `<user>` block — the part that changes each call — is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks.
+Only the `<user>` block - the part that changes each call - is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks.
 
 <Warning>
 Attach the set to the last **static** block, never one containing per-call `{{ variables }}`. A breakpoint on changing content rewrites the cache on every call and never gets a hit. Order your blocks static-first, dynamic-last.
 </Warning>
 
-Each set is a provider-namespaced `providerOptions` object — the same shape and [namespace rules](/prompts#provider-options) as call-level `providerOptions`. On Vertex with a Claude model, use the same `anthropic` namespace.
+Each set is a provider-namespaced `providerOptions` object - the same shape and [namespace rules](/prompts#provider-options) as prompt-file `providerOptions`. On Vertex with a Claude model, use the same `anthropic` namespace.
 
 ### OpenAI
 
-OpenAI caches automatically — there are no breakpoints to set, so the `messageOptions` mechanism above isn't needed. Any prompt of 1024 tokens or longer is cached for you, with no markup. To improve hit rates across calls, set a stable `promptCacheKey` (and, on GPT-5.1+, extend retention) via `providerOptions`:
+OpenAI caches automatically - there are no breakpoints to set, so the `messageOptions` mechanism above isn't needed. Any prompt of 1024 tokens or longer is cached for you, with no markup. To improve hit rates across calls, set a stable `promptCacheKey` (and, on GPT-5.1+, extend retention) via `providerOptions`:
 
 ```yaml prompts/enrich_company@v1.prompt
 ---
@@ -769,7 +748,7 @@ Enrich {{ company }}.
 Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache-creation tokens, and later calls within the TTL report cache-read tokens (`cachedInputTokens`), already priced at the cheaper rate in `response.cost`.
 
 <Note>
-Anthropic caches only prefixes above a model-specific minimum — around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
+Anthropic caches only prefixes above a model-specific minimum - around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
 </Note>
 
 ## Provider Tools
@@ -823,42 +802,64 @@ const { result, toolCalls } = await generateText({
 });
 ```
 
-## AI SDK Pass-Through Options
+## Call arguments
 
-Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) passed through to the provider. Availability depends on whether the API uses streaming:
+`variables` is `Record<string, string | number | boolean>`. Pre-stringify arrays and objects.
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `tools` | `ToolSet` | Tools the model can call |
-| `toolChoice` | `'auto' \| 'none' \| 'required'` | Tool selection strategy |
-| `maxRetries` | `number` | Max retry attempts (default: 0) |
-| `seed` | `number` | Seed for deterministic output |
-| `abortSignal` | `AbortSignal` | Cancel the request |
-| `topP` | `number` | Nucleus sampling (0-1) |
-| `topK` | `number` | Top-K sampling |
-| `onChunk` | `Function` | Callback for each chunk (streaming APIs) |
-| `onFinish` | `Function` | Finish event callback for `streamText` and `Agent.stream()` |
-| `onError` | `Function` | Callback when a stream error occurs (`streamText` and `Agent.stream()`) |
-| `experimental_transform` | `Function` | Stream transform, e.g. `aiSdk.smoothStream()` (streaming APIs) |
+### Text APIs
 
-Options set in the prompt file (`temperature`, `maxTokens`) can be overridden at call time. `maxSteps` is prompt-owned; pass `stopWhen` to override the loop ceiling.
+| Argument | `generateText` | `generateTextWithStreaming` | `streamText` |
+|----------|----------------|-----------------------------|--------------|
+| `prompt` | required | required | required |
+| `promptDir` | optional | optional | optional |
+| `variables` | optional | optional | optional |
+| `tools` | optional | optional | optional |
+| `output` | optional | optional | optional |
+| `toolChoice` | optional | optional | optional |
+| `stopWhen` | optional | optional | optional |
+| `abortSignal` | optional | optional | optional |
+| `onChunk` | - | optional | optional |
+| `onFinish` | - | - | optional |
+| `onError` | - | - | optional |
 
-### Retries and Network Timeouts
+`toolChoice` applies only when tools exist. `stopWhen` overrides prompt `maxSteps` when tools exist; otherwise Output sets `aiSdk.stepCountIs(maxSteps)` from the prompt (default 10).
 
-`generateText`, `generateTextWithStreaming`, and `streamText` set `maxRetries: 0` by default. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error is allowed to fail the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+### generateImage
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `prompt` | yes | Prompt file name |
+| `promptDir` | no | Override the stack-resolved prompt directory |
+| `variables` | no | Template variables |
+| `images` | no | Source images for image-to-image |
+| `mask` | no | Inpainting mask; requires `images` |
+| `abortSignal` | no | Cancel the request |
+
+### Agent
+
+Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStreaming()`, and `stream()` take an optional args object (or omit it). `messages` defaults to `[]`.
+
+| Argument | `new Agent` | `.generate` | `.generateWithStreaming` | `.stream` |
+|----------|-------------|--------------------------|-----------|-----------|
+| `prompt` | required | - | - | - |
+| `promptDir` | optional | - | - | - |
+| `variables` | optional | - | - | - |
+| `tools` | optional | - | - | - |
+| `output` | optional | - | - | - |
+| `stopWhen` | optional | - | - | - |
+| `conversationStore` | optional | - | - | - |
+| `messages` | - | optional | optional | optional |
+| `abortSignal` | - | optional | optional | optional |
+| `toolChoice` | - | optional | optional | optional |
+| `onChunk` | - | - | optional | optional |
+| `onFinish` | - | - | - | optional |
+| `onError` | - | - | - | optional |
+
+## Retries and Network Timeouts
+
+Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error fails the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
 
 `generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` usage, capture the error in `onError` and throw it after consuming the stream, as shown under [direct stream access](#direct-stream-access).
-
-AI SDK retries are still available, but they happen inside one activity attempt. Use them when you want quick provider-level retries before the step fails. Keep the default when you want Temporal to be the single place that controls retries.
-
-Pass `maxRetries` in the function call when you want the AI SDK to retry provider requests:
-
-```typescript
-const result = await generateText({
-  prompt: 'summarize@v1',
-  maxRetries: 2
-});
-```
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
@@ -868,7 +869,7 @@ Each completed text generation call emits a `cost:llm:request` event after the L
 
 ## loadPrompt
 
-Load and render a prompt file without generating — useful for debugging:
+Load and render a prompt file without generating - useful for debugging:
 
 ```typescript
 import { loadPrompt } from '@outputai/llm';

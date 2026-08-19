@@ -502,7 +502,7 @@ skills:
 
 Each skill file has optional YAML frontmatter (`name`, `description`) and a markdown body with full instructions. Mention `load_skill` in the system message so the LLM knows to use it.
 
-Omit `skills` (or set `skills: []`) when a prompt should load none. Do not pass `skills` to `generateText` / `Agent` and do not use `skill()`.
+Omit `skills` (or set `skills: []`) when a prompt should load none. List skill paths in prompt frontmatter. See `output-dev-skill-file`.
 
 See `output-dev-skill-file` for the full skill creation guide.
 

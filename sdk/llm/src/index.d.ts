@@ -1,44 +1,19 @@
 import type {
-  AgentCallParameters,
-  AgentStreamParameters,
   GenerateTextResult as AIGenerateTextResult,
   GenerateImageResult as AIGenerateImageResult,
   StreamTextResult as AIStreamTextResult,
   ToolLoopAgent as AIToolLoopAgent,
   ToolSet,
+  ToolChoice,
+  StopCondition,
   ModelMessage,
+  StreamTextOnChunkCallback,
   StreamTextOnFinishCallback,
-  generateText as aiGenerateText,
-  streamText as aiStreamText,
-  generateImage as aiGenerateImage
+  StreamTextOnErrorCallback
 } from 'ai';
 import type { Output as AIOutputNamespace } from 'ai';
 
-// Re-export AI SDK types directly (auto-synced with AI SDK updates)
-export type {
-  LanguageModelUsage,
-  FinishReason,
-  LanguageModelResponseMetadata,
-  ProviderMetadata,
-  CallWarning,
-  Warning,
-  CallSettings,
-  ToolSet,
-  ToolChoice,
-  Tool,
-  StopCondition,
-  StepResult,
-  GenerateTextOnStepFinishCallback,
-  PrepareStepFunction,
-  PrepareStepResult,
-  StreamTextOnChunkCallback,
-  StreamTextOnFinishCallback,
-  StreamTextOnErrorCallback,
-  StreamTextTransform,
-  TextStreamPart
-} from 'ai';
-
-/** Full AI SDK module. Use this for `Output`, `tool`, `stepCountIs`, `smoothStream`, and other AI SDK APIs. */
+/** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, and other AI SDK APIs. */
 export * as aiSdk from 'ai';
 
 /**
@@ -58,8 +33,8 @@ export type PromptMessage = {
   /** The content of the message */
   content: string;
   /**
-   * Parsed opening-tag attributes for the block. Currently `options` — a space-separated list of
-   * frontmatter `messageOptions` set names — which is resolved into per-message `providerOptions`
+   * Parsed opening-tag attributes for the block. Currently `options` - a space-separated list of
+   * frontmatter `messageOptions` set names - which is resolved into per-message `providerOptions`
    * at call time and stripped before the request is sent. Authored as `<system options="set_a set_b">`.
    */
   attributes?: Record<string, string | true>;
@@ -181,8 +156,6 @@ export type Skill = {
   instructions: string;
 };
 
-/** Prompt-owned AI SDK fields supplied by Output prompt files. */
-type PromptOwnedTextOptions = 'model' | 'messages' | 'prompt' | 'tools' | 'maxSteps';
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
 type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
 type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;
@@ -213,139 +186,114 @@ export type CompatibleTool = {
 /** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
 export type CompatibleToolSet = Record<string, CompatibleTool>;
 
-/**
- * AI SDK options accepted by generateText, with prompt-owned fields supplied by Output prompt files.
- * `tools` is accepted separately as {@link CompatibleToolSet} to support third-party tool packages.
- *
- * @typeParam Tools - The tools available for the model to call
- */
-export type GenerateTextAiSdkOptions<
-  Tools extends ToolSet = ToolSet,
-  OutputSpec extends AnyAiOutput = AnyAiOutput
-> = Omit<Parameters<typeof aiGenerateText<Tools, OutputSpec>>[0], PromptOwnedTextOptions>;
-
-/**
- * AI SDK options accepted by streamText, with prompt-owned fields supplied by Output prompt files.
- * `tools` is accepted separately as {@link CompatibleToolSet} to support third-party tool packages.
- *
- * @typeParam Tools - The tools available for the model to call
- */
-export type StreamTextAiSdkOptions<
-  Tools extends ToolSet = ToolSet,
-  OutputSpec extends AnyAiOutput = AnyAiOutput
-> = Omit<Parameters<typeof aiStreamText<Tools, OutputSpec>>[0], PromptOwnedTextOptions>;
-
-/**
- * AI SDK options specific to generateImage.
- *
- * `model` and `prompt` are omitted because Output supplies them from the prompt file.
- */
-export type GenerateImageAiSdkOptions = Omit<Parameters<typeof aiGenerateImage>[0], 'model' | 'prompt'>;
-type GenerateImagePrompt = Parameters<typeof aiGenerateImage>[0]['prompt'];
-type GenerateImagePromptWithImages = Exclude<GenerateImagePrompt, string>;
-type GenerateImageInput = GenerateImagePromptWithImages['images'][number];
-
-type OutputAgentStreamingParameters<
-  OutputSpec extends AnyAiOutput = AnyAiOutput
-> = {
-  messages?: ModelMessage[];
-  tools?: CompatibleToolSet;
-} & Omit<StreamTextAiSdkOptions<ToolSet, OutputSpec>, 'system' | 'output' | 'onFinish' | 'onError'>;
-
-/** Agent {@link Agent.stream} options: same as AI SDK plus wrapped `onFinish` (adds `cost`). */
-export type OutputAgentStreamParameters = Omit<AgentStreamParameters<never, ToolSet>, 'onFinish' | 'tools'> & {
-  tools?: CompatibleToolSet;
-  onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
-};
-
-/** Agent {@link Agent.generateWithStreaming} options. Completion is the returned promise; use `onChunk` for progress. */
-export type OutputAgentGenerateWithStreamingParameters<
-  OutputSpec extends AnyAiOutput = AnyAiOutput
-> = OutputAgentStreamingParameters<OutputSpec>;
-
-/** Agent constructor options, with prompt-owned model/instructions/tools supplied by Output prompt files. */
-export type OutputAgentConstructorParameters<
-  OutputSpec extends AnyAiOutput = AnyAiOutput
-> = Omit<ConstructorParameters<typeof AIToolLoopAgent>[0], 'model' | 'instructions' | 'tools' | 'output' | 'maxSteps'> & {
-  /** Prompt file name (e.g. 'my_agent@v1') */
+type PromptFileCallOptions = {
+  /** Prompt file name (e.g. 'summary@v1') */
   prompt: string;
+  /** Variables to interpolate into the prompt file */
+  variables?: Record<string, string | number | boolean>;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
-  /** Variables to render the prompt template at construction time */
-  variables?: Record<string, unknown>;
-  /** Structured output specification */
-  output?: OutputSpec;
-  /** AI SDK tools available during the reasoning loop */
-  tools?: CompatibleToolSet;
-  /** Pluggable conversation store. Opt-in; stateless by default. */
-  conversationStore?: ConversationStore;
 };
 
-/** Agent generate options accepted by the underlying AI SDK agent. */
-export type OutputAgentGenerateParameters = Omit<AgentCallParameters<never, ToolSet>, 'tools'> & {
+type StopWhen<Tools extends ToolSet = ToolSet> =
+  StopCondition<NoInfer<Tools>> | Array<StopCondition<NoInfer<Tools>>>;
+
+type TextCallOptions<
+  Tools extends ToolSet = ToolSet,
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = PromptFileCallOptions & {
+  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
+  /** Structured output specification */
+  output?: OutputSpec;
+  /** Tool choice, applied only when tools exist */
+  toolChoice?: ToolChoice<Tools>;
+  /** Caller stop condition; otherwise prompt `maxSteps` when tools exist */
+  stopWhen?: StopWhen<Tools>;
+  /** Abort signal for the request */
+  abortSignal?: AbortSignal;
 };
 
 /** Parameters accepted by {@link generateText}. */
 export type GenerateTextParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = {
-  /** Prompt file name */
-  prompt: string;
-  /** Variables to interpolate into the prompt file */
-  variables?: Record<string, string | number | boolean>;
-  /** Override the stack-resolved prompt directory */
-  promptDir?: string;
-  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
-  tools?: CompatibleToolSet;
-} & GenerateTextAiSdkOptions<Tools, OutputSpec>;
+> = TextCallOptions<Tools, OutputSpec>;
 
 /** Parameters accepted by {@link generateTextWithStreaming}. */
 export type GenerateTextWithStreamingParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = {
-  /** Prompt file name */
-  prompt: string;
-  /** Variables to interpolate into the prompt file */
-  variables?: Record<string, string | number | boolean>;
-  /** Override the stack-resolved prompt directory */
-  promptDir?: string;
-  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
-  tools?: CompatibleToolSet;
-} & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish' | 'onError'>;
+> = TextCallOptions<Tools, OutputSpec> & {
+  /** Callback for each streamed chunk */
+  onChunk?: StreamTextOnChunkCallback<Tools>;
+};
 
 /** Parameters accepted by {@link streamText}. */
 export type StreamTextParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = {
-  /** Prompt file name */
-  prompt: string;
-  /** Variables to interpolate into the prompt file */
-  variables?: Record<string, string | number | boolean>;
-  /** Override the stack-resolved prompt directory */
-  promptDir?: string;
-  /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
-  tools?: CompatibleToolSet;
+> = TextCallOptions<Tools, OutputSpec> & {
+  /** Callback for each streamed chunk */
+  onChunk?: StreamTextOnChunkCallback<Tools>;
+  /** Callback when a stream error occurs */
+  onError?: StreamTextOnErrorCallback;
   /** Callback when stream finishes. Receives the wrapped event with optional `cost`. */
   onFinish?: WrappedStreamTextOnFinishCallback<Tools>;
-} & Omit<StreamTextAiSdkOptions<Tools, OutputSpec>, 'onFinish'>;
+};
+
+/** Runtime image bytes or an object with optional media type. */
+export type GenerateImageInput =
+  | Buffer |
+  Uint8Array |
+  ArrayBuffer |
+  string |
+  {
+    data: Buffer | Uint8Array | ArrayBuffer | string;
+    mediaType?: string;
+  };
 
 /** Parameters accepted by {@link generateImage}. */
-export type GenerateImageParameters = {
-  /** Prompt file name */
-  prompt: string;
-  /** Variables to interpolate into the prompt file */
-  variables?: Record<string, string | number | boolean>;
-  /** Override the stack-resolved prompt directory */
-  promptDir?: string;
+export type GenerateImageParameters = PromptFileCallOptions & {
   /** Runtime image inputs for image-to-image generation */
   images?: GenerateImageInput[];
-  /** Optional mask for image editing */
-  mask?: GenerateImagePromptWithImages['mask'];
-} & GenerateImageAiSdkOptions;
+  /** Optional mask for image editing; requires `images` */
+  mask?: GenerateImageInput;
+  /** Abort signal for the request */
+  abortSignal?: AbortSignal;
+};
+
+/** Agent constructor options. */
+export type OutputAgentConstructorParameters<
+  OutputSpec extends AnyAiOutput = AnyAiOutput
+> = PromptFileCallOptions & {
+  /** Structured output specification */
+  output?: OutputSpec;
+  /** AI SDK tools available during the reasoning loop */
+  tools?: CompatibleToolSet;
+  /** Caller stop condition; otherwise prompt `maxSteps` when tools exist */
+  stopWhen?: StopWhen;
+  /** Pluggable conversation store. Opt-in; stateless by default. */
+  conversationStore?: ConversationStore;
+};
+
+/** Agent {@link Agent.generate} options. */
+export type OutputAgentGenerateParameters = {
+  messages?: ModelMessage[];
+  abortSignal?: AbortSignal;
+  toolChoice?: ToolChoice<ToolSet>;
+};
+
+/** Agent {@link Agent.generateWithStreaming} options. Completion is the returned promise; use `onChunk` for progress. */
+export type OutputAgentGenerateWithStreamingParameters = OutputAgentGenerateParameters & {
+  onChunk?: StreamTextOnChunkCallback<ToolSet>;
+};
+
+/** Agent {@link Agent.stream} options. `onFinish` receives the wrapped event with optional `cost`. */
+export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParameters & {
+  onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
+  onError?: StreamTextOnErrorCallback;
+};
 
 /** A source extracted from search tool results during multi-step LLM execution. */
 export type ExtractedSource = {
@@ -466,10 +414,9 @@ export function getProviderNames(): string[];
  * Use an LLM model to generate text.
  *
  * This function is a wrapper over the AI SDK's `generateText`.
- * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, and `providerOptions`.
- * AI SDK-compatible `tools` are accepted structurally via {@link CompatibleToolSet}. Other AI SDK
- * `generateText` options are accepted via {@link GenerateTextAiSdkOptions}, including tool choice,
- * structured output, callbacks, retries, and sampling settings.
+ * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * `providerOptions`. Call arguments are `prompt`, `promptDir`, `variables`, `tools`, `output`,
+ * `toolChoice`, `stopWhen`, and `abortSignal`.
  *
  * @param args - Generation arguments. See {@link GenerateTextParameters}.
  * @returns AI SDK response with text and metadata.
@@ -502,10 +449,9 @@ export function generateTextWithStreaming<
  * Use an LLM model to stream text generation.
  *
  * This function is a wrapper over the AI SDK's `streamText`.
- * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, and `providerOptions`.
- * AI SDK-compatible `tools` are accepted structurally via {@link CompatibleToolSet}. Other AI SDK
- * `streamText` options are accepted via {@link StreamTextAiSdkOptions}, except `onFinish`, which
- * Output wraps to add optional cost data.
+ * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * `providerOptions`. Call arguments match {@link generateText}, plus `onChunk`, `onFinish`, and
+ * `onError`. `onFinish` is wrapped to add optional cost data.
  *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
@@ -520,9 +466,9 @@ export function streamText<
 /**
  * Use an image model to generate images from a prompt file.
  *
- * The prompt file supplies AI SDK `model` and `prompt`. All other AI SDK `generateImage`
- * options are accepted via {@link GenerateImageAiSdkOptions}, including `n`, `size`,
- * `aspectRatio`, `seed`, provider options, retries, abort signal, and headers.
+ * The prompt file supplies `model`, instructions, `n`, `size`, `aspectRatio`, `seed`,
+ * `maxImagesPerCall`, and `providerOptions`. Call arguments are `prompt`, `promptDir`, `variables`,
+ * `images`, `mask`, and `abortSignal`.
  *
  * @param args - Image generation arguments. See {@link GenerateImageParameters}.
  * @returns AI SDK image response with `result` aliasing the first image.
@@ -543,7 +489,7 @@ export function createMemoryConversationStore(): ConversationStore;
 /**
  * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering.
  *
- * @example Workflow step — variables per call, stateless
+ * @example Workflow step - variables per call, stateless
  * ```ts
  * const reviewer = new Agent({
  *   prompt: 'reviewer@v1',
@@ -552,7 +498,7 @@ export function createMemoryConversationStore(): ConversationStore;
  * const result = await reviewer.generate();
  * ```
  *
- * @example Interactive — fixed setup, conversation history
+ * @example Interactive - fixed setup, conversation history
  * ```ts
  * const chatbot = new Agent({
  *   prompt: 'chatbot@v1',
@@ -578,7 +524,7 @@ export declare class Agent<
    * Use {@link Agent.stream} when you need `onFinish` / `onError` stream observers.
    */
   generateWithStreaming(
-    options?: OutputAgentGenerateWithStreamingParameters<OutputSpec>
+    options?: OutputAgentGenerateWithStreamingParameters
   ): Promise<GenerateTextWithStreamingResult<ToolSet, OutputSpec>>;
 
   /**

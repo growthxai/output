@@ -111,7 +111,7 @@ At runtime, Output loads the listed paths and:
 1. Adds a summary of available skills to the system message
 2. Injects a `load_skill` tool the LLM can call
 
-Do not pass `skills` to `generateText`, `streamText`, `generateTextWithStreaming`, or `Agent`. That argument is rejected. Do not use `skill()` - it is not exported.
+List skill paths in the prompt frontmatter.
 
 Omit `skills` (or set `skills: []`) when a prompt should load none. A sibling `skills/` folder used by other prompts in the same directory is not inherited.
 
