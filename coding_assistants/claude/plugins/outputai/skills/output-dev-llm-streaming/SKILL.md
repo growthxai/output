@@ -60,7 +60,7 @@ const result = await agent.generateWithStreaming( {
 } );
 ```
 
-`generateWithStreaming()` returns a complete Agent response and automatically stores messages when the Agent has a `conversationStore`.
+`generateWithStreaming()` returns a complete Agent response and automatically stores messages when the Agent has a `messageStore`.
 
 ## Direct stream error handling
 

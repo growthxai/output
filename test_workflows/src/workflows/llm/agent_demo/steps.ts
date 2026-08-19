@@ -1,11 +1,21 @@
 import { step, z } from '@outputai/core';
-import { Agent, aiSdk, createMemoryConversationStore, generateText } from '@outputai/llm';
+import { Agent, aiSdk, generateText, type MessageStore } from '@outputai/llm';
 import {
   reviewInputSchema,
   reviewOutputSchema,
   streamReviewOutputSchema,
   streamedReviewOutputSchema
 } from './types.js';
+
+const createMemoryMessageStore = (): MessageStore => {
+  const messages: Parameters<MessageStore['addMessages']>[0] = [];
+  return {
+    getMessages: () => messages,
+    addMessages: newMessages => {
+      messages.push( ...newMessages );
+    }
+  };
+};
 
 export const reviewContent = step( {
   name: 'reviewContent',
@@ -73,12 +83,12 @@ export const reviewContentGenerateWithStreaming = step( {
   inputSchema: reviewInputSchema,
   outputSchema: streamedReviewOutputSchema,
   fn: async input => {
-    const store = createMemoryConversationStore();
+    const store = createMemoryMessageStore();
     const chunks: string[] = [];
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      conversationStore: store
+      messageStore: store
     } );
     const result = await agent.generateWithStreaming( {
       onChunk( { chunk } ) {

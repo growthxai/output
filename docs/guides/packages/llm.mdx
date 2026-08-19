@@ -359,7 +359,7 @@ export const reviewContent = step({
 | `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
 | `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
 | `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
-| `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
+| `messageStore` | `MessageStore` | - | Pluggable store for multi-turn history |
 
 ### generate()
 
@@ -396,7 +396,7 @@ const result = await agent.generateWithStreaming({
 });
 ```
 
-Like `generate()`, the method returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in workflow steps unless you need direct access to the stream result.
+Like `generate()`, the method returns the complete response, rejects on stream errors, and automatically appends messages to the configured message store. Prefer it over `stream()` in workflow steps unless you need direct access to the stream result.
 
 ### stream()
 
@@ -437,17 +437,25 @@ const { output } = await agent.generate();
 // output: { issues: string[], suggestions: string[], score: number, summary: string }
 ```
 
-### Conversation Store
+### Message Store
 
-By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `conversationStore` to maintain history across calls:
+By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `messageStore` to maintain history across calls:
 
 ```typescript
-import { Agent, createMemoryConversationStore } from '@outputai/llm';
+import { Agent } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
 
-const store = createMemoryConversationStore();
+const messages: Parameters<MessageStore['addMessages']>[0] = [];
+const messageStore: MessageStore = {
+  getMessages: () => messages,
+  addMessages: incoming => {
+    messages.push(...incoming);
+  }
+};
+
 const chatbot = new Agent({
   prompt: 'chatbot@v1',
-  conversationStore: store
+  messageStore
 });
 
 const r1 = await chatbot.generate({
@@ -458,22 +466,22 @@ const r1 = await chatbot.generate({
 const r2 = await chatbot.generate({
   messages: [{ role: 'user', content: 'How does it handle retries?' }]
 });
-// r2 sees the full conversation history from r1
+// r2 sees the full history from r1
 ```
 
-For custom storage backends, implement the `ConversationStore` interface:
+`MessageStore` is:
 
 ```typescript
-interface ConversationStore {
+interface MessageStore {
   getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
   addMessages(messages: ModelMessage[]): void | Promise<void>;
 }
 ```
 
-`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). `createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
+`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 <Note>
-`generate()`, `generateWithStreaming()`, and `stream()` append messages to the conversation store. `stream()` stores in its wrapped `onFinish` when `finishReason` is not `'error'`.
+`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store. `stream()` stores in its wrapped `onFinish` when `finishReason` is not `'error'`.
 </Note>
 
 ### When to Use Agent vs generateText
@@ -483,7 +491,7 @@ interface ConversationStore {
 | **Best for** | Single-shot LLM calls | Multi-step tool loops |
 | **Tools** | Supported | Supported |
 | **Skills** | Supported | Supported |
-| **Conversation history** | Manual | Built-in with `conversationStore` |
+| **Conversation history** | Manual | Built-in with `messageStore` |
 | **Reusable instance** | No (function call) | Yes (construct once, call many) |
 | **Structured output** | `aiSdk.Output.object()` | `aiSdk.Output.object()` |
 
@@ -847,7 +855,7 @@ Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStre
 | `tools` | optional | - | - | - |
 | `output` | optional | - | - | - |
 | `stopWhen` | optional | - | - | - |
-| `conversationStore` | optional | - | - | - |
+| `messageStore` | optional | - | - | - |
 | `messages` | - | optional | optional | optional |
 | `abortSignal` | - | optional | optional | optional |
 | `toolChoice` | - | optional | optional | optional |

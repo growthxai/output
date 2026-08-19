@@ -276,8 +276,8 @@ export type OutputAgentConstructorParameters<
   tools?: CompatibleToolSet;
   /** Caller stop condition; otherwise prompt `maxSteps` when tools exist */
   stopWhen?: StopWhen;
-  /** Pluggable conversation store. Opt-in; stateless by default. */
-  conversationStore?: ConversationStore;
+  /** Pluggable message store. Opt-in; stateless by default. */
+  messageStore?: MessageStore;
 };
 
 /** Agent {@link Agent.generate} options. */
@@ -480,14 +480,11 @@ export function generateImage(
   args: GenerateImageParameters
 ): Promise<GenerateImageResult>;
 
-/** Pluggable conversation store for multi-turn Agent interactions. */
-export interface ConversationStore {
+/** Pluggable message store for multi-turn Agent interactions. */
+export interface MessageStore {
   getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
   addMessages( messages: ModelMessage[] ): void | Promise<void>;
 }
-
-/** Create an in-memory conversation store backed by a closure array. */
-export function createMemoryConversationStore(): ConversationStore;
 
 /**
  * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering.
@@ -501,11 +498,11 @@ export function createMemoryConversationStore(): ConversationStore;
  * const result = await reviewer.generate();
  * ```
  *
- * @example Interactive - fixed setup, conversation history
+ * @example Interactive - fixed setup, message history
  * ```ts
  * const chatbot = new Agent({
  *   prompt: 'chatbot@v1',
- *   conversationStore: createMemoryConversationStore()
+ *   messageStore: { getMessages() { return []; }, addMessages() {} }
  * });
  * const r1 = await chatbot.generate({ messages: [{ role: 'user', content: 'Hello' }] });
  * ```

@@ -36,7 +36,7 @@ const outputSchema = plainObjectSchema;
 
 const toolsSchema = z.record( z.string().min( 1 ), plainObjectSchema );
 
-const conversationStoreSchema = z.object( {
+const messageStoreSchema = z.object( {
   getMessages: functionSchema,
   addMessages: functionSchema
 } ).loose();
@@ -87,7 +87,7 @@ const streamTextArgsSchema = z.object( {
 
 const agentCallFields = {
   ...promptFileCallFields,
-  conversationStore: conversationStoreSchema.optional(),
+  messageStore: messageStoreSchema.optional(),
   output: outputSchema.optional(),
   stopWhen: stopWhenSchema.optional(),
   tools: toolsSchema.optional()

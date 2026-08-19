@@ -363,7 +363,7 @@ describe( 'parseAgentArgs', () => {
   it( 'renames prompt to promptFile and keeps allowlisted leftovers', () => {
     const tools = { search: searchTool };
     const output = makeOutput();
-    const conversationStore = { getMessages() {}, addMessages() {} };
+    const messageStore = { getMessages() {}, addMessages() {} };
 
     expect( parseAgentArgs( {
       prompt: 'summary@v1',
@@ -372,7 +372,7 @@ describe( 'parseAgentArgs', () => {
       tools,
       output,
       stopWhen,
-      conversationStore
+      messageStore
     } ) ).toEqual( {
       promptFile: 'summary@v1',
       variables: { topic: 'testing' },
@@ -380,7 +380,7 @@ describe( 'parseAgentArgs', () => {
       tools,
       output,
       stopWhen,
-      conversationStore
+      messageStore
     } );
   } );
 
@@ -414,10 +414,10 @@ describe( 'parseAgentArgs', () => {
     } ) ).toThrow( /unrecognized key/i );
   } );
 
-  it( 'throws ValidationError for an invalid conversation store', () => {
+  it( 'throws ValidationError for an invalid message store', () => {
     expect( () => parseAgentArgs( {
       prompt: 'summary@v1',
-      conversationStore: { getMessages() {} }
+      messageStore: { getMessages() {} }
     } ) ).toThrow( ValidationError );
   } );
 } );

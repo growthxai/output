@@ -164,7 +164,7 @@ describe( 'Agent', () => {
     const tools = { search: { description: 'Search' } };
     const output = { type: 'object' };
     const stopWhen = { type: 'custom-stop' };
-    const conversationStore = { getMessages() {}, addMessages() {} };
+    const messageStore = { getMessages() {}, addMessages() {} };
 
     new Agent( {
       prompt: 'test@v1',
@@ -173,7 +173,7 @@ describe( 'Agent', () => {
       tools,
       output,
       stopWhen,
-      conversationStore
+      messageStore
     } );
 
     expect( validations.parseAgentArgs ).toHaveBeenCalledWith( {
@@ -183,7 +183,7 @@ describe( 'Agent', () => {
       tools,
       output,
       stopWhen,
-      conversationStore
+      messageStore
     } );
     expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', { tone: 'brief' }, '/prompts' );
     expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
@@ -303,7 +303,7 @@ describe( 'Agent', () => {
     const callerMessage = { role: 'user', content: 'New question' };
     const abortSignal = AbortSignal.abort();
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     await agent.generate( {
       messages: [ callerMessage ],
@@ -335,7 +335,7 @@ describe( 'Agent', () => {
     };
     const callerMessage = { role: 'user', content: 'New question' };
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.generate( { messages: [ callerMessage ] } );
 
@@ -369,7 +369,7 @@ describe( 'Agent', () => {
       return stream;
     } );
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.generateWithStreaming( {
       messages: [ callerMessage ],
@@ -454,7 +454,7 @@ describe( 'Agent', () => {
     const onChunk = vi.fn();
     const callerMessage = { role: 'user', content: 'New question' };
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.stream( {
       messages: [ callerMessage ],
@@ -503,7 +503,7 @@ describe( 'Agent', () => {
     };
     const onFinish = vi.fn();
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     await agent.stream( { onFinish } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
@@ -540,20 +540,5 @@ describe( 'Agent', () => {
     );
     wrapMocks.streamHooks.onErrorHook.mock.calls[0][1]( mappedError );
     expect( onError ).toHaveBeenCalledWith( { error: mappedError, extra: true } );
-  } );
-} );
-
-describe( 'createMemoryConversationStore', () => {
-  it( 'stores messages in memory', async () => {
-    const { createMemoryConversationStore } = await importSut();
-    const store = createMemoryConversationStore();
-
-    store.addMessages( [ { role: 'user', content: 'Hello' } ] );
-    store.addMessages( [ { role: 'assistant', content: 'Hi' } ] );
-
-    expect( store.getMessages() ).toEqual( [
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'Hi' }
-    ] );
   } );
 } );

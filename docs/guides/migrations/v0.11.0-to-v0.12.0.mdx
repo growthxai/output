@@ -297,7 +297,7 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `tools` | optional | - | - | - |
 | `output` | optional | - | - | - |
 | `stopWhen` | optional | - | - | - |
-| `conversationStore` | optional | - | - | - |
+| `messageStore` | optional | - | - | - |
 | `messages` | - | optional | optional | optional |
 | `abortSignal` | - | optional | optional | optional |
 | `toolChoice` | - | optional | optional | optional |
@@ -305,7 +305,42 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `onFinish` | - | - | - | optional |
 | `onError` | - | - | - | optional |
 
-`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `conversationStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+
+## Agent message store
+
+`conversationStore` is renamed to `messageStore`. The type is `MessageStore`. `createMemoryConversationStore()` is removed; implement the store yourself.
+
+#### Before
+
+```ts
+import { Agent, createMemoryConversationStore } from '@outputai/llm';
+
+new Agent( {
+  prompt: 'chatbot@v1',
+  conversationStore: createMemoryConversationStore()
+} );
+```
+
+#### After
+
+```ts
+import { Agent } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
+
+const messages: Parameters<MessageStore['addMessages']>[0] = [];
+const messageStore: MessageStore = {
+  getMessages: () => messages,
+  addMessages: incoming => {
+    messages.push( ...incoming );
+  }
+};
+
+new Agent( {
+  prompt: 'chatbot@v1',
+  messageStore
+} );
+```
 
 ### Move model config onto the prompt
 
@@ -372,5 +407,6 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
-- Expect `Agent.stream()` to persist conversation history on success.
+- Expect `Agent.stream()` to persist message-store history on success.
+- Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.

@@ -7,21 +7,13 @@ import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
 import * as Validator from './validations.js';
 
-export const createMemoryConversationStore = () => {
-  const messages = [];
-  return {
-    getMessages: () => messages,
-    addMessages: newMessages => messages.push( ...newMessages )
-  };
-};
-
 export class Agent extends AIToolLoopAgent {
   #prompt;
   #initialMessages;
   #store;
 
   constructor( args ) {
-    const { promptFile, promptDir, variables, tools, output, stopWhen, conversationStore } = Validator.parseAgentArgs( args );
+    const { promptFile, promptDir, variables, tools, output, stopWhen, messageStore } = Validator.parseAgentArgs( args );
 
     const prompt = loadPrompt( promptFile, variables, promptDir );
     const skills = loadSkills( prompt );
@@ -39,7 +31,7 @@ export class Agent extends AIToolLoopAgent {
     // `messages` is system-free but may still hold authored <assistant>/<tool>
     // blocks; seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( isRole( Role.USER ) );
-    this.#store = conversationStore ?? null;
+    this.#store = messageStore ?? null;
   }
 
   async #combineWithPreviousMessages( messages ) {
