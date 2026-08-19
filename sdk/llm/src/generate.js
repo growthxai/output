@@ -1,113 +1,81 @@
 import * as AI from 'ai';
 import { loadPrompt } from './prompt/loader.js';
-import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse, wrapImageResponse } from './utils/response_wrappers.js';
+import { wrapGeneration, wrapStream } from './utils/wrap.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
-import { mapAiError } from './utils/error_handler.js';
 import { drainStream } from './utils/stream.js';
 import { loadSkills } from './utils/skills.js';
-import { parseGenerateTextArgs, parseGenerateTextWithStreamingArgs, parseStreamTextArgs, parseGenerateImageArgs } from './validations.js';
+import * as Validator from './validations.js';
 
 export const generateText = async args => {
-  const { promptFile, variables, promptDir, ...aiOptions } = parseGenerateTextArgs( args );
-
+  const { promptFile, variables, promptDir, ...aiOptions } = Validator.parseGenerateTextArgs( args );
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateText', prompt } );
-  const { model: modelId, provider: providerId } = prompt.config;
-
-  try {
-    const response = await AI.generateText( loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ) );
-    return wrapTextResponse( { traceId, providerId, modelId, response } );
-  } catch ( originalError ) {
-    const error = mapAiError( originalError );
-    endTraceWithError( { traceId, error } );
-    throw error;
-  }
+  return wrapGeneration( {
+    name: 'generateText',
+    prompt,
+    fn: () => AI.generateText( loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ) )
+  } );
 };
 
 export const streamText = args => {
-  const { promptFile, variables, promptDir, onFinish, onError, onChunk, ...aiOptions } = parseStreamTextArgs( args );
-
+  const { promptFile, variables, promptDir, onFinish, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'streamText', prompt } );
-  const { model: modelId, provider: providerId } = prompt.config;
-
-  try {
-    return AI.streamText( {
+  return wrapStream( {
+    name: 'streamText',
+    prompt,
+    fn: ( { onFinishHook, onErrorHook } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
-      async onFinish( response ) {
-        return onFinish?.( await wrapTextResponse( { traceId, providerId, modelId, response } ) );
-      },
-      onError( event ) {
-        const error = mapAiError( event.error );
-        endTraceWithError( { traceId, error } );
-        return onError?.( { ...event, error } );
-      }
-    } );
-  } catch ( originalError ) {
-    const error = mapAiError( originalError );
-    endTraceWithError( { traceId, error } );
-    throw error;
-  }
+      onFinish: response => onFinishHook( response, onFinish ),
+      onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
+    } )
+  } );
 };
 
 /**
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
 export const generateTextWithStreaming = async args => {
-  const { promptFile, variables, promptDir, onChunk, ...aiOptions } = parseGenerateTextWithStreamingArgs( args );
-
+  const { promptFile, variables, promptDir, onChunk, ...aiOptions } = Validator.parseGenerateTextWithStreamingArgs( args );
   const prompt = loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  const traceId = startTrace( { name: 'generateTextWithStreaming', prompt } );
+  return wrapGeneration( {
+    name: 'generateTextWithStreaming',
+    prompt,
+    fn: async () => {
+      const state = { response: null };
+      const stream = AI.streamText( {
+        ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+        ...( onChunk && { onChunk } ),
+        onFinish: res => {
+          state.response = res;
+        },
+        onError: _ => {} // Suppress AI-SDK console printing
+      } );
 
-  const { model: modelId, provider: providerId } = prompt.config;
-  const state = { response: null };
+      await drainStream( stream, aiOptions.abortSignal );
 
-  try {
-    const stream = AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
-      ...( onChunk && { onChunk } ),
-      onFinish: res => {
-        state.response = res;
-      },
-      onError: _ => {} // Suppress AI-SDK console printing
-    } );
+      if ( !state.response ) {
+        throw new Error( 'Streaming generation completed without a response.' );
+      }
 
-    await drainStream( stream, aiOptions.abortSignal );
-
-    if ( !state.response ) {
-      throw new Error( 'Streaming generation completed without a response.' );
+      state.response.output = await stream.output;
+      return state.response;
     }
-
-    state.response.output = await stream.output;
-    return await wrapTextResponse( { traceId, providerId, modelId, response: state.response } );
-  } catch ( originalError ) {
-    const error = mapAiError( originalError );
-    endTraceWithError( { traceId, error } );
-    throw error;
-  }
+  } );
 };
 
 export const generateImage = async args => {
-  const { promptFile, promptDir, variables, ...aiOptions } = parseGenerateImageArgs( args );
-
+  const { promptFile, promptDir, variables, ...aiOptions } = Validator.parseGenerateImageArgs( args );
   const prompt = loadPrompt( promptFile, variables, promptDir );
-  const traceId = startTrace( { name: 'generateImage', prompt } );
-  const { model: modelId, provider: providerId } = prompt.config;
 
-  try {
-    const response = await AI.generateImage( loadAiSdkImageOptions( { prompt, ...aiOptions } ) );
-    return await wrapImageResponse( { traceId, providerId, modelId, response } );
-  } catch ( originalError ) {
-    const error = mapAiError( originalError );
-    endTraceWithError( { traceId, error } );
-    throw error;
-  }
+  return wrapGeneration( {
+    name: 'generateImage',
+    prompt,
+    fn: () => AI.generateImage( loadAiSdkImageOptions( { prompt, ...aiOptions } ) )
+  } );
 };

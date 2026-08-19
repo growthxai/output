@@ -31,18 +31,10 @@ const optionMocks = vi.hoisted( () => ( {
   loadAiSdkImageOptions: vi.fn()
 } ) );
 
-const traceMocks = vi.hoisted( () => ( {
-  startTrace: vi.fn(),
-  endTraceWithError: vi.fn()
-} ) );
-
 const wrapMocks = vi.hoisted( () => ( {
-  wrapTextResponse: vi.fn(),
-  wrapImageResponse: vi.fn()
-} ) );
-
-const errorMocks = vi.hoisted( () => ( {
-  mapAiError: vi.fn( error => error )
+  wrapGeneration: vi.fn(),
+  wrapStream: vi.fn(),
+  streamHooks: { onFinishHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
 
 const streamMocks = vi.hoisted( () => ( {
@@ -66,18 +58,9 @@ vi.mock( './ai_sdk_options.js', () => ( {
   loadAiSdkImageOptions: ( ...args ) => optionMocks.loadAiSdkImageOptions( ...args )
 } ) );
 
-vi.mock( './utils/trace.js', () => ( {
-  startTrace: ( ...args ) => traceMocks.startTrace( ...args ),
-  endTraceWithError: ( ...args ) => traceMocks.endTraceWithError( ...args )
-} ) );
-
-vi.mock( './utils/response_wrappers.js', () => ( {
-  wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args ),
-  wrapImageResponse: ( ...args ) => wrapMocks.wrapImageResponse( ...args )
-} ) );
-
-vi.mock( './utils/error_handler.js', () => ( {
-  mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
+vi.mock( './utils/wrap.js', () => ( {
+  wrapGeneration: ( ...args ) => wrapMocks.wrapGeneration( ...args ),
+  wrapStream: ( ...args ) => wrapMocks.wrapStream( ...args )
 } ) );
 
 vi.mock( './utils/stream.js', () => ( {
@@ -141,13 +124,13 @@ describe( 'generate', () => {
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
     optionMocks.loadAiSdkImageOptions.mockReset().mockReturnValue( imageOptions );
 
-    traceMocks.startTrace.mockReset().mockReturnValue( 'trace-id' );
-    traceMocks.endTraceWithError.mockReset();
+    wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
+    wrapMocks.streamHooks = {
+      onFinishHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
+      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
+    };
+    wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
 
-    wrapMocks.wrapTextResponse.mockReset().mockResolvedValue( { wrapped: textResponse } );
-    wrapMocks.wrapImageResponse.mockReset().mockResolvedValue( { wrapped: imageResponse } );
-
-    errorMocks.mapAiError.mockReset().mockImplementation( error => error );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
   } );
 
@@ -156,7 +139,7 @@ describe( 'generate', () => {
   } );
 
   describe( 'generateText', () => {
-    it( 'parses args, loads prompt skills, traces, calls AI SDK, and wraps the response', async () => {
+    it( 'parses args, loads prompt skills, wraps generation, and calls AI SDK', async () => {
       const { generateText } = await importSut();
       const variables = { topic: 'testing' };
       const tools = { userTool: true };
@@ -188,9 +171,10 @@ describe( 'generate', () => {
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
-      expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
         name: 'generateText',
-        prompt: loadedPrompt
+        prompt: loadedPrompt,
+        fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
@@ -202,16 +186,10 @@ describe( 'generate', () => {
         abortSignal
       } );
       expect( aiFns.generateText ).toHaveBeenCalledWith( textOptions );
-      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        response: textResponse
-      } );
-      expect( result ).toEqual( { wrapped: textResponse } );
+      expect( result ).toBe( textResponse );
     } );
 
-    it( 'propagates parse errors before tracing or calling AI SDK', async () => {
+    it( 'propagates parse errors before wrapping or calling AI SDK', async () => {
       const validationError = new Error( 'Invalid args' );
       validations.parseGenerateTextArgs.mockImplementationOnce( () => {
         throw validationError;
@@ -220,37 +198,20 @@ describe( 'generate', () => {
 
       await expect( generateText( { prompt: '' } ) ).rejects.toThrow( validationError );
       expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
-      expect( traceMocks.startTrace ).not.toHaveBeenCalled();
+      expect( wrapMocks.wrapGeneration ).not.toHaveBeenCalled();
       expect( aiFns.generateText ).not.toHaveBeenCalled();
-    } );
-
-    it( 'traces and rethrows AI SDK errors', async () => {
-      const error = new Error( 'Provider failed' );
-      const mappedError = new Error( 'Mapped provider failed' );
-      aiFns.generateText.mockRejectedValueOnce( error );
-      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-      const { generateText } = await importSut();
-
-      await expect( generateText( { prompt: 'test@v1' } ) ).rejects.toThrow( mappedError );
-      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: mappedError
-      } );
     } );
   } );
 
   describe( 'generateTextWithStreaming', () => {
-    it( 'consumes the stream and returns a completed wrapped response', async () => {
+    it( 'consumes the stream inside wrapGeneration and returns the completed response', async () => {
       const { generateTextWithStreaming } = await importSut();
       const variables = { topic: 'testing' };
       const output = { summary: 'Structured result' };
       const chunk = { type: 'text-delta', text: 'TEXT' };
       const onChunk = vi.fn();
-      const wrappedResponse = { wrapped: textResponse, output };
       const stream = { output: Promise.resolve( output ) };
       const response = { ...textResponse };
-      wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
       aiFns.streamText.mockImplementationOnce( options => {
         options.onChunk( { chunk } );
         options.onFinish( response );
@@ -270,6 +231,11 @@ describe( 'generate', () => {
         promptDir: '/prompts',
         onChunk
       } );
+      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+        name: 'generateTextWithStreaming',
+        prompt: loadedPrompt,
+        fn: expect.any( Function )
+      } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills
@@ -282,13 +248,7 @@ describe( 'generate', () => {
       } );
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
       expect( onChunk ).toHaveBeenCalledWith( { chunk } );
-      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        response: { ...textResponse, output }
-      } );
-      expect( result ).toBe( wrappedResponse );
+      expect( result ).toEqual( { ...textResponse, output } );
     } );
 
     it( 'omits onChunk when the caller does not provide it', async () => {
@@ -303,25 +263,6 @@ describe( 'generate', () => {
       const callOptions = aiFns.streamText.mock.calls[0][0];
 
       expect( callOptions ).not.toHaveProperty( 'onChunk' );
-    } );
-
-    it( 'maps stream errors and rejects', async () => {
-      const error = new Error( 'Provider failed' );
-      const mappedError = new Error( 'Mapped provider failed' );
-      const stream = { output: Promise.resolve( undefined ) };
-      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-      streamMocks.drainStream.mockRejectedValueOnce( error );
-      aiFns.streamText.mockReturnValueOnce( stream );
-      const { generateTextWithStreaming } = await importSut();
-
-      await expect( generateTextWithStreaming( { prompt: 'test@v1' } ) ).rejects.toThrow( mappedError );
-
-      expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
-      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: mappedError
-      } );
     } );
 
     it( 'rejects with the abort reason', async () => {
@@ -344,15 +285,11 @@ describe( 'generate', () => {
         abortSignal: abortController.signal
       } );
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: abortReason
-      } );
     } );
   } );
 
   describe( 'streamText', () => {
-    it( 'parses args, loads prompt skills, traces, calls AI SDK, and returns the stream result', async () => {
+    it( 'parses args, loads prompt skills, wraps the stream, and calls AI SDK', async () => {
       const { streamText } = await importSut();
       const variables = { topic: 'testing' };
       const onFinish = vi.fn();
@@ -378,9 +315,10 @@ describe( 'generate', () => {
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
-      expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
         name: 'streamText',
-        prompt: loadedPrompt
+        prompt: loadedPrompt,
+        fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
@@ -395,13 +333,8 @@ describe( 'generate', () => {
       } );
       const callOptions = aiFns.streamText.mock.calls[0][0];
       await callOptions.onFinish( textResponse );
-      expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        response: textResponse
-      } );
-      expect( onFinish ).toHaveBeenCalledWith( { wrapped: textResponse } );
+      expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( textResponse, onFinish );
+      expect( onFinish ).toHaveBeenCalledWith( textResponse );
       expect( result ).toBe( streamResult );
     } );
 
@@ -428,38 +361,25 @@ describe( 'generate', () => {
       expect( aiFns.streamText ).toHaveBeenCalledWith( expect.objectContaining( textOptions ) );
     } );
 
-    it( 'traces stream onError events and calls the user callback', async () => {
+    it( 'forwards stream onError through wrapStream with the mapped event payload', async () => {
       const { streamText } = await importSut();
       const onError = vi.fn();
       const error = new Error( 'Stream failed' );
       const mappedError = new Error( 'Mapped stream failed' );
-      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
 
       streamText( { prompt: 'test@v1', onError } );
       const callOptions = aiFns.streamText.mock.calls[0][0];
-      callOptions.onError( { error } );
+      callOptions.onError( { error, extra: true } );
 
-      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: mappedError
-      } );
-      expect( onError ).toHaveBeenCalledWith( { error: mappedError } );
+      expect( wrapMocks.streamHooks.onErrorHook ).toHaveBeenCalledWith(
+        { error, extra: true },
+        expect.any( Function )
+      );
+      wrapMocks.streamHooks.onErrorHook.mock.calls[0][1]( mappedError );
+      expect( onError ).toHaveBeenCalledWith( { error: mappedError, extra: true } );
     } );
 
-    it( 'does not pass the raw onFinish or onError callbacks to AI SDK', async () => {
-      const { streamText } = await importSut();
-      const onFinish = vi.fn();
-      const onError = vi.fn();
-
-      streamText( { prompt: 'test@v1', onFinish, onError } );
-      const callOptions = aiFns.streamText.mock.calls[0][0];
-
-      expect( callOptions.onFinish ).not.toBe( onFinish );
-      expect( callOptions.onError ).not.toBe( onError );
-    } );
-
-    it( 'propagates validation errors before loading or tracing', async () => {
+    it( 'propagates validation errors before loading or wrapping', async () => {
       const validationError = new Error( 'Invalid args' );
       validations.parseStreamTextArgs.mockImplementationOnce( () => {
         throw validationError;
@@ -469,30 +389,13 @@ describe( 'generate', () => {
       expect( () => streamText( { prompt: '' } ) ).toThrow( validationError );
       expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
       expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
-      expect( traceMocks.startTrace ).not.toHaveBeenCalled();
+      expect( wrapMocks.wrapStream ).not.toHaveBeenCalled();
       expect( aiFns.streamText ).not.toHaveBeenCalled();
-    } );
-
-    it( 'traces and rethrows synchronous AI SDK errors', async () => {
-      const error = new Error( 'Invalid model' );
-      const mappedError = new Error( 'Mapped invalid model' );
-      aiFns.streamText.mockImplementationOnce( () => {
-        throw error;
-      } );
-      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-      const { streamText } = await importSut();
-
-      expect( () => streamText( { prompt: 'test@v1' } ) ).toThrow( mappedError );
-      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: mappedError
-      } );
     } );
   } );
 
   describe( 'generateImage', () => {
-    it( 'parses args, loads prompt, traces, calls AI SDK, and wraps the response', async () => {
+    it( 'parses args, loads prompt, wraps generation, and calls AI SDK', async () => {
       const { generateImage } = await importSut();
       const variables = { scene: 'race cars' };
       const images = [ Buffer.from( 'image-bytes' ) ];
@@ -518,9 +421,10 @@ describe( 'generate', () => {
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'image@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
-      expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
         name: 'generateImage',
-        prompt: loadedPrompt
+        prompt: loadedPrompt,
+        fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkImageOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
@@ -529,13 +433,7 @@ describe( 'generate', () => {
         abortSignal
       } );
       expect( aiFns.generateImage ).toHaveBeenCalledWith( imageOptions );
-      expect( wrapMocks.wrapImageResponse ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        providerId: 'openai',
-        modelId: 'test-model',
-        response: imageResponse
-      } );
-      expect( result ).toEqual( { wrapped: imageResponse } );
+      expect( result ).toBe( imageResponse );
     } );
 
     it( 'supports text-to-image calls without images or mask', async () => {
@@ -552,7 +450,7 @@ describe( 'generate', () => {
       expect( aiFns.generateImage ).toHaveBeenCalledWith( imageOptions );
     } );
 
-    it( 'propagates parse errors before loading or tracing', async () => {
+    it( 'propagates parse errors before loading or wrapping', async () => {
       const validationError = new Error( 'Invalid image args' );
       validations.parseGenerateImageArgs.mockImplementationOnce( () => {
         throw validationError;
@@ -561,23 +459,8 @@ describe( 'generate', () => {
 
       await expect( generateImage( { prompt: '' } ) ).rejects.toThrow( validationError );
       expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
-      expect( traceMocks.startTrace ).not.toHaveBeenCalled();
+      expect( wrapMocks.wrapGeneration ).not.toHaveBeenCalled();
       expect( aiFns.generateImage ).not.toHaveBeenCalled();
-    } );
-
-    it( 'traces and rethrows AI SDK errors', async () => {
-      const error = new Error( 'Image provider failed' );
-      const mappedError = new Error( 'Mapped image provider failed' );
-      aiFns.generateImage.mockRejectedValueOnce( error );
-      errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-      const { generateImage } = await importSut();
-
-      await expect( generateImage( { prompt: 'image@v1' } ) ).rejects.toThrow( mappedError );
-      expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-      expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-        traceId: 'trace-id',
-        error: mappedError
-      } );
     } );
   } );
 } );

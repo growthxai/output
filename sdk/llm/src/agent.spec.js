@@ -35,17 +35,10 @@ const optionMocks = vi.hoisted( () => ( {
   loadAiSdkTextOptions: vi.fn()
 } ) );
 
-const traceMocks = vi.hoisted( () => ( {
-  startTrace: vi.fn(),
-  endTraceWithError: vi.fn()
-} ) );
-
 const wrapMocks = vi.hoisted( () => ( {
-  wrapTextResponse: vi.fn()
-} ) );
-
-const errorMocks = vi.hoisted( () => ( {
-  mapAiError: vi.fn( error => error )
+  wrapGeneration: vi.fn(),
+  wrapStream: vi.fn(),
+  streamHooks: { onFinishHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
 
 const streamMocks = vi.hoisted( () => ( {
@@ -84,17 +77,9 @@ vi.mock( './ai_sdk_options.js', () => ( {
   loadAiSdkTextOptions: ( ...args ) => optionMocks.loadAiSdkTextOptions( ...args )
 } ) );
 
-vi.mock( './utils/trace.js', () => ( {
-  startTrace: ( ...args ) => traceMocks.startTrace( ...args ),
-  endTraceWithError: ( ...args ) => traceMocks.endTraceWithError( ...args )
-} ) );
-
-vi.mock( './utils/response_wrappers.js', () => ( {
-  wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args )
-} ) );
-
-vi.mock( './utils/error_handler.js', () => ( {
-  mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
+vi.mock( './utils/wrap.js', () => ( {
+  wrapGeneration: ( ...args ) => wrapMocks.wrapGeneration( ...args ),
+  wrapStream: ( ...args ) => wrapMocks.wrapStream( ...args )
 } ) );
 
 vi.mock( './utils/stream.js', () => ( {
@@ -148,13 +133,12 @@ describe( 'Agent', () => {
 
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
 
-    traceMocks.startTrace.mockReset().mockReturnValue( 'trace-id' );
-    traceMocks.endTraceWithError.mockReset();
-
-    wrapMocks.wrapTextResponse
-      .mockReset()
-      .mockImplementation( async ( { response } ) => response );
-    errorMocks.mapAiError.mockReset().mockImplementation( error => error );
+    wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
+    wrapMocks.streamHooks = {
+      onFinishHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
+      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
+    };
+    wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
   } );
 
@@ -278,6 +262,11 @@ describe( 'Agent', () => {
     await agent.generate();
 
     expect( validations.parseAgentGenerateArgs ).toHaveBeenCalledWith( undefined );
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+      name: 'Agent.generate',
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
+    } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
       allowSystemInMessages: true
@@ -350,34 +339,16 @@ describe( 'Agent', () => {
 
     const result = await agent.generate( { messages: [ callerMessage ] } );
 
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
-      prompt: loadedPrompt
-    } );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: aiResponse
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
       assistantMessage
     ] );
     expect( result ).toBe( aiResponse );
-  } );
-
-  it( 'traces and rethrows generate errors', async () => {
-    const error = new Error( 'Generate failed' );
-    aiMocks.superGenerate.mockRejectedValueOnce( error );
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-
-    await expect( agent.generate() ).rejects.toThrow( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error
-    } );
   } );
 
   it( 'generates with streaming, stores messages, and returns the completed response', async () => {
@@ -387,13 +358,11 @@ describe( 'Agent', () => {
     };
     const callerMessage = { role: 'user', content: 'New question' };
     const output = { summary: 'Structured result' };
-    const wrappedResponse = { ...aiResponse, output };
     const chunk = { type: 'text-delta', text: 'response' };
     const onChunk = vi.fn();
     const abortSignal = AbortSignal.abort();
     const stream = { output: Promise.resolve( output ) };
     const response = { ...aiResponse };
-    wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
     aiMocks.superStream.mockImplementationOnce( options => {
       options.onChunk( { chunk } );
       options.onFinish( response );
@@ -415,9 +384,10 @@ describe( 'Agent', () => {
       abortSignal,
       toolChoice: 'required'
     } );
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
-      prompt: loadedPrompt
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -432,18 +402,12 @@ describe( 'Agent', () => {
       onError: expect.any( Function )
     } );
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortSignal );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: { ...aiResponse, output }
-    } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
       assistantMessage
     ] );
     expect( onChunk ).toHaveBeenCalledWith( { chunk } );
-    expect( result ).toBe( wrappedResponse );
+    expect( result ).toEqual( { ...aiResponse, output } );
   } );
 
   it( 'omits onChunk when generateWithStreaming does not receive it', async () => {
@@ -461,25 +425,6 @@ describe( 'Agent', () => {
     expect( callOptions ).not.toHaveProperty( 'onChunk' );
   } );
 
-  it( 'maps generateWithStreaming errors and rejects', async () => {
-    const error = new Error( 'Stream failed' );
-    const mappedError = new Error( 'Mapped stream failed' );
-    const stream = { output: Promise.resolve( undefined ) };
-    errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-    streamMocks.drainStream.mockRejectedValueOnce( error );
-    aiMocks.superStream.mockReturnValueOnce( stream );
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-
-    await expect( agent.generateWithStreaming() ).rejects.toThrow( mappedError );
-
-    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: mappedError
-    } );
-  } );
-
   it( 'rejects generateWithStreaming with the abort reason', async () => {
     const abortController = new AbortController();
     const abortReason = new Error( 'Cancelled by caller' );
@@ -495,10 +440,6 @@ describe( 'Agent', () => {
     } ) ).rejects.toBe( abortReason );
 
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: abortReason
-    } );
   } );
 
   it( 'streams with initial, stored, and caller messages and stores on finish', async () => {
@@ -528,9 +469,10 @@ describe( 'Agent', () => {
       onError,
       onChunk
     } );
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
-      prompt: loadedPrompt
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -545,16 +487,11 @@ describe( 'Agent', () => {
     } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
     await streamOptions.onFinish( aiResponse );
+    expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( aiResponse, expect.any( Function ) );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
       assistantMessage
     ] );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: aiResponse
-    } );
     expect( onFinish ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );
@@ -586,39 +523,23 @@ describe( 'Agent', () => {
     expect( callOptions ).not.toHaveProperty( 'onChunk' );
   } );
 
-  it( 'traces stream onError events and calls the user callback', async () => {
+  it( 'forwards stream onError through wrapStream with the mapped event payload', async () => {
     const onError = vi.fn();
     const error = new Error( 'Stream failed' );
     const mappedError = new Error( 'Mapped stream failed' );
-    errorMocks.mapAiError.mockReturnValueOnce( mappedError );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
     await agent.stream( { onError } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
-    streamOptions.onError( { error } );
+    streamOptions.onError( { error, extra: true } );
 
-    expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: mappedError
-    } );
-    expect( onError ).toHaveBeenCalledWith( { error: mappedError } );
-  } );
-
-  it( 'traces and rethrows stream errors', async () => {
-    const error = new Error( 'Stream failed' );
-    aiMocks.superStream.mockImplementationOnce( () => {
-      throw error;
-    } );
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-
-    await expect( agent.stream() ).rejects.toThrow( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error
-    } );
+    expect( wrapMocks.streamHooks.onErrorHook ).toHaveBeenCalledWith(
+      { error, extra: true },
+      expect.any( Function )
+    );
+    wrapMocks.streamHooks.onErrorHook.mock.calls[0][1]( mappedError );
+    expect( onError ).toHaveBeenCalledWith( { error: mappedError, extra: true } );
   } );
 } );
 

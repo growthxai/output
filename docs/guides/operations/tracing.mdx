@@ -12,7 +12,7 @@ Traces are written automatically when the worker runs. You don't need to add any
 Each traced workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
 
 - **Steps and evaluators** — input, output (or error), start/end timestamps;
-- **LLM calls** — the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, and token usage (`inputTokens`, `outputTokens`, `totalTokens`);
+- **LLM calls** — the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, token usage, `cost`, and merged `sources`;
 - **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
 - **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
 - **Child workflows** — nested as their own trees with the same structure
@@ -131,7 +131,9 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
       },
       "output": {
         "result": "Acme Corp is a B2B SaaS company...",
-        "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 }
+        "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
+        "cost": { "type": "llm:usage", "modelId": "claude-sonnet-4-20250514", "total": 0.01 },
+        "sources": []
       },
       "children": []
     }

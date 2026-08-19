@@ -1,13 +1,11 @@
 import { ToolLoopAgent as AIToolLoopAgent } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
-import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse } from './utils/response_wrappers.js';
-import { mapAiError } from './utils/error_handler.js';
+import { wrapGeneration, wrapStream } from './utils/wrap.js';
 import { Role, isRole } from './utils/message.js';
 import { drainStream } from './utils/stream.js';
 import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
-import { parseAgentArgs, parseAgentGenerateArgs, parseAgentGenerateWithStreamingArgs, parseAgentStreamArgs } from './validations.js';
+import * as Validator from './validations.js';
 
 export const createMemoryConversationStore = () => {
   const messages = [];
@@ -23,7 +21,7 @@ export class Agent extends AIToolLoopAgent {
   #store;
 
   constructor( args ) {
-    const { promptFile, promptDir, variables, tools, output, stopWhen, conversationStore } = parseAgentArgs( args );
+    const { promptFile, promptDir, variables, tools, output, stopWhen, conversationStore } = Validator.parseAgentArgs( args );
 
     const prompt = loadPrompt( promptFile, variables, promptDir );
     const skills = loadSkills( prompt );
@@ -55,93 +53,85 @@ export class Agent extends AIToolLoopAgent {
   }
 
   async generate( args ) {
-    const { messages, abortSignal, toolChoice } = parseAgentGenerateArgs( args );
-    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
-    const { provider: providerId, model: modelId } = this.#prompt.config;
+    const { messages, abortSignal, toolChoice } = Validator.parseAgentGenerateArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
-    try {
-      const response = await super.generate( {
-        messages: await this.#combineWithPreviousMessages( messages ),
-        allowSystemInMessages: true,
-        ...( abortSignal && { abortSignal } ),
-        ...( toolChoice && { toolChoice } )
-      } );
-      await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
-      return await wrapTextResponse( { traceId, response, providerId, modelId } );
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
+    return wrapGeneration( {
+      name: 'Agent.generate',
+      prompt: this.#prompt,
+      fn: async () => {
+        const response = await super.generate( {
+          messages: combinedMessages,
+          allowSystemInMessages: true,
+          ...( abortSignal && { abortSignal } ),
+          ...( toolChoice && { toolChoice } )
+        } );
+        await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+        return response;
+      }
+    } );
   }
 
   /**
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
   async generateWithStreaming( args ) {
-    const { messages, abortSignal, toolChoice, onChunk } = parseAgentGenerateWithStreamingArgs( args );
-    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
-    const { provider: providerId, model: modelId } = this.#prompt.config;
-    const state = { response: null };
+    const { messages, abortSignal, toolChoice, onChunk } = Validator.parseAgentGenerateWithStreamingArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
-    try {
-      const stream = await super.stream( {
-        messages: await this.#combineWithPreviousMessages( messages ),
-        allowSystemInMessages: true,
-        ...( onChunk && { onChunk } ),
-        ...( abortSignal && { abortSignal } ),
-        ...( toolChoice && { toolChoice } ),
-        onFinish: res => {
-          state.response = res;
-        },
-        onError: _ => {} // Suppress AI-SDK console printing
-      } );
+    return wrapGeneration( {
+      name: 'Agent.generateWithStreaming',
+      prompt: this.#prompt,
+      fn: async () => {
+        const state = { response: null };
+        const stream = await super.stream( {
+          messages: combinedMessages,
+          allowSystemInMessages: true,
+          ...( onChunk && { onChunk } ),
+          ...( abortSignal && { abortSignal } ),
+          ...( toolChoice && { toolChoice } ),
+          onFinish: res => {
+            state.response = res;
+          },
+          onError: _ => {} // Suppress AI-SDK console printing
+        } );
 
-      await drainStream( stream, abortSignal );
+        await drainStream( stream, abortSignal );
 
-      if ( !state.response ) {
-        throw new Error( 'Agent streaming generation completed without a response.' );
+        if ( !state.response ) {
+          throw new Error( 'Agent streaming generation completed without a response.' );
+        }
+
+        state.response.output = await stream.output;
+        await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
+
+        return state.response;
       }
-
-      state.response.output = await stream.output;
-      await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
-
-      return await wrapTextResponse( { traceId, providerId, modelId, response: state.response } );
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
+    } );
   }
 
   async stream( args ) {
-    const { messages, abortSignal, toolChoice, onChunk, onFinish, onError } = parseAgentStreamArgs( args );
-    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
-    const { provider: providerId, model: modelId } = this.#prompt.config;
+    const { messages, abortSignal, toolChoice, onChunk, onFinish, onError } = Validator.parseAgentStreamArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
-    try {
-      return await super.stream( {
-        messages: await this.#combineWithPreviousMessages( messages ),
+    return wrapStream( {
+      name: 'Agent.stream',
+      prompt: this.#prompt,
+      fn: ( { onFinishHook, onErrorHook } ) => super.stream( {
+        messages: combinedMessages,
         allowSystemInMessages: true,
         ...( onChunk && { onChunk } ),
         ...( abortSignal && { abortSignal } ),
         ...( toolChoice && { toolChoice } ),
-        onFinish: async response => {
-          if ( response.finishReason !== 'error' ) {
-            await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
-          }
-          return onFinish?.( await wrapTextResponse( { traceId, providerId, modelId, response } ) );
-        },
-        onError( event ) {
-          const error = mapAiError( event.error );
-          endTraceWithError( { traceId, error } );
-          return onError?.( { ...event, error } );
-        }
-      } );
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
+        onFinish: response =>
+          onFinishHook( response, async parsedResponse => {
+            if ( response.finishReason !== 'error' ) {
+              await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+            }
+            await onFinish?.( parsedResponse );
+          } ),
+        onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
+      } )
+    } );
   }
 }

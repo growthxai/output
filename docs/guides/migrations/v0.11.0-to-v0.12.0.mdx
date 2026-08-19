@@ -3,7 +3,7 @@ title: "v0.11.0 → v0.12.0"
 description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM start-trace details are a single loaded `prompt` object.
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
 
 ## Skills load only from the prompt file
 
@@ -164,6 +164,10 @@ The `SkillsArg` type is removed. `Skill.description` is required on the loaded s
 
 Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) is the loaded prompt object only. Filename, interpolation values, and rendered config live on that object. Agent traces use the same shape as the text APIs (v0.11 recorded only the filename as `prompt`).
 
+End-trace `output` adds `cost` (the same payload as the cost attribute / `cost:llm:request` event; `null` when pricing is missing) and replaces tool-only `sourcesFromTools` with merged `sources` (tool results plus native provider sources; always an array).
+
+### Start (`input`)
+
 | v0.11.0 | v0.12.0 |
 | --- | --- |
 | `prompt` (filename string) | `prompt.name` |
@@ -197,6 +201,39 @@ Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`
 ```
 
 If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `input.loadedPrompt`, switch to `input.prompt`. If you read sibling `input.variables`, use `input.prompt.variables`.
+
+### End (`output`)
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `result`, `usage`, `providerMetadata` | same |
+| (cost only as a trace attribute) | `cost` on `output` as well (`null` if unknown) |
+| `sourcesFromTools` | `sources` (merged tool + provider sources) |
+
+#### Before
+
+```json
+{
+  "result": "Acme Corp is a B2B SaaS company...",
+  "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
+  "providerMetadata": { "anthropic": {} },
+  "sourcesFromTools": []
+}
+```
+
+#### After
+
+```json
+{
+  "result": "Acme Corp is a B2B SaaS company...",
+  "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
+  "cost": { "type": "llm:usage", "modelId": "claude-sonnet-4-6", "total": 0.01 },
+  "providerMetadata": { "anthropic": {} },
+  "sources": []
+}
+```
+
+If you read `output.sourcesFromTools`, switch to `output.sources`. If you relied on cost only as a trace attribute, it is also on `output.cost`.
 
 ## AI SDK helpers come from `aiSdk`
 
@@ -333,6 +370,7 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
+- Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Expect `Agent.stream()` to persist conversation history on success.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
