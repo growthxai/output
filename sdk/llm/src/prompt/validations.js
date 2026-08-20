@@ -1,5 +1,4 @@
 import { ValidationError, z } from '@outputai/core';
-import { attributesSchema } from './block_options.js';
 
 const objectMapSchema = z.record(
   z.string(),
@@ -39,7 +38,7 @@ export const promptSchema = z.object( {
     z.object( {
       role: z.string(),
       content: z.string(),
-      attributes: attributesSchema.optional()
+      providerOptions: objectMapSchema.optional()
     } ).strict()
   ),
   instructions: z.string().trim().min( 1 ).nullable().optional(),

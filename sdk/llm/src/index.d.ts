@@ -33,11 +33,11 @@ export type PromptMessage = {
   /** The content of the message */
   content: string;
   /**
-   * Parsed opening-tag attributes for the block. Currently `options` - a space-separated list of
-   * frontmatter `messageOptions` set names - which is resolved into per-message `providerOptions`
-   * at call time and stripped before the request is sent. Authored as `<system options="set_a set_b">`.
+   * Per-message provider options resolved at load from the tag's `options` attribute and matching
+   * `config.messageOptions` sets. Authored as `<system options="set_a set_b">`. Omitted when the
+   * tag has no `options`.
    */
-  attributes?: Record<string, string | true>;
+  providerOptions?: Record<string, Record<string, unknown>>;
 };
 
 /**

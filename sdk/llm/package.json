@@ -19,6 +19,7 @@
     "entities": "8.0.0",
     "gray-matter": "4.0.3",
     "liquidjs": "10.27.2",
+    "node-html-parser": "9.0.1",
     "undici": "catalog:"
   },
   "devDependencies": {

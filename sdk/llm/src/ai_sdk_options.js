@@ -1,5 +1,4 @@
 import { loadImageModel, loadTextModel } from './utils/models.js';
-import { resolveMessageProviderOptions } from './prompt/block_options.js';
 import { buildLoadSkillTool, loadPromptTools } from './utils/tools.js';
 import { Role } from './consts.js';
 import { FatalError } from '@outputai/core';
@@ -30,11 +29,8 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
     throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
   }
 
-  // message parsing
-  const resolvedMessages = resolveMessageProviderOptions( prompt );
-
-  const systemMessages = resolvedMessages.filter( m => m.role === Role.SYSTEM );
-  const allMessages = resolvedMessages.filter( m => m.role !== Role.SYSTEM );
+  const systemMessages = prompt.messages.filter( m => m.role === Role.SYSTEM );
+  const allMessages = prompt.messages.filter( m => m.role !== Role.SYSTEM );
 
   if ( skills.length > 0 ) {
     const skillsMessageContent = buildSkillsMessageContent( skills );

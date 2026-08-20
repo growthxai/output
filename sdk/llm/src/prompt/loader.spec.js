@@ -97,7 +97,7 @@ describe( 'loadPrompt', () => {
     expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'RAW_BODY', variables );
     expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'RAW_YAML', variables );
     expect( matter ).toHaveBeenNthCalledWith( 2, '---\nRAW_YAML\n---\n' );
-    expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY' );
+    expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY', undefined );
     expect( parsePromptSchema ).toHaveBeenCalledWith( {
       name: 'test',
       config: defaultConfig,
@@ -122,7 +122,16 @@ describe( 'loadPrompt', () => {
     loadPrompt( 'test', { name: 'World' } );
 
     expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'PIPED', { name: 'World' } );
-    expect( parseContent ).toHaveBeenCalledWith( 'PIPED' );
+    expect( parseContent ).toHaveBeenCalledWith( 'PIPED', undefined );
+  } );
+
+  it( 'passes config.messageOptions to parseContent', () => {
+    const messageOptions = { cached: { anthropic: { cacheControl: { type: 'ephemeral' } } } };
+    stubMatter( { ...defaultConfig, messageOptions } );
+
+    loadPrompt( 'test' );
+
+    expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY', messageOptions );
   } );
 
   it( 'uses parseContent for messages and instructions', () => {
@@ -220,6 +229,16 @@ describe( 'loadPrompt', () => {
 
     expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
       /Error converting frontmatter yaml to js on prompt "writer@v1": invalid yaml/
+    );
+  } );
+
+  it( 'wraps content parse errors with the prompt name', () => {
+    parseContent.mockImplementation( () => {
+      throw new Error( 'unknown option' );
+    } );
+
+    expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
+      /Error parsing content on prompt "writer@v1": unknown option/
     );
   } );
 } );

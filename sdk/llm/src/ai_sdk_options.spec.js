@@ -111,16 +111,16 @@ describe( 'ai_sdk_options', () => {
       expect( loadPromptToolsImpl ).not.toHaveBeenCalled();
     } );
 
-    it( 'resolves block attributes into per-message providerOptions', async () => {
+    it( 'forwards per-message providerOptions when splitting system and messages', async () => {
+      const providerOptions = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } };
       const prompt = {
         name: 'cache@v1',
         config: {
           provider: 'anthropic',
-          model: 'claude-sonnet-4-5',
-          messageOptions: { cached: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } } }
+          model: 'claude-sonnet-4-5'
         },
         messages: [
-          { role: 'system', content: 'Static', attributes: { options: 'cached' } },
+          { role: 'system', content: 'Static', providerOptions },
           { role: 'user', content: 'Hello' }
         ],
         instructions: null
@@ -131,7 +131,7 @@ describe( 'ai_sdk_options', () => {
       expect( result.system ).toEqual( [ {
         role: 'system',
         content: 'Static',
-        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+        providerOptions
       } ] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
     } );
@@ -207,14 +207,18 @@ describe( 'ai_sdk_options', () => {
     } );
 
     it( 'appends the skills catalog to the first system message and adds load_skill', async () => {
+      const providerOptions = { anthropic: { cacheControl: { type: 'ephemeral' } } };
+      const prompt = makeTextPrompt();
+      prompt.messages[0] = { ...prompt.messages[0], providerOptions };
+
       const result = await loadText( {
-        prompt: makeTextPrompt(),
+        prompt,
         skills: [ writerSkill ]
       } );
 
       expect( buildLoadSkillToolImpl ).toHaveBeenCalledWith( [ writerSkill ] );
       expect( result.system ).toEqual( [
-        { role: 'system', content: `You are concise.\n\n${skillsCatalog}` }
+        { role: 'system', content: `You are concise.\n\n${skillsCatalog}`, providerOptions }
       ] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
       expect( result.tools ).toEqual( {

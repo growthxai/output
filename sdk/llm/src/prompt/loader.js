@@ -61,7 +61,7 @@ export const loadPrompt = ( name, variables = {}, dir = Path.resolveInvocationDi
   const renderedFrontmatter = tryStep( () => renderFrontmatter( rawFrontmatter, variables ), 'Error rendering frontmatter' );
   const config = tryStep( () => parseFrontmatter( renderedFrontmatter ), 'Error converting frontmatter yaml to js' );
 
-  const { messages, instructions } = parseContent( content );
+  const { messages, instructions } = tryStep( () => parseContent( content, config.messageOptions ), 'Error parsing content' );
 
   // @TODO: this handle aliases removal in v0.11, it can be removed down the road
   const provider = config.provider;

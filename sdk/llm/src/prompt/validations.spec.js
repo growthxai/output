@@ -701,8 +701,8 @@ describe( 'parsePromptSchema', () => {
     expect( () => parse( maxTokensSnakeCase ) ).toThrow( /"max_tokens" is not valid; use "maxTokens"/ );
   } );
 
-  it( 'should validate the options attribute referencing messageOptions sets', () => {
-    const promptWithMessageOptions = {
+  it( 'should validate per-message providerOptions', () => {
+    const promptWithMessageProviderOptions = {
       name: 'message-options-prompt',
       config: {
         provider: 'anthropic',
@@ -712,27 +712,31 @@ describe( 'parsePromptSchema', () => {
         }
       },
       messages: [
-        { role: 'system', content: 'Docs.', attributes: { options: 'cached' } },
+        {
+          role: 'system',
+          content: 'Docs.',
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+        },
         { role: 'user', content: 'Question' }
       ]
     };
 
-    expect( () => parse( promptWithMessageOptions ) ).not.toThrow();
+    expect( () => parse( promptWithMessageProviderOptions ) ).not.toThrow();
   } );
 
-  it( 'should reject the removed cache shorthand as an unknown block attribute', () => {
-    const cacheShorthandPrompt = {
-      name: 'cache-shorthand-prompt',
+  it( 'should reject leftover attributes on a message', () => {
+    const leftoverAttributesPrompt = {
+      name: 'leftover-attributes-prompt',
       config: {
         provider: 'anthropic',
         model: 'claude-sonnet-4-5'
       },
       messages: [
-        { role: 'system', content: 'Static.', attributes: { cache: true } }
+        { role: 'system', content: 'Static.', attributes: { options: 'cached' } }
       ]
     };
 
-    expect( () => parse( cacheShorthandPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( leftoverAttributesPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError for unknown top-level message fields', () => {
