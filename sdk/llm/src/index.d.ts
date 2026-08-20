@@ -308,18 +308,11 @@ export type ExtractedSource = {
 };
 
 /**
- * Cost breakdown from the cost module (`calculateLLMCallCost`). `total` is null when pricing data is missing or calculation fails.
+ * Cost on a wrapped LLM response (`response.cost`, stream `onFinish` `cost`) and the
+ * `cost:llm:request` payload. Same shape as `Tracing.Attribute.LLMUsage`.
+ * `calculateLLMCallCost` returns this object, or `null` when pricing data is missing.
  */
 export type LLMCallCost = {
-  total: number | null;
-  components?: Array<{
-    name: string,
-    value: number
-  }>;
-  message?: string;
-};
-
-export type LLMUsageEvent = {
   type: 'llm:usage';
   modelId: string;
   usage: Array<{
@@ -332,12 +325,14 @@ export type LLMUsageEvent = {
   tokensUsed: number;
 };
 
+export type LLMUsageEvent = LLMCallCost;
+
 /**
  * `streamText` and agent `stream` `onFinish` event after the stream response wrapper: same as the AI SDK
  * finish payload plus optional `cost` from pricing.
  */
 export type WrappedStreamTextOnFinishEvent<Tools extends ToolSet = ToolSet> =
-  Parameters<StreamTextOnFinishCallback<Tools>>[0] & { cost?: LLMCallCost };
+  Parameters<StreamTextOnFinishCallback<Tools>>[0] & { cost?: LLMCallCost | null };
 
 export type WrappedStreamTextOnFinishCallback<Tools extends ToolSet = ToolSet> = (
   event: WrappedStreamTextOnFinishEvent<Tools>
@@ -354,8 +349,8 @@ export type GenerateTextResult<
 > = AIGenerateTextResult<Tools, OutputSpec> & {
   /** Unified field name alias for 'text' */
   result: string;
-  /** Calculated cost in USD for the LLM call (present after wrapping; `total` may be null if pricing is unavailable) */
-  cost?: LLMCallCost;
+  /** Calculated cost for the LLM call when pricing data is available; `null` when it is not */
+  cost?: LLMCallCost | null;
   /** Sources extracted from search tool results, merged with any native provider sources */
   sources: ExtractedSource[];
 };
@@ -370,8 +365,8 @@ export type GenerateTextWithStreamingResult<
 export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
   result: AIGenerateImageResult['image'];
-  /** Calculated cost for the image generation call when pricing data is available. */
-  cost?: LLMCallCost;
+  /** Calculated cost for the image generation call when pricing data is available; `null` when it is not. */
+  cost?: LLMCallCost | null;
 };
 
 /**

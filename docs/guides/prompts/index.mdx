@@ -248,7 +248,7 @@ Website content: {{ website_content }}
 
 ### `<assistant>`
 
-The assistant block is for conversation history or response prefilling. Use it when you want to prime the model's response format:
+The assistant block is for conversation history or response prefilling. Use it when you want to prime the model's response format. `generateText`, `generateTextWithStreaming`, and `streamText` send it as part of the prompt thread. `Agent` drops authored `<assistant>` and `<tool>` blocks; it only seeds `<user>` turns (system goes to `instructions`). For Agent few-shot or prefills, put examples in `<system>` or `<user>`, or use `generateText`.
 
 ```yaml
 <assistant>
@@ -258,7 +258,7 @@ Based on my analysis, here is the company summary:
 
 ### `<tool>`
 
-The tool block is for tool/function call results in multi-turn conversations:
+The tool block is for tool/function call results in multi-turn conversations. Same split as `<assistant>`: included for `generateText` / `streamText`, dropped by `Agent`. Agent conversation history is `messageStore`, not these tags. See [Agents](/packages/llm#message-store).
 
 ```yaml
 <user>

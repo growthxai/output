@@ -55,6 +55,7 @@
   - Renamed `conversationStore` to `messageStore` and `ConversationStore` to `MessageStore`.
   - Removed `createMemoryConversationStore()`. The caller supplies a `MessageStore` (`getMessages` / `addMessages`).
   - Fixed `Agent.stream()` to persist to `messageStore` when `finishReason` is not `'error'`.
+- Fixed `LLMCallCost` to match runtime `Tracing.Attribute.LLMUsage` (`type`, `modelId`, `usage`, `total`, `tokensUsed`). Pricing failures return `null` for `cost`, not `{ total: null }`.
 - Added Agent constructor validation matching the text APIs (`Invalid Agent() arguments`).
 - Renamed the AI SDK namespace re-export from `ai` to `aiSdk` (both code and types).
 - Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`) and AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, and others). Use the `aiSdk` namespace (or import from `ai`) for those.

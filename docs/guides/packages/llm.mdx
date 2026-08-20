@@ -324,6 +324,8 @@ The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/pro
 
 The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
+Each call seeds authored `<user>` blocks from the prompt. `<system>` blocks become `instructions`. Authored `<assistant>` and `<tool>` blocks are dropped; use `generateText` when the prompt is a few-shot or prefilled thread.
+
 ```typescript steps.ts
 import { step } from '@outputai/core';
 import { Agent, aiSdk } from '@outputai/llm';
@@ -439,7 +441,9 @@ const { output } = await agent.generate();
 
 ### Message Store
 
-By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `messageStore` to maintain history across calls:
+By default, Agent is stateless. Each `generate()` / `stream()` call starts from the prompt seed (authored `<user>` blocks) plus this turn's `messages`. Pass a `messageStore` to keep history across calls.
+
+The store holds this turn's caller messages plus the model reply. It does not persist the prompt seed. Reconstructing an agent is the same prompt (and variables) plus a hydrated store.
 
 ```typescript
 import { Agent } from '@outputai/llm';
