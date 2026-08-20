@@ -3,6 +3,7 @@ import { calculateLLMCallCost } from '../cost/index.js';
 import { calculateBase64FileSize } from './image.js';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
+import { isPromise } from 'node:util/types';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
 const createResponseProxy = ( { response, properties } ) => new Proxy( response, {
@@ -78,22 +79,23 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
 };
 
 /**
- * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`) and returns
- * whatever `fn` returns (the stream) immediately.
+ * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
  * `fn` receives `onFinishHook(response, callback)` and `onErrorHook(event, callback)`. Call
  * `onFinishHook` from the SDK `onFinish`: it wraps the response, awaits `callback` (persist /
  * user `onFinish`), then ends the trace. Call `onErrorHook` from SDK `onError`: it maps the
  * error, records it, and invokes `callback` without rethrowing (user `onError` throws are ignored).
  *
- * A throw from `fn` itself (stream creation) is mapped and recorded on the LLM trace.
+ * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded
+ * on the LLM trace. A non-Promise return (the `streamText` stream) is returned immediately.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
- * @param {(hooks: { onFinishHook: Function, onErrorHook: Function }) => object} args.fn - Must
- *   return the SDK stream; wire the hooks into SDK `onFinish` / `onError`
- * @returns {object} Value returned by `fn`
+ * @param {(hooks: { onFinishHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
+ *   Return the SDK stream, or a Promise of that stream (`Agent.stream`); wire the hooks into SDK
+ *   `onFinish` / `onError`
+ * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
 export const wrapStream = ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
@@ -123,7 +125,10 @@ export const wrapStream = ( { name, prompt, fn } ) => {
   };
 
   try {
-    return fn( { onFinishHook, onErrorHook } );
+    const stream = fn( { onFinishHook, onErrorHook } );
+    return isPromise( stream ) ? stream.catch( error => {
+      throw handleError( { traceId, error } );
+    } ) : stream;
   } catch ( error ) {
     throw handleError( { traceId, error } );
   }

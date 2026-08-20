@@ -4,7 +4,8 @@ import {
   reviewInputSchema,
   reviewOutputSchema,
   streamReviewOutputSchema,
-  streamedReviewOutputSchema
+  streamedReviewOutputSchema,
+  messageStoreReviewOutputSchema
 } from './types.js';
 
 const createMemoryMessageStore = (): MessageStore => {
@@ -16,6 +17,12 @@ const createMemoryMessageStore = (): MessageStore => {
     }
   };
 };
+
+const snapshotStore = async ( store: MessageStore ) =>
+  ( await store.getMessages() ).map( message => ( {
+    role: message.role,
+    content: typeof message.content === 'string' ? message.content : JSON.stringify( message.content )
+  } ) );
 
 export const reviewContent = step( {
   name: 'reviewContent',
@@ -98,14 +105,15 @@ export const reviewContentGenerateWithStreaming = step( {
       }
     } );
     const streamedContent = chunks.join( '' );
-    const storedMessages = await store.getMessages();
+    const storedMessages = await snapshotStore( store );
 
     return {
       content: result.result,
       streamedContent,
       chunkCount: chunks.length,
       matches: result.result === streamedContent,
-      storedMessageCount: storedMessages.length
+      storedMessageCount: storedMessages.length,
+      storedMessages
     };
   }
 } );
@@ -116,19 +124,51 @@ export const reviewContentStream = step( {
   inputSchema: reviewInputSchema,
   outputSchema: streamReviewOutputSchema,
   fn: async input => {
+    const store = createMemoryMessageStore();
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
-      variables: input
+      variables: input,
+      messageStore: store
     } );
     const stream = await agent.stream();
     const chunks: string[] = [];
     for await ( const chunk of stream.textStream ) {
       chunks.push( chunk );
     }
+    const storedMessages = await snapshotStore( store );
 
     return {
       content: chunks.join( '' ),
-      chunkCount: chunks.length
+      chunkCount: chunks.length,
+      storedMessageCount: storedMessages.length,
+      storedMessages
+    };
+  }
+} );
+
+export const reviewContentMessageStore = step( {
+  name: 'reviewContentMessageStore',
+  description: 'Two Agent.generate() turns on one messageStore, so the run output shows what was persisted',
+  inputSchema: reviewInputSchema,
+  outputSchema: messageStoreReviewOutputSchema,
+  fn: async input => {
+    const store = createMemoryMessageStore();
+    const agent = new Agent( {
+      prompt: 'no_skills_assistant@v1',
+      variables: input,
+      messageStore: store
+    } );
+
+    await agent.generate();
+    const afterFirst = await snapshotStore( store );
+
+    await agent.generate( {
+      messages: [ { role: 'user', content: 'In one sentence, what content did I ask you to review?' } ]
+    } );
+
+    return {
+      afterFirst,
+      afterSecond: await snapshotStore( store )
     };
   }
 } );

@@ -4,10 +4,11 @@ import {
   reviewContentFreeform,
   reviewContentGenerateText,
   reviewContentGenerateWithStreaming,
+  reviewContentMessageStore,
   reviewContentNoSkills,
   reviewContentStream
 } from './steps.js';
-import { reviewOutputSchema, streamReviewOutputSchema, streamedReviewOutputSchema } from './types.js';
+import { messageStoreReviewOutputSchema, reviewOutputSchema, streamReviewOutputSchema, streamedReviewOutputSchema } from './types.js';
 
 export default workflow( {
   name: 'agent_demo',
@@ -23,7 +24,8 @@ export default workflow( {
     generateText: z.string(),
     noSkills: z.string(),
     generateWithStreaming: streamedReviewOutputSchema,
-    stream: streamReviewOutputSchema
+    stream: streamReviewOutputSchema,
+    messageStore: messageStoreReviewOutputSchema
   } ),
   fn: async input => ( {
     structured: await reviewContent( input ),
@@ -31,6 +33,7 @@ export default workflow( {
     generateText: await reviewContentGenerateText( input ),
     noSkills: await reviewContentNoSkills( input ),
     generateWithStreaming: await reviewContentGenerateWithStreaming( input ),
-    stream: await reviewContentStream( input )
+    stream: await reviewContentStream( input ),
+    messageStore: await reviewContentMessageStore( input )
   } )
 } );

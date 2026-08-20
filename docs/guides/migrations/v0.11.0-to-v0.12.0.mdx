@@ -466,6 +466,7 @@ providerOptions:
 - Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
+- Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
 - Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.

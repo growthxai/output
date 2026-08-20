@@ -58,7 +58,7 @@ export class Agent extends AIToolLoopAgent {
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } )
         } );
-        await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+        await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
         return response;
       }
     } );
@@ -95,7 +95,7 @@ export class Agent extends AIToolLoopAgent {
         }
 
         state.response.output = await stream.output;
-        await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
+        await this.#storeMessages( messages.concat( state.response.response?.messages ?? [] ) );
 
         return state.response;
       }
@@ -118,7 +118,7 @@ export class Agent extends AIToolLoopAgent {
         onFinish: response =>
           onFinishHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {
-              await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+              await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
             }
             await onFinish?.( parsedResponse );
           } ),

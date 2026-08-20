@@ -315,5 +315,35 @@ describe( 'wrapGeneration / wrapStream', () => {
         details: mappedError
       } );
     } );
+
+    it( 'maps a rejected promise from fn onto the llm trace and rethrows', async () => {
+      const original = new Error( 'prepareCall failed' );
+
+      await expect( wrapStream( {
+        name: 'Agent.stream',
+        prompt,
+        fn: () => Promise.reject( original )
+      } ) ).rejects.toBe( mappedError );
+
+      expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'Agent.stream-9000000000',
+        details: mappedError
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'returns a fulfilled promise from fn without mapping', async () => {
+      const stream = { kind: 'stream' };
+
+      await expect( wrapStream( {
+        name: 'Agent.stream',
+        prompt,
+        fn: () => Promise.resolve( stream )
+      } ) ).resolves.toBe( stream );
+
+      expect( mocks.mapAiError ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).not.toHaveBeenCalled();
+    } );
   } );
 } );

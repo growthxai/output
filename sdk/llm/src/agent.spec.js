@@ -114,7 +114,7 @@ const assistantMessage = { role: 'assistant', content: 'response' };
 const aiResponse = {
   text: 'response',
   finishReason: 'stop',
-  responseMessages: [ assistantMessage ]
+  response: { messages: [ assistantMessage ] }
 };
 
 describe( 'Agent', () => {

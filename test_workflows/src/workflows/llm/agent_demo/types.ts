@@ -13,17 +13,30 @@ export const reviewInputSchema = z.object( {
   focus: z.string().describe( 'What aspects to focus the review on' )
 } );
 
+export const storedMessageSchema = z.object( {
+  role: z.string(),
+  content: z.string()
+} );
+
 export const streamedReviewOutputSchema = z.object( {
   content: z.string(),
   streamedContent: z.string(),
   chunkCount: z.number(),
   matches: z.boolean(),
-  storedMessageCount: z.number()
+  storedMessageCount: z.number(),
+  storedMessages: z.array( storedMessageSchema )
 } );
 
 export const streamReviewOutputSchema = z.object( {
   content: z.string(),
-  chunkCount: z.number()
+  chunkCount: z.number(),
+  storedMessageCount: z.number(),
+  storedMessages: z.array( storedMessageSchema )
+} );
+
+export const messageStoreReviewOutputSchema = z.object( {
+  afterFirst: z.array( storedMessageSchema ),
+  afterSecond: z.array( storedMessageSchema )
 } );
 
 export type ReviewOutput = z.infer<typeof reviewOutputSchema>;

@@ -100,7 +100,7 @@ export const generateContent = step({
 });
 ```
 
-`generateTextWithStreaming` also supports structured output. Pass an `Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
+`generateTextWithStreaming` also supports structured output. Pass an `aiSdk.Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
 
 #### Direct stream access
 
@@ -505,7 +505,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 |-------|-------------|
 | `result` | Convenience alias for `text` |
 | `text` | The raw generated text |
-| `output` | The structured output when using `Output.*` helpers |
+| `output` | The structured output when using `aiSdk.Output.*` helpers |
 | `usage` | Token counts: `inputTokens`, `outputTokens`, `totalTokens` |
 | `finishReason` | Why generation stopped (`'stop'`, `'length'`, `'tool-calls'`, etc.) |
 | `response` | Raw provider response metadata |
