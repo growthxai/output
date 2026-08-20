@@ -2,9 +2,11 @@
 "@outputai/llm": minor
 ---
 
-- Removed the `skills` argument from `generateText()`, `streamText()`, `generateTextWithStreaming()`, and `Agent`. Removed `skill()`, colocated `skills/` auto-discovery, and the `SkillsArg` type. Skills load only from prompt frontmatter.
-- Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Calls no longer accept `temperature`, `maxTokens`, `maxSteps`, `providerOptions`, image `n`/`size`/`seed`, `experimental_transform`, `onStepFinish`, and similar. Set model and image config (including `maxSteps`, default 10) on the prompt file; call-argument `stopWhen` still overrides it.
-
+- Removed skills definition other than in the prompt file:
+  - Removed the `skills` argument from `generateText()`, `streamText()`, `generateTextWithStreaming()`, and `Agent`.
+  - Removed the `skills/` auto-discovery.
+  - Removed the `skill()` helper and the `SkillsArg` type.
+- Removed native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Also removed `skills` and `maxSteps`. These are the supported arguments:
   | Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
   |----------|----------------|-----------------------------|--------------|-----------------|
   | `prompt` | required | required | required | required |
@@ -36,10 +38,23 @@
   | `onChunk` | - | - | optional | optional |
   | `onFinish` | - | - | - | optional |
   | `onError` | - | - | - | optional |
-- Fixed prompt YAML tools and call-argument tools to merge (caller wins on the same key; `load_skill` is last). Prompt-only native tools now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
-- Renamed `Prompt.promptFileDir` to `Prompt.fileDir`. Loaded `Prompt` includes `variables` (`Record<string, string | number | boolean>`, default `{}`). `Prompt.config.skills` is always a `string[]` after load.
-- Prompt file `config` is strict. Unknown top-level keys throw. Snake_case aliases of known fields (`max_tokens`) include a suggestion (`use "maxTokens"`). Provider-specific keys (`effort`, `reasoningEffort`, `topP`) belong under `providerOptions`, which stays open.
-- LLM traces on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`: start `input` is `{ prompt }` only (loaded object with `name`, `fileDir`, `variables`, rendered `config`/`messages`; replaces v0.11 filename `prompt`, sibling `variables`, and `loadedPrompt`). End `output` includes `cost` (also still a trace attribute and `cost:llm:request` when present) and merged `sources` (replaces `sourcesFromTools`).
-- Renamed Agent `conversationStore` to `messageStore` and the `ConversationStore` type to `MessageStore`. Removed `createMemoryConversationStore()`. Multi-turn history uses a `MessageStore` (`getMessages` / `addMessages`) supplied by the caller.
+- Fixed call-argument tools overriding prompt tools. They now merge (caller wins on the same key; `load_skill` is last). Prompt-only native tools now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
+- Updated prompt shape:
+  - Renamed `Prompt.promptFileDir` to `Prompt.fileDir`.
+  - Added `Prompt.variables` (`Record<string, string | number | boolean>`, default `{}`).
+  - Updated `Prompt.config.skills` to always be a `string[]` after load.
+  - Added `Prompt.config.maxSteps` (positive integer, default 10). It replaces the old argument.
+  - Removed `PromptMessage.attributes`. `options="<name>"` on a role tag is resolved at `loadPrompt` against `config.messageOptions` into optional per-message `providerOptions`. Unknown role-tag attributes throw at load.
+- Fixed nested role tags inside a message closing the outer tag. Nested tags are treated as content.
+- Updated prompt file `config` to be strict. Unknown top-level keys throw.
+- Updated LLM traces on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`:
+  - Updated start `input` to `{ prompt }` (the loaded object). Removed the v0.11 filename `prompt`, sibling `variables`, and `loadedPrompt`.
+  - Added `cost` on end `output` (also still a trace attribute and `cost:llm:request` when present).
+  - Renamed `sourcesFromTools` to `sources` (merged tool + provider sources).
+- Updated Agent message store:
+  - Renamed `conversationStore` to `messageStore` and `ConversationStore` to `MessageStore`.
+  - Removed `createMemoryConversationStore()`. The caller supplies a `MessageStore` (`getMessages` / `addMessages`).
+  - Fixed `Agent.stream()` to persist to `messageStore` when `finishReason` is not `'error'`.
 - Added Agent constructor validation matching the text APIs (`Invalid Agent() arguments`).
-- Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`) and cherry-picked AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, and others). Use the `aiSdk` namespace (or import from `ai`) for those. Renamed the namespace re-export `ai` to `aiSdk`.
+- Renamed the AI SDK namespace re-export from `ai` to `aiSdk` (both code and types).
+- Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`) and AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, and others). Use the `aiSdk` namespace (or import from `ai`) for those.

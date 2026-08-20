@@ -894,7 +894,7 @@ const prompt = loadPrompt('generate_summary@v1', {
 });
 
 console.log(prompt.config);    // { provider: 'anthropic', model: '...', temperature: 0.7 }
-console.log(prompt.messages);  // Rendered message array
+console.log(prompt.messages);  // [{ role, content, providerOptions? }, ...]
 console.log(prompt.variables); // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
 

@@ -1,9 +1,9 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, aiSdk re-exports, and prompt-only skills in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
 
 ## Skills load only from the prompt file
 
@@ -143,6 +143,7 @@ Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, r
 | - | `prompt.variables` (`Record<string, string \| number \| boolean>`, default `{}`) |
 | `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
 | `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
+| `message.attributes` (`{ options: 'cached' }` or `{}`) | `message.providerOptions` (resolved set(s); omitted when the tag has no `options`) |
 
 #### Before
 
@@ -159,6 +160,33 @@ const dir = prompt.fileDir;
 ```
 
 The `SkillsArg` type is removed. `Skill.description` is required on the loaded skill shape.
+
+### Per-message options resolve at load
+
+v0.11 kept the role tag's `attributes` on the loaded message and compiled `options="..."` into AI SDK `providerOptions` at generate time. v0.12 compiles that at `loadPrompt`. LLM traces (`input.prompt.messages`) use the same loaded shape.
+
+#### Before
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+prompt.messages[0].attributes; // { options: 'cached' }
+```
+
+#### After
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+prompt.messages[0].providerOptions;
+// { anthropic: { cacheControl: { type: 'ephemeral' } } }
+```
+
+The only supported role-tag attribute is `options`. Any other attribute throws at load (previously this could fail later, at generate):
+
+```
+Error parsing content on prompt "writer@v1": Message has unsupported attributes. The only supported attribute is "options".
+```
+
+Unknown `options` names, and `options` set while `config.messageOptions` is missing or empty, also throw at load.
 
 ## LLM trace details
 
@@ -442,6 +470,8 @@ providerOptions:
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
+- Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
+- Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
