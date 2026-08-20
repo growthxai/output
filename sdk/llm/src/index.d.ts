@@ -12,6 +12,7 @@ import type {
   StreamTextOnErrorCallback
 } from 'ai';
 import type { Output as AIOutputNamespace } from 'ai';
+import type { Tracing } from '@outputai/core/sdk/runtime';
 
 /** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, and other AI SDK APIs. */
 export * as aiSdk from 'ai';
@@ -87,8 +88,8 @@ export type Prompt = {
     /** Maximum number of tokens in the response */
     maxTokens?: number;
 
-    /** Tool-loop iterations when `stopWhen` is omitted. Defaults to 10 after load. */
-    maxSteps?: number;
+    /** Tool-loop iterations when `stopWhen` is omitted. Always a positive integer after load (default 10). */
+    maxSteps: number;
 
     /** Number of images to generate */
     n?: number;
@@ -105,8 +106,8 @@ export type Prompt = {
     /** Random seed for deterministic image generation when supported */
     seed?: number;
 
-    /** Skill file or directory paths relative to the prompt file */
-    skills?: string[];
+    /** Skill file or directory paths relative to the prompt file. Always a `string[]` after load (`[]` if unset). */
+    skills: string[];
 
     /**
      * Provider-specific tools with configuration.
@@ -144,8 +145,11 @@ export type Prompt = {
   /** Array of messages in the conversation */
   messages: PromptMessage[];
 
-  /** Plain prompt instructions for non-chat prompt files */
-  instructions?: string | null;
+  /**
+   * Plain prompt body when the file has no role tags. Always set after `loadPrompt`:
+   * a non-empty string for instruction prompts, `null` for chat prompts.
+   */
+  instructions: string | null;
 };
 
 /**
@@ -241,7 +245,7 @@ export type StreamTextParameters<
   onChunk?: StreamTextOnChunkCallback<Tools>;
   /** Callback when a stream error occurs */
   onError?: StreamTextOnErrorCallback;
-  /** Callback when stream finishes. Receives the wrapped event with optional `cost`. */
+  /** Callback when stream finishes. Receives the wrapped event with `result`, `cost`, and `sources`. */
   onFinish?: WrappedStreamTextOnFinishCallback<Tools>;
 };
 
@@ -292,47 +296,38 @@ export type OutputAgentGenerateWithStreamingParameters = OutputAgentGeneratePara
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
 };
 
-/** Agent {@link Agent.stream} options. `onFinish` receives the wrapped event with optional `cost`. */
+/** Agent {@link Agent.stream} options. `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`result`, `cost`, `sources`). */
 export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParameters & {
   onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
   onError?: StreamTextOnErrorCallback;
 };
 
-/** A source extracted from search tool results during multi-step LLM execution. */
-export type ExtractedSource = {
-  type: 'source';
-  sourceType: 'url';
-  id: string;
-  url: string;
-  title: string;
-};
+/**
+ * One entry of `generateText().sources` after merge (tool URLs plus provider sources).
+ * Same item type as AI SDK `GenerateTextResult['sources']` (`sourceType: 'url' | 'document'`).
+ * `ai` does not export a named `Source` type.
+ */
+export type ExtractedSource = AIGenerateTextResult<ToolSet, AnyAiOutput>['sources'][number];
 
 /**
  * Cost on a wrapped LLM response (`response.cost`, stream `onFinish` `cost`) and the
- * `cost:llm:request` payload. Same shape as `Tracing.Attribute.LLMUsage`.
- * `calculateLLMCallCost` returns this object, or `null` when pricing data is missing.
+ * `cost:llm:request` payload. This is a `Tracing.Attribute.LLMUsage` instance.
+ * `calculateLLMCallCost` returns it, or `null` when pricing data is missing.
  */
-export type LLMCallCost = {
-  type: 'llm:usage';
-  modelId: string;
-  usage: Array<{
-    type: string;
-    ppm: number;
-    amount: number;
-    total: number;
-  }>;
-  total: number;
-  tokensUsed: number;
-};
+export type LLMCallCost = InstanceType<( typeof Tracing.Attribute )['LLMUsage']>;
 
 export type LLMUsageEvent = LLMCallCost;
 
 /**
  * `streamText` and agent `stream` `onFinish` event after the stream response wrapper: same as the AI SDK
- * finish payload plus optional `cost` from pricing.
+ * finish payload plus `result`, `cost`, and merged `sources`.
  */
 export type WrappedStreamTextOnFinishEvent<Tools extends ToolSet = ToolSet> =
-  Parameters<StreamTextOnFinishCallback<Tools>>[0] & { cost?: LLMCallCost | null };
+  Parameters<StreamTextOnFinishCallback<Tools>>[0] & {
+    result: string;
+    cost: LLMCallCost | null;
+    sources: ExtractedSource[];
+  };
 
 export type WrappedStreamTextOnFinishCallback<Tools extends ToolSet = ToolSet> = (
   event: WrappedStreamTextOnFinishEvent<Tools>
@@ -349,9 +344,9 @@ export type GenerateTextResult<
 > = AIGenerateTextResult<Tools, OutputSpec> & {
   /** Unified field name alias for 'text' */
   result: string;
-  /** Calculated cost for the LLM call when pricing data is available; `null` when it is not */
-  cost?: LLMCallCost | null;
-  /** Sources extracted from search tool results, merged with any native provider sources */
+  /** Calculated cost for the LLM call; `null` when pricing data is not available */
+  cost: LLMCallCost | null;
+  /** Merged tool + provider sources (url and document). Always an array. */
   sources: ExtractedSource[];
 };
 
@@ -365,8 +360,8 @@ export type GenerateTextWithStreamingResult<
 export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
   result: AIGenerateImageResult['image'];
-  /** Calculated cost for the image generation call when pricing data is available; `null` when it is not. */
-  cost?: LLMCallCost | null;
+  /** Calculated cost for the image generation call; `null` when pricing data is not available. */
+  cost: LLMCallCost | null;
 };
 
 /**
@@ -449,7 +444,7 @@ export function generateTextWithStreaming<
  * This function is a wrapper over the AI SDK's `streamText`.
  * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
  * `providerOptions`. Call arguments match {@link generateText}, plus `onChunk`, `onFinish`, and
- * `onError`. `onFinish` is wrapped to add optional cost data.
+ * `onError`. `onFinish` is wrapped to add `result`, `cost`, and merged `sources`.
  *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
@@ -509,7 +504,7 @@ export declare class Agent<
 
   /**
    * Run the agent and return when complete.
-   * Same augmented shape as {@link generateText}: `result`, optional `cost`, merged `sources`.
+   * Same augmented shape as {@link generateText}: `result`, `cost`, merged `sources`.
    */
   generate( options?: OutputAgentGenerateParameters ): Promise<GenerateTextResult<ToolSet, OutputSpec>>;
 
@@ -524,7 +519,7 @@ export declare class Agent<
 
   /**
    * Stream the agent's response.
-   * `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`cost` optional), matching {@link streamText}.
+   * `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`result`, `cost`, `sources`), matching {@link streamText}.
    */
   stream( options?: OutputAgentStreamParameters ): Promise<
     AIStreamTextResult<ToolSet, OutputSpec>

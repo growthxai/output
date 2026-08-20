@@ -41,7 +41,7 @@ export const promptSchema = z.object( {
       providerOptions: objectMapSchema.optional()
     } ).strict()
   ),
-  instructions: z.string().trim().min( 1 ).nullable().optional(),
+  instructions: z.string().trim().min( 1 ).nullable().default( null ),
   fileDir: z.string(),
   variables: z.record( z.string(), z.union( [ z.string(), z.number(), z.boolean() ] ) ).default( {} )
 } ).strict().superRefine( ( prompt, ctx ) => {

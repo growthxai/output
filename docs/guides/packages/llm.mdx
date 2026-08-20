@@ -515,7 +515,8 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `response` | Raw provider response metadata |
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
-| `cost` | LLM usage attribute with `modelId`, `usage`, `total`, and `tokensUsed`; `null` when pricing could not be computed |
+| `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
+| `cost` | LLM usage attribute (`type`, `modelId`, `usage`, `total`, `tokensUsed`); `null` when pricing could not be computed |
 
 The `cost` property is an LLM usage attribute:
 
@@ -546,6 +547,8 @@ Only available, finite usage dimensions are included in `usage`. For example, `r
 | `toolCalls` | `Promise` | Tool calls made during streaming, resolved on completion |
 | `response` | `Promise` | Raw provider response metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
+
+`streamText` / `Agent.stream()` `onFinish` receives the wrapped finish payload: `result` (alias for `text`), `cost` (`null` when pricing is missing), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -578,8 +581,8 @@ Company size: {{ size }} employees
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
-| `maxSteps` | `number` | Tool-loop iterations when tools or skills are present (default 10) |
-| `skills` | `string` or `string[]` | Skill file or directory paths, relative to this prompt |
+| `maxSteps` | `number` (default 10 after `loadPrompt`) | Tool-loop iterations when tools or skills are present |
+| `skills` | `string` or `string[]` in YAML; always `string[]` after `loadPrompt` (`[]` if omitted) | Skill file or directory paths, relative to this prompt |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
 | `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
 | `messageOptions` | `object` | Named per-message `providerOptions` sets |
@@ -897,9 +900,10 @@ const prompt = loadPrompt('generate_summary@v1', {
   size: 250
 });
 
-console.log(prompt.config);    // { provider: 'anthropic', model: '...', temperature: 0.7 }
-console.log(prompt.messages);  // [{ role, content, providerOptions? }, ...]
-console.log(prompt.variables); // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
+console.log(prompt.config);       // includes skills: string[] and maxSteps (default 10)
+console.log(prompt.messages);     // [{ role, content, providerOptions? }, ...]
+console.log(prompt.instructions); // string | null
+console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
 
 ## API Reference

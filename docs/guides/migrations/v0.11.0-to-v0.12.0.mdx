@@ -143,6 +143,7 @@ Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, r
 | - | `prompt.variables` (`Record<string, string \| number \| boolean>`, default `{}`) |
 | `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
 | `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
+| `prompt.instructions` missing or omitted | Always `string | null` (chat prompts are `null`) |
 | `message.attributes` (`{ options: 'cached' }` or `{}`) | `message.providerOptions` (resolved set(s); omitted when the tag has no `options`) |
 
 #### Before
@@ -471,6 +472,7 @@ providerOptions:
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
+- Treat `prompt.instructions` as always `string | null` after `loadPrompt` (chat prompts are `null`).
 - Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
 - Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.

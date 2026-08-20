@@ -10,13 +10,13 @@ When creating `.prompt` files, understanding the `providerOptions` structure is 
 ### Decision Tree: Where Does This Option Go?
 
 ```
-Is it a shared top-level field (provider, model, temperature, maxTokens, maxSteps, skills, tools, image n/size/aspectRatio/seed)?
-├─ YES → Top-level config (alongside provider and model)
-└─ NO → providerOptions (unknown top-level keys throw; snake_case aliases like max_tokens fail with a camelCase suggestion)
+Is the key on the prompt config allowlist (provider, model, temperature, maxTokens, maxSteps, skills, tools, providerOptions, messageOptions, n, maxImagesPerCall, size, aspectRatio, seed)?
+├─ YES -> Top-level config
+└─ NO -> Nest under providerOptions (unknown top-level keys throw; snake_case aliases like max_tokens fail with a camelCase suggestion)
 
 In providerOptions:
-├─ Is it 'thinking' or 'order'? → Top-level (special AI SDK features)
-└─ Is it provider-specific? → Nested under provider namespace
+├─ Is it 'thinking' or 'order'? -> Top-level (special AI SDK features)
+└─ Is it provider-specific? -> Nested under provider namespace
 ```
 
 ### Common Mistakes to Avoid

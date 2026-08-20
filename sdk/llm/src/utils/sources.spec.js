@@ -99,4 +99,24 @@ describe( 'extractSources', () => {
     expect( sources ).toHaveLength( 1 );
     expect( sources[0].title ).toBe( 'from-response' );
   } );
+
+  it( 'keeps document sources that have id and no url', () => {
+    const docA = { type: 'source', sourceType: 'document', id: 'doc-a', mediaType: 'application/pdf', title: 'A' };
+    const docB = { type: 'source', sourceType: 'document', id: 'doc-b', mediaType: 'application/pdf', title: 'B' };
+
+    expect( extractSources( { sources: [ docA, docB ] } ) ).toEqual( [ docA, docB ] );
+  } );
+
+  it( 'keeps url and document sources together', () => {
+    const url = 'https://page.test';
+    const doc = { type: 'source', sourceType: 'document', id: 'doc-1', title: 'Doc' };
+    const sources = extractSources( {
+      steps: [ searchStep( [ { url, title: 'from-tool' } ] ) ],
+      sources: [ doc ]
+    } );
+
+    expect( sources ).toHaveLength( 2 );
+    expect( sources[0].url ).toBe( url );
+    expect( sources[1] ).toBe( doc );
+  } );
 } );

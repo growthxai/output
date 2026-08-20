@@ -32,9 +32,10 @@ const extractSourcesFromSteps = steps =>
     .map( v => buildSource( v ) );
 
 /**
- * Extract sources from tools usage and final response, deduplicate by url and return.
+ * Extract sources from tools usage and final response, deduplicate, and return.
  *
- * Response sources are preferred over tools when deduplicating.
+ * Dedup key is `url` when set, otherwise `id` (document sources have `id` and no `url`).
+ * Response sources are preferred over tools when the key matches.
  *
  * @param {object} response AI SDK response
  * @returns {object[]} Merged sources
@@ -43,5 +44,5 @@ export const extractSources = response => {
   const { steps, sources: sourcesFromResponse } = response;
   const sourcesFromTools = extractSourcesFromSteps( steps );
   const allSources = sourcesFromTools.concat( asArray( sourcesFromResponse ) );
-  return new Map( allSources.map( s => [ s.url, s ] ) ).values().toArray();
+  return new Map( allSources.map( s => [ s.url ?? s.id, s ] ) ).values().toArray();
 };
