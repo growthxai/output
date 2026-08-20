@@ -410,7 +410,7 @@ Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoi
 
 For progress callbacks inside a step, prefer `generateTextWithStreaming()` or `Agent.generateWithStreaming()`. They return complete results and reject on stream failures. If direct `streamText()` access is required, capture `onError` and throw the captured error after consuming the stream. See `output-dev-llm-streaming`.
 
-**Provider & model selection:** the SDK supports `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, and `perplexity` (the registered list lives in the SDK's provider registry, `sdk/llm/src/ai_provider.js`). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
+**Provider & model selection:** the SDK supports `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, and `perplexity`. Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 
 See `output-dev-prompt-file` for comprehensive patterns.
 

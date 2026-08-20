@@ -1,5 +1,6 @@
 import { tool as createTool } from 'ai';
-import { z } from '@outputai/core';
+import { ValidationError, z } from '@outputai/core';
+import { getProvider } from '../ai_provider.js';
 
 /**
  * Build the `load_skill` AI SDK tool that the LLM calls to retrieve full skill instructions.
@@ -18,3 +19,29 @@ export const buildLoadSkillTool = skills => createTool( {
     return sk.instructions;
   }
 } );
+
+const buildProviderError = ( prompt, suffix ) => `Provider "${prompt.config.provider}" used by prompt "${prompt.name}" does not support ${suffix}.`;
+
+/** Load tools from a prompt provider. */
+export const loadPromptTools = prompt => {
+  const promptToolNames = Object.keys( prompt.config.tools ?? {} );
+  if ( promptToolNames.length === 0 ) {
+    return null;
+  }
+
+  const { tools } = getProvider( prompt.config.provider );
+  if ( !tools ) {
+    throw new ValidationError( buildProviderError( prompt, 'provider-specific tools' ) );
+  }
+
+  const missingTools = promptToolNames.filter( t => !tools[t] );
+  if ( missingTools.length > 0 ) {
+    throw new ValidationError( buildProviderError( prompt, `these tools: ${missingTools.join( ', ' )}` ) );
+  }
+
+  const loadedTools = {};
+  for ( const name of promptToolNames ) {
+    loadedTools[name] = tools[name]( prompt.config.tools[name] );
+  }
+  return loadedTools;
+};

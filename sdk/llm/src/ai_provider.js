@@ -53,7 +53,7 @@ const registerProviderSchema = z.object( {
  * @param {Function} providerFn - Factory function that receives a model id
  * @returns {void}
  */
-export function registerProvider( name, providerFn ) {
+export const registerProvider = ( name, providerFn ) => {
   const result = registerProviderSchema.safeParse( { name, providerFn } );
   if ( !result.success ) {
     throw new ValidationError( `Invalid provider registration: ${z.prettifyError( result.error )}` );
@@ -65,7 +65,7 @@ export function registerProvider( name, providerFn ) {
     );
   }
   registeredProviders[name] = providerFn;
-}
+};
 
 /**
  * Return a provider by its name.

@@ -2,17 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const loadModelImpl = vi.fn();
 const loadImageModelImpl = vi.fn();
-const loadToolsImpl = vi.fn();
+const loadPromptToolsImpl = vi.fn();
 const buildLoadSkillToolImpl = vi.fn();
 
-vi.mock( './ai_model.js', () => ( {
+vi.mock( './utils/models.js', () => ( {
   loadTextModel: ( ...args ) => loadModelImpl( ...args ),
-  loadImageModel: ( ...args ) => loadImageModelImpl( ...args ),
-  loadTools: ( ...args ) => loadToolsImpl( ...args )
+  loadImageModel: ( ...args ) => loadImageModelImpl( ...args )
 } ) );
 
 vi.mock( './utils/tools.js', () => ( {
-  buildLoadSkillTool: ( ...args ) => buildLoadSkillToolImpl( ...args )
+  buildLoadSkillTool: ( ...args ) => buildLoadSkillToolImpl( ...args ),
+  loadPromptTools: ( ...args ) => loadPromptToolsImpl( ...args )
 } ) );
 
 vi.mock( 'ai', () => ( {
@@ -62,7 +62,7 @@ describe( 'ai_sdk_options', () => {
     vi.clearAllMocks();
     loadModelImpl.mockReturnValue( 'MODEL' );
     loadImageModelImpl.mockReturnValue( 'IMAGE_MODEL' );
-    loadToolsImpl.mockReturnValue( null );
+    loadPromptToolsImpl.mockReturnValue( null );
     buildLoadSkillToolImpl.mockImplementation( skills => ( { type: 'load_skill', skills } ) );
   } );
 
@@ -82,7 +82,7 @@ describe( 'ai_sdk_options', () => {
       const result = await loadText( { prompt } );
 
       expect( loadModelImpl ).toHaveBeenCalledWith( prompt );
-      expect( loadToolsImpl ).toHaveBeenCalledWith( prompt );
+      expect( loadPromptToolsImpl ).toHaveBeenCalledWith( prompt );
       expect( result ).toEqual( {
         allowSystemInMessages: true,
         maxRetries: 0,
@@ -108,7 +108,7 @@ describe( 'ai_sdk_options', () => {
         'Prompt "image@v1" has no chat-style messages.'
       );
       expect( loadModelImpl ).not.toHaveBeenCalled();
-      expect( loadToolsImpl ).not.toHaveBeenCalled();
+      expect( loadPromptToolsImpl ).not.toHaveBeenCalled();
     } );
 
     it( 'resolves block attributes into per-message providerOptions', async () => {
@@ -181,7 +181,7 @@ describe( 'ai_sdk_options', () => {
 
     it( 'sets prompt tools and stopWhen from maxSteps', async () => {
       const promptTools = { googleSearch: { type: 'google-search-tool' } };
-      loadToolsImpl.mockReturnValue( promptTools );
+      loadPromptToolsImpl.mockReturnValue( promptTools );
 
       const result = await loadText( { prompt: makeTextPrompt( { tools: { googleSearch: {} }, maxSteps: 4 } ) } );
 
@@ -190,7 +190,7 @@ describe( 'ai_sdk_options', () => {
     } );
 
     it( 'lets caller tools override prompt tools on the same key', async () => {
-      loadToolsImpl.mockReturnValue( {
+      loadPromptToolsImpl.mockReturnValue( {
         googleSearch: { from: 'prompt' },
         urlContext: { from: 'prompt' }
       } );
@@ -268,7 +268,7 @@ describe( 'ai_sdk_options', () => {
     } );
 
     it( 'does not replace caller stopWhen with maxSteps when tools are present', async () => {
-      loadToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
+      loadPromptToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
       const stopWhen = { type: 'custom-stop' };
 
       const result = await loadText( {
@@ -286,7 +286,7 @@ describe( 'ai_sdk_options', () => {
       } );
       expect( withoutTools.toolChoice ).toBeUndefined();
 
-      loadToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
+      loadPromptToolsImpl.mockReturnValue( { googleSearch: { type: 'google-search-tool' } } );
       const withTools = await loadText( {
         prompt: makeTextPrompt(),
         toolChoice: 'required'
@@ -315,7 +315,7 @@ describe( 'ai_sdk_options', () => {
 
       expect( loadImageModelImpl ).toHaveBeenCalledWith( prompt );
       expect( loadModelImpl ).not.toHaveBeenCalled();
-      expect( loadToolsImpl ).not.toHaveBeenCalled();
+      expect( loadPromptToolsImpl ).not.toHaveBeenCalled();
       expect( result ).toEqual( {
         maxRetries: 0,
         model: 'IMAGE_MODEL',

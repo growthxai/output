@@ -1,6 +1,6 @@
-import { loadImageModel, loadTextModel, loadTools } from './ai_model.js';
+import { loadImageModel, loadTextModel } from './utils/models.js';
 import { resolveMessageProviderOptions } from './prompt/block_options.js';
-import { buildLoadSkillTool } from './utils/tools.js';
+import { buildLoadSkillTool, loadPromptTools } from './utils/tools.js';
 import { Role } from './consts.js';
 import { FatalError } from '@outputai/core';
 import { stepCountIs } from 'ai';
@@ -60,7 +60,7 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
   };
 
   // Tools parsing
-  const promptTools = loadTools( prompt );
+  const promptTools = loadPromptTools( prompt );
   const skillsTools = skills.length > 0 ? { load_skill: buildLoadSkillTool( skills ) } : {};
   const mergedTools = { ...promptTools, ...tools, ...skillsTools };
   if ( Object.keys( mergedTools ).length > 0 ) {
