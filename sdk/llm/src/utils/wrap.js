@@ -1,4 +1,4 @@
-import { combineSources, extractSourcesFromSteps } from './source_extraction.js';
+import { extractSources } from './sources.js';
 import { calculateLLMCallCost } from '../cost/index.js';
 import { calculateBase64FileSize } from './image.js';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
@@ -37,13 +37,6 @@ const handleCost = async ( { traceId, response, prompt } ) => {
   return { cost, usage };
 };
 
-/** Extract sources from the response and tool calls and combine it */
-const getSources = response => {
-  const { steps, sources: sourcesFromResponse } = response;
-  const sourcesFromTools = extractSourcesFromSteps( steps );
-  return combineSources( { sourcesFromTools, sourcesFromResponse } );
-};
-
 /**
  * Runs a completing AI SDK call (`generateText`, `generateImage`, `generateTextWithStreaming`,
  * `Agent.generate`, `Agent.generateWithStreaming`): start the LLM trace, run `fn`, attach cost
@@ -73,7 +66,7 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
       return createResponseProxy( { response, properties: { cost, result: image } } );
     } else {
       const { text: result, providerMetadata } = response;
-      const sources = getSources( response );
+      const sources = extractSources( response );
 
       Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
       return createResponseProxy( { response, properties: { cost, sources, result } } );
@@ -109,7 +102,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
     try {
       const { text: result, providerMetadata } = response;
       const { cost, usage } = await handleCost( { traceId, response, prompt } );
-      const sources = getSources( response );
+      const sources = extractSources( response );
 
       const proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
       await callback?.( proxyResponse );

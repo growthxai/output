@@ -2,16 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import streamResponseFixture from './__fixtures__/stream_response.json' with { type: 'json' };
 
 const mocks = vi.hoisted( () => ( {
-  combineSources: vi.fn(),
-  extractSourcesFromSteps: vi.fn(),
+  extractSources: vi.fn(),
   calculateLLMCallCost: vi.fn(),
   calculateBase64FileSize: vi.fn(),
   mapAiError: vi.fn()
 } ) );
 
-vi.mock( './source_extraction.js', () => ( {
-  combineSources: mocks.combineSources,
-  extractSourcesFromSteps: mocks.extractSourcesFromSteps
+vi.mock( './sources.js', () => ( {
+  extractSources: mocks.extractSources
 } ) );
 
 vi.mock( '../cost/index.js', () => ( {
@@ -58,8 +56,7 @@ describe( 'wrapGeneration / wrapStream', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.spyOn( Date, 'now' ).mockReturnValue( 9_000_000_000 );
-    mocks.extractSourcesFromSteps.mockReturnValue( [] );
-    mocks.combineSources.mockReturnValue( [] );
+    mocks.extractSources.mockReturnValue( [] );
     mocks.calculateLLMCallCost.mockResolvedValue( mockCost );
     mocks.calculateBase64FileSize.mockReturnValue( 1234 );
     mocks.mapAiError.mockReturnValue( mappedError );
@@ -73,8 +70,7 @@ describe( 'wrapGeneration / wrapStream', () => {
     it( 'starts an llm trace, wraps a text response, and ends with cost and sources', async () => {
       const response = clone( streamResponseFixture );
       const mergedSources = [ { url: 'https://merged.test' } ];
-      mocks.extractSourcesFromSteps.mockReturnValue( [ { url: 'https://tool.test' } ] );
-      mocks.combineSources.mockReturnValue( mergedSources );
+      mocks.extractSources.mockReturnValue( mergedSources );
 
       const wrapped = await wrapGeneration( {
         name: 'generateText',
@@ -98,11 +94,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         attribute: mockCost
       } );
       expect( event.emit ).toHaveBeenCalledWith( 'cost:llm:request', mockCost );
-      expect( mocks.extractSourcesFromSteps ).toHaveBeenCalledWith( response.steps );
-      expect( mocks.combineSources ).toHaveBeenCalledWith( {
-        sourcesFromTools: [ { url: 'https://tool.test' } ],
-        sourcesFromResponse: response.sources
-      } );
+      expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000',
         details: {
@@ -167,6 +159,7 @@ describe( 'wrapGeneration / wrapStream', () => {
           providerMetadata: response.providerMetadata
         }
       } );
+      expect( mocks.extractSources ).not.toHaveBeenCalled();
       expect( wrapped.result ).toBe( image );
       expect( wrapped.cost ).toEqual( mockCost );
     } );
@@ -240,12 +233,13 @@ describe( 'wrapGeneration / wrapStream', () => {
     it( 'wraps onFinish, awaits the callback, then ends the trace', async () => {
       const response = clone( streamResponseFixture );
       const mergedSources = [ { url: 'https://s.test' } ];
-      mocks.combineSources.mockReturnValue( mergedSources );
+      mocks.extractSources.mockReturnValue( mergedSources );
       const callback = vi.fn();
       const { onFinishHook } = hooksFrom( 'Agent.stream' );
 
       await onFinishHook( response, callback );
 
+      expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( callback ).toHaveBeenCalledOnce();
       const proxied = callback.mock.calls[0][0];
       expect( proxied.result ).toBe( response.text );
