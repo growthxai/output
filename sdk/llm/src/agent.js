@@ -29,8 +29,8 @@ export class Agent extends AIToolLoopAgent {
     } );
 
     this.#prompt = prompt;
-    // `messages` is system-free but may still hold authored <assistant>/<tool>
-    // blocks; seed only <user> turns into each generate()/stream() call.
+    // `messages` is system-free but may still hold authored <assistant> blocks;
+    // seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( m => m.role === Role.USER );
     this.#store = messageStore ?? null;
   }

@@ -284,7 +284,7 @@ describe( 'Agent', () => {
     } );
   } );
 
-  it( 'excludes authored assistant/tool blocks from the initial generate messages', async () => {
+  it( 'excludes authored assistant blocks from the initial generate messages', async () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,

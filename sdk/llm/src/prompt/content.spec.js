@@ -38,8 +38,8 @@ describe( 'parseContent', () => {
       expect( parseContent( '  poster  ' ).instructions ).toBe( 'poster' );
     } );
 
-    it( 'extracts every Role', () => {
-      const roles = Object.values( Role );
+    it( 'extracts every authored prompt role', () => {
+      const roles = [ Role.SYSTEM, Role.USER, Role.ASSISTANT ];
       const body = roles.map( role => `<${role}>${role} body</${role}>` ).join( '\n' );
 
       expect( parseContent( body ).messages.map( message => message.role ) ).toEqual( roles );
@@ -84,6 +84,8 @@ describe( 'parseContent', () => {
     it( 'rejects an invalid top-level role', () => {
       expect( () => parseContent( '<div><user>Hi</user></div>' ) )
         .toThrow( 'Message has invalid role "div".' );
+      expect( () => parseContent( '<tool>Search result</tool>' ) )
+        .toThrow( 'Message has invalid role "tool".' );
     } );
 
     it( 'keeps closed inner markup in the message body', () => {

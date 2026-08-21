@@ -76,9 +76,10 @@ Each message role serves a specific purpose. Understanding when to use each is c
 | `<system>` | Define AI identity, rules, and methodology | Static instructions |
 | `<user>` | Provide data and specific requests | Dynamic content |
 | `<assistant>` | Show example responses for few-shot learning | Example outputs |
-| `<tool>` | Include a tool result in authored conversation history | Tool output |
 
 These are the only valid top-level role tags. Message mode is strict:
+
+Do not author `<tool>` blocks. AI SDK tool results are structured message parts tied to a preceding tool call; AI SDK creates them during execution, and Agent callers may supply them through `messages` or `messageStore`.
 
 - Put only whitespace and HTML comments between top-level blocks.
 - Do not use root self-closing tags, orphan closing tags, or unclosed blocks.

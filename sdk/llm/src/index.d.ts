@@ -32,7 +32,7 @@ export type PromptVariables = Record<string, unknown>;
  * ```
  */
 export type PromptMessage = {
-  /** The message role. Authored prompt blocks support 'system', 'user', 'assistant', and 'tool'. */
+  /** The message role. Authored prompt blocks support 'system', 'user', and 'assistant'. */
   role: string;
   /** The content of the message */
   content: string;

@@ -247,7 +247,7 @@ model: claude-sonnet-4-20250514
 
 In message mode:
 
-- Top-level tags must be `<system>`, `<user>`, `<assistant>`, or `<tool>`.
+- Top-level tags must be `<system>`, `<user>`, or `<assistant>`.
 - Between top-level blocks, only whitespace and HTML comments are allowed.
 - Top-level self-closing tags and closing tags without an opening block are invalid.
 - Every top-level block needs a matching closing tag.
@@ -291,7 +291,7 @@ Website content: {{ website_content }}
 
 ### `<assistant>`
 
-The assistant block is for conversation history or response prefilling. Use it when you want to prime the model's response format. `generateText`, `generateTextWithStreaming`, and `streamText` send it as part of the prompt thread. `Agent` drops authored `<assistant>` and `<tool>` blocks; it only seeds `<user>` turns (system goes to `instructions`). For Agent few-shot or prefills, put examples in `<system>` or `<user>`, or use `generateText`.
+The assistant block is for conversation history or response prefilling. Use it when you want to prime the model's response format. `generateText`, `generateTextWithStreaming`, and `streamText` send it as part of the prompt thread. `Agent` drops authored `<assistant>` blocks; it only seeds `<user>` turns (system goes to `instructions`). For Agent few-shot or prefills, put examples in `<system>` or `<user>`, or use `generateText`.
 
 ```yaml
 <assistant>
@@ -299,23 +299,7 @@ Based on my analysis, here is the company summary:
 </assistant>
 ```
 
-### `<tool>`
-
-The tool block is for tool/function call results in multi-turn conversations. Same split as `<assistant>`: included for `generateText` / `streamText`, dropped by `Agent`. Agent conversation history is `messageStore`, not these tags. See [Agents](/packages/llm#message-store).
-
-```yaml
-<user>
-What's the latest news about {{ company_name }}?
-</user>
-
-<assistant>
-I'll search for recent news about {{ company_name }}.
-</assistant>
-
-<tool>
-{{ search_results }}
-</tool>
-```
+Authored `<tool>` blocks are not supported. AI SDK tool results use structured message parts tied to a preceding tool call; AI SDK creates these during tool execution, and Agent callers may supply them through `messages` or `messageStore`.
 
 ### `options`
 

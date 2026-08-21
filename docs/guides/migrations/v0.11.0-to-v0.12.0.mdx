@@ -218,12 +218,14 @@ End of prompt.
 
 Message mode now enforces these rules:
 
-- Top-level blocks must use `system`, `user`, `assistant`, or `tool`.
+- Top-level blocks must use `system`, `user`, or `assistant`.
 - Only whitespace and HTML comments may appear between blocks.
 - Root self-closing tags, unmatched closing tags, and unclosed blocks throw.
 - Different-name tags inside a message remain literal message content.
 - A nested non-self-closing tag with the same name as its message throws instead of prematurely closing the outer block. Escape literal examples, such as `&lt;user&gt;example&lt;/user&gt;`.
 - Attribute names, separators, and quotes are validated. Spaces around `=` and `>` inside quoted values are supported; malformed fragments no longer pass silently.
+
+Prompt files no longer accept authored `<tool>` blocks. Their string content never matched AI SDK's structured tool-result message contract, so text generation rejected them. AI SDK continues to create tool messages during execution, and Agent callers may supply structured tool messages through `messages` or `messageStore`.
 
 ## LLM trace details
 
@@ -513,6 +515,7 @@ providerOptions:
 - Treat `prompt.instructions` as always `string | null` after `loadPrompt` (chat prompts are `null`).
 - Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
 - Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
+- Remove authored `<tool>` blocks from prompt files; pass structured tool history through Agent `messages` or `messageStore`.
 - Audit prompt bodies that put prose before the first role tag. They now load as instructions; move the prose inside a role block to keep message mode.
 - Remove text between or after top-level role blocks. Only whitespace and HTML comments are allowed there.
 - Escape literal same-name role tags inside messages (`&lt;user&gt;...&lt;/user&gt;`). Different-name semantic tags remain valid content.

@@ -34,7 +34,7 @@ const resolveProviderOptions = ( options, messageOptions ) =>
     return mergeOptions( result, messageOptions[option] );
   }, {} );
 
-const roleSet = new Set( Object.values( Role ) );
+const promptRoleSet = new Set( [ Role.SYSTEM, Role.USER, Role.ASSISTANT ] );
 
 /**
  * Extract messages or instructions from prompt content. A leading role tag yields
@@ -47,7 +47,7 @@ export const parseContent = ( content, messageOptions ) => {
     return { messages: [], instructions: decode( content.trim() ) };
   }
 
-  const invalidRole = nodes.find( node => !roleSet.has( node.tagName ) );
+  const invalidRole = nodes.find( node => !promptRoleSet.has( node.tagName ) );
   if ( invalidRole ) {
     throw new FatalError( `Message has invalid role "${invalidRole.tagName}".` );
   }

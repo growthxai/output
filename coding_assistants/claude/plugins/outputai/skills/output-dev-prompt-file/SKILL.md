@@ -184,7 +184,9 @@ maxTokens: 8192
 
 ## Message Blocks
 
-Message mode uses a small XML-like syntax, not a general HTML or XML parser. The only valid top-level role tags are `<system>`, `<user>`, `<assistant>`, and `<tool>`.
+Message mode uses a small XML-like syntax, not a general HTML or XML parser. The only valid top-level role tags are `<system>`, `<user>`, and `<assistant>`.
+
+Do not author `<tool>` blocks. AI SDK tool results are structured message parts tied to a preceding tool call; AI SDK creates them during execution, and Agent callers may supply them through `messages` or `messageStore`.
 
 Follow these parser rules:
 
@@ -220,14 +222,6 @@ Please analyze the following content:
 <assistant>
 I'll analyze this content step by step...
 </assistant>
-```
-
-### Tool Message
-
-```
-<tool>
-Tool result content goes here.
-</tool>
 ```
 
 ## Liquid.js Templating
@@ -676,7 +670,7 @@ Requirements:
 - [ ] YAML frontmatter includes `provider` and `model`
 - [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
 - [ ] The body uses message mode for text generation, or instruction mode for `generateImage` / direct `loadPrompt()` consumption
-- [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`, `<tool>`)
+- [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`); no authored `<tool>` blocks
 - [ ] Message mode has no root text between blocks, no self-closing role blocks, and no unclosed blocks
 - [ ] Literal same-name role tags inside a message are escaped (`&lt;user&gt;...&lt;/user&gt;`)
 - [ ] Role-tag attributes use only `options="<messageOptions names>"`; `options` is never bare

@@ -50,7 +50,8 @@
 - Replaced prompt body scanning with explicit instruction and message modes:
   - Updated mode detection so plain text as the first meaningful body token selects instruction mode, while a tag selects message mode.
   - Clarified that text generation APIs require message mode, while `generateImage()` requires instruction mode.
-  - Restricted message mode to top-level `system`, `user`, `assistant`, and `tool` blocks, with no root text between blocks.
+  - Restricted message mode to top-level `system`, `user`, and `assistant` blocks, with no root text between blocks.
+  - Fixed prompt files accepting authored `<tool>` blocks as string messages even though AI SDK requires structured tool-result parts. They now fail at load; structured tool messages remain supported through Agent `messages` and `messageStore`.
   - Added explicit errors for invalid roles, root self-closing or unmatched closing tags, unclosed blocks, and malformed attributes.
   - Fixed nested tag handling so different-name tags remain message content, while nested non-self-closing tags with the same name throw with an `&lt;tag&gt;` escape hint instead of closing the outer block early.
   - Added support for spaces around attribute `=` and `>` inside quoted values. Bare `options`, unknown option names, and invalid quote pairs throw at load.
