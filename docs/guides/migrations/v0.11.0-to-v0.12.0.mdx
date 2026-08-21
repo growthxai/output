@@ -196,6 +196,8 @@ v0.11 searched the rendered body for supported role blocks wherever they appeare
 - Plain text selects instruction mode. The whole trimmed body becomes `prompt.instructions`, including any tags that appear later.
 - A tag selects message mode. The complete body is validated as top-level role blocks and `prompt.instructions` is `null`.
 
+These modes describe `loadPrompt()` output; API requirements are unchanged. `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent` require message mode, while `generateImage` requires instruction mode.
+
 For example, v0.11 extracted the `<user>` block here and discarded the surrounding text:
 
 ```text

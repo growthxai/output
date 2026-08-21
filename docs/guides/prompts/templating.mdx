@@ -27,7 +27,7 @@ When you call `generateText({ prompt: 'generate_summary@v1', variables: { max_pa
 
 Templates render before YAML parsing, so you can template the frontmatter too — useful for dynamic model selection or configuration.
 
-The rendered body is then parsed as either [plain instructions or role-tagged messages](/prompts#prompt-body-modes). A template that emits plain text first selects instruction mode; one that emits a tag first selects message mode.
+The rendered body is then parsed as either [plain instructions or role-tagged messages](/prompts#prompt-body-modes). A template that emits plain text first selects instruction mode; one that emits a tag first selects message mode. Text generation APIs require message mode, while `generateImage` requires instruction mode.
 
 ## Variables
 

@@ -222,7 +222,7 @@ After rendering the template, Output determines how to parse the body from its f
 - If the first meaningful token is plain text, the whole trimmed body becomes `instructions` and `messages` is empty. Tags later in the body stay part of the instruction text.
 - If the first meaningful token is a tag, Output enters message mode and validates the body as role-tagged markup. `instructions` is `null`.
 
-Use instruction mode for prompts that do not need chat roles, such as image prompts:
+Use instruction mode for image prompts or when consuming `loadPrompt()` results directly. `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent` require message mode.
 
 ```yaml
 ---

@@ -71,8 +71,8 @@ User message with {{ variable }} placeholders.
 
 The body uses exactly one mode:
 
-- **Message mode** starts with a role tag and produces `messages`. Use it for text conversations.
-- **Instruction mode** starts with plain text and produces `instructions`. Use it for image prompts or other prompts that do not need roles:
+- **Message mode** starts with a role tag and produces `messages`. Use it with `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent`.
+- **Instruction mode** starts with plain text and produces `instructions`. Use it with `generateImage` or when consuming `loadPrompt()` results directly:
 
 ```
 ---
@@ -675,7 +675,7 @@ Requirements:
 - [ ] File named `{promptName}@v{version}.prompt`
 - [ ] YAML frontmatter includes `provider` and `model`
 - [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
-- [ ] The body intentionally uses message mode (starts with a role tag) or instruction mode (starts with plain text)
+- [ ] The body uses message mode for text generation, or instruction mode for `generateImage` / direct `loadPrompt()` consumption
 - [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`, `<tool>`)
 - [ ] Message mode has no root text between blocks, no self-closing role blocks, and no unclosed blocks
 - [ ] Literal same-name role tags inside a message are escaped (`&lt;user&gt;...&lt;/user&gt;`)

@@ -40,7 +40,7 @@ maxTokens: 2000
 <user>{{ instructions }}</user>
 ```
 
-The body is either message mode or instruction mode. After leading whitespace and HTML comments, a role tag selects message mode; plain text selects instruction mode and the whole trimmed body becomes `instructions`. Use instruction mode for image prompts and other prompts that do not need conversation roles.
+The body is either message mode or instruction mode. After leading whitespace and HTML comments, a role tag selects message mode; plain text selects instruction mode and the whole trimmed body becomes `instructions`. Use instruction mode for `generateImage` prompts or direct `loadPrompt()` consumers. `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent` require message mode.
 
 ### YAML Frontmatter Options
 
