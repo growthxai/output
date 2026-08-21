@@ -45,6 +45,10 @@ const streamMocks = vi.hoisted( () => ( {
   drainStream: vi.fn()
 } ) );
 
+const loggerMocks = vi.hoisted( () => ( {
+  error: vi.fn()
+} ) );
+
 vi.mock( 'ai', () => {
   class MockToolLoopAgent {
     constructor( options ) {
@@ -64,6 +68,12 @@ vi.mock( 'ai', () => {
 } );
 
 vi.mock( './validations.js', () => validations );
+
+vi.mock( '@outputai/core', () => ( {
+  Logger: {
+    error: ( ...args ) => loggerMocks.error( ...args )
+  }
+} ) );
 
 vi.mock( './prompt/loader.js', () => ( {
   loadPrompt: ( ...args ) => promptMocks.loadPrompt( ...args )
@@ -140,6 +150,7 @@ describe( 'Agent', () => {
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
+    loggerMocks.error.mockReset();
   } );
 
   afterEach( async () => {
@@ -492,6 +503,29 @@ describe( 'Agent', () => {
       callerMessage,
       assistantMessage
     ] );
+    expect( onFinish ).toHaveBeenCalledWith( aiResponse );
+    expect( result ).toEqual( { textStream: 'stream' } );
+  } );
+
+  it( 'logs stream persistence failures and still completes onFinish', async () => {
+    const persistenceError = new Error( 'Store unavailable' );
+    const store = {
+      getMessages: vi.fn( () => [] ),
+      addMessages: vi.fn().mockRejectedValue( persistenceError )
+    };
+    const onFinish = vi.fn();
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
+
+    const result = await agent.stream( { onFinish } );
+    const streamOptions = aiMocks.superStream.mock.calls[0][0];
+
+    await expect( streamOptions.onFinish( aiResponse ) ).resolves.toBeUndefined();
+
+    expect( loggerMocks.error ).toHaveBeenCalledWith(
+      'Agent.stream message store persistence failed',
+      { namespace: 'LLM', error: persistenceError.message }
+    );
     expect( onFinish ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );

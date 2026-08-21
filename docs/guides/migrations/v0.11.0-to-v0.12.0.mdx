@@ -370,6 +370,8 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 
 `generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
 
+`streamText()` and `Agent.stream()` now treat `onError` as a fire-and-forget observer. Output maps and forwards the provider error, but exceptions and rejected promises from the callback are ignored. To fail a workflow step with the original error, capture it in `onError` and throw it after consuming the stream.
+
 ## Agent message store
 
 `conversationStore` is renamed to `messageStore`. The type is `MessageStore`. `createMemoryConversationStore()` is removed; implement the store yourself.

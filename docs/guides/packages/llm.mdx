@@ -130,7 +130,7 @@ if (captured.error) {
 const content = chunks.join('');
 ```
 
-Registering `onError` alone is not enough to fail the step. The callback does not throw for you, and awaiting a completion property can produce a generic no-output error instead of the original provider error.
+Registering `onError` alone is not enough to fail the step. Output treats it as a fire-and-forget observer: exceptions and rejected promises from the callback are ignored to avoid a secondary stream failure. Capture the mapped error and throw it after consumption; awaiting a completion property can produce a generic no-output error instead of the original provider error.
 
 ### Object Output
 

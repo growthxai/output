@@ -4,6 +4,7 @@ import { calculateBase64FileSize } from './image.js';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
+import { Logger } from '@outputai/core';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
 const createResponseProxy = ( { response, properties } ) => new Proxy( response, {
@@ -119,8 +120,12 @@ export const wrapStream = ( { name, prompt, fn } ) => {
     const error = handleError( { traceId, error: event.error } );
     try {
       await callback?.( error );
-    } catch {
+    } catch ( callbackError ) {
       // ignore these as this callback is fire and forget
+      Logger.error( 'Stream onError() callback failed', {
+        namespace: 'LLM',
+        error: callbackError instanceof Error ? callbackError.message : String( callbackError )
+      } );
     }
   };
 

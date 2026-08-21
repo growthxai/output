@@ -38,6 +38,7 @@
   | `onChunk` | - | - | optional | optional |
   | `onFinish` | - | - | - | optional |
   | `onError` | - | - | - | optional |
+- Updated `streamText()` and `Agent.stream()` `onError` callbacks to be fire-and-forget observers. Output maps and forwards the provider error, but ignores callback exceptions and rejected promises.
 - Fixed call-argument tools overriding prompt tools. They now merge (caller wins on the same key; `load_skill` is last). Prompt-only native tools now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
 - Updated prompt shape:
   - Renamed `Prompt.promptFileDir` to `Prompt.fileDir`.

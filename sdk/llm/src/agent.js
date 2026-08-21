@@ -6,6 +6,7 @@ import { drainStream } from './utils/stream.js';
 import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
 import * as Validator from './validations.js';
+import { Logger } from '@outputai/core';
 
 export class Agent extends AIToolLoopAgent {
   #prompt;
@@ -118,7 +119,14 @@ export class Agent extends AIToolLoopAgent {
         onFinish: response =>
           onFinishHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {
-              await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
+              try {
+                await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
+              } catch ( error ) {
+                Logger.error( 'Agent.stream message store persistence failed', {
+                  namespace: 'LLM',
+                  error: error instanceof Error ? error.message : String( error )
+                } );
+              }
             }
             await onFinish?.( parsedResponse );
           } ),
