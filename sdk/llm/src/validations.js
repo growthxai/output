@@ -30,11 +30,14 @@ const stopWhenSchema = z.union( [
   z.array( functionSchema ).min( 1 )
 ] );
 
-const plainObjectSchema = z.object( {} ).loose();
+const opaqueObjectSchema = z.custom(
+  value => value !== null && typeof value === 'object' && !Array.isArray( value ),
+  'Expected object'
+);
 
-const outputSchema = plainObjectSchema;
+const outputSchema = opaqueObjectSchema;
 
-const toolsSchema = z.record( z.string().min( 1 ), plainObjectSchema );
+const toolsSchema = z.record( z.string().min( 1 ), opaqueObjectSchema );
 
 const messageStoreSchema = z.custom(
   value => value !== null &&

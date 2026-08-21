@@ -151,6 +151,37 @@ describe( 'parseGenerateTextArgs', () => {
       output: { type: 'object' }
     } );
   } );
+
+  it( 'preserves class-based tool and output identities', () => {
+    class TestTool {
+      #result = 'searched';
+
+      execute() {
+        return this.#result;
+      }
+    }
+
+    class TestOutput {
+      #result = 'parsed';
+
+      parseCompleteOutput() {
+        return this.#result;
+      }
+    }
+
+    const tool = new TestTool();
+    const output = new TestOutput();
+    const parsed = parseGenerateTextArgs( {
+      prompt: 'summary@v1',
+      tools: { search: tool },
+      output
+    } );
+
+    expect( parsed.tools.search ).toBe( tool );
+    expect( parsed.tools.search.execute() ).toBe( 'searched' );
+    expect( parsed.output ).toBe( output );
+    expect( parsed.output.parseCompleteOutput() ).toBe( 'parsed' );
+  } );
 } );
 
 describe( 'parseStreamTextArgs', () => {
