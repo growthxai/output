@@ -160,7 +160,7 @@ const prompt = loadPrompt( 'writer@v1' );
 const dir = prompt.fileDir;
 ```
 
-The `SkillsArg` type is removed. `Skill.description` is required on the loaded skill shape.
+The `SkillsArg` and `Skill` types are removed. Skills are now internal loaded values; declare file paths in prompt frontmatter instead of constructing or typing skill objects.
 
 ### Per-message options resolve at load
 
@@ -519,7 +519,7 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 
 ## Prompt config is a strict key list
 
-Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. Nested `providerOptions` (including `thinking`) stays open.
+Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings, and `maxTokens` must be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
 
 Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
 
@@ -558,7 +558,7 @@ providerOptions:
 ## Checklist
 
 - Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
-- Remove `skill()` imports; move inline skills into `.md` files listed under prompt `skills:`.
+- Remove `skill()`, `Skill`, and `SkillsArg` imports; move inline skills into files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
 - Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
@@ -582,4 +582,5 @@ providerOptions:
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
+- Ensure prompt `provider` and `model` values are non-empty, and set `maxTokens` to a positive integer.
 - Move unknown prompt frontmatter keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`) onto the allowlist or under `providerOptions`. Expect `Invalid prompt file` for leftover extras.

@@ -5,7 +5,7 @@
 - Removed skills definition other than in the prompt file:
   - Removed the `skills` argument from `generateText()`, `streamText()`, `generateTextWithStreaming()`, and `Agent`.
   - Removed the `skills/` auto-discovery.
-  - Removed the `skill()` helper and the `SkillsArg` type.
+  - Removed the `skill()` helper and the `Skill` and `SkillsArg` types.
 - Removed native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Also removed `skills` and `maxSteps`. These are the supported arguments:
   | Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
   |----------|----------------|-----------------------------|--------------|-----------------|
@@ -56,6 +56,8 @@
   - Fixed nested tag handling so different-name tags remain message content, while nested non-self-closing tags with the same name throw with an `&lt;tag&gt;` escape hint instead of closing the outer block early.
   - Added support for spaces around attribute `=` and `>` inside quoted values. Bare `options`, unknown option names, and invalid quote pairs throw at load.
 - Updated prompt file `config` to be strict. Unknown top-level keys throw.
+  - Fixed `provider` and `model` missing validations, must be non-empty strings.
+  - Fixed `maxTokens` missing validations, must be a positive integer.
 - Updated LLM traces on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`:
   - Updated start `input` to `{ prompt }` (the loaded object). Removed the v0.11 filename `prompt`, sibling `variables`, and `loadedPrompt`.
   - Added `cost` on end `output` (also still a trace attribute and `cost:llm:request` when present).

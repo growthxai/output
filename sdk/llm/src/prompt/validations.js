@@ -15,7 +15,7 @@ const promptConfigSchema = z.object( {
   maxTokens: z.number().int().positive().optional(),
   // A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
   messageOptions: z.record( z.string(), objectMapSchema ).optional(),
-  model: z.string(),
+  model: z.string().min( 1 ),
   n: z.number().int().positive().optional(),
   provider: z.string().min( 1 ),
   providerOptions: z.object( {

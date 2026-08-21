@@ -230,7 +230,7 @@ describe( 'parseStreamTextArgs', () => {
     } ) ).toThrow( ValidationError );
   } );
 
-  it( 'throws ValidationError for unrecognized or prompt-owned call arguments', () => {
+  it( 'throws ValidationError for unrecognized call arguments', () => {
     expect( () => parseStreamTextArgs( {
       prompt: 'summary@v1',
       temperature: 0.2
@@ -393,7 +393,7 @@ describe( 'parseGenerateImageArgs', () => {
     expect( () => parseGenerateImageArgs( {
       prompt: 'image@v1',
       maxSteps: 4
-    } ) ).toThrow( /maxSteps must be set in the prompt file/ );
+    } ) ).toThrow( /unrecognized key/i );
   } );
 } );
 

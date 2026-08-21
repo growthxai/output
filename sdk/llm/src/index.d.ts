@@ -162,17 +162,6 @@ export type Prompt = {
   instructions: string | null;
 };
 
-/**
- * An instruction package that the model can load on demand via `load_skill`.
- *
- * Skills are declared as paths in prompt frontmatter and loaded from markdown files.
- */
-export type Skill = {
-  name: string;
-  description: string;
-  instructions: string;
-};
-
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
 type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
 type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;

@@ -55,8 +55,7 @@ const modelMessageSchema = z.object( {
 const promptFileCallFields = {
   prompt: z.string().min( 1 ),
   promptDir: z.string().min( 1 ).optional(),
-  variables: variablesSchema.optional(),
-  ...promptOwnedCallArgRejection
+  variables: variablesSchema.optional()
 };
 
 const textRuntimeCallFields = {
@@ -69,6 +68,7 @@ const textRuntimeCallFields = {
 
 const generateTextCallFields = {
   ...promptFileCallFields,
+  ...promptOwnedCallArgRejection,
   ...textRuntimeCallFields
 };
 
@@ -93,6 +93,7 @@ const streamTextArgsSchema = z.object( {
 
 const agentCallFields = {
   ...promptFileCallFields,
+  ...promptOwnedCallArgRejection,
   messageStore: messageStoreSchema.optional(),
   output: outputSchema.optional(),
   stopWhen: stopWhenSchema.optional(),

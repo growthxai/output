@@ -851,7 +851,7 @@ const { result, toolCalls } = await generateText({
 | `onFinish` | - | - | optional |
 | `onError` | - | - | optional |
 
-`toolChoice` applies only when tools exist. `stopWhen` overrides prompt `maxSteps` when tools exist; otherwise Output sets `aiSdk.stepCountIs(maxSteps)` from the prompt (default 10).
+`toolChoice`, `stopWhen`, and prompt `maxSteps` apply only when tools exist. With tools, an explicit `stopWhen` takes precedence; otherwise Output uses `aiSdk.stepCountIs(maxSteps)` from the prompt (default 10).
 
 ### generateImage
 
