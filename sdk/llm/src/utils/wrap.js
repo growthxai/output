@@ -115,10 +115,10 @@ export const wrapStream = ( { name, prompt, fn } ) => {
     }
   };
 
-  const onErrorHook = ( event, callback ) => {
+  const onErrorHook = async ( event, callback ) => {
     const error = handleError( { traceId, error: event.error } );
     try {
-      callback?.( error );
+      await callback?.( error );
     } catch {
       // ignore these as this callback is fire and forget
     }

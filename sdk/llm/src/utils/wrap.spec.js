@@ -290,12 +290,26 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( callback ).toHaveBeenCalledWith( mappedError );
     } );
 
-    it( 'swallows throws from the onError callback', () => {
+    it( 'swallows throws from the onError callback', async () => {
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      expect( () => onErrorHook( { error: new Error( 'x' ) }, () => {
+      await expect( onErrorHook( { error: new Error( 'x' ) }, () => {
         throw new Error( 'user onError' );
-      } ) ).not.toThrow();
+      } ) ).resolves.toBeUndefined();
+    } );
+
+    it( 'awaits and swallows rejected promises from the onError callback', async () => {
+      const state = { rejection: null };
+      const callback = vi.fn( () => new Promise( ( _, reject ) => {
+        state.rejection = reject;
+      } ) );
+      const { onErrorHook } = hooksFrom( 'streamText' );
+
+      const hookPromise = onErrorHook( { error: new Error( 'x' ) }, callback );
+
+      expect( hookPromise ).toBeInstanceOf( Promise );
+      state.rejection( new Error( 'async user onError' ) );
+      await expect( hookPromise ).resolves.toBeUndefined();
     } );
 
     it( 'maps a throw from fn onto the llm trace and rethrows', () => {
