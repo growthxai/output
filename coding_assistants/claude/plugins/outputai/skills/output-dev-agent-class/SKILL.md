@@ -51,7 +51,7 @@ const agent = new Agent( {
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
 | `promptDir` | `string` | - | Override the stack-resolved prompt directory |
-| `variables` | `Record<string, string \| number \| boolean>` | - | Template variables rendered at construction |
+| `variables` | `PromptVariables` | - | Template variables rendered at construction |
 | `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
 | `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
 | `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |

@@ -12,7 +12,7 @@ const promptConfigSchema = z.object( {
   aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
   maxImagesPerCall: z.number().int().positive().optional(),
   maxSteps: z.number().int().positive().default( 10 ),
-  maxTokens: z.number().optional(),
+  maxTokens: z.number().int().positive().optional(),
   // A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
   messageOptions: z.record( z.string(), objectMapSchema ).optional(),
   model: z.string(),

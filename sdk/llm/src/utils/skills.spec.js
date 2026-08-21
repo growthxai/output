@@ -35,11 +35,13 @@ describe( 'recursiveLoadSkillFile', () => {
     expect( () => recursiveLoadSkillFile( [ missing ] ) ).toThrow( `Skill path "${missing}" not found` );
   } );
 
-  it( 'skips existing non-md files', () => {
+  it( 'loads an explicitly listed non-md file', () => {
     const dir = tempDir();
     writeSkill( dir, 'notes.txt', 'not a skill' );
 
-    expect( recursiveLoadSkillFile( [ join( dir, 'notes.txt' ) ] ) ).toEqual( [] );
+    expect( recursiveLoadSkillFile( [ join( dir, 'notes.txt' ) ] ) ).toEqual( [
+      { name: 'notes.txt', description: 'notes.txt', instructions: 'not a skill' }
+    ] );
   } );
 
   it( 'loads a markdown file and defaults name/description to the basename', () => {
@@ -111,16 +113,13 @@ describe( 'recursiveLoadSkillFile', () => {
     ] );
   } );
 
-  it( 'skips a symlink cycle to an already visited directory', () => {
+  it( 'does not follow directory symlinks', () => {
     const dir = tempDir();
-    const nested = join( dir, 'nested' );
-    mkdirSync( nested );
-    writeSkill( nested, 'child.md', 'child' );
-    symlinkSync( dir, join( nested, 'loop' ), 'dir' );
+    const target = tempDir();
+    writeSkill( target, 'external.md', 'external' );
+    symlinkSync( target, join( dir, 'linked' ), 'dir' );
 
-    expect( recursiveLoadSkillFile( [ dir ] ) ).toEqual( [
-      { name: 'child', description: 'child', instructions: 'child' }
-    ] );
+    expect( recursiveLoadSkillFile( [ dir ] ) ).toEqual( [] );
   } );
 } );
 

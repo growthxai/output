@@ -19,6 +19,8 @@ Each traced workflow execution produces a trace tree. The root is the workflow, 
 
 This means you can open a trace file and see the full picture: which steps ran, what the LLM received and returned, how many tokens it used, and exactly where a failure happened.
 
+For prompts with skills, LLM trace `input.prompt` contains the loaded source prompt, including `config.skills`, but not the runtime-generated skill listing or `load_skill` tool added to the provider request.
+
 <Warning>
 Trace files are not a secure storage boundary. They can include workflow inputs and outputs, step inputs and outputs, LLM prompts and results, activity inputs and outputs, URLs, payloads, and opt-in HTTP response bodies. Misconfigured HTTP requests can leak keys, tokens, cookies, signed URLs, or other sensitive data into trace files and Temporal history. Avoid putting secrets directly in workflow inputs, URLs, payloads, or literal headers; use the documented `$ENV_VAR_NAME` header placeholders for `sendHttpRequest` request header secrets.
 </Warning>

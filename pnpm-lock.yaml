@@ -6,9 +6,48 @@ settings:
 
 catalogs:
   default:
+    '@aws-sdk/client-s3':
+      specifier: 3.1038.0
+      version: 3.1038.0
+    '@temporalio/activity':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@temporalio/client':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@temporalio/common':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@temporalio/proto':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@temporalio/worker':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@temporalio/workflow':
+      specifier: 1.20.3
+      version: 1.20.3
+    '@types/js-yaml':
+      specifier: 4.0.9
+      version: 4.0.9
+    js-yaml:
+      specifier: 4.3.1
+      version: 4.3.1
+    ky:
+      specifier: 2.0.2
+      version: 2.0.2
+    semver:
+      specifier: 7.7.4
+      version: 7.7.4
     undici:
       specifier: 8.9.0
       version: 8.9.0
+    winston:
+      specifier: 3.19.0
+      version: 3.19.0
+    zod:
+      specifier: 4.3.6
+      version: 4.3.6
 
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': 0.96.0

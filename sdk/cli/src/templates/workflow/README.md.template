@@ -182,7 +182,9 @@ Create prompt files in `prompts/` following the pattern:
 - Use LiquidJS syntax for variables: `{{ variableName }}`
 - Start the rendered body with a role tag for message mode, or with plain text for instruction mode
 
-In message mode, use only `<system>`, `<user>`, `<assistant>`, and `<tool>` at the top level. Keep all prose inside those blocks, close every block, and escape literal same-role examples such as `&lt;user&gt;...&lt;/user&gt;`.
+In message mode, use only `<system>`, `<user>`, and `<assistant>` at the top level. Keep all prose inside those blocks, close every block, and escape literal same-role examples such as `&lt;user&gt;...&lt;/user&gt;`.
+
+Structured tool messages are runtime history supplied through Agent `messages` or `messageStore`; they are not authored in prompt files.
 
 Example prompt file:
 ```

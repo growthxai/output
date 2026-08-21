@@ -2,6 +2,5 @@
 export const Role = {
   SYSTEM: 'system',
   USER: 'user',
-  ASSISTANT: 'assistant',
-  TOOL: 'tool'
+  ASSISTANT: 'assistant'
 };

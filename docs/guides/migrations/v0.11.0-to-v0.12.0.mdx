@@ -302,6 +302,30 @@ If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `
 
 If you read `output.sourcesFromTools`, switch to `output.sources`. If you relied on cost only as a trace attribute, it is also on `output.cost`.
 
+### Response source and cost types
+
+`ExtractedSource` now matches the AI SDK source union. A source can be a URL or a document, so narrow on `sourceType` before reading `url`:
+
+```ts
+// Before
+const urls = response.sources.map(source => source.url);
+
+// After
+const urls = response.sources
+  .filter(source => source.sourceType === 'url')
+  .map(source => source.url);
+```
+
+`LLMCallCost` and `LLMUsageEvent` now represent a live `Tracing.Attribute.LLMUsage` instance. The old `components` and `message` fields are gone; read the priced dimensions from `usage`. A missing calculation is represented by `response.cost === null`, not an object with `total: null`.
+
+If you type a serialized event, omit the instance method that is not present in JSON:
+
+```ts
+import type { LLMUsageEvent } from '@outputai/llm';
+
+type SerializedLLMUsageEvent = Omit<LLMUsageEvent, 'addUsage'>;
+```
+
 ## AI SDK helpers come from `aiSdk`
 
 `@outputai/llm` no longer re-exports `tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, or `jsonSchema` as named exports. The namespace re-export `ai` is renamed to `aiSdk`.
@@ -552,6 +576,7 @@ providerOptions:
 - Give every `options` attribute a value and fix malformed attribute names or quotes; prompt markup now fails explicitly at load.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
+- Narrow `ExtractedSource` on `sourceType` before reading `url`. Treat `LLMCallCost` / `LLMUsageEvent` as live usage instances and omit `addUsage` when typing serialized JSON.
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.
 - Expect `Agent.stream()` to persist message-store history on success.

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import matter from 'gray-matter';
 import { ValidationError } from '@outputai/core';
@@ -11,32 +11,31 @@ import { ValidationError } from '@outputai/core';
  */
 
 /**
- * Recursive load skill files (.md).
+ * Recursively load skill paths. Explicit files may use any extension; directories load `.md` files only.
  * Frontmatter may provide `name` and `description`; body becomes the instructions.
  *
  * @param {string[]} paths
- * @param {Set<string>} visitedDirectories
+ * @param {boolean} markdownFilesOnly
  * @returns {Skills[]}
  */
-const recursiveLoadSkillPaths = ( paths, visitedDirectories ) => {
+const recursiveLoadSkillPaths = ( paths, markdownFilesOnly ) => {
   const loaded = [];
   for ( const path of paths ) {
     if ( !existsSync( path ) ) {
       throw new ValidationError( `Skill path "${path}" not found` );
     }
-    if ( statSync( path ).isDirectory() ) {
-      const realPath = realpathSync( path );
-      if ( visitedDirectories.has( realPath ) ) {
-        continue;
-      }
-      visitedDirectories.add( realPath );
+    const stats = lstatSync( path );
+    if ( stats.isSymbolicLink() ) {
+      continue;
+    }
+    if ( stats.isDirectory() ) {
       loaded.push( ...recursiveLoadSkillPaths(
         readdirSync( path ).sort().map( f => resolve( path, f ) ),
-        visitedDirectories
+        true
       ) );
       continue;
     }
-    if ( !path.endsWith( '.md' ) ) {
+    if ( markdownFilesOnly && !path.endsWith( '.md' ) ) {
       continue;
     }
 
@@ -52,12 +51,12 @@ const recursiveLoadSkillPaths = ( paths, visitedDirectories ) => {
 };
 
 /**
- * Recursively load skill files while visiting each real directory once.
+ * Recursively load skill files without following symbolic links.
  *
  * @param {string[]} paths
  * @returns {Skills[]}
  */
-export const recursiveLoadSkillFile = paths => recursiveLoadSkillPaths( paths, new Set() );
+export const recursiveLoadSkillFile = paths => recursiveLoadSkillPaths( paths, false );
 
 /**
  * Resolve all skills available to a prompt.

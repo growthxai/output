@@ -34,7 +34,7 @@ export const loadPromptTools = prompt => {
     throw new ValidationError( buildProviderError( prompt, 'provider-specific tools' ) );
   }
 
-  const missingTools = promptToolNames.filter( t => !tools[t] );
+  const missingTools = promptToolNames.filter( t => !Object.hasOwn( tools, t ) || typeof tools[t] !== 'function' );
   if ( missingTools.length > 0 ) {
     throw new ValidationError( buildProviderError( prompt, `these tools: ${missingTools.join( ', ' )}` ) );
   }
