@@ -100,6 +100,17 @@ describe( 'recursiveLoadSkillFile', () => {
     ] );
   } );
 
+  it( 'loads files from a directory whose name ends in .md', () => {
+    const dir = tempDir();
+    const nested = join( dir, 'nested.md' );
+    mkdirSync( nested );
+    writeSkill( nested, 'child.md', 'child' );
+
+    expect( recursiveLoadSkillFile( [ nested ] ) ).toEqual( [
+      { name: 'child', description: 'child', instructions: 'child' }
+    ] );
+  } );
+
   it( 'skips a symlink cycle to an already visited directory', () => {
     const dir = tempDir();
     const nested = join( dir, 'nested' );

@@ -34,6 +34,7 @@ const recursiveLoadSkillPaths = ( paths, visitedDirectories ) => {
         readdirSync( path ).sort().map( f => resolve( path, f ) ),
         visitedDirectories
       ) );
+      continue;
     }
     if ( !path.endsWith( '.md' ) ) {
       continue;
