@@ -372,7 +372,7 @@ describe( 'parseAgentArgs', () => {
     const output = makeOutput();
     const messageStore = { getMessages() {}, addMessages() {} };
 
-    expect( parseAgentArgs( {
+    const parsed = parseAgentArgs( {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
       promptDir: '/prompts',
@@ -380,7 +380,9 @@ describe( 'parseAgentArgs', () => {
       output,
       stopWhen,
       messageStore
-    } ) ).toEqual( {
+    } );
+
+    expect( parsed ).toEqual( {
       promptFile: 'summary@v1',
       variables: { topic: 'testing' },
       promptDir: '/prompts',
@@ -389,6 +391,33 @@ describe( 'parseAgentArgs', () => {
       stopWhen,
       messageStore
     } );
+    expect( parsed.messageStore ).toBe( messageStore );
+  } );
+
+  it( 'preserves class-based message store identity', () => {
+    class TestMessageStore {
+      #messages = [];
+
+      getMessages() {
+        return this.#messages;
+      }
+
+      addMessages( messages ) {
+        this.#messages.push( ...messages );
+      }
+    }
+
+    const messageStore = new TestMessageStore();
+    const parsed = parseAgentArgs( {
+      prompt: 'summary@v1',
+      messageStore
+    } );
+    const message = { role: 'user', content: 'Hello' };
+
+    parsed.messageStore.addMessages( [ message ] );
+
+    expect( parsed.messageStore ).toBe( messageStore );
+    expect( parsed.messageStore.getMessages() ).toEqual( [ message ] );
   } );
 
   it( 'throws ValidationError with Agent prefix for invalid args', () => {

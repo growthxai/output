@@ -36,10 +36,13 @@ const outputSchema = plainObjectSchema;
 
 const toolsSchema = z.record( z.string().min( 1 ), plainObjectSchema );
 
-const messageStoreSchema = z.object( {
-  getMessages: functionSchema,
-  addMessages: functionSchema
-} ).loose();
+const messageStoreSchema = z.custom(
+  value => value !== null &&
+    typeof value === 'object' &&
+    typeof value.getMessages === 'function' &&
+    typeof value.addMessages === 'function',
+  'Expected an object with getMessages and addMessages functions'
+);
 
 const modelMessageSchema = z.object( {
   role: z.enum( [ 'system', 'user', 'assistant', 'tool' ] ),
