@@ -119,14 +119,11 @@ export class Agent extends AIToolLoopAgent {
         onFinish: response =>
           onFinishHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {
-              try {
-                await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
-              } catch ( error ) {
-                Logger.error( 'Agent.stream message store persistence failed', {
+              await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) )
+                .catch( error => Logger.error( 'Agent.stream message store persistence failed', {
                   namespace: 'LLM',
                   error: error instanceof Error ? error.message : String( error )
-                } );
-              }
+                } ) );
             }
             await onFinish?.( parsedResponse );
           } ),

@@ -230,7 +230,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
-    it( 'wraps onFinish, awaits the callback, then ends the trace', async () => {
+    it( 'wraps onFinish, ends the trace, then awaits the callback', async () => {
       const response = clone( streamResponseFixture );
       const mergedSources = [ { url: 'https://s.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
@@ -255,24 +255,20 @@ describe( 'wrapGeneration / wrapStream', () => {
           sources: mergedSources
         }
       } );
+      expect( tracing.addEventEnd.mock.invocationCallOrder[0] ).toBeLessThan( callback.mock.invocationCallOrder[0] );
     } );
 
-    it( 'records an error and skips addEventEnd when the onFinish callback throws', async () => {
+    it( 'ends the trace and swallows throws from the onFinish callback', async () => {
       const response = clone( streamResponseFixture );
-      const storeError = new Error( 'store failed' );
-      mocks.mapAiError.mockReturnValue( mappedError );
       const { onFinishHook } = hooksFrom( 'Agent.stream' );
 
       await expect( onFinishHook( response, async () => {
-        throw storeError;
-      } ) ).rejects.toBe( mappedError );
+        throw new Error( 'user onFinish' );
+      } ) ).resolves.toBeUndefined();
 
-      expect( mocks.mapAiError ).toHaveBeenCalledWith( storeError );
-      expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'Agent.stream-9000000000',
-        details: mappedError
-      } );
-      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+      expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
+      expect( tracing.addEventError ).not.toHaveBeenCalled();
+      expect( mocks.mapAiError ).not.toHaveBeenCalled();
     } );
 
     it( 'maps onError events and forwards the mapped error to the callback', () => {

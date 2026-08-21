@@ -83,9 +83,9 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
  * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
  * `fn` receives `onFinishHook(response, callback)` and `onErrorHook(event, callback)`. Call
- * `onFinishHook` from the SDK `onFinish`: it wraps the response, awaits `callback` (persist /
- * user `onFinish`), then ends the trace. Call `onErrorHook` from SDK `onError`: it maps the
- * error, records it, and invokes `callback` without rethrowing (user `onError` throws are ignored).
+ * `onFinishHook` from the SDK `onFinish`: it wraps the response, ends the trace, then invokes
+ * `callback` without rethrowing. Call `onErrorHook` from SDK `onError`: it maps the error,
+ * records it, and invokes `callback` without rethrowing. Callback failures are logged.
  *
  * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded
  * on the LLM trace. A non-Promise return (the `streamText` stream) is returned immediately.
@@ -102,17 +102,25 @@ export const wrapStream = ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
   const onFinishHook = async ( response, callback ) => {
+    const state = { proxyResponse: null };
     try {
       const { text: result, providerMetadata } = response;
       const { cost, usage } = await handleCost( { traceId, response, prompt } );
       const sources = extractSources( response );
-
-      const proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
-      await callback?.( proxyResponse );
-
       Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
+      state.proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
     } catch ( error ) {
       throw handleError( { traceId, error } );
+    }
+
+    try {
+      await callback?.( state.proxyResponse );
+    } catch ( callbackError ) {
+      // ignore these as this callback is fire and forget
+      Logger.error( 'Stream onFinish() callback failed', {
+        namespace: 'LLM',
+        error: callbackError instanceof Error ? callbackError.message : String( callbackError )
+      } );
     }
   };
 
