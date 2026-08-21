@@ -83,4 +83,27 @@ describe( 'decode', () => {
   it( 'decodes XML entities in a string', () => {
     expect( decode( 'R&amp;D &lt; Speed &gt; &quot;Limits&quot;' ) ).toBe( 'R&D < Speed > "Limits"' );
   } );
+
+  it( 'decodes XML entities recursively in arrays and plain objects', () => {
+    expect( decode( {
+      label: 'R&amp;D',
+      values: [ 'A &lt; B' ],
+      nested: {
+        title: '&quot;Race&quot;'
+      }
+    } ) ).toEqual( {
+      label: 'R&D',
+      values: [ 'A < B' ],
+      nested: {
+        title: '"Race"'
+      }
+    } );
+  } );
+
+  it( 'returns non-string scalar values unchanged', () => {
+    expect( decode( null ) ).toBeNull();
+    expect( decode( undefined ) ).toBeUndefined();
+    expect( decode( 42 ) ).toBe( 42 );
+    expect( decode( true ) ).toBe( true );
+  } );
 } );

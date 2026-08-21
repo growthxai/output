@@ -1,7 +1,7 @@
 import { Liquid } from 'liquidjs';
 import { parsePromptSchema } from './validations.js';
 import { FatalError, Logger } from '@outputai/core';
-import { pipeInterpolations, interpolationFilterToken, encode } from './interpolations.js';
+import { pipeInterpolations, interpolationFilterToken, encode, decode } from './interpolations.js';
 import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
 import { Path } from '@outputai/core/sdk/helpers';
 import { searchAndReadFile } from '../utils/file.js';
@@ -24,9 +24,9 @@ const splitPromptContent = text => {
 
 const renderContent = ( rawContent, variables ) => liquid.parseAndRenderSync( pipeInterpolations( rawContent ), variables ).trim();
 
-const renderFrontmatter = ( rawFrontmatter, variables ) => liquid.parseAndRenderSync( rawFrontmatter, variables );
+const renderFrontmatter = ( rawFrontmatter, variables ) => liquid.parseAndRenderSync( pipeInterpolations( rawFrontmatter ), variables );
 
-const parseFrontmatter = yml => matter( `---\n${yml}\n---\n` ).data;
+const parseFrontmatter = yml => decode( matter( `---\n${yml}\n---\n` ).data );
 
 /**
  * Load a prompt file and render it with variables.

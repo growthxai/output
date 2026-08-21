@@ -77,6 +77,26 @@ providerOptions:
     } );
   } );
 
+  it( 'preserves escaped characters in interpolated frontmatter values', () => {
+    const dir = tempDir();
+    writePrompt( dir, 'chat', `---
+provider: openai
+model: '{{ model }}'
+providerOptions:
+  openai:
+    label: '{{ label }}'
+---
+<user>Hello</user>
+` );
+
+    const model = 'O\'Brien & <model>';
+    const label = '"R&D"';
+    const config = loadPrompt( 'chat', { model, label }, dir ).config;
+
+    expect( config.model ).toBe( model );
+    expect( config.providerOptions.openai.label ).toBe( label );
+  } );
+
   it( 'finds a nested prompt file and reports that directory as fileDir', () => {
     const dir = tempDir();
     const nested = join( dir, 'prompts' );

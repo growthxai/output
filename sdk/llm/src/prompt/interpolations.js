@@ -1,3 +1,4 @@
+import { Objects } from '@outputai/core/sdk/helpers';
 import { encodeXML, decodeXML } from 'entities';
 
 export const interpolationFilterToken = '__var_safe';
@@ -37,8 +38,21 @@ export const pipeInterpolations = raw =>
   );
 
 /**
- * Just decode a XML-encoded string.
- * @param {string} value - Value to decode
+ * Recursive decode a XML-encoded value.
+ * @param {unknown} value - Value to decode
  * @returns {unknown} Decoded value
  */
-export const decode = value => decodeXML( value );
+export const decode = value => {
+  if ( typeof value === 'string' ) {
+    return decodeXML( value );
+  }
+  if ( Array.isArray( value ) ) {
+    return value.map( decode );
+  }
+  if ( Objects.isPlainObject( value ) ) {
+    return Object.fromEntries(
+      Object.entries( value ).map( ( [ key, item ] ) => [ key, decode( item ) ] )
+    );
+  }
+  return value;
+};

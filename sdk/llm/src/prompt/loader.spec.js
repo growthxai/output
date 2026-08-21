@@ -26,7 +26,8 @@ vi.mock( '@outputai/core/sdk/helpers', () => ( {
 vi.mock( './interpolations.js', () => ( {
   pipeInterpolations: vi.fn( value => value ),
   interpolationFilterToken: '__var_safe',
-  encode: vi.fn()
+  encode: vi.fn(),
+  decode: vi.fn( value => value )
 } ) );
 
 vi.mock( '../utils/file.js', () => ( {
@@ -44,7 +45,7 @@ vi.mock( './validations.js', () => ( {
 import { loadPrompt } from './loader.js';
 import { Path } from '@outputai/core/sdk/helpers';
 import matter from 'gray-matter';
-import { pipeInterpolations } from './interpolations.js';
+import { decode, pipeInterpolations } from './interpolations.js';
 import { searchAndReadFile } from '../utils/file.js';
 import { parseContent } from './content.js';
 import { parsePromptSchema } from './validations.js';
@@ -74,6 +75,7 @@ describe( 'loadPrompt', () => {
     Path.resolveInvocationDir.mockReturnValue( '/invocation' );
     searchAndReadFile.mockReturnValue( { content: 'FILE', dir: '/mock/dir' } );
     pipeInterpolations.mockImplementation( value => value );
+    decode.mockImplementation( value => value );
     liquidMocks.parseAndRenderSync.mockImplementation( template => template );
     parseContent.mockReturnValue( { ...defaultParsed, messages: [ ...defaultParsed.messages ] } );
     parsePromptSchema.mockImplementation( prompt => prompt );
@@ -93,10 +95,12 @@ describe( 'loadPrompt', () => {
     expect( matter ).toHaveBeenNthCalledWith( 1, 'FILE', expect.objectContaining( {
       engines: { yaml: expect.any( Function ) }
     } ) );
-    expect( pipeInterpolations ).toHaveBeenCalledWith( 'RAW_BODY' );
+    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 1, 'RAW_BODY' );
+    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 2, 'RAW_YAML' );
     expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'RAW_BODY', variables );
     expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'RAW_YAML', variables );
     expect( matter ).toHaveBeenNthCalledWith( 2, '---\nRAW_YAML\n---\n' );
+    expect( decode ).toHaveBeenCalledWith( defaultConfig );
     expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY', undefined );
     expect( parsePromptSchema ).toHaveBeenCalledWith( {
       name: 'test',
@@ -107,6 +111,27 @@ describe( 'loadPrompt', () => {
       variables
     } );
     expect( result ).toEqual( parsePromptSchema.mock.calls[0][0] );
+  } );
+
+  it( 'uses decoded frontmatter for content parsing and validation', () => {
+    const encodedConfig = {
+      ...defaultConfig,
+      messageOptions: { cached: { openai: { label: 'R&amp;D' } } }
+    };
+    const decodedConfig = {
+      ...defaultConfig,
+      messageOptions: { cached: { openai: { label: 'R&D' } } }
+    };
+    stubMatter( encodedConfig );
+    decode.mockReturnValue( decodedConfig );
+
+    loadPrompt( 'test' );
+
+    expect( decode ).toHaveBeenCalledWith( encodedConfig );
+    expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY', decodedConfig.messageOptions );
+    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
+      config: decodedConfig
+    } ) );
   } );
 
   it( 'passes the provided prompt directory to searchAndReadFile', () => {
