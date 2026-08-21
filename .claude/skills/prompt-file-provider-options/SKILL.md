@@ -201,6 +201,9 @@ Each set is a provider-namespaced `providerOptions` object (same namespace rules
 **Rules:**
 - Attach the set to the **last static block**, never one containing per-call `{{ variables }}` — a breakpoint on changing content rewrites the cache every call and never hits.
 - Order blocks **static-first, dynamic-last**.
+- Always give `options` a value, such as `options="cached"`; bare `<system options>` throws at load.
+- Put provider settings such as `ttl` inside the named `messageOptions` set. `options` is the only supported role-tag attribute, so `<system ttl="1h">` throws.
+- Every name listed in `options` must exist in frontmatter `messageOptions`.
 - Minimum cacheable prefix is model-specific (~1,024 tokens for most Sonnet/Opus; higher for some). Below it, caching is silently skipped — verify via the cost trace (`cachedInputTokens`).
 - Max 4 cache breakpoints per request.
 

@@ -187,7 +187,41 @@ The only supported role-tag attribute is `options`. Any other attribute throws a
 Error parsing content on prompt "writer@v1": Message has unsupported attributes. The only supported attribute is "options".
 ```
 
-Unknown `options` names, and `options` set while `config.messageOptions` is missing or empty, also throw at load.
+Unknown `options` names, `options` without a value, and `options` set while `config.messageOptions` is missing or empty also throw at load.
+
+### Prompt bodies use explicit parsing modes
+
+v0.11 searched the rendered body for supported role blocks wherever they appeared. This could silently ignore text outside those blocks, unknown top-level tags, and malformed attributes. v0.12 selects one mode from the first meaningful token after leading whitespace and HTML comments:
+
+- Plain text selects instruction mode. The whole trimmed body becomes `prompt.instructions`, including any tags that appear later.
+- A tag selects message mode. The complete body is validated as top-level role blocks and `prompt.instructions` is `null`.
+
+For example, v0.11 extracted the `<user>` block here and discarded the surrounding text:
+
+```text
+Context for the prompt:
+<user>Summarize {{ article }}.</user>
+End of prompt.
+```
+
+In v0.12 this is one instruction string because it starts with text. To keep message mode, move the text inside the role block:
+
+```text
+<user>
+Context for the prompt:
+Summarize {{ article }}.
+End of prompt.
+</user>
+```
+
+Message mode now enforces these rules:
+
+- Top-level blocks must use `system`, `user`, `assistant`, or `tool`.
+- Only whitespace and HTML comments may appear between blocks.
+- Root self-closing tags, unmatched closing tags, and unclosed blocks throw.
+- Different-name tags inside a message remain literal message content.
+- A nested non-self-closing tag with the same name as its message throws instead of prematurely closing the outer block. Escape literal examples, such as `&lt;user&gt;example&lt;/user&gt;`.
+- Attribute names, separators, and quotes are validated. Spaces around `=` and `>` inside quoted values are supported; malformed fragments no longer pass silently.
 
 ## LLM trace details
 
@@ -475,6 +509,10 @@ providerOptions:
 - Treat `prompt.instructions` as always `string | null` after `loadPrompt` (chat prompts are `null`).
 - Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
 - Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
+- Audit prompt bodies that put prose before the first role tag. They now load as instructions; move the prose inside a role block to keep message mode.
+- Remove text between or after top-level role blocks. Only whitespace and HTML comments are allowed there.
+- Escape literal same-name role tags inside messages (`&lt;user&gt;...&lt;/user&gt;`). Different-name semantic tags remain valid content.
+- Give every `options` attribute a value and fix malformed attribute names or quotes; prompt markup now fails explicitly at load.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.

@@ -29,14 +29,15 @@ export * as aiSdk from 'ai';
  * ```
  */
 export type PromptMessage = {
-  /** The role of the message. Examples include 'system', 'user', and 'assistant'. */
+  /** The message role. Authored prompt blocks support 'system', 'user', 'assistant', and 'tool'. */
   role: string;
   /** The content of the message */
   content: string;
   /**
-   * Per-message provider options resolved at load from the tag's `options` attribute and matching
-   * `config.messageOptions` sets. Authored as `<system options="set_a set_b">`. Omitted when the
-   * tag has no `options`.
+   * Per-message provider options resolved at load from the role tag's `options` attribute and
+   * matching `config.messageOptions` sets. Authored as `<system options="set_a set_b">`.
+   * `options` is the only supported role-tag attribute and must have a value. Omitted when the tag
+   * has no effective `options`.
    */
   providerOptions?: Record<string, Record<string, unknown>>;
 };
@@ -48,13 +49,18 @@ export type PromptMessage = {
  * ```ts
  * const prompt: Prompt = {
  *   name: 'summarizePrompt',
+ *   fileDir: '/app/prompts',
+ *   variables: {},
  *   config: {
  *     provider: 'anthropic',
  *     model: 'claude-opus-4-1',
  *     temperature: 0.7,
- *     maxTokens: 2048
+ *     maxTokens: 2048,
+ *     maxSteps: 10,
+ *     skills: []
  *   },
- *   messages: [...]
+ *   messages: [{ role: 'user', content: 'Summarize this document.' }],
+ *   instructions: null
  * };
  * ```
  */
@@ -146,8 +152,9 @@ export type Prompt = {
   messages: PromptMessage[];
 
   /**
-   * Plain prompt body when the file has no role tags. Always set after `loadPrompt`:
-   * a non-empty string for instruction prompts, `null` for chat prompts.
+   * The whole trimmed prompt body when its first meaningful token is plain text. Always set after
+   * `loadPrompt`: a non-empty string with `messages: []` for instruction mode, or `null` when the
+   * body starts with markup and is parsed into messages.
    */
   instructions: string | null;
 };

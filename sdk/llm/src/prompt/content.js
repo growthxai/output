@@ -1,7 +1,7 @@
 import { Role } from '../consts.js';
 import { decode } from './interpolations.js';
-import { parse } from 'node-html-parser';
 import { FatalError } from '@outputai/core';
+import { parseMarkup } from './markup/nodes.js';
 
 /** Merge two objects 2-level deep. */
 const mergeOptions = ( base = {}, extra = {} ) => {
@@ -12,17 +12,16 @@ const mergeOptions = ( base = {}, extra = {} ) => {
   return merged;
 };
 
-/** Takes an object and converts all its root level keys to lowercase */
-const convertRootKeysToLowerCase = v => Object.fromEntries( Object.entries( v ).map( e => [ e[0].toLowerCase(), e[1] ] ) );
-
 /** Gets the options attribute from the message attributes */
-const extractOptions = rawAttributes => {
-  const attributes = convertRootKeysToLowerCase( rawAttributes );
-  const rawOptions = attributes.options?.trim();
-  delete attributes.options;
-  if ( Object.keys( attributes ).length > 0 ) {
+const extractOptions = attributes => {
+  const { options, ...unsupportedAttributes } = attributes;
+  if ( Object.keys( unsupportedAttributes ).length > 0 ) {
     throw new FatalError( 'Message has unsupported attributes. The only supported attribute is "options".' );
   }
+  if ( options === true ) {
+    throw new FatalError( 'Message "options" attribute must have a value.' );
+  }
+  const rawOptions = options?.trim();
   return rawOptions ? rawOptions.split( /\s+/ ) : null;
 };
 
@@ -35,26 +34,26 @@ const resolveProviderOptions = ( options, messageOptions ) =>
     return mergeOptions( result, messageOptions[option] );
   }, {} );
 
+const roleSet = new Set( Object.values( Role ) );
+
 /**
- * Extract messages or instructions from prompt content. Role tags yield messages
- * and null instructions; otherwise instructions are the decoded body.
+ * Extract messages or instructions from prompt content. A leading role tag yields
+ * messages and null instructions; otherwise instructions are the decoded body.
  */
 export const parseContent = ( content, messageOptions ) => {
-  const root = parse( content );
-  const roles = Object.values( Role );
+  const nodes = parseMarkup( content );
 
-  const messageNodes = [ ...root.children ]
-    .filter( node => roles.includes( node.tagName.toLowerCase() ) );
+  if ( nodes.length === 0 ) {
+    return { messages: [], instructions: decode( content.trim() ) };
+  }
 
-  if ( messageNodes.length === 0 ) {
-    return {
-      messages: [],
-      instructions: decode( content.trim() )
-    };
+  const invalidRole = nodes.find( node => !roleSet.has( node.tagName ) );
+  if ( invalidRole ) {
+    throw new FatalError( `Message has invalid role "${invalidRole.tagName}".` );
   }
 
   return {
-    messages: messageNodes.map( node => {
+    messages: nodes.map( node => {
       const options = extractOptions( node.attributes );
       if ( options && Object.keys( messageOptions ?? {} ).length === 0 ) {
         throw new FatalError( 'Message has "options" attribute but `config.messageOptions` is empty.' );
@@ -62,7 +61,7 @@ export const parseContent = ( content, messageOptions ) => {
       const providerOptions = options ? resolveProviderOptions( options, messageOptions ) : null;
       return {
         role: node.tagName.toLowerCase(),
-        content: decode( node.innerHTML.trim() ),
+        content: decode( node.content.trim() ),
         ...( providerOptions && { providerOptions } )
       };
     } ),

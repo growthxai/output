@@ -20,10 +20,10 @@ describe( 'parseContent', () => {
       } );
     } );
 
-    it( 'keeps surrounding text out of messages and leaves instructions null', () => {
+    it( 'treats content that starts with text as instructions', () => {
       expect( parseContent( 'Note\n<user>Yo</user>\nTail' ) ).toEqual( {
-        messages: [ { role: Role.USER, content: 'Yo' } ],
-        instructions: null
+        messages: [],
+        instructions: 'Note\n<user>Yo</user>\nTail'
       } );
     } );
 
@@ -57,12 +57,11 @@ describe( 'parseContent', () => {
       expect( parseContent( '<user>R&amp;D &lt; Speed</user>' ).messages[0].content ).toBe( 'R&D < Speed' );
     } );
 
-    it( 'keeps nested role tags inside the top-level message', () => {
+    it( 'keeps a different nested role tag inside the top-level message', () => {
       const body = [
         '<user>',
         'Here:',
         '```',
-        '<user>user text</user>',
         '<system>sys</system>',
         '```',
         '</user>'
@@ -71,23 +70,20 @@ describe( 'parseContent', () => {
       expect( parseContent( body ) ).toEqual( {
         messages: [ {
           role: Role.USER,
-          content: 'Here:\n```\n<user>user text</user>\n<system>sys</system>\n```'
+          content: 'Here:\n```\n<system>sys</system>\n```'
         } ],
         instructions: null
       } );
     } );
 
-    it( 'treats nested same-role tags as content of the outer message', () => {
-      expect( parseContent( '<user>ass<user>asasas</user></user>' ).messages ).toEqual( [
-        { role: Role.USER, content: 'ass<user>asasas</user>' }
-      ] );
+    it( 'rejects a nested tag with the same role', () => {
+      expect( () => parseContent( '<user>ass<user>asasas</user></user>' ) )
+        .toThrow( 'Invalid child tag: <user> cannot appear inside another <user>. Escape it as "&lt;user&gt;".' );
     } );
 
-    it( 'only treats top-level role tags as messages', () => {
-      expect( parseContent( '<div><user>Hi</user></div>' ) ).toEqual( {
-        messages: [],
-        instructions: '<div><user>Hi</user></div>'
-      } );
+    it( 'rejects an invalid top-level role', () => {
+      expect( () => parseContent( '<div><user>Hi</user></div>' ) )
+        .toThrow( 'Message has invalid role "div".' );
     } );
 
     it( 'keeps closed inner markup in the message body', () => {
@@ -138,6 +134,11 @@ describe( 'parseContent', () => {
       expect( parseContent( '<system options="">Docs</system>' ).messages ).toEqual( [
         { role: Role.SYSTEM, content: 'Docs' }
       ] );
+    } );
+
+    it( 'throws when options has no value', () => {
+      expect( () => parseContent( '<system options>Docs</system>' ) )
+        .toThrow( new FatalError( 'Message "options" attribute must have a value.' ) );
     } );
 
     it( 'merges keys from two sets that share a provider namespace', () => {

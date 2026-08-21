@@ -5,6 +5,8 @@ description: "Write effective prompts for production AI workflows"
 
 Production prompts need to be reliable, not clever. This guide covers patterns that work consistently across thousands of runs.
 
+The examples below use [message mode](/prompts#prompt-body-modes): the rendered body starts with a role tag, and all top-level content stays inside supported role blocks. Use instruction mode instead when the prompt does not need conversation roles.
+
 ## System Messages
 
 The system message defines who the LLM is and how it behaves. Be specific.

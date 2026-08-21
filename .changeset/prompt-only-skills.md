@@ -46,7 +46,12 @@
   - Added `Prompt.config.maxSteps` (positive integer, default 10). It replaces the old argument and is required on the public type.
   - Updated `Prompt.instructions` to always be `string | null` after load (chat prompts are `null`).
   - Removed `PromptMessage.attributes`. `options="<name>"` on a role tag is resolved at `loadPrompt` against `config.messageOptions` into optional per-message `providerOptions`. Unknown role-tag attributes throw at load.
-- Fixed nested role tags inside a message closing the outer tag. Nested tags are treated as content.
+- Replaced prompt body scanning with explicit instruction and message modes:
+  - Updated mode detection so plain text as the first meaningful body token selects instruction mode, while a tag selects message mode.
+  - Restricted message mode to top-level `system`, `user`, `assistant`, and `tool` blocks, with no root text between blocks.
+  - Added explicit errors for invalid roles, root self-closing or unmatched closing tags, unclosed blocks, and malformed attributes.
+  - Fixed nested tag handling so different-name tags remain message content, while nested non-self-closing tags with the same name throw with an `&lt;tag&gt;` escape hint instead of closing the outer block early.
+  - Added support for spaces around attribute `=` and `>` inside quoted values. Bare `options`, unknown option names, and invalid quote pairs throw at load.
 - Updated prompt file `config` to be strict. Unknown top-level keys throw.
 - Updated LLM traces on `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`:
   - Updated start `input` to `{ prompt }` (the loaded object). Removed the v0.11 filename `prompt`, sibling `variables`, and `loadedPrompt`.

@@ -40,6 +40,8 @@ maxTokens: 2000
 <user>{{ instructions }}</user>
 ```
 
+The body is either message mode or instruction mode. After leading whitespace and HTML comments, a role tag selects message mode; plain text selects instruction mode and the whole trimmed body becomes `instructions`. Use instruction mode for image prompts and other prompts that do not need conversation roles.
+
 ### YAML Frontmatter Options
 
 | Option | Type | Description |
@@ -74,6 +76,15 @@ Each message role serves a specific purpose. Understanding when to use each is c
 | `<system>` | Define AI identity, rules, and methodology | Static instructions |
 | `<user>` | Provide data and specific requests | Dynamic content |
 | `<assistant>` | Show example responses for few-shot learning | Example outputs |
+| `<tool>` | Include a tool result in authored conversation history | Tool output |
+
+These are the only valid top-level role tags. Message mode is strict:
+
+- Put only whitespace and HTML comments between top-level blocks.
+- Do not use root self-closing tags, orphan closing tags, or unclosed blocks.
+- Different-name tags nested inside a message remain literal content.
+- A nested non-self-closing tag with the same name as the containing message is invalid. Escape literal examples as `&lt;user&gt;example&lt;/user&gt;`.
+- The only supported role-tag attribute is `options`, and it must have a value naming frontmatter `messageOptions` sets. Bare `options` and all other attributes throw at load.
 
 ### When to Use Each Role
 
@@ -148,6 +159,8 @@ Return a structured analysis with:
 ## Semantic Content Tags
 
 Use XML-like tags within messages to clearly separate different types of content. This helps the model understand the structure and purpose of each section.
+
+Semantic tags with a different name from the containing role are preserved as message content. Never nest the containing role tag itself. For example, `<context>` is valid inside `<user>`, but a literal `<user>...</user>` example must be authored as `&lt;user&gt;...&lt;/user&gt;`.
 
 ### Common Semantic Tags
 
@@ -632,6 +645,18 @@ Dumping data without wrapping in `<data>`, `<context>`, etc.
 
 ### 8. Duplicating Schema in Prompt
 Including `## Output Format` with JSON examples when the step uses `aiSdk.Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
+
+### 9. Accidental Instruction Mode
+Putting prose before the first role tag. Plain text selects instruction mode, so later role tags are not parsed into messages.
+
+### 10. Root Text Between Messages
+Putting labels or separators outside role blocks. In message mode, only whitespace and HTML comments are valid between blocks.
+
+### 11. Nested Same-Role Tags
+Writing a literal `<user>...</user>` inside a `<user>` block. Escape it as `&lt;user&gt;...&lt;/user&gt;`.
+
+### 12. Invalid Role Attributes
+Using bare `options` or attributes such as `name`, `id`, or `ttl` on a role tag. Only `options="<messageOptions names>"` is supported.
 
 ## Example Interactions
 

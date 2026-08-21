@@ -183,7 +183,7 @@ export const judgeSummaryQuality = evaluator({
 
 ### Image Output
 
-Generate images from a prompt file with `generateImage`. Image prompt files use plain instructions, not chat role tags like `<system>` or `<user>`:
+Generate images from a prompt file with `generateImage`. Image prompt files use plain instructions, not chat role tags like `<system>` or `<user>`. Keep plain text as the first meaningful body content so Output selects [instruction mode](/prompts#prompt-body-modes):
 
 ```yaml prompts/nascar_race@v1.prompt
 ---
@@ -732,7 +732,7 @@ Summarize {{ companyName }}.
 </user>
 ```
 
-Only the `<user>` block - the part that changes each call - is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks.
+Only the `<user>` block - the part that changes each call - is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks. Bare `options` and names missing from `messageOptions` throw when the prompt loads.
 
 <Warning>
 Attach the set to the last **static** block, never one containing per-call `{{ variables }}`. A breakpoint on changing content rewrites the cache on every call and never gets a hit. Order your blocks static-first, dynamic-last.
@@ -905,6 +905,8 @@ console.log(prompt.messages);     // [{ role, content, providerOptions? }, ...]
 console.log(prompt.instructions); // string | null
 console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
+
+For instruction-mode prompts, `messages` is empty and `instructions` contains the rendered body. For message-mode prompts, `messages` contains the parsed role blocks and `instructions` is `null`. See [Prompt Body Modes](/prompts#prompt-body-modes).
 
 ## API Reference
 

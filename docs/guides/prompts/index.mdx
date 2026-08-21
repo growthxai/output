@@ -1,6 +1,6 @@
 ---
 title: "Writing Prompt Files"
-description: "Version-controlled prompts with YAML configuration and XML message blocks"
+description: "Version-controlled prompts with YAML configuration and structured message or instruction bodies"
 ---
 
 Prompts in Output live in `.prompt` files inside a `prompts/` folder — version-controlled, reviewable, and deployed with your code. No more strings scattered across your codebase or prompts locked in external dashboards.
@@ -29,7 +29,7 @@ Include: what they do, target market, recent news if available, and potential pa
 </user>
 ```
 
-A prompt file has two parts: YAML frontmatter (configuration) and message blocks (the actual prompt content).
+A prompt file has two parts: YAML frontmatter (configuration) and a body containing either role-tagged messages or plain instructions.
 
 ## File Naming
 
@@ -215,6 +215,47 @@ When using `provider: google-vertex` (or the legacy alias `vertex`), the `provid
 - **Claude models** → Use `anthropic:` namespace
 - **Vertex-specific options** → Use `vertex:` namespace
 
+## Prompt Body Modes
+
+After rendering the template, Output determines how to parse the body from its first meaningful token. Leading whitespace and HTML comments (`<!-- ... -->`) do not affect this decision:
+
+- If the first meaningful token is plain text, the whole trimmed body becomes `instructions` and `messages` is empty. Tags later in the body stay part of the instruction text.
+- If the first meaningful token is a tag, Output enters message mode and validates the body as role-tagged markup. `instructions` is `null`.
+
+Use instruction mode for prompts that do not need chat roles, such as image prompts:
+
+```yaml
+---
+provider: openai
+model: gpt-image-1
+---
+
+Create a cinematic product photograph of {{ product }}.
+```
+
+Use message mode when the provider should receive a conversation:
+
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-20250514
+---
+
+<system>You write concise product descriptions.</system>
+<user>Describe {{ product }}.</user>
+```
+
+In message mode:
+
+- Top-level tags must be `<system>`, `<user>`, `<assistant>`, or `<tool>`.
+- Between top-level blocks, only whitespace and HTML comments are allowed.
+- Top-level self-closing tags and closing tags without an opening block are invalid.
+- Every top-level block needs a matching closing tag.
+- Tags with a different name inside a message are preserved as message content. This includes semantic tags, HTML-like examples, and code such as `Array<string>`.
+- A nested non-self-closing tag with the same name as its message is ambiguous and throws. Escape literal examples, including both brackets, such as `&lt;user&gt;example&lt;/user&gt;`.
+
+These rules are validated when the prompt loads. Invalid roles, root text, malformed attributes, and unclosed blocks produce explicit errors instead of being silently ignored.
+
 ## Message Blocks
 
 Message blocks use XML-style tags to define the conversation structure.
@@ -278,7 +319,9 @@ I'll search for recent news about {{ company_name }}.
 
 ### `options`
 
-The only supported attribute on a role tag is `options`, a space-separated list of names from frontmatter `messageOptions`. At load, those sets are merged onto the message as `providerOptions`. Any other attribute throws. See [Prompt Caching](/packages/llm#prompt-caching).
+The only supported attribute on a role tag is `options`, a space-separated list of names from frontmatter `messageOptions`. At load, those sets are merged from left to right onto the message as `providerOptions`; later sets win when the same provider option is repeated.
+
+Give `options` an explicit quoted or unquoted value, such as `options="cached fast"` or `options=cached`. Bare `options` throws, while `options=""` is treated as absent. Every referenced name must exist in `messageOptions`, and any other role-tag attribute throws. See [Prompt Caching](/packages/llm#prompt-caching).
 
 ## System vs User
 

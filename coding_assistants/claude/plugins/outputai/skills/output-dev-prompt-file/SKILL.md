@@ -69,6 +69,22 @@ User message with {{ variable }} placeholders.
 </user>
 ```
 
+The body uses exactly one mode:
+
+- **Message mode** starts with a role tag and produces `messages`. Use it for text conversations.
+- **Instruction mode** starts with plain text and produces `instructions`. Use it for image prompts or other prompts that do not need roles:
+
+```
+---
+provider: openai
+model: gpt-image-1
+---
+
+Create a cinematic image of {{ subject }}.
+```
+
+Leading whitespace and HTML comments do not affect mode selection. Once plain text selects instruction mode, later tag-shaped text remains part of the instructions.
+
 ## YAML Frontmatter Options
 
 ### Required Fields
@@ -168,7 +184,16 @@ maxTokens: 8192
 
 ## Message Blocks
 
-Use XML-style tags to define message roles:
+Message mode uses a small XML-like syntax, not a general HTML or XML parser. The only valid top-level role tags are `<system>`, `<user>`, `<assistant>`, and `<tool>`.
+
+Follow these parser rules:
+
+- Put only whitespace or HTML comments between top-level role blocks. Root text and self-closing blocks are invalid.
+- Close every top-level role block with the matching tag.
+- Different-name tags inside a message, such as `<context>` inside `<user>`, remain message content.
+- Do not nest a non-self-closing tag with the same name as its containing message. Escape literal examples as `&lt;user&gt;example&lt;/user&gt;`.
+- Code and HTML-like text inside a message are preserved, including forms such as `Array<string>`.
+- On role tags, only the `options` attribute is supported. It must have a value naming one or more frontmatter `messageOptions` sets, for example `options="cached fast"`. Bare `options` and unknown attributes throw when the prompt loads.
 
 ### System Message
 
@@ -195,6 +220,14 @@ Please analyze the following content:
 <assistant>
 I'll analyze this content step by step...
 </assistant>
+```
+
+### Tool Message
+
+```
+<tool>
+Tool result content goes here.
+</tool>
 ```
 
 ## Liquid.js Templating
@@ -651,7 +684,11 @@ Requirements:
 - [ ] File named `{promptName}@v{version}.prompt`
 - [ ] YAML frontmatter includes `provider` and `model`
 - [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
-- [ ] Message blocks use proper XML tags (`<system>`, `<user>`, `<assistant>`)
+- [ ] The body intentionally uses message mode (starts with a role tag) or instruction mode (starts with plain text)
+- [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`, `<tool>`)
+- [ ] Message mode has no root text between blocks, no self-closing role blocks, and no unclosed blocks
+- [ ] Literal same-name role tags inside a message are escaped (`&lt;user&gt;...&lt;/user&gt;`)
+- [ ] Role-tag attributes use only `options="<messageOptions names>"`; `options` is never bare
 - [ ] Variables use `{{ variableName }}` syntax
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
 - [ ] All required variables are documented or have defaults

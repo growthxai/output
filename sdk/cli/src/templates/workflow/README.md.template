@@ -180,6 +180,9 @@ Create prompt files in `prompts/` following the pattern:
 - File naming: `promptName@v1.prompt`
 - Include YAML frontmatter with provider, model, temperature, and maxTokens
 - Use LiquidJS syntax for variables: `{{ variableName }}`
+- Start the rendered body with a role tag for message mode, or with plain text for instruction mode
+
+In message mode, use only `<system>`, `<user>`, `<assistant>`, and `<tool>` at the top level. Keep all prose inside those blocks, close every block, and escape literal same-role examples such as `&lt;user&gt;...&lt;/user&gt;`.
 
 Example prompt file:
 ```

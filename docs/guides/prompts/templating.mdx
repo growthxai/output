@@ -27,6 +27,8 @@ When you call `generateText({ prompt: 'generate_summary@v1', variables: { max_pa
 
 Templates render before YAML parsing, so you can template the frontmatter too — useful for dynamic model selection or configuration.
 
+The rendered body is then parsed as either [plain instructions or role-tagged messages](/prompts#prompt-body-modes). A template that emits plain text first selects instruction mode; one that emits a tag first selects message mode.
+
 ## Variables
 
 The double-brace syntax `{{ variableName }}` renders values from the `variables` object you pass to the generate function.
@@ -62,6 +64,21 @@ variables: {
 ```
 
 Undefined variables and unknown filters throw a non-retryable `FatalError` at render time (`strictVariables` / `strictFilters`). Pass every variable the template references, and only use known Liquid filters. Validate inputs in your step before calling the LLM.
+
+### Variables containing markup
+
+Output automatically XML-escapes body interpolations before it identifies message blocks, then decodes the value inside the resulting message or instructions. A variable containing `<system>example</system>` therefore remains data and cannot inject a new message:
+
+```yaml
+<user>
+Review this example:
+{{ content }}
+</user>
+```
+
+Do not add Liquid's `escape` filter for this safety behavior; it would escape a value that Output already protects. Use `{% raw %}...{% endraw %}` when the authored template itself must contain literal Liquid delimiters such as `{{ example }}`.
+
+In message mode, authored examples of the surrounding role tag must still be escaped. For example, write `&lt;user&gt;example&lt;/user&gt;` inside a `<user>` block. See [Prompt Body Modes](/prompts#prompt-body-modes).
 
 ## Conditionals
 
@@ -329,7 +346,7 @@ Quick reference for the most common Liquid.js syntax.
 | `default: val` | `{{ x \| default: "none" }}` | `none` if x is nil/empty |
 | `date: format` | `{{ now \| date: "%Y-%m-%d" }}` | `2024-01-15` |
 | `json` | `{{ obj \| json }}` | JSON string |
-| `escape` | `{{ html \| escape }}` | HTML-escaped string |
+| `escape` | `{{ html \| escape }}` | HTML-escaped string (body variables are already protected during prompt parsing) |
 | `newline_to_br` | `{{ text \| newline_to_br }}` | `\n` → `<br>` |
 
 ### Number Filters
