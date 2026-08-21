@@ -32,7 +32,7 @@ const parseFrontmatter = yml => matter( `---\n${yml}\n---\n` ).data;
  * Load a prompt file and render it with variables.
  *
  * @param {string} name - Name of the prompt file (without .prompt extension)
- * @param {Record<string, string | number | boolean>} [variables] - Variables to interpolate
+ * @param {Record<string, unknown>} [variables] - Variables to interpolate
  * @param {string} [dir] - Directory to search for the prompt file (defaults to stack-resolved invocation dir)
  * @returns {Prompt} Loaded and rendered prompt object.
  */

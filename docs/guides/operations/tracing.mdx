@@ -12,7 +12,7 @@ Traces are written automatically when the worker runs. You don't need to add any
 Each traced workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
 
 - **Steps and evaluators** — input, output (or error), start/end timestamps;
-- **LLM calls** — the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, token usage, `cost`, and merged `sources`;
+- **LLM calls** - the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, token usage, and `cost`. Text calls also include merged `sources`; image calls do not;
 - **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
 - **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
 - **Child workflows** — nested as their own trees with the same structure

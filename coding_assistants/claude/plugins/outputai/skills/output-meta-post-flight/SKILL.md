@@ -38,7 +38,7 @@ Verify the following conventions were followed:
 
 #### LLM Provider & Variables
 - [ ] All prompt files use the same provider (no mixing unless explicitly requested)
-- [ ] `generateText`/`Agent` variables are `string | number | boolean` only -- no arrays or objects
+- [ ] Structured `generateText`/`Agent` variables use Liquid loops, conditions, or dot notation appropriately
 
 #### Code Style (see `output-dev-code-style`)
 - [ ] No trailing commas in any generated code

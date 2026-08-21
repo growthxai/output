@@ -107,6 +107,50 @@ model: gpt-4
     expect( loadPrompt( 'chat', { debug: false }, dir ).messages[0].content ).toBe( 'Debug mode disabled' );
   } );
 
+  it( 'renders nested object properties in frontmatter and message content', () => {
+    const dir = tempDir();
+    writePrompt( dir, 'chat', `---
+provider: {{ llm.provider }}
+model: {{ llm.model }}
+---
+<user>Summarize {{ company.name }} in the {{ company.industry }} industry.</user>
+` );
+    const variables = {
+      llm: { provider: 'openai', model: 'gpt-4' },
+      company: { name: 'Acme', industry: 'SaaS' }
+    };
+
+    const result = loadPrompt( 'chat', variables, dir );
+
+    expect( result.config.provider ).toBe( 'openai' );
+    expect( result.config.model ).toBe( 'gpt-4' );
+    expect( result.messages[0].content ).toBe( 'Summarize Acme in the SaaS industry.' );
+    expect( result.variables ).toEqual( variables );
+  } );
+
+  it( 'renders arrays of nested objects with loops, conditions, and filters', () => {
+    const dir = tempDir();
+    writePrompt( dir, 'chat', `---
+provider: openai
+model: gpt-4
+---
+<user>{% for criterion in criteria %}{{ forloop.index }}. {{ criterion.name }}{% if criterion.required %} (required){% endif %}
+{% endfor %}Tags: {{ tags | join: ", " }}</user>
+` );
+    const variables = {
+      criteria: [
+        { name: 'Accuracy', required: true },
+        { name: 'Tone', required: false }
+      ],
+      tags: [ 'stable', 'fast' ]
+    };
+
+    const result = loadPrompt( 'chat', variables, dir );
+
+    expect( result.messages[0].content ).toBe( '1. Accuracy (required)\n2. Tone\nTags: stable, fast' );
+    expect( result.variables ).toEqual( variables );
+  } );
+
   it( 'keeps {% raw %} interpolations literal while still rendering others', () => {
     const dir = tempDir();
     writePrompt( dir, 'chat', `---

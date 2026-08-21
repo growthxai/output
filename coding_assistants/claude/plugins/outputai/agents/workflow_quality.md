@@ -256,8 +256,8 @@ When a step uses `aiSdk.Output.object()`, the schema is sent to the LLM automati
 ### 9. Code Style
 All generated code must follow project style conventions. Key rules: no trailing commas, no `let` (use `const` only), arrow parens only when needed, operator linebreak after. See `output-dev-code-style` skill for the full list.
 
-### 10. Arrays/Objects as Prompt Variables
-The `variables` field in `generateText` and `Agent` only accepts `string | number | boolean`. Passing arrays or objects causes TypeScript compilation errors (TS2322). Pre-format complex data into strings in the step before passing as variables.
+### 10. Structured Prompt Variables
+The `variables` field in `generateText` and `Agent` accepts nested objects and arrays. Keep presentation-oriented iteration and property access in Liquid; pre-format data in the step only when formatting is application logic.
 
 ### 11. Mixed LLM Providers
 All prompt files in a workflow should use the same provider unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires API keys for every provider used, causing runtime failures when keys are missing. Default to anthropic.

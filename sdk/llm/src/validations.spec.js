@@ -102,15 +102,22 @@ describe( 'parseGenerateTextArgs', () => {
     } ) ).toThrow( /unrecognized key/i );
   } );
 
+  it( 'accepts nested objects and arrays as variables', () => {
+    const variables = {
+      company: { name: 'Acme', industries: [ 'SaaS', 'AI' ] },
+      criteria: [ { name: 'Accuracy', required: true } ]
+    };
+
+    expect( parseGenerateTextArgs( {
+      prompt: 'summary@v1',
+      variables
+    } ).variables ).toEqual( variables );
+  } );
+
   it( 'throws ValidationError for invalid allowlisted field shapes', () => {
     expect( () => parseGenerateTextArgs( {
       prompt: 'summary@v1',
       variables: [ 'not a record' ]
-    } ) ).toThrow( ValidationError );
-
-    expect( () => parseGenerateTextArgs( {
-      prompt: 'summary@v1',
-      variables: { nested: { topic: 'testing' } }
     } ) ).toThrow( ValidationError );
 
     expect( () => parseGenerateTextArgs( {

@@ -340,38 +340,29 @@ Focus on the most important concepts that would benefit from visual explanation.
 </user>
 ```
 
-## CRITICAL: Variable Type Constraint
+## Structured Variables
 
-The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects as variables -- TypeScript will reject them.
-
-When your step has complex data (arrays, objects), pre-format it into a string before passing it as a variable:
+The `variables` field in `generateText` and `Agent` accepts scalars, nested objects, and arrays. Pass structured data directly when the prompt benefits from Liquid loops, conditions, or dot notation:
 
 ```typescript
-// WRONG - arrays/objects as variables cause TS2322
 const { output } = await generateText( {
   prompt: 'rank@v1',
   variables: {
-    stories: storyArray,       // Type error: not assignable to string | number | boolean
-    interests: interestArray   // Type error: not assignable to string | number | boolean
-  }
-} );
-
-// CORRECT - pre-format complex data into strings
-const storiesText = stories.map( s =>
-  `- ${s.title} (score: ${s.score}, by: ${s.author})`
-).join( '\n' );
-const interestsText = interests.join( ', ' );
-
-const { output } = await generateText( {
-  prompt: 'rank@v1',
-  variables: {
-    stories: storiesText,     // string - OK
-    interests: interestsText  // string - OK
+    stories: storyArray,
+    interests: interestArray
   }
 } );
 ```
 
-The prompt template then uses the pre-formatted string directly with `{{ stories }}` instead of Liquid loops. This is simpler and avoids the type constraint entirely.
+```liquid
+{% for story in stories %}
+- {{ story.title }} (score: {{ story.score }}, by: {{ story.author }})
+{% endfor %}
+
+Interests: {{ interests | join: ", " }}
+```
+
+Pre-format data in the step only when the exact rendered text is application logic rather than prompt presentation.
 
 ## Using Prompts in Steps
 

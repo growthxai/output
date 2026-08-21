@@ -15,7 +15,7 @@ const promptOwnedCallArgRejection = {
 
 const functionSchema = z.custom( value => typeof value === 'function', 'Expected function' );
 
-const variablesSchema = z.record( z.string(), z.union( [ z.string(), z.number(), z.boolean() ] ) );
+const variablesSchema = z.record( z.string(), z.unknown() );
 
 const toolChoiceSchema = z.union( [
   z.enum( [ 'auto', 'none', 'required' ] ),

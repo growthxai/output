@@ -130,10 +130,18 @@ export const reviewContentStream = step( {
       variables: input,
       messageStore: store
     } );
-    const stream = await agent.stream();
+    const captured: { error: unknown } = { error: null };
+    const stream = await agent.stream( {
+      onError( { error } ) {
+        captured.error = error;
+      }
+    } );
     const chunks: string[] = [];
     for await ( const chunk of stream.textStream ) {
       chunks.push( chunk );
+    }
+    if ( captured.error ) {
+      throw captured.error;
     }
     const storedMessages = await snapshotStore( store );
 

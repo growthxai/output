@@ -41,7 +41,7 @@
 - Fixed call-argument tools overriding prompt tools. They now merge (caller wins on the same key; `load_skill` is last). Prompt-only native tools now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
 - Updated prompt shape:
   - Renamed `Prompt.promptFileDir` to `Prompt.fileDir`.
-  - Added `Prompt.variables` (`Record<string, string | number | boolean>`, default `{}`).
+  - Added `Prompt.variables` (`Record<string, unknown>`, including nested objects and arrays; default `{}`).
   - Updated `Prompt.config.skills` to always be a `string[]` after load (required on the public type).
   - Added `Prompt.config.maxSteps` (positive integer, default 10). It replaces the old argument and is required on the public type.
   - Updated `Prompt.instructions` to always be `string | null` after load (chat prompts are `null`).

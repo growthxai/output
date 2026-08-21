@@ -256,39 +256,23 @@ Variables use double curly braces with spaces:
 {{ x }}              # Wrong - unclear name
 ```
 
-### CRITICAL: Variable Type Constraint
+### Structured Variables
 
-The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects directly -- this causes TypeScript compilation errors.
-
-When a step has complex data (arrays, objects), it must pre-format them into strings before passing as variables. The prompt then uses the pre-formatted string directly instead of Liquid loops:
-
-```typescript
-// In the step: pre-format before passing
-const itemsText = items.map( i => `- ${i.name}: ${i.value}` ).join( '\n' );
-const tagsText = tags.join( ', ' );
-
-const { result } = await generateText( {
-  prompt: 'process@v1',
-  variables: {
-    items: itemsText,   // string - OK
-    tags: tagsText,     // string - OK
-    count: items.length // number - OK
-  }
-} );
-```
+The `variables` field in `generateText` and `Agent` accepts scalars, nested objects, and arrays. Use Liquid loops and dot notation when presentation belongs in the prompt:
 
 ```yaml
-# In the prompt: use the pre-formatted string directly
 <user>
 Process these items:
-{{ items }}
+{% for item in items %}
+- {{ item.name }}: {{ item.value }}
+{% endfor %}
 
-Tags: {{ tags }}
-Total: {{ count }}
+Tags: {{ tags | join: ", " }}
+Company: {{ company.name }}
 </user>
 ```
 
-Do NOT use Liquid loops (`{% for %}`) or nested object access (`{{ item.name }}`) in prompts -- the data should already be formatted as a string by the step.
+Pre-format structured data in the step only when the exact rendered text is application logic rather than prompt presentation.
 
 ### Conditionals with Fallbacks
 
@@ -352,11 +336,8 @@ Transform variables with filters:
 # Correct - spaces required
 {{ variable }}
 
-# Wrong - passing arrays/objects as variables (causes TS2322)
+# Correct - structured variables support loops and dot notation
 variables: { items: itemArray, user: userObject }
-
-# Correct - pre-format complex data in the step
-variables: { items: itemsText, userName: user.name }
 ```
 
 ## Prompt Engineering Techniques

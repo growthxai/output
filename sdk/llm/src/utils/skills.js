@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import matter from 'gray-matter';
 import { ValidationError } from '@outputai/core';
@@ -15,16 +15,25 @@ import { ValidationError } from '@outputai/core';
  * Frontmatter may provide `name` and `description`; body becomes the instructions.
  *
  * @param {string[]} paths
+ * @param {Set<string>} visitedDirectories
  * @returns {Skills[]}
  */
-export const recursiveLoadSkillFile = paths => {
+const recursiveLoadSkillPaths = ( paths, visitedDirectories ) => {
   const loaded = [];
   for ( const path of paths ) {
     if ( !existsSync( path ) ) {
       throw new ValidationError( `Skill path "${path}" not found` );
     }
     if ( statSync( path ).isDirectory() ) {
-      loaded.push( ...recursiveLoadSkillFile( readdirSync( path ).sort().map( f => resolve( path, f ) ) ) );
+      const realPath = realpathSync( path );
+      if ( visitedDirectories.has( realPath ) ) {
+        continue;
+      }
+      visitedDirectories.add( realPath );
+      loaded.push( ...recursiveLoadSkillPaths(
+        readdirSync( path ).sort().map( f => resolve( path, f ) ),
+        visitedDirectories
+      ) );
     }
     if ( !path.endsWith( '.md' ) ) {
       continue;
@@ -40,6 +49,14 @@ export const recursiveLoadSkillFile = paths => {
   }
   return loaded;
 };
+
+/**
+ * Recursively load skill files while visiting each real directory once.
+ *
+ * @param {string[]} paths
+ * @returns {Skills[]}
+ */
+export const recursiveLoadSkillFile = paths => recursiveLoadSkillPaths( paths, new Set() );
 
 /**
  * Resolve all skills available to a prompt.

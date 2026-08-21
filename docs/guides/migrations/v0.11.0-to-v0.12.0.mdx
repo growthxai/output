@@ -140,7 +140,7 @@ Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, r
 | v0.11.0 | v0.12.0 |
 | --- | --- |
 | `prompt.promptFileDir` | `prompt.fileDir` (always set) |
-| - | `prompt.variables` (`Record<string, string \| number \| boolean>`, default `{}`) |
+| - | `prompt.variables` (`Record<string, unknown>`, including nested objects and arrays; default `{}`) |
 | `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
 | `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
 | `prompt.instructions` missing or omitted | Always `string | null` (chat prompts are `null`) |
@@ -324,7 +324,7 @@ await generateText( {
   prompt: 'writer@v1',
   output: aiSdk.Output.object( { schema } ),
   stopWhen: aiSdk.stepCountIs( 1 ),
-  tools: { lookup: aiSdk.tool( { description: 'Lookup', parameters: schema, execute } ) }
+  tools: { lookup: aiSdk.tool( { description: 'Lookup', inputSchema: schema, execute } ) }
 } );
 ```
 

@@ -405,14 +405,23 @@ Like `generate()`, the method returns the complete response, rejects on stream e
 Use `stream()` when you need direct access to the agent's stream result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
 
 ```typescript
-const stream = await agent.stream();
+const captured: { error: unknown } = { error: null };
+const stream = await agent.stream({
+  onError({ error }) {
+    captured.error = error;
+  }
+});
 
 for await (const chunk of stream.textStream) {
   process.stdout.write(chunk);
 }
+
+if (captured.error) {
+  throw captured.error;
+}
 ```
 
-Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
+Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion. In a workflow step, capture and rethrow `onError` as shown so a failed stream cannot become an empty successful activity.
 
 ### Structured Output
 
@@ -814,7 +823,7 @@ const { result, toolCalls } = await generateText({
   tools: {
     searchWeb: aiSdk.tool({
       description: 'Search the web for information',
-      parameters: z.object({ query: z.string() }),
+      inputSchema: z.object({ query: z.string() }),
       execute: async ({ query }) => fetchSearchResults(query)
     })
   },
@@ -824,7 +833,7 @@ const { result, toolCalls } = await generateText({
 
 ## Call arguments
 
-`variables` is `Record<string, string | number | boolean>`. Pre-stringify arrays and objects.
+`variables` accepts Liquid values, including nested objects and arrays. Use dot notation and Liquid loops to read structured values in the prompt template.
 
 ### Text APIs
 
@@ -879,7 +888,7 @@ Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStre
 
 Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error fails the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
 
-`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` usage, capture the error in `onError` and throw it after consuming the stream, as shown under [direct stream access](#direct-stream-access).
+`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` or `Agent.stream()` usage, capture the error in `onError` and throw it after consuming the stream, as shown in their direct-stream examples.
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 

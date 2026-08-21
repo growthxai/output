@@ -17,6 +17,9 @@ import type { Tracing } from '@outputai/core/sdk/runtime';
 /** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, and other AI SDK APIs. */
 export * as aiSdk from 'ai';
 
+/** Liquid interpolation variables, including nested objects and arrays. */
+export type PromptVariables = Record<string, unknown>;
+
 /**
  * Represents a single message in a prompt conversation.
  *
@@ -72,7 +75,7 @@ export type Prompt = {
   fileDir: string;
 
   /** Interpolation values used when the prompt was loaded. Defaults to `{}`. */
-  variables: Record<string, string | number | boolean>;
+  variables: PromptVariables;
 
   /** General configuration for the LLM */
   config: {
@@ -204,7 +207,7 @@ type PromptFileCallOptions = {
   /** Prompt file name (e.g. 'summary@v1') */
   prompt: string;
   /** Variables to interpolate into the prompt file */
-  variables?: Record<string, string | number | boolean>;
+  variables?: PromptVariables;
   /** Override the stack-resolved prompt directory */
   promptDir?: string;
 };
@@ -380,7 +383,7 @@ export type GenerateImageResult = AIGenerateImageResult & {
  */
 export function loadPrompt(
   name: string,
-  variables?: Record<string, string | number | boolean>,
+  variables?: PromptVariables,
   promptDir?: string
 ): Prompt;
 

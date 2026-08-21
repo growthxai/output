@@ -283,7 +283,7 @@ output: aiSdk.Output.object( {
 
 ### Using generateText with aiSdk.Output.object()
 
-**Important**: The `variables` field only accepts `string | number | boolean` values. Arrays and objects must be pre-formatted into strings in the step before passing. See `output-dev-prompt-file` for the full constraint and examples.
+The `variables` field accepts scalars, nested objects, and arrays. Use Liquid loops and dot notation in the prompt when it owns presentation; pre-format in the step when the exact rendered text is application logic.
 
 `generateText` arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`.
 

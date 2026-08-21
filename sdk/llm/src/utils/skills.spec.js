@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ValidationError } from '@outputai/core';
@@ -97,6 +97,18 @@ describe( 'recursiveLoadSkillFile', () => {
     expect( recursiveLoadSkillFile( [ dir ] ) ).toEqual( [
       { name: 'child', description: 'child', instructions: 'child' },
       { name: 'root', description: 'root', instructions: 'root' }
+    ] );
+  } );
+
+  it( 'skips a symlink cycle to an already visited directory', () => {
+    const dir = tempDir();
+    const nested = join( dir, 'nested' );
+    mkdirSync( nested );
+    writeSkill( nested, 'child.md', 'child' );
+    symlinkSync( dir, join( nested, 'loop' ), 'dir' );
+
+    expect( recursiveLoadSkillFile( [ dir ] ) ).toEqual( [
+      { name: 'child', description: 'child', instructions: 'child' }
     ] );
   } );
 } );

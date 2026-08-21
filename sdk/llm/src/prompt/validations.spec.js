@@ -461,7 +461,7 @@ describe( 'parsePromptSchema', () => {
     } ) ).toThrow( ValidationError );
   } );
 
-  it( 'accepts string, number, and boolean variables', () => {
+  it( 'accepts scalar, object, and array variables', () => {
     expect( parse( {
       name: 'typed-variables',
       config: {
@@ -474,25 +474,20 @@ describe( 'parsePromptSchema', () => {
           content: 'Hello'
         }
       ],
-      variables: { name: 'Acme', size: 250, active: true }
-    } ).variables ).toEqual( { name: 'Acme', size: 250, active: true } );
-  } );
-
-  it( 'throws ValidationError when a variable value is not a string, number, or boolean', () => {
-    expect( () => parse( {
-      name: 'nested-variables',
-      config: {
-        provider: 'anthropic',
-        model: 'claude-3-opus-20240229'
-      },
-      messages: [
-        {
-          role: 'user',
-          content: 'Hello'
-        }
-      ],
-      variables: { company: { name: 'Acme' } }
-    } ) ).toThrow( ValidationError );
+      variables: {
+        name: 'Acme',
+        size: 250,
+        active: true,
+        company: { name: 'Acme' },
+        industries: [ 'SaaS', 'AI' ]
+      }
+    } ).variables ).toEqual( {
+      name: 'Acme',
+      size: 250,
+      active: true,
+      company: { name: 'Acme' },
+      industries: [ 'SaaS', 'AI' ]
+    } );
   } );
 
   it( 'should validate provider tool config records', () => {
