@@ -66,6 +66,7 @@
   - Fixed `Prompt.config.skills` varying between missing, a string, and a string array. It is always a `string[]` after load.
   - Added `Prompt.config.maxSteps` (positive integer, default 10). It replaces the old argument and is required on the public type.
   - Fixed `Prompt.instructions` allowing `undefined` in its public contract. It is always `string | null` after load (chat prompts are `null`).
+  - Narrowed `PromptMessage.role` from `string` to `'system' | 'user' | 'assistant'`, matching authored prompt blocks.
   - Fixed per-message options remaining unresolved until generation. `options="<name>"` is resolved during `loadPrompt` against `config.messageOptions` into optional `PromptMessage.providerOptions`; `PromptMessage.attributes` is removed.
 - Fixed prompt body scanning silently dropping text, accepting malformed structure, or truncating messages by replacing it with explicit instruction and message modes:
   - Fixed mode detection so plain text as the first meaningful body token selects instruction mode and preserves the complete body, while a tag selects message mode.

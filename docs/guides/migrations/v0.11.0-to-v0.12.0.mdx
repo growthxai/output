@@ -189,6 +189,10 @@ Error parsing content on prompt "writer@v1": Message has unsupported attributes.
 
 Unknown `options` names, `options` without a value, and `options` set while `config.messageOptions` is missing or empty also throw at load.
 
+### Prompt message roles are narrowed
+
+`PromptMessage.role` is now typed as `'system' | 'user' | 'assistant'` instead of `string`, matching the authored role blocks accepted by `loadPrompt()`. Code that constructs a `PromptMessage` from a dynamic string must validate or narrow the value before assigning it.
+
 ### Prompt bodies use explicit parsing modes
 
 v0.11 searched the rendered body for supported role blocks wherever they appeared. This could silently ignore text outside those blocks, unknown top-level tags, and malformed attributes. v0.12 selects one mode from the first meaningful token after leading whitespace and HTML comments:
@@ -568,6 +572,7 @@ providerOptions:
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
 - Treat `prompt.instructions` as always `string | null` after `loadPrompt` (chat prompts are `null`).
 - Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
+- Narrow dynamic role strings before assigning them to `PromptMessage.role`; the type now accepts only `'system'`, `'user'`, and `'assistant'`.
 - Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
 - Remove authored `<tool>` blocks from prompt files; pass structured tool history through Agent `messages` or `messageStore`.
 - Audit prompt bodies that put prose before the first role tag. They now load as instructions; move the prose inside a role block to keep message mode.

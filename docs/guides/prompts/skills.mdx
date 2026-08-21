@@ -7,13 +7,13 @@ Prompts get unwieldy when you pack every instruction into the system message. Sk
 
 ## How Skills Work
 
-Skills are markdown documents with a name, description, and body of instructions. At prompt render time, Output builds a summary of available skills and adds it to the system message.
+Skills are text documents parsed as Markdown, with a name, description, and body of instructions. At prompt render time, Output builds a summary of available skills and adds it to the system message.
 
 The LLM decides which skills are relevant for the task and loads them when necessary.
 
 ## Providing Skills
 
-List skill paths in the prompt YAML frontmatter. Paths can be individual `.md` files or directories of `.md` files, resolved relative to the prompt file. A `skills/` folder next to the prompt is not loaded unless you list it.
+List skill paths in the prompt YAML frontmatter. Paths can be individual files of any extension or directories, resolved relative to the prompt file. Explicit files are loaded regardless of extension; directory scans load only `.md` files. A `skills/` folder next to the prompt is not loaded unless you list it.
 
 ```
 prompts/
@@ -54,7 +54,7 @@ Omit `skills` (or set `skills: []`) when a prompt should load none. That is the 
 
 ## Skill File Format
 
-Skill files are markdown documents with an optional YAML frontmatter block:
+Skill files are parsed as Markdown documents with an optional YAML frontmatter block:
 
 ```markdown clarity_guidelines.md
 ---
@@ -84,10 +84,10 @@ and suggest improvements.
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `name` | No | Filename without `.md` | Identifier the LLM uses with `load_skill` |
+| `name` | No | Filename without a trailing `.md`; other extensions are retained | Identifier the LLM uses with `load_skill` |
 | `description` | No | Same as `name` | When to use this skill (shown in system message) |
 | Body | Yes | - | Full instructions returned by `load_skill` |
 
-If you omit the frontmatter entirely, the filename (without `.md`) is used as both the name and description. A file named `clarity_guidelines.md` with no frontmatter would have `name: "clarity_guidelines"` and `description: "clarity_guidelines"`.
+If you omit the frontmatter entirely, the filename without a trailing `.md` is used as both the name and description. Other extensions are retained, so `tone.txt` defaults to `name: "tone.txt"` and `description: "tone.txt"`.
 
 Write good descriptions. They're what the LLM uses to decide whether to load a skill. "Rules for writing clear, readable technical content" is better than "clarity_guidelines".

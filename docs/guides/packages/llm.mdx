@@ -910,12 +910,14 @@ const prompt = loadPrompt('generate_summary@v1', {
 });
 
 console.log(prompt.config);       // includes skills: string[] and maxSteps (default 10)
-console.log(prompt.messages);     // [{ role, content, providerOptions? }, ...]
+console.log(prompt.messages);     // PromptMessage[] with system, user, or assistant roles
 console.log(prompt.instructions); // string | null
 console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
 
 For instruction-mode prompts, `messages` is empty and `instructions` contains the rendered body. For message-mode prompts, `messages` contains the parsed role blocks and `instructions` is `null`. See [Prompt Body Modes](/prompts#prompt-body-modes).
+
+`PromptMessage.role` is typed as `'system' | 'user' | 'assistant'`, matching the authored role blocks accepted in message mode.
 
 ## API Reference
 
