@@ -1,4 +1,4 @@
-import { Liquid } from 'liquidjs';
+import { Context, Liquid } from 'liquidjs';
 import { parsePromptSchema } from './validations.js';
 import { FatalError, Logger } from '@outputai/core';
 import { pipeInterpolations, interpolationFilterToken, encode, decode } from './interpolations.js';
@@ -22,9 +22,9 @@ const splitPromptContent = text => {
   return { rawFrontmatter: file.matter, rawContent: file.content };
 };
 
-const renderContent = ( rawContent, variables ) => liquid.parseAndRenderSync( pipeInterpolations( rawContent ), variables ).trim();
+const renderContent = ( rawContent, context ) => liquid.parseAndRenderSync( pipeInterpolations( rawContent ), context ).trim();
 
-const renderFrontmatter = ( rawFrontmatter, variables ) => liquid.parseAndRenderSync( pipeInterpolations( rawFrontmatter ), variables );
+const renderFrontmatter = ( rawFrontmatter, context ) => liquid.parseAndRenderSync( pipeInterpolations( rawFrontmatter ), context );
 
 const parseFrontmatter = yml => decode( matter( `---\n${yml}\n---\n` ).data );
 
@@ -52,13 +52,14 @@ export const loadPrompt = ( name, variables = {}, dir = Path.resolveInvocationDi
   }
 
   const { rawFrontmatter, rawContent } = tryStep( () => splitPromptContent( file.content ), 'Error parsing frontmatter' );
-  const content = tryStep( () => renderContent( rawContent, variables ), 'Error rendering content' );
+  const context = new Context( variables, liquid.options, { sync: true } );
+  const renderedFrontmatter = tryStep( () => renderFrontmatter( rawFrontmatter, context ), 'Error rendering frontmatter' );
+  const content = tryStep( () => renderContent( rawContent, context ), 'Error rendering content' );
 
   if ( !content ) {
     throw new FatalError( `Prompt "${name}" has no content.` );
   }
 
-  const renderedFrontmatter = tryStep( () => renderFrontmatter( rawFrontmatter, variables ), 'Error rendering frontmatter' );
   const config = tryStep( () => parseFrontmatter( renderedFrontmatter ), 'Error converting frontmatter yaml to js' );
 
   const { messages, instructions } = tryStep( () => parseContent( content, config.messageOptions ), 'Error parsing content' );

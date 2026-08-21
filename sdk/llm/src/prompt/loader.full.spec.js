@@ -77,6 +77,21 @@ providerOptions:
     } );
   } );
 
+  it( 'shares Liquid assignments from frontmatter with the prompt body', () => {
+    const dir = tempDir();
+    writePrompt( dir, 'chat', `---
+{% assign greeting = "Hello from frontmatter" %}
+provider: openai
+model: gpt-4
+---
+<user>{{ greeting }}</user>
+` );
+
+    expect( loadPrompt( 'chat', {}, dir ).messages ).toEqual( [
+      { role: Role.USER, content: 'Hello from frontmatter' }
+    ] );
+  } );
+
   it( 'preserves escaped characters in interpolated frontmatter values', () => {
     const dir = tempDir();
     writePrompt( dir, 'chat', `---

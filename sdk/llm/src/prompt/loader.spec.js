@@ -2,12 +2,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Logger } from '@outputai/core';
 
 const liquidMocks = vi.hoisted( () => ( {
+  createContext: vi.fn(),
+  options: { strictVariables: true },
   parseAndRenderSync: vi.fn(),
   registerFilter: vi.fn()
 } ) );
 
 vi.mock( 'liquidjs', () => ( {
+  Context: class Context {
+    constructor( ...args ) {
+      liquidMocks.createContext( this, ...args );
+    }
+  },
   Liquid: class Liquid {
+    options = liquidMocks.options;
     parseAndRenderSync = liquidMocks.parseAndRenderSync;
     registerFilter = liquidMocks.registerFilter;
   }
@@ -95,10 +103,6 @@ describe( 'loadPrompt', () => {
     expect( matter ).toHaveBeenNthCalledWith( 1, 'FILE', expect.objectContaining( {
       engines: { yaml: expect.any( Function ) }
     } ) );
-    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 1, 'RAW_BODY' );
-    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 2, 'RAW_YAML' );
-    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'RAW_BODY', variables );
-    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'RAW_YAML', variables );
     expect( matter ).toHaveBeenNthCalledWith( 2, '---\nRAW_YAML\n---\n' );
     expect( decode ).toHaveBeenCalledWith( defaultConfig );
     expect( parseContent ).toHaveBeenCalledWith( 'RAW_BODY', undefined );
@@ -111,6 +115,19 @@ describe( 'loadPrompt', () => {
       variables
     } );
     expect( result ).toEqual( parsePromptSchema.mock.calls[0][0] );
+  } );
+
+  it( 'renders frontmatter before content using one Liquid context', () => {
+    const variables = { name: 'World' };
+
+    loadPrompt( 'test', variables );
+
+    const context = liquidMocks.createContext.mock.calls[0][0];
+    expect( liquidMocks.createContext ).toHaveBeenCalledWith( context, variables, liquidMocks.options, { sync: true } );
+    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 1, 'RAW_YAML' );
+    expect( pipeInterpolations ).toHaveBeenNthCalledWith( 2, 'RAW_BODY' );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'RAW_YAML', context );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'RAW_BODY', context );
   } );
 
   it( 'uses decoded frontmatter for content parsing and validation', () => {
@@ -146,7 +163,7 @@ describe( 'loadPrompt', () => {
 
     loadPrompt( 'test', { name: 'World' } );
 
-    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 1, 'PIPED', { name: 'World' } );
+    expect( liquidMocks.parseAndRenderSync ).toHaveBeenNthCalledWith( 2, 'PIPED', expect.any( Object ) );
     expect( parseContent ).toHaveBeenCalledWith( 'PIPED', undefined );
   } );
 
@@ -207,7 +224,9 @@ describe( 'loadPrompt', () => {
   } );
 
   it( 'throws when rendered content is empty', () => {
-    liquidMocks.parseAndRenderSync.mockReturnValueOnce( '  ' );
+    liquidMocks.parseAndRenderSync
+      .mockReturnValueOnce( 'RAW_YAML' )
+      .mockReturnValueOnce( '  ' );
 
     expect( () => loadPrompt( 'empty_prompt' ) ).toThrow( /Prompt "empty_prompt" has no content/ );
   } );
@@ -223,9 +242,11 @@ describe( 'loadPrompt', () => {
   } );
 
   it( 'wraps content render errors with the prompt name', () => {
-    liquidMocks.parseAndRenderSync.mockImplementation( () => {
-      throw new Error( 'unknown variable' );
-    } );
+    liquidMocks.parseAndRenderSync
+      .mockReturnValueOnce( 'RAW_YAML' )
+      .mockImplementationOnce( () => {
+        throw new Error( 'unknown variable' );
+      } );
 
     expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
       /Error rendering content on prompt "writer@v1": unknown variable/
@@ -233,11 +254,9 @@ describe( 'loadPrompt', () => {
   } );
 
   it( 'wraps frontmatter render errors with the prompt name', () => {
-    liquidMocks.parseAndRenderSync
-      .mockReturnValueOnce( 'BODY' )
-      .mockImplementationOnce( () => {
-        throw new Error( 'unknown filter' );
-      } );
+    liquidMocks.parseAndRenderSync.mockImplementationOnce( () => {
+      throw new Error( 'unknown filter' );
+    } );
 
     expect( () => loadPrompt( 'writer@v1' ) ).toThrow(
       /Error rendering frontmatter on prompt "writer@v1": unknown filter/
