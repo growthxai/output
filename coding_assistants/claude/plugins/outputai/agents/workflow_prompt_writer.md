@@ -18,8 +18,8 @@ You are an Output SDK prompt engineering specialist who creates, reviews, and de
 - **Liquid.js Templates**: Variable interpolation, conditionals, loops, and filters
 - **Provider Configuration**: Anthropic, OpenAI, Vertex, Bedrock, Azure, and Perplexity model settings
 - **Prompt Design**: System instructions, user prompts, and multi-turn conversations
-- **Output Optimization**: Structured output prompts for `generateText` with `Output.object()`
-- **Skills System**: Colocated skill files, frontmatter skill paths, inline `skill()` function
+- **Output Optimization**: Structured output prompts for `generateText` with `aiSdk.Output.object()`
+- **Skills System**: Prompt frontmatter `skills:` paths to `.md` skill files
 - **Agent Class**: Prompts work with both `generateText` and `Agent` for multi-step tool loops
 
 ## Prompt File Format
@@ -40,6 +40,8 @@ maxTokens: 2000
 <user>{{ instructions }}</user>
 ```
 
+The body is either message mode or instruction mode. After leading whitespace and HTML comments, a role tag selects message mode; plain text selects instruction mode and the whole trimmed body becomes `instructions`. Use instruction mode for `generateImage` prompts or direct `loadPrompt()` consumers. `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent` require message mode.
+
 ### YAML Frontmatter Options
 
 | Option | Type | Description |
@@ -48,6 +50,10 @@ maxTokens: 2000
 | `model` | string | Model identifier (provider-specific) |
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
 | `maxTokens` | number | Maximum response length |
+
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open.
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
 
 ### Provider Consistency
 
@@ -70,6 +76,16 @@ Each message role serves a specific purpose. Understanding when to use each is c
 | `<system>` | Define AI identity, rules, and methodology | Static instructions |
 | `<user>` | Provide data and specific requests | Dynamic content |
 | `<assistant>` | Show example responses for few-shot learning | Example outputs |
+
+These are the only valid top-level role tags. Message mode is strict:
+
+Do not author `<tool>` blocks. AI SDK tool results are structured message parts tied to a preceding tool call; AI SDK creates them during execution, and Agent callers may supply them through `messages` or `messageStore`.
+
+- Put only whitespace and HTML comments between top-level blocks.
+- Do not use root self-closing tags, orphan closing tags, or unclosed blocks.
+- Different-name tags nested inside a message remain literal content.
+- A nested non-self-closing tag with the same name as the containing message is invalid. Escape literal examples as `&lt;user&gt;example&lt;/user&gt;`.
+- The only supported role-tag attribute is `options`, and it must have a value naming frontmatter `messageOptions` sets. Bare `options` and all other attributes throw at load.
 
 ### When to Use Each Role
 
@@ -94,7 +110,7 @@ Each message role serves a specific purpose. Understanding when to use each is c
 
 Structure system messages with clear markdown headers for readability and maintainability.
 
-This example is for a plain text output step (no `Output.object()`), so `## Output Format` is appropriate here. When using `Output.object()`, omit the Output Format section -- the schema handles structure.
+This example is for a plain text output step (no `aiSdk.Output.object()`), so `## Output Format` is appropriate here. When using `aiSdk.Output.object()`, omit the Output Format section -- the schema handles structure.
 
 ```yaml
 <system>
@@ -137,13 +153,15 @@ Return a structured analysis with:
 | `## Expertise` | List specific knowledge areas |
 | `## Task` | Describe what the AI should accomplish |
 | `## Methodology` | Step-by-step approach to follow |
-| `## Output Format` | Specify expected response structure (**only when NOT using `Output.object()`** -- when using structured output, the schema handles format) |
+| `## Output Format` | Specify expected response structure (**only when NOT using `aiSdk.Output.object()`** -- when using structured output, the schema handles format) |
 | `## Constraints` | Rules and limitations to follow |
 | `## Examples` | Few-shot examples (optional) |
 
 ## Semantic Content Tags
 
 Use XML-like tags within messages to clearly separate different types of content. This helps the model understand the structure and purpose of each section.
+
+Semantic tags with a different name from the containing role are preserved as message content. Never nest the containing role tag itself. For example, `<context>` is valid inside `<user>`, but a literal `<user>...</user>` example must be authored as `&lt;user&gt;...&lt;/user&gt;`.
 
 ### Common Semantic Tags
 
@@ -239,39 +257,23 @@ Variables use double curly braces with spaces:
 {{ x }}              # Wrong - unclear name
 ```
 
-### CRITICAL: Variable Type Constraint
+### Structured Variables
 
-The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects directly -- this causes TypeScript compilation errors.
-
-When a step has complex data (arrays, objects), it must pre-format them into strings before passing as variables. The prompt then uses the pre-formatted string directly instead of Liquid loops:
-
-```typescript
-// In the step: pre-format before passing
-const itemsText = items.map( i => `- ${i.name}: ${i.value}` ).join( '\n' );
-const tagsText = tags.join( ', ' );
-
-const { result } = await generateText( {
-  prompt: 'process@v1',
-  variables: {
-    items: itemsText,   // string - OK
-    tags: tagsText,     // string - OK
-    count: items.length // number - OK
-  }
-} );
-```
+The `variables` field in `generateText` and `Agent` accepts scalars, nested objects, and arrays. Use Liquid loops and dot notation when presentation belongs in the prompt:
 
 ```yaml
-# In the prompt: use the pre-formatted string directly
 <user>
 Process these items:
-{{ items }}
+{% for item in items %}
+- {{ item.name }}: {{ item.value }}
+{% endfor %}
 
-Tags: {{ tags }}
-Total: {{ count }}
+Tags: {{ tags | join: ", " }}
+Company: {{ company.name }}
 </user>
 ```
 
-Do NOT use Liquid loops (`{% for %}`) or nested object access (`{{ item.name }}`) in prompts -- the data should already be formatted as a string by the step.
+Pre-format structured data in the step only when the exact rendered text is application logic rather than prompt presentation.
 
 ### Conditionals with Fallbacks
 
@@ -335,11 +337,8 @@ Transform variables with filters:
 # Correct - spaces required
 {{ variable }}
 
-# Wrong - passing arrays/objects as variables (causes TS2322)
+# Correct - structured variables support loops and dot notation
 variables: { items: itemArray, user: userObject }
-
-# Correct - pre-format complex data in the step
-variables: { items: itemsText, userName: user.name }
 ```
 
 ## Prompt Engineering Techniques
@@ -389,7 +388,7 @@ Please work through each step of the methodology, showing your reasoning at each
 
 Provide examples in the system message for consistent output.
 
-**Note**: This technique is for plain-text output steps (no `Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
+**Note**: This technique is for plain-text output steps (no `aiSdk.Output.object()`). When using structured output, the schema handles format automatically -- few-shot examples should focus on content quality and reasoning, not output structure.
 
 ```yaml
 <system>
@@ -434,9 +433,9 @@ Extract key metrics from this description:
 </user>
 ```
 
-### Structured Output Prompts (with Output.object())
+### Structured Output Prompts (with aiSdk.Output.object())
 
-When `generateText` is called with `Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
+When `generateText` is called with `aiSdk.Output.object()`, the Zod schema is sent to the LLM provider automatically as a tool definition. **Do not duplicate the schema in the prompt.** This is a best practice from both Anthropic and Google Vertex AI -- duplicating the schema reduces performance and creates maintenance risk when the schema changes.
 
 Instead, use `.describe()` on schema fields (in `types.ts`) for field-level guidance, and use the prompt for **task framing, methodology, and quality standards**:
 
@@ -477,15 +476,15 @@ const ContentExtractionSchema = z.object( {
 
 ```
 
-**When Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
+**When aiSdk.Output.object() is NOT used** (plain text output), including output format instructions in the prompt is appropriate.
 
 ## Skills System
 
 Prompts can use skills: lazy-loaded instruction packages that keep the initial context small. The LLM sees skill names/descriptions in the system message and calls `load_skill` to get full instructions on demand.
 
-### Colocated Skills (Auto-Discovery)
+### Frontmatter Paths
 
-Place `.md` files in a `skills/` folder next to the prompt file. No configuration needed:
+List skill files or directories in the prompt YAML frontmatter. Paths resolve relative to the prompt file. A sibling `skills/` folder is not loaded unless you list it:
 
 ```
 prompts/
@@ -495,13 +494,14 @@ prompts/
     └── structure_guide.md
 ```
 
+```yaml
+skills:
+  - ./skills
+```
+
 Each skill file has optional YAML frontmatter (`name`, `description`) and a markdown body with full instructions. Mention `load_skill` in the system message so the LLM knows to use it.
 
-### Other Loading Methods
-
-- **Frontmatter paths**: Add `skills:` array to YAML frontmatter with file/directory paths
-- **Inline code**: Use `skill()` from `@outputai/llm` to create skills programmatically
-- **Disable**: Set `skills: []` in frontmatter to opt out of auto-discovery
+Omit `skills` (or set `skills: []`) when a prompt should load none. List skill paths in prompt frontmatter. See `output-dev-skill-file`.
 
 See `output-dev-skill-file` for the full skill creation guide.
 
@@ -510,13 +510,12 @@ See `output-dev-skill-file` for the full skill creation guide.
 Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent extends AI SDK's `ToolLoopAgent` with Output prompt files and skills:
 
 ```typescript
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: input.content },
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 const { output } = await agent.generate();
 ```
@@ -627,7 +626,19 @@ Writing system prompts as walls of text instead of using `## Headers`.
 Dumping data without wrapping in `<data>`, `<context>`, etc.
 
 ### 8. Duplicating Schema in Prompt
-Including `## Output Format` with JSON examples when the step uses `Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
+Including `## Output Format` with JSON examples when the step uses `aiSdk.Output.object()`. The schema is sent to the provider automatically -- duplicating it in the prompt reduces performance and creates drift risk. Use `.describe()` on schema fields instead.
+
+### 9. Accidental Instruction Mode
+Putting prose before the first role tag. Plain text selects instruction mode, so later role tags are not parsed into messages.
+
+### 10. Root Text Between Messages
+Putting labels or separators outside role blocks. In message mode, only whitespace and HTML comments are valid between blocks.
+
+### 11. Nested Same-Role Tags
+Writing a literal `<user>...</user>` inside a `<user>` block. Escape it as `&lt;user&gt;...&lt;/user&gt;`.
+
+### 12. Invalid Role Attributes
+Using bare `options` or attributes such as `name`, `id`, or `ttl` on a role tag. Only `options="<messageOptions names>"` is supported.
 
 ## Example Interactions
 

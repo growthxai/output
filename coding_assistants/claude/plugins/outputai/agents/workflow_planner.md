@@ -96,7 +96,7 @@ Use these skills for detailed implementation patterns. Claude will auto-invoke t
 | `output-credentials-edit` | View and edit credential values |
 | `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 | `output-dev-prompt-file` | Designing .prompt files, Liquid.js templating, LLM configuration |
-| `output-dev-skill-file` | Creating .md skill files, configuring skill loading, auto-discovery |
+| `output-dev-skill-file` | Creating .md skill files and listing them in prompt frontmatter |
 | `output-dev-agent-class` | Using Agent class, multi-step tool loops, conversation history |
 | `output-dev-scenario-file` | Creating test scenarios, documenting expected inputs |
 | `output-dev-eval-testing` | Writing offline eval tests, verify() evaluators, dataset YAML files, eval workflows |
@@ -175,7 +175,7 @@ import { z } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
 
 // LLM operations - NEVER call providers directly
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 // Error types
 import { FatalError, ValidationError } from '@outputai/core';

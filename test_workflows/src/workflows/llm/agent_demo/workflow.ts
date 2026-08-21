@@ -1,10 +1,18 @@
 import { workflow, z } from '@outputai/core';
-import { reviewContent, reviewContentFreeform, reviewContentGenerateText, reviewContentNoSkills } from './steps.js';
-import { reviewOutputSchema } from './types.js';
+import {
+  reviewContent,
+  reviewContentFreeform,
+  reviewContentGenerateText,
+  reviewContentGenerateWithStreaming,
+  reviewContentMessageStore,
+  reviewContentNoSkills,
+  reviewContentStream
+} from './steps.js';
+import { messageStoreReviewOutputSchema, reviewOutputSchema, streamReviewOutputSchema, streamedReviewOutputSchema } from './types.js';
 
 export default workflow( {
   name: 'agent_demo',
-  description: 'Demonstrates Agent class and generateText with file-based and inline skills',
+  description: 'Demonstrates Agent generate, generateWithStreaming, and stream, plus generateText with prompt skills',
   inputSchema: z.object( {
     content: z.string().describe( 'Content to review' ),
     content_type: z.string().default( 'documentation' ).describe( 'Type of content' ),
@@ -14,12 +22,18 @@ export default workflow( {
     structured: reviewOutputSchema,
     freeform: z.string(),
     generateText: z.string(),
-    noSkills: z.string()
+    noSkills: z.string(),
+    generateWithStreaming: streamedReviewOutputSchema,
+    stream: streamReviewOutputSchema,
+    messageStore: messageStoreReviewOutputSchema
   } ),
   fn: async input => ( {
     structured: await reviewContent( input ),
     freeform: await reviewContentFreeform( input ),
     generateText: await reviewContentGenerateText( input ),
-    noSkills: await reviewContentNoSkills( input )
+    noSkills: await reviewContentNoSkills( input ),
+    generateWithStreaming: await reviewContentGenerateWithStreaming( input ),
+    stream: await reviewContentStream( input ),
+    messageStore: await reviewContentMessageStore( input )
   } )
 } );

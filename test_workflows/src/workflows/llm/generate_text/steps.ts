@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const explainTopic = step( {
   name: 'explainTopic',
@@ -35,7 +35,7 @@ export const generateCookingInstruction = step( {
     const { output } = await generateText( {
       prompt: 'cooking_instructions@v1',
       variables: { receipt },
-      output: Output.object( { schema: cookOutputSchema } )
+      output: aiSdk.Output.object( { schema: cookOutputSchema } )
     } );
     return output;
   }
@@ -57,7 +57,7 @@ export const generateDrawingInstructions = step( {
     const { output } = await generateText( {
       prompt: 'draw_instructions@v1',
       variables: { topic },
-      output: Output.array( { element: drawingOutputSchema } )
+      output: aiSdk.Output.array( { element: drawingOutputSchema } )
     } );
     return output;
   }
@@ -74,7 +74,7 @@ export const generateChoice = step( {
     const { output } = await generateText( {
       prompt: 'choice@v1',
       variables: { topic },
-      output: Output.choice( { options: [ 'yes', 'no' ] } )
+      output: aiSdk.Output.choice( { options: [ 'yes', 'no' ] } )
     } );
     return output;
   }

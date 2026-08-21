@@ -276,7 +276,7 @@ export const fetchContent = step({
 ```typescript evaluators.ts
 // src/workflows/blog_evaluator/evaluators.ts
 import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import type { BlogContent } from './types.js';
 
 const blogContentSchema = z.object({
@@ -297,7 +297,7 @@ export const evaluateSignalToNoise = evaluator({
         title: input.title,
         content: input.content
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           score: z.number().min(0).max(100).describe('Signal-to-noise score 0-100')
         })
@@ -568,7 +568,7 @@ export const generateFaq = step({
     const { output } = await generateText({
       prompt: 'generate_faq@v1',
       variables: { content: truncated },
-      output: Output.array({
+      output: aiSdk.Output.array({
         element: z.object({
           question: z.string(),
           answer: z.string()

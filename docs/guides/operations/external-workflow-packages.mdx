@@ -74,7 +74,7 @@ Workflow-specific steps stay next to the workflow:
 
 ```typescript src/workflows/post_call_followup/steps.ts
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 const followUpSchema = z.object({
   subject: z.string(),
@@ -94,7 +94,7 @@ export const draftFollowUpEmail = step({
     const { output } = await generateText({
       prompt: 'draft_followup_email@v1',
       variables: { transcript, accountName },
-      output: Output.object({ schema: followUpSchema })
+      output: aiSdk.Output.object({ schema: followUpSchema })
     });
 
     return output;

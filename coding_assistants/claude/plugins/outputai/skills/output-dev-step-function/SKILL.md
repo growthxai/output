@@ -106,7 +106,7 @@ import axios from 'axios';
 
 ```typescript
 // CORRECT - Use @outputai/llm wrapper
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -130,7 +130,7 @@ import { InputSchema, OutputSchema } from './types';
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
 
@@ -263,11 +263,11 @@ try {
 
 ### Important: Define LLM Schemas in types.ts
 
-Schemas used in `Output.object()` **must** be defined in `types.ts` and imported -- never defined inline in step functions. Inline schemas lead to duplication, drift between the step's `outputSchema` and the LLM schema, and make it harder to maintain types.
+Schemas used in `aiSdk.Output.object()` **must** be defined in `types.ts` and imported -- never defined inline in step functions. Inline schemas lead to duplication, drift between the step's `outputSchema` and the LLM schema, and make it harder to maintain types.
 
 ```typescript
-// WRONG - inline schema in Output.object()
-output: Output.object( {
+// WRONG - inline schema in aiSdk.Output.object()
+output: aiSdk.Output.object( {
   schema: z.object( {
     analysis: z.string()
   } )
@@ -276,17 +276,19 @@ output: Output.object( {
 // CORRECT - import from types.ts
 import { AnalysisLlmSchema } from './types.js';
 // ...
-output: Output.object( {
+output: aiSdk.Output.object( {
   schema: AnalysisLlmSchema
 } )
 ```
 
-### Using generateText with Output.object()
+### Using generateText with aiSdk.Output.object()
 
-**Important**: The `variables` field only accepts `string | number | boolean` values. Arrays and objects must be pre-formatted into strings in the step before passing. See `output-dev-prompt-file` for the full constraint and examples.
+The `variables` field accepts scalars, nested objects, and arrays. Use Liquid loops and dot notation in the prompt when it owns presentation; pre-format in the step when the exact rendered text is application logic.
+
+`generateText` arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`.
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import {
   AnalyzeContentInputSchema,
   AnalyzeContentOutputSchema,
@@ -304,7 +306,7 @@ export const analyzeContent = step( {
       variables: {
         content
       },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: AnalysisLlmSchema
       } )
     } );
@@ -432,7 +434,7 @@ Based on a real workflow step:
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 import { GeminiImageService } from '../../shared/clients/gemini_client.js';
 import {
@@ -481,7 +483,7 @@ export const generateImageIdeas = step( {
         colorPalette: colorPalette || '',
         artDirection: artDirection || ''
       },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: ImageIdeasSchema
       } )
     } );
@@ -589,9 +591,9 @@ fn: async input => {
 
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
 - [ ] `createKyClient` imported from `@outputai/http` (not axios)
-- [ ] `generateText` and `Output` imported from `@outputai/llm` (not direct provider)
-- [ ] Structured output uses `Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
-- [ ] Schemas for `Output.object()` are defined in `types.ts` and imported, not inline
+- [ ] `generateText` and `aiSdk` imported from `@outputai/llm` (not direct provider)
+- [ ] Structured output uses `aiSdk.Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
+- [ ] Schemas for `aiSdk.Output.object()` are defined in `types.ts` and imported, not inline
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each step
 - [ ] Each step has `name`, `description`, `inputSchema`, `outputSchema`, `fn`

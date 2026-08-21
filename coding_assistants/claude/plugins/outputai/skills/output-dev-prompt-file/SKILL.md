@@ -69,6 +69,22 @@ User message with {{ variable }} placeholders.
 </user>
 ```
 
+The body uses exactly one mode:
+
+- **Message mode** starts with a role tag and produces `messages`. Use it with `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent`.
+- **Instruction mode** starts with plain text and produces `instructions`. Use it with `generateImage` or when consuming `loadPrompt()` results directly:
+
+```
+---
+provider: openai
+model: gpt-image-1
+---
+
+Create a cinematic image of {{ subject }}.
+```
+
+Leading whitespace and HTML comments do not affect mode selection. Once plain text selects instruction mode, later tag-shaped text remains part of the instructions.
+
 ## YAML Frontmatter Options
 
 ### Required Fields
@@ -96,12 +112,21 @@ provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7       # 0.0 to 1.0, default varies by provider
 maxTokens: 4096        # Maximum output tokens
+maxSteps: 5            # Tool-loop ceiling when tools or skills are present (default 10)
+skills:                # Skill file or directory paths, relative to this prompt
+  - ./skills
 providerOptions:       # Provider-specific options
   thinking:
     type: enabled
     budgetTokens: 2000
 ---
 ```
+
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open. Nested `thinking` stays open too (`budgetTokens` is the documented key; extra nested keys are not rejected as unknown top-level config).
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+
+Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
 
 ### Common Provider Configurations
 
@@ -159,7 +184,18 @@ maxTokens: 8192
 
 ## Message Blocks
 
-Use XML-style tags to define message roles:
+Message mode uses a small XML-like syntax, not a general HTML or XML parser. The only valid top-level role tags are `<system>`, `<user>`, and `<assistant>`.
+
+Do not author `<tool>` blocks. AI SDK tool results are structured message parts tied to a preceding tool call; AI SDK creates them during execution, and Agent callers may supply them through `messages` or `messageStore`.
+
+Follow these parser rules:
+
+- Put only whitespace or HTML comments between top-level role blocks. Root text and self-closing blocks are invalid.
+- Close every top-level role block with the matching tag.
+- Different-name tags inside a message, such as `<context>` inside `<user>`, remain message content.
+- Do not nest a non-self-closing tag with the same name as its containing message. Escape literal examples as `&lt;user&gt;example&lt;/user&gt;`.
+- Code and HTML-like text inside a message are preserved, including forms such as `Array<string>`.
+- On role tags, only the `options` attribute is supported. It must have a value naming one or more frontmatter `messageOptions` sets, for example `options="cached fast"`. Bare `options` and unknown attributes throw when the prompt loads.
 
 ### System Message
 
@@ -298,45 +334,36 @@ Focus on the most important concepts that would benefit from visual explanation.
 </user>
 ```
 
-## CRITICAL: Variable Type Constraint
+## Structured Variables
 
-The `variables` field in `generateText` and `Agent` only accepts **`string | number | boolean`** values. You cannot pass arrays or objects as variables -- TypeScript will reject them.
-
-When your step has complex data (arrays, objects), pre-format it into a string before passing it as a variable:
+The `variables` field in `generateText` and `Agent` accepts scalars, nested objects, and arrays. Pass structured data directly when the prompt benefits from Liquid loops, conditions, or dot notation:
 
 ```typescript
-// WRONG - arrays/objects as variables cause TS2322
 const { output } = await generateText( {
   prompt: 'rank@v1',
   variables: {
-    stories: storyArray,       // Type error: not assignable to string | number | boolean
-    interests: interestArray   // Type error: not assignable to string | number | boolean
-  }
-} );
-
-// CORRECT - pre-format complex data into strings
-const storiesText = stories.map( s =>
-  `- ${s.title} (score: ${s.score}, by: ${s.author})`
-).join( '\n' );
-const interestsText = interests.join( ', ' );
-
-const { output } = await generateText( {
-  prompt: 'rank@v1',
-  variables: {
-    stories: storiesText,     // string - OK
-    interests: interestsText  // string - OK
+    stories: storyArray,
+    interests: interestArray
   }
 } );
 ```
 
-The prompt template then uses the pre-formatted string directly with `{{ stories }}` instead of Liquid loops. This is simpler and avoids the type constraint entirely.
+```liquid
+{% for story in stories %}
+- {{ story.title }} (score: {{ story.score }}, by: {{ story.author }})
+{% endfor %}
+
+Interests: {{ interests | join: ", " }}
+```
+
+Pre-format data in the step only when the exact rendered text is application logic rather than prompt presentation.
 
 ## Using Prompts in Steps
 
-### With generateText and Output.object()
+### With generateText and aiSdk.Output.object()
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { output } = await generateText( {
@@ -347,7 +374,7 @@ const { output } = await generateText( {
     colorPalette: 'blue and green tones',
     artDirection: 'minimalist style'
   },
-  output: Output.object( {
+  output: aiSdk.Output.object( {
     schema: z.object( {
       ideas: z.array( z.string() )
     } )
@@ -375,7 +402,7 @@ const { result } = await generateText( {
 
 Prompts can load skill files that provide lazy-loaded instructions to the LLM. Skills keep the initial context small while giving the LLM access to deep expertise on demand. See `output-dev-skill-file` for the full guide on creating skill files.
 
-The simplest approach is colocated auto-discovery. Place `.md` files in a `skills/` folder next to your prompt file:
+Place `.md` files next to the prompt (commonly in `prompts/skills/`) and list the path in frontmatter. A sibling `skills/` folder is not loaded unless you list it:
 
 ```
 src/workflows/{workflow-name}/
@@ -386,7 +413,16 @@ src/workflows/{workflow-name}/
         └── structure_guide.md
 ```
 
-The prompt file does not need any special configuration. Output auto-discovers the `skills/` directory and injects a `load_skill` tool the LLM can call. Mention `load_skill` in the system message so the LLM knows to use it:
+```yaml
+---
+provider: anthropic
+model: claude-sonnet-4-6
+skills:
+  - ./skills
+---
+```
+
+Mention `load_skill` in the system message so the LLM knows to use it:
 
 ```
 <system>
@@ -395,14 +431,14 @@ Use load_skill to get the full instructions for any skill before applying it.
 </system>
 ```
 
-You can also list skill paths explicitly in frontmatter, or create inline skills in code. See `output-dev-skill-file` for all three methods.
+List `skills:` paths in this prompt's frontmatter. See `output-dev-skill-file` for the file format and path rules.
 
 ## Using Prompts with Agent
 
 Prompts work with both `generateText` and the `Agent` class. Use `Agent` for multi-step tool loops and stateful conversations. See `output-dev-agent-class` for the full guide.
 
 ```typescript
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
@@ -411,8 +447,7 @@ const agent = new Agent( {
     focus: 'clarity',
     content: input.content
   },
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 const { output } = await agent.generate();
 ```
@@ -421,7 +456,7 @@ const { output } = await agent.generate();
 
 ### Do Not Duplicate the Schema in the Prompt
 
-When a step uses `Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
+When a step uses `aiSdk.Output.object()` with `generateText`, the Zod schema is automatically sent to the LLM provider as a tool definition. The LLM already knows the exact JSON shape it must return. **Do not also specify the schema in the prompt.**
 
 This is a best practice documented by multiple LLM providers:
 
@@ -435,7 +470,7 @@ This is a best practice documented by multiple LLM providers:
 
 ### What NOT to Include in Prompts
 
-When `Output.object()` is used, do not include any of these in the prompt:
+When `aiSdk.Output.object()` is used, do not include any of these in the prompt:
 
 - `## Output Format` sections describing the JSON shape
 - JSON examples showing the expected response structure
@@ -444,7 +479,7 @@ When `Output.object()` is used, do not include any of these in the prompt:
 - Instructions like "Return only the JSON object with no surrounding explanation"
 
 ```
-<!-- WRONG - prompt duplicates what Output.object() already sends -->
+<!-- WRONG - prompt duplicates what aiSdk.Output.object() already sends -->
 <system>
 ## Output Format
 Return a JSON object with this shape:
@@ -484,9 +519,9 @@ const ArticleSummarySchema = z.object( {
 
 The schema handles structure AND field-level guidance; the prompt handles task framing, methodology, and quality standards.
 
-### When the Step Does NOT Use Output.object()
+### When the Step Does NOT Use aiSdk.Output.object()
 
-If `generateText` is called **without** `Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
+If `generateText` is called **without** `aiSdk.Output.object()` (plain text output), then including output format instructions in the prompt is appropriate since no schema is sent to the provider.
 
 ## Best Practices
 
@@ -633,12 +668,19 @@ Requirements:
 - [ ] File located in `prompts/` folder inside workflow directory
 - [ ] File named `{promptName}@v{version}.prompt`
 - [ ] YAML frontmatter includes `provider` and `model`
-- [ ] Message blocks use proper XML tags (`<system>`, `<user>`, `<assistant>`)
+- [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
+- [ ] The body uses message mode for text generation, or instruction mode for `generateImage` / direct `loadPrompt()` consumption
+- [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`); no authored `<tool>` blocks
+- [ ] Message mode has no root text between blocks, no self-closing role blocks, and no unclosed blocks
+- [ ] Literal same-name role tags inside a message are escaped (`&lt;user&gt;...&lt;/user&gt;`)
+- [ ] Role-tag attributes use only `options="<messageOptions names>"`; `options` is never bare
 - [ ] Variables use `{{ variableName }}` syntax
 - [ ] Conditionals use `{% if %}...{% endif %}` syntax
 - [ ] All required variables are documented or have defaults
 - [ ] Step code references correct prompt name
-- [ ] No JSON output format instructions when step uses `Output.object()` (schema handles structure)
+- [ ] No JSON output format instructions when step uses `aiSdk.Output.object()` (schema handles structure)
+- [ ] If the prompt uses skills, frontmatter lists `skills:` paths (a sibling `skills/` folder is not auto-loaded)
+- [ ] If the prompt uses skills or tools, set `maxSteps` when the default of 10 is wrong
 
 ## Related Skills
 

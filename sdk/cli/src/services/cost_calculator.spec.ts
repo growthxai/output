@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TraceNode, HTTPCall, LLMUsageLine } from '#types/cost.js';
+import type { TraceNode, HTTPCall, LLMUsageEvent, LLMUsageLine } from '#types/cost.js';
 
 const mockReadFileSync = vi.fn();
 const mockExistsSync = vi.fn();
@@ -52,7 +52,7 @@ function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): Trace
         usage: lines,
         total,
         tokensUsed: lines.reduce( ( s, l ) => s + l.amount, 0 )
-      }
+      } as LLMUsageEvent
     }
   };
 }

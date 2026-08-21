@@ -19,7 +19,7 @@ Each of these is a concrete, testable failure mode. Build evaluators that check 
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { CheckHallucinationInput } from './types.js';
 
@@ -35,7 +35,7 @@ export const checkForHallucinations = evaluator({
         summary: input.summary,
         sourceData: input.sourceData
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           unsupportedClaims: z.array(z.string()),
           hasHallucinations: z.boolean(),
@@ -81,7 +81,7 @@ When you do need more granularity, use three categories instead of a numeric sca
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -97,7 +97,7 @@ export const judgeSummaryQuality = evaluator({
         companyName: input.companyName,
         sourceData: input.sourceData
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           verdict: z.enum(['pass', 'borderline', 'fail']),
@@ -401,7 +401,7 @@ This gives you the best of both worlds — the LLM makes simple binary decisions
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { RubricInput } from './types.js';
 
@@ -425,7 +425,7 @@ export const scoreSummaryRubric = evaluator({
         companyName: input.companyName,
         sourceData: input.sourceData
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           mentionsProduct: z.boolean(),
           identifiesMarket: z.boolean(),

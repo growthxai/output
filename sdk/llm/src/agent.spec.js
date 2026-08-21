@@ -1,62 +1,52 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const coreMocks = vi.hoisted( () => {
-  class ValidationError extends Error {}
-  return { ValidationError };
-} );
-
-const state = vi.hoisted( () => ( {
-  invocationDir: '/resolved/invocation'
-} ) );
-
 const aiMocks = vi.hoisted( () => ( {
   superConstructor: vi.fn(),
   superGenerate: vi.fn(),
-  superStream: vi.fn(),
-  stepCountIs: vi.fn( count => ( { type: 'step-count', count } ) )
+  superStream: vi.fn()
 } ) );
 
+const validations = vi.hoisted( () => ( {
+  parseAgentArgs: vi.fn(),
+  parseAgentGenerateArgs: vi.fn(),
+  parseAgentGenerateWithStreamingArgs: vi.fn(),
+  parseAgentStreamArgs: vi.fn()
+} ) );
+
+const toPromptFileArgs = ( { prompt, ...rest } ) => ( {
+  promptFile: prompt,
+  ...rest
+} );
+
+const toAgentMethodArgs = ( args = {} ) => ( {
+  messages: [],
+  ...args
+} );
+
 const promptMocks = vi.hoisted( () => ( {
-  prepareTextPrompt: vi.fn()
+  loadPrompt: vi.fn()
+} ) );
+
+const skillMocks = vi.hoisted( () => ( {
+  loadSkills: vi.fn()
 } ) );
 
 const optionMocks = vi.hoisted( () => ( {
   loadAiSdkTextOptions: vi.fn()
 } ) );
 
-const traceMocks = vi.hoisted( () => ( {
-  startTrace: vi.fn(),
-  endTraceWithError: vi.fn()
-} ) );
-
 const wrapMocks = vi.hoisted( () => ( {
-  wrapTextResponse: vi.fn()
-} ) );
-
-const errorMocks = vi.hoisted( () => ( {
-  mapAiError: vi.fn( error => error )
+  wrapGeneration: vi.fn(),
+  wrapStream: vi.fn(),
+  streamHooks: { onFinishHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
 
 const streamMocks = vi.hoisted( () => ( {
   drainStream: vi.fn()
 } ) );
 
-const skillMocks = vi.hoisted( () => ( {
-  skill: vi.fn( ( { name, description, instructions } ) => ( {
-    name,
-    description: description ?? name,
-    instructions
-  } ) )
-} ) );
-
-vi.mock( '@outputai/core', () => ( {
-  ValidationError: coreMocks.ValidationError
-} ) );
-
-vi.mock( '@outputai/core/sdk/helpers', () => ( {
-  Path: {
-    resolveInvocationDir: () => state.invocationDir
-  }
+const loggerMocks = vi.hoisted( () => ( {
+  error: vi.fn()
 } ) );
 
 vi.mock( 'ai', () => {
@@ -74,55 +64,50 @@ vi.mock( 'ai', () => {
     }
   }
 
-  return {
-    ToolLoopAgent: MockToolLoopAgent,
-    stepCountIs: ( ...args ) => aiMocks.stepCountIs( ...args )
-  };
+  return { ToolLoopAgent: MockToolLoopAgent };
 } );
 
-vi.mock( './prompt/prepare_text.js', () => ( {
-  prepareTextPrompt: ( ...args ) => promptMocks.prepareTextPrompt( ...args )
+vi.mock( './validations.js', () => validations );
+
+vi.mock( '@outputai/core', () => ( {
+  Logger: {
+    error: ( ...args ) => loggerMocks.error( ...args )
+  }
+} ) );
+
+vi.mock( './prompt/loader.js', () => ( {
+  loadPrompt: ( ...args ) => promptMocks.loadPrompt( ...args )
+} ) );
+
+vi.mock( './utils/skills.js', () => ( {
+  loadSkills: ( ...args ) => skillMocks.loadSkills( ...args )
 } ) );
 
 vi.mock( './ai_sdk_options.js', () => ( {
   loadAiSdkTextOptions: ( ...args ) => optionMocks.loadAiSdkTextOptions( ...args )
 } ) );
 
-vi.mock( './utils/trace.js', () => ( {
-  startTrace: ( ...args ) => traceMocks.startTrace( ...args ),
-  endTraceWithError: ( ...args ) => traceMocks.endTraceWithError( ...args )
-} ) );
-
-vi.mock( './utils/response_wrappers.js', () => ( {
-  wrapTextResponse: ( ...args ) => wrapMocks.wrapTextResponse( ...args )
-} ) );
-
-vi.mock( './utils/error_handler.js', () => ( {
-  mapAiError: ( ...args ) => errorMocks.mapAiError( ...args )
+vi.mock( './utils/wrap.js', () => ( {
+  wrapGeneration: ( ...args ) => wrapMocks.wrapGeneration( ...args ),
+  wrapStream: ( ...args ) => wrapMocks.wrapStream( ...args )
 } ) );
 
 vi.mock( './utils/stream.js', () => ( {
   drainStream: ( ...args ) => streamMocks.drainStream( ...args )
 } ) );
 
-vi.mock( './prompt/skill.js', () => ( {
-  skill: ( ...args ) => skillMocks.skill( ...args )
-} ) );
-
 const importSut = async () => import( './agent.js' );
 
 const loadedPrompt = {
   name: 'test@v1',
-  config: { provider: 'openai', model: 'test-model' },
+  config: { provider: 'openai', model: 'test-model', maxSteps: 10 },
   messages: [
     { role: 'system', content: 'You are concise.' },
     { role: 'user', content: 'Initial user message' }
   ]
 };
 
-const preparedTools = {
-  load_skill: { description: 'Load skill' }
-};
+const loadedSkills = [ { name: 'writer', description: 'Writes', instructions: 'Do it.' } ];
 
 const model = { id: 'MODEL' };
 
@@ -134,115 +119,114 @@ const textOptions = {
   temperature: 0.3
 };
 
+const assistantMessage = { role: 'assistant', content: 'response' };
+
 const aiResponse = {
   text: 'response',
-  response: {
-    messages: [ { role: 'assistant', content: 'response' } ]
-  }
+  finishReason: 'stop',
+  response: { messages: [ assistantMessage ] }
 };
 
 describe( 'Agent', () => {
   beforeEach( () => {
-    state.invocationDir = '/resolved/invocation';
-
     aiMocks.superConstructor.mockReset();
     aiMocks.superGenerate.mockReset().mockResolvedValue( aiResponse );
     aiMocks.superStream.mockReset().mockReturnValue( { textStream: 'stream' } );
-    aiMocks.stepCountIs
-      .mockReset()
-      .mockImplementation( count => ( { type: 'step-count', count } ) );
 
-    promptMocks.prepareTextPrompt.mockReset().mockReturnValue( {
-      loadedPrompt,
-      tools: preparedTools
-    } );
+    validations.parseAgentArgs.mockReset().mockImplementation( toPromptFileArgs );
+    validations.parseAgentGenerateArgs.mockReset().mockImplementation( toAgentMethodArgs );
+    validations.parseAgentGenerateWithStreamingArgs.mockReset().mockImplementation( toAgentMethodArgs );
+    validations.parseAgentStreamArgs.mockReset().mockImplementation( toAgentMethodArgs );
+
+    promptMocks.loadPrompt.mockReset().mockReturnValue( loadedPrompt );
+    skillMocks.loadSkills.mockReset().mockReturnValue( loadedSkills );
 
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
 
-    traceMocks.startTrace.mockReset().mockReturnValue( 'trace-id' );
-    traceMocks.endTraceWithError.mockReset();
-
-    wrapMocks.wrapTextResponse
-      .mockReset()
-      .mockImplementation( async ( { response } ) => response );
-    errorMocks.mapAiError.mockReset().mockImplementation( error => error );
+    wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
+    wrapMocks.streamHooks = {
+      onFinishHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
+      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
+    };
+    wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
-
-    skillMocks.skill.mockClear();
+    loggerMocks.error.mockReset();
   } );
 
   afterEach( async () => {
     await vi.resetModules();
   } );
 
-  it( 're-exports skill()', async () => {
-    const { skill } = await importSut();
-
-    const result = skill( { name: 'writer', instructions: '# Writer' } );
-
-    expect( result ).toEqual( {
-      name: 'writer',
-      description: 'writer',
-      instructions: '# Writer'
+  it( 'propagates parse errors before loading the prompt', async () => {
+    const validationError = new Error( 'Invalid Agent() arguments' );
+    validations.parseAgentArgs.mockImplementationOnce( () => {
+      throw validationError;
     } );
-  } );
-
-  it( 'throws when prompt is missing', async () => {
     const { Agent } = await importSut();
 
-    expect( () => new Agent( {} ) ).toThrow( coreMocks.ValidationError );
+    expect( () => new Agent( {} ) ).toThrow( validationError );
+    expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+    expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
+    expect( aiMocks.superConstructor ).not.toHaveBeenCalled();
   } );
 
-  it( 'prepares the prompt using the resolved invocation dir', async () => {
+  it( 'parses args, loads prompt skills, and constructs ToolLoopAgent', async () => {
     const { Agent } = await importSut();
-    const skills = [
-      { name: 'style', description: 'Style', instructions: '# Style' }
-    ];
     const tools = { search: { description: 'Search' } };
+    const output = { type: 'object' };
+    const stopWhen = { type: 'custom-stop' };
+    const messageStore = { getMessages() {}, addMessages() {} };
 
     new Agent( {
       prompt: 'test@v1',
       variables: { tone: 'brief' },
-      skills,
-      tools
+      promptDir: '/prompts',
+      tools,
+      output,
+      stopWhen,
+      messageStore
     } );
 
-    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith( {
+    expect( validations.parseAgentArgs ).toHaveBeenCalledWith( {
       prompt: 'test@v1',
       variables: { tone: 'brief' },
-      promptDir: state.invocationDir,
-      skills,
-      tools
+      promptDir: '/prompts',
+      tools,
+      output,
+      stopWhen,
+      messageStore
     } );
-  } );
-
-  it( 'uses an explicit promptDir when provided', async () => {
-    const { Agent } = await importSut();
-
-    new Agent( { prompt: 'test@v1', promptDir: '/explicit/prompts' } );
-
-    expect( promptMocks.prepareTextPrompt ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        promptDir: '/explicit/prompts'
-      } )
-    );
-  } );
-
-  it( 'constructs ToolLoopAgent with text options, instructions, tools, and default stopWhen', async () => {
-    const { Agent } = await importSut();
-
-    new Agent( { prompt: 'test@v1' } );
-
-    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( loadedPrompt );
-    expect( aiMocks.stepCountIs ).toHaveBeenCalledWith( 10 );
+    expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', { tone: 'brief' }, '/prompts' );
+    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+      prompt: loadedPrompt,
+      skills: loadedSkills,
+      tools,
+      output,
+      stopWhen
+    } );
     expect( aiMocks.superConstructor ).toHaveBeenCalledWith( {
       model,
       providerOptions: { test: true },
       temperature: 0.3,
-      instructions: [ { role: 'system', content: 'You are concise.' } ],
-      tools: preparedTools,
-      stopWhen: { type: 'step-count', count: 10 }
+      instructions: [ { role: 'system', content: 'You are concise.' } ]
     } );
+  } );
+
+  it( 'passes option tools through to ToolLoopAgent', async () => {
+    const { Agent } = await importSut();
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      ...textOptions,
+      tools: { load_skill: { description: 'Load skill' } }
+    } );
+
+    new Agent( { prompt: 'test@v1' } );
+
+    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
+      expect.objectContaining( {
+        tools: { load_skill: { description: 'Load skill' } }
+      } )
+    );
   } );
 
   it( 'preserves per-message providerOptions on system messages passed as instructions', async () => {
@@ -267,48 +251,18 @@ describe( 'Agent', () => {
     );
   } );
 
-  it( 'omits tools when prompt preparation returns null tools', async () => {
+  it( 'omits instructions when there is no system message', async () => {
     const { Agent } = await importSut();
-    promptMocks.prepareTextPrompt.mockReturnValueOnce( {
-      loadedPrompt,
-      tools: null
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      model,
+      system: [],
+      messages: [ { role: 'user', content: 'Hello' } ]
     } );
 
     new Agent( { prompt: 'test@v1' } );
 
-    expect( aiMocks.superConstructor ).toHaveBeenCalledWith( {
-      model,
-      providerOptions: { test: true },
-      temperature: 0.3,
-      instructions: [ { role: 'system', content: 'You are concise.' } ],
-      stopWhen: { type: 'step-count', count: 10 }
-    } );
-  } );
-
-  it( 'uses caller stopWhen instead of default maxSteps', async () => {
-    const { Agent } = await importSut();
-    const stopWhen = { type: 'custom-stop' };
-
-    new Agent( { prompt: 'test@v1', stopWhen } );
-
-    expect( aiMocks.stepCountIs ).not.toHaveBeenCalled();
     expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        stopWhen
-      } )
-    );
-  } );
-
-  it( 'passes custom constructor options through', async () => {
-    const { Agent } = await importSut();
-
-    new Agent( { prompt: 'test@v1', temperature: 0.8, seed: 42 } );
-
-    expect( aiMocks.superConstructor ).toHaveBeenCalledWith(
-      expect.objectContaining( {
-        temperature: 0.8,
-        seed: 42
-      } )
+      expect.not.objectContaining( { instructions: expect.anything() } )
     );
   } );
 
@@ -318,13 +272,19 @@ describe( 'Agent', () => {
 
     await agent.generate();
 
+    expect( validations.parseAgentGenerateArgs ).toHaveBeenCalledWith( undefined );
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+      name: 'Agent.generate',
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
+    } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
       allowSystemInMessages: true
     } );
   } );
 
-  it( 'excludes authored assistant/tool blocks from the initial generate messages', async () => {
+  it( 'excludes authored assistant blocks from the initial generate messages', async () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,
@@ -344,7 +304,7 @@ describe( 'Agent', () => {
     } );
   } );
 
-  it( 'combines initial, stored, and caller messages for generate', async () => {
+  it( 'combines initial, stored, and caller messages and forwards generate options', async () => {
     const store = {
       getMessages: vi.fn( () => [
         { role: 'assistant', content: 'Stored reply' }
@@ -352,11 +312,21 @@ describe( 'Agent', () => {
       addMessages: vi.fn()
     };
     const callerMessage = { role: 'user', content: 'New question' };
+    const abortSignal = AbortSignal.abort();
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
-    await agent.generate( { messages: [ callerMessage ], maxRetries: 1 } );
+    await agent.generate( {
+      messages: [ callerMessage ],
+      abortSignal,
+      toolChoice: 'required'
+    } );
 
+    expect( validations.parseAgentGenerateArgs ).toHaveBeenCalledWith( {
+      messages: [ callerMessage ],
+      abortSignal,
+      toolChoice: 'required'
+    } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [
         { role: 'user', content: 'Initial user message' },
@@ -364,7 +334,8 @@ describe( 'Agent', () => {
         callerMessage
       ],
       allowSystemInMessages: true,
-      maxRetries: 1
+      abortSignal,
+      toolChoice: 'required'
     } );
   } );
 
@@ -375,38 +346,20 @@ describe( 'Agent', () => {
     };
     const callerMessage = { role: 'user', content: 'New question' };
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.generate( { messages: [ callerMessage ] } );
 
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
-      prompt: 'test@v1'
-    } );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: aiResponse
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
-      { role: 'assistant', content: 'response' }
+      assistantMessage
     ] );
     expect( result ).toBe( aiResponse );
-  } );
-
-  it( 'traces and rethrows generate errors', async () => {
-    const error = new Error( 'Generate failed' );
-    aiMocks.superGenerate.mockRejectedValueOnce( error );
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-
-    await expect( agent.generate() ).rejects.toThrow( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error
-    } );
   } );
 
   it( 'generates with streaming, stores messages, and returns the completed response', async () => {
@@ -416,29 +369,36 @@ describe( 'Agent', () => {
     };
     const callerMessage = { role: 'user', content: 'New question' };
     const output = { summary: 'Structured result' };
-    const wrappedResponse = { ...aiResponse, output };
     const chunk = { type: 'text-delta', text: 'response' };
     const onChunk = vi.fn();
+    const abortSignal = AbortSignal.abort();
     const stream = { output: Promise.resolve( output ) };
     const response = { ...aiResponse };
-    wrapMocks.wrapTextResponse.mockResolvedValueOnce( wrappedResponse );
     aiMocks.superStream.mockImplementationOnce( options => {
       options.onChunk( { chunk } );
       options.onFinish( response );
       return stream;
     } );
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.generateWithStreaming( {
       messages: [ callerMessage ],
       onChunk,
-      maxRetries: 1
+      abortSignal,
+      toolChoice: 'required'
     } );
 
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( validations.parseAgentGenerateWithStreamingArgs ).toHaveBeenCalledWith( {
+      messages: [ callerMessage ],
+      onChunk,
+      abortSignal,
+      toolChoice: 'required'
+    } );
+    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
-      prompt: 'test@v1'
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -446,43 +406,34 @@ describe( 'Agent', () => {
         callerMessage
       ],
       allowSystemInMessages: true,
-      maxRetries: 1,
       onChunk,
+      abortSignal,
+      toolChoice: 'required',
       onFinish: expect.any( Function ),
       onError: expect.any( Function )
     } );
-    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: { ...aiResponse, output }
-    } );
+    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortSignal );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
-      { role: 'assistant', content: 'response' }
+      assistantMessage
     ] );
     expect( onChunk ).toHaveBeenCalledWith( { chunk } );
-    expect( result ).toBe( wrappedResponse );
+    expect( result ).toEqual( { ...aiResponse, output } );
   } );
 
-  it( 'maps generateWithStreaming errors and rejects', async () => {
-    const error = new Error( 'Stream failed' );
-    const mappedError = new Error( 'Mapped stream failed' );
+  it( 'omits onChunk when generateWithStreaming does not receive it', async () => {
     const stream = { output: Promise.resolve( undefined ) };
-    errorMocks.mapAiError.mockReturnValueOnce( mappedError );
-    streamMocks.drainStream.mockRejectedValueOnce( error );
-    aiMocks.superStream.mockReturnValueOnce( stream );
+    aiMocks.superStream.mockImplementationOnce( options => {
+      options.onFinish( { ...aiResponse } );
+      return stream;
+    } );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
-    await expect( agent.generateWithStreaming() ).rejects.toThrow( mappedError );
+    await agent.generateWithStreaming();
+    const callOptions = aiMocks.superStream.mock.calls[0][0];
 
-    expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: mappedError
-    } );
+    expect( callOptions ).not.toHaveProperty( 'onChunk' );
   } );
 
   it( 'rejects generateWithStreaming with the abort reason', async () => {
@@ -500,13 +451,9 @@ describe( 'Agent', () => {
     } ) ).rejects.toBe( abortReason );
 
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: abortReason
-    } );
   } );
 
-  it( 'streams with initial, stored, and caller messages', async () => {
+  it( 'streams with initial, stored, and caller messages and stores on finish', async () => {
     const store = {
       getMessages: vi.fn( () => [
         { role: 'assistant', content: 'Stored reply' }
@@ -515,20 +462,28 @@ describe( 'Agent', () => {
     };
     const onFinish = vi.fn();
     const onError = vi.fn();
+    const onChunk = vi.fn();
     const callerMessage = { role: 'user', content: 'New question' };
     const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1', conversationStore: store } );
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
     const result = await agent.stream( {
       messages: [ callerMessage ],
       onFinish,
       onError,
-      maxRetries: 1
+      onChunk
     } );
 
-    expect( traceMocks.startTrace ).toHaveBeenCalledWith( {
+    expect( validations.parseAgentStreamArgs ).toHaveBeenCalledWith( {
+      messages: [ callerMessage ],
+      onFinish,
+      onError,
+      onChunk
+    } );
+    expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
-      prompt: 'test@v1'
+      prompt: loadedPrompt,
+      fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
       messages: [
@@ -537,70 +492,87 @@ describe( 'Agent', () => {
         callerMessage
       ],
       allowSystemInMessages: true,
-      maxRetries: 1,
+      onChunk,
       onFinish: expect.any( Function ),
       onError: expect.any( Function )
     } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
     await streamOptions.onFinish( aiResponse );
-    expect( wrapMocks.wrapTextResponse ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      providerId: 'openai',
-      modelId: 'test-model',
-      response: aiResponse
-    } );
+    expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( aiResponse, expect.any( Function ) );
+    expect( store.addMessages ).toHaveBeenCalledWith( [
+      callerMessage,
+      assistantMessage
+    ] );
     expect( onFinish ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
-    expect( store.addMessages ).not.toHaveBeenCalled();
   } );
 
-  it( 'traces stream onError events and calls the user callback', async () => {
+  it( 'logs stream persistence failures and still completes onFinish', async () => {
+    const persistenceError = new Error( 'Store unavailable' );
+    const store = {
+      getMessages: vi.fn( () => [] ),
+      addMessages: vi.fn().mockRejectedValue( persistenceError )
+    };
+    const onFinish = vi.fn();
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
+
+    const result = await agent.stream( { onFinish } );
+    const streamOptions = aiMocks.superStream.mock.calls[0][0];
+
+    await expect( streamOptions.onFinish( aiResponse ) ).resolves.toBeUndefined();
+
+    expect( loggerMocks.error ).toHaveBeenCalledWith(
+      'Agent.stream message store persistence failed',
+      { namespace: 'LLM', error: persistenceError.message }
+    );
+    expect( onFinish ).toHaveBeenCalledWith( aiResponse );
+    expect( result ).toEqual( { textStream: 'stream' } );
+  } );
+
+  it( 'does not store stream messages when finishReason is error', async () => {
+    const store = {
+      getMessages: vi.fn( () => [] ),
+      addMessages: vi.fn()
+    };
+    const onFinish = vi.fn();
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
+
+    await agent.stream( { onFinish } );
+    const streamOptions = aiMocks.superStream.mock.calls[0][0];
+    await streamOptions.onFinish( { ...aiResponse, finishReason: 'error' } );
+
+    expect( store.addMessages ).not.toHaveBeenCalled();
+    expect( onFinish ).toHaveBeenCalledWith( { ...aiResponse, finishReason: 'error' } );
+  } );
+
+  it( 'omits onChunk when stream does not receive it', async () => {
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.stream();
+    const callOptions = aiMocks.superStream.mock.calls[0][0];
+
+    expect( callOptions ).not.toHaveProperty( 'onChunk' );
+  } );
+
+  it( 'forwards stream onError through wrapStream with the mapped event payload', async () => {
     const onError = vi.fn();
     const error = new Error( 'Stream failed' );
     const mappedError = new Error( 'Mapped stream failed' );
-    errorMocks.mapAiError.mockReturnValueOnce( mappedError );
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1' } );
 
     await agent.stream( { onError } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
-    streamOptions.onError( { error } );
+    streamOptions.onError( { error, extra: true } );
 
-    expect( errorMocks.mapAiError ).toHaveBeenCalledWith( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error: mappedError
-    } );
-    expect( onError ).toHaveBeenCalledWith( { error: mappedError } );
-  } );
-
-  it( 'traces and rethrows stream errors', async () => {
-    const error = new Error( 'Stream failed' );
-    aiMocks.superStream.mockImplementationOnce( () => {
-      throw error;
-    } );
-    const { Agent } = await importSut();
-    const agent = new Agent( { prompt: 'test@v1' } );
-
-    await expect( agent.stream() ).rejects.toThrow( error );
-    expect( traceMocks.endTraceWithError ).toHaveBeenCalledWith( {
-      traceId: 'trace-id',
-      error
-    } );
-  } );
-} );
-
-describe( 'createMemoryConversationStore', () => {
-  it( 'stores messages in memory', async () => {
-    const { createMemoryConversationStore } = await importSut();
-    const store = createMemoryConversationStore();
-
-    store.addMessages( [ { role: 'user', content: 'Hello' } ] );
-    store.addMessages( [ { role: 'assistant', content: 'Hi' } ] );
-
-    expect( store.getMessages() ).toEqual( [
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'Hi' }
-    ] );
+    expect( wrapMocks.streamHooks.onErrorHook ).toHaveBeenCalledWith(
+      { error, extra: true },
+      expect.any( Function )
+    );
+    wrapMocks.streamHooks.onErrorHook.mock.calls[0][1]( mappedError );
+    expect( onError ).toHaveBeenCalledWith( { error: mappedError, extra: true } );
   } );
 } );

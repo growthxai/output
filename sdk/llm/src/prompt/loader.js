@@ -1,61 +1,83 @@
-import { parsePrompt } from './parser.js';
-import { Liquid } from 'liquidjs';
-import { loadContent } from './load_content.js';
-import { validatePrompt } from './validations.js';
+import { Context, Liquid } from 'liquidjs';
+import { parsePromptSchema } from './validations.js';
 import { FatalError, Logger } from '@outputai/core';
-import { escape, decode, setupLiquidEncodeFilter } from './escape.js';
+import { pipeInterpolations, interpolationFilterToken, encode, decode } from './interpolations.js';
 import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
+import { Path } from '@outputai/core/sdk/helpers';
+import { searchAndReadFile } from '../utils/file.js';
+import matter from 'gray-matter';
+import { parseContent } from './content.js';
 
 const liquid = new Liquid( {
   strictFilters: true,
   strictVariables: true,
   lenientIf: true
 } );
-setupLiquidEncodeFilter( liquid );
 
-/** Uses LiquidJS to interpolate variables in the prompt file content. */
-const renderPrompt = ( { name, escapedContent, values } ) => {
-  try {
-    return liquid.parseAndRenderSync( escapedContent, values );
-  } catch ( error ) {
-    throw new FatalError( `Prompt "${name}" could not be rendered: ${error.message}`, { cause: error } );
-  }
+liquid.registerFilter( interpolationFilterToken, encode );
+
+const splitPromptContent = text => {
+  const dummyEngine = () => ( {} ); // dummy engine to allow for split only
+  const file = matter( text, { engines: { yaml: dummyEngine } } );
+  return { rawFrontmatter: file.matter, rawContent: file.content };
 };
+
+const renderContent = ( rawContent, context ) => liquid.parseAndRenderSync( pipeInterpolations( rawContent ), context ).trim();
+
+const renderFrontmatter = ( rawFrontmatter, context ) => liquid.parseAndRenderSync( pipeInterpolations( rawFrontmatter ), context );
+
+const parseFrontmatter = yml => decode( matter( `---\n${yml}\n---\n` ).data );
 
 /**
  * Load a prompt file and render it with variables.
  *
  * @param {string} name - Name of the prompt file (without .prompt extension)
- * @param {Record<string, string | number | boolean>} [values] - Variables to interpolate
+ * @param {Record<string, unknown>} [variables] - Variables to interpolate
  * @param {string} [dir] - Directory to search for the prompt file (defaults to stack-resolved invocation dir)
- * @returns {Prompt} Loaded and rendered prompt object, including promptFileDir
+ * @returns {Prompt} Loaded and rendered prompt object.
  */
-export const loadPrompt = ( name, values = {}, dir ) => {
-  const file = loadContent( `${name}.prompt`, dir );
-  if ( !file ) {
-    throw new FatalError( `Prompt "${name}" not found.` );
-  }
-
-  const escapedContent = escape( file.content );
-  const renderedContent = renderPrompt( { name, escapedContent, values } );
-
-  const { config, messages, instructions } = parsePrompt( { name, raw: renderedContent } );
-
-  const prompt = {
-    name,
-    config: decode( config ),
-    messages: messages.map( m => ( { ...m, content: decode( m.content ) } ) ),
-    instructions: instructions === null ? null : decode( instructions )
+export const loadPrompt = ( name, variables = {}, dir = Path.resolveInvocationDir() ) => {
+  // Small closure to encapsulate errors with "name"
+  const tryStep = ( fn, msg ) => {
+    try {
+      return fn();
+    } catch ( e ) {
+      throw new FatalError( [ `${msg} on prompt "${name}"`, e.message ].join( ': ' ), { cause: e } );
+    }
   };
 
-  const provider = prompt.config.provider;
+  const file = searchAndReadFile( dir, `${name}.prompt` );
+  if ( !file ) {
+    throw new FatalError( `Prompt file "${name}" not found.` );
+  }
+
+  const { rawFrontmatter, rawContent } = tryStep( () => splitPromptContent( file.content ), 'Error parsing frontmatter' );
+  const context = new Context( variables, liquid.options, { sync: true } );
+  const renderedFrontmatter = tryStep( () => renderFrontmatter( rawFrontmatter, context ), 'Error rendering frontmatter' );
+  const content = tryStep( () => renderContent( rawContent, context ), 'Error rendering content' );
+
+  if ( !content ) {
+    throw new FatalError( `Prompt "${name}" has no content.` );
+  }
+
+  const config = tryStep( () => parseFrontmatter( renderedFrontmatter ), 'Error converting frontmatter yaml to js' );
+
+  const { messages, instructions } = tryStep( () => parseContent( content, config.messageOptions ), 'Error parsing content' );
+
+  // @TODO: this handle aliases removal in v0.11, it can be removed down the road
+  const provider = config.provider;
   if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
     const canonical = deprecatedProviderAliases[provider];
     Logger.warn( `Using deprecated provider alias "${provider}". Use "${canonical}" instead.`, { namespace: 'LLM' } );
-    prompt.config.provider = canonical;
+    config.provider = canonical;
   }
 
-  validatePrompt( prompt );
-
-  return { ...prompt, promptFileDir: file.dir };
+  return parsePromptSchema( {
+    name,
+    config,
+    messages,
+    instructions,
+    fileDir: file.dir,
+    variables
+  } );
 };
