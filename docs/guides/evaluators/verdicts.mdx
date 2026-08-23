@@ -365,7 +365,7 @@ Wraps an LLM verdict into an `EvaluationVerdictResult`.
 
 ```typescript
 import { verify, Verdict } from '@outputai/evals';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 export const evaluateAccuracy = verify(
@@ -374,7 +374,7 @@ export const evaluateAccuracy = verify(
     const { output: judgment } = await generateText( {
       prompt: 'judge_accuracy@v1',
       variables: { content: output.summary },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( {
           verdict: z.enum( [ 'pass', 'partial', 'fail' ] ),
           reasoning: z.string()

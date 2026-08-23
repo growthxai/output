@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { ValidationError } from '@outputai/core';
-import { validatePrompt } from './validations.js';
+import { parsePromptSchema } from './validations.js';
 
-describe( 'validatePrompt', () => {
+const parse = prompt => parsePromptSchema( { fileDir: '/prompts', ...prompt } );
+
+describe( 'parsePromptSchema', () => {
   it( 'should validate a correct prompt with all required fields', () => {
     const validPrompt = {
       name: 'test-prompt',
@@ -20,7 +22,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( validPrompt ) ).not.toThrow();
+    expect( () => parse( validPrompt ) ).not.toThrow();
   } );
 
   it( 'should validate a minimal prompt with only required fields', () => {
@@ -38,7 +40,9 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( minimalPrompt ) ).not.toThrow();
+    expect( parse( minimalPrompt ).config.skills ).toEqual( [] );
+    expect( parse( minimalPrompt ).config.maxSteps ).toBe( 10 );
+    expect( parse( minimalPrompt ).variables ).toEqual( {} );
   } );
 
   it( 'should validate a prompt with thinking providerOptions', () => {
@@ -62,7 +66,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithThinking ) ).not.toThrow();
+    expect( () => parse( promptWithThinking ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with thinking type disabled', () => {
@@ -85,7 +89,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithThinkingDisabled ) ).not.toThrow();
+    expect( () => parse( promptWithThinkingDisabled ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with thinking without budgetTokens', () => {
@@ -108,7 +112,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithThinkingNoBudget ) ).not.toThrow();
+    expect( () => parse( promptWithThinkingNoBudget ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with anthropic-specific providerOptions', () => {
@@ -136,7 +140,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithAnthropicOptions ) ).not.toThrow();
+    expect( () => parse( promptWithAnthropicOptions ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with openai-specific providerOptions', () => {
@@ -161,7 +165,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithOpenAIOptions ) ).not.toThrow();
+    expect( () => parse( promptWithOpenAIOptions ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with azure-specific providerOptions', () => {
@@ -185,7 +189,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithAzureOptions ) ).not.toThrow();
+    expect( () => parse( promptWithAzureOptions ) ).not.toThrow();
   } );
 
   it( 'should validate a prompt with mixed providerOptions including unknown fields', () => {
@@ -217,7 +221,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithMixedOptions ) ).not.toThrow();
+    expect( () => parse( promptWithMixedOptions ) ).not.toThrow();
   } );
 
   it( 'should accept custom provider names for dynamic providers', () => {
@@ -235,7 +239,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( customProviderPrompt ) ).not.toThrow();
+    expect( () => parse( customProviderPrompt ) ).not.toThrow();
   } );
 
   it( 'should validate image generation config fields', () => {
@@ -263,7 +267,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( imagePrompt ) ).not.toThrow();
+    expect( () => parse( imagePrompt ) ).not.toThrow();
   } );
 
   it( 'should validate a plain-instructions prompt without messages', () => {
@@ -277,7 +281,7 @@ describe( 'validatePrompt', () => {
       instructions: 'Generate an image of a mountain.'
     };
 
-    expect( () => validatePrompt( instructionsPrompt ) ).not.toThrow();
+    expect( () => parse( instructionsPrompt ) ).not.toThrow();
   } );
 
   it( 'should validate role messages with null instructions', () => {
@@ -296,7 +300,7 @@ describe( 'validatePrompt', () => {
       instructions: null
     };
 
-    expect( () => validatePrompt( messagesPrompt ) ).not.toThrow();
+    expect( () => parse( messagesPrompt ) ).not.toThrow();
   } );
 
   it( 'should throw ValidationError when instructions are only whitespace', () => {
@@ -310,7 +314,7 @@ describe( 'validatePrompt', () => {
       instructions: '   '
     };
 
-    expect( () => validatePrompt( whitespaceInstructionsPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( whitespaceInstructionsPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError when both messages and instructions are present', () => {
@@ -329,7 +333,7 @@ describe( 'validatePrompt', () => {
       instructions: 'Plain instructions should not be mixed with messages.'
     };
 
-    expect( () => validatePrompt( mixedPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( mixedPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError when neither messages nor instructions are present', () => {
@@ -343,7 +347,7 @@ describe( 'validatePrompt', () => {
       instructions: null
     };
 
-    expect( () => validatePrompt( emptyPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( emptyPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should validate a prompt with skill path config', () => {
@@ -362,10 +366,10 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithSkills ) ).not.toThrow();
+    expect( parse( promptWithSkills ).config.skills ).toEqual( [ './skills', './review.md' ] );
   } );
 
-  it( 'should validate a prompt with a single skill path config', () => {
+  it( 'coerces a single skill path to an array', () => {
     const promptWithSkill = {
       name: 'skill-prompt',
       config: {
@@ -381,7 +385,109 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithSkill ) ).not.toThrow();
+    expect( parse( promptWithSkill ).config.skills ).toEqual( [ './skills' ] );
+  } );
+
+  it( 'coerces null skills to an empty array', () => {
+    const promptWithNullSkills = {
+      name: 'null-skills-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        skills: null
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Review this.'
+        }
+      ]
+    };
+
+    expect( parse( promptWithNullSkills ).config.skills ).toEqual( [] );
+  } );
+
+  it( 'should validate prompt maxSteps', () => {
+    const promptWithMaxSteps = {
+      name: 'max-steps-prompt',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        maxSteps: 4
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ]
+    };
+
+    expect( parse( promptWithMaxSteps ).config.maxSteps ).toBe( 4 );
+  } );
+
+  it( 'should throw ValidationError for invalid maxSteps', () => {
+    for ( const maxSteps of [ 0, -1, 1.5 ] ) {
+      expect( () => parse( {
+        name: 'invalid-max-steps',
+        config: {
+          provider: 'anthropic',
+          model: 'claude-3-opus-20240229',
+          maxSteps
+        },
+        messages: [
+          {
+            role: 'user',
+            content: 'Hello'
+          }
+        ]
+      } ) ).toThrow( ValidationError );
+    }
+  } );
+
+  it( 'throws ValidationError when fileDir is missing', () => {
+    expect( () => parsePromptSchema( {
+      name: 'no-file-dir',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ]
+    } ) ).toThrow( ValidationError );
+  } );
+
+  it( 'accepts scalar, object, and array variables', () => {
+    expect( parse( {
+      name: 'typed-variables',
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      },
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello'
+        }
+      ],
+      variables: {
+        name: 'Acme',
+        size: 250,
+        active: true,
+        company: { name: 'Acme' },
+        industries: [ 'SaaS', 'AI' ]
+      }
+    } ).variables ).toEqual( {
+      name: 'Acme',
+      size: 250,
+      active: true,
+      company: { name: 'Acme' },
+      industries: [ 'SaaS', 'AI' ]
+    } );
   } );
 
   it( 'should validate provider tool config records', () => {
@@ -406,7 +512,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithTools ) ).not.toThrow();
+    expect( () => parse( promptWithTools ) ).not.toThrow();
   } );
 
   it( 'should throw ValidationError when tools config is not a record', () => {
@@ -425,7 +531,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( invalidToolsPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( invalidToolsPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError when a tool config is not a record', () => {
@@ -446,7 +552,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( invalidToolConfigPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( invalidToolConfigPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError for invalid skill path config', () => {
@@ -465,7 +571,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( invalidSkillsPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( invalidSkillsPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError for invalid image generation config fields', () => {
@@ -488,10 +594,10 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( invalidImagePrompt ) ).toThrow( ValidationError );
+    expect( () => parse( invalidImagePrompt ) ).toThrow( ValidationError );
   } );
 
-  it( 'should accept extra config fields via passthrough', () => {
+  it( 'should reject unrecognized config fields', () => {
     const extraFieldsPrompt = {
       name: 'extra-fields-prompt',
       config: {
@@ -509,7 +615,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( extraFieldsPrompt ) ).not.toThrow();
+    expect( () => parse( extraFieldsPrompt ) ).toThrow( /unrecognized key/i );
   } );
 
   it( 'should throw ValidationError when provider is empty string', () => {
@@ -527,7 +633,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( emptyProviderPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( emptyProviderPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError when required fields are missing', () => {
@@ -544,7 +650,7 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( missingNamePrompt ) ).toThrow( ValidationError );
+    expect( () => parse( missingNamePrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should pass through budget_tokens in thinking and warn about snake_case', () => {
@@ -568,10 +674,10 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( promptWithBudgetTokensSnake ) ).not.toThrow();
+    expect( () => parse( promptWithBudgetTokensSnake ) ).not.toThrow();
   } );
 
-  it( 'should allow snake_case fields in config via passthrough (no longer strict)', () => {
+  it( 'should suggest camelCase when a snake_case config key matches a known field', () => {
     const maxTokensSnakeCase = {
       name: 'test-prompt',
       config: {
@@ -587,11 +693,11 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( maxTokensSnakeCase ) ).not.toThrow();
+    expect( () => parse( maxTokensSnakeCase ) ).toThrow( /"max_tokens" is not valid; use "maxTokens"/ );
   } );
 
-  it( 'should validate the options attribute referencing messageOptions sets', () => {
-    const promptWithMessageOptions = {
+  it( 'should validate per-message providerOptions', () => {
+    const promptWithMessageProviderOptions = {
       name: 'message-options-prompt',
       config: {
         provider: 'anthropic',
@@ -601,27 +707,31 @@ describe( 'validatePrompt', () => {
         }
       },
       messages: [
-        { role: 'system', content: 'Docs.', attributes: { options: 'cached' } },
+        {
+          role: 'system',
+          content: 'Docs.',
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+        },
         { role: 'user', content: 'Question' }
       ]
     };
 
-    expect( () => validatePrompt( promptWithMessageOptions ) ).not.toThrow();
+    expect( () => parse( promptWithMessageProviderOptions ) ).not.toThrow();
   } );
 
-  it( 'should reject the removed cache shorthand as an unknown block attribute', () => {
-    const cacheShorthandPrompt = {
-      name: 'cache-shorthand-prompt',
+  it( 'should reject leftover attributes on a message', () => {
+    const leftoverAttributesPrompt = {
+      name: 'leftover-attributes-prompt',
       config: {
         provider: 'anthropic',
         model: 'claude-sonnet-4-5'
       },
       messages: [
-        { role: 'system', content: 'Static.', attributes: { cache: true } }
+        { role: 'system', content: 'Static.', attributes: { options: 'cached' } }
       ]
     };
 
-    expect( () => validatePrompt( cacheShorthandPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( leftoverAttributesPrompt ) ).toThrow( ValidationError );
   } );
 
   it( 'should throw ValidationError for unknown top-level message fields', () => {
@@ -636,6 +746,6 @@ describe( 'validatePrompt', () => {
       ]
     };
 
-    expect( () => validatePrompt( unknownFieldPrompt ) ).toThrow( ValidationError );
+    expect( () => parse( unknownFieldPrompt ) ).toThrow( ValidationError );
   } );
 } );

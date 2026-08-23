@@ -10,13 +10,13 @@ When creating `.prompt` files, understanding the `providerOptions` structure is 
 ### Decision Tree: Where Does This Option Go?
 
 ```
-Is it a standard AI SDK option (temperature, maxTokens, topP, etc.)?
-├─ YES → Top-level config (alongside provider and model)
-└─ NO → providerOptions
+Is the key on the prompt config allowlist (provider, model, temperature, maxTokens, maxSteps, skills, tools, providerOptions, messageOptions, n, maxImagesPerCall, size, aspectRatio, seed)?
+├─ YES -> Top-level config
+└─ NO -> Nest under providerOptions (unknown top-level keys throw; snake_case aliases like max_tokens fail with a camelCase suggestion)
 
 In providerOptions:
-├─ Is it 'thinking' or 'order'? → Top-level (special AI SDK features)
-└─ Is it provider-specific? → Nested under provider namespace
+├─ Is it 'thinking' or 'order'? -> Top-level (special AI SDK features)
+└─ Is it provider-specific? -> Nested under provider namespace
 ```
 
 ### Common Mistakes to Avoid
@@ -89,6 +89,28 @@ providerOptions:
   anthropic:
     effort: medium      # Provider-specific: nested
 ```
+
+---
+
+❌ **Mistake 5: Unknown or snake_case top-level keys**
+```yaml
+provider: openai
+max_tokens: 16000       # WRONG: snake_case alias of maxTokens
+topP: 0.9               # WRONG: not a shared top-level field
+reasoningEffort: medium # WRONG: OpenAI-specific
+```
+
+✅ **Correct:**
+```yaml
+provider: openai
+maxTokens: 16000
+providerOptions:
+  openai:
+    reasoningEffort: medium
+    topP: 0.9
+```
+
+Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Nested `providerOptions` stays open.
 
 ### Quick Reference: Common Provider Options
 
@@ -179,6 +201,9 @@ Each set is a provider-namespaced `providerOptions` object (same namespace rules
 **Rules:**
 - Attach the set to the **last static block**, never one containing per-call `{{ variables }}` — a breakpoint on changing content rewrites the cache every call and never hits.
 - Order blocks **static-first, dynamic-last**.
+- Always give `options` a value, such as `options="cached"`; bare `<system options>` throws at load.
+- Put provider settings such as `ttl` inside the named `messageOptions` set. `options` is the only supported role-tag attribute, so `<system ttl="1h">` throws.
+- Every name listed in `options` must exist in frontmatter `messageOptions`.
 - Minimum cacheable prefix is model-specific (~1,024 tokens for most Sonnet/Opus; higher for some). Below it, caching is silently skipped — verify via the cost trace (`cachedInputTokens`).
 - Max 4 cache breakpoints per request.
 

@@ -123,7 +123,7 @@ Define steps in `steps.ts` with schemas:
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const myStep = step( {
   name: 'my_step',
@@ -138,7 +138,7 @@ export const myStep = step( {
     const { output } = await generateText( {
       prompt: 'my_prompt@v1',
       variables: { text },
-      output: Output.object( {
+      output: aiSdk.Output.object( {
         schema: z.object( { result: z.string() } )
       } )
     } );
@@ -153,7 +153,7 @@ Define evaluators in `evaluators.ts`:
 
 ```typescript
 import { evaluator, z, EvaluationVerdictResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 export const evaluateQuality = evaluator( {
   name: 'evaluate_quality',
@@ -166,7 +166,7 @@ export const evaluateQuality = evaluator( {
     const { output: evaluation } = await generateText( {
       prompt: 'evaluate@v1',
       variables: { input, output },
-      output: Output.object( { schema: EvaluationVerdictResult.schema } )
+      output: aiSdk.Output.object( { schema: EvaluationVerdictResult.schema } )
     } );
 
     return new EvaluationVerdictResult( evaluation );
@@ -180,6 +180,11 @@ Create prompt files in `prompts/` following the pattern:
 - File naming: `promptName@v1.prompt`
 - Include YAML frontmatter with provider, model, temperature, and maxTokens
 - Use LiquidJS syntax for variables: `{{ variableName }}`
+- Start the rendered body with a role tag for message mode, or with plain text for instruction mode
+
+In message mode, use only `<system>`, `<user>`, and `<assistant>` at the top level. Keep all prose inside those blocks, close every block, and escape literal same-role examples such as `&lt;user&gt;...&lt;/user&gt;`.
+
+Structured tool messages are runtime history supplied through Agent `messages` or `messageStore`; they are not authored in prompt files.
 
 Example prompt file:
 ```

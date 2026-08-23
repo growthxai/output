@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 const blogOutputSchema = z.object( {
   title: z.string(),
@@ -19,7 +19,7 @@ export const generateBlogPost = step( {
     const { output } = await generateText( {
       prompt: 'generate_blog@v1',
       variables: { topic, requirements: requirements ?? '' },
-      output: Output.object( { schema: blogOutputSchema } )
+      output: aiSdk.Output.object( { schema: blogOutputSchema } )
     } );
     return output;
   }

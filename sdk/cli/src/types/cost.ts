@@ -17,13 +17,11 @@ export interface TokenUsage {
   reasoningTokens?: number;
 }
 
-// Cost events recorded on trace nodes (the as-charged ground truth).
-// The llm:usage shape is owned by the producer — import it rather than
-// re-declaring, so the CLI can't silently drift from the wire format.
+// Cost events recorded on trace nodes (the as-charged ground truth). JSON
+// preserves the producer's data fields, but not methods from the live class.
+import type { LLMUsageEvent as LiveLLMUsageEvent } from '@outputai/llm';
 
-export type { LLMUsageEvent } from '@outputai/llm';
-import type { LLMUsageEvent } from '@outputai/llm';
-
+export type LLMUsageEvent = Omit<LiveLLMUsageEvent, 'addUsage'>;
 export type LLMUsageLine = LLMUsageEvent['usage'][number];
 
 export interface HTTPCostEvent {

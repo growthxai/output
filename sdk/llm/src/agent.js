@@ -1,165 +1,134 @@
-import { ValidationError } from '@outputai/core';
-import { Path } from '@outputai/core/sdk/helpers';
-import { ToolLoopAgent as AIToolLoopAgent, stepCountIs } from 'ai';
+import { ToolLoopAgent as AIToolLoopAgent } from 'ai';
 import { loadAiSdkTextOptions } from './ai_sdk_options.js';
-import { prepareTextPrompt } from './prompt/prepare_text.js';
-import { startTrace, endTraceWithError } from './utils/trace.js';
-import { wrapTextResponse } from './utils/response_wrappers.js';
-import { mapAiError } from './utils/error_handler.js';
-import { ROLE, isRole } from './utils/message.js';
+import { wrapGeneration, wrapStream } from './utils/wrap.js';
+import { Role } from './consts.js';
 import { drainStream } from './utils/stream.js';
-export { skill } from './prompt/skill.js';
-
-export const createMemoryConversationStore = () => {
-  const messages = [];
-  return {
-    getMessages: () => messages,
-    addMessages: newMessages => messages.push( ...newMessages )
-  };
-};
+import { loadPrompt } from './prompt/loader.js';
+import { loadSkills } from './utils/skills.js';
+import * as Validator from './validations.js';
+import { Logger } from '@outputai/core';
 
 export class Agent extends AIToolLoopAgent {
   #prompt;
-  #modelId;
-  #providerId;
   #initialMessages;
   #store;
 
-  constructor( {
-    prompt,
-    promptDir,
-    variables = {},
-    skills = [],
-    tools: toolsArg,
-    stopWhen,
-    maxSteps = 10,
-    conversationStore,
-    ...rest
-  } ) {
-    if ( !prompt ) {
-      throw new ValidationError( 'Agent requires a prompt' );
-    }
+  constructor( args ) {
+    const { promptFile, promptDir, variables, tools, output, stopWhen, messageStore } = Validator.parseAgentArgs( args );
 
-    // Must be captured synchronously — Temporal async activity execution
-    // breaks the call stack, so Path.resolveInvocationDir() fails if called lazily.
-    const resolvedPromptDir = promptDir ?? Path.resolveInvocationDir();
+    const prompt = loadPrompt( promptFile, variables, promptDir );
+    const skills = loadSkills( prompt );
 
-    const { loadedPrompt, tools } = prepareTextPrompt( { prompt, variables, promptDir: resolvedPromptDir, skills, tools: toolsArg } );
-
-    const { system, messages, ...constructorOptions } = loadAiSdkTextOptions( loadedPrompt );
+    const { system, messages, ...aiOptions } = loadAiSdkTextOptions( { prompt, skills, tools, output, stopWhen } );
 
     // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
     // per-message providerOptions); pass them as the agent's `instructions`.
     super( {
-      ...constructorOptions,
-      ...( system.length > 0 ? { instructions: system } : {} ),
-      ...( tools ? { tools } : {} ),
-      stopWhen: stopWhen ?? stepCountIs( maxSteps ),
-      ...rest
+      ...aiOptions,
+      ...( system.length > 0 ? { instructions: system } : {} )
     } );
 
     this.#prompt = prompt;
-    this.#modelId = loadedPrompt.config.model;
-    this.#providerId = loadedPrompt.config.provider;
-    // `messages` is system-free but may still hold authored <assistant>/<tool>
-    // blocks; seed only <user> turns into each generate()/stream() call.
-    this.#initialMessages = messages.filter( isRole( ROLE.USER ) );
-    this.#store = conversationStore ?? null;
+    // `messages` is system-free but may still hold authored <assistant> blocks;
+    // seed only <user> turns into each generate()/stream() call.
+    this.#initialMessages = messages.filter( m => m.role === Role.USER );
+    this.#store = messageStore ?? null;
   }
 
-  async #fetchMessages( userMessages ) {
-    const priorMessages = this.#store ? await this.#store.getMessages() : [];
-    return [ ...this.#initialMessages, ...priorMessages, ...userMessages ];
+  async #combineWithPreviousMessages( messages ) {
+    return [ ...this.#initialMessages, ...( await this.#store?.getMessages() ?? [] ), ...messages ];
   }
 
-  async #storeMessages( userMessages, result ) {
+  async #storeMessages( messages ) {
     if ( this.#store ) {
-      await this.#store.addMessages( [ ...userMessages, ...( result.response?.messages ?? [] ) ] );
+      await this.#store.addMessages( messages );
     }
   }
 
-  async generate( { messages: userMessages = [], ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generate', prompt: this.#prompt } );
-    try {
-      const messages = await this.#fetchMessages( userMessages );
-      const response = await super.generate( { messages, allowSystemInMessages: true, ...callOptions } );
-      const wrapped = await wrapTextResponse( { traceId, response, providerId: this.#providerId, modelId: this.#modelId } );
-      await this.#storeMessages( userMessages, wrapped );
-      return wrapped;
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
+  async generate( args ) {
+    const { messages, abortSignal, toolChoice } = Validator.parseAgentGenerateArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
+
+    return wrapGeneration( {
+      name: 'Agent.generate',
+      prompt: this.#prompt,
+      fn: async () => {
+        const response = await super.generate( {
+          messages: combinedMessages,
+          allowSystemInMessages: true,
+          ...( abortSignal && { abortSignal } ),
+          ...( toolChoice && { toolChoice } )
+        } );
+        await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
+        return response;
+      }
+    } );
   }
 
   /**
    * Generates a completed agent response over streaming transport, invoking `onChunk` as parts arrive.
    */
-  async generateWithStreaming( { messages: userMessages = [], ...options } = {} ) {
-    const traceId = startTrace( { name: 'Agent.generateWithStreaming', prompt: this.#prompt } );
-    const state = { response: null };
+  async generateWithStreaming( args ) {
+    const { messages, abortSignal, toolChoice, onChunk } = Validator.parseAgentGenerateWithStreamingArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
-    try {
-      const messages = await this.#fetchMessages( userMessages );
-      const stream = await super.stream( {
-        messages,
-        allowSystemInMessages: true,
-        ...options,
-        onFinish( response ) {
-          state.response = response;
-        },
-        onError: _ => {} // Suppress AI-SDK console printing
-      } );
+    return wrapGeneration( {
+      name: 'Agent.generateWithStreaming',
+      prompt: this.#prompt,
+      fn: async () => {
+        const state = { response: null };
+        const stream = await super.stream( {
+          messages: combinedMessages,
+          allowSystemInMessages: true,
+          ...( onChunk && { onChunk } ),
+          ...( abortSignal && { abortSignal } ),
+          ...( toolChoice && { toolChoice } ),
+          onFinish: res => {
+            state.response = res;
+          },
+          onError: _ => {} // Suppress AI-SDK console printing
+        } );
 
-      await drainStream( stream, options?.abortSignal );
+        await drainStream( stream, abortSignal );
 
-      if ( !state.response ) {
-        throw new Error( 'Agent streaming generation completed without a response.' );
+        if ( !state.response ) {
+          throw new Error( 'Agent streaming generation completed without a response.' );
+        }
+
+        state.response.output = await stream.output;
+        await this.#storeMessages( messages.concat( state.response.response?.messages ?? [] ) );
+
+        return state.response;
       }
-
-      state.response.output = await stream.output;
-      const wrappedResponse = await wrapTextResponse( {
-        traceId,
-        providerId: this.#providerId,
-        modelId: this.#modelId,
-        response: state.response
-      } );
-      await this.#storeMessages( userMessages, wrappedResponse );
-
-      return wrappedResponse;
-
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
-
+    } );
   }
 
-  async stream( { messages: userMessages = [], onFinish, onError, ...callOptions } = {} ) {
-    const traceId = startTrace( { name: 'Agent.stream', prompt: this.#prompt } );
+  async stream( args ) {
+    const { messages, abortSignal, toolChoice, onChunk, onFinish, onError } = Validator.parseAgentStreamArgs( args );
+    const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
-    try {
-      const messages = await this.#fetchMessages( userMessages );
-      return await super.stream( {
-        messages,
+    return wrapStream( {
+      name: 'Agent.stream',
+      prompt: this.#prompt,
+      fn: ( { onFinishHook, onErrorHook } ) => super.stream( {
+        messages: combinedMessages,
         allowSystemInMessages: true,
-        ...callOptions,
-        onFinish: async response => {
-          const proxiedResponse = await wrapTextResponse( { traceId, providerId: this.#providerId, modelId: this.#modelId, response } );
-          return onFinish?.( proxiedResponse );
-        },
-        onError( event ) {
-          const error = mapAiError( event.error );
-          endTraceWithError( { traceId, error } );
-          return onError?.( { ...event, error } );
-        }
-      } );
-    } catch ( originalError ) {
-      const error = mapAiError( originalError );
-      endTraceWithError( { traceId, error } );
-      throw error;
-    }
+        ...( onChunk && { onChunk } ),
+        ...( abortSignal && { abortSignal } ),
+        ...( toolChoice && { toolChoice } ),
+        onFinish: response =>
+          onFinishHook( response, async parsedResponse => {
+            if ( response.finishReason !== 'error' ) {
+              await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) )
+                .catch( error => Logger.error( 'Agent.stream message store persistence failed', {
+                  namespace: 'LLM',
+                  error: error instanceof Error ? error.message : String( error )
+                } ) );
+            }
+            await onFinish?.( parsedResponse );
+          } ),
+        onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
+      } )
+    } );
   }
 }

@@ -1,6 +1,6 @@
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
 import type { EvaluationResultArgs } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { blogContentSchema } from './types.js';
 import type { BlogContent } from './types.js';
 
@@ -15,7 +15,7 @@ export const evaluateSignalToNoise = evaluator( {
         title: input.title,
         content: input.content
       },
-      output: Output.object( { schema: EvaluationNumberResult.schema } )
+      output: aiSdk.Output.object( { schema: EvaluationNumberResult.schema } )
     } );
 
     return new EvaluationNumberResult( output as EvaluationResultArgs<number> );

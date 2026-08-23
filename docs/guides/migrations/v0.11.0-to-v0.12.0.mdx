@@ -1,0 +1,591 @@
+---
+title: "v0.11.0 → v0.12.0"
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
+---
+
+This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+
+## Skills load only from the prompt file
+
+`generateText`, `streamText`, `generateTextWithStreaming`, and `Agent` no longer accept a `skills` argument. Dynamic skill resolvers (sync or async functions) are gone with it. Passing `skills` throws:
+
+```
+skills must be set in the prompt file, not as a call argument
+```
+
+`skill()` is no longer exported. Colocated `skills/` auto-discovery is gone: a `skills/` folder next to the prompt is not loaded unless you list it in frontmatter.
+
+### Move call-argument and inline skills into the prompt
+
+#### Before
+
+```ts
+import { generateText, skill } from '@outputai/llm';
+
+const audienceSkill = skill( {
+  name: 'audience',
+  description: 'Audience voice',
+  instructions: 'Write for operators, not executives.'
+} );
+
+await generateText( {
+  prompt: 'writer@v1',
+  skills: [ audienceSkill ]
+} );
+```
+
+#### After
+
+Put the instructions in a markdown file and list the path in frontmatter. Paths are relative to the prompt file.
+
+```markdown prompts/skills/audience.md
+---
+name: audience
+description: Audience voice
+---
+
+Write for operators, not executives.
+```
+
+```yaml prompts/writer@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-6
+skills:
+  - ./skills/audience.md
+---
+
+<system>
+You are a writer. Use load_skill before applying a skill.
+</system>
+
+<user>
+{{ task }}
+</user>
+```
+
+```ts
+import { generateText } from '@outputai/llm';
+
+await generateText( { prompt: 'writer@v1' } );
+```
+
+A directory path loads every `.md` file under it (recursive):
+
+```yaml
+skills:
+  - ./skills
+```
+
+A single string is still valid YAML and is coerced to an array at load time:
+
+```yaml
+skills: ./skills/audience.md
+```
+
+### Restore colocated skills that used auto-discovery
+
+#### Before
+
+```
+prompts/
+├── writer@v1.prompt
+└── skills/
+    └── audience.md
+```
+
+No `skills:` key in the prompt. Output discovered `./skills` automatically.
+
+#### After
+
+Keep the folder. Add an explicit path:
+
+```yaml
+skills:
+  - ./skills
+```
+
+## Prompt tools and call-argument tools merge
+
+Call-argument `tools` no longer replace the whole prompt YAML tools map.
+
+- Prompt YAML tools and call-argument tools are merged.
+- The same key: the caller wins.
+- When skills are present, `load_skill` is added last and cannot be overridden.
+
+#### Before
+
+```yaml
+tools:
+  googleSearch: {}
+```
+
+```ts
+await generateText( {
+  prompt: 'research@v1',
+  tools: { lookup: lookupTool }
+} );
+```
+
+`googleSearch` was dropped. Only `lookup` was sent.
+
+#### After
+
+Both are sent: `{ googleSearch, lookup }`. If you meant to disable YAML tools, remove them from the prompt (or override that key on the call).
+
+## Loaded prompt shape
+
+`loadPrompt` returns the parsed prompt object.
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `prompt.promptFileDir` | `prompt.fileDir` (always set) |
+| - | `prompt.variables` (`Record<string, unknown>`, including nested objects and arrays; default `{}`) |
+| `prompt.config.skills` missing, a string, or a string array | Always a `string[]` (`null` / missing -> `[]`, a string -> `[string]`) |
+| `prompt.config.maxSteps` missing | Always a positive integer (default 10) |
+| `prompt.instructions` missing or omitted | Always `string | null` (chat prompts are `null`) |
+| `message.attributes` (`{ options: 'cached' }` or `{}`) | `message.providerOptions` (resolved set(s); omitted when the tag has no `options`) |
+
+#### Before
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+const dir = prompt.promptFileDir;
+```
+
+#### After
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+const dir = prompt.fileDir;
+```
+
+The `SkillsArg` and `Skill` types are removed. Skills are now internal loaded values; declare file paths in prompt frontmatter instead of constructing or typing skill objects.
+
+### Per-message options resolve at load
+
+v0.11 kept the role tag's `attributes` on the loaded message and compiled `options="..."` into AI SDK `providerOptions` at generate time. v0.12 compiles that at `loadPrompt`. LLM traces (`input.prompt.messages`) use the same loaded shape.
+
+#### Before
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+prompt.messages[0].attributes; // { options: 'cached' }
+```
+
+#### After
+
+```ts
+const prompt = loadPrompt( 'writer@v1' );
+prompt.messages[0].providerOptions;
+// { anthropic: { cacheControl: { type: 'ephemeral' } } }
+```
+
+The only supported role-tag attribute is `options`. Any other attribute throws at load (previously this could fail later, at generate):
+
+```
+Error parsing content on prompt "writer@v1": Message has unsupported attributes. The only supported attribute is "options".
+```
+
+Unknown `options` names, `options` without a value, and `options` set while `config.messageOptions` is missing or empty also throw at load.
+
+### Prompt message roles are narrowed
+
+`PromptMessage.role` is now typed as `'system' | 'user' | 'assistant'` instead of `string`, matching the authored role blocks accepted by `loadPrompt()`. Code that constructs a `PromptMessage` from a dynamic string must validate or narrow the value before assigning it.
+
+### Prompt bodies use explicit parsing modes
+
+v0.11 searched the rendered body for supported role blocks wherever they appeared. This could silently ignore text outside those blocks, unknown top-level tags, and malformed attributes. v0.12 selects one mode from the first meaningful token after leading whitespace and HTML comments:
+
+- Plain text selects instruction mode. The whole trimmed body becomes `prompt.instructions`, including any tags that appear later.
+- A tag selects message mode. The complete body is validated as top-level role blocks and `prompt.instructions` is `null`.
+
+These modes describe `loadPrompt()` output; API requirements are unchanged. `generateText`, `generateTextWithStreaming`, `streamText`, and `Agent` require message mode, while `generateImage` requires instruction mode.
+
+For example, v0.11 extracted the `<user>` block here and discarded the surrounding text:
+
+```text
+Context for the prompt:
+<user>Summarize {{ article }}.</user>
+End of prompt.
+```
+
+In v0.12 this is one instruction string because it starts with text. To keep message mode, move the text inside the role block:
+
+```text
+<user>
+Context for the prompt:
+Summarize {{ article }}.
+End of prompt.
+</user>
+```
+
+Message mode now enforces these rules:
+
+- Top-level blocks must use `system`, `user`, or `assistant`.
+- Only whitespace and HTML comments may appear between blocks.
+- Root self-closing tags, unmatched closing tags, and unclosed blocks throw.
+- Different-name tags inside a message remain literal message content.
+- A nested non-self-closing tag with the same name as its message throws instead of prematurely closing the outer block. Escape literal examples, such as `&lt;user&gt;example&lt;/user&gt;`.
+- Attribute names, separators, and quotes are validated. Spaces around `=` and `>` inside quoted values are supported; malformed fragments no longer pass silently.
+
+Prompt files no longer accept authored `<tool>` blocks. Their string content never matched AI SDK's structured tool-result message contract, so text generation rejected them. AI SDK continues to create tool messages during execution, and Agent callers may supply structured tool messages through `messages` or `messageStore`.
+
+## LLM trace details
+
+Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) is the loaded prompt object only. Filename, interpolation values, and rendered config live on that object. Agent traces use the same shape as the text APIs (v0.11 recorded only the filename as `prompt`).
+
+End-trace `output` adds `cost` (the same payload as the cost attribute / `cost:llm:request` event; `null` when pricing is missing) and replaces tool-only `sourcesFromTools` with merged `sources` (tool results plus native provider sources; always an array).
+
+### Start (`input`)
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `prompt` (filename string) | `prompt.name` |
+| `variables` (sibling) | `prompt.variables` |
+| `loadedPrompt` (loaded object) | `prompt` |
+
+#### Before
+
+```json
+{
+  "prompt": "generate_summary@v1",
+  "variables": { "companyName": "Acme Corp" },
+  "loadedPrompt": {
+    "name": "generate_summary@v1",
+    "config": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
+  }
+}
+```
+
+#### After
+
+```json
+{
+  "prompt": {
+    "name": "generate_summary@v1",
+    "fileDir": "/prompts",
+    "variables": { "companyName": "Acme Corp" },
+    "config": { "provider": "anthropic", "model": "claude-sonnet-4-6" }
+  }
+}
+```
+
+If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `input.loadedPrompt`, switch to `input.prompt`. If you read sibling `input.variables`, use `input.prompt.variables`.
+
+### End (`output`)
+
+| v0.11.0 | v0.12.0 |
+| --- | --- |
+| `result`, `usage`, `providerMetadata` | same |
+| (cost only as a trace attribute) | `cost` on `output` as well (`null` if unknown) |
+| `sourcesFromTools` | `sources` (merged tool + provider sources) |
+
+#### Before
+
+```json
+{
+  "result": "Acme Corp is a B2B SaaS company...",
+  "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
+  "providerMetadata": { "anthropic": {} },
+  "sourcesFromTools": []
+}
+```
+
+#### After
+
+```json
+{
+  "result": "Acme Corp is a B2B SaaS company...",
+  "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
+  "cost": { "type": "llm:usage", "modelId": "claude-sonnet-4-6", "total": 0.01 },
+  "providerMetadata": { "anthropic": {} },
+  "sources": []
+}
+```
+
+If you read `output.sourcesFromTools`, switch to `output.sources`. If you relied on cost only as a trace attribute, it is also on `output.cost`.
+
+### Response source and cost types
+
+`ExtractedSource` now matches the AI SDK source union. A source can be a URL or a document, so narrow on `sourceType` before reading `url`:
+
+```ts
+// Before
+const urls = response.sources.map(source => source.url);
+
+// After
+const urls = response.sources
+  .filter(source => source.sourceType === 'url')
+  .map(source => source.url);
+```
+
+`LLMCallCost` and `LLMUsageEvent` now represent a live `Tracing.Attribute.LLMUsage` instance. The old `components` and `message` fields are gone; read the priced dimensions from `usage`. A missing calculation is represented by `response.cost === null`, not an object with `total: null`.
+
+If you type a serialized event, omit the instance method that is not present in JSON:
+
+```ts
+import type { LLMUsageEvent } from '@outputai/llm';
+
+type SerializedLLMUsageEvent = Omit<LLMUsageEvent, 'addUsage'>;
+```
+
+## AI SDK helpers come from `aiSdk`
+
+`@outputai/llm` no longer re-exports `tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, or `jsonSchema` as named exports. The namespace re-export `ai` is renamed to `aiSdk`.
+
+#### Before
+
+```ts
+import { generateText, Output, stepCountIs, tool } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'writer@v1',
+  output: Output.object( { schema } ),
+  stopWhen: stepCountIs( 1 ),
+  tools: { lookup: tool( { description: 'Lookup', parameters: schema, execute } ) }
+} );
+```
+
+#### After
+
+```ts
+import { generateText, aiSdk } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'writer@v1',
+  output: aiSdk.Output.object( { schema } ),
+  stopWhen: aiSdk.stepCountIs( 1 ),
+  tools: { lookup: aiSdk.tool( { description: 'Lookup', inputSchema: schema, execute } ) }
+} );
+```
+
+`import { ai } from '@outputai/llm'` becomes `import { aiSdk } from '@outputai/llm'`. Output APIs (`generateText`, `Agent`, `loadPrompt`, ...) stay named exports.
+
+Cherry-picked AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, `StreamTextOnChunkCallback`, ...) are also gone. Import those from `ai`, or as `aiSdk.ToolSet`.
+
+### Replace removed Output option types
+
+The Output-owned AI SDK option aliases were removed with the unrestricted native arguments. Use the corresponding public parameter type:
+
+```ts
+// Before
+import type {
+  GenerateTextAiSdkOptions,
+  StreamTextAiSdkOptions,
+  GenerateImageAiSdkOptions
+} from '@outputai/llm';
+
+// After
+import type {
+  GenerateTextParameters,
+  StreamTextParameters,
+  GenerateImageParameters
+} from '@outputai/llm';
+```
+
+`OutputAgentGenerateWithStreamingParameters` no longer accepts an output type argument. Remove the generic:
+
+```ts
+// Before
+type Options = OutputAgentGenerateWithStreamingParameters<MyOutput>;
+
+// After
+type Options = OutputAgentGenerateWithStreamingParameters;
+```
+
+## Call arguments are a fixed list
+
+Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Calls no longer accept `temperature`, `maxTokens`, `maxSteps`, `providerOptions`, image `n`/`size`/`seed`, `experimental_transform`, `onStepFinish`, and similar. Unknown keys throw. Set model and image config (including `maxSteps`, default 10) on the prompt file; call-argument `stopWhen` still overrides it.
+
+| Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
+|----------|----------------|-----------------------------|--------------|-----------------|
+| `prompt` | required | required | required | required |
+| `promptDir` | optional | optional | optional | optional |
+| `variables` | optional | optional | optional | optional |
+| `tools` | optional | optional | optional | - |
+| `output` | optional | optional | optional | - |
+| `toolChoice` | optional | optional | optional | - |
+| `stopWhen` | optional | optional | optional | - |
+| `abortSignal` | optional | optional | optional | optional |
+| `onChunk` | - | optional | optional | - |
+| `onFinish` | - | - | optional | - |
+| `onError` | - | - | optional | - |
+| `images` | - | - | - | optional |
+| `mask` | - | - | - | optional |
+
+| Argument | `new Agent` | `.generate` | `.generateWithStreaming` | `.stream` |
+|----------|-------------|--------------------------|-----------|-----------|
+| `prompt` | required | - | - | - |
+| `promptDir` | optional | - | - | - |
+| `variables` | optional | - | - | - |
+| `tools` | optional | - | - | - |
+| `output` | optional | - | - | - |
+| `stopWhen` | optional | - | - | - |
+| `messageStore` | optional | - | - | - |
+| `messages` | - | optional | optional | optional |
+| `abortSignal` | - | optional | optional | optional |
+| `toolChoice` | - | optional | optional | optional |
+| `onChunk` | - | - | optional | optional |
+| `onFinish` | - | - | - | optional |
+| `onError` | - | - | - | optional |
+
+`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+
+`streamText()` and `Agent.stream()` now treat `onError` as a fire-and-forget observer. Output maps and forwards the provider error, but exceptions and rejected promises from the callback are ignored. To fail a workflow step with the original error, capture it in `onError` and throw it after consuming the stream.
+
+## Agent message store
+
+`conversationStore` is renamed to `messageStore`. The type is `MessageStore`. `createMemoryConversationStore()` is removed; implement the store yourself.
+
+#### Before
+
+```ts
+import { Agent, createMemoryConversationStore } from '@outputai/llm';
+
+new Agent( {
+  prompt: 'chatbot@v1',
+  conversationStore: createMemoryConversationStore()
+} );
+```
+
+#### After
+
+```ts
+import { Agent } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
+
+const messages: Parameters<MessageStore['addMessages']>[0] = [];
+const messageStore: MessageStore = {
+  getMessages: () => messages,
+  addMessages: incoming => {
+    messages.push( ...incoming );
+  }
+};
+
+new Agent( {
+  prompt: 'chatbot@v1',
+  messageStore
+} );
+```
+
+### Move model config onto the prompt
+
+#### Before
+
+```ts
+await generateText( {
+  prompt: 'writer@v1',
+  temperature: 0.2,
+  maxSteps: 5,
+  maxRetries: 2
+} );
+
+await generateTextWithStreaming( {
+  prompt: 'writer@v1',
+  experimental_transform: aiSdk.smoothStream()
+} );
+```
+
+#### After
+
+```yaml prompts/writer@v1.prompt
+---
+provider: anthropic
+model: claude-sonnet-4-6
+temperature: 0.2
+maxSteps: 5
+---
+```
+
+```ts
+await generateText( { prompt: 'writer@v1' } );
+```
+
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
+
+If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
+
+```ts
+import { generateText, aiSdk } from '@outputai/llm';
+
+await generateText( {
+  prompt: 'grounded@v1',
+  stopWhen: aiSdk.stepCountIs( 1 )
+} );
+```
+
+## Agent constructor validation
+
+`new Agent( {} )` no longer throws `Agent requires a prompt`. Invalid constructor args use the same schema as `generateText` and throw `Invalid Agent() arguments`.
+
+That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument `skills` or `maxSteps` fields.
+
+## Prompt config is a strict key list
+
+Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings, and `maxTokens` must be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
+
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+
+Snake_case aliases of those keys fail with a suggestion:
+
+```
+Invalid prompt file "writer@v1": Unrecognized key: "max_tokens". "max_tokens" is not valid; use "maxTokens"
+```
+
+Move provider-specific fields under `providerOptions`. `effort` and `reasoningEffort` at the top level are unknown keys; they belong under `providerOptions.anthropic` and `providerOptions.openai`.
+
+#### Before
+
+```yaml
+---
+provider: openai
+model: gpt-5.4
+reasoningEffort: medium
+max_tokens: 16000
+---
+```
+
+#### After
+
+```yaml
+---
+provider: openai
+model: gpt-5.4
+maxTokens: 16000
+providerOptions:
+  openai:
+    reasoningEffort: medium
+---
+```
+
+## Checklist
+
+- Delete `skills` from `generateText` / `streamText` / `generateTextWithStreaming` / `Agent` calls.
+- Remove `skill()`, `Skill`, and `SkillsArg` imports; move inline skills into files listed under prompt `skills:`.
+- Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
+- Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
+- Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
+- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
+- Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
+- Treat `config.skills` as always `string[]` after `loadPrompt`.
+- Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
+- Treat `prompt.instructions` as always `string | null` after `loadPrompt` (chat prompts are `null`).
+- Read `message.providerOptions` instead of `message.attributes` on `loadPrompt` results and LLM trace `input.prompt.messages`.
+- Narrow dynamic role strings before assigning them to `PromptMessage.role`; the type now accepts only `'system'`, `'user'`, and `'assistant'`.
+- Remove unknown attributes from role tags (`name`, `id`, `pinned`, ...). Only `options` is allowed; extras throw at `loadPrompt`.
+- Remove authored `<tool>` blocks from prompt files; pass structured tool history through Agent `messages` or `messageStore`.
+- Audit prompt bodies that put prose before the first role tag. They now load as instructions; move the prose inside a role block to keep message mode.
+- Remove text between or after top-level role blocks. Only whitespace and HTML comments are allowed there.
+- Escape literal same-name role tags inside messages (`&lt;user&gt;...&lt;/user&gt;`). Different-name semantic tags remain valid content.
+- Give every `options` attribute a value and fix malformed attribute names or quotes; prompt markup now fails explicitly at load.
+- Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
+- Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
+- Narrow `ExtractedSource` on `sourceType` before reading `url`. Treat `LLMCallCost` / `LLMUsageEvent` as live usage instances and omit `addUsage` when typing serialized JSON.
+- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
+- Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.
+- Expect `Agent.stream()` to persist message-store history on success.
+- Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
+- Update Agent tests and error matchers that expected `Agent requires a prompt`.
+- Ensure prompt `provider` and `model` values are non-empty, and set `maxTokens` to a positive integer.
+- Move unknown prompt frontmatter keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`) onto the allowlist or under `providerOptions`. Expect `Invalid prompt file` for leftover extras.

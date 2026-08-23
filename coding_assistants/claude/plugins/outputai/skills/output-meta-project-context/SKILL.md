@@ -84,7 +84,7 @@ src/
 | HTTP client | `import { createKyClient } from '@outputai/http'` | `import axios from 'axios'` |
 | HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
 | Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
-| LLM calls | `import { generateText, Output } from '@outputai/llm'` | Direct provider SDK |
+| LLM calls | `import { generateText, aiSdk } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
 | Workflow I/O | Call steps for any I/O | Direct fetch/http in workflow |
 
@@ -387,14 +387,14 @@ Provide {{ numberOfPoints | default: 3 }} key insights.
 
 **Using in steps:**
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 // Structured output
 const { output } = await generateText( {
   prompt: 'analyze@v1',
   variables: { content: 'Article text...', numberOfPoints: 5 },
-  output: Output.object( {
+  output: aiSdk.Output.object( {
     schema: z.object( { insights: z.array( z.string() ) } )
   } )
 } );
@@ -406,9 +406,11 @@ const { result } = await generateText( {
 } );
 ```
 
+Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`, plus streaming callbacks.
+
 For progress callbacks inside a step, prefer `generateTextWithStreaming()` or `Agent.generateWithStreaming()`. They return complete results and reject on stream failures. If direct `streamText()` access is required, capture `onError` and throw the captured error after consuming the stream. See `output-dev-llm-streaming`.
 
-**Provider & model selection:** the SDK supports `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, and `perplexity` (the registered list lives in the SDK's provider registry, `sdk/llm/src/ai_provider.js`). Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
+**Provider & model selection:** the SDK supports `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, and `perplexity`. Don't pin specific model IDs in docs — they drift. To pick a current model, run [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md), which queries the AI Gateway model index live.
 
 See `output-dev-prompt-file` for comprehensive patterns.
 

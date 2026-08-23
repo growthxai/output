@@ -14,23 +14,24 @@ The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and 
 
 - Building multi-step agents that call tools in a loop
 - Using skills (lazy-loaded instructions) with an agent
-- Creating agents with structured output via `Output.object()`
-- Implementing stateful conversations with `conversationStore`
+- Creating agents with structured output via `aiSdk.Output.object()`
+- Implementing stateful conversations with `messageStore`
 - Streaming Agent progress with `onChunk`
 - Deciding between `Agent` and `generateText`
 
 ## Import Pattern
 
 ```typescript
-import { Agent, createMemoryConversationStore, skill, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
 import { z } from '@outputai/core';
 ```
 
-`Agent`, `createMemoryConversationStore`, `skill`, and `Output` all come from `@outputai/llm`. Import `z` from `@outputai/core` (never from `zod` directly).
+`Agent` comes from `@outputai/llm`. Use `aiSdk.Output` for structured output. Import `z` from `@outputai/core` (never from `zod` directly). `MessageStore` is the type for a pluggable `getMessages` / `addMessages` store; implement it yourself.
 
 ## Construction
 
-The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 ```typescript
 const agent = new Agent( {
@@ -40,9 +41,7 @@ const agent = new Agent( {
     focus: input.focus,
     content: input.content
   },
-  skills: [ audienceSkill ],
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 ```
 
@@ -51,16 +50,12 @@ const agent = new Agent( {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
-| `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `skills` | `Skill[]` | `[]` | Skill packages for the LLM (see `output-dev-skill-file`) |
-| `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
-| `output` | `Output` | - | Structured output spec (e.g. `Output.object({ schema })`) |
-| `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
-| `temperature` | `number` | - | Override prompt file temperature |
-| `onStepFinish` | `Function` | - | Callback after each tool-loop step |
-| `prepareStep` | `Function` | - | Customize each step before execution |
+| `promptDir` | `string` | - | Override the stack-resolved prompt directory |
+| `variables` | `PromptVariables` | - | Template variables rendered at construction |
+| `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
+| `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
+| `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
+| `messageStore` | `MessageStore` | - | Pluggable store for multi-turn history |
 
 ## generate()
 
@@ -69,7 +64,7 @@ Run the agent and return when complete:
 ```typescript
 const result = await agent.generate();
 console.log( result.text );   // Generated text
-console.log( result.output ); // Structured output (when using Output.object)
+console.log( result.output ); // Structured output (when using aiSdk.Output.object)
 console.log( result.usage );  // Token counts
 ```
 
@@ -85,7 +80,7 @@ const result = await agent.generate( {
 } );
 ```
 
-Messages are appended after the initial prompt messages (and any conversation store history).
+Messages are appended after the initial prompt messages (and any message-store history). You can also pass `abortSignal` and `toolChoice`.
 
 ## generateWithStreaming()
 
@@ -101,11 +96,11 @@ const result = await agent.generateWithStreaming( {
 } );
 ```
 
-The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
+The method behaves like `generate()` while using streaming internally. It returns the complete response, rejects on stream errors, and automatically appends messages to the configured message store. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`. Prefer it over `stream()` in Temporal activity steps unless direct access to the stream result is required.
 
 ## stream()
 
-Use `stream()` when direct control over `textStream` or `fullStream` is required:
+Use `stream()` when direct control over `textStream` or `fullStream` is required. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
 
 ```typescript
 const stream = await agent.stream();
@@ -117,11 +112,11 @@ for await ( const chunk of stream.textStream ) {
 
 Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
 
-**Important**: `stream()` does not automatically append messages to the conversation store. If you use direct streaming with a conversation store, persist messages manually in `onFinish`. See `output-dev-llm-streaming` for the complete streaming and error-handling guidance.
+`stream()` appends messages to the message store in its wrapped `onFinish` when `finishReason` is not `'error'`. See `output-dev-llm-streaming` for streaming and error-handling guidance.
 
 ## Structured Output
 
-Use `Output.object()` to get typed responses:
+Use `aiSdk.Output.object()` to get typed responses:
 
 ```typescript
 const reviewSchema = z.object( {
@@ -134,8 +129,7 @@ const reviewSchema = z.object( {
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
+  output: aiSdk.Output.object( { schema: reviewSchema } )
 } );
 
 const { output } = await agent.generate();
@@ -144,17 +138,25 @@ const { output } = await agent.generate();
 
 Use `.describe()` on schema fields instead of `.min()/.max()` for number constraints. Anthropic does not support `minimum`/`maximum` JSON Schema constraints in tool definitions.
 
-## Conversation Store
+## Message Store
 
-By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `conversationStore` to maintain history across calls:
+By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `messageStore` to maintain history across calls:
 
 ```typescript
-import { Agent, createMemoryConversationStore } from '@outputai/llm';
+import { Agent } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
 
-const store = createMemoryConversationStore();
+const messages: Parameters<MessageStore['addMessages']>[0] = [];
+const messageStore: MessageStore = {
+  getMessages: () => messages,
+  addMessages: incoming => {
+    messages.push( ...incoming );
+  }
+};
+
 const chatbot = new Agent( {
   prompt: 'chatbot@v1',
-  conversationStore: store
+  messageStore
 } );
 
 const r1 = await chatbot.generate( {
@@ -165,21 +167,19 @@ const r1 = await chatbot.generate( {
 const r2 = await chatbot.generate( {
   messages: [ { role: 'user', content: 'How does it handle retries?' } ]
 } );
-// r2 sees the full conversation history from r1
+// r2 sees the full history from r1
 ```
 
-### Custom Store
-
-For production use, implement the `ConversationStore` interface with your database:
+`MessageStore` is:
 
 ```typescript
-interface ConversationStore {
+interface MessageStore {
   getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
-  addMessages(messages: ModelMessage[]): void | Promise<void>;
+  addMessages( messages: ModelMessage[] ): void | Promise<void>;
 }
 ```
 
-`createMemoryConversationStore()` is the built-in in-memory implementation.
+`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 ## Using Agent in Workflow Steps
 
@@ -187,7 +187,7 @@ In workflow steps, construct a new Agent per invocation. Variables come from the
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 
 const reviewSchema = z.object( {
   summary: z.string().describe( 'Brief assessment' ),
@@ -209,8 +209,7 @@ export const reviewContent = step( {
     const agent = new Agent( {
       prompt: 'writing_assistant@v1',
       variables: input,
-      output: Output.object( { schema: reviewSchema } ),
-      maxSteps: 5
+      output: aiSdk.Output.object( { schema: reviewSchema } )
     } );
     const { output } = await agent.generate();
     return output;
@@ -220,35 +219,9 @@ export const reviewContent = step( {
 
 This is the standard pattern. Each step invocation is independent, and Agent construction is cheap.
 
-## Using Agent with Inline Skills
+## Using Agent with Skills
 
-Combine inline skills with Agent for dynamic expertise:
-
-```typescript
-import { Agent, skill, Output } from '@outputai/llm';
-
-const audienceSkill = skill( {
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: `# Audience Adaptation
-
-When the target audience is specified, adjust your feedback:
-**Beginner**: Flag jargon as high-priority issues.
-**Expert**: Focus on accuracy and completeness.
-Always mention the audience level in your summary.`
-} );
-
-const agent = new Agent( {
-  prompt: 'writing_assistant@v1',
-  variables: input,
-  skills: [ audienceSkill ],
-  output: Output.object( { schema: reviewSchema } ),
-  maxSteps: 5
-} );
-const { output } = await agent.generate();
-```
-
-Inline skills are merged with any file-based skills from the prompt's colocated `skills/` directory or frontmatter paths. See `output-dev-skill-file` for the full skills guide.
+List skill paths in the prompt frontmatter. See `output-dev-skill-file` for the full skills guide.
 
 ## When to Use Agent vs generateText
 
@@ -257,9 +230,9 @@ Inline skills are merged with any file-based skills from the prompt's colocated 
 | **Best for** | Single-shot LLM calls | Multi-step tool loops |
 | **Tools** | Supported | Supported |
 | **Skills** | Supported | Supported |
-| **Conversation history** | Manual | Built-in with `conversationStore` |
+| **Conversation history** | Manual | Built-in with `messageStore` |
 | **Reusable instance** | No (function call) | Yes (construct once, call many) |
-| **Structured output** | `Output.object()` | `Output.object()` |
+| **Structured output** | `aiSdk.Output.object()` | `aiSdk.Output.object()` |
 
 Start with `generateText`. Move to `Agent` when you need conversation state or a reusable instance with a fixed configuration.
 
@@ -283,9 +256,9 @@ const { result } = await generateText( {
 - [ ] Import `z` from `@outputai/core` (never from `zod`)
 - [ ] Prompt file exists in `prompts/` folder
 - [ ] Variables match `{{ variable }}` placeholders in the prompt
-- [ ] `maxSteps` is set when using skills or tools (default 10)
-- [ ] `Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
-- [ ] Conversation store is only used when multi-turn history is needed
+- [ ] Prompt frontmatter sets `maxSteps` when skills or tools need a ceiling other than 10
+- [ ] `aiSdk.Output.object({ schema })` uses `.describe()` not `.min()/.max()` on numbers
+- [ ] `messageStore` is only used when multi-turn history is needed
 - [ ] Agent is constructed inside the step `fn` (not at module level) for workflow steps
 - [ ] Prefer `generateWithStreaming()` when callbacks are sufficient
 

@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, stepCountIs } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { perplexitySearch } from '@perplexity-ai/ai-sdk';
 import { searchOutputSchema } from './types.js';
 
@@ -15,7 +15,7 @@ export const searchWeb = step( {
       tools: {
         search: perplexitySearch()
       },
-      stopWhen: stepCountIs( 3 )
+      stopWhen: aiSdk.stepCountIs( 3 )
     } );
 
     return {

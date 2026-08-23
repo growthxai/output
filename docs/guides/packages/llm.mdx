@@ -3,20 +3,20 @@ title: "@outputai/llm"
 description: "Generate and stream text, structured outputs, and images with prompt file management"
 ---
 
-The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) — version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place.
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) - version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. Call arguments are the lists under [Call arguments](#call-arguments). AI SDK helpers and types (`Output`, `tool`, `stepCountIs`, `ToolSet`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
 
 ## Generate Functions
 
-`generateText` is the primary function for LLM calls. Use the `output` parameter with `Output.*` helpers to control the response shape. When you need progress as text arrives, prefer `generateTextWithStreaming` in workflow steps: it uses streaming internally but returns a complete result and rejects on provider or transport errors. Use `streamText` when you need direct control over the stream:
+`generateText` is the primary function for LLM calls. Use the `output` parameter with `aiSdk.Output.*` helpers to control the response shape. When you need progress as text arrives, prefer `generateTextWithStreaming` in workflow steps: it uses streaming internally but returns a complete result and rejects on provider or transport errors. Use `streamText` when you need direct control over the stream:
 
 | Output Shape | How | Use when you need |
 |--------------|-----|-------------------|
 | Unstructured text | `generateText({ prompt })` | Summaries, emails, explanations |
 | Complete text with streaming callbacks | `generateTextWithStreaming({ prompt, onChunk })` | Progress updates with normal promise-based error handling |
 | Raw text stream | `streamText({ prompt })` | Direct access to `textStream`, `fullStream`, and stream promises |
-| Typed object | `generateText({ prompt, output: Output.object({ schema }) })` | Structured data, evaluator judgments |
-| Array of objects | `generateText({ prompt, output: Output.array({ element }) })` | Lists, multiple items |
-| One of N choices | `generateText({ prompt, output: Output.choice({ options }) })` | Classification, routing |
+| Typed object | `generateText({ prompt, output: aiSdk.Output.object({ schema }) })` | Structured data, evaluator judgments |
+| Array of objects | `generateText({ prompt, output: aiSdk.Output.array({ element }) })` | Lists, multiple items |
+| One of N choices | `generateText({ prompt, output: aiSdk.Output.choice({ options }) })` | Classification, routing |
 | Image | `generateImage({ prompt })` | Text-to-image, image-to-image, and image edits |
 
 ### Text Output
@@ -100,7 +100,7 @@ export const generateContent = step({
 });
 ```
 
-`generateTextWithStreaming` also supports structured output. Pass an `Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
+`generateTextWithStreaming` also supports structured output. Pass an `aiSdk.Output.*` specification and read the parsed value from `result.output`, just as with `generateText`.
 
 #### Direct stream access
 
@@ -130,19 +130,7 @@ if (captured.error) {
 const content = chunks.join('');
 ```
 
-Registering `onError` alone is not enough to fail the step. The callback does not throw for you, and awaiting a completion property can produce a generic no-output error instead of the original provider error.
-
-Both streaming APIs accept stream transforms such as `smoothStream` for more natural output pacing:
-
-```typescript
-import { generateTextWithStreaming, smoothStream } from '@outputai/llm';
-
-const result = await generateTextWithStreaming({
-  prompt: 'generate@v1',
-  variables: { topic },
-  experimental_transform: smoothStream()
-});
-```
+Registering `onError` alone is not enough to fail the step. Output treats it as a fire-and-forget observer: exceptions and rejected promises from the callback are ignored to avoid a secondary stream failure. Capture the mapped error and throw it after consumption; awaiting a completion property can produce a generic no-output error instead of the original provider error.
 
 ### Object Output
 
@@ -150,7 +138,7 @@ Generate a structured object matching a Zod schema. This is what you'll use most
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -165,7 +153,7 @@ export const judgeSummaryQuality = evaluator({
         summary: input.summary,
         companyName: input.companyName
       },
-      output: Output.object({
+      output: aiSdk.Output.object({
         schema: z.object({
           reasoning: z.string(),
           passes: z.boolean(),
@@ -195,7 +183,7 @@ export const judgeSummaryQuality = evaluator({
 
 ### Image Output
 
-Generate images from a prompt file with `generateImage`. Image prompt files use plain instructions, not chat role tags like `<system>` or `<user>`:
+Generate images from a prompt file with `generateImage`. Image prompt files use plain instructions, not chat role tags like `<system>` or `<user>`. Keep plain text as the first meaningful body content so Output selects [instruction mode](/prompts#prompt-body-modes):
 
 ```yaml prompts/nascar_race@v1.prompt
 ---
@@ -266,14 +254,7 @@ const response = await generateImage({
   variables: {
     scene: 'Use the reference car as the hero car in a night race restart.'
   },
-  images: [referenceImage],
-  providerOptions: {
-    openai: {
-      background: 'auto',
-      quality: 'high',
-      output_format: 'png'
-    }
-  }
+  images: [referenceImage]
 });
 
 const image = response.result;
@@ -282,7 +263,7 @@ const image = response.result;
 Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBuffer`, raw base64 strings, or `{ data, mediaType }` objects. `mask` uses the same input shape and requires `images`.
 
 <Note>
-`generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and pass concrete provider options through prompt front matter or `providerOptions`.
+`generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and set concrete provider options in prompt front matter (`size`, `n`, `aspectRatio`, `seed`, `providerOptions`).
 </Note>
 
 Common image options can live in prompt front matter:
@@ -301,13 +282,13 @@ Common image options can live in prompt front matter:
 Generate an array of structured items:
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { output } = await generateText({
   prompt: 'extract_contacts@v1',
   variables: { companyData: JSON.stringify(company) },
-  output: Output.array({
+  output: aiSdk.Output.array({
     element: z.object({
       name: z.string(),
       role: z.string(),
@@ -324,12 +305,12 @@ const { output } = await generateText({
 Select one value from a set of options:
 
 ```typescript
-import { generateText, Output } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 
 const { output } = await generateText({
   prompt: 'classify_lead@v1',
   variables: { activity: leadActivity },
-  output: Output.choice({ options: ['hot', 'warm', 'cold', 'unknown'] })
+  output: aiSdk.Output.choice({ options: ['hot', 'warm', 'cold', 'unknown'] })
 });
 
 // output is one of 'hot', 'warm', 'cold', 'unknown'
@@ -341,18 +322,13 @@ The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/pro
 
 ### Construction
 
-The prompt file is loaded and rendered at construction time. Variables, skills, and tools are fixed at construction. The agent is ready to call `generate()` or `stream()` immediately.
+The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
+
+Each call seeds authored `<user>` blocks from the prompt. `<system>` blocks become `instructions`. Authored `<assistant>` blocks are dropped; use `generateText` when the prompt is a few-shot or prefilled thread.
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { Agent, Output, skill } from '@outputai/llm';
-import { z } from '@outputai/core';
-
-const audienceSkill = skill({
-  name: 'audience_adaptation',
-  description: 'Tailor feedback for the specified expertise level',
-  instructions: '# Audience Adaptation\n...'
-});
+import { Agent, aiSdk } from '@outputai/llm';
 
 export const reviewContent = step({
   name: 'reviewContent',
@@ -367,9 +343,7 @@ export const reviewContent = step({
         focus: input.focus,
         content: input.content
       },
-      skills: [audienceSkill],
-      output: Output.object({ schema: reviewSchema }),
-      maxSteps: 5
+      output: aiSdk.Output.object({ schema: reviewSchema })
     });
     const { output } = await agent.generate();
     return output;
@@ -382,16 +356,12 @@ export const reviewContent = step({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
-| `variables` | `Record<string, unknown>` | `{}` | Template variables rendered at construction |
-| `skills` | `Skill[]` | `[]` | [Skill](/prompts/skills) packages for the LLM |
-| `tools` | `ToolSet` | `{}` | AI SDK tools available during the loop |
-| `maxSteps` | `number` | `10` | Maximum tool-loop iterations |
-| `stopWhen` | `StopCondition` | - | Custom stop condition (overrides `maxSteps`) |
-| `output` | `Output` | - | Structured output spec (e.g. `Output.object({ schema })`) |
-| `conversationStore` | `ConversationStore` | - | Pluggable store for multi-turn history |
-| `temperature` | `number` | - | Override prompt file temperature |
-| `onStepFinish` | `Function` | - | Callback after each tool-loop step |
-| `prepareStep` | `Function` | - | Customize each step before execution |
+| `promptDir` | `string` | - | Override the stack-resolved prompt directory |
+| `variables` | `PromptVariables` | - | Template variables rendered at construction |
+| `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
+| `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
+| `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
+| `messageStore` | `MessageStore` | - | Pluggable store for multi-turn history |
 
 ### generate()
 
@@ -400,13 +370,13 @@ Run the agent and return when complete:
 ```typescript
 const result = await agent.generate();
 console.log(result.text);   // Generated text
-console.log(result.output); // Structured output (when using Output.object)
+console.log(result.output); // Structured output (when using aiSdk.Output.object)
 console.log(result.usage);  // Token counts
 ```
 
 The result has the same shape as `generateText`: `text`, `result` (alias for `text`), `output`, `usage`, `finishReason`, `toolCalls`, etc.
 
-Pass additional messages to extend the conversation:
+Pass additional messages to extend the conversation. You can also pass `abortSignal` and `toolChoice`:
 
 ```typescript
 const result = await agent.generate({
@@ -416,7 +386,7 @@ const result = await agent.generate({
 
 ### generateWithStreaming()
 
-Use `generateWithStreaming()` when you want streaming progress and a complete result:
+Use `generateWithStreaming()` when you want streaming progress and a complete result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`:
 
 ```typescript
 const result = await agent.generateWithStreaming({
@@ -428,28 +398,37 @@ const result = await agent.generateWithStreaming({
 });
 ```
 
-Like `generate()`, the method returns the complete response, rejects on stream errors, and automatically appends messages to the configured conversation store. Prefer it over `stream()` in workflow steps unless you need direct access to the stream result.
+Like `generate()`, the method returns the complete response, rejects on stream errors, and automatically appends messages to the configured message store. Prefer it over `stream()` in workflow steps unless you need direct access to the stream result.
 
 ### stream()
 
-Use `stream()` when you need direct access to the agent's stream result:
+Use `stream()` when you need direct access to the agent's stream result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
 
 ```typescript
-const stream = await agent.stream();
+const captured: { error: unknown } = { error: null };
+const stream = await agent.stream({
+  onError({ error }) {
+    captured.error = error;
+  }
+});
 
 for await (const chunk of stream.textStream) {
   process.stdout.write(chunk);
 }
+
+if (captured.error) {
+  throw captured.error;
+}
 ```
 
-Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
+Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion. In a workflow step, capture and rethrow `onError` as shown so a failed stream cannot become an empty successful activity.
 
 ### Structured Output
 
-Use `Output.object()` with Agent to get typed responses:
+Use `aiSdk.Output.object()` with Agent to get typed responses:
 
 ```typescript steps.ts
-import { Agent, Output } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const reviewSchema = z.object({
@@ -462,25 +441,34 @@ const reviewSchema = z.object({
 const agent = new Agent({
   prompt: 'writing_assistant@v1',
   variables: { content_type: 'documentation', focus: 'clarity', content: markdownContent },
-  output: Output.object({ schema: reviewSchema }),
-  maxSteps: 5
+  output: aiSdk.Output.object({ schema: reviewSchema })
 });
 
 const { output } = await agent.generate();
 // output: { issues: string[], suggestions: string[], score: number, summary: string }
 ```
 
-### Conversation Store
+### Message Store
 
-By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `conversationStore` to maintain history across calls:
+By default, Agent is stateless. Each `generate()` / `stream()` call starts from the prompt seed (authored `<user>` blocks) plus this turn's `messages`. Pass a `messageStore` to keep history across calls.
+
+The store holds this turn's caller messages plus the model reply. It does not persist the prompt seed. Reconstructing an agent is the same prompt (and variables) plus a hydrated store.
 
 ```typescript
-import { Agent, createMemoryConversationStore } from '@outputai/llm';
+import { Agent } from '@outputai/llm';
+import type { MessageStore } from '@outputai/llm';
 
-const store = createMemoryConversationStore();
+const messages: Parameters<MessageStore['addMessages']>[0] = [];
+const messageStore: MessageStore = {
+  getMessages: () => messages,
+  addMessages: incoming => {
+    messages.push(...incoming);
+  }
+};
+
 const chatbot = new Agent({
   prompt: 'chatbot@v1',
-  conversationStore: store
+  messageStore
 });
 
 const r1 = await chatbot.generate({
@@ -491,22 +479,22 @@ const r1 = await chatbot.generate({
 const r2 = await chatbot.generate({
   messages: [{ role: 'user', content: 'How does it handle retries?' }]
 });
-// r2 sees the full conversation history from r1
+// r2 sees the full history from r1
 ```
 
-For custom storage backends, implement the `ConversationStore` interface:
+`MessageStore` is:
 
 ```typescript
-interface ConversationStore {
+interface MessageStore {
   getMessages(): ModelMessage[] | Promise<ModelMessage[]>;
   addMessages(messages: ModelMessage[]): void | Promise<void>;
 }
 ```
 
-`createMemoryConversationStore()` is the built-in in-memory implementation. For production, implement the interface with your database.
+`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 <Note>
-`generate()` and `generateWithStreaming()` automatically append messages to the conversation store. `stream()` does not; if you use direct streaming with a conversation store, persist messages manually in the `onFinish` callback.
+`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store. `stream()` stores in its wrapped `onFinish` when `finishReason` is not `'error'`.
 </Note>
 
 ### When to Use Agent vs generateText
@@ -516,9 +504,9 @@ interface ConversationStore {
 | **Best for** | Single-shot LLM calls | Multi-step tool loops |
 | **Tools** | Supported | Supported |
 | **Skills** | Supported | Supported |
-| **Conversation history** | Manual | Built-in with `conversationStore` |
+| **Conversation history** | Manual | Built-in with `messageStore` |
 | **Reusable instance** | No (function call) | Yes (construct once, call many) |
-| **Structured output** | `Output.object()` | `Output.object()` |
+| **Structured output** | `aiSdk.Output.object()` | `aiSdk.Output.object()` |
 
 Start with `generateText`. Move to `Agent` when you need conversation state or a reusable instance with a fixed configuration.
 
@@ -530,13 +518,14 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 |-------|-------------|
 | `result` | Convenience alias for `text` |
 | `text` | The raw generated text |
-| `output` | The structured output when using `Output.*` helpers |
+| `output` | The structured output when using `aiSdk.Output.*` helpers |
 | `usage` | Token counts: `inputTokens`, `outputTokens`, `totalTokens` |
 | `finishReason` | Why generation stopped (`'stop'`, `'length'`, `'tool-calls'`, etc.) |
 | `response` | Raw provider response metadata |
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
-| `cost` | LLM usage attribute with `modelId`, `usage`, `total`, and `tokensUsed`; `null` when pricing could not be computed |
+| `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
+| `cost` | LLM usage attribute (`type`, `modelId`, `usage`, `total`, `tokensUsed`); `null` when pricing could not be computed |
 
 The `cost` property is an LLM usage attribute:
 
@@ -567,6 +556,8 @@ Only available, finite usage dimensions are included in `usage`. For example, `r
 | `toolCalls` | `Promise` | Tool calls made during streaming, resolved on completion |
 | `response` | `Promise` | Raw provider response metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
+
+`streamText` / `Agent.stream()` `onFinish` receives the wrapped finish payload: `result` (alias for `text`), `cost` (`null` when pricing is missing), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -599,8 +590,14 @@ Company size: {{ size }} employees
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature (0.0-2.0) |
 | `maxTokens` | `number` | Maximum output tokens |
+| `maxSteps` | `number` (default 10 after `loadPrompt`) | Tool-loop iterations when tools or skills are present |
+| `skills` | `string` or `string[]` in YAML; always `string[]` after `loadPrompt` (`[]` if omitted) | Skill file or directory paths, relative to this prompt |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
-| `providerOptions` | `object` | Provider-specific options — see [ProviderOptions Guide](/prompts#provider-options) |
+| `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
+| `messageOptions` | `object` | Named per-message `providerOptions` sets |
+| `n`, `size`, `aspectRatio`, `seed`, `maxImagesPerCall` | | Image generation fields |
+
+Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known fields (`max_tokens`) include a suggestion (`use "maxTokens"`). Put provider-specific keys such as `effort`, `reasoningEffort`, and `topP` under `providerOptions`.
 
 ## Providers
 
@@ -713,15 +710,15 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged — register under a models.dev provider id if you need automatic pricing.
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged - register under a models.dev provider id if you need automatic pricing.
 
 ## Prompt Caching
 
-When a prompt sends the same large prefix on every call — a long system prompt, few-shot examples, a pasted reference document — you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
+When a prompt sends the same large prefix on every call - a long system prompt, few-shot examples, a pasted reference document - you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
 
 ### Anthropic
 
-Anthropic caches only what you explicitly mark. Define a `cacheControl` set in `messageOptions` and attach it — with `options` — to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
+Anthropic caches only what you explicitly mark. Define a `cacheControl` set in `messageOptions` and attach it - with `options` - to the block that ends your static prefix. Everything up to and including that block is cached and reused on the next call:
 
 ```text prompts/generate_summary@v1.prompt
 ---
@@ -744,17 +741,17 @@ Summarize {{ companyName }}.
 </user>
 ```
 
-Only the `<user>` block — the part that changes each call — is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks.
+Only the `<user>` block - the part that changes each call - is re-billed at full price; the cached `<system>` prefix is charged at the much cheaper cache-read rate. For the 1-hour cache instead of the default 5 minutes, add `ttl: 1h` under `cacheControl`. A block can reference several sets (`options="cached fast"`), and a set can be reused across blocks. Bare `options` and names missing from `messageOptions` throw when the prompt loads.
 
 <Warning>
 Attach the set to the last **static** block, never one containing per-call `{{ variables }}`. A breakpoint on changing content rewrites the cache on every call and never gets a hit. Order your blocks static-first, dynamic-last.
 </Warning>
 
-Each set is a provider-namespaced `providerOptions` object — the same shape and [namespace rules](/prompts#provider-options) as call-level `providerOptions`. On Vertex with a Claude model, use the same `anthropic` namespace.
+Each set is a provider-namespaced `providerOptions` object - the same shape and [namespace rules](/prompts#provider-options) as prompt-file `providerOptions`. On Vertex with a Claude model, use the same `anthropic` namespace.
 
 ### OpenAI
 
-OpenAI caches automatically — there are no breakpoints to set, so the `messageOptions` mechanism above isn't needed. Any prompt of 1024 tokens or longer is cached for you, with no markup. To improve hit rates across calls, set a stable `promptCacheKey` (and, on GPT-5.1+, extend retention) via `providerOptions`:
+OpenAI caches automatically - there are no breakpoints to set, so the `messageOptions` mechanism above isn't needed. Any prompt of 1024 tokens or longer is cached for you, with no markup. To improve hit rates across calls, set a stable `promptCacheKey` (and, on GPT-5.1+, extend retention) via `providerOptions`:
 
 ```yaml prompts/enrich_company@v1.prompt
 ---
@@ -780,7 +777,7 @@ Enrich {{ company }}.
 Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache-creation tokens, and later calls within the TTL report cache-read tokens (`cachedInputTokens`), already priced at the cheaper rate in `response.cost`.
 
 <Note>
-Anthropic caches only prefixes above a model-specific minimum — around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
+Anthropic caches only prefixes above a model-specific minimum - around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
 </Note>
 
 ## Provider Tools
@@ -817,16 +814,16 @@ For provider-specific tool options, see:
 Use tools with `generateText` to enable function calling:
 
 ```typescript
-import { generateText, tool } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/llm';
 import { z } from '@outputai/core';
 
 const { result, toolCalls } = await generateText({
   prompt: 'agent@v1',
   variables: { task: 'Research competitor pricing' },
   tools: {
-    searchWeb: tool({
+    searchWeb: aiSdk.tool({
       description: 'Search the web for information',
-      parameters: z.object({ query: z.string() }),
+      inputSchema: z.object({ query: z.string() }),
       execute: async ({ query }) => fetchSearchResults(query)
     })
   },
@@ -834,42 +831,64 @@ const { result, toolCalls } = await generateText({
 });
 ```
 
-## AI SDK Pass-Through Options
+## Call arguments
 
-Generation APIs accept additional [AI SDK options](https://sdk.vercel.ai/docs) passed through to the provider. Availability depends on whether the API uses streaming:
+`variables` accepts Liquid values, including nested objects and arrays. Use dot notation and Liquid loops to read structured values in the prompt template.
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `tools` | `ToolSet` | Tools the model can call |
-| `toolChoice` | `'auto' \| 'none' \| 'required'` | Tool selection strategy |
-| `maxRetries` | `number` | Max retry attempts (default: 0) |
-| `seed` | `number` | Seed for deterministic output |
-| `abortSignal` | `AbortSignal` | Cancel the request |
-| `topP` | `number` | Nucleus sampling (0-1) |
-| `topK` | `number` | Top-K sampling |
-| `onChunk` | `Function` | Callback for each chunk (streaming APIs) |
-| `onFinish` | `Function` | Finish event callback for `streamText` and `Agent.stream()` |
-| `onError` | `Function` | Callback when a stream error occurs (`streamText` and `Agent.stream()`) |
-| `experimental_transform` | `Function` | Stream transform, e.g. `smoothStream()` (streaming APIs) |
+### Text APIs
 
-Options set in the prompt file (temperature, maxTokens) can be overridden at call time.
+| Argument | `generateText` | `generateTextWithStreaming` | `streamText` |
+|----------|----------------|-----------------------------|--------------|
+| `prompt` | required | required | required |
+| `promptDir` | optional | optional | optional |
+| `variables` | optional | optional | optional |
+| `tools` | optional | optional | optional |
+| `output` | optional | optional | optional |
+| `toolChoice` | optional | optional | optional |
+| `stopWhen` | optional | optional | optional |
+| `abortSignal` | optional | optional | optional |
+| `onChunk` | - | optional | optional |
+| `onFinish` | - | - | optional |
+| `onError` | - | - | optional |
 
-### Retries and Network Timeouts
+`toolChoice`, `stopWhen`, and prompt `maxSteps` apply only when tools exist. With tools, an explicit `stopWhen` takes precedence; otherwise Output uses `aiSdk.stepCountIs(maxSteps)` from the prompt (default 10).
 
-`generateText`, `generateTextWithStreaming`, and `streamText` set `maxRetries: 0` by default. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error is allowed to fail the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+### generateImage
 
-`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` usage, capture the error in `onError` and throw it after consuming the stream, as shown under [direct stream access](#direct-stream-access).
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `prompt` | yes | Prompt file name |
+| `promptDir` | no | Override the stack-resolved prompt directory |
+| `variables` | no | Template variables |
+| `images` | no | Source images for image-to-image |
+| `mask` | no | Inpainting mask; requires `images` |
+| `abortSignal` | no | Cancel the request |
 
-AI SDK retries are still available, but they happen inside one activity attempt. Use them when you want quick provider-level retries before the step fails. Keep the default when you want Temporal to be the single place that controls retries.
+### Agent
 
-Pass `maxRetries` in the function call when you want the AI SDK to retry provider requests:
+Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStreaming()`, and `stream()` take an optional args object (or omit it). `messages` defaults to `[]`.
 
-```typescript
-const result = await generateText({
-  prompt: 'summarize@v1',
-  maxRetries: 2
-});
-```
+| Argument | `new Agent` | `.generate` | `.generateWithStreaming` | `.stream` |
+|----------|-------------|--------------------------|-----------|-----------|
+| `prompt` | required | - | - | - |
+| `promptDir` | optional | - | - | - |
+| `variables` | optional | - | - | - |
+| `tools` | optional | - | - | - |
+| `output` | optional | - | - | - |
+| `stopWhen` | optional | - | - | - |
+| `messageStore` | optional | - | - | - |
+| `messages` | - | optional | optional | optional |
+| `abortSignal` | - | optional | optional | optional |
+| `toolChoice` | - | optional | optional | optional |
+| `onChunk` | - | - | optional | optional |
+| `onFinish` | - | - | - | optional |
+| `onError` | - | - | - | optional |
+
+## Retries and Network Timeouts
+
+Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usually run inside steps, and steps are Temporal activities. When a provider error fails the step, Temporal records the failed activity attempt and retries it according to the workflow's retry policy.
+
+`generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` or `Agent.stream()` usage, capture the error in `onError` and throw it after consuming the stream, as shown in their direct-stream examples.
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
@@ -879,7 +898,7 @@ Each completed text generation call emits a `cost:llm:request` event after the L
 
 ## loadPrompt
 
-Load and render a prompt file without generating — useful for debugging:
+Load and render a prompt file without generating - useful for debugging:
 
 ```typescript
 import { loadPrompt } from '@outputai/llm';
@@ -890,9 +909,15 @@ const prompt = loadPrompt('generate_summary@v1', {
   size: 250
 });
 
-console.log(prompt.config);   // { provider: 'anthropic', model: '...', temperature: 0.7 }
-console.log(prompt.messages);  // Rendered message array
+console.log(prompt.config);       // includes skills: string[] and maxSteps (default 10)
+console.log(prompt.messages);     // PromptMessage[] with system, user, or assistant roles
+console.log(prompt.instructions); // string | null
+console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
+
+For instruction-mode prompts, `messages` is empty and `instructions` contains the rendered body. For message-mode prompts, `messages` contains the parsed role blocks and `instructions` is `null`. See [Prompt Body Modes](/prompts#prompt-body-modes).
+
+`PromptMessage.role` is typed as `'system' | 'user' | 'assistant'`, matching the authored role blocks accepted in message mode.
 
 ## API Reference
 

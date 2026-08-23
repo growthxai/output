@@ -43,7 +43,7 @@ Output is a monorepo. The core packages for most documentation are below; read t
 | Package | Purpose | Source Location |
 |---------|---------|-----------------|
 | `@outputai/core` | workflow(), step(), evaluator() primitives | `sdk/core/src/` |
-| `@outputai/llm` | generateText, Output.object, Output.array, Output.choice | `sdk/llm/src/` |
+| `@outputai/llm` | generateText, aiSdk.Output.object, aiSdk.Output.array, aiSdk.Output.choice | `sdk/llm/src/` |
 | `@outputai/http` | Traced HTTP client wrapper | `sdk/http/src/` |
 
 **Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct framework patterns.

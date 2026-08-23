@@ -61,7 +61,7 @@ export type StepNameOutput = z.infer<typeof StepNameOutputSchema>;
 
 ## CRITICAL: Schema Constraints for LLM Output
 
-Schemas passed to `Output.object()` are sent to LLM providers as tool definitions. **Anthropic rejects several JSON Schema constraints** that Zod methods produce. Getting this wrong causes runtime errors.
+Schemas passed to `aiSdk.Output.object()` are sent to LLM providers as tool definitions. **Anthropic rejects several JSON Schema constraints** that Zod methods produce. Getting this wrong causes runtime errors.
 
 ### What Is NOT Allowed in LLM Output Schemas
 
@@ -75,7 +75,7 @@ Schemas passed to `Output.object()` are sent to LLM providers as tool definition
 **Important**: `.describe()` replaces both unsupported constraints AND prompt-based format instructions. Do not also describe the schema in the prompt -- the schema is sent to the provider automatically, and duplicating it reduces performance and creates drift risk. See `output-dev-prompt-file` for details.
 
 ```typescript
-// LLM output schema (sent to provider via Output.object()) -- .describe() ONLY
+// LLM output schema (sent to provider via aiSdk.Output.object()) -- .describe() ONLY
 const llmOutputSchema = z.object( {
   score: z.number().describe( 'Quality score 0-100' ),
   confidence: z.number().describe( 'Confidence 0-1' ),
@@ -94,14 +94,14 @@ const workflowOutputSchema = z.object( {
 
 | Context | `.min()/.max()/.length()` | `.describe()` |
 |---------|:-:|:-:|
-| Schema passed to `Output.object()` | **No** (numbers or arrays) | Yes |
+| Schema passed to `aiSdk.Output.object()` | **No** (numbers or arrays) | Yes |
 | `inputSchema` / `outputSchema` on steps | OK | Optional |
 | `inputSchema` / `outputSchema` on workflows | OK | Optional |
 | `outputSchema` on evaluators | OK | Optional |
 
 ### LLM Schemas Must Live in types.ts
 
-Define all schemas used in `Output.object()` in `types.ts` and import them in step functions. Never define them inline -- this causes duplication and makes it harder to verify they follow the constraints above.
+Define all schemas used in `aiSdk.Output.object()` in `types.ts` and import them in step functions. Never define them inline -- this causes duplication and makes it harder to verify they follow the constraints above.
 
 ## Common Schema Patterns
 
@@ -119,7 +119,7 @@ const describedString = z.string().describe( 'Field description' );
 // Numbers
 const numberField = z.number();
 const integerField = z.number().int();
-const rangedNumber = z.number().min( 1 ).max( 100 ); // runtime only — NOT safe for Output.object() schemas
+const rangedNumber = z.number().min( 1 ).max( 100 ); // runtime only — NOT safe for aiSdk.Output.object() schemas
 
 // Booleans
 const booleanField = z.boolean();
@@ -177,7 +177,7 @@ const positiveNumber = z.number().positive();
 const nonNegativeNumber = z.number().nonnegative();
 const percentageNumber = z.number().min( 0 ).max( 100 );
 
-// Array Validations (runtime only — NOT safe for Output.object() schemas)
+// Array Validations (runtime only — NOT safe for aiSdk.Output.object() schemas)
 const nonEmptyArray = z.array( z.string() ).min( 1 );
 const limitedArray = z.array( z.string() ).max( 10 );
 const fixedLengthArray = z.array( z.string() ).length( 3 );
@@ -301,7 +301,7 @@ export type User = z.infer<typeof UserSchema>;
 - [ ] Each step has corresponding input/output schemas
 - [ ] All schemas have `.describe()` for important fields
 - [ ] Optional fields use `.optional()` or `.default()`
-- [ ] Numeric fields have appropriate constraints (`.min()/.max()` for runtime schemas, `.describe()` for `Output.object()` schemas)
+- [ ] Numeric fields have appropriate constraints (`.min()/.max()` for runtime schemas, `.describe()` for `aiSdk.Output.object()` schemas)
 - [ ] Code follows style conventions (see output-dev-code-style)
 
 ## Related Skills
