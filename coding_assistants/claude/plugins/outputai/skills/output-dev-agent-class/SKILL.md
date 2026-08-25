@@ -8,7 +8,7 @@ allowed-tools: [Read, Write, Edit]
 
 ## Overview
 
-The `Agent` class extends AI SDK's `ToolLoopAgent` with Output prompt files and the skills system. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance. For single-shot LLM calls without tools, `generateText` is simpler.
+The `Agent` class uses an internal AI SDK `ToolLoopAgent` through composition with Output prompt files and the skills system. It does not inherit from `ToolLoopAgent`. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance. For single-shot LLM calls without tools, `generateText` is simpler.
 
 ## When to Use This Skill
 
@@ -100,7 +100,7 @@ The method behaves like `generate()` while using streaming internally. It return
 
 ## stream()
 
-Use `stream()` when direct control over `textStream` or `fullStream` is required. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
+Use `stream()` when direct control over `textStream` or `stream` is required. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onEnd`, and `onError`:
 
 ```typescript
 const stream = await agent.stream();
@@ -110,9 +110,9 @@ for await ( const chunk of stream.textStream ) {
 }
 ```
 
-Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
+Like `streamText`, the stream result provides `textStream` and `stream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion.
 
-`stream()` appends messages to the message store in its wrapped `onFinish` when `finishReason` is not `'error'`. See `output-dev-llm-streaming` for streaming and error-handling guidance.
+`stream()` appends messages to the message store in its wrapped `onEnd` when `finishReason` is not `'error'`. See `output-dev-llm-streaming` for streaming and error-handling guidance.
 
 ## Structured Output
 
@@ -179,7 +179,7 @@ interface MessageStore {
 }
 ```
 
-`ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
+`ModelMessage` is an AI SDK type available through the `aiSdk` namespace or as an import from `ai`. There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 ## Using Agent in Workflow Steps
 

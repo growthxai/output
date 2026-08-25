@@ -117,7 +117,9 @@ The handler receives an event envelope. The LLM usage attribute is available und
 
 ### Usage entries
 
-Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(tokens / 1_000_000) * pricePerMillion`. Non-cached input tokens use `inputTokens - (cachedInputTokens ?? 0)`.
+Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(tokens / 1_000_000) * pricePerMillion`.
+
+When the AI SDK input details reconcile with `inputTokens`, Output prices `noCacheTokens`, `cacheReadTokens`, and `cacheWriteTokens` separately. When output details reconcile with `outputTokens`, it prices `textTokens` and `reasoningTokens` separately. An incomplete breakdown falls back to aggregate input or output tokens. Missing cache or reasoning pricing falls back to the regular input or output rate.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -131,11 +133,12 @@ Cost is computed from the model's per-million-token pricing, fetched from a buil
 | `type` | Description |
 |--------|-------------|
 | `input` | Non-cached prompt tokens. |
-| `input_cached` | Cached prompt read tokens (`cachedInputTokens`). |
-| `output` | Completion tokens. |
-| `reasoning` | Reasoning tokens, only when the model defines separate reasoning pricing. |
+| `input_cache_read` | Cached prompt read tokens (`inputTokenDetails.cacheReadTokens`). |
+| `input_cache_write` | Prompt tokens written to cache (`inputTokenDetails.cacheWriteTokens`). |
+| `output` | Text completion tokens. |
+| `output_reasoning` | Reasoning tokens (`outputTokenDetails.reasoningTokens`). |
 
-Only available, finite usage dimensions are included. For example, `reasoning` is omitted when the model does not define separate reasoning pricing, and `input_cached` is omitted when there are no cached input tokens.
+Only available, finite usage dimensions are included. When detailed counts are unavailable or inconsistent, `input` or `output` represents the aggregate token count instead.
 
 ## HTTP request cost
 

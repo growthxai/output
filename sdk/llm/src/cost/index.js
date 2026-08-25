@@ -11,8 +11,8 @@ const safeSum = ( ...values ) => values.filter( exists ).reduce( ( t, v ) => t +
  * @param {object} args
  * @param {string} args.providerId - Id of the provider
  * @param {string} args.modelId - Id of the model
- * @param {object} args.usage - Usage, as returned from AI SDK
- * @returns {object} The cost with total value and components
+ * @param {object} args.usage - AI SDK usage with aggregate token counts and optional input/output token details
+ * @returns {object | null} LLM usage with `input`, cache, `output`, and reasoning entries, or null when pricing is unavailable
  */
 export const calculateLLMCallCost = async ( { providerId, modelId, usage } ) => {
   try {

@@ -24,6 +24,18 @@ const snapshotStore = async ( store: MessageStore ) =>
     content: typeof message.content === 'string' ? message.content : JSON.stringify( message.content )
   } ) );
 
+type StoredMessages = Awaited<ReturnType<MessageStore['getMessages']>>;
+
+const countMessageParts = ( messages: StoredMessages, role: string, partType: string ) =>
+  messages.reduce( ( count, message ) => {
+    if ( message.role !== role || !Array.isArray( message.content ) ) {
+      return count;
+    }
+    return count + message.content.filter(
+      part => typeof part === 'object' && part !== null && 'type' in part && part.type === partType
+    ).length;
+  }, 0 );
+
 export const reviewContent = step( {
   name: 'reviewContent',
   description: 'Review technical content using the Agent class with structured output',
@@ -156,23 +168,51 @@ export const reviewContentStream = step( {
 
 export const reviewContentMessageStore = step( {
   name: 'reviewContentMessageStore',
-  description: 'Two Agent.generate() turns on one messageStore, so the run output shows what was persisted',
+  description: 'Verifies multi-step Agent messages are persisted exactly once across turns',
   inputSchema: reviewInputSchema,
   outputSchema: messageStoreReviewOutputSchema,
   fn: async input => {
     const store = createMemoryMessageStore();
+    const toolName = 'inspect_content';
     const agent = new Agent( {
       prompt: 'no_skills_assistant@v1',
       variables: input,
-      messageStore: store
+      messageStore: store,
+      tools: {
+        [toolName]: aiSdk.tool( {
+          description: 'Inspect the supplied content before reviewing it',
+          inputSchema: z.object( {} ),
+          execute: () => ( { inspected: true } )
+        } )
+      },
+      stopWhen: aiSdk.hasToolCall( toolName )
     } );
-
-    await agent.generate();
-    const afterFirst = await snapshotStore( store );
 
     await agent.generate( {
-      messages: [ { role: 'user', content: 'In one sentence, what content did I ask you to review?' } ]
+      toolChoice: { type: 'tool', toolName }
     } );
+    const firstMessages = [ ...( await store.getMessages() ) ];
+    const afterFirst = await snapshotStore( store );
+
+    if (
+      countMessageParts( firstMessages, 'assistant', 'tool-call' ) !== 1 ||
+      countMessageParts( firstMessages, 'tool', 'tool-result' ) !== 1
+    ) {
+      throw new Error( 'Expected one persisted tool call and one persisted tool result after the first turn.' );
+    }
+
+    await agent.generate( {
+      messages: [ { role: 'user', content: 'In one sentence, what content did I ask you to review?' } ],
+      toolChoice: 'none'
+    } );
+    const secondMessages = await store.getMessages();
+
+    if (
+      countMessageParts( secondMessages, 'assistant', 'tool-call' ) !== 1 ||
+      countMessageParts( secondMessages, 'tool', 'tool-result' ) !== 1
+    ) {
+      throw new Error( 'Tool-loop messages were duplicated or lost after the second turn.' );
+    }
 
     return {
       afterFirst,

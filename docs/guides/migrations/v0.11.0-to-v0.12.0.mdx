@@ -1,9 +1,101 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: AI SDK 7, LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+This guide covers breaking changes in `@outputai/llm`. The package now uses AI SDK 7 and its matching provider majors. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+
+## Upgrade AI SDK and provider packages
+
+`@outputai/llm` v0.12 requires these dependency majors:
+
+- `ai`: 7.x
+- `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/azure`, and `@ai-sdk/perplexity`: 4.x
+- `@ai-sdk/amazon-bedrock` and `@ai-sdk/google-vertex`: 5.x
+
+Update only the provider packages your application installs. The complete upstream changes are in the [AI SDK 7 migration guide](https://ai-sdk.dev/docs/migration-guides/migration-guide-7-0).
+
+### Rename stream callbacks and properties
+
+`streamText()` and `Agent.stream()` now use `onEnd` instead of `onFinish`:
+
+```ts
+// Before
+await streamText( {
+  prompt: 'writer@v1',
+  onFinish( event ) {
+    console.log( event.result );
+  }
+} );
+
+// After
+await streamText( {
+  prompt: 'writer@v1',
+  onEnd( event ) {
+    console.log( event.result );
+  }
+} );
+```
+
+Rename the corresponding exported types:
+
+- `WrappedStreamTextOnFinishEvent` -> `WrappedStreamTextOnEndEvent`
+- `WrappedStreamTextOnFinishCallback` -> `WrappedStreamTextOnEndCallback`
+
+The wrapped event continues to include `result`, `cost`, and merged `sources`.
+
+AI SDK 7 also renamed the full event stream:
+
+```ts
+// Before
+for await ( const part of result.fullStream ) {
+  // ...
+}
+
+// After
+for await ( const part of result.stream ) {
+  // ...
+}
+```
+
+`fullStream` remains available as a deprecated alias, but migrate to `stream`.
+
+`textStream` is unchanged. Direct AI SDK `onStepFinish` usage becomes `onStepEnd`.
+
+`onChunk` now receives every AI SDK 7 stream part, including start, finish, error, step boundaries, text boundaries, and reasoning boundaries. Update exhaustive handlers to ignore part types they do not use.
+
+### Review native AI SDK response usage
+
+Output returns proxied AI SDK 7 results. If your application reads native response fields beyond Output's `result`, `cost`, and merged `sources`, follow the official AI SDK 7 migration guide linked above instead of treating this guide as a replacement for it.
+
+Output's merged `sources` now includes native sources accumulated across every AI SDK step as well as URLs extracted from tools.
+
+### Update `LLMUsage` components
+
+Cost calculation uses AI SDK 7's detailed token counts when they reconcile with the aggregate input or output count. Incomplete breakdowns use the aggregate count. Missing cache pricing uses the regular input price, and missing reasoning pricing uses the regular output price.
+
+The emitted component names changed:
+
+- `input_cached` -> `input_cache_read`
+- `reasoning` -> `output_reasoning`
+- `input_cache_write` is new
+
+The `input` and `output` names are unchanged. `response.cost` is `null`, and no `cost:llm:request` event is emitted, when no priced usage can be calculated. Raw AI SDK usage remains available on the response and trace.
+
+### Update Agent assumptions
+
+`Agent` no longer inherits from AI SDK's `ToolLoopAgent`. Its Output APIs retain their existing behavior, but code must not depend on `Agent instanceof ToolLoopAgent` or other inherited `ToolLoopAgent` members.
+
+The intended `MessageStore` conversation behavior is unchanged. Output reads AI SDK 7's accumulated `responseMessages` so intermediate tool-call and tool-result messages continue to be persisted once.
+
+Custom stores must preserve all AI SDK 7 `ModelMessage` content parts. File data may require binary-safe serialization, and assistant content can contain the new `reasoning-file` part.
+
+### Review provider behavior
+
+- OpenAI reasoning requests now return detailed reasoning summaries by default when reasoning is enabled. Set `providerOptions.openai.reasoningSummary` to `null` in prompt frontmatter to disable them.
+- Function-valued tool descriptions are now accepted in addition to string descriptions.
+
+Call-level `toolApproval`, `runtimeContext`, and `toolsContext` are not exposed by the v0.12 Output wrapper. AI SDK 7's deprecated tool-level `needsApproval` field remains accepted.
 
 ## Skills load only from the prompt file
 
@@ -355,7 +447,7 @@ import { generateText, aiSdk } from '@outputai/llm';
 await generateText( {
   prompt: 'writer@v1',
   output: aiSdk.Output.object( { schema } ),
-  stopWhen: aiSdk.stepCountIs( 1 ),
+  stopWhen: aiSdk.isStepCount( 1 ),
   tools: { lookup: aiSdk.tool( { description: 'Lookup', inputSchema: schema, execute } ) }
 } );
 ```
@@ -409,7 +501,7 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `stopWhen` | optional | optional | optional | - |
 | `abortSignal` | optional | optional | optional | optional |
 | `onChunk` | - | optional | optional | - |
-| `onFinish` | - | - | optional | - |
+| `onEnd` | - | - | optional | - |
 | `onError` | - | - | optional | - |
 | `images` | - | - | - | optional |
 | `mask` | - | - | - | optional |
@@ -427,10 +519,10 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `abortSignal` | - | optional | optional | optional |
 | `toolChoice` | - | optional | optional | optional |
 | `onChunk` | - | - | optional | optional |
-| `onFinish` | - | - | - | optional |
+| `onEnd` | - | - | - | optional |
 | `onError` | - | - | - | optional |
 
-`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onEnd` when `finishReason` is not `'error'`.
 
 `streamText()` and `Agent.stream()` now treat `onError` as a fire-and-forget observer. Output maps and forwards the provider error, but exceptions and rejected promises from the callback are ignored. To fail a workflow step with the original error, capture it in `onError` and throw it after consuming the stream.
 
@@ -502,7 +594,7 @@ maxSteps: 5
 await generateText( { prompt: 'writer@v1' } );
 ```
 
-Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: isStepCount(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
 
 If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
 
@@ -511,7 +603,7 @@ import { generateText, aiSdk } from '@outputai/llm';
 
 await generateText( {
   prompt: 'grounded@v1',
-  stopWhen: aiSdk.stepCountIs( 1 )
+  stopWhen: aiSdk.isStepCount( 1 )
 } );
 ```
 
@@ -568,7 +660,16 @@ providerOptions:
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
 - Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxOutputTokens`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and generation or image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
-- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
+- Update installed AI SDK packages to `ai` 7.x, OpenAI / Anthropic / Azure / Perplexity 4.x, and Amazon Bedrock / Google Vertex 5.x.
+- Rename `onFinish` to `onEnd` in `streamText()` and `Agent.stream()`. Rename the corresponding wrapped callback and event types.
+- Replace `fullStream` with `stream`, and update exhaustive `onChunk` handlers for the expanded AI SDK 7 part union.
+- Replace `stepCountIs()` with `isStepCount()`.
+- Review direct AI SDK result-field access against the official AI SDK 7 migration guide.
+- Rename `LLMUsage` components `input_cached` to `input_cache_read` and `reasoning` to `output_reasoning`; handle the new `input_cache_write`.
+- Remove assumptions that Output's `Agent` inherits from AI SDK's `ToolLoopAgent`.
+- Preserve binary file and `reasoning-file` content parts in custom `MessageStore` serializers.
+- Set `providerOptions.openai.reasoningSummary: null` on reasoning prompts that should not return summaries.
+- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.isStepCount(1)` on the call.
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
@@ -584,7 +685,7 @@ providerOptions:
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
 - Narrow `ExtractedSource` on `sourceType` before reading `url`. Treat `LLMCallCost` / `LLMUsageEvent` as live usage instances and omit `addUsage` when typing serialized JSON.
-- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
+- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.

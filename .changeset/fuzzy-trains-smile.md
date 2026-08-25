@@ -25,7 +25,7 @@
   | `stopWhen` | optional | optional | optional | - |
   | `abortSignal` | optional | optional | optional | optional |
   | `onChunk` | - | optional | optional | - |
-  | `onFinish` | - | - | optional | - |
+  | `onEnd` | - | - | optional | - |
   | `onError` | - | - | optional | - |
   | `images` | - | - | - | optional |
   | `mask` | - | - | - | optional |
@@ -43,7 +43,7 @@
   | `abortSignal` | - | optional | optional | optional |
   | `toolChoice` | - | optional | optional | optional |
   | `onChunk` | - | - | optional | optional |
-  | `onFinish` | - | - | - | optional |
+  | `onEnd` | - | - | - | optional |
   | `onError` | - | - | - | optional |
   - Fixed callers being able to replace the prompt model while traces and cost used the prompt provider/model.
   - Fixed unsupported callbacks on completion APIs being silently overwritten by internal callbacks.
@@ -55,7 +55,7 @@
 
 - Fixed tool handling:
   - Fixed call-argument tools overriding prompt tools. They now merge (caller wins on the same key; `load_skill` is last).
-  - Fixed prompt-only native tools missing the tool-loop limit. They now use `stopWhen: stepCountIs(maxSteps)` from the prompt (default 10).
+  - Fixed prompt-only native tools missing the tool-loop limit. They now use `stopWhen: isStepCount(maxSteps)` from the prompt (default 10).
   - Fixed non-callable provider tool entries failing later with an opaque `TypeError`. They now fail provider-tool validation.
 
 ## Prompt files
@@ -87,12 +87,12 @@
 
 ## Streaming and Agent message store
 
-- Fixed stream observer failures escaping or disappearing silently. `streamText()` and `Agent.stream()` `onError` and `onFinish` callbacks are fire-and-forget observers. Output maps and forwards provider errors, and logs and ignores observer exceptions and rejected promises.
+- Fixed stream observer failures escaping or disappearing silently. `streamText()` and `Agent.stream()` `onError` and `onEnd` callbacks are fire-and-forget observers. Output maps and forwards provider errors, and logs and ignores observer exceptions and rejected promises.
 - Updated Agent message store:
   - Renamed `conversationStore` to `messageStore` and `ConversationStore` to `MessageStore`.
   - Removed `createMemoryConversationStore()`. The caller supplies a `MessageStore` (`getMessages` / `addMessages`).
   - Fixed `Agent.stream()` to persist to `messageStore` when `finishReason` is not `'error'`.
-  - Fixed stream message-store failures suppressing the user `onFinish`. Failures are logged and stream finalization continues.
+  - Fixed stream message-store failures suppressing the user `onEnd`. Failures are logged and stream finalization continues.
   - Fixed Agent store failures producing success-then-error trace sequences. Store persistence completes before a successful trace end.
 
 ## Tracing, sources, and response types
@@ -105,7 +105,7 @@
   - Fixed blank or untrimmed search URLs producing invalid citations or unstable source IDs. URLs are trimmed and blank values are dropped.
   - Fixed wrapped text responses not consistently exposing `sources` as an array.
   - Updated `ExtractedSource` to the AI SDK `generateText` sources item type (url and document).
-- Fixed public cost, source, and stream callback types not matching wrapped runtime values. `LLMCallCost` and `LLMUsageEvent` are the `Tracing.Attribute.LLMUsage` instance type from `@outputai/core`; `response.cost` and stream `onFinish` `cost` are that instance, or `null` when pricing is missing. Stream `onFinish` types also include wrapped `result` and merged `sources`.
+- Fixed public cost, source, and stream callback types not matching wrapped runtime values. `LLMCallCost` and `LLMUsageEvent` are the `Tracing.Attribute.LLMUsage` instance type from `@outputai/core`; `response.cost` and stream `onEnd` `cost` are that instance, or `null` when pricing is missing. Stream `onEnd` types also include wrapped `result` and merged `sources`.
 
 ## AI SDK exports and public parameter types
 

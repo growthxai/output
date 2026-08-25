@@ -1,6 +1,6 @@
 ---
 name: output-dev-llm-streaming
-description: Implement LLM text streaming in Output workflow steps with generateTextWithStreaming, Agent.generateWithStreaming, streamText, or Agent.stream. Use when adding token progress, onChunk callbacks, or handling streamText onFinish/onError with Temporal retries.
+description: Implement LLM text streaming in Output workflow steps with generateTextWithStreaming, Agent.generateWithStreaming, streamText, or Agent.stream. Use when adding token progress, onChunk callbacks, or handling streamText onEnd/onError with Temporal retries.
 allowed-tools: [Read, Write, Edit]
 ---
 
@@ -10,7 +10,7 @@ allowed-tools: [Read, Write, Edit]
 
 - Adding token or chunk progress to an LLM-powered step
 - Choosing between completed generation and direct stream access
-- Using `onChunk`, or `onFinish` / `onError` on `streamText()` / `Agent.stream()`
+- Using `onChunk`, or `onEnd` / `onError` on `streamText()` / `Agent.stream()`
 - Making stream failures trigger Temporal activity retries
 - Streaming Agent responses or persisting streamed conversations
 
@@ -20,7 +20,7 @@ allowed-tools: [Read, Write, Edit]
 |------|-----|
 | Complete single-shot result | `generateText()` |
 | Complete result plus `onChunk` progress | `generateTextWithStreaming()` |
-| Direct access to `textStream` or `fullStream` | `streamText()` |
+| Direct access to `textStream` or `stream` | `streamText()` |
 | Complete Agent result plus `onChunk` progress | `Agent.generateWithStreaming()` |
 | Direct access to the Agent stream | `Agent.stream()` |
 
@@ -92,9 +92,9 @@ return chunks.join( '' );
 
 Registering `onError` without throwing the captured error can let the step return an empty successful result, preventing Temporal from retrying it. Awaiting a completion property may also produce a generic no-output error instead of the original provider error.
 
-`Agent.stream()` stores conversation messages in its wrapped `onFinish` when `finishReason` is not `'error'`. Use `Agent.generateWithStreaming()` when a complete stored response meets the requirement.
+`Agent.stream()` stores conversation messages in its wrapped `onEnd` when `finishReason` is not `'error'`. Use `Agent.generateWithStreaming()` when a complete stored response meets the requirement.
 
-Streaming call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`, plus `onChunk` (`generateTextWithStreaming`) or `onChunk` / `onFinish` / `onError` (`streamText`). Agent methods: `messages`, `abortSignal`, `toolChoice`, plus those same stream callbacks.
+Streaming call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`, plus `onChunk` (`generateTextWithStreaming`) or `onChunk` / `onEnd` / `onError` (`streamText`). Agent methods: `messages`, `abortSignal`, `toolChoice`, plus those same stream callbacks.
 
 ## Rules
 

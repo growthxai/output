@@ -186,31 +186,18 @@ export type Prompt = {
 
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
 type DefaultRuntimeContext = Record<string, unknown>;
-type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
-type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;
+type CompatibleToolSchemaKey = 'inputSchema' | 'outputSchema' | 'contextSchema';
+type WithoutToolSchemaBrands<T> = T extends unknown ? {
+  [K in keyof T]: K extends CompatibleToolSchemaKey ? unknown : T[K];
+} : never;
 
 /**
- * Structurally-compatible AI SDK tool shape.
+ * Structurally-compatible AI SDK 7 tool shape.
  *
- * This intentionally avoids referencing AI SDK's concrete `Tool` schema types so tools
- * from packages resolved with a different Zod peer instance remain assignable.
+ * This derives from AI SDK's `ToolSet` and widens only schema fields so tools from packages
+ * resolved with a different Zod peer instance remain assignable.
  */
-export type CompatibleTool = {
-  description?: string | CompatibleToolFunction;
-  title?: string;
-  providerOptions?: Record<string, unknown>;
-  inputSchema?: unknown;
-  parameters?: unknown;
-  execute?: CompatibleToolFunction;
-  onInputStart?: CompatibleToolFunction;
-  onInputDelta?: CompatibleToolFunction;
-  onInputAvailable?: CompatibleToolFunction;
-  needsApproval?: boolean | CompatibleApprovalFunction;
-} & (
-  { inputSchema: unknown } |
-  { parameters: unknown } |
-  { execute: CompatibleToolFunction }
-);
+export type CompatibleTool = WithoutToolSchemaBrands<ToolSet[string]>;
 
 /** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
 export type CompatibleToolSet = Record<string, CompatibleTool>;
@@ -266,7 +253,7 @@ export type GenerateTextWithStreamingParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = TextCallOptions<Tools, OutputSpec> & {
-  /** Callback for each streamed chunk */
+  /** Callback for every AI SDK 7 stream part, including lifecycle, boundary, terminal, text, reasoning, and tool parts. */
   onChunk?: StreamTextOnChunkCallback<Tools>;
 };
 
@@ -275,11 +262,11 @@ export type StreamTextParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = TextCallOptions<Tools, OutputSpec> & {
-  /** Callback for each streamed chunk */
+  /** Callback for every AI SDK 7 stream part, including lifecycle, boundary, terminal, text, reasoning, and tool parts. */
   onChunk?: StreamTextOnChunkCallback<Tools>;
   /** Callback when a stream error occurs */
   onError?: StreamTextOnErrorCallback;
-  /** Callback when stream finishes. Receives the wrapped event with `result`, `cost`, and `sources`. */
+  /** Callback when the stream completes. Receives the wrapped AI SDK `onEnd` event with `result`, `cost`, and `sources`. */
   onEnd?: WrappedStreamTextOnEndCallback<Tools>;
 };
 
@@ -348,6 +335,7 @@ export type ExtractedSource =
  * Cost on a wrapped LLM response (`response.cost`, stream `onEnd` `cost`) and the
  * `cost:llm:request` payload. This is a `Tracing.Attribute.LLMUsage` instance.
  * `calculateLLMCallCost` returns it, or `null` when pricing data is missing.
+ * Usage entry types are `input`, `input_cache_read`, `input_cache_write`, `output`, and `output_reasoning`.
  */
 export type LLMCallCost = InstanceType<( typeof Tracing.Attribute )['LLMUsage']>;
 
@@ -355,7 +343,7 @@ export type LLMUsageEvent = LLMCallCost;
 
 /**
  * `streamText` and agent `stream` `onEnd` event after the stream response wrapper: same as the AI SDK
- * finish payload plus `result`, `cost`, and merged `sources`.
+ * `onEnd` payload plus `result`, `cost`, and merged `sources`.
  */
 export type WrappedStreamTextOnEndEvent<Tools extends ToolSet = ToolSet> =
   Parameters<GenerateTextOnEndCallback<Tools, DefaultRuntimeContext>>[0] & {
@@ -516,7 +504,7 @@ export interface MessageStore {
 }
 
 /**
- * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt loading and validation.
+ * Agent wraps an internal AI SDK ToolLoopAgent with Output.ai prompt loading and validation.
  *
  * @example Workflow step - variables per call, stateless
  * ```ts
