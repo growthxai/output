@@ -1,0 +1,14 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+maxTokens: 16
+messageOptions:
+  cached:
+    anthropic:
+      cacheControl:
+        type: ephemeral
+---
+
+<system options="cached">{{ stablePrefix }}</system>
+
+<user>Reply with the single word "seeded".</user>

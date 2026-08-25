@@ -257,7 +257,7 @@ describe( 'parseStreamTextArgs', () => {
       prompt: 'summary@v1',
       variables: { topic: 'testing' },
       promptDir: '/prompts',
-      onFinish: () => {},
+      onEnd: () => {},
       onError: () => {},
       onChunk: () => {}
     } );
@@ -265,7 +265,7 @@ describe( 'parseStreamTextArgs', () => {
     expect( parsed.promptFile ).toBe( 'summary@v1' );
     expect( parsed.variables ).toEqual( { topic: 'testing' } );
     expect( parsed.promptDir ).toBe( '/prompts' );
-    expect( parsed.onFinish ).toBeTypeOf( 'function' );
+    expect( parsed.onEnd ).toBeTypeOf( 'function' );
     expect( parsed.onError ).toBeTypeOf( 'function' );
     expect( parsed.onChunk ).toBeTypeOf( 'function' );
   } );
@@ -283,7 +283,7 @@ describe( 'parseStreamTextArgs', () => {
   it( 'throws ValidationError for invalid callbacks', () => {
     expect( () => parseStreamTextArgs( {
       prompt: 'summary@v1',
-      onFinish: 'not a function'
+      onEnd: 'not a function'
     } ) ).toThrow( ValidationError );
 
     expect( () => parseStreamTextArgs( {
@@ -327,7 +327,7 @@ describe( 'parseGenerateTextWithStreamingArgs', () => {
 
     expect( () => parseGenerateTextWithStreamingArgs( {
       prompt: 'summary@v1',
-      onFinish: () => {}
+      onEnd: () => {}
     } ) ).toThrow( /unrecognized key/i );
   } );
 
@@ -609,7 +609,7 @@ describe( 'parseAgentGenerateWithStreamingArgs', () => {
   } );
 
   it( 'rejects stream-only callbacks', () => {
-    expect( () => parseAgentGenerateWithStreamingArgs( { onFinish: () => {} } ) ).toThrow( /unrecognized key/i );
+    expect( () => parseAgentGenerateWithStreamingArgs( { onEnd: () => {} } ) ).toThrow( /unrecognized key/i );
   } );
 } );
 
@@ -618,13 +618,13 @@ describe( 'parseAgentStreamArgs', () => {
     expect( parseAgentStreamArgs() ).toEqual( { messages: [] } );
 
     const parsed = parseAgentStreamArgs( {
-      onFinish: () => {},
+      onEnd: () => {},
       onError: () => {},
       onChunk: () => {}
     } );
 
     expect( parsed.messages ).toEqual( [] );
-    expect( parsed.onFinish ).toBeTypeOf( 'function' );
+    expect( parsed.onEnd ).toBeTypeOf( 'function' );
     expect( parsed.onError ).toBeTypeOf( 'function' );
     expect( parsed.onChunk ).toBeTypeOf( 'function' );
   } );

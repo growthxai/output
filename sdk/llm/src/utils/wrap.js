@@ -30,7 +30,7 @@ const handleError = ( { traceId, error: originalError } ) => {
 /** Extract usage, calculate the cost, emit an event and return cost/usage */
 const handleCost = async ( { traceId, response, prompt } ) => {
   const { model: modelId, provider: providerId } = prompt.config;
-  const usage = response.totalUsage ?? response.usage; // eg: image has .usage only
+  const usage = response.usage;
   const cost = await calculateLLMCallCost( { usage, modelId, providerId } );
   if ( cost ) {
     Tracing.addEventAttribute( { eventId: traceId, attribute: cost } );
@@ -45,7 +45,7 @@ const handleCost = async ( { traceId, response, prompt } ) => {
  * (and sources on text), end the trace, and return a proxied response.
  *
  * Text responses get `result` (`text`), `cost`, and merged `sources`. Image responses get
- * `result` (`image`) and `cost`. Trace usage is `response.totalUsage` if set, otherwise `response.usage`.
+ * `result` (`image`) and `cost`. Trace usage `response.usage`.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
@@ -67,7 +67,8 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
       Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, cost, providerMetadata } } );
       return createResponseProxy( { response, properties: { cost, result: image } } );
     } else {
-      const { text: result, providerMetadata } = response;
+      const { text: result, finalStep } = response;
+      const { providerMetadata } = finalStep;
       const sources = extractSources( response );
 
       Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
@@ -82,8 +83,8 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
 /**
  * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
- * `fn` receives `onFinishHook(response, callback)` and `onErrorHook(event, callback)`. Call
- * `onFinishHook` from the SDK `onFinish`: it wraps the response, ends the trace, then invokes
+ * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)`. Call
+ * `onEndHook` from the SDK `onEnd`: it wraps the response, ends the trace, then invokes
  * `callback` without rethrowing. Call `onErrorHook` from SDK `onError`: it maps the error,
  * records it, and invokes `callback` without rethrowing. Callback failures are logged.
  *
@@ -93,18 +94,19 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
- * @param {(hooks: { onFinishHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
+ * @param {(hooks: { onEndHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
  *   Return the SDK stream, or a Promise of that stream (`Agent.stream`); wire the hooks into SDK
- *   `onFinish` / `onError`
+ *   `onEnd` / `onError`
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
 export const wrapStream = ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
-  const onFinishHook = async ( response, callback ) => {
+  const onEndHook = async ( response, callback ) => {
     const state = { proxyResponse: null };
     try {
-      const { text: result, providerMetadata } = response;
+      const { text: result, finalStep } = response;
+      const { providerMetadata } = finalStep;
       const { cost, usage } = await handleCost( { traceId, response, prompt } );
       const sources = extractSources( response );
       Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
@@ -117,7 +119,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
       await callback?.( state.proxyResponse );
     } catch ( callbackError ) {
       // ignore these as this callback is fire and forget
-      Logger.error( 'Stream onFinish() callback failed', {
+      Logger.error( 'Stream onEnd() callback failed', {
         namespace: 'LLM',
         error: callbackError instanceof Error ? callbackError.message : String( callbackError )
       } );
@@ -138,7 +140,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
   };
 
   try {
-    const stream = fn( { onFinishHook, onErrorHook } );
+    const stream = fn( { onEndHook, onErrorHook } );
     return isPromise( stream ) ? stream.catch( error => {
       throw handleError( { traceId, error } );
     } ) : stream;

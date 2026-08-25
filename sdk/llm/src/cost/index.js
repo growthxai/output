@@ -2,6 +2,10 @@ import { fetchModelsPricing } from './fetch_models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { Logger } from '@outputai/core';
 
+const exists = v => Number.isFinite( v );
+
+const safeSum = ( ...values ) => values.filter( exists ).reduce( ( t, v ) => t + v, 0 );
+
 /**
  * Calculates the cost of an llm call based on the model and usage.
  * @param {object} args
@@ -25,32 +29,53 @@ export const calculateLLMCallCost = async ( { providerId, modelId, usage } ) => 
       return null;
     }
 
-    const { inputTokens, cachedInputTokens, outputTokens, reasoningTokens } = usage;
-
-    const nonCachedTokens = inputTokens - ( cachedInputTokens ?? 0 );
+    const { inputTokens, inputTokenDetails, outputTokens, outputTokenDetails } = usage;
+    const { noCacheTokens, cacheReadTokens, cacheWriteTokens } = inputTokenDetails ?? {};
+    const { textTokens, reasoningTokens } = outputTokenDetails ?? {};
 
     const llmUsage = new Tracing.Attribute.LLMUsage( modelId );
 
-    if ( Number.isFinite( pricing.input ) && Number.isFinite( nonCachedTokens ) ) {
-      llmUsage.addUsage( { type: 'input', ppm: pricing.input, amount: nonCachedTokens } );
-    }
-    // Surface cached input tokens whenever the provider reports them, even if the model's
-    // pricing lacks a cache_read rate — otherwise caching savings vanish from the token
-    // aggregation (these tokens are already excluded from the input line above). Price at
-    // cache_read when available, otherwise at 0.
-    if ( Number.isFinite( cachedInputTokens ) ) {
-      const cacheReadPpm = Number.isFinite( pricing.cache_read ) ? pricing.cache_read : 0;
-      llmUsage.addUsage( { type: 'input_cached', ppm: cacheReadPpm, amount: cachedInputTokens } );
-    }
-    if ( Number.isFinite( pricing.output ) && Number.isFinite( outputTokens ) ) {
-      llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: outputTokens } );
-    }
-    // When there are no reasoning costs, providers do not differentiate reasoning vs output, so the price is included in the output
-    if ( Number.isFinite( pricing.reasoning ) && Number.isFinite( reasoningTokens ) ) {
-      llmUsage.addUsage( { type: 'reasoning', ppm: pricing.reasoning, amount: reasoningTokens } );
+    if ( exists( pricing.input ) && exists( inputTokens ) ) {
+
+      // the sum of the components must be equal to the tokens
+      const useDetails = inputTokens > 0 && safeSum( noCacheTokens, cacheReadTokens, cacheWriteTokens ) === inputTokens;
+
+      if ( useDetails ) {
+        if ( exists( noCacheTokens ) ) {
+          llmUsage.addUsage( { type: 'input', ppm: pricing.input, amount: noCacheTokens } );
+        }
+
+        // When the pricing table doesn't have cache pricing, fallback to input price
+        if ( exists( cacheReadTokens ) ) {
+          llmUsage.addUsage( { type: 'input_cache_read', ppm: pricing.cache_read ?? pricing.input, amount: cacheReadTokens } );
+        }
+        if ( exists( cacheWriteTokens ) ) {
+          llmUsage.addUsage( { type: 'input_cache_write', ppm: pricing.cache_write ?? pricing.input, amount: cacheWriteTokens } );
+        }
+      } else {
+        llmUsage.addUsage( { type: 'input', ppm: pricing.input, amount: inputTokens } );
+      }
     }
 
-    return llmUsage;
+    if ( exists( pricing.output ) && exists( outputTokens ) ) {
+
+      // the sum of the components must be equal to the tokens
+      const useDetails = outputTokens > 0 && safeSum( textTokens, reasoningTokens ) === outputTokens;
+
+      if ( useDetails ) {
+        if ( exists( textTokens ) ) {
+          llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: textTokens } );
+        }
+        // When the pricing table doesn't have reasoning pricing, fallback to output price
+        if ( exists( reasoningTokens ) ) {
+          llmUsage.addUsage( { type: 'output_reasoning', ppm: pricing.reasoning ?? pricing.output, amount: reasoningTokens } );
+        }
+      } else {
+        llmUsage.addUsage( { type: 'output', ppm: pricing.output, amount: outputTokens } );
+      }
+    }
+
+    return llmUsage.usage.length > 0 ? llmUsage : null;
   } catch ( error ) {
     Logger.error( 'Error calculating LLM call costs', { error: error.message, namespace: 'LLM' } );
     return null;

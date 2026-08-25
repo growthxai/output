@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import streamResponseFixture from './__fixtures__/stream_response.json' with { type: 'json' };
+import imageResponseFixture from '../fixtures/image_response_v7_openai.js';
+import streamResponseFixture from '../fixtures/stream_response_v7_openai.js';
+import textResponseFixture from '../fixtures/text_response_v7_openai.js';
 
 const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
@@ -43,6 +45,9 @@ const tracing = vi.mocked( Tracing, true );
 const event = vi.mocked( Event, true );
 
 const clone = value => structuredClone( value );
+const textResponse = () => clone( textResponseFixture );
+const streamResponse = () => clone( streamResponseFixture );
+const imageResponse = () => clone( imageResponseFixture );
 
 const prompt = {
   name: 'writer@v1',
@@ -68,7 +73,7 @@ describe( 'wrapGeneration / wrapStream', () => {
 
   describe( 'wrapGeneration', () => {
     it( 'starts an llm trace, wraps a text response, and ends with cost and sources', async () => {
-      const response = clone( streamResponseFixture );
+      const response = textResponse();
       const mergedSources = [ { url: 'https://merged.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
 
@@ -85,7 +90,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         details: { prompt }
       } );
       expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
-        usage: response.totalUsage,
+        usage: response.usage,
         modelId: 'test-model',
         providerId: 'openai'
       } );
@@ -99,9 +104,9 @@ describe( 'wrapGeneration / wrapStream', () => {
         id: 'generateText-9000000000',
         details: {
           result: response.text,
-          usage: response.totalUsage,
+          usage: response.usage,
           cost: mockCost,
-          providerMetadata: response.providerMetadata,
+          providerMetadata: response.finalStep.providerMetadata,
           sources: mergedSources
         }
       } );
@@ -111,12 +116,12 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( wrapped.text ).toBe( response.text );
     } );
 
-    it( 'prefers totalUsage over usage when both are present', async () => {
+    it( 'uses usage instead of deprecated totalUsage', async () => {
       const response = {
         text: 'hi',
-        totalUsage: { inputTokens: 2 },
-        usage: { inputTokens: 99 },
-        steps: [],
+        usage: { inputTokens: 2 },
+        totalUsage: { inputTokens: 99 },
+        finalStep: { providerMetadata: undefined },
         sources: []
       };
 
@@ -130,13 +135,7 @@ describe( 'wrapGeneration / wrapStream', () => {
     } );
 
     it( 'wraps an image response using usage and mapped image metadata', async () => {
-      const image = { mediaType: 'image/png', base64: 'abc' };
-      const response = {
-        image,
-        images: [ image ],
-        usage: { inputTokens: 8, outputTokens: 16 },
-        providerMetadata: { openai: {} }
-      };
+      const response = imageResponse();
 
       const wrapped = await wrapGeneration( {
         name: 'generateImage',
@@ -149,7 +148,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         modelId: 'test-model',
         providerId: 'openai'
       } );
-      expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( 'abc' );
+      expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateImage-9000000000',
         details: {
@@ -160,13 +159,13 @@ describe( 'wrapGeneration / wrapStream', () => {
         }
       } );
       expect( mocks.extractSources ).not.toHaveBeenCalled();
-      expect( wrapped.result ).toBe( image );
+      expect( wrapped.result ).toBe( response.image );
       expect( wrapped.cost ).toEqual( mockCost );
     } );
 
     it( 'skips cost attribute and event when cost is missing', async () => {
       mocks.calculateLLMCallCost.mockResolvedValue( null );
-      const response = clone( streamResponseFixture );
+      const response = textResponse();
 
       const wrapped = await wrapGeneration( {
         name: 'generateText',
@@ -224,20 +223,20 @@ describe( 'wrapGeneration / wrapStream', () => {
         details: { prompt }
       } );
       expect( fn ).toHaveBeenCalledWith( {
-        onFinishHook: expect.any( Function ),
+        onEndHook: expect.any( Function ),
         onErrorHook: expect.any( Function )
       } );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
-    it( 'wraps onFinish, ends the trace, then awaits the callback', async () => {
-      const response = clone( streamResponseFixture );
+    it( 'wraps onEnd, ends the trace, then awaits the callback', async () => {
+      const response = streamResponse();
       const mergedSources = [ { url: 'https://s.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
       const callback = vi.fn();
-      const { onFinishHook } = hooksFrom( 'Agent.stream' );
+      const { onEndHook } = hooksFrom( 'Agent.stream' );
 
-      await onFinishHook( response, callback );
+      await onEndHook( response, callback );
 
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( callback ).toHaveBeenCalledOnce();
@@ -249,21 +248,21 @@ describe( 'wrapGeneration / wrapStream', () => {
         id: 'Agent.stream-9000000000',
         details: {
           result: response.text,
-          usage: response.totalUsage,
+          usage: response.usage,
           cost: mockCost,
-          providerMetadata: response.providerMetadata,
+          providerMetadata: response.finalStep.providerMetadata,
           sources: mergedSources
         }
       } );
       expect( tracing.addEventEnd.mock.invocationCallOrder[0] ).toBeLessThan( callback.mock.invocationCallOrder[0] );
     } );
 
-    it( 'ends the trace and swallows throws from the onFinish callback', async () => {
-      const response = clone( streamResponseFixture );
-      const { onFinishHook } = hooksFrom( 'Agent.stream' );
+    it( 'ends the trace and swallows throws from the onEnd callback', async () => {
+      const response = textResponse();
+      const { onEndHook } = hooksFrom( 'Agent.stream' );
 
-      await expect( onFinishHook( response, async () => {
-        throw new Error( 'user onFinish' );
+      await expect( onEndHook( response, async () => {
+        throw new Error( 'user onEnd' );
       } ) ).resolves.toBeUndefined();
 
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();

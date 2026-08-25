@@ -2,7 +2,7 @@ import { loadImageModel, loadTextModel } from './utils/models.js';
 import { buildLoadSkillTool, loadPromptTools } from './utils/tools.js';
 import { Role } from './consts.js';
 import { FatalError } from '@outputai/core';
-import { stepCountIs } from 'ai';
+import { isStepCount } from 'ai';
 
 const buildSkillsMessageContent = skills =>
   'Available skills (use load_skill to get full instructions):\n' +
@@ -53,15 +53,15 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
     throw new FatalError( `Prompt "${prompt.name}" has no chat-style messages. Add role-tagged blocks like <system> or <user>.` );
   }
 
-  const systemMessages = prompt.messages.filter( m => m.role === Role.SYSTEM );
-  const allMessages = prompt.messages.filter( m => m.role !== Role.SYSTEM );
+  const instructions = prompt.messages.filter( m => m.role === Role.SYSTEM );
+  const messages = prompt.messages.filter( m => m.role !== Role.SYSTEM );
 
   if ( skills.length > 0 ) {
     const skillsMessageContent = buildSkillsMessageContent( skills );
-    if ( systemMessages.length > 0 ) {
-      systemMessages[0] = { ...systemMessages[0], content: `${systemMessages[0].content}\n\n${skillsMessageContent}` };
+    if ( instructions.length > 0 ) {
+      instructions[0] = { ...instructions[0], content: `${instructions[0].content}\n\n${skillsMessageContent}` };
     } else {
-      systemMessages.push( { role: Role.SYSTEM, content: skillsMessageContent } );
+      instructions.push( { role: Role.SYSTEM, content: skillsMessageContent } );
     }
   }
 
@@ -69,8 +69,8 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
     allowSystemInMessages: true,
     maxRetries: 0,
     model: loadTextModel( prompt ),
-    system: systemMessages,
-    messages: allMessages,
+    instructions,
+    messages,
     ...( output && { output } ),
     ...( abortSignal && { abortSignal } ),
     ...( stopWhen && { stopWhen } ),
@@ -87,7 +87,7 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
       options.toolChoice = toolChoice;
     }
     if ( !options.stopWhen ) {
-      options.stopWhen = stepCountIs( prompt.config.maxSteps );
+      options.stopWhen = isStepCount( prompt.config.maxSteps );
     }
   }
 

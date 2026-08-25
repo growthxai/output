@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
+import fixture from '../fixtures/models_api_light.json' with { type: 'json' };
 
 const fetchMock = vi.hoisted( () => vi.fn() );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
@@ -13,10 +11,6 @@ vi.mock( 'undici', () => ( {
   EnvHttpProxyAgent: EnvHttpProxyAgentMock,
   fetch: fetchMock
 } ) );
-
-const __dirname = dirname( fileURLToPath( import.meta.url ) );
-const fixturePath = join( __dirname, 'fixtures', 'models_api_light.json' );
-const fixture = JSON.parse( readFileSync( fixturePath, 'utf8' ) );
 
 const costTableUrl = 'https://models.dev/api.json';
 const okResponse = data => ( {

@@ -8,7 +8,8 @@ import { loadSkills } from './utils/skills.js';
 import * as Validator from './validations.js';
 import { Logger } from '@outputai/core';
 
-export class Agent extends AIToolLoopAgent {
+export class Agent {
+  #agent;
   #prompt;
   #initialMessages;
   #store;
@@ -19,13 +20,11 @@ export class Agent extends AIToolLoopAgent {
     const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
     const skills = loadSkills( prompt );
 
-    const { system, messages, ...aiOptions } = loadAiSdkTextOptions( { prompt, skills, tools, output, stopWhen } );
+    const { instructions, messages, ...aiOptions } = loadAiSdkTextOptions( { prompt, skills, tools, output, stopWhen } );
 
-    // loadAiSdkTextOptions routes system blocks to the `system` slot (preserving
-    // per-message providerOptions); pass them as the agent's `instructions`.
-    super( {
+    this.#agent = new AIToolLoopAgent( {
       ...aiOptions,
-      ...( system.length > 0 ? { instructions: system } : {} )
+      ...( instructions.length > 0 ? { instructions } : {} )
     } );
 
     this.#prompt = prompt;
@@ -53,13 +52,13 @@ export class Agent extends AIToolLoopAgent {
       name: 'Agent.generate',
       prompt: this.#prompt,
       fn: async () => {
-        const response = await super.generate( {
+        const response = await this.#agent.generate( {
           messages: combinedMessages,
           allowSystemInMessages: true,
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } )
         } );
-        await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) );
+        await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
         return response;
       }
     } );
@@ -77,13 +76,13 @@ export class Agent extends AIToolLoopAgent {
       prompt: this.#prompt,
       fn: async () => {
         const state = { response: null };
-        const stream = await super.stream( {
+        const stream = await this.#agent.stream( {
           messages: combinedMessages,
           allowSystemInMessages: true,
           ...( onChunk && { onChunk } ),
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } ),
-          onFinish: res => {
+          onEnd: res => {
             state.response = res;
           },
           onError: _ => {} // Suppress AI-SDK console printing
@@ -96,7 +95,7 @@ export class Agent extends AIToolLoopAgent {
         }
 
         state.response.output = await stream.output;
-        await this.#storeMessages( messages.concat( state.response.response?.messages ?? [] ) );
+        await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
 
         return state.response;
       }
@@ -104,28 +103,28 @@ export class Agent extends AIToolLoopAgent {
   }
 
   async stream( args ) {
-    const { messages, abortSignal, toolChoice, onChunk, onFinish, onError } = Validator.parseAgentStreamArgs( args );
+    const { messages, abortSignal, toolChoice, onChunk, onEnd, onError } = Validator.parseAgentStreamArgs( args );
     const combinedMessages = await this.#combineWithPreviousMessages( messages );
 
     return wrapStream( {
       name: 'Agent.stream',
       prompt: this.#prompt,
-      fn: ( { onFinishHook, onErrorHook } ) => super.stream( {
+      fn: ( { onEndHook, onErrorHook } ) => this.#agent.stream( {
         messages: combinedMessages,
         allowSystemInMessages: true,
         ...( onChunk && { onChunk } ),
         ...( abortSignal && { abortSignal } ),
         ...( toolChoice && { toolChoice } ),
-        onFinish: response =>
-          onFinishHook( response, async parsedResponse => {
+        onEnd: response =>
+          onEndHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {
-              await this.#storeMessages( messages.concat( response.response?.messages ?? [] ) )
+              await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) )
                 .catch( error => Logger.error( 'Agent.stream message store persistence failed', {
                   namespace: 'LLM',
                   error: error instanceof Error ? error.message : String( error )
                 } ) );
             }
-            await onFinish?.( parsedResponse );
+            await onEnd?.( parsedResponse );
           } ),
         onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
       } )

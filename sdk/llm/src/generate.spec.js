@@ -34,7 +34,7 @@ const optionMocks = vi.hoisted( () => ( {
 const wrapMocks = vi.hoisted( () => ( {
   wrapGeneration: vi.fn(),
   wrapStream: vi.fn(),
-  streamHooks: { onFinishHook: vi.fn(), onErrorHook: vi.fn() }
+  streamHooks: { onEndHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
 
 const streamMocks = vi.hoisted( () => ( {
@@ -85,13 +85,13 @@ const textOptions = {
 
 const textResponse = {
   text: 'TEXT',
-  totalUsage: { inputTokens: 1, outputTokens: 2 },
+  usage: { inputTokens: 1, outputTokens: 2 },
   finishReason: 'stop'
 };
 
 const streamResult = {
   textStream: 'TEXT_STREAM',
-  fullStream: 'FULL_STREAM'
+  stream: 'STREAM'
 };
 
 const imageOptions = {
@@ -126,7 +126,7 @@ describe( 'generate', () => {
 
     wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
     wrapMocks.streamHooks = {
-      onFinishHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
+      onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
       onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
@@ -228,7 +228,7 @@ describe( 'generate', () => {
       const response = { ...textResponse };
       aiFns.streamText.mockImplementationOnce( options => {
         options.onChunk( { chunk } );
-        options.onFinish( response );
+        options.onEnd( response );
         return stream;
       } );
 
@@ -257,7 +257,7 @@ describe( 'generate', () => {
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
         onChunk,
-        onFinish: expect.any( Function ),
+        onEnd: expect.any( Function ),
         onError: expect.any( Function )
       } );
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
@@ -269,7 +269,7 @@ describe( 'generate', () => {
       const stream = { output: Promise.resolve( undefined ) };
       validations.parseGenerateTextWithStreamingArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
       aiFns.streamText.mockImplementationOnce( options => {
-        options.onFinish( { ...textResponse } );
+        options.onEnd( { ...textResponse } );
         return stream;
       } );
       const { generateTextWithStreaming } = await importSut();
@@ -288,7 +288,7 @@ describe( 'generate', () => {
       const { generateTextWithStreaming } = await importSut();
       const stream = { output: Promise.resolve( undefined ) };
       aiFns.streamText.mockImplementationOnce( options => {
-        options.onFinish( { ...textResponse } );
+        options.onEnd( { ...textResponse } );
         return stream;
       } );
 
@@ -325,7 +325,7 @@ describe( 'generate', () => {
     it( 'parses args, loads prompt skills, wraps the stream, and calls AI SDK', async () => {
       const { streamText } = await importSut();
       const variables = { topic: 'testing' };
-      const onFinish = vi.fn();
+      const onEnd = vi.fn();
       const onChunk = vi.fn();
       const tools = { userTool: true };
 
@@ -333,7 +333,7 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        onFinish,
+        onEnd,
         onChunk,
         tools
       } );
@@ -342,7 +342,7 @@ describe( 'generate', () => {
         prompt: 'test@v1',
         variables,
         promptDir: '/prompts',
-        onFinish,
+        onEnd,
         onChunk,
         tools
       } );
@@ -361,13 +361,13 @@ describe( 'generate', () => {
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
         onChunk,
-        onFinish: expect.any( Function ),
+        onEnd: expect.any( Function ),
         onError: expect.any( Function )
       } );
       const callOptions = aiFns.streamText.mock.calls[0][0];
-      await callOptions.onFinish( textResponse );
-      expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( textResponse, onFinish );
-      expect( onFinish ).toHaveBeenCalledWith( textResponse );
+      await callOptions.onEnd( textResponse );
+      expect( wrapMocks.streamHooks.onEndHook ).toHaveBeenCalledWith( textResponse, onEnd );
+      expect( onEnd ).toHaveBeenCalledWith( textResponse );
       expect( result ).toBe( streamResult );
     } );
 
