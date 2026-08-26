@@ -5,7 +5,9 @@ import textResponseFixture from '../fixtures/text_response_v7_openai.js';
 
 const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
-  calculateLLMCallCost: vi.fn(),
+  parseLLMUsage: vi.fn(),
+  calculateCosts: vi.fn(),
+  toLegacyLLMUsageEvent: vi.fn(),
   calculateBase64FileSize: vi.fn(),
   mapAiError: vi.fn()
 } ) );
@@ -14,8 +16,16 @@ vi.mock( './sources.js', () => ( {
   extractSources: mocks.extractSources
 } ) );
 
-vi.mock( '../cost/index.js', () => ( {
-  calculateLLMCallCost: mocks.calculateLLMCallCost
+vi.mock( './usage.js', () => ( {
+  parseLLMUsage: mocks.parseLLMUsage
+} ) );
+
+vi.mock( './cost.js', () => ( {
+  calculateCosts: mocks.calculateCosts
+} ) );
+
+vi.mock( './legacy_cost.js', () => ( {
+  toLegacyLLMUsageEvent: mocks.toLegacyLLMUsageEvent
 } ) );
 
 vi.mock( './image.js', () => ( {
@@ -54,7 +64,18 @@ const prompt = {
   config: { provider: 'openai', model: 'test-model' }
 };
 
-const mockCost = { total: 0.001, components: [] };
+const mockUsage = {
+  type: 'llm:generation:usage',
+  providerId: 'openai',
+  modelId: 'test-model',
+  status: 'complete',
+  input: 2,
+  output: 1,
+  total: 3,
+  items: []
+};
+const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
+const mockLegacyPayload = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 const mappedError = new Error( 'mapped' );
 
 describe( 'wrapGeneration / wrapStream', () => {
@@ -62,7 +83,9 @@ describe( 'wrapGeneration / wrapStream', () => {
     vi.clearAllMocks();
     vi.spyOn( Date, 'now' ).mockReturnValue( 9_000_000_000 );
     mocks.extractSources.mockReturnValue( [] );
-    mocks.calculateLLMCallCost.mockResolvedValue( mockCost );
+    mocks.parseLLMUsage.mockReturnValue( mockUsage );
+    mocks.calculateCosts.mockResolvedValue( mockCost );
+    mocks.toLegacyLLMUsageEvent.mockReturnValue( mockLegacyPayload );
     mocks.calculateBase64FileSize.mockReturnValue( 1234 );
     mocks.mapAiError.mockReturnValue( mappedError );
   } );
@@ -72,7 +95,7 @@ describe( 'wrapGeneration / wrapStream', () => {
   } );
 
   describe( 'wrapGeneration', () => {
-    it( 'starts an llm trace, wraps a text response, and ends with cost and sources', async () => {
+    it( 'starts an llm trace, wraps a text response, and ends with raw usage and sources', async () => {
       const response = textResponse();
       const mergedSources = [ { url: 'https://merged.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
@@ -89,23 +112,30 @@ describe( 'wrapGeneration / wrapStream', () => {
         name: 'generateText',
         details: { prompt }
       } );
-      expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
+      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
-        modelId: 'test-model',
-        providerId: 'openai'
+        prompt
       } );
-      expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
+      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
         eventId: 'generateText-9000000000',
         attribute: mockCost
       } );
-      expect( event.emit ).toHaveBeenCalledWith( 'cost:llm:request', mockCost );
+      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
+        eventId: 'generateText-9000000000',
+        attribute: mockUsage
+      } );
+      expect( event.emit ).toHaveBeenNthCalledWith( 1, 'cost:llm:request', mockLegacyPayload );
+      expect( event.emit ).toHaveBeenNthCalledWith( 2, 'llm:generation:metering', {
+        cost: mockCost,
+        usage: mockUsage
+      } );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000',
         details: {
           result: response.text,
           usage: response.usage,
-          cost: mockCost,
           providerMetadata: response.finalStep.providerMetadata,
           sources: mergedSources
         }
@@ -127,11 +157,11 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       await wrapGeneration( { name: 'generateText', prompt, fn: async () => response } );
 
-      expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
+      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: { inputTokens: 2 },
-        modelId: 'test-model',
-        providerId: 'openai'
+        prompt
       } );
+      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
     } );
 
     it( 'wraps an image response using usage and mapped image metadata', async () => {
@@ -143,18 +173,17 @@ describe( 'wrapGeneration / wrapStream', () => {
         fn: async () => response
       } );
 
-      expect( mocks.calculateLLMCallCost ).toHaveBeenCalledWith( {
+      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
-        modelId: 'test-model',
-        providerId: 'openai'
+        prompt
       } );
+      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateImage-9000000000',
         details: {
           result: [ { size: 1234, mediaType: 'image/png' } ],
           usage: response.usage,
-          cost: mockCost,
           providerMetadata: response.providerMetadata
         }
       } );
@@ -163,8 +192,8 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( wrapped.cost ).toEqual( mockCost );
     } );
 
-    it( 'skips cost attribute and event when cost is missing', async () => {
-      mocks.calculateLLMCallCost.mockResolvedValue( null );
+    it( 'emits normalized usage when cost is missing', async () => {
+      mocks.calculateCosts.mockResolvedValue( null );
       const response = textResponse();
 
       const wrapped = await wrapGeneration( {
@@ -173,11 +202,48 @@ describe( 'wrapGeneration / wrapStream', () => {
         fn: async () => response
       } );
 
+      expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
+        eventId: 'generateText-9000000000',
+        attribute: mockUsage
+      } );
+      expect( event.emit ).toHaveBeenCalledOnce();
+      expect( event.emit ).toHaveBeenCalledWith( 'llm:generation:metering', {
+        cost: null,
+        usage: mockUsage
+      } );
+      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
+        id: 'generateText-9000000000',
+        details: {
+          result: response.text,
+          usage: response.usage,
+          providerMetadata: response.finalStep.providerMetadata,
+          sources: []
+        }
+      } );
+      expect( wrapped.cost ).toBeNull();
+    } );
+
+    it( 'skips cost calculation when usage cannot be parsed', async () => {
+      mocks.parseLLMUsage.mockReturnValue( null );
+      const response = textResponse();
+
+      const wrapped = await wrapGeneration( {
+        name: 'generateText',
+        prompt,
+        fn: async () => response
+      } );
+
+      expect( mocks.calculateCosts ).not.toHaveBeenCalled();
       expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
       expect( event.emit ).not.toHaveBeenCalled();
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000',
-        details: expect.objectContaining( { cost: null, result: response.text } )
+        details: {
+          result: response.text,
+          usage: response.usage,
+          providerMetadata: response.finalStep.providerMetadata,
+          sources: []
+        }
       } );
       expect( wrapped.cost ).toBeNull();
     } );
@@ -238,6 +304,11 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       await onEndHook( response, callback );
 
+      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
+        usage: response.usage,
+        prompt
+      } );
+      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( callback ).toHaveBeenCalledOnce();
       const proxied = callback.mock.calls[0][0];
@@ -249,7 +320,6 @@ describe( 'wrapGeneration / wrapStream', () => {
         details: {
           result: response.text,
           usage: response.usage,
-          cost: mockCost,
           providerMetadata: response.finalStep.providerMetadata,
           sources: mergedSources
         }

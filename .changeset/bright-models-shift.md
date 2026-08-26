@@ -8,5 +8,39 @@
 - Updated `onChunk` to receive every AI SDK 7 stream part, including start, finish, error, step-boundary, text-boundary, and reasoning-boundary parts. Handlers should ignore part types they do not use.
 - Updated `Agent` so it no longer inherits from the AI SDK `ToolLoopAgent`. Its public methods remain `generate()`, `generateWithStreaming()`, and `stream()`.
 - Updated cache-read, cache-write, text-output, and reasoning token cost calculation to use AI SDK 7 usage breakdowns, with aggregate input or output usage as the fallback for incomplete breakdowns.
-- Renamed the `LLMUsage` components `input_cached` to `input_cache_read` and `reasoning` to `output_reasoning`.
-- Added the `LLMUsage` component `input_cache_write`.
+- Added normalized usage and cost items with `group` (`input` or `output`) and optional labels (`no_cache`, `cache_read`, `cache_write`, `text`, or `reasoning`). The existing `cost:llm:request` event keeps its legacy usage types for compatibility.
+- Added normalized `LLMUsage` and `LLMCost` trace attributes with provider/model identity, aggregate totals, detailed items, and completeness/pricing statuses.
+- Added the `llm:generation:metering` event. It is emitted with normalized usage even when cost is unavailable:
+
+  ```json
+  {
+    "usage": {
+      "type": "llm:generation:usage",
+      "providerId": "openai",
+      "modelId": "gpt-4o",
+      "status": "complete",
+      "input": 217,
+      "output": 9,
+      "total": 226,
+      "items": [
+        { "group": "input", "label": "no_cache", "amount": 217 },
+        { "group": "output", "label": "text", "amount": 9 }
+      ]
+    },
+    "cost": {
+      "type": "llm:generation:cost",
+      "providerId": "openai",
+      "modelId": "gpt-4o",
+      "status": "precise",
+      "input": 0.001085,
+      "output": 0.000135,
+      "total": 0.00122,
+      "items": [
+        { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
+        { "group": "output", "label": "text", "amount": 9, "ppm": 15, "total": 0.000135, "status": "ok" }
+      ]
+    }
+  }
+  ```
+
+  The existing `cost:llm:request` event and deprecated `LLMUsageEvent` type remain available with their legacy payload, so existing hooks do not need to migrate in this release. Prefer `llm:generation:metering` for new integrations because it reports usage independently from pricing and represents cache, reasoning, fallback, and missing-price information faithfully.

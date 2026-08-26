@@ -1,12 +1,10 @@
 export declare namespace Attribute {
-  export interface Usage {
+  export class BaseAttribute {
     type: string;
-    ppm: number;
-    amount: number;
-    total: number;
+    constructor( type: string );
   }
 
-  export class HTTPRequestCount {
+  export class HTTPRequestCount extends BaseAttribute {
     static TYPE: 'http:request:count';
     type: typeof HTTPRequestCount.TYPE;
     url: string;
@@ -14,7 +12,7 @@ export declare namespace Attribute {
     constructor( url: string, requestId: string );
   }
 
-  export class HTTPRequestCost {
+  export class HTTPRequestCost extends BaseAttribute {
     static TYPE: 'http:request:cost';
     type: typeof HTTPRequestCost.TYPE;
     url: string;
@@ -23,16 +21,5 @@ export declare namespace Attribute {
     constructor( url: string, requestId: string, total: number );
   }
 
-  export class LLMUsage {
-    static TYPE: 'llm:usage';
-    type: typeof LLMUsage.TYPE;
-    modelId: string;
-    usage: Usage[];
-    constructor( modelId: string );
-    addUsage( usage: { type: string; ppm: number; amount: number } ): void;
-    readonly total: number;
-    readonly tokensUsed: number;
-  }
-
-  export type Instance = HTTPRequestCount | HTTPRequestCost | LLMUsage;
+  export type Instance = BaseAttribute;
 }

@@ -99,13 +99,12 @@
 
 - Fixed inconsistent and incomplete LLM trace payloads across `generateText()`, `streamText()`, `generateTextWithStreaming()`, `generateImage()`, and `Agent`:
   - Updated start `input` to `{ prompt }` (the loaded object). Removed the v0.11 filename `prompt`, sibling `variables`, and `loadedPrompt`.
-  - Added `cost` on end `output` (also still a trace attribute and `cost:llm:request` when present).
   - Renamed `sourcesFromTools` to `sources` (merged tool + provider sources).
   - Fixed source merge dropping provider document sources that have `id` but no `url`.
   - Fixed blank or untrimmed search URLs producing invalid citations or unstable source IDs. URLs are trimmed and blank values are dropped.
   - Fixed wrapped text responses not consistently exposing `sources` as an array.
   - Updated `ExtractedSource` to the AI SDK `generateText` sources item type (url and document).
-- Fixed public cost, source, and stream callback types not matching wrapped runtime values. `LLMCallCost` and `LLMUsageEvent` are the `Tracing.Attribute.LLMUsage` instance type from `@outputai/core`; `response.cost` and stream `onEnd` `cost` are that instance, or `null` when pricing is missing. Stream `onEnd` types also include wrapped `result` and merged `sources`.
+- Fixed public cost, source, and stream callback types to match wrapped runtime values. `response.cost` and stream `onEnd` `cost` use `LLMCost`, or `null` when pricing data is unavailable. Stream `onEnd` types also include wrapped `result` and merged `sources`.
 
 ## AI SDK exports and public parameter types
 

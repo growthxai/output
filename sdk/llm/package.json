@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@outputai/core": "workspace:",
+    "decimal.js": "catalog:",
     "entities": "8.0.0",
     "gray-matter": "4.0.3",
     "liquidjs": "10.27.2",

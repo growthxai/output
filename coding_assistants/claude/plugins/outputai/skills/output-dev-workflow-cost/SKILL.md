@@ -92,9 +92,10 @@ npx output workflow cost <runId> --verbose
 > Pricing values are illustrative — the model and per-token rates shown below were current as of 2026-05-04. Live pricing comes from [models.dev](https://models.dev). For current model IDs, see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md).
 
 Costs come in two figures per row: **Original** is the as-charged cost recorded
-in the trace events (`llm:usage` / `http:request:cost`), and **Adjusted** is the
-cost after applying any `costs.yml` override (equal to Original when no override
-applies). The bottom line and JSON `totalCost` are the Adjusted total.
+in the trace attributes (`llm:generation:cost` / `http:request:cost`, with
+`llm:generation:usage` and legacy `llm:usage` fallbacks), and **Adjusted** is
+the cost after applying any `costs.yml` override (equal to Original when no
+override applies). The bottom line and JSON `totalCost` are the Adjusted total.
 
 ```
 Workflow: process_transcripts

@@ -30,6 +30,9 @@ catalogs:
     '@types/js-yaml':
       specifier: 4.0.9
       version: 4.0.9
+    decimal.js:
+      specifier: 10.6.0
+      version: 10.6.0
     js-yaml:
       specifier: 4.3.1
       version: 4.3.1
@@ -289,7 +292,7 @@ importers:
         specifier: 'catalog:'
         version: 1.20.3
       decimal.js:
-        specifier: 10.6.0
+        specifier: 'catalog:'
         version: 10.6.0
       folder-hash:
         specifier: 4.1.3
@@ -378,6 +381,9 @@ importers:
       '@outputai/core':
         specifier: 'workspace:'
         version: link:../core
+      decimal.js:
+        specifier: 'catalog:'
+        version: 10.6.0
       entities:
         specifier: 8.0.0
         version: 8.0.0

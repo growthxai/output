@@ -229,7 +229,7 @@ response.body?.cancel();
 
 `addRequestCost` only works with responses returned by `outputFetch` or `createKyClient`. If the response did not come from this package, the function safely no-ops and logs a warning.
 
-It also emits a **`cost:http:request`** hook event (same hooks system as [`cost:llm:request`](/costs/cost-events)). For the payload and examples, see [Cost Events — HTTP](/costs/cost-events#http-request-cost).
+It also emits a **`cost:http:request`** hook event through the same hooks system as [LLM generation metering](/costs/cost-events#llm-generation-metering). For the payload and examples, see [Cost Events - HTTP](/costs/cost-events#http-request-cost).
 
 ## Error Handling
 

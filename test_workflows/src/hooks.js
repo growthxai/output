@@ -15,8 +15,12 @@
 
 // // custom + sub modules
 // on( 'http:request', async payload => console.log( colorize( 'on(http:request)' ), payload ) );
+// on( 'llm:generation:metering', event => console.log( colorize( 'on(llm:generation:metering)' ), {
+//   cost: event.payload.cost,
+//   usage: event.payload.usage
+// } ) );
 // on( 'cost:llm:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
-// on( 'cost:http:request', payload => console.log( colorize( 'on(cost:llm:request)' ), payload ) );
+// on( 'cost:http:request', payload => console.log( colorize( 'on(cost:http:request)' ), payload ) );
 // on( 'test', payload => console.log( colorize( 'on(test)' ), payload ) );
 
 // // Generic on error

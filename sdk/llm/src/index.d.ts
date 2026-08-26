@@ -11,7 +11,7 @@ import type {
   StreamTextOnErrorCallback
 } from 'ai';
 import type { Output as AIOutputNamespace } from 'ai';
-import type { Tracing } from '@outputai/core/sdk/runtime';
+import type { BaseAttribute } from '@outputai/core/sdk/runtime';
 
 /** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, and other AI SDK APIs. */
 export * as aiSdk from 'ai';
@@ -331,15 +331,78 @@ export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParame
 export type ExtractedSource =
   AIGenerateTextResult<ToolSet, DefaultRuntimeContext, AnyAiOutput>['sources'][number];
 
-/**
- * Cost on a wrapped LLM response (`response.cost`, stream `onEnd` `cost`) and the
- * `cost:llm:request` payload. This is a `Tracing.Attribute.LLMUsage` instance.
- * `calculateLLMCallCost` returns it, or `null` when pricing data is missing.
- * Usage entry types are `input`, `input_cache_read`, `input_cache_write`, `output`, and `output_reasoning`.
- */
-export type LLMCallCost = InstanceType<( typeof Tracing.Attribute )['LLMUsage']>;
+export type LLMUsageStatus = 'complete' | 'incomplete';
 
-export type LLMUsageEvent = LLMCallCost;
+/** Token usage reported for one normalized LLM usage component. */
+export interface LLMUsageItem {
+  group: 'input' | 'output';
+  label: string | null;
+  amount: number;
+}
+
+/** Normalized LLM token usage trace attribute. */
+export interface LLMUsage extends BaseAttribute {
+  type: 'llm:generation:usage';
+  providerId: string;
+  modelId: string;
+  input: number | null;
+  output: number | null;
+  total: number | null;
+  status: LLMUsageStatus;
+  items: LLMUsageItem[];
+}
+
+/** One priced usage line in the legacy LLM cost event. */
+export interface LLMUsageEventItem {
+  type: string;
+  ppm: number;
+  amount: number;
+  total: number;
+}
+
+/**
+ * Legacy `cost:llm:request` event payload.
+ *
+ * @deprecated Use the normalized `LLMUsage` and `LLMCost` payloads from the LLM generation metering event.
+ */
+export interface LLMUsageEvent {
+  type: 'llm:usage';
+  modelId: string;
+  usage: LLMUsageEventItem[];
+  readonly total: number;
+  readonly tokensUsed: number;
+}
+
+export type LLMCostItemStatus = 'ok' | 'fallback' | 'missing';
+export type LLMCostStatus = 'precise' | 'imprecise' | 'incomplete';
+
+/** Cost calculated for one normalized LLM usage item. */
+export interface LLMCostItem {
+  group: 'input' | 'output';
+  label: string | null;
+  amount: number;
+  ppm: number | null;
+  total: number | null;
+  status: LLMCostItemStatus;
+}
+
+/** Normalized LLM generation cost trace attribute. */
+export interface LLMCost extends BaseAttribute {
+  type: 'llm:generation:cost';
+  providerId: string;
+  modelId: string;
+  input: number | null;
+  output: number | null;
+  total: number | null;
+  status: LLMCostStatus;
+  items: LLMCostItem[];
+}
+
+/** Payload emitted by the `llm:generation:metering` event. */
+export interface LLMGenerationMeteringEvent {
+  usage: LLMUsage;
+  cost: LLMCost | null;
+}
 
 /**
  * `streamText` and agent `stream` `onEnd` event after the stream response wrapper: same as the AI SDK
@@ -348,7 +411,7 @@ export type LLMUsageEvent = LLMCallCost;
 export type WrappedStreamTextOnEndEvent<Tools extends ToolSet = ToolSet> =
   Parameters<GenerateTextOnEndCallback<Tools, DefaultRuntimeContext>>[0] & {
     result: string;
-    cost: LLMCallCost | null;
+    cost: LLMCost | null;
     sources: ExtractedSource[];
   };
 
@@ -368,7 +431,7 @@ export type GenerateTextResult<
   /** Unified field name alias for 'text' */
   result: string;
   /** Calculated cost for the LLM call; `null` when pricing data is not available */
-  cost: LLMCallCost | null;
+  cost: LLMCost | null;
   /** Merged tool + provider sources (url and document). Always an array. */
   sources: ExtractedSource[];
 };
@@ -384,7 +447,7 @@ export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
   result: AIGenerateImageResult['image'];
   /** Calculated cost for the image generation call; `null` when pricing data is not available. */
-  cost: LLMCallCost | null;
+  cost: LLMCost | null;
 };
 
 /**

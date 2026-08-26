@@ -1,30 +1,37 @@
 ---
 title: "Cost Events"
-description: "Monitor LLM and HTTP request costs in real time — cost:llm:request and cost:http:request hook events for logging, alerting, and aggregation"
+description: "Monitor normalized LLM usage and cost plus HTTP request costs in real time"
 ---
 
-The [cost estimation CLI](/costs) shows you costs after a workflow finishes. **Cost events** expose similar data while a workflow runs:
+The [cost estimation CLI](/costs) shows you costs after a workflow finishes. Metering and cost events expose similar data while a workflow runs:
 
-- **`cost:llm:request`** — emitted when an LLM generation call finishes, with an LLM usage attribute.
-- **`cost:http:request`** — emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/http#attaching-request-cost) from `@outputai/http`, with an HTTP request cost attribute.
+- **`llm:generation:metering`** - recommended for LLM integrations. It carries normalized usage and cost, including calls without available pricing.
+- **`cost:llm:request`** - the compatible legacy LLM cost event. Existing handlers can keep using it.
+- **`cost:http:request`** - emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/http#attaching-request-cost) from `@outputai/http`.
 
-Use either or both to log spend to your observability stack, trigger alerts, or aggregate cost per workflow over time.
+Use them to log spend and usage to your observability stack, trigger alerts, or aggregate costs per workflow over time.
 
 ## Setup
 
 Cost events use the same [hooks system](/operations/error-hooks) as error hooks:
 
 1. Create a hook file and import `on` from `@outputai/core/hooks`.
-2. Register a handler for `cost:llm:request`, `cost:http:request`, or both.
+2. Register a handler for `llm:generation:metering`, `cost:llm:request`, `cost:http:request`, or a combination.
 3. Add the file path to `outputai.hookFiles` in `package.json`.
 
-See [Error Hooks — Setup](/operations/error-hooks#setup) for the hook file registration pattern.
+See [Error Hooks - Setup](/operations/error-hooks#setup) for the hook file registration pattern.
 
-```typescript src/llm_cost_hooks.ts
+```typescript src/llm_metering_hooks.ts
 import { on } from '@outputai/core/hooks';
-import type { LLMUsageEvent } from '@outputai/llm';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 
-on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, eventDate, workflowDetails, activityInfo, payload } ) => {
+on<LLMGenerationMeteringEvent>( 'llm:generation:metering', async ( {
+  eventId,
+  eventDate,
+  workflowDetails,
+  activityInfo,
+  payload
+} ) => {
   if (!workflowDetails || !activityInfo || !payload) {
     return;
   }
@@ -34,10 +41,10 @@ on<LLMUsageEvent>( 'cost:llm:request', async ( { eventId, eventDate, workflowDet
     eventDate,
     workflowId: workflowDetails.workflowId,
     activityId: activityInfo.activityId,
-    modelId: payload.modelId,
-    tokens: payload.tokensUsed,
-    cost: payload.total,
-    usage: payload.usage
+    providerId: payload.usage.providerId,
+    modelId: payload.usage.modelId,
+    tokens: payload.usage.total,
+    cost: payload.cost?.total
   } );
 } );
 ```
@@ -63,17 +70,17 @@ on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, eventDate, wor
 } );
 ```
 
-Handler errors are caught and logged by the framework — they never affect the workflow or the request that triggered them.
+Handler errors are caught and logged by the framework - they never affect the workflow or the request that triggered them.
 
-## LLM request cost
+## LLM generation metering
 
 ### When events fire
 
-A `cost:llm:request` event is emitted after text generation completes for `generateText()`, `generateTextWithStreaming()`, and Agent calls. For direct `streamText()` and `Agent.stream()` usage, the event fires when the stream finishes, not when it starts.
+`llm:generation:metering` is emitted after generation completes for text, image, and Agent calls whenever usage is available. For direct `streamText()` and `Agent.stream()` usage, it fires when the stream finishes, not when it starts.
 
 ### Payload
 
-The handler receives an event envelope. The LLM usage attribute is available under `payload`:
+The handler receives the standard event envelope. `payload.usage` is always present; `payload.cost` is `null` when pricing data is unavailable:
 
 ```json
 {
@@ -90,55 +97,114 @@ The handler receives an event envelope. The LLM usage attribute is available und
   },
   "outputActivityKind": "step",
   "payload": {
-    "type": "llm:usage",
-    "modelId": "gpt-4o",
-    "usage": [
-      { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
-      { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
-    ],
-    "total": 0.00122,
-    "tokensUsed": 226
+    "usage": {
+      "type": "llm:generation:usage",
+      "providerId": "openai",
+      "modelId": "gpt-4o",
+      "status": "complete",
+      "input": 217,
+      "output": 9,
+      "total": 226,
+      "items": [
+        { "group": "input", "label": "no_cache", "amount": 217 },
+        { "group": "output", "label": "text", "amount": 9 }
+      ]
+    },
+    "cost": {
+      "type": "llm:generation:cost",
+      "providerId": "openai",
+      "modelId": "gpt-4o",
+      "status": "precise",
+      "input": 0.001085,
+      "output": 0.000135,
+      "total": 0.00122,
+      "items": [
+        { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
+        { "group": "output", "label": "text", "amount": 9, "ppm": 15, "total": 0.000135, "status": "ok" }
+      ]
+    }
   }
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `eventId` | `string` | UUID v4 stamped per emit. Use as an idempotency key — `cost:llm:request` and `http:request` for the same fetch get distinct `eventId`s. |
+| `eventId` | `string` | UUID v4 stamped per emit. Use it as an idempotency key. |
 | `eventDate` | `number` | Millisecond epoch timestamp for when the event was emitted. |
 | `activityInfo` | `object \| undefined` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the call is made in an activity context. |
 | `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
 | `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
-| `payload.type` | `"llm:usage"` | Attribute type. |
-| `payload.modelId` | `string` | Model identifier (e.g. `claude-sonnet-4-20250514`, `gpt-4o`). From the prompt file config. |
-| `payload.usage` | `array` | Priced usage entries for this call. See [Usage entries](#usage-entries). |
-| `payload.total` | `number` | Total estimated cost in dollars. |
-| `payload.tokensUsed` | `number` | Total number of tokens represented by `payload.usage`. |
+| `payload.usage` | `LLMUsage` | Normalized provider-reported usage. |
+| `payload.cost` | `LLMCost \| null` | Cost calculated from that usage, or `null` when pricing data could not be loaded. |
 
-### Usage entries
+### Normalized usage
 
-Cost is computed from the model's per-million-token pricing, fetched from a built-in pricing source and cached for 24 hours. For each priced dimension, the dollar amount is `(tokens / 1_000_000) * pricePerMillion`.
-
-When the AI SDK input details reconcile with `inputTokens`, Output prices `noCacheTokens`, `cacheReadTokens`, and `cacheWriteTokens` separately. When output details reconcile with `outputTokens`, it prices `textTokens` and `reasoningTokens` separately. An incomplete breakdown falls back to aggregate input or output tokens. Missing cache or reasoning pricing falls back to the regular input or output rate.
+`LLMUsage` records usage independently from pricing. Aggregate `input`, `output`, and `total` fields make common reads direct; `items` preserve the provider breakdown.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | `string` | Usage dimension. |
-| `ppm` | `number` | Price per million tokens for this dimension. |
+| `type` | `"llm:generation:usage"` | Trace attribute type. |
+| `providerId` | `string` | Provider identifier from the loaded prompt. |
+| `modelId` | `string` | Model identifier from the loaded prompt. |
+| `input` | `number \| null` | Total reported input usage. |
+| `output` | `number \| null` | Total reported output usage. |
+| `total` | `number \| null` | Sum of available input and output usage. |
+| `status` | `"complete" \| "incomplete"` | Whether both input and output usage were reported. |
+| `items` | `LLMUsageItem[]` | Detailed usage items. |
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `group` | `"input" \| "output"` | Aggregate category. |
+| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), or `null` for aggregate usage. |
 | `amount` | `number` | Token count for this dimension. |
-| `total` | `number` | Cost for this dimension. |
 
-`payload.usage[].type` values:
+When the detailed counts do not reconcile with the aggregate count, Output keeps the aggregate input or output item instead of recording a misleading breakdown.
 
-| `type` | Description |
-|--------|-------------|
-| `input` | Non-cached prompt tokens. |
-| `input_cache_read` | Cached prompt read tokens (`inputTokenDetails.cacheReadTokens`). |
-| `input_cache_write` | Prompt tokens written to cache (`inputTokenDetails.cacheWriteTokens`). |
-| `output` | Text completion tokens. |
-| `output_reasoning` | Reasoning tokens (`outputTokenDetails.reasoningTokens`). |
+### Normalized cost
 
-Only available, finite usage dimensions are included. When detailed counts are unavailable or inconsistent, `input` or `output` represents the aggregate token count instead.
+`LLMCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input`, `output`, `total` | `number \| null` | Aggregate dollar costs for available priced items. |
+| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used, or usage/pricing was incomplete. |
+| `items[].ppm` | `number \| null` | Applied price per million tokens. |
+| `items[].total` | `number \| null` | Calculated item cost. |
+| `items[].status` | `"ok" \| "fallback" \| "missing"` | Whether the exact rate, a regular input/output fallback, or no rate was available. |
+
+## Legacy LLM request cost
+
+`cost:llm:request` is emitted on the same completion path when a legacy-priced payload can be calculated. It remains supported with the same payload shape, so existing handlers do not need to migrate. Its `LLMUsageEvent` type is deprecated only to steer new integrations toward the normalized event.
+
+```typescript src/legacy_llm_cost_hooks.ts
+import { on } from '@outputai/core/hooks';
+import type { LLMUsageEvent } from '@outputai/llm';
+
+on<LLMUsageEvent>( 'cost:llm:request', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log( event.payload.modelId, event.payload.total, event.payload.usage );
+} );
+```
+
+```json
+{
+  "type": "llm:usage",
+  "modelId": "gpt-4o",
+  "usage": [
+    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
+    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
+  ],
+  "total": 0.00122,
+  "tokensUsed": 226
+}
+```
+
+The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` and `tokensUsed` are calculated from those legacy lines.
+
+Use `llm:generation:metering` for new integrations. It is more faithful to the provider response because usage is independent from pricing, cache writes and reasoning remain explicit, provider identity is included, and fallback or missing prices are represented rather than hidden.
 
 ## HTTP request cost
 

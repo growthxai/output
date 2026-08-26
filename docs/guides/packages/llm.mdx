@@ -527,24 +527,27 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | LLM usage attribute (`type`, `modelId`, `usage`, `total`, `tokensUsed`); `null` when pricing could not be computed |
+| `cost` | Normalized `LLMCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` when pricing data is unavailable |
 
-The `cost` property is an LLM usage attribute:
+The `cost` property is an `LLMCost`:
 
 ```json
 {
-  "type": "llm:usage",
+  "type": "llm:generation:cost",
+  "providerId": "openai",
   "modelId": "gpt-4o",
-  "usage": [
-    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
-    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
-  ],
+  "status": "precise",
+  "input": 0.001085,
+  "output": 0.000135,
   "total": 0.00122,
-  "tokensUsed": 226
+  "items": [
+    { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
+    { "group": "output", "label": "text", "amount": 9, "ppm": 15, "total": 0.000135, "status": "ok" }
+  ]
 }
 ```
 
-Detailed cost dimensions are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate; incomplete breakdowns fall back to aggregate `input` or `output` usage.
+Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Missing prices produce `null` item costs and an `incomplete` aggregate status.
 
 **Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `stream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
@@ -787,7 +790,7 @@ Enrich {{ company }}.
 
 ### Confirming a cache hit
 
-Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache creation in `usage.inputTokenDetails.cacheWriteTokens`, and later calls within the TTL report cache reads in `usage.inputTokenDetails.cacheReadTokens`. The corresponding `response.cost.usage` entries use `input_cache_write` and `input_cache_read`.
+Cache activity appears in the response usage and the [metering event](/costs/cost-events): the first call reports cache creation in `usage.inputTokenDetails.cacheWriteTokens`, and later calls within the TTL report cache reads in `usage.inputTokenDetails.cacheReadTokens`. The corresponding normalized cost items use `group: "input"` with `label: "cache_write"` or `label: "cache_read"`.
 
 <Note>
 Anthropic caches only prefixes above a model-specific minimum - around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
@@ -905,9 +908,60 @@ Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usua
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
-## LLM call cost event
+## LLM metering events
 
-Each completed text generation call emits a `cost:llm:request` event after the LLM responds and cost can be computed. For direct streams, the event is emitted when the stream finishes. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The handler receives an event envelope whose `payload` field is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
+For direct streams, metering events fire when the stream finishes. Observe them with the [hooks mechanism](/packages/core#error-hooks) by registering handlers with `on()` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`.
+
+### Normalized generation metering
+
+`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMUsage` and `cost: LLMCost | null`. Missing model or dimension prices produce an incomplete `LLMCost`; `cost` itself is `null` when the pricing catalog could not be loaded.
+
+```typescript
+import { on } from '@outputai/core/hooks';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+
+on<LLMGenerationMeteringEvent>('llm:generation:metering', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log(event.payload.usage.total, event.payload.cost?.total);
+});
+```
+
+### Legacy LLM request cost
+
+`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload, so existing hooks do not need a structural migration:
+
+```typescript
+import { on } from '@outputai/core/hooks';
+import type { LLMUsageEvent } from '@outputai/llm';
+
+on<LLMUsageEvent>('cost:llm:request', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log(event.payload.modelId, event.payload.total, event.payload.usage);
+});
+```
+
+```json
+{
+  "type": "llm:usage",
+  "modelId": "gpt-4o",
+  "usage": [
+    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
+    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
+  ],
+  "total": 0.00122,
+  "tokensUsed": 226
+}
+```
+
+Legacy usage line types are frozen as `input`, `input_cached`, `output`, and `reasoning`. The event keeps this payload shape for compatibility, while corrected reasoning accounting or AI SDK 7 usage details can change individual values. `LLMUsageEvent` is deprecated only to guide new integrations toward the more complete event.
+
+See [Cost Events](/costs/cost-events) for the complete normalized usage/cost schemas and HTTP cost events.
 
 ## loadPrompt
 

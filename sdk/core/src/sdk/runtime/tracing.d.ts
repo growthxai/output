@@ -1,5 +1,7 @@
 import { Attribute } from '#trace_attribute';
 
+export type BaseAttribute = InstanceType<typeof Attribute.BaseAttribute>;
+
 /**
  * Tools to interact with Tracing
  */

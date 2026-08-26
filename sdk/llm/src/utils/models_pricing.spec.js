@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchModelsPricing, cache } from './fetch_models_pricing.js';
+import { fetchModelsPricing, cache } from './models_pricing.js';
 import fixture from '../fixtures/models_api_light.json' with { type: 'json' };
 
 const fetchMock = vi.hoisted( () => vi.fn() );
@@ -22,7 +22,7 @@ const stubFetch = response => {
   return fetchMock;
 };
 
-describe( 'fetchModelsPricing', () => {
+describe( 'modelsPricing', () => {
   beforeEach( () => {
     cache.content = null;
     cache.expiresAt = 0;

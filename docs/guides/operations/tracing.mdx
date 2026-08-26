@@ -12,7 +12,7 @@ Traces are written automatically when the worker runs. You don't need to add any
 Each traced workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
 
 - **Steps and evaluators** — input, output (or error), start/end timestamps;
-- **LLM calls** - the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, token usage, and `cost`. Text calls also include merged `sources`; image calls do not;
+- **LLM calls** - the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, raw token usage, and normalized usage/cost attributes. Text calls also include merged `sources`; image calls do not;
 - **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
 - **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
 - **Child workflows** — nested as their own trees with the same structure
@@ -100,6 +100,7 @@ Each trace file is a single JSON object — the root workflow node. Every node i
 | `startedAt` / `endedAt` | Unix timestamps (ms) |
 | `input` | What the node received |
 | `output` | What the node returned (absent on error) |
+| `attributes` | Structured metadata keyed by attribute type, including normalized LLM usage and cost |
 | `error` | Error details with `name`, `message`, `stack` (absent on success) |
 | `children` | Array of child nodes (same shape) |
 
@@ -134,8 +135,35 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
       "output": {
         "result": "Acme Corp is a B2B SaaS company...",
         "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
-        "cost": { "type": "llm:usage", "modelId": "claude-sonnet-4-20250514", "total": 0.01 },
         "sources": []
+      },
+      "attributes": {
+        "llm:generation:usage": {
+          "type": "llm:generation:usage",
+          "providerId": "anthropic",
+          "modelId": "claude-sonnet-4-20250514",
+          "status": "complete",
+          "input": 38,
+          "output": 204,
+          "total": 242,
+          "items": [
+            { "group": "input", "label": null, "amount": 38 },
+            { "group": "output", "label": null, "amount": 204 }
+          ]
+        },
+        "llm:generation:cost": {
+          "type": "llm:generation:cost",
+          "providerId": "anthropic",
+          "modelId": "claude-sonnet-4-20250514",
+          "status": "precise",
+          "input": 0.000114,
+          "output": 0.00306,
+          "total": 0.003174,
+          "items": [
+            { "group": "input", "label": null, "amount": 38, "ppm": 3, "total": 0.000114, "status": "ok" },
+            { "group": "output", "label": null, "amount": 204, "ppm": 15, "total": 0.00306, "status": "ok" }
+          ]
+        }
       },
       "children": []
     }

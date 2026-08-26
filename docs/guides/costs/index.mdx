@@ -17,7 +17,7 @@ output workflow run lead_enrichment acme
 output workflow cost lead_enrichment
 ```
 
-That's it. The command reads the trace, looks up pricing for every LLM call and API request, and prints a breakdown:
+That's it. The command reads recorded trace cost attributes, applies any configured pricing overrides, and prints a breakdown:
 
 ```
 Trace: logs/runs/lead_enrichment/2026-03-01_lead_enrichment-abc123.json
@@ -61,11 +61,11 @@ output workflow cost lead_enrichment logs/runs/lead_enrichment/2026-03-01_lead_e
 
 The cost calculator walks the trace tree and extracts two kinds of billable events:
 
-1. **LLM calls** — Reads the model from the loaded prompt config and the token usage (input, output, cached, reasoning). Multiplies each by the model's per-million-token price.
+1. **LLM calls** - Prefers the recorded `llm:generation:cost` attribute for the original cost. It can reprice `llm:generation:usage` with `costs.yml`, and still reads legacy `llm:usage` attributes from older traces.
 
-2. **HTTP calls** — Matches the request URL against known service patterns in the pricing config. Calculates cost from token usage, API units, per-request pricing, or a cost field in the response body, depending on the service type.
+2. **HTTP calls** - Matches the request URL against known service patterns in the pricing config. Calculates cost from token usage, API units, per-request pricing, or a cost field in the response body, depending on the service type.
 
-Failed HTTP calls (status >= 400) are excluded — most APIs don't charge for errors.
+Failed HTTP calls (status >= 400) are excluded - most APIs don't charge for errors.
 
 ## Pricing configuration
 
