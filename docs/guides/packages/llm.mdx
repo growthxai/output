@@ -527,7 +527,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` when pricing data is unavailable |
+| `cost` | Normalized `LLMCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` only when the pricing catalog cannot be loaded |
 
 The `cost` property is an `LLMCost`:
 
@@ -564,7 +564,7 @@ Detailed cost items are used when the provider breakdown reconciles with the agg
 | `finalStep` | `Promise<StepResult>` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
 
-`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (`null` when pricing is missing), and merged `sources` (always an array).
+`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMCost` when model or dimension pricing is missing, or `null` when the pricing catalog cannot be loaded), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -726,7 +726,7 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged - register under a models.dev provider id if you need automatic pricing.
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
 
 ## Prompt Caching
 

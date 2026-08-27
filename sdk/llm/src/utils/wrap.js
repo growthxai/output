@@ -6,7 +6,7 @@ import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
 import { Logger } from '@outputai/core';
-import { toLegacyLLMUsageEvent } from './legacy_cost.js';
+import { convertCostToLegacy } from './legacy_cost_attribute.js';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
 const createResponseProxy = ( { response, properties } ) => new Proxy( response, {
@@ -40,14 +40,14 @@ const handleMetering = async ( { traceId, usage: sdkUsage, prompt } ) => {
   if ( costAttribute ) {
     Tracing.addEventAttribute( { eventId: traceId, attribute: costAttribute } );
     // @TEMP Preserve the deprecated event for legacy consumers.
-    const legacyPayload = toLegacyLLMUsageEvent( costAttribute );
+    const legacyPayload = convertCostToLegacy( costAttribute );
     if ( legacyPayload ) {
       Event.emit( 'cost:llm:request', legacyPayload );
     }
   }
 
   Tracing.addEventAttribute( { eventId: traceId, attribute: usageAttribute } );
-  Event.emit( 'llm:generation:metering', { cost: costAttribute, usage: usageAttribute } );
+  Event.emit( 'llm:generation:metering', structuredClone( { cost: costAttribute, usage: usageAttribute } ) );
   return costAttribute;
 };
 

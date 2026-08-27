@@ -178,7 +178,7 @@ describe( 'calculateCosts', () => {
     } );
     expect( result.items.every( value => value.status === LLMCostItem.Status.MISSING ) ).toBe( true );
     expect( Logger.warn ).toHaveBeenCalledWith(
-      'Missing cost reference for model',
+      'Missing pricing reference for model',
       { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID }
     );
   } );

@@ -7,7 +7,7 @@ const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
   parseLLMUsage: vi.fn(),
   calculateCosts: vi.fn(),
-  toLegacyLLMUsageEvent: vi.fn(),
+  convertCostToLegacy: vi.fn(),
   calculateBase64FileSize: vi.fn(),
   mapAiError: vi.fn()
 } ) );
@@ -24,8 +24,8 @@ vi.mock( './cost.js', () => ( {
   calculateCosts: mocks.calculateCosts
 } ) );
 
-vi.mock( './legacy_cost.js', () => ( {
-  toLegacyLLMUsageEvent: mocks.toLegacyLLMUsageEvent
+vi.mock( './legacy_cost_attribute.js', () => ( {
+  convertCostToLegacy: mocks.convertCostToLegacy
 } ) );
 
 vi.mock( './image.js', () => ( {
@@ -75,7 +75,7 @@ const mockUsage = {
   items: []
 };
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
-const mockLegacyPayload = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
+const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 const mappedError = new Error( 'mapped' );
 
 describe( 'wrapGeneration / wrapStream', () => {
@@ -85,7 +85,7 @@ describe( 'wrapGeneration / wrapStream', () => {
     mocks.extractSources.mockReturnValue( [] );
     mocks.parseLLMUsage.mockReturnValue( mockUsage );
     mocks.calculateCosts.mockResolvedValue( mockCost );
-    mocks.toLegacyLLMUsageEvent.mockReturnValue( mockLegacyPayload );
+    mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
     mocks.calculateBase64FileSize.mockReturnValue( 1234 );
     mocks.mapAiError.mockReturnValue( mappedError );
   } );
@@ -125,7 +125,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         eventId: 'generateText-9000000000',
         attribute: mockUsage
       } );
-      expect( event.emit ).toHaveBeenNthCalledWith( 1, 'cost:llm:request', mockLegacyPayload );
+      expect( event.emit ).toHaveBeenNthCalledWith( 1, 'cost:llm:request', mockLegacyCost );
       expect( event.emit ).toHaveBeenNthCalledWith( 2, 'llm:generation:metering', {
         cost: mockCost,
         usage: mockUsage

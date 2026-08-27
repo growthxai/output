@@ -84,6 +84,9 @@ const resolveValue = values => {
 };
 
 const resolvePrice = ( { group, label, pricing } ) => {
+  if ( !pricing ) {
+    return resolveValue( [] );
+  }
   if ( group === LLMUsageItem.Group.OUTPUT ) {
     const values = [ pricing.output ];
     if ( label === 'reasoning' ) {
@@ -118,12 +121,11 @@ export const calculateCosts = async usage => {
 
   const { providerId, modelId } = usage;
 
-  const reference = models.get( `${providerId}/${modelId}` );
-  if ( !reference ) {
-    Logger.warn( 'Missing cost reference for model', { namespace: 'LLM', modelId, providerId } );
+  const pricing = models.get( `${providerId}/${modelId}` );
+  if ( !pricing ) {
+    Logger.warn( 'Missing pricing reference for model', { namespace: 'LLM', modelId, providerId } );
   }
 
-  const pricing = reference ?? {};
   const items = usage.items.map( ( { group, label, amount } ) => {
     const { ppm, status } = resolvePrice( { pricing, group, label } );
     const total = exists( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
