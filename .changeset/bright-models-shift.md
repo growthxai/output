@@ -12,7 +12,6 @@
 - Fixed legacy `llm:usage` output accounting: when reasoning tokens are provided as a discrete item, they are no longer included in the item for output tokens, removing the double counting problem.
 - Added normalized `LLMUsage` and `LLMCost` trace attributes with provider/model identity, aggregate totals, detailed items, and completeness/pricing statuses.
 - Added the `llm:generation:metering` event. It is emitted with normalized usage even when cost is unavailable:
-
   ```json
   {
     "usage": {
@@ -43,5 +42,3 @@
     }
   }
   ```
-
-  The existing `cost:llm:request` event and deprecated `LLMUsageEvent` type remain available with their legacy payload, so existing hooks do not need to migrate in this release. Prefer `llm:generation:metering` for new integrations because it reports usage independently from pricing and represents cache, reasoning, fallback, and missing-price information faithfully.
