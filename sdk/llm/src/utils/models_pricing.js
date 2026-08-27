@@ -13,48 +13,56 @@ export const cache = {
   expiresAt: 0
 };
 
-const buildModelMap = data => {
+const parseData = data => {
   const map = new Map();
-  for ( const provider of Object.values( data ) ) {
-    for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
-      if ( cost ) { // some models don't have cost
-        map.set( `${provider.id}/${modelName}`, cost );
+  try {
+    for ( const provider of Object.values( data ) ) {
+      for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
+        if ( cost ) { // some models don't have cost
+          map.set( `${provider.id}/${modelName}`, cost );
+        }
       }
     }
+    return map;
+  } catch ( error ) {
+    logger.error( `Models pricing: Data parsing failure "${error.name}".` );
+    return null;
   }
-  return map;
 };
 
-const buildErrorMessage = cause => `Error "${cause}" when fetching models pricing at ${costTableUrl}`;
+const fetchData = async () => {
+  try {
+    const res = await fetch( costTableUrl, { dispatcher } );
+    if ( res.ok ) {
+      return await res.json();
+    } else {
+      logger.error( `Models pricing: Data fetch HTTP error ${res.status}.` );
+      return null;
+    }
+  } catch ( error ) {
+    logger.error( `Models pricing: Data fetch failure "${error.code ?? error.name}".` );
+    return null;
+  }
+};
 
 export const fetchModelsPricing = async () => {
   if ( cache.content && cache.expiresAt > Date.now() ) {
     return cache.content;
   }
 
-  const state = { errorMessage: null, table: null };
+  const table = await fetchData();
+  const content = table ? parseData( table ) : null;
 
-  try {
-    const res = await fetch( costTableUrl, { dispatcher } );
-    if ( res.ok ) {
-      state.table = await res.json();
-    } else {
-      state.errorMessage = buildErrorMessage( res.status );
-    }
-  } catch ( error ) {
-    state.errorMessage = buildErrorMessage( error.code ?? error.name ?? error.constructor.name );
+  if ( content ) {
+    cache.content = content;
+    cache.expiresAt = Date.now() + cacheTTL;
+    return content;
   }
 
-  if ( state.errorMessage ) {
-    if ( cache.content ) {
-      logger.warn( state.errorMessage + ', falling back to stale cache' );
-      return cache.content;
-    }
-    logger.error( state.errorMessage );
-    return null;
+  if ( cache.content ) {
+    logger.warn( 'Models pricing: using stale cache.' );
+    return cache.content;
   }
 
-  cache.content = buildModelMap( state.table );
-  cache.expiresAt = Date.now() + cacheTTL;
-  return cache.content;
+  return null;
 };

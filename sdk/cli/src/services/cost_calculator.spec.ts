@@ -268,6 +268,28 @@ describe( 'findLLMCalls', () => {
     expect( calls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
   } );
 
+  it( 'does not interpret transitional component names in legacy llm:usage events', () => {
+    const node = llmEventNode( 'transitional-components', 'legacy-model', [
+      { type: 'input', ppm: 1, amount: 10, total: 0.00001 },
+      { type: 'input_cached', ppm: 0.1, amount: 20, total: 0.000002 },
+      { type: 'output', ppm: 5, amount: 30, total: 0.00015 },
+      { type: 'reasoning', ppm: 5, amount: 40, total: 0.0002 },
+      { type: 'input_cache_read', ppm: 0.1, amount: 100, total: 0.00001 },
+      { type: 'input_cache_write', ppm: 1.25, amount: 200, total: 0.00025 },
+      { type: 'output_text', ppm: 5, amount: 300, total: 0.0015 },
+      { type: 'output_reasoning', ppm: 5, amount: 400, total: 0.002 }
+    ] );
+
+    const calls = findLLMCalls( { kind: 'workflow', children: [ node ] } );
+
+    expect( calls[0].usage ).toEqual( {
+      inputTokens: 30,
+      cachedInputTokens: 20,
+      outputTokens: 30,
+      reasoningTokens: 40
+    } );
+  } );
+
   it( 'reads every supported item from an llm:generation:cost attribute', () => {
     const items: LLMCost['items'] = [
       { group: 'input', label: null, amount: 100, ppm: 1, total: 0.0001, status: 'ok' },
@@ -340,25 +362,6 @@ describe( 'findLLMCalls', () => {
       { type: 'output', ppm: 0, amount: 60, total: 0 },
       { type: 'reasoning', ppm: 0, amount: 70, total: 0 }
     ] );
-  } );
-
-  it( 'reads legacy cache and reasoning component names', () => {
-    const node = llmEventNode( 'legacy-components', 'legacy-model', [
-      { type: 'input', ppm: 1, amount: 15, total: 0.000015 },
-      { type: 'input_cache_read', ppm: 0.1, amount: 15_000, total: 0.0015 },
-      { type: 'input_cache_write', ppm: 1.25, amount: 1, total: 0.00000125 },
-      { type: 'output_text', ppm: 5, amount: 5, total: 0.000025 },
-      { type: 'output_reasoning', ppm: 5, amount: 2, total: 0.00001 }
-    ] );
-
-    const calls = findLLMCalls( { kind: 'workflow', children: [ node ] } );
-
-    expect( calls[0].usage ).toEqual( {
-      inputTokens: 15_016,
-      cachedInputTokens: 15_000,
-      outputTokens: 5,
-      reasoningTokens: 2
-    } );
   } );
 
   it( 'prefers generation cost when both generation attributes are present', () => {
@@ -604,24 +607,6 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 2, 8 );
   } );
 
-  it( 're-prices legacy cache and output component names', () => {
-    const trace: TraceNode = {
-      kind: 'workflow',
-      name: 'test',
-      children: [ llmEventNode( 'legacy-components', 'claude-sonnet-4-5', [
-        { type: 'input_cache_read', ppm: 9, amount: 1_000_000, total: 9 },
-        { type: 'input_cache_write', ppm: 9, amount: 1_000_000, total: 9 },
-        { type: 'output_text', ppm: 9, amount: 1_000_000, total: 9 },
-        { type: 'output_reasoning', ppm: 9, amount: 1_000_000, total: 9 }
-      ] ) ]
-    };
-
-    const report = calculateCost( trace, testConfig, 'test.json' );
-
-    expect( report.llmCalls[0].originalCost ).toBeCloseTo( 36, 8 );
-    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 33.3, 8 );
-  } );
-
   it( 'matches original when costs.yml rate equals the event rate', () => {
     // haiku event priced at the same rate as testConfig (input 1 / output 5)
     const trace: TraceNode = {
@@ -659,15 +644,15 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.35525, 5 );
   } );
 
-  it( 're-prices cache writes at the configured input rate', () => {
-    const lines = [
-      ...llmLines( 1_000_000, 1, 1_000_000, 5 ),
-      { type: 'input_cache_write', ppm: 1.25, amount: 200_000, total: 0.25 }
-    ];
+  it( 're-prices normalized cache writes at the configured input rate', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
-      children: [ llmEventNode( 'cw', 'claude-haiku-4-5', lines ) ]
+      children: [ llmCostNode( 'cw', 'claude-haiku-4-5', [
+        { group: 'input', label: 'no_cache', amount: 1_000_000, ppm: 1, total: 1, status: 'ok' },
+        { group: 'input', label: 'cache_write', amount: 200_000, ppm: 1.25, total: 0.25, status: 'ok' },
+        { group: 'output', label: 'text', amount: 1_000_000, ppm: 5, total: 5, status: 'ok' }
+      ] ) ]
     };
     const report = calculateCost( trace, testConfig, 'test.json' );
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6.2, 5 );

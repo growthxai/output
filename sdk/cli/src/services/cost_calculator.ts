@@ -40,9 +40,7 @@ function lineRate( type: string, pricing: ModelPricing ): number | undefined {
     input_cache_read: pricing.cached_input ?? pricing.input ?? 0,
     input_cache_write: pricing.input ?? 0,
     output: pricing.output ?? 0,
-    output_text: pricing.output ?? 0,
-    reasoning: pricing.reasoning ?? pricing.output ?? 0,
-    output_reasoning: pricing.reasoning ?? pricing.output ?? 0
+    reasoning: pricing.reasoning ?? pricing.output ?? 0
   };
   return rates[type];
 }
@@ -63,12 +61,12 @@ function priceLines( lines: LLMUsageLine[], pricing: ModelPricing ): number {
 function eventTokenUsage( lines: LLMUsageLine[] ): TokenUsage {
   const sumOf = ( type: string ): number =>
     lines.filter( l => l.type === type ).reduce( ( s, l ) => s + l.amount, 0 );
-  const cached = sumOf( 'input_cached' ) + sumOf( 'input_cache_read' );
+  const cached = sumOf( 'input_cached' );
   return {
-    inputTokens: sumOf( 'input' ) + cached + sumOf( 'input_cache_write' ),
+    inputTokens: sumOf( 'input' ) + cached,
     cachedInputTokens: cached,
-    outputTokens: sumOf( 'output' ) + sumOf( 'output_text' ),
-    reasoningTokens: sumOf( 'reasoning' ) + sumOf( 'output_reasoning' )
+    outputTokens: sumOf( 'output' ),
+    reasoningTokens: sumOf( 'reasoning' )
   };
 }
 
