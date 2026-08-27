@@ -82,7 +82,8 @@
 - Fixed prompt file `config` accepting ignored or invalid values:
   - Unknown top-level keys throw.
   - `model` must be a non-empty string.
-  - `maxTokens` must be a positive integer.
+  - Added support for the native AI SDK generation properties `maxOutputTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, and text-generation `seed`.
+  - Deprecated `maxTokens` in favor of `maxOutputTokens`; both must be positive integers.
 
 ## Streaming and Agent message store
 

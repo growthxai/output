@@ -34,7 +34,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 2000
+maxOutputTokens: 2000
 ---
 <system>You are a helpful assistant.</system>
 <user>{{ instructions }}</user>
@@ -49,11 +49,11 @@ The body is either message mode or instruction mode. After leading whitespace an
 | `provider` | string | LLM provider: `anthropic`, `openai`, `google-vertex`, `amazon-bedrock`, `azure`, `perplexity` |
 | `model` | string | Model identifier (provider-specific) |
 | `temperature` | number | Creativity (0.0-1.0, lower = more deterministic) |
-| `maxTokens` | number | Maximum response length |
+| `maxOutputTokens` | number | Maximum response length |
 
-Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open.
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Put provider-specific keys (`effort`, `reasoningEffort`) under `providerOptions`, which stays open.
 
-Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, deprecated `maxTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`.
 
 ### Provider Consistency
 
@@ -573,7 +573,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 4000
+maxOutputTokens: 4000
 ---
 ```
 

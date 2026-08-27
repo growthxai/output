@@ -85,7 +85,7 @@ For each confirmed file, edit only the YAML frontmatter:
 
 - Replace the `model:` line with the resolved latest ID.
 - If a `# current as of YYYY-MM-DD …` comment is present (the convention used in `output-dev-prompt-file` examples and CLI scaffolds), update its date to today's (`date +%Y-%m-%d`). Match the comment by the literal `current as of ` prefix and only rewrite the date — leave the trailing text intact.
-- Leave `provider:`, `temperature:`, `maxTokens:`, `providerOptions:`, and the message body untouched.
+- Leave `provider:`, `temperature:`, `maxOutputTokens:` (or deprecated `maxTokens:`), `providerOptions:`, and the message body untouched.
 
 Refreshing the dated comment in the same edit keeps the "as of" convention coherent — without it, an upgraded prompt would have a fresh model paired with a stale date.
 

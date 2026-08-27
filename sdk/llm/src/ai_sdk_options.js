@@ -8,6 +8,30 @@ const buildSkillsMessageContent = skills =>
   'Available skills (use load_skill to get full instructions):\n' +
   skills.map( s => `- ${s.name}: ${s.description}` ).join( '\n' );
 
+const textPromptConfigKeys = [
+  'frequencyPenalty',
+  'maxOutputTokens',
+  'presencePenalty',
+  'providerOptions',
+  'seed',
+  'stopSequences',
+  'temperature',
+  'topK',
+  'topP'
+];
+
+const imagePromptConfigKeys = [
+  'aspectRatio',
+  'maxImagesPerCall',
+  'n',
+  'providerOptions',
+  'seed',
+  'size'
+];
+
+const select = ( keys, target ) =>
+  Object.fromEntries( Object.entries( target ).filter( ( [ k, v ] ) => keys.includes( k ) && v !== undefined ) );
+
 /**
  * Build options for AI SDK text generation.
  *
@@ -47,12 +71,12 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
     model: loadTextModel( prompt ),
     system: systemMessages,
     messages: allMessages,
-    providerOptions: prompt.config.providerOptions,
     ...( output && { output } ),
     ...( abortSignal && { abortSignal } ),
     ...( stopWhen && { stopWhen } ),
-    ...( Number.isFinite( prompt.config.temperature ) && { temperature: prompt.config.temperature } ),
-    ...( Number.isFinite( prompt.config.maxTokens ) && { maxOutputTokens: prompt.config.maxTokens } )
+    // @TEMP maxTokens is deprecated in favor of native maxOutputTokens
+    ...( Number.isFinite( prompt.config.maxTokens ) && { maxOutputTokens: prompt.config.maxTokens } ),
+    ...select( textPromptConfigKeys, prompt.config )
   };
 
   // Tools parsing
@@ -90,7 +114,7 @@ export const loadAiSdkImageOptions = ( { prompt, images, mask, abortSignal } ) =
   if ( !prompt.instructions ) {
     throw new FatalError( `Prompt "${prompt.name}" has no instructions. Image prompts must use plain instructions.` );
   }
-  const options = {
+  return {
     maxRetries: 0,
     model: loadImageModel( prompt ),
     prompt: ( images || mask ) ? {
@@ -98,13 +122,7 @@ export const loadAiSdkImageOptions = ( { prompt, images, mask, abortSignal } ) =
       ...( images && { images } ),
       ...( mask && { mask } )
     } : prompt.instructions,
-    providerOptions: prompt.config.providerOptions,
-    ...( abortSignal && { abortSignal } )
+    ...( abortSignal && { abortSignal } ),
+    ...select( imagePromptConfigKeys, prompt.config )
   };
-  for ( const key of [ 'n', 'maxImagesPerCall', 'size', 'aspectRatio', 'seed' ] ) {
-    if ( prompt.config[key] !== undefined ) {
-      options[key] = prompt.config[key];
-    }
-  }
-  return options;
 };

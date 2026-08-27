@@ -12,7 +12,13 @@ describe( 'parsePromptSchema', () => {
         provider: 'anthropic',
         model: 'claude-3-opus-20240229',
         temperature: 0.7,
-        maxTokens: 1000
+        maxOutputTokens: 1000,
+        topP: 0.9,
+        topK: 40,
+        presencePenalty: 0.2,
+        frequencyPenalty: 0.3,
+        stopSequences: [ 'END' ],
+        seed: 42
       },
       messages: [
         {
@@ -603,9 +609,7 @@ describe( 'parsePromptSchema', () => {
       config: {
         provider: 'openai',
         model: 'gpt-4',
-        topP: 0.9,
-        seed: 42,
-        stopSequences: [ 'END' ]
+        unsupportedOption: true
       },
       messages: [
         {

@@ -396,7 +396,7 @@ type Options = OutputAgentGenerateWithStreamingParameters;
 
 ## Call arguments are a fixed list
 
-Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Calls no longer accept `temperature`, `maxTokens`, `maxSteps`, `providerOptions`, image `n`/`size`/`seed`, `experimental_transform`, `onStepFinish`, and similar. Unknown keys throw. Set model and image config (including `maxSteps`, default 10) on the prompt file; call-argument `stopWhen` still overrides it.
+Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`. Calls no longer accept `temperature`, `maxOutputTokens`, `maxTokens`, `maxSteps`, `providerOptions`, image `n`/`size`/`seed`, `experimental_transform`, `onStepFinish`, and similar. Unknown keys throw. Set model and generation or image config (including `maxSteps`, default 10) on the prompt file; call-argument `stopWhen` still overrides it.
 
 | Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
 |----------|----------------|-----------------------------|--------------|-----------------|
@@ -523,14 +523,14 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 
 ## Prompt config is a strict key list
 
-Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings, and `maxTokens` must be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
+Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings, and `maxOutputTokens` or its deprecated `maxTokens` alias must be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
 
-Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, deprecated `maxTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`.
 
 Snake_case aliases of those keys fail with a suggestion:
 
 ```
-Invalid prompt file "writer@v1": Unrecognized key: "max_tokens". "max_tokens" is not valid; use "maxTokens"
+Invalid prompt file "writer@v1": Unrecognized key: "max_output_tokens". "max_output_tokens" is not valid; use "maxOutputTokens"
 ```
 
 Move provider-specific fields under `providerOptions`. `effort` and `reasoningEffort` at the top level are unknown keys; they belong under `providerOptions.anthropic` and `providerOptions.openai`.
@@ -542,7 +542,7 @@ Move provider-specific fields under `providerOptions`. `effort` and `reasoningEf
 provider: openai
 model: gpt-5.4
 reasoningEffort: medium
-max_tokens: 16000
+max_output_tokens: 16000
 ---
 ```
 
@@ -552,7 +552,7 @@ max_tokens: 16000
 ---
 provider: openai
 model: gpt-5.4
-maxTokens: 16000
+maxOutputTokens: 16000
 providerOptions:
   openai:
     reasoningEffort: medium
@@ -565,7 +565,7 @@ providerOptions:
 - Remove `skill()`, `Skill`, and `SkillsArg` imports; move inline skills into files listed under prompt `skills:`.
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
-- Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
+- Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxOutputTokens`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and generation or image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
 - Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
@@ -587,5 +587,5 @@ providerOptions:
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
-- Ensure prompt `provider` and `model` values are non-empty, and set `maxTokens` to a positive integer.
-- Move unknown prompt frontmatter keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`) onto the allowlist or under `providerOptions`. Expect `Invalid prompt file` for leftover extras.
+- Ensure prompt `provider` and `model` values are non-empty, and set `maxOutputTokens` or deprecated `maxTokens` to a positive integer.
+- Remove unsupported prompt frontmatter keys. Expect `Invalid prompt file` for leftover extras.

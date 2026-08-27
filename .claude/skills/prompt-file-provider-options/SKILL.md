@@ -10,9 +10,9 @@ When creating `.prompt` files, understanding the `providerOptions` structure is 
 ### Decision Tree: Where Does This Option Go?
 
 ```
-Is the key on the prompt config allowlist (provider, model, temperature, maxTokens, maxSteps, skills, tools, providerOptions, messageOptions, n, maxImagesPerCall, size, aspectRatio, seed)?
+Is the key on the prompt config allowlist (provider, model, temperature, maxOutputTokens, deprecated maxTokens, topP, topK, presencePenalty, frequencyPenalty, stopSequences, seed, maxSteps, skills, tools, providerOptions, messageOptions, n, maxImagesPerCall, size, aspectRatio)?
 ├─ YES -> Top-level config
-└─ NO -> Nest under providerOptions (unknown top-level keys throw; snake_case aliases like max_tokens fail with a camelCase suggestion)
+└─ NO -> Nest under providerOptions (unknown top-level keys throw; snake_case aliases like max_output_tokens fail with a camelCase suggestion)
 
 In providerOptions:
 ├─ Is it 'thinking' or 'order'? -> Top-level (special AI SDK features)
@@ -95,22 +95,21 @@ providerOptions:
 ❌ **Mistake 5: Unknown or snake_case top-level keys**
 ```yaml
 provider: openai
-max_tokens: 16000       # WRONG: snake_case alias of maxTokens
-topP: 0.9               # WRONG: not a shared top-level field
+max_output_tokens: 16000 # WRONG: snake_case alias of maxOutputTokens
 reasoningEffort: medium # WRONG: OpenAI-specific
 ```
 
 ✅ **Correct:**
 ```yaml
 provider: openai
-maxTokens: 16000
+maxOutputTokens: 16000
+topP: 0.9
 providerOptions:
   openai:
     reasoningEffort: medium
-    topP: 0.9
 ```
 
-Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Nested `providerOptions` stays open.
+Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Nested `providerOptions` stays open.
 
 ### Quick Reference: Common Provider Options
 
@@ -153,7 +152,7 @@ providerOptions:
 ```yaml
 provider: amazon-bedrock
 model: anthropic.claude-sonnet-4-20250514-v1:0
-maxTokens: 64000              # Recommended: Bedrock has no client-side defaults
+maxOutputTokens: 64000        # Recommended: Bedrock has no client-side defaults
 providerOptions:
   bedrock:                    # Note: AI SDK 'bedrock' namespace, not 'anthropic'
     guardrailConfig:

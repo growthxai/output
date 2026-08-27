@@ -10,13 +10,16 @@ const objectMapSchema = z.record(
 
 const promptConfigSchema = z.object( {
   aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
+  frequencyPenalty: z.number().optional(),
   maxImagesPerCall: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
   maxSteps: z.number().int().positive().default( 10 ),
   maxTokens: z.number().int().positive().optional(),
   // A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
   messageOptions: z.record( z.string(), objectMapSchema ).optional(),
   model: z.string().min( 1 ),
   n: z.number().int().positive().optional(),
+  presencePenalty: z.number().optional(),
   provider: z.string().min( 1 ),
   providerOptions: z.object( {
     thinking: z.object( {
@@ -27,7 +30,10 @@ const promptConfigSchema = z.object( {
   seed: z.number().int().optional(),
   size: z.string().regex( /^\d+x\d+$/ ).optional(),
   skills: z.preprocess( v => Array.isArray( v ) ? v : [].concat( v ?? [] ), z.array( z.string().min( 1 ) ) ),
+  stopSequences: z.array( z.string() ).optional(),
   temperature: z.number().optional(),
+  topK: z.number().optional(),
+  topP: z.number().optional(),
   tools: objectMapSchema.optional()
 } ).strict();
 
