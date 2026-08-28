@@ -51,9 +51,11 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
     this.providerId = providerId;
     this.items = items;
 
-    if ( items.some( v => v.status === LLMGenerationCostItem.Status.MISSING ) || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
+    const meaningfulItems = items.filter( v => v.amount > 0 );
+
+    if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING ) || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
       this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( items.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) ) {
+    } else if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) ) {
       this.status = LLMGenerationCost.Status.IMPRECISE;
     } else {
       this.status = LLMGenerationCost.Status.PRECISE;

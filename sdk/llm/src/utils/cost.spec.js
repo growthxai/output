@@ -265,10 +265,24 @@ describe( 'LLMGenerationCost', () => {
       usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
       expected: LLMGenerationCost.Status.INCOMPLETE
+    },
+    {
+      name: 'precise with zero-value fallback pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.FALLBACK,
+      amount: 0,
+      expected: LLMGenerationCost.Status.PRECISE
+    },
+    {
+      name: 'precise with zero-value missing pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.MISSING,
+      amount: 0,
+      expected: LLMGenerationCost.Status.PRECISE
     }
-  ] )( 'sets $name status', ( { usageStatus, itemStatus, expected } ) => {
+  ] )( 'sets $name status', ( { usageStatus, itemStatus, amount = 100, expected } ) => {
     const cost = new LLMGenerationCost( MODEL_ID, PROVIDER_ID, [
-      new LLMGenerationCostItem( INPUT, null, 100, 2, 0.0002, itemStatus )
+      new LLMGenerationCostItem( INPUT, null, amount, 2, 0.0002, itemStatus )
     ], usageStatus );
 
     expect( cost.status ).toBe( expected );

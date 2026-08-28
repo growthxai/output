@@ -42,7 +42,7 @@ const cases = [
     input: 0.000414,
     output: 0.0006336,
     total: 0.0010476,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1035, 0.4, 0.000414, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -59,7 +59,7 @@ const cases = [
     input: 0.000414,
     output: 0.0006176,
     total: 0.0010316,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1035, 0.4, 0.000414, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -200,7 +200,7 @@ const cases = [
     input: 0.001025,
     output: 0.000437,
     total: 0.001462,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 437, 1, 0.000437, OK ],
@@ -215,7 +215,7 @@ const cases = [
     input: 0.001025,
     output: 0.000448,
     total: 0.001473,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 448, 1, 0.000448, OK ],
