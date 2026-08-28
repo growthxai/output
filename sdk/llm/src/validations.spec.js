@@ -29,7 +29,7 @@ const promptObject = {
   variables: {}
 };
 
-describe( 'prompt object arguments', () => {
+describe( 'prompt arguments', () => {
   it.each( [
     [ 'generateText', parseGenerateTextArgs ],
     [ 'generateTextWithStreaming', parseGenerateTextWithStreamingArgs ],
@@ -65,6 +65,21 @@ describe( 'prompt object arguments', () => {
         }
       }
     } ) ).toThrow( /prompt\.config\.model/ );
+  } );
+
+  it.each( [
+    [ 'missing', {} ],
+    [ 'numeric', { prompt: 123, variables: { topic: 'testing' } } ]
+  ] )( 'keeps filename-shaped errors for a %s prompt', ( _, args ) => {
+    const error = { message: '' };
+    try {
+      parseGenerateTextArgs( args );
+    } catch ( e ) {
+      error.message = e.message;
+    }
+
+    expect( error.message ).toContain( 'expected string' );
+    expect( error.message ).not.toContain( 'variables cannot be used when prompt is an object' );
   } );
 } );
 

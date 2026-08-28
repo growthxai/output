@@ -31,10 +31,9 @@ const stopWhenSchema = z.union( [
   z.array( functionSchema ).min( 1 )
 ] );
 
-const opaqueObjectSchema = z.custom(
-  value => value !== null && typeof value === 'object' && !Array.isArray( value ),
-  'Expected object'
-);
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray( value );
+
+const opaqueObjectSchema = z.custom( isObject, 'Expected object' );
 
 const outputSchema = opaqueObjectSchema;
 
@@ -56,7 +55,7 @@ const modelMessageSchema = z.object( {
 const promptFileSchema = z.string().min( 1 );
 
 const promptInputSchema = z.unknown().transform( ( value, ctx ) => {
-  const result = ( typeof value === 'string' ? promptFileSchema : promptSchema ).safeParse( value );
+  const result = ( isObject( value ) ? promptSchema : promptFileSchema ).safeParse( value );
   if ( !result.success ) {
     for ( const issue of result.error.issues ) {
       ctx.addIssue( issue );
@@ -97,7 +96,7 @@ const toPromptArgs = ( { prompt, maxSteps, skills, ...rest } ) => ( {
 } );
 
 const rejectPromptObjectFileArgs = ( args, ctx ) => {
-  if ( typeof args.prompt === 'string' ) {
+  if ( !isObject( args.prompt ) ) {
     return;
   }
 
