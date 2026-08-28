@@ -77,7 +77,7 @@ function eventTokenUsage( lines: LLMUsageLine[] ): TokenUsage {
 
 function normalizedItemType( item: NormalizedUsageItem ): string {
   if ( item.group === 'input' ) {
-    if ( item.label === null || item.label === 'input' || item.label === 'no_cache' ) {
+    if ( item.label === null || item.label === 'no_cache' ) {
       return 'input';
     }
     if ( item.label === 'cache_read' ) {
@@ -89,7 +89,7 @@ function normalizedItemType( item: NormalizedUsageItem ): string {
   }
 
   if ( item.group === 'output' ) {
-    if ( item.label === null || item.label === 'output' || item.label === 'text' ) {
+    if ( item.label === null || item.label === 'text' ) {
       return 'output';
     }
     if ( item.label === 'reasoning' ) {
