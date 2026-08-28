@@ -907,7 +907,7 @@ Each completed text generation call emits a `cost:llm:request` event after the L
 
 ## loadPrompt
 
-Load and render a prompt file without generating - useful for debugging:
+Load and render a prompt file for inspection, reuse, or direct use as a generation argument:
 
 ```typescript
 import { loadPrompt } from '@outputai/llm';
@@ -923,6 +923,8 @@ console.log(prompt.messages);     // PromptMessage[] with system, user, or assis
 console.log(prompt.instructions); // string | null
 console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
+
+The returned `Prompt` can be passed directly to `generateText`, `generateTextWithStreaming`, `streamText`, `generateImage`, or `new Agent()`. See [Passing Prompt Objects Directly](/prompts#passing-prompt-objects-directly).
 
 For instruction-mode prompts, `messages` is empty and `instructions` contains the rendered body. For message-mode prompts, `messages` contains the parsed role blocks and `instructions` is `null`. See [Prompt Body Modes](/prompts#prompt-body-modes).
 

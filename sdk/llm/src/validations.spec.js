@@ -29,6 +29,45 @@ const promptObject = {
   variables: {}
 };
 
+describe( 'prompt object arguments', () => {
+  it.each( [
+    [ 'generateText', parseGenerateTextArgs ],
+    [ 'generateTextWithStreaming', parseGenerateTextWithStreamingArgs ],
+    [ 'streamText', parseStreamTextArgs ],
+    [ 'generateImage', parseGenerateImageArgs ],
+    [ 'Agent', parseAgentArgs ]
+  ] )( 'normalizes a prompt object for %s', ( _, parse ) => {
+    expect( parse( { prompt: promptObject } ) ).toEqual( {
+      promptObject
+    } );
+  } );
+
+  it.each( [ 'promptDir', 'variables' ] )( 'rejects %s with a prompt object', field => {
+    expect( () => parseGenerateTextArgs( {
+      prompt: promptObject,
+      [field]: field === 'promptDir' ? '/other' : { topic: 'other' }
+    } ) ).toThrow( `${field} cannot be used when prompt is an object` );
+  } );
+
+  it( 'rejects prompt file arguments with an Agent prompt object', () => {
+    expect( () => parseAgentArgs( {
+      prompt: promptObject,
+      promptDir: '/other'
+    } ) ).toThrow( 'promptDir cannot be used when prompt is an object' );
+  } );
+
+  it( 'reports specific validation issues for an invalid prompt object', () => {
+    expect( () => parseGenerateTextArgs( {
+      prompt: {
+        ...promptObject,
+        config: {
+          provider: 'openai'
+        }
+      }
+    } ) ).toThrow( /prompt\.config\.model/ );
+  } );
+} );
+
 describe( 'parseGenerateTextArgs', () => {
   it( 'renames prompt to promptFile and keeps allowlisted leftovers', () => {
     const abortSignal = AbortSignal.abort();
@@ -63,32 +102,6 @@ describe( 'parseGenerateTextArgs', () => {
     } );
 
     expect( parsed.stopWhen ).toEqual( [ stopWhen ] );
-  } );
-
-  it.each( [
-    [ 'generateText', parseGenerateTextArgs ],
-    [ 'generateTextWithStreaming', parseGenerateTextWithStreamingArgs ],
-    [ 'streamText', parseStreamTextArgs ],
-    [ 'generateImage', parseGenerateImageArgs ],
-    [ 'Agent', parseAgentArgs ]
-  ] )( 'normalizes a prompt object for %s', ( _, parse ) => {
-    expect( parse( { prompt: promptObject } ) ).toEqual( {
-      promptObject
-    } );
-  } );
-
-  it.each( [ 'promptDir', 'variables' ] )( 'rejects %s with a prompt object', field => {
-    expect( () => parseGenerateTextArgs( {
-      prompt: promptObject,
-      [field]: field === 'promptDir' ? '/other' : { topic: 'other' }
-    } ) ).toThrow( `${field} cannot be used when prompt is an object` );
-  } );
-
-  it( 'rejects prompt file arguments with an Agent prompt object', () => {
-    expect( () => parseAgentArgs( {
-      prompt: promptObject,
-      promptDir: '/other'
-    } ) ).toThrow( 'promptDir cannot be used when prompt is an object' );
   } );
 
   it( 'throws ValidationError with generateText prefix for invalid args', () => {

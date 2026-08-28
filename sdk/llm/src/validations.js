@@ -55,6 +55,17 @@ const modelMessageSchema = z.object( {
 
 const promptFileSchema = z.string().min( 1 );
 
+const promptInputSchema = z.unknown().transform( ( value, ctx ) => {
+  const result = ( typeof value === 'string' ? promptFileSchema : promptSchema ).safeParse( value );
+  if ( !result.success ) {
+    for ( const issue of result.error.issues ) {
+      ctx.addIssue( issue );
+    }
+    return value;
+  }
+  return result.data;
+} );
+
 const promptFileCallFields = {
   prompt: promptFileSchema,
   promptDir: z.string().min( 1 ).optional(),
@@ -63,7 +74,7 @@ const promptFileCallFields = {
 
 const promptCallFields = {
   ...promptFileCallFields,
-  prompt: z.union( [ promptFileSchema, promptSchema ] )
+  prompt: promptInputSchema
 };
 
 const textRuntimeCallFields = {
