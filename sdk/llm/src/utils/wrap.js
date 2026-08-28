@@ -39,10 +39,11 @@ const handleMetering = async ( { traceId, usage: sdkUsage, prompt } ) => {
   const costAttribute = await calculateCosts( usageAttribute );
   if ( costAttribute ) {
     Tracing.addEventAttribute( { eventId: traceId, attribute: costAttribute } );
-    // @TEMP Preserve the deprecated event for legacy consumers.
+    // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
     const legacyPayload = convertCostToLegacy( costAttribute );
     if ( legacyPayload ) {
-      Event.emit( 'cost:llm:request', legacyPayload );
+      Event.emit( 'cost:llm:request', structuredClone( legacyPayload ) );
+      Tracing.addEventAttribute( { eventId: traceId, attribute: legacyPayload } );
     }
   }
 

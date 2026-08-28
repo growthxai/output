@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertCostToLegacy } from './legacy_cost_attribute.js';
+import { LLMUsageLegacy, convertCostToLegacy } from './legacy_cost_attribute.js';
 
 const MODEL_ID = 'test-model';
 const INPUT = 'input';
@@ -20,6 +20,14 @@ const item = ( group, label, amount, ppm, total, status = OK ) => ( {
 const cost = items => ( { modelId: MODEL_ID, items } );
 
 describe( 'convertCostToLegacy', () => {
+  it( 'returns a legacy usage attribute instance', () => {
+    const result = convertCostToLegacy( cost( [
+      item( INPUT, null, 100, 2, 0.0002 )
+    ] ) );
+
+    expect( result ).toBeInstanceOf( LLMUsageLegacy );
+  } );
+
   it( 'returns null without a cost', () => {
     expect( convertCostToLegacy( null ) ).toBeNull();
   } );

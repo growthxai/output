@@ -527,9 +527,9 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` only when the pricing catalog cannot be loaded |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` only when the pricing catalog cannot be loaded |
 
-The `cost` property is an `LLMCost`:
+The `cost` property is an `LLMGenerationCost`:
 
 ```json
 {
@@ -564,7 +564,7 @@ Detailed cost items are used when the provider breakdown reconciles with the agg
 | `finalStep` | `Promise<StepResult>` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
 
-`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMCost` when model or dimension pricing is missing, or `null` when the pricing catalog cannot be loaded), and merged `sources` (always an array).
+`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing, or `null` when the pricing catalog cannot be loaded), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -726,7 +726,7 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
 
 ## Prompt Caching
 
@@ -914,7 +914,7 @@ For direct streams, metering events fire when the stream finishes. Observe them 
 
 ### Normalized generation metering
 
-`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMUsage` and `cost: LLMCost | null`. Missing model or dimension prices produce an incomplete `LLMCost`; `cost` itself is `null` when the pricing catalog could not be loaded.
+`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMGenerationUsage` and `cost: LLMGenerationCost | null`. Missing model or dimension prices produce an incomplete `LLMGenerationCost`; `cost` itself is `null` when the pricing catalog could not be loaded.
 
 ```typescript
 import { on } from '@outputai/core/hooks';
@@ -931,7 +931,7 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', event => {
 
 ### Legacy LLM request cost
 
-`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload, so existing hooks do not need a structural migration:
+`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload, so existing hooks do not need a structural migration. The same payload remains attached to priced LLM traces as the deprecated `attributes["llm:usage"]` attribute, preserving existing trace readers.
 
 ```typescript
 import { on } from '@outputai/core/hooks';
@@ -959,7 +959,7 @@ on<LLMUsageEvent>('cost:llm:request', event => {
 }
 ```
 
-Legacy usage line types are frozen as `input`, `input_cached`, `output`, and `reasoning`. The event keeps this payload shape for compatibility, while corrected reasoning accounting or AI SDK 7 usage details can change individual values. `LLMUsageEvent` is deprecated only to guide new integrations toward the more complete event.
+Legacy usage line types are frozen as `input`, `input_cached`, `output`, and `reasoning`. The event and trace attribute keep this payload shape for compatibility, while corrected reasoning accounting or AI SDK 7 usage details can change individual values. `LLMUsageEvent` is deprecated only to guide new integrations toward the more complete event and normalized trace attributes.
 
 See [Cost Events](/costs/cost-events) for the complete normalized usage/cost schemas and HTTP cost events.
 

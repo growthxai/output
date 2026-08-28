@@ -18,7 +18,7 @@ export interface TokenUsage {
 }
 
 // Usage and cost attributes recorded on trace nodes.
-import type { LLMCost, LLMUsage, LLMUsageEvent } from '@outputai/llm';
+import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/llm';
 
 export type LLMUsageLine = LLMUsageEvent['usage'][number];
 
@@ -37,8 +37,8 @@ export interface HTTPCountEvent {
 
 export interface NodeAttributes {
   'llm:usage'?: LLMUsageEvent;
-  'llm:generation:usage'?: LLMUsage;
-  'llm:generation:cost'?: LLMCost;
+  'llm:generation:usage'?: LLMGenerationUsage;
+  'llm:generation:cost'?: LLMGenerationCost;
   'http:request:cost'?: HTTPCostEvent;
   'http:request:count'?: HTTPCountEvent;
 }

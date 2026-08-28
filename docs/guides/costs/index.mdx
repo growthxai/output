@@ -61,7 +61,7 @@ output workflow cost lead_enrichment logs/runs/lead_enrichment/2026-03-01_lead_e
 
 The cost calculator walks the trace tree and extracts two kinds of billable events:
 
-1. **LLM calls** - Prefers the recorded `llm:generation:cost` attribute for the original cost. It can reprice `llm:generation:usage` with `costs.yml`, and still reads legacy `llm:usage` attributes from older traces.
+1. **LLM calls** - Prefers the recorded `llm:generation:cost` attribute for the original cost. It can reprice `llm:generation:usage` with `costs.yml`, and still reads the retained legacy `llm:usage` attribute for compatibility with old and new traces.
 
 2. **HTTP calls** - Matches the request URL against known service patterns in the pricing config. Calculates cost from token usage, API units, per-request pricing, or a cost field in the response body, depending on the service type.
 

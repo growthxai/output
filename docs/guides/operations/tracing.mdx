@@ -163,6 +163,16 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
             { "group": "input", "label": null, "amount": 38, "ppm": 3, "total": 0.000114, "status": "ok" },
             { "group": "output", "label": null, "amount": 204, "ppm": 15, "total": 0.00306, "status": "ok" }
           ]
+        },
+        "llm:usage": {
+          "type": "llm:usage",
+          "modelId": "claude-sonnet-4-20250514",
+          "usage": [
+            { "type": "input", "ppm": 3, "amount": 38, "total": 0.000114 },
+            { "type": "output", "ppm": 15, "amount": 204, "total": 0.00306 }
+          ],
+          "total": 0.003174,
+          "tokensUsed": 242
         }
       },
       "children": []
@@ -170,6 +180,8 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
   ]
 }
 ```
+
+The deprecated `llm:usage` attribute remains on priced LLM traces for compatibility. New trace readers should use `llm:generation:usage` and `llm:generation:cost`, which preserve normalized usage and detailed pricing separately.
 
 ### Failed Step
 

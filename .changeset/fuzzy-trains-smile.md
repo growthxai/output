@@ -104,7 +104,7 @@
   - Fixed blank or untrimmed search URLs producing invalid citations or unstable source IDs. URLs are trimmed and blank values are dropped.
   - Fixed wrapped text responses not consistently exposing `sources` as an array.
   - Updated `ExtractedSource` to the AI SDK `generateText` sources item type (url and document).
-- Fixed public cost, source, and stream callback types to match wrapped runtime values. `response.cost` and stream `onEnd` `cost` use `LLMCost`, or `null` when pricing data is unavailable. Stream `onEnd` types also include wrapped `result` and merged `sources`.
+- Fixed public cost, source, and stream callback types to match wrapped runtime values. `response.cost` and stream `onEnd` `cost` use `LLMGenerationCost`, or `null` when pricing data is unavailable. Stream `onEnd` types also include wrapped `result` and merged `sources`.
 
 ## AI SDK exports and public parameter types
 

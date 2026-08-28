@@ -76,14 +76,14 @@ Output's merged `sources` now includes native sources accumulated across every A
 
 Cost calculation uses AI SDK 7's detailed token counts when they reconcile with the aggregate input or output count. Incomplete breakdowns use the aggregate count. Missing cache pricing uses the regular input price, and missing reasoning pricing uses the regular output price.
 
-Traces now store separate `llm:generation:usage` and `llm:generation:cost` attributes. Both include `providerId`, `modelId`, nullable aggregate `input`, `output`, and `total` fields, plus detailed `items`.
+Traces now store separate `llm:generation:usage` and `llm:generation:cost` attributes. Both include `providerId`, `modelId`, nullable aggregate `input`, `output`, and `total` fields, plus detailed `items`. Priced calls also retain the deprecated `llm:usage` attribute for existing trace consumers.
 
 Usage items have an `amount`, a `group` (`input` or `output`), and one of these labels:
 
 - Input: `no_cache`, `cache_read`, or `cache_write`
 - Output: `text` or `reasoning`
 
-When detailed counts do not reconcile with an aggregate count, that group uses `label: null`. `LLMUsage.status` is `complete` when both input and output usage are available; otherwise it is `incomplete`.
+When detailed counts do not reconcile with an aggregate count, that group uses `label: null`. `LLMGenerationUsage.status` is `complete` when both input and output usage are available; otherwise it is `incomplete`.
 
 Cost items repeat the usage identity and amount, then add `ppm`, item `total`, and a status:
 
@@ -91,9 +91,9 @@ Cost items repeat the usage identity and amount, then add `ppm`, item `total`, a
 - `fallback`: cache or reasoning usage used the regular input or output price.
 - `missing`: no applicable price was available; `ppm` and item `total` are `null`.
 
-`LLMCost.status` is `precise`, `imprecise`, or `incomplete` based on those item statuses and usage completeness. Missing model or dimension pricing therefore produces a non-null, incomplete `LLMCost` whose `total` may be `null`. The complete cost object is `null` only when the pricing catalog itself could not be loaded.
+`LLMGenerationCost.status` is `precise`, `imprecise`, or `incomplete` based on those item statuses and usage completeness. Missing model or dimension pricing therefore produces a non-null, incomplete `LLMGenerationCost` whose `total` may be `null`. The complete cost object is `null` only when the pricing catalog itself could not be loaded.
 
-The new `llm:generation:metering` event is emitted whenever raw AI SDK usage can be normalized. Its payload is `{ usage: LLMUsage, cost: LLMCost | null }`. Prefer it for new integrations because it preserves reported usage independently from pricing and records fallback and missing prices explicitly.
+The new `llm:generation:metering` event is emitted whenever raw AI SDK usage can be normalized. Its payload is `{ usage: LLMGenerationUsage, cost: LLMGenerationCost | null }`. Prefer it for new integrations because it preserves reported usage independently from pricing and records fallback and missing prices explicitly.
 
 The existing `cost:llm:request` event remains supported with its legacy payload shape, so existing handlers do not need a structural migration for v0.12. Its deprecated `LLMUsageEvent` retains the `input`, `input_cached`, `output`, and `reasoning` line types. Values can differ where AI SDK 7 reports a different breakdown or where v0.12 corrects legacy reasoning double-counting.
 
@@ -444,11 +444,21 @@ The raw AI SDK `output.usage` shape remains on the trace output. Normalized usag
       { "group": "input", "label": null, "amount": 38, "ppm": 3, "total": 0.000114, "status": "ok" },
       { "group": "output", "label": null, "amount": 204, "ppm": 15, "total": 0.00306, "status": "ok" }
     ]
+  },
+  "llm:usage": {
+    "type": "llm:usage",
+    "modelId": "claude-sonnet-4-6",
+    "usage": [
+      { "type": "input", "ppm": 3, "amount": 38, "total": 0.000114 },
+      { "type": "output", "ppm": 15, "amount": 204, "total": 0.00306 }
+    ],
+    "total": 0.003174,
+    "tokensUsed": 242
   }
 }
 ```
 
-In v0.11, priced LLM calls stored one legacy attribute at `attributes["llm:usage"]`. Trace readers must now read `attributes["llm:generation:usage"]` and `attributes["llm:generation:cost"]` separately. The CLI accepts all three keys so it can still calculate costs from older trace files.
+The legacy `attributes["llm:usage"]` payload remains available for compatibility, so existing trace readers do not need an immediate migration. New integrations should use `attributes["llm:generation:usage"]` and `attributes["llm:generation:cost"]`; these preserve normalized usage independently from pricing and represent detailed dimensions explicitly. The CLI accepts all three keys and prefers the normalized attributes.
 
 ### Response source, cost, and metering types
 
@@ -464,9 +474,9 @@ const urls = response.sources
   .map(source => source.url);
 ```
 
-`response.cost` and direct-stream `onEnd` cost now use `LLMCost | null`. The old `LLMCallCost` type is removed.
+`response.cost` and direct-stream `onEnd` cost now use `LLMGenerationCost | null`. The old `LLMCallCost` type is removed.
 
-`@outputai/core` no longer exports the LLM-specific `Attribute.LLMUsage` class or `Attribute.Usage` interface. Core now exposes only the generic `Attribute.BaseAttribute` for package-owned trace attributes. Import `LLMUsage`, `LLMCost`, and the deprecated legacy `LLMUsageEvent` type from `@outputai/llm`.
+`@outputai/core` no longer exports the LLM-specific `Attribute.LLMUsage` class or `Attribute.Usage` interface. Core now exposes only the generic `Attribute.BaseAttribute` for package-owned trace attributes. Import `LLMGenerationUsage`, `LLMGenerationCost`, and the deprecated legacy `LLMUsageEvent` type from `@outputai/llm`.
 
 In v0.11, `response.cost` used the legacy `llm:usage` shape with priced lines under `usage`. In v0.12, read aggregate costs directly and detailed dimensions from `items`:
 
@@ -484,7 +494,7 @@ const cachedInputCost = response.cost?.items
 
 The new object has `type: "llm:generation:cost"`, `providerId`, `modelId`, nullable `input`, `output`, and `total`, a calculation `status`, and one cost item for each normalized usage item.
 
-Do not use only `response.cost === null` to detect unavailable totals. Missing model or dimension pricing returns an incomplete `LLMCost`; check `response.cost?.total == null` or inspect its status and item statuses. `response.cost` itself is `null` when the pricing catalog could not be loaded.
+Do not use only `response.cost === null` to detect unavailable totals. Missing model or dimension pricing returns an incomplete `LLMGenerationCost`; check `response.cost?.total == null` or inspect its status and item statuses. `response.cost` itself is `null` when the pricing catalog could not be loaded.
 
 `LLMUsageEvent` remains exported from `@outputai/llm` for `cost:llm:request`. Its legacy payload shape remains compatible, but the type is deprecated to guide new integrations toward the more complete metering event.
 
@@ -746,7 +756,7 @@ providerOptions:
 - Replace `fullStream` with `stream`, and update exhaustive `onChunk` handlers for the expanded AI SDK 7 part union.
 - Replace `stepCountIs()` with `isStepCount()`.
 - Review direct AI SDK result-field access against the official AI SDK 7 migration guide.
-- Use `group` and `label` when reading normalized `LLMUsage` and `LLMCost` items. Legacy event lines retain their existing type names.
+- Use `group` and `label` when reading normalized `LLMGenerationUsage` and `LLMGenerationCost` items. Legacy event lines retain their existing type names.
 - Remove assumptions that Output's `Agent` inherits from AI SDK's `ToolLoopAgent`.
 - Preserve binary file and `reasoning-file` content parts in custom `MessageStore` serializers.
 - Set `providerOptions.openai.reasoningSummary: null` on reasoning prompts that should not return summaries.
@@ -765,8 +775,8 @@ providerOptions:
 - Give every `options` attribute a value and fix malformed attribute names or quotes; prompt markup now fails explicitly at load.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
 - Read LLM trace `output.sources` instead of `output.sourcesFromTools`.
-- Read normalized trace metadata from `llm:generation:usage` and `llm:generation:cost` instead of the legacy `llm:usage` attribute.
-- Narrow `ExtractedSource` on `sourceType` before reading `url`. Replace `LLMCallCost` with `LLMCost`, replace `response.cost.usage` reads with `response.cost.items`, and handle an incomplete cost whose `total` is `null`. Import LLM usage and cost types from `@outputai/llm`, not `@outputai/core`.
+- Keep existing `llm:usage` trace readers for compatibility, but prefer `llm:generation:usage` and `llm:generation:cost` for normalized trace metadata.
+- Narrow `ExtractedSource` on `sourceType` before reading `url`. Replace `LLMCallCost` with `LLMGenerationCost`, replace `response.cost.usage` reads with `response.cost.items`, and handle an incomplete cost whose `total` is `null`. Import LLM generation usage and cost types from `@outputai/llm`, not `@outputai/core`.
 - Keep existing `cost:llm:request` handlers for structural compatibility, while allowing corrected reasoning values. Prefer `llm:generation:metering` with `LLMGenerationMeteringEvent` for new normalized usage/cost integrations.
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.

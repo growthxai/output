@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Tracing } from '@outputai/core/sdk/runtime';
-import { LLMUsage, LLMUsageItem, parseLLMUsage } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
 const prompt = {
   config: {
@@ -12,40 +12,40 @@ const prompt = {
 const parse = usage => parseLLMUsage( { prompt, usage } );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
-describe( 'LLMUsage', () => {
+describe( 'LLMGenerationUsage', () => {
   it( 'aggregates usage items and produces serializable data', () => {
-    const usage = new LLMUsage( 'test-model', 'test-provider', [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, 'no_cache', 70 ),
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, 'cache_read', 30 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, 'text', 40 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, 'reasoning', 10 )
+    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'no_cache', 70 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'cache_read', 30 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, 'text', 40 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, 'reasoning', 10 )
     ] );
 
     expect( usage ).toBeInstanceOf( Tracing.Attribute.BaseAttribute );
     expect( serialize( usage ) ).toEqual( {
-      type: LLMUsage.TYPE,
+      type: LLMGenerationUsage.TYPE,
       providerId: 'test-provider',
       modelId: 'test-model',
-      status: LLMUsage.Status.COMPLETE,
+      status: LLMGenerationUsage.Status.COMPLETE,
       input: 100,
       output: 50,
       total: 150,
       items: [
-        { group: LLMUsageItem.Group.INPUT, label: 'no_cache', amount: 70 },
-        { group: LLMUsageItem.Group.INPUT, label: 'cache_read', amount: 30 },
-        { group: LLMUsageItem.Group.OUTPUT, label: 'text', amount: 40 },
-        { group: LLMUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
+        { group: LLMGenerationUsageItem.Group.INPUT, label: 'no_cache', amount: 70 },
+        { group: LLMGenerationUsageItem.Group.INPUT, label: 'cache_read', amount: 30 },
+        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'text', amount: 40 },
+        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
       ]
     } );
   } );
 
   it( 'keeps missing groups null and marks usage incomplete', () => {
-    const usage = new LLMUsage( 'test-model', 'test-provider', [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, null, 25 )
+    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 25 )
     ] );
 
     expect( usage ).toMatchObject( {
-      status: LLMUsage.Status.INCOMPLETE,
+      status: LLMGenerationUsage.Status.INCOMPLETE,
       input: 25,
       output: null,
       total: 25
@@ -53,10 +53,10 @@ describe( 'LLMUsage', () => {
   } );
 
   it( 'represents empty items as incomplete usage without totals', () => {
-    const usage = new LLMUsage( 'test-model', 'test-provider', [] );
+    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [] );
 
     expect( usage ).toMatchObject( {
-      status: LLMUsage.Status.INCOMPLETE,
+      status: LLMGenerationUsage.Status.INCOMPLETE,
       input: null,
       output: null,
       total: null,
@@ -82,19 +82,19 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( serialize( result ) ).toEqual( {
-      type: LLMUsage.TYPE,
+      type: LLMGenerationUsage.TYPE,
       providerId: 'test-provider',
       modelId: 'test-model',
-      status: LLMUsage.Status.COMPLETE,
+      status: LLMGenerationUsage.Status.COMPLETE,
       input: 100,
       output: 50,
       total: 150,
       items: [
-        { group: LLMUsageItem.Group.INPUT, label: 'no_cache', amount: 70 },
-        { group: LLMUsageItem.Group.INPUT, label: 'cache_read', amount: 20 },
-        { group: LLMUsageItem.Group.INPUT, label: 'cache_write', amount: 10 },
-        { group: LLMUsageItem.Group.OUTPUT, label: 'text', amount: 40 },
-        { group: LLMUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
+        { group: LLMGenerationUsageItem.Group.INPUT, label: 'no_cache', amount: 70 },
+        { group: LLMGenerationUsageItem.Group.INPUT, label: 'cache_read', amount: 20 },
+        { group: LLMGenerationUsageItem.Group.INPUT, label: 'cache_write', amount: 10 },
+        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'text', amount: 40 },
+        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
       ]
     } );
   } );
@@ -113,11 +113,11 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( result.items ).toEqual( [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, 'no_cache', 80 ),
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, 'cache_read', 20 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, 'text', 50 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'no_cache', 80 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'cache_read', 20 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, 'text', 50 )
     ] );
-    expect( result.status ).toBe( LLMUsage.Status.COMPLETE );
+    expect( result.status ).toBe( LLMGenerationUsage.Status.COMPLETE );
   } );
 
   it( 'uses aggregate items when no breakdown is reported', () => {
@@ -127,11 +127,11 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( result.items ).toEqual( [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, null, 100 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, null, 50 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 50 )
     ] );
     expect( result ).toMatchObject( {
-      status: LLMUsage.Status.COMPLETE,
+      status: LLMGenerationUsage.Status.COMPLETE,
       input: 100,
       output: 50,
       total: 150
@@ -154,8 +154,8 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( result.items ).toEqual( [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, null, 100 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, null, 50 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 50 )
     ] );
   } );
 
@@ -175,14 +175,14 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( result ).toMatchObject( {
-      status: LLMUsage.Status.COMPLETE,
+      status: LLMGenerationUsage.Status.COMPLETE,
       input: 0,
       output: 0,
       total: 0
     } );
     expect( result.items ).toEqual( [
-      new LLMUsageItem( LLMUsageItem.Group.INPUT, null, 0 ),
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, null, 0 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 0 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 0 )
     ] );
   } );
 
@@ -191,19 +191,19 @@ describe( 'parseLLMUsage', () => {
       name: 'input',
       usage: { inputTokens: 25 },
       expected: { input: 25, output: null, total: 25 },
-      item: new LLMUsageItem( LLMUsageItem.Group.INPUT, null, 25 )
+      item: new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 25 )
     },
     {
       name: 'output',
       usage: { outputTokens: 15 },
       expected: { input: null, output: 15, total: 15 },
-      item: new LLMUsageItem( LLMUsageItem.Group.OUTPUT, null, 15 )
+      item: new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 15 )
     }
   ] )( 'marks $name-only usage incomplete', ( { usage, expected, item } ) => {
     const result = parse( usage );
 
     expect( result ).toMatchObject( {
-      status: LLMUsage.Status.INCOMPLETE,
+      status: LLMGenerationUsage.Status.INCOMPLETE,
       ...expected
     } );
     expect( result.items ).toEqual( [ item ] );
@@ -220,13 +220,13 @@ describe( 'parseLLMUsage', () => {
     } );
 
     expect( result ).toMatchObject( {
-      status: LLMUsage.Status.INCOMPLETE,
+      status: LLMGenerationUsage.Status.INCOMPLETE,
       input: null,
       output: 15,
       total: 15
     } );
     expect( result.items ).toEqual( [
-      new LLMUsageItem( LLMUsageItem.Group.OUTPUT, null, 15 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 15 )
     ] );
   } );
 

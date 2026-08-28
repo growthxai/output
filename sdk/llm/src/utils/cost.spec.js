@@ -7,16 +7,16 @@ vi.mock( './models_pricing.js', () => ( {
 } ) );
 
 import { Logger } from '@outputai/core';
-import { LLMCost, LLMCostItem, calculateCosts } from './cost.js';
-import { LLMUsage, LLMUsageItem } from './usage.js';
+import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 
-const INPUT = LLMUsageItem.Group.INPUT;
-const OUTPUT = LLMUsageItem.Group.OUTPUT;
+const INPUT = LLMGenerationUsageItem.Group.INPUT;
+const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
 const MODEL_ID = 'test-model';
 const PROVIDER_ID = 'test-provider';
 
-const item = ( group, label, amount ) => new LLMUsageItem( group, label, amount );
-const usage = items => new LLMUsage( MODEL_ID, PROVIDER_ID, items );
+const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
+const usage = items => new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, items );
 const pricing = value => new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, value ] ] );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
@@ -53,15 +53,15 @@ describe( 'calculateCosts', () => {
       item( OUTPUT, null, 500_000 )
     ] ) );
 
-    expect( result ).toBeInstanceOf( LLMCost );
+    expect( result ).toBeInstanceOf( LLMGenerationCost );
     expect( serialize( result ) ).toEqual( {
-      type: LLMCost.TYPE,
+      type: LLMGenerationCost.TYPE,
       providerId: PROVIDER_ID,
       modelId: MODEL_ID,
       input: 2,
       output: 5,
       total: 7,
-      status: LLMCost.Status.PRECISE,
+      status: LLMGenerationCost.Status.PRECISE,
       items: [
         {
           group: INPUT,
@@ -69,7 +69,7 @@ describe( 'calculateCosts', () => {
           amount: 1_000_000,
           ppm: 2,
           total: 2,
-          status: LLMCostItem.Status.OK
+          status: LLMGenerationCostItem.Status.OK
         },
         {
           group: OUTPUT,
@@ -77,7 +77,7 @@ describe( 'calculateCosts', () => {
           amount: 500_000,
           ppm: 10,
           total: 5,
-          status: LLMCostItem.Status.OK
+          status: LLMGenerationCostItem.Status.OK
         }
       ]
     } );
@@ -104,14 +104,14 @@ describe( 'calculateCosts', () => {
       input: 2.9,
       output: 3,
       total: 5.9,
-      status: LLMCost.Status.PRECISE
+      status: LLMGenerationCost.Status.PRECISE
     } );
     expect( result.items ).toEqual( [
-      new LLMCostItem( INPUT, 'no_cache', 500_000, 4, 2, LLMCostItem.Status.OK ),
-      new LLMCostItem( INPUT, 'cache_read', 400_000, 1, 0.4, LLMCostItem.Status.OK ),
-      new LLMCostItem( INPUT, 'cache_write', 100_000, 5, 0.5, LLMCostItem.Status.OK ),
-      new LLMCostItem( OUTPUT, 'text', 200_000, 10, 2, LLMCostItem.Status.OK ),
-      new LLMCostItem( OUTPUT, 'reasoning', 50_000, 20, 1, LLMCostItem.Status.OK )
+      new LLMGenerationCostItem( INPUT, 'no_cache', 500_000, 4, 2, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( INPUT, 'cache_read', 400_000, 1, 0.4, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( INPUT, 'cache_write', 100_000, 5, 0.5, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, 'text', 200_000, 10, 2, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, 'reasoning', 50_000, 20, 1, LLMGenerationCostItem.Status.OK )
     ] );
   } );
 
@@ -131,12 +131,12 @@ describe( 'calculateCosts', () => {
       input: 1,
       output: 0.5,
       total: 1.5,
-      status: LLMCost.Status.IMPRECISE
+      status: LLMGenerationCost.Status.IMPRECISE
     } );
     expect( result.items.map( value => value.status ) ).toEqual( [
-      LLMCostItem.Status.FALLBACK,
-      LLMCostItem.Status.FALLBACK,
-      LLMCostItem.Status.FALLBACK
+      LLMGenerationCostItem.Status.FALLBACK,
+      LLMGenerationCostItem.Status.FALLBACK,
+      LLMGenerationCostItem.Status.FALLBACK
     ] );
   } );
 
@@ -154,11 +154,11 @@ describe( 'calculateCosts', () => {
       input: 0.0002,
       output: null,
       total: 0.0002,
-      status: LLMCost.Status.INCOMPLETE
+      status: LLMGenerationCost.Status.INCOMPLETE
     } );
     expect( result.items ).toEqual( [
-      new LLMCostItem( INPUT, null, 100, 2, 0.0002, LLMCostItem.Status.OK ),
-      new LLMCostItem( OUTPUT, null, 50, null, null, LLMCostItem.Status.MISSING )
+      new LLMGenerationCostItem( INPUT, null, 100, 2, 0.0002, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 50, null, null, LLMGenerationCostItem.Status.MISSING )
     ] );
   } );
 
@@ -174,9 +174,9 @@ describe( 'calculateCosts', () => {
       input: null,
       output: null,
       total: null,
-      status: LLMCost.Status.INCOMPLETE
+      status: LLMGenerationCost.Status.INCOMPLETE
     } );
-    expect( result.items.every( value => value.status === LLMCostItem.Status.MISSING ) ).toBe( true );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.MISSING ) ).toBe( true );
     expect( Logger.warn ).toHaveBeenCalledWith(
       'Missing pricing reference for model',
       { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID }
@@ -197,9 +197,9 @@ describe( 'calculateCosts', () => {
       input: 0.0002,
       output: null,
       total: 0.0002,
-      status: LLMCost.Status.INCOMPLETE
+      status: LLMGenerationCost.Status.INCOMPLETE
     } );
-    expect( result.items[0].status ).toBe( LLMCostItem.Status.OK );
+    expect( result.items[0].status ).toBe( LLMGenerationCostItem.Status.OK );
   } );
 
   it( 'accepts zero-valued prices as precise', async () => {
@@ -217,9 +217,9 @@ describe( 'calculateCosts', () => {
       input: 0,
       output: 0,
       total: 0,
-      status: LLMCost.Status.PRECISE
+      status: LLMGenerationCost.Status.PRECISE
     } );
-    expect( result.items.every( value => value.status === LLMCostItem.Status.OK ) ).toBe( true );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.OK ) ).toBe( true );
   } );
 
   it( 'uses decimal arithmetic for fractional prices', async () => {
@@ -240,35 +240,35 @@ describe( 'calculateCosts', () => {
   } );
 } );
 
-describe( 'LLMCost', () => {
+describe( 'LLMGenerationCost', () => {
   it.each( [
     {
       name: 'precise',
-      usageStatus: LLMUsage.Status.COMPLETE,
-      itemStatus: LLMCostItem.Status.OK,
-      expected: LLMCost.Status.PRECISE
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      expected: LLMGenerationCost.Status.PRECISE
     },
     {
       name: 'imprecise',
-      usageStatus: LLMUsage.Status.COMPLETE,
-      itemStatus: LLMCostItem.Status.FALLBACK,
-      expected: LLMCost.Status.IMPRECISE
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.FALLBACK,
+      expected: LLMGenerationCost.Status.IMPRECISE
     },
     {
       name: 'incomplete from missing pricing',
-      usageStatus: LLMUsage.Status.COMPLETE,
-      itemStatus: LLMCostItem.Status.MISSING,
-      expected: LLMCost.Status.INCOMPLETE
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.MISSING,
+      expected: LLMGenerationCost.Status.INCOMPLETE
     },
     {
       name: 'incomplete from usage',
-      usageStatus: LLMUsage.Status.INCOMPLETE,
-      itemStatus: LLMCostItem.Status.OK,
-      expected: LLMCost.Status.INCOMPLETE
+      usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      expected: LLMGenerationCost.Status.INCOMPLETE
     }
   ] )( 'sets $name status', ( { usageStatus, itemStatus, expected } ) => {
-    const cost = new LLMCost( MODEL_ID, PROVIDER_ID, [
-      new LLMCostItem( INPUT, null, 100, 2, 0.0002, itemStatus )
+    const cost = new LLMGenerationCost( MODEL_ID, PROVIDER_ID, [
+      new LLMGenerationCostItem( INPUT, null, 100, 2, 0.0002, itemStatus )
     ], usageStatus );
 
     expect( cost.status ).toBe( expected );

@@ -331,25 +331,25 @@ export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParame
 export type ExtractedSource =
   AIGenerateTextResult<ToolSet, DefaultRuntimeContext, AnyAiOutput>['sources'][number];
 
-export type LLMUsageStatus = 'complete' | 'incomplete';
+export type LLMGenerationUsageStatus = 'complete' | 'incomplete';
 
 /** Token usage reported for one normalized LLM usage component. */
-export interface LLMUsageItem {
+export interface LLMGenerationUsageItem {
   group: 'input' | 'output';
   label: string | null;
   amount: number;
 }
 
 /** Normalized LLM token usage trace attribute. */
-export interface LLMUsage extends BaseAttribute {
+export interface LLMGenerationUsage extends BaseAttribute {
   type: 'llm:generation:usage';
   providerId: string;
   modelId: string;
   input: number | null;
   output: number | null;
   total: number | null;
-  status: LLMUsageStatus;
-  items: LLMUsageItem[];
+  status: LLMGenerationUsageStatus;
+  items: LLMGenerationUsageItem[];
 }
 
 /** One priced usage line in the legacy LLM cost event. */
@@ -363,7 +363,7 @@ export interface LLMUsageEventItem {
 /**
  * Legacy `cost:llm:request` event payload.
  *
- * @deprecated Use the normalized `LLMUsage` and `LLMCost` payloads from the LLM generation metering event.
+ * @deprecated Use the normalized `LLMGenerationUsage` and `LLMGenerationCost` payloads from the LLM generation metering event.
  */
 export interface LLMUsageEvent {
   type: 'llm:usage';
@@ -373,35 +373,35 @@ export interface LLMUsageEvent {
   readonly tokensUsed: number;
 }
 
-export type LLMCostItemStatus = 'ok' | 'fallback' | 'missing';
-export type LLMCostStatus = 'precise' | 'imprecise' | 'incomplete';
+export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'missing';
+export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
 
 /** Cost calculated for one normalized LLM usage item. */
-export interface LLMCostItem {
+export interface LLMGenerationCostItem {
   group: 'input' | 'output';
   label: string | null;
   amount: number;
   ppm: number | null;
   total: number | null;
-  status: LLMCostItemStatus;
+  status: LLMGenerationCostItemStatus;
 }
 
 /** Normalized LLM generation cost trace attribute. */
-export interface LLMCost extends BaseAttribute {
+export interface LLMGenerationCost extends BaseAttribute {
   type: 'llm:generation:cost';
   providerId: string;
   modelId: string;
   input: number | null;
   output: number | null;
   total: number | null;
-  status: LLMCostStatus;
-  items: LLMCostItem[];
+  status: LLMGenerationCostStatus;
+  items: LLMGenerationCostItem[];
 }
 
 /** Payload emitted by the `llm:generation:metering` event. */
 export interface LLMGenerationMeteringEvent {
-  usage: LLMUsage;
-  cost: LLMCost | null;
+  usage: LLMGenerationUsage;
+  cost: LLMGenerationCost | null;
 }
 
 /**
@@ -411,7 +411,7 @@ export interface LLMGenerationMeteringEvent {
 export type WrappedStreamTextOnEndEvent<Tools extends ToolSet = ToolSet> =
   Parameters<GenerateTextOnEndCallback<Tools, DefaultRuntimeContext>>[0] & {
     result: string;
-    cost: LLMCost | null;
+    cost: LLMGenerationCost | null;
     sources: ExtractedSource[];
   };
 
@@ -431,7 +431,7 @@ export type GenerateTextResult<
   /** Unified field name alias for 'text' */
   result: string;
   /** Calculated cost for the LLM call; `null` when pricing data is not available */
-  cost: LLMCost | null;
+  cost: LLMGenerationCost | null;
   /** Merged tool + provider sources (url and document). Always an array. */
   sources: ExtractedSource[];
 };
@@ -447,7 +447,7 @@ export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
   result: AIGenerateImageResult['image'];
   /** Calculated cost for the image generation call; `null` when pricing data is not available. */
-  cost: LLMCost | null;
+  cost: LLMGenerationCost | null;
 };
 
 /**

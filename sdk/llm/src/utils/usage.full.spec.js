@@ -10,10 +10,10 @@ import openaiStream from '../fixtures/stream_response_v7_openai.js';
 import openaiText from '../fixtures/text_response_v7_openai.js';
 import perplexityStream from '../fixtures/stream_response_v7_perplexity.js';
 import perplexityText from '../fixtures/text_response_v7_perplexity.js';
-import { LLMUsage, LLMUsageItem, parseLLMUsage } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
-const INPUT = LLMUsageItem.Group.INPUT;
-const OUTPUT = LLMUsageItem.Group.OUTPUT;
+const INPUT = LLMGenerationUsageItem.Group.INPUT;
+const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
 
 const cases = [
   {
@@ -202,10 +202,10 @@ describe( 'parseLLMUsage with AI SDK response fixtures', () => {
     } );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {
-      type: LLMUsage.TYPE,
+      type: LLMGenerationUsage.TYPE,
       providerId,
       modelId,
-      status: LLMUsage.Status.COMPLETE,
+      status: LLMGenerationUsage.Status.COMPLETE,
       input,
       output,
       total: input + output,

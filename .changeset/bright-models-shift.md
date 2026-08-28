@@ -8,9 +8,9 @@
 - Updated `onChunk` to receive every AI SDK 7 stream part, including start, finish, error, step-boundary, text-boundary, and reasoning-boundary parts. Handlers should ignore part types they do not use.
 - Updated `Agent` so it no longer inherits from the AI SDK `ToolLoopAgent`. Its public methods remain `generate()`, `generateWithStreaming()`, and `stream()`.
 - Updated cache-read, cache-write, text-output, and reasoning token cost calculation to use AI SDK 7 usage breakdowns, with aggregate input or output usage as the fallback for incomplete breakdowns.
-- Added normalized usage and cost items with `group` (`input` or `output`) and optional labels (`no_cache`, `cache_read`, `cache_write`, `text`, or `reasoning`). The existing `cost:llm:request` event keeps its legacy usage types for compatibility.
+- Added normalized usage and cost items with `group` (`input` or `output`) and optional labels (`no_cache`, `cache_read`, `cache_write`, `text`, or `reasoning`). The existing `llm:usage` trace attribute and `cost:llm:request` event remain available with their legacy payload for compatibility.
 - Fixed legacy `llm:usage` output accounting: when reasoning tokens are provided as a discrete item, they are no longer included in the item for output tokens, removing the double counting problem.
-- Added normalized `LLMUsage` and `LLMCost` trace attributes with provider/model identity, aggregate totals, detailed items, and completeness/pricing statuses.
+- Added normalized `LLMGenerationUsage` and `LLMGenerationCost` trace attributes with provider/model identity, aggregate totals, detailed items, and completeness/pricing statuses.
 - Added the `llm:generation:metering` event. It is emitted with normalized usage even when cost is unavailable:
   ```json
   {

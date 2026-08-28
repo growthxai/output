@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
-import type { LLMCost, LLMCostItem, LLMUsage, LLMUsageEvent } from '@outputai/llm';
+import type {
+  LLMGenerationCost,
+  LLMGenerationCostItem,
+  LLMGenerationUsage,
+  LLMUsageEvent
+} from '@outputai/llm';
 
 import type {
   TraceNode,
@@ -20,7 +25,7 @@ import type {
 } from '#types/cost.js';
 
 const ARRAY_ACCESS_PATTERN = /^(\w+)\[(\d+)\]$/;
-type NormalizedUsageItem = Pick<LLMCostItem, 'group' | 'label' | 'amount'>;
+type NormalizedUsageItem = Pick<LLMGenerationCostItem, 'group' | 'label' | 'amount'>;
 
 function tokenCost( tokens: number, pricePerMillion: number ): number {
   return ( tokens / 1_000_000 ) * pricePerMillion;
@@ -124,7 +129,7 @@ function parseLegacyLLMUsageEvent(
   };
 }
 
-function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, event: LLMUsage ): LLMCall {
+function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, event: LLMGenerationUsage ): LLMCall {
   const lines = event.items.map( item => ( {
     type: normalizedItemType( item ),
     ppm: 0,
@@ -142,7 +147,7 @@ function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, even
   };
 }
 
-function parseLLMCostEvent( node: TraceNode, stepName: string | null, event: LLMCost ): LLMCall {
+function parseLLMCostEvent( node: TraceNode, stepName: string | null, event: LLMGenerationCost ): LLMCall {
   const lines = event.items.map( item => ( {
     type: normalizedItemType( item ),
     ppm: item.ppm ?? 0,

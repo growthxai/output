@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { LLMCost, LLMUsage, LLMUsageEvent } from '@outputai/llm';
+import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/llm';
 import type { TraceNode, HTTPCall, LLMUsageLine } from '#types/cost.js';
 
 const mockReadFileSync = vi.fn();
@@ -58,8 +58,8 @@ function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): Trace
   };
 }
 
-function llmCostNode( id: string, model: string, items: LLMCost['items'] ): TraceNode {
-  const totalOf = ( group: LLMCost['items'][number]['group'] ): number =>
+function llmCostNode( id: string, model: string, items: LLMGenerationCost['items'] ): TraceNode {
+  const totalOf = ( group: LLMGenerationCost['items'][number]['group'] ): number =>
     items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + ( item.total ?? 0 ), 0 );
   const input = totalOf( 'input' );
   const output = totalOf( 'output' );
@@ -83,8 +83,8 @@ function llmCostNode( id: string, model: string, items: LLMCost['items'] ): Trac
   };
 }
 
-function llmUsageNode( id: string, model: string, items: LLMUsage['items'] ): TraceNode {
-  const totalOf = ( group: LLMUsage['items'][number]['group'] ): number =>
+function llmUsageNode( id: string, model: string, items: LLMGenerationUsage['items'] ): TraceNode {
+  const totalOf = ( group: LLMGenerationUsage['items'][number]['group'] ): number =>
     items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + item.amount, 0 );
   const input = totalOf( 'input' );
   const output = totalOf( 'output' );
@@ -291,7 +291,7 @@ describe( 'findLLMCalls', () => {
   } );
 
   it( 'reads every supported item from an llm:generation:cost attribute', () => {
-    const items: LLMCost['items'] = [
+    const items: LLMGenerationCost['items'] = [
       { group: 'input', label: null, amount: 100, ppm: 1, total: 0.0001, status: 'ok' },
       { group: 'input', label: 'no_cache', amount: 200, ppm: 1, total: 0.0002, status: 'ok' },
       { group: 'input', label: 'cache_write', amount: 300, ppm: 1.25, total: 0.000375, status: 'ok' },
@@ -328,7 +328,7 @@ describe( 'findLLMCalls', () => {
   } );
 
   it( 'reads normalized usage without interpreting token totals as cost', () => {
-    const items: LLMUsage['items'] = [
+    const items: LLMGenerationUsage['items'] = [
       { group: 'input', label: null, amount: 100 },
       { group: 'input', label: 'no_cache', amount: 200 },
       { group: 'input', label: 'cache_write', amount: 300 },

@@ -134,12 +134,12 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | `activityInfo` | `object \| undefined` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the call is made in an activity context. |
 | `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
 | `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
-| `payload.usage` | `LLMUsage` | Normalized provider-reported usage. |
-| `payload.cost` | `LLMCost \| null` | Cost calculated from that usage, or `null` when pricing data could not be loaded. |
+| `payload.usage` | `LLMGenerationUsage` | Normalized provider-reported usage. |
+| `payload.cost` | `LLMGenerationCost \| null` | Cost calculated from that usage, or `null` when pricing data could not be loaded. |
 
 ### Normalized usage
 
-`LLMUsage` records usage independently from pricing. Aggregate `input`, `output`, and `total` fields make common reads direct; `items` preserve the provider breakdown.
+`LLMGenerationUsage` records usage independently from pricing. Aggregate `input`, `output`, and `total` fields make common reads direct; `items` preserve the provider breakdown.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -150,7 +150,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | `output` | `number \| null` | Total reported output usage. |
 | `total` | `number \| null` | Sum of available input and output usage. |
 | `status` | `"complete" \| "incomplete"` | Whether both input and output usage were reported. |
-| `items` | `LLMUsageItem[]` | Detailed usage items. |
+| `items` | `LLMGenerationUsageItem[]` | Detailed usage items. |
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -162,7 +162,7 @@ When the detailed counts do not reconcile with the aggregate count, Output keeps
 
 ### Normalized cost
 
-`LLMCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`.
+`LLMGenerationCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -174,7 +174,7 @@ When the detailed counts do not reconcile with the aggregate count, Output keeps
 
 ## Legacy LLM request cost
 
-`cost:llm:request` is emitted on the same completion path when a legacy-priced payload can be calculated. It remains supported with the same payload shape, so existing handlers do not need to migrate. Its `LLMUsageEvent` type is deprecated only to steer new integrations toward the normalized event.
+`cost:llm:request` is emitted on the same completion path when a legacy-priced payload can be calculated. The same payload is retained on the LLM trace as `attributes["llm:usage"]`. Both remain supported with the same payload shape, so existing event handlers and trace readers do not need to migrate immediately. Its `LLMUsageEvent` type is deprecated only to steer new integrations toward the normalized event and attributes.
 
 ```typescript src/legacy_llm_cost_hooks.ts
 import { on } from '@outputai/core/hooks';
@@ -202,7 +202,7 @@ on<LLMUsageEvent>( 'cost:llm:request', event => {
 }
 ```
 
-The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` and `tokensUsed` are calculated from those legacy lines.
+The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` and `tokensUsed` are calculated from those legacy lines. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
 
 Use `llm:generation:metering` for new integrations. It is more faithful to the provider response because usage is independent from pricing, cache writes and reasoning remain explicit, provider identity is included, and fallback or missing prices are represented rather than hidden.
 

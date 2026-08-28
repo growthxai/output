@@ -96,6 +96,7 @@ describe( 'wrapGeneration / wrapStream', () => {
 
   describe( 'wrapGeneration', () => {
     it( 'starts an llm trace, wraps a text response, and ends with raw usage and sources', async () => {
+      const structuredCloneSpy = vi.spyOn( globalThis, 'structuredClone' );
       const response = textResponse();
       const mergedSources = [ { url: 'https://merged.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
@@ -123,13 +124,25 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
         eventId: 'generateText-9000000000',
+        attribute: mockLegacyCost
+      } );
+      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 3, {
+        eventId: 'generateText-9000000000',
         attribute: mockUsage
       } );
+      expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockCost );
       expect( event.emit ).toHaveBeenNthCalledWith( 1, 'cost:llm:request', mockLegacyCost );
       expect( event.emit ).toHaveBeenNthCalledWith( 2, 'llm:generation:metering', {
         cost: mockCost,
         usage: mockUsage
       } );
+      expect( structuredCloneSpy ).toHaveBeenCalledWith( mockLegacyCost );
+      expect( structuredCloneSpy ).toHaveBeenCalledWith( { cost: mockCost, usage: mockUsage } );
+      const legacyEventPayload = event.emit.mock.calls[0][1];
+      const meteringEventPayload = event.emit.mock.calls[1][1];
+      expect( legacyEventPayload ).not.toBe( mockLegacyCost );
+      expect( meteringEventPayload.cost ).not.toBe( mockCost );
+      expect( meteringEventPayload.usage ).not.toBe( mockUsage );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000',
@@ -221,6 +234,32 @@ describe( 'wrapGeneration / wrapStream', () => {
         }
       } );
       expect( wrapped.cost ).toBeNull();
+    } );
+
+    it( 'skips the legacy attribute and event when the cost cannot be converted', async () => {
+      mocks.convertCostToLegacy.mockReturnValue( null );
+      const response = textResponse();
+
+      await wrapGeneration( {
+        name: 'generateText',
+        prompt,
+        fn: async () => response
+      } );
+
+      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
+        eventId: 'generateText-9000000000',
+        attribute: mockCost
+      } );
+      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
+        eventId: 'generateText-9000000000',
+        attribute: mockUsage
+      } );
+      expect( tracing.addEventAttribute ).toHaveBeenCalledTimes( 2 );
+      expect( event.emit ).toHaveBeenCalledOnce();
+      expect( event.emit ).toHaveBeenCalledWith( 'llm:generation:metering', {
+        cost: mockCost,
+        usage: mockUsage
+      } );
     } );
 
     it( 'skips cost calculation when usage cannot be parsed', async () => {

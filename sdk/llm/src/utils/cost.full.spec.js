@@ -18,14 +18,14 @@ vi.mock( './models_pricing.js', () => ( {
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
-import { LLMCost, LLMCostItem, calculateCosts } from './cost.js';
-import { LLMUsageItem, parseLLMUsage } from './usage.js';
+import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
-const INPUT = LLMUsageItem.Group.INPUT;
-const OUTPUT = LLMUsageItem.Group.OUTPUT;
-const OK = LLMCostItem.Status.OK;
-const FALLBACK = LLMCostItem.Status.FALLBACK;
-const MISSING = LLMCostItem.Status.MISSING;
+const INPUT = LLMGenerationUsageItem.Group.INPUT;
+const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
+const OK = LLMGenerationCostItem.Status.OK;
+const FALLBACK = LLMGenerationCostItem.Status.FALLBACK;
+const MISSING = LLMGenerationCostItem.Status.MISSING;
 
 const models = new Map(
   Object.values( pricingTable ).flatMap( provider => Object.entries( provider.models ?? {} ).flatMap( ( [ modelId, model ] ) => (
@@ -42,7 +42,7 @@ const cases = [
     input: 0.000414,
     output: 0.0006336,
     total: 0.0010476,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1035, 0.4, 0.000414, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -59,7 +59,7 @@ const cases = [
     input: 0.000414,
     output: 0.0006176,
     total: 0.0010316,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1035, 0.4, 0.000414, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -76,7 +76,7 @@ const cases = [
     input: null,
     output: null,
     total: null,
-    status: LLMCost.Status.INCOMPLETE,
+    status: LLMGenerationCost.Status.INCOMPLETE,
     items: [
       [ INPUT, null, 151, null, null, MISSING ],
       [ OUTPUT, null, 4160, null, null, MISSING ]
@@ -90,7 +90,7 @@ const cases = [
     input: 0.001113,
     output: 0.004225,
     total: 0.005338,
-    status: LLMCost.Status.PRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1113, 1, 0.001113, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -106,7 +106,7 @@ const cases = [
     input: 0.001113,
     output: 0.005235,
     total: 0.006348,
-    status: LLMCost.Status.PRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1113, 1, 0.001113, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -122,7 +122,7 @@ const cases = [
     input: 0.01876625,
     output: 0.000025,
     total: 0.01879125,
-    status: LLMCost.Status.PRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 15, 1, 0.000015, OK ],
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
@@ -138,7 +138,7 @@ const cases = [
     input: 0.0065166,
     output: 0.00002,
     total: 0.0065366,
-    status: LLMCost.Status.PRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 14, 1, 0.000014, OK ],
       [ INPUT, 'cache_read', 15001, 0.1, 0.0015001, OK ],
@@ -154,7 +154,7 @@ const cases = [
     input: 0.0003096,
     output: 0.0034525,
     total: 0.0037621,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
@@ -170,7 +170,7 @@ const cases = [
     input: 0.0003096,
     output: 0.0033675,
     total: 0.0036771,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
@@ -186,7 +186,7 @@ const cases = [
     input: 0.0000471,
     output: 0.0387,
     total: 0.0387471,
-    status: LLMCost.Status.PRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, null, 157, 0.3, 0.0000471, OK ],
       [ OUTPUT, null, 1290, 30, 0.0387, OK ]
@@ -200,7 +200,7 @@ const cases = [
     input: 0.001025,
     output: 0.000437,
     total: 0.001462,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 437, 1, 0.000437, OK ],
@@ -215,7 +215,7 @@ const cases = [
     input: 0.001025,
     output: 0.000448,
     total: 0.001473,
-    status: LLMCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 448, 1, 0.000448, OK ],
@@ -252,7 +252,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
     const result = await calculateCosts( usage );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {
-      type: LLMCost.TYPE,
+      type: LLMGenerationCost.TYPE,
       providerId,
       modelId,
       input,

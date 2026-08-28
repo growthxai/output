@@ -1,12 +1,12 @@
 import { fetchModelsPricing } from './models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
-import { LLMUsage, LLMUsageItem } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 import { Logger } from '@outputai/core';
 import Decimal from 'decimal.js';
 
 const exists = v => Number.isFinite( v );
 
-export class LLMCostItem {
+export class LLMGenerationCostItem {
   static Status = Object.freeze( {
     OK: 'ok',
     FALLBACK: 'fallback',
@@ -30,7 +30,7 @@ export class LLMCostItem {
   }
 }
 
-export class LLMCost extends Tracing.Attribute.BaseAttribute {
+export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
   static TYPE = 'llm:generation:cost';
   static Status = Object.freeze( {
     PRECISE: 'precise',
@@ -42,27 +42,27 @@ export class LLMCost extends Tracing.Attribute.BaseAttribute {
   input = null;
   output = null;
   total = null;
-  status = LLMCost.Status.INCOMPLETE;
+  status = LLMGenerationCost.Status.INCOMPLETE;
   items = [];
 
   constructor( modelId, providerId, items, usageStatus ) {
-    super( LLMCost.TYPE );
+    super( LLMGenerationCost.TYPE );
     this.modelId = modelId;
     this.providerId = providerId;
     this.items = items;
 
-    if ( items.some( v => v.status === LLMCostItem.Status.MISSING ) || usageStatus === LLMUsage.Status.INCOMPLETE ) {
-      this.status = LLMCost.Status.INCOMPLETE;
-    } else if ( items.some( v => v.status === LLMCostItem.Status.FALLBACK ) ) {
-      this.status = LLMCost.Status.IMPRECISE;
+    if ( items.some( v => v.status === LLMGenerationCostItem.Status.MISSING ) || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
+      this.status = LLMGenerationCost.Status.INCOMPLETE;
+    } else if ( items.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) ) {
+      this.status = LLMGenerationCost.Status.IMPRECISE;
     } else {
-      this.status = LLMCost.Status.PRECISE;
+      this.status = LLMGenerationCost.Status.PRECISE;
     }
-    const inputItems = items.filter( p => p.group === LLMUsageItem.Group.INPUT && exists( p.total ) );
+    const inputItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.INPUT && exists( p.total ) );
     if ( inputItems.length > 0 ) {
       this.input = inputItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
     }
-    const outputItems = items.filter( p => p.group === LLMUsageItem.Group.OUTPUT && exists( p.total ) );
+    const outputItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.OUTPUT && exists( p.total ) );
     if ( outputItems.length > 0 ) {
       this.output = outputItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
     }
@@ -74,20 +74,20 @@ export class LLMCost extends Tracing.Attribute.BaseAttribute {
 
 const resolveValue = values => {
   if ( exists( values[0] ) ) {
-    return { ppm: values[0], status: LLMCostItem.Status.OK };
+    return { ppm: values[0], status: LLMGenerationCostItem.Status.OK };
   }
   const fallback = values.slice( 1 ).find( exists );
   if ( exists( fallback ) ) {
-    return { ppm: fallback, status: LLMCostItem.Status.FALLBACK };
+    return { ppm: fallback, status: LLMGenerationCostItem.Status.FALLBACK };
   }
-  return { ppm: null, status: LLMCostItem.Status.MISSING };
+  return { ppm: null, status: LLMGenerationCostItem.Status.MISSING };
 };
 
 const resolvePrice = ( { group, label, pricing } ) => {
   if ( !pricing ) {
     return resolveValue( [] );
   }
-  if ( group === LLMUsageItem.Group.OUTPUT ) {
+  if ( group === LLMGenerationUsageItem.Group.OUTPUT ) {
     const values = [ pricing.output ];
     if ( label === 'reasoning' ) {
       values.unshift( pricing.reasoning );
@@ -105,11 +105,10 @@ const resolvePrice = ( { group, label, pricing } ) => {
 };
 
 /**
- * Calculates the cost of an llm call based on the LLMUsage.
+ * Calculates the cost of an LLM call based on the LLMGenerationUsage.
  *
- * @param {object} args
- * @param {object} args.usage - LLMUsageAttribute
- * @returns {object | null} LLM Cost with input, output, total and breakdown
+ * @param {LLMGenerationUsage} usage - Normalized LLM generation usage
+ * @returns {Promise<LLMGenerationCost | null>} LLM generation cost with input, output, total and breakdown
  */
 export const calculateCosts = async usage => {
   const models = await fetchModelsPricing();
@@ -129,8 +128,8 @@ export const calculateCosts = async usage => {
   const items = usage.items.map( ( { group, label, amount } ) => {
     const { ppm, status } = resolvePrice( { pricing, group, label } );
     const total = exists( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
-    return new LLMCostItem( group, label, amount, ppm, total, status );
+    return new LLMGenerationCostItem( group, label, amount, ppm, total, status );
   } );
 
-  return new LLMCost( modelId, providerId, items, usage.status );
+  return new LLMGenerationCost( modelId, providerId, items, usage.status );
 };
