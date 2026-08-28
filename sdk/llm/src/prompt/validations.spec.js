@@ -31,6 +31,18 @@ describe( 'parsePromptSchema', () => {
     expect( () => parse( validPrompt ) ).not.toThrow();
   } );
 
+  it.each( [ 'temperature', 'topK', 'topP' ] )( 'should reject a negative %s', field => {
+    expect( () => parse( {
+      name: `negative-${field}`,
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        [field]: -0.1
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } ) ).toThrow( ValidationError );
+  } );
+
   it( 'should validate a minimal prompt with only required fields', () => {
     const minimalPrompt = {
       name: 'minimal-prompt',

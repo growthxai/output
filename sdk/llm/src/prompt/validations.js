@@ -1,5 +1,4 @@
-import { ValidationError, z } from '@outputai/core';
-import { Logger } from '@outputai/core';
+import { Logger, ValidationError, z } from '@outputai/core';
 import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
 
 const log = Logger.createLogger( 'LLM' );
@@ -58,9 +57,9 @@ const promptConfigSchema = z.object( {
   size: z.string().regex( /^\d+x\d+$/ ).optional(),
   skills: z.preprocess( v => Array.isArray( v ) ? v : [].concat( v ?? [] ), z.array( z.string().min( 1 ) ) ),
   stopSequences: z.array( z.string() ).optional(),
-  temperature: z.number().optional(),
-  topK: z.number().optional(),
-  topP: z.number().optional(),
+  temperature: z.number().nonnegative().optional(),
+  topK: z.number().nonnegative().optional(),
+  topP: z.number().nonnegative().optional(),
   tools: objectMapSchema.optional()
 } ).strict();
 
