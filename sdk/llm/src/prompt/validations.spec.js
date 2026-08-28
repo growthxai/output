@@ -94,6 +94,20 @@ describe( 'parsePromptSchema', () => {
     expect( result.config.maxOutputTokens ).toBe( 2000 );
   } );
 
+  it( 'should reject an unsupported message role', () => {
+    expect( () => parse( {
+      name: 'invalid-role',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4'
+      },
+      messages: [ {
+        role: 'developer',
+        content: 'You are a helpful assistant.'
+      } ]
+    } ) ).toThrow( /messages\[0\]\.role/ );
+  } );
+
   it( 'should validate a prompt with thinking providerOptions', () => {
     const promptWithThinking = {
       name: 'thinking-prompt',

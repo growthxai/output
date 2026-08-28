@@ -92,6 +92,10 @@ await generateText({ prompt });
 
 Prompt objects are already resolved and rendered, so `promptDir` and call-level `variables` cannot be used with them. `fileDir` remains the base directory for relative skill paths. Custom objects must use canonical provider names; deprecated provider aliases are normalized only when loading prompt files.
 
+<Warning>
+  Only accept prompt objects from trusted sources. They can select providers and models and load local skill files relative to `fileDir`.
+</Warning>
+
 ## File Organization
 
 Place prompt files in a `prompts/` subfolder within your workflow directory:

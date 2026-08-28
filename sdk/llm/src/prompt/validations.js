@@ -1,5 +1,6 @@
 import { Logger, ValidationError, z } from '@outputai/core';
 import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
+import { Role } from '../consts.js';
 
 const log = Logger.createLogger( 'LLM' );
 
@@ -68,7 +69,7 @@ export const promptSchema = z.object( {
   config: promptConfigSchema,
   messages: z.array(
     z.object( {
-      role: z.string(),
+      role: z.enum( Object.values( Role ) ),
       content: z.string(),
       providerOptions: objectMapSchema.optional()
     } ).strict()

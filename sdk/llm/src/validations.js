@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { ValidationError, z } from '@outputai/core';
+import { Role } from './consts.js';
 import { promptSchema } from './prompt/validations.js';
 
 const rejectPromptOwnedCallArg = name => z.unknown().optional().refine(
@@ -48,7 +49,7 @@ const messageStoreSchema = z.custom(
 );
 
 const modelMessageSchema = z.object( {
-  role: z.enum( [ 'system', 'user', 'assistant', 'tool' ] ),
+  role: z.enum( [ ...Object.values( Role ), 'tool' ] ),
   content: z.union( [ z.string(), z.array( z.unknown() ) ] )
 } ).loose();
 
@@ -65,15 +66,10 @@ const promptInputSchema = z.unknown().transform( ( value, ctx ) => {
   return result.data;
 } );
 
-const promptFileCallFields = {
-  prompt: promptFileSchema,
+const promptCallFields = {
+  prompt: promptInputSchema,
   promptDir: z.string().min( 1 ).optional(),
   variables: variablesSchema.optional()
-};
-
-const promptCallFields = {
-  ...promptFileCallFields,
-  prompt: promptInputSchema
 };
 
 const textRuntimeCallFields = {
