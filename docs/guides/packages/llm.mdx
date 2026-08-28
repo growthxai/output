@@ -588,9 +588,9 @@ Company size: {{ size }} employees
 |--------|------|-------------|
 | `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted. |
 | `model` | `string` | Model identifier |
-| `temperature` | `number` | Sampling temperature (0.0-2.0) |
+| `temperature` | `number` | Sampling temperature; supported range varies by provider |
 | `maxOutputTokens` | `number` | Maximum output tokens |
-| `maxTokens` | `number` | Deprecated alias for `maxOutputTokens` |
+| `maxTokens` | `number` | Deprecated compatibility key; prefer `maxOutputTokens` |
 | `topP` | `number` | Nucleus sampling value; usually set instead of `temperature` |
 | `topK` | `number` | Restricts sampling to the top K token choices |
 | `presencePenalty` | `number` | Penalizes tokens already present in the prompt or generated output |
@@ -603,6 +603,8 @@ Company size: {{ size }} employees
 | `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
 | `messageOptions` | `object` | Named per-message `providerOptions` sets |
 | `n`, `size`, `aspectRatio`, `maxImagesPerCall` | | Image generation fields |
+
+`loadPrompt` retains `maxTokens` on `config` for backward compatibility. When `maxOutputTokens` is absent, it also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs use `maxOutputTokens`.
 
 Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known fields (`max_output_tokens`) include a suggestion (`use "maxOutputTokens"`). Put provider-specific keys such as `effort` and `reasoningEffort` under `providerOptions`.
 

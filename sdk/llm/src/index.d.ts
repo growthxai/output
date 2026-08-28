@@ -91,7 +91,7 @@ export type Prompt = {
     /** Model name/identifier */
     model: string;
 
-    /** Generation temperature (0-2). Lower = more deterministic */
+    /** Generation temperature. Supported range and behavior vary by provider. */
     temperature?: number;
 
     /** Maximum number of tokens in the response. */

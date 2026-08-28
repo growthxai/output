@@ -19,6 +19,8 @@ In providerOptions:
 └─ Is it provider-specific? -> Nested under provider namespace
 ```
 
+Use `maxOutputTokens` for new prompts. Deprecated `maxTokens` remains on the loaded config and populates `maxOutputTokens` when the canonical key is absent; when both are set, `maxOutputTokens` takes precedence.
+
 ### Common Mistakes to Avoid
 
 ❌ **Mistake 1: Putting provider options at top-level**

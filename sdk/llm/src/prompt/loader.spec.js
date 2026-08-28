@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Logger } from '@outputai/core';
 
 const liquidMocks = vi.hoisted( () => ( {
   createContext: vi.fn(),
@@ -186,35 +185,6 @@ describe( 'loadPrompt', () => {
 
     expect( result.messages ).toEqual( [] );
     expect( result.instructions ).toBe( 'Generate a poster.' );
-  } );
-
-  it.each( [
-    [ 'vertex', 'google-vertex' ],
-    [ 'bedrock', 'amazon-bedrock' ]
-  ] )( 'rewrites deprecated provider alias %s to %s and warns', ( alias, canonical ) => {
-    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    stubMatter( { provider: alias, model: 'test-model' } );
-
-    const result = loadPrompt( 'test' );
-
-    expect( result.config.provider ).toBe( canonical );
-    expect( parsePromptSchema ).toHaveBeenCalledWith( expect.objectContaining( {
-      config: expect.objectContaining( { provider: canonical } )
-    } ) );
-    expect( warn ).toHaveBeenCalledWith(
-      `Using deprecated provider alias "${alias}". Use "${canonical}" instead.`,
-      { namespace: 'LLM' }
-    );
-  } );
-
-  it( 'leaves canonical provider names unchanged', () => {
-    const warn = vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
-    stubMatter( { provider: 'google-vertex', model: 'gemini-2.5-flash-lite' } );
-
-    const result = loadPrompt( 'test' );
-
-    expect( result.config.provider ).toBe( 'google-vertex' );
-    expect( warn ).not.toHaveBeenCalled();
   } );
 
   it( 'throws when the prompt file is not found', () => {

@@ -1,8 +1,7 @@
 import { Context, Liquid } from 'liquidjs';
 import { parsePromptSchema } from './validations.js';
-import { FatalError, Logger } from '@outputai/core';
+import { FatalError } from '@outputai/core';
 import { pipeInterpolations, interpolationFilterToken, encode, decode } from './interpolations.js';
-import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
 import { Path } from '@outputai/core/sdk/helpers';
 import { searchAndReadFile } from '../utils/file.js';
 import matter from 'gray-matter';
@@ -64,20 +63,5 @@ export const loadPrompt = ( name, variables = {}, dir = Path.resolveInvocationDi
 
   const { messages, instructions } = tryStep( () => parseContent( content, config.messageOptions ), 'Error parsing content' );
 
-  // @TODO: this handle aliases removal in v0.11, it can be removed down the road
-  const provider = config.provider;
-  if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
-    const canonical = deprecatedProviderAliases[provider];
-    Logger.warn( `Using deprecated provider alias "${provider}". Use "${canonical}" instead.`, { namespace: 'LLM' } );
-    config.provider = canonical;
-  }
-
-  return parsePromptSchema( {
-    name,
-    config,
-    messages,
-    instructions,
-    fileDir: file.dir,
-    variables
-  } );
+  return parsePromptSchema( { name, config, messages, instructions, fileDir: file.dir, variables } );
 };

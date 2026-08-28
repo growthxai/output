@@ -108,9 +108,9 @@ When no existing prompts dictate a provider, default to `anthropic`. For the mod
 ```yaml
 ---
 provider: anthropic
-# current as of 2026-05-04 — run output-dev-model-selection for the latest
+# current as of 2026-05-04 - run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
-temperature: 0.7       # 0.0 to 1.0, default varies by provider
+temperature: 0.7       # Supported range and default vary by provider
 maxOutputTokens: 4096  # Maximum output tokens
 maxSteps: 5            # Tool-loop ceiling when tools or skills are present (default 10)
 skills:                # Skill file or directory paths, relative to this prompt
@@ -125,6 +125,8 @@ providerOptions:       # Provider-specific options
 Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Put provider-specific keys (`effort`, `reasoningEffort`) under `providerOptions`, which stays open. Nested `thinking` stays open too (`budgetTokens` is the documented key; extra nested keys are not rejected as unknown top-level config).
 
 Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, deprecated `maxTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`.
+
+Use `maxOutputTokens` for new prompts. Deprecated `maxTokens` remains on the loaded config and populates `maxOutputTokens` when the canonical key is absent; when both are set, `maxOutputTokens` takes precedence.
 
 Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
 

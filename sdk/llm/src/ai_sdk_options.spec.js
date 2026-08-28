@@ -75,7 +75,7 @@ describe( 'ai_sdk_options', () => {
     it( 'maps a loaded prompt to model, system, messages, and generation config', async () => {
       const prompt = makeTextPrompt( {
         temperature: 0.3,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
         providerOptions: { anthropic: { effort: 'medium' } }
       } );
 
@@ -328,7 +328,7 @@ describe( 'ai_sdk_options', () => {
         aspectRatio: '1:1',
         seed: 42,
         temperature: 0.7,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
         providerOptions: { openai: { quality: 'high' } }
       } );
 

@@ -83,7 +83,7 @@
   - Unknown top-level keys throw.
   - `model` must be a non-empty string.
   - Added support for the native AI SDK generation properties `maxOutputTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, and text-generation `seed`.
-  - Deprecated `maxTokens` in favor of `maxOutputTokens`; both must be positive integers.
+  - Deprecated `maxTokens` in favor of `maxOutputTokens`. Existing prompts remain compatible: `loadPrompt` retains `maxTokens` and copies its value to `maxOutputTokens` when the canonical key is absent. When both keys are set, `maxOutputTokens` takes precedence. Each key must be a positive integer when provided.
 
 ## Streaming and Agent message store
 

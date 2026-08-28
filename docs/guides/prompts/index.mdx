@@ -91,9 +91,9 @@ The YAML frontmatter configures the LLM call.
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `temperature` | Randomness (0-2) | `0` for judges, `0.3` for summaries, `0.7` for general |
+| `temperature` | Sampling temperature; supported range varies by provider | `0` for judges, `0.3` for summaries, `0.7` for general |
 | `maxOutputTokens` | Maximum output tokens | `2000` |
-| `maxTokens` | Deprecated alias for `maxOutputTokens` | `2000` |
+| `maxTokens` | Deprecated compatibility key; prefer `maxOutputTokens` | `2000` |
 | `topP` | Nucleus sampling value; usually set instead of `temperature` | `0.9` |
 | `topK` | Restrict sampling to the top K token choices | `40` |
 | `presencePenalty` | Penalize tokens already present in the prompt or generated output | `0.2` |
@@ -106,6 +106,8 @@ The YAML frontmatter configures the LLM call.
 | `providerOptions` | Provider-specific config | See below |
 | `messageOptions` | Named per-message `providerOptions` sets | See [Prompt Caching](/packages/llm#prompt-caching) |
 | `n`, `size`, `aspectRatio`, `maxImagesPerCall` | Image generation fields | See [Image Output](/packages/llm#image-output) |
+
+`loadPrompt` retains `maxTokens` on `config` for backward compatibility. When `maxOutputTokens` is absent, it also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs use `maxOutputTokens`.
 
 All fields use **camelCase**. Unknown top-level keys throw. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Provider-specific keys such as `effort` and `reasoningEffort` belong under `providerOptions`, not at the top level.
 

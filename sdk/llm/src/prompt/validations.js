@@ -1,4 +1,31 @@
 import { ValidationError, z } from '@outputai/core';
+import { Logger } from '@outputai/core';
+import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
+
+const log = Logger.createLogger( 'LLM' );
+
+const handleDeprecatedKeys = prompt => {
+  const { config: { maxTokens, maxOutputTokens, provider } } = prompt;
+
+  // @TODO: maxTokens was replaced by maxOutputTokens in v0.12, it can be removed down the road
+  if ( Number.isFinite( maxTokens ) ) {
+    if ( Number.isFinite( maxOutputTokens ) ) {
+      log.warn( 'Prompt has both "maxOutputTokens" and deprecated "maxTokens" keys set, "maxTokens" value will be ignored.' );
+    } else {
+      log.warn( 'Prompt has deprecated key "maxTokens". Its value was set to "maxOutputTokens".' );
+      prompt.config.maxOutputTokens = maxTokens;
+    }
+  }
+
+  // @TODO: this handle aliases removal in v0.11, it can be removed down the road
+  if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
+    const canonical = deprecatedProviderAliases[provider];
+    log.warn( `Prompt uses deprecated provider alias "${provider}". Use "${canonical}" instead.` );
+    prompt.config.provider = canonical;
+  }
+
+  return prompt;
+};
 
 const objectMapSchema = z.record(
   z.string(),
@@ -60,7 +87,7 @@ export const promptSchema = z.object( {
   } else if ( hasMessages && hasInstructions ) {
     addIssue( 'Prompt cannot include both message blocks and plain instructions.' );
   }
-} );
+} ).transform( handleDeprecatedKeys );
 
 const promptConfigKeys = new Set( Object.keys( promptConfigSchema.shape ) );
 

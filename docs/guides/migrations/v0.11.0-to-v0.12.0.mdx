@@ -523,9 +523,11 @@ That includes a missing/empty `prompt`, an empty `promptDir`, and call-argument 
 
 ## Prompt config is a strict key list
 
-Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings, and `maxOutputTokens` or its deprecated `maxTokens` alias must be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
+Unknown top-level keys on a `.prompt` file now throw `Invalid prompt file`. Previously they were kept on `config` and ignored. `provider` and `model` must be non-empty strings. When provided, `maxOutputTokens` and deprecated `maxTokens` must each be a positive integer. Nested `providerOptions` (including `thinking`) stays open.
 
 Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, deprecated `maxTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`.
+
+`maxTokens` remains available for backward compatibility and is retained on the loaded prompt config. When `maxOutputTokens` is absent, `loadPrompt` also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs read the normalized `maxOutputTokens` value.
 
 Snake_case aliases of those keys fail with a suggestion:
 
@@ -587,5 +589,5 @@ providerOptions:
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
-- Ensure prompt `provider` and `model` values are non-empty, and set `maxOutputTokens` or deprecated `maxTokens` to a positive integer.
+- Ensure prompt `provider` and `model` values are non-empty. If set, `maxOutputTokens` and deprecated `maxTokens` must each be positive integers.
 - Review prompt frontmatter against the supported configuration and remove unsupported fields. Any remaining fields cause an Invalid prompt file error.

@@ -51,6 +51,37 @@ describe( 'parsePromptSchema', () => {
     expect( parse( minimalPrompt ).variables ).toEqual( {} );
   } );
 
+  it( 'should copy deprecated maxTokens to maxOutputTokens', () => {
+    const result = parse( {
+      name: 'deprecated-max-tokens',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4',
+        maxTokens: 1000
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } );
+
+    expect( result.config.maxTokens ).toBe( 1000 );
+    expect( result.config.maxOutputTokens ).toBe( 1000 );
+  } );
+
+  it( 'should keep maxOutputTokens when both token limit keys are set', () => {
+    const result = parse( {
+      name: 'both-token-limits',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4',
+        maxTokens: 1000,
+        maxOutputTokens: 2000
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } );
+
+    expect( result.config.maxTokens ).toBe( 1000 );
+    expect( result.config.maxOutputTokens ).toBe( 2000 );
+  } );
+
   it( 'should validate a prompt with thinking providerOptions', () => {
     const promptWithThinking = {
       name: 'thinking-prompt',

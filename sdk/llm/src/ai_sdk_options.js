@@ -74,8 +74,6 @@ export const loadAiSdkTextOptions = ( { prompt, tools, skills, stopWhen, output,
     ...( output && { output } ),
     ...( abortSignal && { abortSignal } ),
     ...( stopWhen && { stopWhen } ),
-    // @TEMP maxTokens is deprecated in favor of native maxOutputTokens
-    ...( Number.isFinite( prompt.config.maxTokens ) && { maxOutputTokens: prompt.config.maxTokens } ),
     ...select( textPromptConfigKeys, prompt.config )
   };
 
