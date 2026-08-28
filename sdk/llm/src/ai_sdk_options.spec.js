@@ -95,6 +95,24 @@ describe( 'ai_sdk_options', () => {
       } );
     } );
 
+    it( 'forwards all supported text generation options', async () => {
+      const generationOptions = {
+        frequencyPenalty: 0.2,
+        maxOutputTokens: 2000,
+        presencePenalty: 0.3,
+        providerOptions: { openai: { reasoningEffort: 'low' } },
+        seed: 42,
+        stopSequences: [ 'END' ],
+        temperature: 0.4,
+        topK: 40,
+        topP: 0.9
+      };
+
+      const result = await loadText( { prompt: makeTextPrompt( generationOptions ) } );
+
+      expect( result ).toMatchObject( generationOptions );
+    } );
+
     it( 'preserves temperature 0', async () => {
       const result = await loadText( { prompt: makeTextPrompt( { temperature: 0 } ) } );
 

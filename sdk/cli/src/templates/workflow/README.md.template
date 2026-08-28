@@ -178,7 +178,7 @@ export const evaluateQuality = evaluator( {
 
 Create prompt files in `prompts/` following the pattern:
 - File naming: `promptName@v1.prompt`
-- Include YAML frontmatter with provider, model, temperature, and maxTokens
+- Include YAML frontmatter with provider, model, temperature, and maxOutputTokens
 - Use LiquidJS syntax for variables: `{{ variableName }}`
 - Start the rendered body with a role tag for message mode, or with plain text for instruction mode
 
@@ -193,7 +193,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.3
-maxTokens: 1024
+maxOutputTokens: 1024
 ---
 
 <system>

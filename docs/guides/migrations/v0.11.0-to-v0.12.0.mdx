@@ -530,7 +530,7 @@ Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, d
 Snake_case aliases of those keys fail with a suggestion:
 
 ```
-Invalid prompt file "writer@v1": Unrecognized key: "max_output_tokens". "max_output_tokens" is not valid; use "maxOutputTokens"
+Invalid prompt file "writer@v1": Unrecognized key: "max_images_per_call". "max_images_per_call" is not valid; use "maxImagesPerCall"
 ```
 
 Move provider-specific fields under `providerOptions`. `effort` and `reasoningEffort` at the top level are unknown keys; they belong under `providerOptions.anthropic` and `providerOptions.openai`.
@@ -588,4 +588,4 @@ providerOptions:
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
 - Ensure prompt `provider` and `model` values are non-empty, and set `maxOutputTokens` or deprecated `maxTokens` to a positive integer.
-- Remove unsupported prompt frontmatter keys. Expect `Invalid prompt file` for leftover extras.
+- Review prompt frontmatter against the supported configuration and remove unsupported fields. Any remaining fields cause an Invalid prompt file error.
