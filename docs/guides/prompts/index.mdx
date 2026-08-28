@@ -50,6 +50,48 @@ await generateText({
 
 Output searches recursively from your workflow's directory to find the prompt file.
 
+## Passing Prompt Objects Directly
+
+`generateText`, `generateTextWithStreaming`, `streamText`, `generateImage`, and `new Agent()` also accept a loaded or custom `Prompt` object. This lets you load a prompt once or supply one from another source:
+
+```typescript
+import { generateText, loadPrompt } from '@outputai/llm';
+
+const prompt = loadPrompt('generate_summary@v1', {
+  company_name: 'Acme Corp',
+  website_content: '...'
+});
+
+await generateText({ prompt });
+```
+
+A custom object must match the normalized `Prompt` shape:
+
+```typescript
+import { generateText } from '@outputai/llm';
+import type { Prompt } from '@outputai/llm';
+
+const prompt: Prompt = {
+  name: 'custom-summary',
+  fileDir: process.cwd(),
+  variables: {},
+  config: {
+    provider: 'openai',
+    model: 'gpt-4o',
+    maxSteps: 10,
+    skills: []
+  },
+  messages: [
+    { role: 'user', content: 'Summarize the latest account activity.' }
+  ],
+  instructions: null
+};
+
+await generateText({ prompt });
+```
+
+Prompt objects are already resolved and rendered, so `promptDir` and call-level `variables` cannot be used with them. `fileDir` remains the base directory for relative skill paths. Custom objects must use canonical provider names; deprecated provider aliases are normalized only when loading prompt files.
+
 ## File Organization
 
 Place prompt files in a `prompts/` subfolder within your workflow directory:

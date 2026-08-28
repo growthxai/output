@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk, loadPrompt } from '@outputai/llm';
 
 export const explainTopic = step( {
   name: 'explainTopic',
@@ -33,8 +33,7 @@ export const generateCookingInstruction = step( {
   outputSchema: cookOutputSchema,
   fn: async ( { receipt } ) => {
     const { output } = await generateText( {
-      prompt: 'cooking_instructions@v1',
-      variables: { receipt },
+      prompt: loadPrompt( 'cooking_instructions@v1', { receipt } ),
       output: aiSdk.Output.object( { schema: cookOutputSchema } )
     } );
     return output;

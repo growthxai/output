@@ -68,13 +68,13 @@ export type PromptMessage = {
  * ```
  */
 export type Prompt = {
-  /** Name of the prompt file */
+  /** Prompt name used in tracing and errors. */
   name: string;
 
-  /** Directory containing the resolved prompt file */
+  /** Base directory for resolving relative prompt resources such as skills. */
   fileDir: string;
 
-  /** Interpolation values used when the prompt was loaded. Defaults to `{}`. */
+  /** Interpolation values associated with the prompt. Defaults to `{}` when validated. */
   variables: PromptVariables;
 
   /** General configuration for the LLM */
@@ -223,13 +223,24 @@ type PromptFileCallOptions = {
   promptDir?: string;
 };
 
+type PromptObjectCallOptions = {
+  /** Loaded or custom prompt object. */
+  prompt: Prompt;
+  /** Prompt objects are already rendered and cannot receive interpolation variables. */
+  variables?: never;
+  /** Prompt objects are not resolved from a prompt directory. */
+  promptDir?: never;
+};
+
+type PromptCallOptions = PromptFileCallOptions | PromptObjectCallOptions;
+
 type StopWhen<Tools extends ToolSet = ToolSet> =
   StopCondition<NoInfer<Tools>> | Array<StopCondition<NoInfer<Tools>>>;
 
 type TextCallOptions<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = PromptFileCallOptions & {
+> = PromptCallOptions & {
   /** AI SDK tools, accepted structurally to tolerate different Zod peer versions. */
   tools?: CompatibleToolSet;
   /** Structured output specification */
@@ -282,7 +293,7 @@ export type GenerateImageInput =
   };
 
 /** Parameters accepted by {@link generateImage}. */
-export type GenerateImageParameters = PromptFileCallOptions & {
+export type GenerateImageParameters = PromptCallOptions & {
   /** Runtime image inputs for image-to-image generation */
   images?: GenerateImageInput[];
   /** Optional mask for image editing; requires `images` */
@@ -294,7 +305,7 @@ export type GenerateImageParameters = PromptFileCallOptions & {
 /** Agent constructor options. */
 export type OutputAgentConstructorParameters<
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = PromptFileCallOptions & {
+> = PromptCallOptions & {
   /** Structured output specification */
   output?: OutputSpec;
   /** AI SDK tools available during the reasoning loop */
@@ -428,9 +439,10 @@ export function getProviderNames(): string[];
  * Use an LLM model to generate text.
  *
  * This function is a wrapper over the AI SDK's `generateText`.
- * The prompt file sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
- * `providerOptions`. Call arguments are `prompt`, `promptDir`, `variables`, `tools`, `output`,
- * `toolChoice`, `stopWhen`, and `abortSignal`.
+ * The prompt sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * `providerOptions`. Pass either a prompt filename with optional `promptDir` / `variables`, or a
+ * loaded or custom {@link Prompt} object. Other call arguments are `tools`, `output`, `toolChoice`,
+ * `stopWhen`, and `abortSignal`.
  *
  * @param args - Generation arguments. See {@link GenerateTextParameters}.
  * @returns AI SDK response with text and metadata.
@@ -463,9 +475,10 @@ export function generateTextWithStreaming<
  * Use an LLM model to stream text generation.
  *
  * This function is a wrapper over the AI SDK's `streamText`.
- * The prompt file sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
- * `providerOptions`. Call arguments match {@link generateText}, plus `onChunk`, `onFinish`, and
- * `onError`. `onFinish` is wrapped to add `result`, `cost`, and merged `sources`.
+ * The prompt sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * `providerOptions`. Pass either a prompt filename with optional `promptDir` / `variables`, or a
+ * loaded or custom {@link Prompt} object. Other call arguments match {@link generateText}, plus
+ * `onChunk`, `onFinish`, and `onError`. `onFinish` adds `result`, `cost`, and merged `sources`.
  *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
  * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
@@ -478,10 +491,11 @@ export function streamText<
 ): AIStreamTextResult<Tools, OutputSpec>;
 
 /**
- * Use an image model to generate images from a prompt file.
+ * Use an image model to generate images from a prompt filename or object.
  *
- * The prompt file supplies `model`, instructions, `n`, `size`, `aspectRatio`, `seed`,
- * `maxImagesPerCall`, and `providerOptions`. Call arguments are `prompt`, `promptDir`, `variables`,
+ * The prompt supplies `model`, instructions, `n`, `size`, `aspectRatio`, `seed`,
+ * `maxImagesPerCall`, and `providerOptions`. Pass either a prompt filename with optional
+ * `promptDir` / `variables`, or a loaded or custom {@link Prompt} object. Other call arguments are
  * `images`, `mask`, and `abortSignal`.
  *
  * @param args - Image generation arguments. See {@link GenerateImageParameters}.
@@ -498,7 +512,7 @@ export interface MessageStore {
 }
 
 /**
- * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt file rendering.
+ * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt loading and validation.
  *
  * @example Workflow step - variables per call, stateless
  * ```ts
