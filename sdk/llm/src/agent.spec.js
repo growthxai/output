@@ -481,6 +481,7 @@ describe( 'Agent', () => {
     const onError = vi.fn();
     const onChunk = vi.fn();
     const callerMessage = { role: 'user', content: 'New question' };
+    const abortSignal = new AbortController().signal;
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
@@ -488,18 +489,21 @@ describe( 'Agent', () => {
       messages: [ callerMessage ],
       onEnd,
       onError,
-      onChunk
+      onChunk,
+      abortSignal
     } );
 
     expect( validations.parseAgentStreamArgs ).toHaveBeenCalledWith( {
       messages: [ callerMessage ],
       onEnd,
       onError,
-      onChunk
+      onChunk,
+      abortSignal
     } );
     expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
       prompt: loadedPrompt,
+      abortSignal,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
@@ -510,6 +514,7 @@ describe( 'Agent', () => {
       ],
       allowSystemInMessages: true,
       onChunk,
+      abortSignal,
       onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );

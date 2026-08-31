@@ -328,6 +328,7 @@ describe( 'generate', () => {
       const onEnd = vi.fn();
       const onChunk = vi.fn();
       const tools = { userTool: true };
+      const abortSignal = new AbortController().signal;
 
       const result = streamText( {
         prompt: 'test@v1',
@@ -335,7 +336,8 @@ describe( 'generate', () => {
         promptDir: '/prompts',
         onEnd,
         onChunk,
-        tools
+        tools,
+        abortSignal
       } );
 
       expect( validations.parseStreamTextArgs ).toHaveBeenCalledWith( {
@@ -344,19 +346,22 @@ describe( 'generate', () => {
         promptDir: '/prompts',
         onEnd,
         onChunk,
-        tools
+        tools,
+        abortSignal
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
       expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
         name: 'streamText',
         prompt: loadedPrompt,
+        abortSignal,
         fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
         prompt: loadedPrompt,
         skills: loadedSkills,
-        tools
+        tools,
+        abortSignal
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,

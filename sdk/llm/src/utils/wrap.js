@@ -7,6 +7,7 @@ import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
 import { Logger } from '@outputai/core';
 import { convertCostToLegacy } from './legacy_cost_attribute.js';
+import { randomBytes } from 'node:crypto';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
 const createResponseProxy = ( { response, properties } ) => new Proxy( response, {
@@ -17,7 +18,7 @@ const createResponseProxy = ( { response, properties } ) => new Proxy( response,
 
 /** Generate a trace id, starts the tracing and return the id */
 const startTrace = ( { name, prompt } ) => {
-  const traceId = `${name}-${Date.now()}`;
+  const traceId = `${name}-${Date.now()}-${randomBytes( 4 ).toString( 'hex' )}`;
   Tracing.addEventStart( { kind: 'llm', id: traceId, name, details: { prompt } } );
   return traceId;
 };
@@ -114,11 +115,36 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
  *   `onEnd` / `onError`
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
-export const wrapStream = ( { name, prompt, fn } ) => {
+export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
   const traceId = startTrace( { name, prompt } );
+
+  const onAbortHook = reason =>
+    handleError( {
+      traceId,
+      error: reason instanceof Error ? reason : new Error( 'Streaming aborted.', { cause: reason } )
+    } );
+
+  const handleAbort = () => {
+    if ( !abortSignal ) {
+      return () => {};
+    }
+
+    if ( abortSignal.aborted ) {
+      onAbortHook( abortSignal.reason );
+      return () => {};
+    }
+
+    const listener = () => onAbortHook( abortSignal.reason );
+    abortSignal.addEventListener( 'abort', listener, { once: true } );
+
+    return () => abortSignal.removeEventListener( 'abort', listener );
+  };
+
+  const removeAbortListener = handleAbort();
 
   const onEndHook = async ( response, callback ) => {
     const state = { proxyResponse: null };
+    removeAbortListener();
     try {
       const { text: result, finalStep, usage } = response;
       const { providerMetadata } = finalStep;
@@ -143,6 +169,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
 
   const onErrorHook = async ( event, callback ) => {
     const error = handleError( { traceId, error: event.error } );
+    removeAbortListener();
     try {
       await callback?.( error );
     } catch ( callbackError ) {
@@ -157,9 +184,11 @@ export const wrapStream = ( { name, prompt, fn } ) => {
   try {
     const stream = fn( { onEndHook, onErrorHook } );
     return isPromise( stream ) ? stream.catch( error => {
+      removeAbortListener();
       throw handleError( { traceId, error } );
     } ) : stream;
   } catch ( error ) {
+    removeAbortListener();
     throw handleError( { traceId, error } );
   }
 };

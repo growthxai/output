@@ -1,0 +1,9 @@
+---
+provider: anthropic
+model: claude-sonnet-4-6
+maxOutputTokens: 2048
+---
+
+<user>
+Write the integers from 1 to 1000 in order, separated by commas. Do not omit any numbers.
+</user>

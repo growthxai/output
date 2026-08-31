@@ -109,6 +109,7 @@ export class Agent {
     return wrapStream( {
       name: 'Agent.stream',
       prompt: this.#prompt,
+      abortSignal,
       fn: ( { onEndHook, onErrorHook } ) => this.#agent.stream( {
         messages: combinedMessages,
         allowSystemInMessages: true,
