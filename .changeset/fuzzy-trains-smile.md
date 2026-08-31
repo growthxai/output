@@ -14,6 +14,7 @@
 ## Call signatures and validation
 
 - Fixed unrestricted native AI SDK call arguments bypassing validation and overriding prompt-owned model/configuration. Generation and Agent APIs now reject unsupported or misplaced arguments before provider I/O. Removed native AI SDK call arguments from `generateText()`, `generateTextWithStreaming()`, `streamText()`, `generateImage()`, and `Agent`, as well as `skills` and `maxSteps`. These are the supported arguments:
+
   | Argument | `generateText` | `generateTextWithStreaming` | `streamText` | `generateImage` |
   |----------|----------------|-----------------------------|--------------|-----------------|
   | `prompt` | required | required | required | required |
