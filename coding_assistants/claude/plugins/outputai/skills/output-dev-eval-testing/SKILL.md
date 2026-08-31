@@ -207,7 +207,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-haiku-4-5-20251001
 temperature: 0
-maxTokens: 1000
+maxOutputTokens: 1000
 ---
 
 <system>

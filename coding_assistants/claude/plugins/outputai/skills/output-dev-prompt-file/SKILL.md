@@ -57,7 +57,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 4096
+maxOutputTokens: 4096
 ---
 
 <system>
@@ -108,10 +108,10 @@ When no existing prompts dictate a provider, default to `anthropic`. For the mod
 ```yaml
 ---
 provider: anthropic
-# current as of 2026-05-04 — run output-dev-model-selection for the latest
+# current as of 2026-05-04 - run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
-temperature: 0.7       # 0.0 to 1.0, default varies by provider
-maxTokens: 4096        # Maximum output tokens
+temperature: 0.7       # Supported range and default vary by provider
+maxOutputTokens: 4096  # Maximum output tokens
 maxSteps: 5            # Tool-loop ceiling when tools or skills are present (default 10)
 skills:                # Skill file or directory paths, relative to this prompt
   - ./skills
@@ -122,9 +122,11 @@ providerOptions:       # Provider-specific options
 ---
 ```
 
-Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Put provider-specific keys (`effort`, `reasoningEffort`, `topP`) under `providerOptions`, which stays open. Nested `thinking` stays open too (`budgetTokens` is the documented key; extra nested keys are not rejected as unknown top-level config).
+Frontmatter is a **strict camelCase allowlist**. Unknown top-level keys throw `Invalid prompt file`. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Put provider-specific keys (`effort`, `reasoningEffort`) under `providerOptions`, which stays open. Nested `thinking` stays open too (`budgetTokens` is the documented key; extra nested keys are not rejected as unknown top-level config).
 
-Allowed top-level keys: `provider`, `model`, `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`, `seed`.
+Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, deprecated `maxTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `providerOptions`, `messageOptions`, `n`, `maxImagesPerCall`, `size`, `aspectRatio`.
+
+Use `maxOutputTokens` for new prompts. Deprecated `maxTokens` remains on the loaded config and populates `maxOutputTokens` when the canonical key is absent; when both are set, `maxOutputTokens` takes precedence.
 
 Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
 
@@ -139,7 +141,7 @@ Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoi
 provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 8192
+maxOutputTokens: 8192
 ---
 ```
 
@@ -150,7 +152,7 @@ maxTokens: 8192
 provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 32000
+maxOutputTokens: 32000
 providerOptions:
   thinking:
     type: enabled
@@ -166,7 +168,7 @@ provider: openai
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: gpt-5-5
 temperature: 0.7
-maxTokens: 4096
+maxOutputTokens: 4096
 ---
 ```
 
@@ -178,7 +180,7 @@ provider: google-vertex
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: gemini-3-pro
 temperature: 0.7
-maxTokens: 8192
+maxOutputTokens: 8192
 ---
 ```
 
@@ -284,7 +286,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 32000
+maxOutputTokens: 32000
 providerOptions:
   thinking:
     type: enabled
@@ -668,7 +670,7 @@ Requirements:
 - [ ] File located in `prompts/` folder inside workflow directory
 - [ ] File named `{promptName}@v{version}.prompt`
 - [ ] YAML frontmatter includes `provider` and `model`
-- [ ] Frontmatter uses camelCase only; no unknown top-level keys (`topP`, `effort`, `reasoningEffort`, `max_tokens`)
+- [ ] Frontmatter uses camelCase only; no unknown top-level keys (`effort`, `reasoningEffort`) or snake_case aliases (`max_output_tokens`)
 - [ ] The body uses message mode for text generation, or instruction mode for `generateImage` / direct `loadPrompt()` consumption
 - [ ] Message blocks use supported role tags (`<system>`, `<user>`, `<assistant>`); no authored `<tool>` blocks
 - [ ] Message mode has no root text between blocks, no self-closing role blocks, and no unclosed blocks

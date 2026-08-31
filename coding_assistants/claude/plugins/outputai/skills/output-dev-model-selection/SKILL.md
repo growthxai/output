@@ -137,7 +137,7 @@ Drop the translated string into your `.prompt` frontmatter:
 provider: anthropic
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 4096
+maxOutputTokens: 4096
 ---
 ```
 

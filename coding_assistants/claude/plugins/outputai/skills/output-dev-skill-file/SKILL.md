@@ -88,7 +88,7 @@ List skill paths in the prompt YAML frontmatter. Paths resolve relative to the p
 ---
 provider: anthropic
 model: claude-sonnet-4-6
-maxTokens: 2048
+maxOutputTokens: 2048
 skills:
   - ./skills
   - ../shared_skills/tone_guide.md
@@ -146,7 +146,7 @@ OUTPUT_COMPLETE
 provider: anthropic
 # current as of 2026-05-04 - run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
-maxTokens: 2048
+maxOutputTokens: 2048
 skills:
   - ./skills
 ---

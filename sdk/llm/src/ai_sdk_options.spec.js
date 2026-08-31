@@ -75,7 +75,7 @@ describe( 'ai_sdk_options', () => {
     it( 'maps a loaded prompt to model, system, messages, and generation config', async () => {
       const prompt = makeTextPrompt( {
         temperature: 0.3,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
         providerOptions: { anthropic: { effort: 'medium' } }
       } );
 
@@ -93,6 +93,24 @@ describe( 'ai_sdk_options', () => {
         temperature: 0.3,
         maxOutputTokens: 1000
       } );
+    } );
+
+    it( 'forwards all supported text generation options', async () => {
+      const generationOptions = {
+        frequencyPenalty: 0.2,
+        maxOutputTokens: 2000,
+        presencePenalty: 0.3,
+        providerOptions: { openai: { reasoningEffort: 'low' } },
+        seed: 42,
+        stopSequences: [ 'END' ],
+        temperature: 0.4,
+        topK: 40,
+        topP: 0.9
+      };
+
+      const result = await loadText( { prompt: makeTextPrompt( generationOptions ) } );
+
+      expect( result ).toMatchObject( generationOptions );
     } );
 
     it( 'preserves temperature 0', async () => {
@@ -310,7 +328,7 @@ describe( 'ai_sdk_options', () => {
         aspectRatio: '1:1',
         seed: 42,
         temperature: 0.7,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
         providerOptions: { openai: { quality: 'high' } }
       } );
 

@@ -588,16 +588,25 @@ Company size: {{ size }} employees
 |--------|------|-------------|
 | `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted. |
 | `model` | `string` | Model identifier |
-| `temperature` | `number` | Sampling temperature (0.0-2.0) |
-| `maxTokens` | `number` | Maximum output tokens |
+| `temperature` | `number` | Sampling temperature; supported range varies by provider |
+| `maxOutputTokens` | `number` | Maximum output tokens |
+| `maxTokens` | `number` | Deprecated compatibility key; prefer `maxOutputTokens` |
+| `topP` | `number` | Nucleus sampling value; usually set instead of `temperature` |
+| `topK` | `number` | Restricts sampling to the top K token choices |
+| `presencePenalty` | `number` | Penalizes tokens already present in the prompt or generated output |
+| `frequencyPenalty` | `number` | Penalizes tokens according to how often they appear |
+| `stopSequences` | `string[]` | Sequences that stop text generation |
+| `seed` | `number` | Random seed for deterministic text or image generation when supported |
 | `maxSteps` | `number` (default 10 after `loadPrompt`) | Tool-loop iterations when tools or skills are present |
 | `skills` | `string` or `string[]` in YAML; always `string[]` after `loadPrompt` (`[]` if omitted) | Skill file or directory paths, relative to this prompt |
 | `tools` | `object` | Provider-specific tools (web search, etc.) |
 | `providerOptions` | `object` | Provider-specific options - see [ProviderOptions Guide](/prompts#provider-options) |
 | `messageOptions` | `object` | Named per-message `providerOptions` sets |
-| `n`, `size`, `aspectRatio`, `seed`, `maxImagesPerCall` | | Image generation fields |
+| `n`, `size`, `aspectRatio`, `maxImagesPerCall` | | Image generation fields |
 
-Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known fields (`max_tokens`) include a suggestion (`use "maxTokens"`). Put provider-specific keys such as `effort`, `reasoningEffort`, and `topP` under `providerOptions`.
+`loadPrompt` retains `maxTokens` on `config` for backward compatibility. When `maxOutputTokens` is absent, it also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs use `maxOutputTokens`.
+
+Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known fields (`max_output_tokens`) include a suggestion (`use "maxOutputTokens"`). Put provider-specific keys such as `effort` and `reasoningEffort` under `providerOptions`.
 
 ## Providers
 
@@ -673,7 +682,7 @@ Requires AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REG
 
 For cross-region inference, use the regional inference profile format: `us.anthropic.claude-sonnet-4-20250514-v1:0`.
 
-Always set `maxTokens` in your Bedrock prompt files. Unlike the direct Anthropic provider (which auto-detects per-model limits), the Bedrock SDK has no client-side defaults and relies on server-side defaults that may be lower than the model's capacity.
+Always set `maxOutputTokens` in your Bedrock prompt files. Unlike the direct Anthropic provider (which auto-detects per-model limits), the Bedrock SDK has no client-side defaults and relies on server-side defaults that may be lower than the model's capacity.
 
 When using `providerOptions`, use the AI SDK `bedrock` namespace (not `anthropic`):
 

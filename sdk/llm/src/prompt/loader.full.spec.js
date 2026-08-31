@@ -31,7 +31,7 @@ describe( 'loadPrompt (full)', () => {
 provider: {{ provider }}
 model: {{ model }}
 temperature: {{ temperature }}
-maxTokens: {{ maxTokens }}
+maxOutputTokens: {{ maxOutputTokens }}
 providerOptions:
   thinking:
     type: enabled
@@ -45,7 +45,7 @@ providerOptions:
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       temperature: 0.7,
-      maxTokens: 1000,
+      maxOutputTokens: 1000,
       budget: 1500,
       role: 'tutor',
       name: 'Ada'
@@ -57,7 +57,7 @@ providerOptions:
         provider: 'anthropic',
         model: 'claude-sonnet-4-20250514',
         temperature: 0.7,
-        maxTokens: 1000,
+        maxOutputTokens: 1000,
         providerOptions: {
           thinking: {
             type: 'enabled',
@@ -282,12 +282,12 @@ model: gpt-4
     writePrompt( dir, 'chat', `---
 provider: anthropic
 model: claude-sonnet-4-20250514
-max_tokens: 64000
+max_output_tokens: 64000
 ---
 <user>Hello</user>
 ` );
 
     expect( () => loadPrompt( 'chat', {}, dir ) ).toThrow( ValidationError );
-    expect( () => loadPrompt( 'chat', {}, dir ) ).toThrow( /"max_tokens" is not valid; use "maxTokens"/ );
+    expect( () => loadPrompt( 'chat', {}, dir ) ).toThrow( /"max_output_tokens" is not valid; use "maxOutputTokens"/ );
   } );
 } );

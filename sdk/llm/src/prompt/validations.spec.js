@@ -12,7 +12,13 @@ describe( 'parsePromptSchema', () => {
         provider: 'anthropic',
         model: 'claude-3-opus-20240229',
         temperature: 0.7,
-        maxTokens: 1000
+        maxOutputTokens: 1000,
+        topP: 0.9,
+        topK: 40,
+        presencePenalty: 0.2,
+        frequencyPenalty: 0.3,
+        stopSequences: [ 'END' ],
+        seed: 42
       },
       messages: [
         {
@@ -23,6 +29,18 @@ describe( 'parsePromptSchema', () => {
     };
 
     expect( () => parse( validPrompt ) ).not.toThrow();
+  } );
+
+  it.each( [ 'temperature', 'topK', 'topP' ] )( 'should reject a negative %s', field => {
+    expect( () => parse( {
+      name: `negative-${field}`,
+      config: {
+        provider: 'anthropic',
+        model: 'claude-3-opus-20240229',
+        [field]: -0.1
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } ) ).toThrow( ValidationError );
   } );
 
   it( 'should validate a minimal prompt with only required fields', () => {
@@ -43,6 +61,37 @@ describe( 'parsePromptSchema', () => {
     expect( parse( minimalPrompt ).config.skills ).toEqual( [] );
     expect( parse( minimalPrompt ).config.maxSteps ).toBe( 10 );
     expect( parse( minimalPrompt ).variables ).toEqual( {} );
+  } );
+
+  it( 'should copy deprecated maxTokens to maxOutputTokens', () => {
+    const result = parse( {
+      name: 'deprecated-max-tokens',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4',
+        maxTokens: 1000
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } );
+
+    expect( result.config.maxTokens ).toBe( 1000 );
+    expect( result.config.maxOutputTokens ).toBe( 1000 );
+  } );
+
+  it( 'should keep maxOutputTokens when both token limit keys are set', () => {
+    const result = parse( {
+      name: 'both-token-limits',
+      config: {
+        provider: 'openai',
+        model: 'gpt-4',
+        maxTokens: 1000,
+        maxOutputTokens: 2000
+      },
+      messages: [ { role: 'user', content: 'Hello' } ]
+    } );
+
+    expect( result.config.maxTokens ).toBe( 1000 );
+    expect( result.config.maxOutputTokens ).toBe( 2000 );
   } );
 
   it( 'should validate a prompt with thinking providerOptions', () => {
@@ -603,9 +652,7 @@ describe( 'parsePromptSchema', () => {
       config: {
         provider: 'openai',
         model: 'gpt-4',
-        topP: 0.9,
-        seed: 42,
-        stopSequences: [ 'END' ]
+        unsupportedOption: true
       },
       messages: [
         {

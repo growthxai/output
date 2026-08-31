@@ -10,7 +10,7 @@ Prompts in Output live in `.prompt` files inside a `prompts/` folder — version
 provider: anthropic
 model: claude-sonnet-4-20250514
 temperature: 0.3
-maxTokens: 2000
+maxOutputTokens: 2000
 ---
 
 <system>
@@ -91,23 +91,32 @@ The YAML frontmatter configures the LLM call.
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `temperature` | Randomness (0-2) | `0` for judges, `0.3` for summaries, `0.7` for general |
-| `maxTokens` | Max output tokens | `2000` |
+| `temperature` | Sampling temperature; supported range varies by provider | `0` for judges, `0.3` for summaries, `0.7` for general |
+| `maxOutputTokens` | Maximum output tokens | `2000` |
+| `maxTokens` | Deprecated compatibility key; prefer `maxOutputTokens` | `2000` |
+| `topP` | Nucleus sampling value; usually set instead of `temperature` | `0.9` |
+| `topK` | Restrict sampling to the top K token choices | `40` |
+| `presencePenalty` | Penalize tokens already present in the prompt or generated output | `0.2` |
+| `frequencyPenalty` | Penalize tokens according to how often they appear | `0.2` |
+| `stopSequences` | Stop text generation when one of these sequences is produced | `["END"]` |
+| `seed` | Random seed for deterministic text or image generation when supported | `42` |
 | `maxSteps` | Tool-loop iterations when tools or skills are present (default 10). Always a positive integer after `loadPrompt`. | `5` |
 | `skills` | Skill file or directory paths, relative to this prompt. YAML may be a string or array; after `loadPrompt` always `string[]` (`[]` if omitted). | `./skills`, `../shared/tone.md` |
 | `tools` | Provider-specific tools | Vertex `googleSearch`, OpenAI `webSearch` |
 | `providerOptions` | Provider-specific config | See below |
 | `messageOptions` | Named per-message `providerOptions` sets | See [Prompt Caching](/packages/llm#prompt-caching) |
-| `n`, `size`, `aspectRatio`, `seed`, `maxImagesPerCall` | Image generation fields | See [Image Output](/packages/llm#image-output) |
+| `n`, `size`, `aspectRatio`, `maxImagesPerCall` | Image generation fields | See [Image Output](/packages/llm#image-output) |
 
-All fields use **camelCase**. Unknown top-level keys throw. A snake_case alias of a known field fails with a suggestion (`max_tokens` -> use `maxTokens`). Provider-specific keys such as `effort`, `reasoningEffort`, and `topP` belong under `providerOptions`, not at the top level.
+`loadPrompt` retains `maxTokens` on `config` for backward compatibility. When `maxOutputTokens` is absent, it also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs use `maxOutputTokens`.
+
+All fields use **camelCase**. Unknown top-level keys throw. A snake_case alias of a known field fails with a suggestion (`max_output_tokens` -> use `maxOutputTokens`). Provider-specific keys such as `effort` and `reasoningEffort` belong under `providerOptions`, not at the top level.
 
 ```yaml
 ---
 provider: anthropic
 model: claude-sonnet-4-20250514
 temperature: 0.3
-maxTokens: 2000
+maxOutputTokens: 2000
 ---
 ```
 
@@ -120,7 +129,7 @@ Prompt configurations have two layers:
 provider: anthropic
 model: claude-sonnet-4-20250514
 temperature: 0.7        # Standard option
-maxTokens: 4000         # Standard option
+maxOutputTokens: 4000   # Standard option
 maxSteps: 5             # Tool-loop ceiling when tools or skills are present (default 10)
 ```
 
@@ -140,7 +149,7 @@ providerOptions:
 - Multi-provider configurations (Vertex with multiple model types)
 
 **When NOT to use providerOptions:**
-- Shared top-level fields: `temperature`, `maxTokens`, `maxSteps`, `skills`, `tools`, `messageOptions`, and the image fields (`n`, `size`, `aspectRatio`, `seed`, `maxImagesPerCall`)
+- Shared top-level fields: `temperature`, `maxOutputTokens`, `topP`, `topK`, `presencePenalty`, `frequencyPenalty`, `stopSequences`, `seed`, `maxSteps`, `skills`, `tools`, `messageOptions`, and the image fields (`n`, `size`, `aspectRatio`, `maxImagesPerCall`)
 - These go at the top level alongside `provider` and `model`
 
 ### Provider Options

@@ -363,7 +363,7 @@ provider: anthropic
 # current as of 2026-05-04 — run output-dev-model-selection for the latest
 model: claude-sonnet-4-6
 temperature: 0.7
-maxTokens: 4096
+maxOutputTokens: 4096
 ---
 
 <system>

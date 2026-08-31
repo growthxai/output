@@ -1,4 +1,30 @@
-import { ValidationError, z } from '@outputai/core';
+import { Logger, ValidationError, z } from '@outputai/core';
+import { deprecatedProviderAliases } from '../deprecated_provider_aliases.js';
+
+const log = Logger.createLogger( 'LLM' );
+
+const handleDeprecatedKeys = prompt => {
+  const { config: { maxTokens, maxOutputTokens, provider } } = prompt;
+
+  // @TODO: maxTokens was replaced by maxOutputTokens in v0.12, it can be removed down the road
+  if ( Number.isFinite( maxTokens ) ) {
+    if ( Number.isFinite( maxOutputTokens ) ) {
+      log.warn( 'Prompt has both "maxOutputTokens" and deprecated "maxTokens" keys set, "maxTokens" value will be ignored.' );
+    } else {
+      log.warn( 'Prompt has deprecated key "maxTokens". Its value was set to "maxOutputTokens".' );
+      prompt.config.maxOutputTokens = maxTokens;
+    }
+  }
+
+  // @TODO: this handle aliases removal in v0.11, it can be removed down the road
+  if ( Object.hasOwn( deprecatedProviderAliases, provider ) ) {
+    const canonical = deprecatedProviderAliases[provider];
+    log.warn( `Prompt uses deprecated provider alias "${provider}". Use "${canonical}" instead.` );
+    prompt.config.provider = canonical;
+  }
+
+  return prompt;
+};
 
 const objectMapSchema = z.record(
   z.string(),
@@ -10,13 +36,16 @@ const objectMapSchema = z.record(
 
 const promptConfigSchema = z.object( {
   aspectRatio: z.string().regex( /^\d+:\d+$/ ).optional(),
+  frequencyPenalty: z.number().optional(),
   maxImagesPerCall: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
   maxSteps: z.number().int().positive().default( 10 ),
   maxTokens: z.number().int().positive().optional(),
   // A provider-namespaced options object, e.g. { anthropic: { cacheControl: { type: 'ephemeral' } } }
   messageOptions: z.record( z.string(), objectMapSchema ).optional(),
   model: z.string().min( 1 ),
   n: z.number().int().positive().optional(),
+  presencePenalty: z.number().optional(),
   provider: z.string().min( 1 ),
   providerOptions: z.object( {
     thinking: z.object( {
@@ -27,7 +56,10 @@ const promptConfigSchema = z.object( {
   seed: z.number().int().optional(),
   size: z.string().regex( /^\d+x\d+$/ ).optional(),
   skills: z.preprocess( v => Array.isArray( v ) ? v : [].concat( v ?? [] ), z.array( z.string().min( 1 ) ) ),
-  temperature: z.number().optional(),
+  stopSequences: z.array( z.string() ).optional(),
+  temperature: z.number().nonnegative().optional(),
+  topK: z.number().nonnegative().optional(),
+  topP: z.number().nonnegative().optional(),
   tools: objectMapSchema.optional()
 } ).strict();
 
@@ -54,7 +86,7 @@ export const promptSchema = z.object( {
   } else if ( hasMessages && hasInstructions ) {
     addIssue( 'Prompt cannot include both message blocks and plain instructions.' );
   }
-} );
+} ).transform( handleDeprecatedKeys );
 
 const promptConfigKeys = new Set( Object.keys( promptConfigSchema.shape ) );
 

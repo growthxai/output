@@ -58,7 +58,7 @@ export type PromptMessage = {
  *     provider: 'anthropic',
  *     model: 'claude-opus-4-1',
  *     temperature: 0.7,
- *     maxTokens: 2048,
+ *     maxOutputTokens: 2048,
  *     maxSteps: 10,
  *     skills: []
  *   },
@@ -91,11 +91,33 @@ export type Prompt = {
     /** Model name/identifier */
     model: string;
 
-    /** Generation temperature (0-2). Lower = more deterministic */
+    /** Generation temperature. Supported range and behavior vary by provider. */
     temperature?: number;
 
-    /** Maximum number of tokens in the response */
+    /** Maximum number of tokens in the response. */
+    maxOutputTokens?: number;
+
+    /**
+     * Maximum number of tokens in the response.
+     *
+     * @deprecated Use `maxOutputTokens`.
+     */
     maxTokens?: number;
+
+    /** Nucleus sampling value. Usually set instead of `temperature`. */
+    topP?: number;
+
+    /** Limits sampling to the top K token choices. */
+    topK?: number;
+
+    /** Penalizes tokens that already appear in the prompt or generated output. */
+    presencePenalty?: number;
+
+    /** Penalizes tokens according to how often they appear. */
+    frequencyPenalty?: number;
+
+    /** Sequences that stop text generation when produced. */
+    stopSequences?: string[];
 
     /** Tool-loop iterations when `stopWhen` is omitted. Always a positive integer after load (default 10). */
     maxSteps: number;
@@ -112,7 +134,7 @@ export type Prompt = {
     /** Image aspect ratio, for example `16:9` */
     aspectRatio?: `${number}:${number}`;
 
-    /** Random seed for deterministic image generation when supported */
+    /** Random seed for deterministic text or image generation when supported */
     seed?: number;
 
     /** Skill file or directory paths relative to the prompt file. Always a `string[]` after load (`[]` if unset). */
@@ -406,7 +428,7 @@ export function getProviderNames(): string[];
  * Use an LLM model to generate text.
  *
  * This function is a wrapper over the AI SDK's `generateText`.
- * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * The prompt file sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
  * `providerOptions`. Call arguments are `prompt`, `promptDir`, `variables`, `tools`, `output`,
  * `toolChoice`, `stopWhen`, and `abortSignal`.
  *
@@ -441,7 +463,7 @@ export function generateTextWithStreaming<
  * Use an LLM model to stream text generation.
  *
  * This function is a wrapper over the AI SDK's `streamText`.
- * The prompt file sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * The prompt file sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
  * `providerOptions`. Call arguments match {@link generateText}, plus `onChunk`, `onFinish`, and
  * `onError`. `onFinish` is wrapped to add `result`, `cost`, and merged `sources`.
  *

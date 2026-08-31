@@ -1,7 +1,7 @@
 ---
 provider: anthropic
 model: claude-sonnet-4-6
-maxTokens: 1024
+maxOutputTokens: 1024
 ---
 
 <system>

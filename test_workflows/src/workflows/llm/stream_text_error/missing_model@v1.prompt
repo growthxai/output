@@ -2,7 +2,7 @@
 provider: anthropic
 model: claude-this-model-does-not-exist
 temperature: 0
-maxTokens: 64
+maxOutputTokens: 64
 ---
 
 <user>
