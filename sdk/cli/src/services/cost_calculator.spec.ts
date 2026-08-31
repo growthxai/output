@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TraceNode, HTTPCall, LLMUsageEvent, LLMUsageLine } from '#types/cost.js';
+import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/llm';
+import type { TraceNode, HTTPCall, LLMUsageLine } from '#types/cost.js';
 
 const mockReadFileSync = vi.fn();
 const mockExistsSync = vi.fn();
@@ -53,6 +54,56 @@ function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): Trace
         total,
         tokensUsed: lines.reduce( ( s, l ) => s + l.amount, 0 )
       } as LLMUsageEvent
+    }
+  };
+}
+
+function llmCostNode( id: string, model: string, items: LLMGenerationCost['items'] ): TraceNode {
+  const totalOf = ( group: LLMGenerationCost['items'][number]['group'] ): number =>
+    items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + ( item.total ?? 0 ), 0 );
+  const input = totalOf( 'input' );
+  const output = totalOf( 'output' );
+
+  return {
+    id,
+    kind: 'llm',
+    name: 'gen',
+    attributes: {
+      'llm:generation:cost': {
+        type: 'llm:generation:cost',
+        providerId: 'test-provider',
+        modelId: model,
+        input,
+        output,
+        total: input + output,
+        status: 'precise',
+        items
+      }
+    }
+  };
+}
+
+function llmUsageNode( id: string, model: string, items: LLMGenerationUsage['items'] ): TraceNode {
+  const totalOf = ( group: LLMGenerationUsage['items'][number]['group'] ): number =>
+    items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + item.amount, 0 );
+  const input = totalOf( 'input' );
+  const output = totalOf( 'output' );
+
+  return {
+    id,
+    kind: 'llm',
+    name: 'gen',
+    attributes: {
+      'llm:generation:usage': {
+        type: 'llm:generation:usage',
+        providerId: 'test-provider',
+        modelId: model,
+        input,
+        output,
+        total: input + output,
+        status: 'complete',
+        items
+      }
     }
   };
 }
@@ -217,7 +268,119 @@ describe( 'findLLMCalls', () => {
     expect( calls[0].originalCost ).toBeCloseTo( 0.35525, 5 );
   } );
 
-  it( 'ignores llm nodes without a llm:usage event', () => {
+  it( 'does not interpret transitional component names in legacy llm:usage events', () => {
+    const node = llmEventNode( 'transitional-components', 'legacy-model', [
+      { type: 'input', ppm: 1, amount: 10, total: 0.00001 },
+      { type: 'input_cached', ppm: 0.1, amount: 20, total: 0.000002 },
+      { type: 'output', ppm: 5, amount: 30, total: 0.00015 },
+      { type: 'reasoning', ppm: 5, amount: 40, total: 0.0002 },
+      { type: 'input_cache_read', ppm: 0.1, amount: 100, total: 0.00001 },
+      { type: 'input_cache_write', ppm: 1.25, amount: 200, total: 0.00025 },
+      { type: 'output_text', ppm: 5, amount: 300, total: 0.0015 },
+      { type: 'output_reasoning', ppm: 5, amount: 400, total: 0.002 }
+    ] );
+
+    const calls = findLLMCalls( { kind: 'workflow', children: [ node ] } );
+
+    expect( calls[0].usage ).toEqual( {
+      inputTokens: 30,
+      cachedInputTokens: 20,
+      outputTokens: 30,
+      reasoningTokens: 40
+    } );
+  } );
+
+  it( 'reads every supported item from an llm:generation:cost attribute', () => {
+    const items: LLMGenerationCost['items'] = [
+      { group: 'input', label: null, amount: 100, ppm: 1, total: 0.0001, status: 'ok' },
+      { group: 'input', label: 'no_cache', amount: 200, ppm: 1, total: 0.0002, status: 'ok' },
+      { group: 'input', label: 'cache_write', amount: 300, ppm: 1.25, total: 0.000375, status: 'ok' },
+      { group: 'input', label: 'cache_read', amount: 400, ppm: 0.1, total: 0.00004, status: 'ok' },
+      { group: 'output', label: null, amount: 50, ppm: 5, total: 0.00025, status: 'ok' },
+      { group: 'output', label: 'text', amount: 60, ppm: 5, total: 0.0003, status: 'ok' },
+      { group: 'output', label: 'reasoning', amount: 70, ppm: 10, total: 0.0007, status: 'ok' }
+    ];
+    const calls = findLLMCalls( {
+      kind: 'workflow',
+      children: [ llmCostNode( 'llm-cost', 'new-model', items ) ]
+    } );
+
+    expect( calls ).toHaveLength( 1 );
+    expect( calls[0] ).toMatchObject( {
+      model: 'new-model',
+      usage: {
+        inputTokens: 1000,
+        cachedInputTokens: 400,
+        outputTokens: 110,
+        reasoningTokens: 70
+      }
+    } );
+    expect( calls[0].lines.map( line => line.type ) ).toEqual( [
+      'input',
+      'input',
+      'input_cache_write',
+      'input_cache_read',
+      'output',
+      'output',
+      'reasoning'
+    ] );
+    expect( calls[0].originalCost ).toBeCloseTo( 0.001965, 8 );
+  } );
+
+  it( 'reads normalized usage without interpreting token totals as cost', () => {
+    const items: LLMGenerationUsage['items'] = [
+      { group: 'input', label: null, amount: 100 },
+      { group: 'input', label: 'no_cache', amount: 200 },
+      { group: 'input', label: 'cache_write', amount: 300 },
+      { group: 'input', label: 'cache_read', amount: 400 },
+      { group: 'output', label: null, amount: 50 },
+      { group: 'output', label: 'text', amount: 60 },
+      { group: 'output', label: 'reasoning', amount: 70 }
+    ];
+    const calls = findLLMCalls( {
+      kind: 'workflow',
+      children: [ llmUsageNode( 'llm-usage', 'new-model', items ) ]
+    } );
+
+    expect( calls ).toHaveLength( 1 );
+    expect( calls[0] ).toMatchObject( {
+      model: 'new-model',
+      usage: {
+        inputTokens: 1000,
+        cachedInputTokens: 400,
+        outputTokens: 110,
+        reasoningTokens: 70
+      },
+      originalCost: 0
+    } );
+    expect( calls[0].lines ).toEqual( [
+      { type: 'input', ppm: 0, amount: 100, total: 0 },
+      { type: 'input', ppm: 0, amount: 200, total: 0 },
+      { type: 'input_cache_write', ppm: 0, amount: 300, total: 0 },
+      { type: 'input_cache_read', ppm: 0, amount: 400, total: 0 },
+      { type: 'output', ppm: 0, amount: 50, total: 0 },
+      { type: 'output', ppm: 0, amount: 60, total: 0 },
+      { type: 'reasoning', ppm: 0, amount: 70, total: 0 }
+    ] );
+  } );
+
+  it( 'prefers generation cost when both generation attributes are present', () => {
+    const node = llmCostNode( 'both', 'new-model', [
+      { group: 'input', label: null, amount: 100, ppm: 1, total: 0.0001, status: 'ok' }
+    ] );
+    node.attributes!['llm:generation:usage'] = llmUsageNode( 'usage', 'usage-model', [
+      { group: 'input', label: null, amount: 10 }
+    ] )
+      .attributes!['llm:generation:usage'];
+
+    const calls = findLLMCalls( { kind: 'workflow', children: [ node ] } );
+
+    expect( calls ).toHaveLength( 1 );
+    expect( calls[0].model ).toBe( 'new-model' );
+    expect( calls[0].originalCost ).toBe( 0.0001 );
+  } );
+
+  it( 'ignores llm nodes without a cost event', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
@@ -374,22 +537,76 @@ describe( 'calculateCost', () => {
     expect( report.llmCalls ).toHaveLength( 1 );
   } );
 
-  it( 'matches versioned model names by prefix', () => {
+  it( 'uses the longest matching prefix for versioned model names', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
       children: [
-        llmEventNode( 'llm-1', 'claude-sonnet-4-5-20250514', llmLines( 1000, 3, 500, 15 ) )
+        llmEventNode( 'llm-1', 'gpt-4.1-mini-20250514', llmLines( 1_000_000, 9, 1_000_000, 9 ) )
       ]
     };
+    const config = {
+      ...testConfig,
+      models: {
+        'gpt-4.1': { provider: 'openai', input: 2, output: 8 },
+        'gpt-4.1-mini': { provider: 'openai', input: 0.4, output: 1.6 }
+      }
+    };
 
-    const report = calculateCost( trace, testConfig, 'test.json' );
-    // priced at the claude-sonnet-4-5 prefix rates: 1000@$3/M + 500@$15/M
-    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.0105, 5 );
+    const report = calculateCost( trace, config, 'test.json' );
+
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 2, 8 );
   } );
 } );
 
 describe( 'event-driven LLM costs (original vs adjusted)', () => {
+  it( 're-prices normalized usage when generation cost is absent', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmUsageNode( 'usage-only', 'claude-sonnet-4-5', [
+        { group: 'input', label: 'no_cache', amount: 1_000_000 },
+        { group: 'input', label: 'cache_read', amount: 1_000_000 },
+        { group: 'input', label: 'cache_write', amount: 1_000_000 },
+        { group: 'output', label: 'text', amount: 1_000_000 },
+        { group: 'output', label: 'reasoning', amount: 1_000_000 }
+      ] ) ]
+    };
+
+    const report = calculateCost( trace, testConfig, 'test.json' );
+
+    expect( report.llmCalls[0] ).toMatchObject( {
+      input: 3_000_000,
+      cached: 1_000_000,
+      output: 1_000_000,
+      reasoning: 1_000_000,
+      originalCost: 0,
+      adjustedCost: 36.3
+    } );
+    expect( report.llmOriginalCost ).toBe( 0 );
+    expect( report.llmAdjustedCost ).toBeCloseTo( 36.3, 8 );
+  } );
+
+  it( 'falls back to input pricing for normalized cache reads', () => {
+    const trace: TraceNode = {
+      kind: 'workflow',
+      name: 'test',
+      children: [ llmUsageNode( 'cache-read', 'cache-model', [
+        { group: 'input', label: 'cache_read', amount: 1_000_000 }
+      ] ) ]
+    };
+    const config = {
+      ...testConfig,
+      models: {
+        'cache-model': { provider: 'test', input: 2, output: 10 }
+      }
+    };
+
+    const report = calculateCost( trace, config, 'test.json' );
+
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 2, 8 );
+  } );
+
   it( 'matches original when costs.yml rate equals the event rate', () => {
     // haiku event priced at the same rate as testConfig (input 1 / output 5)
     const trace: TraceNode = {
@@ -427,19 +644,18 @@ describe( 'event-driven LLM costs (original vs adjusted)', () => {
     expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 0.35525, 5 );
   } );
 
-  it( 'prices an unknown line type at its as-charged total, not $0', () => {
-    const lines = [
-      ...llmLines( 1_000_000, 1, 1_000_000, 5 ),
-      { type: 'input_cache_write', ppm: 1.25, amount: 200_000, total: 0.25 }
-    ];
+  it( 're-prices normalized cache writes at the configured input rate', () => {
     const trace: TraceNode = {
       kind: 'workflow',
       name: 'test',
-      children: [ llmEventNode( 'cw', 'claude-haiku-4-5', lines ) ]
+      children: [ llmCostNode( 'cw', 'claude-haiku-4-5', [
+        { group: 'input', label: 'no_cache', amount: 1_000_000, ppm: 1, total: 1, status: 'ok' },
+        { group: 'input', label: 'cache_write', amount: 200_000, ppm: 1.25, total: 0.25, status: 'ok' },
+        { group: 'output', label: 'text', amount: 1_000_000, ppm: 5, total: 5, status: 'ok' }
+      ] ) ]
     };
     const report = calculateCost( trace, testConfig, 'test.json' );
-    // known lines reprice to $6 at config rates; unknown line passes through at $0.25
-    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6.25, 5 );
+    expect( report.llmCalls[0].adjustedCost ).toBeCloseTo( 6.2, 5 );
     expect( report.llmCalls[0].originalCost ).toBeCloseTo( 6.25, 5 );
   } );
 

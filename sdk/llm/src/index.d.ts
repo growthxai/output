@@ -2,19 +2,18 @@ import type {
   GenerateTextResult as AIGenerateTextResult,
   GenerateImageResult as AIGenerateImageResult,
   StreamTextResult as AIStreamTextResult,
-  ToolLoopAgent as AIToolLoopAgent,
   ToolSet,
   ToolChoice,
   StopCondition,
   ModelMessage,
   StreamTextOnChunkCallback,
-  StreamTextOnFinishCallback,
+  GenerateTextOnEndCallback,
   StreamTextOnErrorCallback
 } from 'ai';
 import type { Output as AIOutputNamespace } from 'ai';
-import type { Tracing } from '@outputai/core/sdk/runtime';
+import type { BaseAttribute } from '@outputai/core/sdk/runtime';
 
-/** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, and other AI SDK APIs. */
+/** Full AI SDK module (values and types). Use `aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, and other AI SDK APIs. */
 export * as aiSdk from 'ai';
 
 /** Liquid interpolation variables, including nested objects and arrays. */
@@ -186,31 +185,19 @@ export type Prompt = {
 };
 
 type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
-type CompatibleToolFunction = ( ...args: never[] ) => unknown | PromiseLike<unknown>;
-type CompatibleApprovalFunction = ( ...args: never[] ) => boolean | PromiseLike<boolean>;
+type DefaultRuntimeContext = Record<string, unknown>;
+type CompatibleToolSchemaKey = 'inputSchema' | 'outputSchema' | 'contextSchema';
+type WithoutToolSchemaBrands<T> = T extends unknown ? {
+  [K in keyof T]: K extends CompatibleToolSchemaKey ? unknown : T[K];
+} : never;
 
 /**
- * Structurally-compatible AI SDK tool shape.
+ * Structurally-compatible AI SDK 7 tool shape.
  *
- * This intentionally avoids referencing AI SDK's concrete `Tool` schema types so tools
- * from packages resolved with a different Zod peer instance remain assignable.
+ * This derives from AI SDK's `ToolSet` and widens only schema fields so tools from packages
+ * resolved with a different Zod peer instance remain assignable.
  */
-export type CompatibleTool = {
-  description?: string;
-  title?: string;
-  providerOptions?: Record<string, unknown>;
-  inputSchema?: unknown;
-  parameters?: unknown;
-  execute?: CompatibleToolFunction;
-  onInputStart?: CompatibleToolFunction;
-  onInputDelta?: CompatibleToolFunction;
-  onInputAvailable?: CompatibleToolFunction;
-  needsApproval?: boolean | CompatibleApprovalFunction;
-} & (
-  { inputSchema: unknown } |
-  { parameters: unknown } |
-  { execute: CompatibleToolFunction }
-);
+export type CompatibleTool = WithoutToolSchemaBrands<ToolSet[string]>;
 
 /** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
 export type CompatibleToolSet = Record<string, CompatibleTool>;
@@ -236,7 +223,8 @@ type PromptObjectCallOptions = {
 type PromptCallOptions = PromptFileCallOptions | PromptObjectCallOptions;
 
 type StopWhen<Tools extends ToolSet = ToolSet> =
-  StopCondition<NoInfer<Tools>> | Array<StopCondition<NoInfer<Tools>>>;
+  StopCondition<NoInfer<Tools>, DefaultRuntimeContext> |
+  Array<StopCondition<NoInfer<Tools>, DefaultRuntimeContext>>;
 
 type TextCallOptions<
   Tools extends ToolSet = ToolSet,
@@ -265,7 +253,7 @@ export type GenerateTextWithStreamingParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = TextCallOptions<Tools, OutputSpec> & {
-  /** Callback for each streamed chunk */
+  /** Callback for every AI SDK 7 stream part, including lifecycle, boundary, terminal, text, reasoning, and tool parts. */
   onChunk?: StreamTextOnChunkCallback<Tools>;
 };
 
@@ -274,12 +262,12 @@ export type StreamTextParameters<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = TextCallOptions<Tools, OutputSpec> & {
-  /** Callback for each streamed chunk */
+  /** Callback for every AI SDK 7 stream part, including lifecycle, boundary, terminal, text, reasoning, and tool parts. */
   onChunk?: StreamTextOnChunkCallback<Tools>;
   /** Callback when a stream error occurs */
   onError?: StreamTextOnErrorCallback;
-  /** Callback when stream finishes. Receives the wrapped event with `result`, `cost`, and `sources`. */
-  onFinish?: WrappedStreamTextOnFinishCallback<Tools>;
+  /** Callback when the stream completes. Receives the wrapped AI SDK `onEnd` event with `result`, `cost`, and `sources`. */
+  onEnd?: WrappedStreamTextOnEndCallback<Tools>;
 };
 
 /** Runtime image bytes or an object with optional media type. */
@@ -329,9 +317,9 @@ export type OutputAgentGenerateWithStreamingParameters = OutputAgentGeneratePara
   onChunk?: StreamTextOnChunkCallback<ToolSet>;
 };
 
-/** Agent {@link Agent.stream} options. `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`result`, `cost`, `sources`). */
+/** Agent {@link Agent.stream} options. `onEnd` receives {@link WrappedStreamTextOnEndEvent} (`result`, `cost`, `sources`). */
 export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParameters & {
-  onFinish?: WrappedStreamTextOnFinishCallback<ToolSet>;
+  onEnd?: WrappedStreamTextOnEndCallback<ToolSet>;
   onError?: StreamTextOnErrorCallback;
 };
 
@@ -340,30 +328,95 @@ export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParame
  * Same item type as AI SDK `GenerateTextResult['sources']` (`sourceType: 'url' | 'document'`).
  * `ai` does not export a named `Source` type.
  */
-export type ExtractedSource = AIGenerateTextResult<ToolSet, AnyAiOutput>['sources'][number];
+export type ExtractedSource =
+  AIGenerateTextResult<ToolSet, DefaultRuntimeContext, AnyAiOutput>['sources'][number];
+
+export type LLMGenerationUsageStatus = 'complete' | 'incomplete';
+
+/** Token usage reported for one normalized LLM usage component. */
+export interface LLMGenerationUsageItem {
+  group: 'input' | 'output';
+  label: string | null;
+  amount: number;
+}
+
+/** Normalized LLM token usage trace attribute. */
+export interface LLMGenerationUsage extends BaseAttribute {
+  type: 'llm:generation:usage';
+  providerId: string;
+  modelId: string;
+  input: number | null;
+  output: number | null;
+  total: number | null;
+  status: LLMGenerationUsageStatus;
+  items: LLMGenerationUsageItem[];
+}
+
+/** One priced usage line in the legacy LLM cost event. */
+export interface LLMUsageEventItem {
+  type: string;
+  ppm: number;
+  amount: number;
+  total: number;
+}
 
 /**
- * Cost on a wrapped LLM response (`response.cost`, stream `onFinish` `cost`) and the
- * `cost:llm:request` payload. This is a `Tracing.Attribute.LLMUsage` instance.
- * `calculateLLMCallCost` returns it, or `null` when pricing data is missing.
+ * Legacy `cost:llm:request` event payload.
+ *
+ * @deprecated Use the normalized `LLMGenerationUsage` and `LLMGenerationCost` payloads from the LLM generation metering event.
  */
-export type LLMCallCost = InstanceType<( typeof Tracing.Attribute )['LLMUsage']>;
+export interface LLMUsageEvent {
+  type: 'llm:usage';
+  modelId: string;
+  usage: LLMUsageEventItem[];
+  readonly total: number;
+  readonly tokensUsed: number;
+}
 
-export type LLMUsageEvent = LLMCallCost;
+export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'missing';
+export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
+
+/** Cost calculated for one normalized LLM usage item. */
+export interface LLMGenerationCostItem {
+  group: 'input' | 'output';
+  label: string | null;
+  amount: number;
+  ppm: number | null;
+  total: number | null;
+  status: LLMGenerationCostItemStatus;
+}
+
+/** Normalized LLM generation cost trace attribute. */
+export interface LLMGenerationCost extends BaseAttribute {
+  type: 'llm:generation:cost';
+  providerId: string;
+  modelId: string;
+  input: number | null;
+  output: number | null;
+  total: number | null;
+  status: LLMGenerationCostStatus;
+  items: LLMGenerationCostItem[];
+}
+
+/** Payload emitted by the `llm:generation:metering` event. */
+export interface LLMGenerationMeteringEvent {
+  usage: LLMGenerationUsage;
+  cost: LLMGenerationCost | null;
+}
 
 /**
- * `streamText` and agent `stream` `onFinish` event after the stream response wrapper: same as the AI SDK
- * finish payload plus `result`, `cost`, and merged `sources`.
+ * `streamText` and agent `stream` `onEnd` event after the stream response wrapper: same as the AI SDK
+ * `onEnd` payload plus `result`, `cost`, and merged `sources`.
  */
-export type WrappedStreamTextOnFinishEvent<Tools extends ToolSet = ToolSet> =
-  Parameters<StreamTextOnFinishCallback<Tools>>[0] & {
+export type WrappedStreamTextOnEndEvent<Tools extends ToolSet = ToolSet> =
+  Parameters<GenerateTextOnEndCallback<Tools, DefaultRuntimeContext>>[0] & {
     result: string;
-    cost: LLMCallCost | null;
+    cost: LLMGenerationCost | null;
     sources: ExtractedSource[];
   };
 
-export type WrappedStreamTextOnFinishCallback<Tools extends ToolSet = ToolSet> = (
-  event: WrappedStreamTextOnFinishEvent<Tools>
+export type WrappedStreamTextOnEndCallback<Tools extends ToolSet = ToolSet> = (
+  event: WrappedStreamTextOnEndEvent<Tools>
 ) => void | PromiseLike<void>;
 
 /**
@@ -374,11 +427,11 @@ export type WrappedStreamTextOnFinishCallback<Tools extends ToolSet = ToolSet> =
 export type GenerateTextResult<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = AIGenerateTextResult<Tools, OutputSpec> & {
+> = AIGenerateTextResult<Tools, DefaultRuntimeContext, OutputSpec> & {
   /** Unified field name alias for 'text' */
   result: string;
   /** Calculated cost for the LLM call; `null` when pricing data is not available */
-  cost: LLMCallCost | null;
+  cost: LLMGenerationCost | null;
   /** Merged tool + provider sources (url and document). Always an array. */
   sources: ExtractedSource[];
 };
@@ -387,14 +440,14 @@ export type GenerateTextResult<
 export type GenerateTextWithStreamingResult<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = Omit<GenerateTextResult<Tools, OutputSpec>, 'experimental_output'>;
+> = GenerateTextResult<Tools, OutputSpec>;
 
 /** Result from generateImage including a unified `result` field pointing at the first image. */
 export type GenerateImageResult = AIGenerateImageResult & {
   /** Unified field name alias for `image` */
   result: AIGenerateImageResult['image'];
   /** Calculated cost for the image generation call; `null` when pricing data is not available. */
-  cost: LLMCallCost | null;
+  cost: LLMGenerationCost | null;
 };
 
 /**
@@ -460,7 +513,7 @@ export function generateText<
  *
  * The stream is consumed internally. `onChunk` runs as parts arrive. Provider or
  * transport errors reject the returned promise with the mapped error. Use {@link streamText}
- * when you need `onFinish` / `onError` stream observers.
+ * when you need `onEnd` / `onError` stream observers.
  *
  * @param args - Streaming arguments. See {@link GenerateTextWithStreamingParameters}.
  * @returns Completed response with parsed output and generateText-compatible metadata.
@@ -476,20 +529,21 @@ export function generateTextWithStreaming<
  * Use an LLM model to stream text generation.
  *
  * This function is a wrapper over the AI SDK's `streamText`.
- * The prompt sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * The prompt sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
  * `providerOptions`. Pass either a prompt filename with optional `promptDir` / `variables`, or a
  * loaded or custom {@link Prompt} object. Other call arguments match {@link generateText}, plus
- * `onChunk`, `onFinish`, and `onError`. `onFinish` adds `result`, `cost`, and merged `sources`.
+ * `onChunk`, `onEnd`, and `onError`. `onEnd` is wrapped to add `result`, `cost`, and merged
+ * `sources`.
  *
  * @param args - Streaming arguments. See {@link StreamTextParameters}.
- * @returns AI SDK stream result with textStream, fullStream, and metadata promises.
+ * @returns AI SDK stream result with textStream, stream, and metadata promises.
  */
 export function streamText<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 >(
   args: StreamTextParameters<Tools, OutputSpec>
-): AIStreamTextResult<Tools, OutputSpec>;
+): AIStreamTextResult<Tools, DefaultRuntimeContext, OutputSpec>;
 
 /**
  * Use an image model to generate images from a prompt filename or object.
@@ -513,7 +567,7 @@ export interface MessageStore {
 }
 
 /**
- * Agent extends AI SDK's ToolLoopAgent with Output.ai prompt loading and validation.
+ * Agent wraps an internal AI SDK ToolLoopAgent with Output.ai prompt loading and validation.
  *
  * @example Workflow step - variables per call, stateless
  * ```ts
@@ -535,7 +589,7 @@ export interface MessageStore {
  */
 export declare class Agent<
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> extends AIToolLoopAgent<never, ToolSet, OutputSpec> {
+> {
   constructor( params: OutputAgentConstructorParameters<OutputSpec> );
 
   /**
@@ -547,7 +601,7 @@ export declare class Agent<
   /**
    * Run the agent over streaming transport and return a completed response.
    * `onChunk` runs as parts arrive. Provider and transport errors reject with the mapped error.
-   * Use {@link Agent.stream} when you need `onFinish` / `onError` stream observers.
+   * Use {@link Agent.stream} when you need `onEnd` / `onError` stream observers.
    */
   generateWithStreaming(
     options?: OutputAgentGenerateWithStreamingParameters
@@ -555,9 +609,9 @@ export declare class Agent<
 
   /**
    * Stream the agent's response.
-   * `onFinish` receives {@link WrappedStreamTextOnFinishEvent} (`result`, `cost`, `sources`), matching {@link streamText}.
+   * `onEnd` receives {@link WrappedStreamTextOnEndEvent} (`result`, `cost`, `sources`), matching {@link streamText}.
    */
   stream( options?: OutputAgentStreamParameters ): Promise<
-    AIStreamTextResult<ToolSet, OutputSpec>
+    AIStreamTextResult<ToolSet, DefaultRuntimeContext, OutputSpec>
   >;
 }

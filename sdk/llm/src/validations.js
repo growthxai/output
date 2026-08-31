@@ -121,7 +121,7 @@ const streamTextArgsSchema = z.object( {
   ...generateTextCallFields,
   onChunk: functionSchema.optional(),
   onError: functionSchema.optional(),
-  onFinish: functionSchema.optional()
+  onEnd: functionSchema.optional()
 } ).strict().superRefine( rejectPromptObjectFileArgs ).transform( toPromptArgs );
 
 const agentCallFields = {
@@ -156,7 +156,7 @@ const agentStreamArgsSchema = z.object( {
   ...agentMethodCallFields,
   onChunk: functionSchema.optional(),
   onError: functionSchema.optional(),
-  onFinish: functionSchema.optional()
+  onEnd: functionSchema.optional()
 } ).strict();
 
 const base64StringSchema = z.string()

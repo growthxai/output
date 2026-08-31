@@ -1,6 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
+import type {
+  LLMGenerationCost,
+  LLMGenerationCostItem,
+  LLMGenerationUsage,
+  LLMUsageEvent
+} from '@outputai/llm';
 
 import type {
   TraceNode,
@@ -19,6 +25,7 @@ import type {
 } from '#types/cost.js';
 
 const ARRAY_ACCESS_PATTERN = /^(\w+)\[(\d+)\]$/;
+type NormalizedUsageItem = Pick<LLMGenerationCostItem, 'group' | 'label' | 'amount'>;
 
 function tokenCost( tokens: number, pricePerMillion: number ): number {
   return ( tokens / 1_000_000 ) * pricePerMillion;
@@ -35,6 +42,8 @@ function lineRate( type: string, pricing: ModelPricing ): number | undefined {
   const rates: Record<string, number> = {
     input: pricing.input ?? 0,
     input_cached: pricing.cached_input ?? 0,
+    input_cache_read: pricing.cached_input ?? pricing.input ?? 0,
+    input_cache_write: pricing.input ?? 0,
     output: pricing.output ?? 0,
     reasoning: pricing.reasoning ?? pricing.output ?? 0
   };
@@ -63,6 +72,96 @@ function eventTokenUsage( lines: LLMUsageLine[] ): TokenUsage {
     cachedInputTokens: cached,
     outputTokens: sumOf( 'output' ),
     reasoningTokens: sumOf( 'reasoning' )
+  };
+}
+
+function normalizedItemType( item: NormalizedUsageItem ): string {
+  if ( item.group === 'input' ) {
+    if ( item.label === null || item.label === 'no_cache' ) {
+      return 'input';
+    }
+    if ( item.label === 'cache_read' ) {
+      return 'input_cache_read';
+    }
+    if ( item.label === 'cache_write' ) {
+      return 'input_cache_write';
+    }
+  }
+
+  if ( item.group === 'output' ) {
+    if ( item.label === null || item.label === 'text' ) {
+      return 'output';
+    }
+    if ( item.label === 'reasoning' ) {
+      return 'reasoning';
+    }
+  }
+
+  return item.label ? `${item.group}_${item.label}` : item.group;
+}
+
+function normalizedItemTokenUsage( items: NormalizedUsageItem[] ): TokenUsage {
+  const sumOf = ( group: NormalizedUsageItem['group'], labels?: Array<string | null> ): number =>
+    items
+      .filter( item => item.group === group && ( !labels || labels.includes( item.label ) ) )
+      .reduce( ( sum, item ) => sum + item.amount, 0 );
+
+  return {
+    inputTokens: sumOf( 'input' ),
+    cachedInputTokens: sumOf( 'input', [ 'cache_read' ] ),
+    outputTokens: sumOf( 'output', [ null, 'output', 'text' ] ),
+    reasoningTokens: sumOf( 'output', [ 'reasoning' ] )
+  };
+}
+
+function parseLegacyLLMUsageEvent(
+  node: TraceNode,
+  stepName: string | null,
+  event: LLMUsageEvent
+): LLMCall {
+  return {
+    stepName: stepName || node.name || 'unknown',
+    llmName: node.name || 'llm',
+    model: event.modelId || 'unknown',
+    usage: eventTokenUsage( event.usage ?? [] ),
+    originalCost: event.total,
+    lines: event.usage ?? []
+  };
+}
+
+function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, event: LLMGenerationUsage ): LLMCall {
+  const lines = event.items.map( item => ( {
+    type: normalizedItemType( item ),
+    ppm: 0,
+    amount: item.amount,
+    total: 0
+  } ) );
+
+  return {
+    stepName: stepName || node.name || 'unknown',
+    llmName: node.name || 'llm',
+    model: event.modelId || 'unknown',
+    usage: normalizedItemTokenUsage( event.items ),
+    originalCost: 0,
+    lines
+  };
+}
+
+function parseLLMCostEvent( node: TraceNode, stepName: string | null, event: LLMGenerationCost ): LLMCall {
+  const lines = event.items.map( item => ( {
+    type: normalizedItemType( item ),
+    ppm: item.ppm ?? 0,
+    amount: item.amount,
+    total: item.total ?? 0
+  } ) );
+
+  return {
+    stepName: stepName || node.name || 'unknown',
+    llmName: node.name || 'llm',
+    model: event.modelId || 'unknown',
+    usage: normalizedItemTokenUsage( event.items ),
+    originalCost: event.total ?? 0,
+    lines
   };
 }
 
@@ -148,9 +247,7 @@ function findCalls<T>(
   return calls;
 }
 
-// Only nodes carrying an llm:usage event are priced — the event holds the
-// as-charged cost and the per-token-type amounts. Traces from SDKs that
-// predate cost attributes report no LLM costs.
+// Prefer generation cost, then normalized generation usage, then legacy usage.
 export function findLLMCalls(
   node: TraceNode,
   parentStepName: string | null = null,
@@ -158,17 +255,23 @@ export function findLLMCalls(
 ): LLMCall[] {
   return findCalls<LLMCall>(
     node,
-    n => n.kind === 'llm' && !!n.attributes?.['llm:usage'],
+    n => n.kind === 'llm' && !!(
+      n.attributes?.['llm:generation:cost'] ||
+      n.attributes?.['llm:generation:usage'] ||
+      n.attributes?.['llm:usage']
+    ),
     ( n, stepName ) => {
-      const event = n.attributes!['llm:usage']!;
-      return {
-        stepName: stepName || n.name || 'unknown',
-        llmName: n.name || 'llm',
-        model: event.modelId || 'unknown',
-        usage: eventTokenUsage( event.usage ?? [] ),
-        originalCost: event.total,
-        lines: event.usage ?? []
-      };
+      const cost = n.attributes?.['llm:generation:cost'];
+      if ( cost ) {
+        return parseLLMCostEvent( n, stepName, cost );
+      }
+
+      const usage = n.attributes?.['llm:generation:usage'];
+      if ( usage ) {
+        return parseNormalizedLLMUsage( n, stepName, usage );
+      }
+
+      return parseLegacyLLMUsageEvent( n, stepName, n.attributes!['llm:usage']! );
     },
     parentStepName,
     seenIds
@@ -481,7 +584,9 @@ function findModelPricing(
   if ( models[model] ) {
     return models[model];
   }
-  return Object.entries( models ).find( ( [ key ] ) => model.startsWith( key ) )?.[1];
+  return Object.entries( models )
+    .filter( ( [ key ] ) => model.startsWith( key ) )
+    .sort( ( [ left ], [ right ] ) => right.length - left.length )[0]?.[1];
 }
 
 function aggregateLLMCosts(

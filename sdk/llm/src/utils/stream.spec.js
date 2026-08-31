@@ -7,10 +7,10 @@ const asyncParts = parts => ( {
   }
 } );
 
-const streamOf = parts => ( { fullStream: asyncParts( parts ) } );
+const streamOf = parts => ( { stream: asyncParts( parts ) } );
 
 describe( 'drainStream', () => {
-  it( 'consumes fullStream parts without throwing', async () => {
+  it( 'consumes stream parts without throwing', async () => {
     await expect( drainStream( streamOf( [ { type: 'text-delta', text: 'hi' } ] ) ) ).resolves.toBeUndefined();
   } );
 

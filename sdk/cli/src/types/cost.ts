@@ -17,11 +17,9 @@ export interface TokenUsage {
   reasoningTokens?: number;
 }
 
-// Cost events recorded on trace nodes (the as-charged ground truth). JSON
-// preserves the producer's data fields, but not methods from the live class.
-import type { LLMUsageEvent as LiveLLMUsageEvent } from '@outputai/llm';
+// Usage and cost attributes recorded on trace nodes.
+import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/llm';
 
-export type LLMUsageEvent = Omit<LiveLLMUsageEvent, 'addUsage'>;
 export type LLMUsageLine = LLMUsageEvent['usage'][number];
 
 export interface HTTPCostEvent {
@@ -39,6 +37,8 @@ export interface HTTPCountEvent {
 
 export interface NodeAttributes {
   'llm:usage'?: LLMUsageEvent;
+  'llm:generation:usage'?: LLMGenerationUsage;
+  'llm:generation:cost'?: LLMGenerationCost;
   'http:request:cost'?: HTTPCostEvent;
   'http:request:count'?: HTTPCountEvent;
 }
@@ -60,9 +60,9 @@ export interface LLMCall {
   llmName: string;
   model: string;
   usage: TokenUsage;
-  // As-charged total from the llm:usage event.
+  // As-charged total, or zero when only normalized usage is available.
   originalCost: number;
-  // Priced usage lines from the llm:usage event.
+  // Normalized lines used for reporting and optional costs.yml re-pricing.
   lines: LLMUsageLine[];
 }
 

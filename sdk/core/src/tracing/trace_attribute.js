@@ -1,5 +1,3 @@
-import Decimal from 'decimal.js';
-
 /**
  * All attributes inherit from this
  */
@@ -37,36 +35,11 @@ class HTTPRequestCost extends BaseAttribute {
   }
 }
 
-class LLMUsage extends BaseAttribute {
-  static TYPE = 'llm:usage';
-  modelId;
-  usage = [];
-  total = 0;
-  tokensUsed = 0;
-
-  constructor( modelId ) {
-    super( LLMUsage.TYPE );
-    this.modelId = modelId;
-  }
-
-  addUsage( { type, ppm, amount } ) {
-    const total = Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber();
-    this.usage.push( {
-      type,
-      ppm,
-      amount,
-      total
-    } );
-    this.total = Decimal( this.total ).add( total ).toNumber();
-    this.tokensUsed = Decimal( this.tokensUsed ).add( amount ).toNumber();
-  }
-}
-
 /**
  * Types of ADD_ATTR attributes
  */
 export const Attribute = {
-  LLMUsage,
+  BaseAttribute,
   HTTPRequestCost,
   HTTPRequestCount
 };

@@ -38,7 +38,7 @@ const optionMocks = vi.hoisted( () => ( {
 const wrapMocks = vi.hoisted( () => ( {
   wrapGeneration: vi.fn(),
   wrapStream: vi.fn(),
-  streamHooks: { onFinishHook: vi.fn(), onErrorHook: vi.fn() }
+  streamHooks: { onEndHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
 
 const streamMocks = vi.hoisted( () => ( {
@@ -113,7 +113,7 @@ const model = { id: 'MODEL' };
 
 const textOptions = {
   model,
-  system: [ { role: 'system', content: 'You are concise.' } ],
+  instructions: [ { role: 'system', content: 'You are concise.' } ],
   messages: [ { role: 'user', content: 'Initial user message' } ],
   providerOptions: { test: true },
   temperature: 0.3
@@ -124,7 +124,7 @@ const assistantMessage = { role: 'assistant', content: 'response' };
 const aiResponse = {
   text: 'response',
   finishReason: 'stop',
-  response: { messages: [ assistantMessage ] }
+  responseMessages: [ assistantMessage ]
 };
 
 describe( 'Agent', () => {
@@ -145,7 +145,7 @@ describe( 'Agent', () => {
 
     wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
     wrapMocks.streamHooks = {
-      onFinishHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
+      onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
       onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
@@ -255,7 +255,7 @@ describe( 'Agent', () => {
     };
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,
-      system: [ systemMessage ],
+      instructions: [ systemMessage ],
       messages: [ { role: 'user', content: 'Hello' } ]
     } );
 
@@ -272,7 +272,7 @@ describe( 'Agent', () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,
-      system: [],
+      instructions: [],
       messages: [ { role: 'user', content: 'Hello' } ]
     } );
 
@@ -305,7 +305,7 @@ describe( 'Agent', () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
       model,
-      system: [ { role: 'system', content: 'You are concise.' } ],
+      instructions: [ { role: 'system', content: 'You are concise.' } ],
       messages: [
         { role: 'user', content: 'Initial user message' },
         { role: 'assistant', content: 'Authored assistant block' }
@@ -393,7 +393,7 @@ describe( 'Agent', () => {
     const response = { ...aiResponse };
     aiMocks.superStream.mockImplementationOnce( options => {
       options.onChunk( { chunk } );
-      options.onFinish( response );
+      options.onEnd( response );
       return stream;
     } );
     const { Agent } = await importSut();
@@ -426,7 +426,7 @@ describe( 'Agent', () => {
       onChunk,
       abortSignal,
       toolChoice: 'required',
-      onFinish: expect.any( Function ),
+      onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortSignal );
@@ -441,7 +441,7 @@ describe( 'Agent', () => {
   it( 'omits onChunk when generateWithStreaming does not receive it', async () => {
     const stream = { output: Promise.resolve( undefined ) };
     aiMocks.superStream.mockImplementationOnce( options => {
-      options.onFinish( { ...aiResponse } );
+      options.onEnd( { ...aiResponse } );
       return stream;
     } );
     const { Agent } = await importSut();
@@ -470,14 +470,14 @@ describe( 'Agent', () => {
     expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, abortController.signal );
   } );
 
-  it( 'streams with initial, stored, and caller messages and stores on finish', async () => {
+  it( 'streams with initial, stored, and caller messages and stores on end', async () => {
     const store = {
       getMessages: vi.fn( () => [
         { role: 'assistant', content: 'Stored reply' }
       ] ),
       addMessages: vi.fn()
     };
-    const onFinish = vi.fn();
+    const onEnd = vi.fn();
     const onError = vi.fn();
     const onChunk = vi.fn();
     const callerMessage = { role: 'user', content: 'New question' };
@@ -486,14 +486,14 @@ describe( 'Agent', () => {
 
     const result = await agent.stream( {
       messages: [ callerMessage ],
-      onFinish,
+      onEnd,
       onError,
       onChunk
     } );
 
     expect( validations.parseAgentStreamArgs ).toHaveBeenCalledWith( {
       messages: [ callerMessage ],
-      onFinish,
+      onEnd,
       onError,
       onChunk
     } );
@@ -510,40 +510,40 @@ describe( 'Agent', () => {
       ],
       allowSystemInMessages: true,
       onChunk,
-      onFinish: expect.any( Function ),
+      onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
-    await streamOptions.onFinish( aiResponse );
-    expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( aiResponse, expect.any( Function ) );
+    await streamOptions.onEnd( aiResponse );
+    expect( wrapMocks.streamHooks.onEndHook ).toHaveBeenCalledWith( aiResponse, expect.any( Function ) );
     expect( store.addMessages ).toHaveBeenCalledWith( [
       callerMessage,
       assistantMessage
     ] );
-    expect( onFinish ).toHaveBeenCalledWith( aiResponse );
+    expect( onEnd ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );
 
-  it( 'logs stream persistence failures and still completes onFinish', async () => {
+  it( 'logs stream persistence failures and still completes onEnd', async () => {
     const persistenceError = new Error( 'Store unavailable' );
     const store = {
       getMessages: vi.fn( () => [] ),
       addMessages: vi.fn().mockRejectedValue( persistenceError )
     };
-    const onFinish = vi.fn();
+    const onEnd = vi.fn();
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
-    const result = await agent.stream( { onFinish } );
+    const result = await agent.stream( { onEnd } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
 
-    await expect( streamOptions.onFinish( aiResponse ) ).resolves.toBeUndefined();
+    await expect( streamOptions.onEnd( aiResponse ) ).resolves.toBeUndefined();
 
     expect( loggerMocks.error ).toHaveBeenCalledWith(
       'Agent.stream message store persistence failed',
       { namespace: 'LLM', error: persistenceError.message }
     );
-    expect( onFinish ).toHaveBeenCalledWith( aiResponse );
+    expect( onEnd ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );
 
@@ -552,16 +552,16 @@ describe( 'Agent', () => {
       getMessages: vi.fn( () => [] ),
       addMessages: vi.fn()
     };
-    const onFinish = vi.fn();
+    const onEnd = vi.fn();
     const { Agent } = await importSut();
     const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
 
-    await agent.stream( { onFinish } );
+    await agent.stream( { onEnd } );
     const streamOptions = aiMocks.superStream.mock.calls[0][0];
-    await streamOptions.onFinish( { ...aiResponse, finishReason: 'error' } );
+    await streamOptions.onEnd( { ...aiResponse, finishReason: 'error' } );
 
     expect( store.addMessages ).not.toHaveBeenCalled();
-    expect( onFinish ).toHaveBeenCalledWith( { ...aiResponse, finishReason: 'error' } );
+    expect( onEnd ).toHaveBeenCalledWith( { ...aiResponse, finishReason: 'error' } );
   } );
 
   it( 'omits onChunk when stream does not receive it', async () => {

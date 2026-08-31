@@ -509,7 +509,7 @@ See `output-dev-skill-file` for the full skill creation guide.
 
 ## Using Prompts with Agent
 
-Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent extends AI SDK's `ToolLoopAgent` with Output prompt files and skills:
+Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent uses an internal AI SDK `ToolLoopAgent` through composition with Output prompt files and skills:
 
 ```typescript
 import { Agent, aiSdk } from '@outputai/llm';

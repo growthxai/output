@@ -15,6 +15,8 @@ docs/reference/
 # Per-workflow credentials keys
 **/src/workflows/*/credentials.key
 
+gcp-credentials.json
+
 # LLM Tools / Plugings / Systems
 plans/
 .kiro/

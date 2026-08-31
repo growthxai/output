@@ -1,10 +1,12 @@
 import { extractSources } from './sources.js';
-import { calculateLLMCallCost } from '../cost/index.js';
+import { parseLLMUsage } from './usage.js';
+import { calculateCosts } from './cost.js';
 import { calculateBase64FileSize } from './image.js';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
 import { Logger } from '@outputai/core';
+import { convertCostToLegacy } from './legacy_cost_attribute.js';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
 const createResponseProxy = ( { response, properties } ) => new Proxy( response, {
@@ -27,16 +29,27 @@ const handleError = ( { traceId, error: originalError } ) => {
   return error;
 };
 
-/** Extract usage, calculate the cost, emit an event and return cost/usage */
-const handleCost = async ( { traceId, response, prompt } ) => {
-  const { model: modelId, provider: providerId } = prompt.config;
-  const usage = response.totalUsage ?? response.usage; // eg: image has .usage only
-  const cost = await calculateLLMCallCost( { usage, modelId, providerId } );
-  if ( cost ) {
-    Tracing.addEventAttribute( { eventId: traceId, attribute: cost } );
-    Event.emit( 'cost:llm:request', cost );
+/** Normalize raw AI SDK usage, calculate cost, attach trace attributes, and emit metering events */
+const handleMetering = async ( { traceId, usage: sdkUsage, prompt } ) => {
+  const usageAttribute = parseLLMUsage( { usage: sdkUsage, prompt } );
+  if ( !usageAttribute ) {
+    return null;
   }
-  return { cost, usage };
+
+  const costAttribute = await calculateCosts( usageAttribute );
+  if ( costAttribute ) {
+    Tracing.addEventAttribute( { eventId: traceId, attribute: costAttribute } );
+    // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
+    const legacyPayload = convertCostToLegacy( costAttribute );
+    if ( legacyPayload ) {
+      Event.emit( 'cost:llm:request', structuredClone( legacyPayload ) );
+      Tracing.addEventAttribute( { eventId: traceId, attribute: legacyPayload } );
+    }
+  }
+
+  Tracing.addEventAttribute( { eventId: traceId, attribute: usageAttribute } );
+  Event.emit( 'llm:generation:metering', structuredClone( { cost: costAttribute, usage: usageAttribute } ) );
+  return costAttribute;
 };
 
 /**
@@ -45,7 +58,8 @@ const handleCost = async ( { traceId, response, prompt } ) => {
  * (and sources on text), end the trace, and return a proxied response.
  *
  * Text responses get `result` (`text`), `cost`, and merged `sources`. Image responses get
- * `result` (`image`) and `cost`. Trace usage is `response.totalUsage` if set, otherwise `response.usage`.
+ * `result` (`image`) and `cost`. Trace output keeps raw `response.usage`; normalized usage and
+ * cost are trace attributes.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
@@ -58,19 +72,21 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
 
   try {
     const response = await fn();
-    const { cost, usage } = await handleCost( { traceId, response, prompt } );
+    const { usage } = response;
+    const cost = await handleMetering( { traceId, usage, prompt } );
 
     if ( Array.isArray( response.images ) ) {
       const { image, images, providerMetadata } = response;
       const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
 
-      Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, cost, providerMetadata } } );
+      Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
       return createResponseProxy( { response, properties: { cost, result: image } } );
     } else {
-      const { text: result, providerMetadata } = response;
+      const { text: result, finalStep } = response;
+      const { providerMetadata } = finalStep;
       const sources = extractSources( response );
 
-      Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
+      Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
       return createResponseProxy( { response, properties: { cost, sources, result } } );
     }
 
@@ -82,8 +98,8 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
 /**
  * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
- * `fn` receives `onFinishHook(response, callback)` and `onErrorHook(event, callback)`. Call
- * `onFinishHook` from the SDK `onFinish`: it wraps the response, ends the trace, then invokes
+ * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)`. Call
+ * `onEndHook` from the SDK `onEnd`: it wraps the response, ends the trace, then invokes
  * `callback` without rethrowing. Call `onErrorHook` from SDK `onError`: it maps the error,
  * records it, and invokes `callback` without rethrowing. Callback failures are logged.
  *
@@ -93,21 +109,22 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
- * @param {(hooks: { onFinishHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
+ * @param {(hooks: { onEndHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
  *   Return the SDK stream, or a Promise of that stream (`Agent.stream`); wire the hooks into SDK
- *   `onFinish` / `onError`
+ *   `onEnd` / `onError`
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
 export const wrapStream = ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
-  const onFinishHook = async ( response, callback ) => {
+  const onEndHook = async ( response, callback ) => {
     const state = { proxyResponse: null };
     try {
-      const { text: result, providerMetadata } = response;
-      const { cost, usage } = await handleCost( { traceId, response, prompt } );
+      const { text: result, finalStep, usage } = response;
+      const { providerMetadata } = finalStep;
+      const cost = await handleMetering( { traceId, usage, prompt } );
       const sources = extractSources( response );
-      Tracing.addEventEnd( { id: traceId, details: { result, usage, cost, providerMetadata, sources } } );
+      Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
       state.proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
     } catch ( error ) {
       throw handleError( { traceId, error } );
@@ -117,7 +134,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
       await callback?.( state.proxyResponse );
     } catch ( callbackError ) {
       // ignore these as this callback is fire and forget
-      Logger.error( 'Stream onFinish() callback failed', {
+      Logger.error( 'Stream onEnd() callback failed', {
         namespace: 'LLM',
         error: callbackError instanceof Error ? callbackError.message : String( callbackError )
       } );
@@ -138,7 +155,7 @@ export const wrapStream = ( { name, prompt, fn } ) => {
   };
 
   try {
-    const stream = fn( { onFinishHook, onErrorHook } );
+    const stream = fn( { onEndHook, onErrorHook } );
     return isPromise( stream ) ? stream.catch( error => {
       throw handleError( { traceId, error } );
     } ) : stream;

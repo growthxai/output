@@ -15,7 +15,7 @@ export const searchWeb = step( {
       tools: {
         search: perplexitySearch()
       },
-      stopWhen: aiSdk.stepCountIs( 3 )
+      stopWhen: aiSdk.isStepCount( 3 )
     } );
 
     return {

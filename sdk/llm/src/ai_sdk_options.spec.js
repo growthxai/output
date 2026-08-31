@@ -16,7 +16,7 @@ vi.mock( './utils/tools.js', () => ( {
 } ) );
 
 vi.mock( 'ai', () => ( {
-  stepCountIs: count => ( { type: 'step-count', count } )
+  isStepCount: count => ( { type: 'step-count', count } )
 } ) );
 
 const importSut = async () => import( './ai_sdk_options.js' );
@@ -72,7 +72,7 @@ describe( 'ai_sdk_options', () => {
       return loadAiSdkTextOptions( { skills: [], ...args } );
     };
 
-    it( 'maps a loaded prompt to model, system, messages, and generation config', async () => {
+    it( 'maps a loaded prompt to model, instructions, messages, and generation config', async () => {
       const prompt = makeTextPrompt( {
         temperature: 0.3,
         maxOutputTokens: 1000,
@@ -87,7 +87,7 @@ describe( 'ai_sdk_options', () => {
         allowSystemInMessages: true,
         maxRetries: 0,
         model: 'MODEL',
-        system: [ { role: 'system', content: 'You are concise.' } ],
+        instructions: [ { role: 'system', content: 'You are concise.' } ],
         messages: [ { role: 'user', content: 'Hello' } ],
         providerOptions: prompt.config.providerOptions,
         temperature: 0.3,
@@ -146,7 +146,7 @@ describe( 'ai_sdk_options', () => {
 
       const result = await loadText( { prompt } );
 
-      expect( result.system ).toEqual( [ {
+      expect( result.instructions ).toEqual( [ {
         role: 'system',
         content: 'Static',
         providerOptions
@@ -154,7 +154,7 @@ describe( 'ai_sdk_options', () => {
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
     } );
 
-    it( 'returns an empty system array when the prompt has no system block', async () => {
+    it( 'returns an empty instructions array when the prompt has no system block', async () => {
       const prompt = {
         name: 'no-system@v1',
         config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
@@ -164,11 +164,11 @@ describe( 'ai_sdk_options', () => {
 
       const result = await loadText( { prompt } );
 
-      expect( result.system ).toEqual( [] );
+      expect( result.instructions ).toEqual( [] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
     } );
 
-    it( 'groups multiple system blocks into system and keeps them out of messages', async () => {
+    it( 'groups multiple system blocks into instructions and keeps them out of messages', async () => {
       const prompt = {
         name: 'multi-system@v1',
         config: { provider: 'anthropic', model: 'claude-haiku-4-5' },
@@ -182,7 +182,7 @@ describe( 'ai_sdk_options', () => {
 
       const result = await loadText( { prompt } );
 
-      expect( result.system ).toEqual( [
+      expect( result.instructions ).toEqual( [
         { role: 'system', content: 'First' },
         { role: 'system', content: 'Second' }
       ] );
@@ -235,7 +235,7 @@ describe( 'ai_sdk_options', () => {
       } );
 
       expect( buildLoadSkillToolImpl ).toHaveBeenCalledWith( [ writerSkill ] );
-      expect( result.system ).toEqual( [
+      expect( result.instructions ).toEqual( [
         { role: 'system', content: `You are concise.\n\n${skillsCatalog}`, providerOptions }
       ] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
@@ -255,7 +255,7 @@ describe( 'ai_sdk_options', () => {
 
       const result = await loadText( { prompt, skills: [ writerSkill ] } );
 
-      expect( result.system ).toEqual( [ { role: 'system', content: skillsCatalog } ] );
+      expect( result.instructions ).toEqual( [ { role: 'system', content: skillsCatalog } ] );
       expect( result.messages ).toEqual( [ { role: 'user', content: 'Hello' } ] );
     } );
 

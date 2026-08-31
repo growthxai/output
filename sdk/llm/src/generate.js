@@ -19,17 +19,17 @@ export const generateText = async args => {
 };
 
 export const streamText = args => {
-  const { promptFile, promptObject, variables, promptDir, onFinish, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
+  const { promptFile, promptObject, variables, promptDir, onEnd, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
   return wrapStream( {
     name: 'streamText',
     prompt,
-    fn: ( { onFinishHook, onErrorHook } ) => AI.streamText( {
+    fn: ( { onEndHook, onErrorHook } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
-      onFinish: response => onFinishHook( response, onFinish ),
+      onEnd: response => onEndHook( response, onEnd ),
       onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
     } )
   } );
@@ -51,7 +51,7 @@ export const generateTextWithStreaming = async args => {
       const stream = AI.streamText( {
         ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
         ...( onChunk && { onChunk } ),
-        onFinish: res => {
+        onEnd: res => {
           state.response = res;
         },
         onError: _ => {} // Suppress AI-SDK console printing

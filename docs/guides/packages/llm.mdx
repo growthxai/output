@@ -3,7 +3,7 @@ title: "@outputai/llm"
 description: "Generate and stream text, structured outputs, and images with prompt file management"
 ---
 
-The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) - version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. Call arguments are the lists under [Call arguments](#call-arguments). AI SDK helpers and types (`Output`, `tool`, `stepCountIs`, `ToolSet`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
+The `@outputai/llm` package is how you call LLMs from your steps and evaluators. It wraps the [AI SDK](https://sdk.vercel.ai/docs) and adds [prompt files](/prompts) - version-controlled `.prompt` files that live alongside your code and define the provider, model, temperature, and prompt template in one place. Call arguments are the lists under [Call arguments](#call-arguments). AI SDK helpers and types (`Output`, `tool`, `isStepCount`, `ToolSet`) are on the `aiSdk` namespace: `import { generateText, aiSdk } from '@outputai/llm'`.
 
 ## Generate Functions
 
@@ -13,7 +13,7 @@ The `@outputai/llm` package is how you call LLMs from your steps and evaluators.
 |--------------|-----|-------------------|
 | Unstructured text | `generateText({ prompt })` | Summaries, emails, explanations |
 | Complete text with streaming callbacks | `generateTextWithStreaming({ prompt, onChunk })` | Progress updates with normal promise-based error handling |
-| Raw text stream | `streamText({ prompt })` | Direct access to `textStream`, `fullStream`, and stream promises |
+| Raw text stream | `streamText({ prompt })` | Direct access to `textStream`, `stream`, and stream promises |
 | Typed object | `generateText({ prompt, output: aiSdk.Output.object({ schema }) })` | Structured data, evaluator judgments |
 | Array of objects | `generateText({ prompt, output: aiSdk.Output.array({ element }) })` | Lists, multiple items |
 | One of N choices | `generateText({ prompt, output: aiSdk.Output.choice({ options }) })` | Classification, routing |
@@ -104,7 +104,7 @@ export const generateContent = step({
 
 #### Direct stream access
 
-`streamText` remains available when you need to choose how the stream is consumed. It is not `async`: it returns a stream result synchronously, with `textStream` and `fullStream` iterables plus promise-based properties such as `text`, `usage`, and `finishReason`.
+`streamText` remains available when you need to choose how the stream is consumed. It is not `async`: it returns a stream result synchronously, with `textStream` and `stream` iterables plus promise-based properties such as `text`, `usage`, and `finishReason`. `fullStream` remains available as a deprecated alias for `stream`.
 
 AI SDK streaming reports provider and transport failures through `onError`; consuming `textStream` does not reliably throw that original error. In a workflow step, capture the mapped error and throw it after consumption so Temporal records a failed activity instead of an empty successful result:
 
@@ -318,7 +318,7 @@ const { output } = await generateText({
 
 ## Agents
 
-The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompts](/prompts) and the [skills](/prompts/skills) system. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance with a fixed configuration. For single-shot LLM calls without tools, `generateText` is simpler.
+The `Agent` class uses an internal AI SDK `ToolLoopAgent` through composition with Output [prompts](/prompts) and the [skills](/prompts/skills) system. It does not inherit from `ToolLoopAgent`. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance with a fixed configuration. For single-shot LLM calls without tools, `generateText` is simpler.
 
 ### Construction
 
@@ -402,7 +402,7 @@ Like `generate()`, the method returns the complete response, rejects on stream e
 
 ### stream()
 
-Use `stream()` when you need direct access to the agent's stream result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onFinish`, and `onError`:
+Use `stream()` when you need direct access to the agent's stream result. It accepts the same `messages`, `abortSignal`, and `toolChoice` as `generate()`, plus `onChunk`, `onEnd`, and `onError`:
 
 ```typescript
 const captured: { error: unknown } = { error: null };
@@ -421,7 +421,7 @@ if (captured.error) {
 }
 ```
 
-Like `streamText`, the stream result provides `textStream` and `fullStream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion. In a workflow step, capture and rethrow `onError` as shown so a failed stream cannot become an empty successful activity.
+Like `streamText`, the stream result provides `textStream` and `stream` iterables, plus promise-based properties (`text`, `usage`, `finishReason`) that resolve on completion. In a workflow step, capture and rethrow `onError` as shown so a failed stream cannot become an empty successful activity.
 
 ### Structured Output
 
@@ -494,7 +494,7 @@ interface MessageStore {
 `ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 <Note>
-`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store. `stream()` stores in its wrapped `onFinish` when `finishReason` is not `'error'`.
+`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store. `stream()` stores in its wrapped `onEnd` when `finishReason` is not `'error'`.
 </Note>
 
 ### When to Use Agent vs generateText
@@ -519,45 +519,52 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `result` | Convenience alias for `text` |
 | `text` | The raw generated text |
 | `output` | The structured output when using `aiSdk.Output.*` helpers |
-| `usage` | Token counts: `inputTokens`, `outputTokens`, `totalTokens` |
+| `usage` | Token counts: `inputTokens`, `outputTokens`, `totalTokens`, plus `inputTokenDetails` and `outputTokenDetails` |
 | `finishReason` | Why generation stopped (`'stop'`, `'length'`, `'tool-calls'`, etc.) |
 | `response` | Raw provider response metadata |
+| `responseMessages` | Accumulated assistant and tool messages from every step |
+| `finalStep` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | LLM usage attribute (`type`, `modelId`, `usage`, `total`, `tokensUsed`); `null` when pricing could not be computed |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` only when the pricing catalog cannot be loaded |
 
-The `cost` property is an LLM usage attribute:
+The `cost` property is an `LLMGenerationCost`:
 
 ```json
 {
-  "type": "llm:usage",
+  "type": "llm:generation:cost",
+  "providerId": "openai",
   "modelId": "gpt-4o",
-  "usage": [
-    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
-    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
-  ],
+  "status": "precise",
+  "input": 0.001085,
+  "output": 0.000135,
   "total": 0.00122,
-  "tokensUsed": 226
+  "items": [
+    { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
+    { "group": "output", "label": "text", "amount": 9, "ppm": 15, "total": 0.000135, "status": "ok" }
+  ]
 }
 ```
 
-Only available, finite usage dimensions are included in `usage`. For example, `reasoning` is omitted when the model does not define separate reasoning pricing.
+Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Missing prices produce `null` item costs and an `incomplete` aggregate status.
 
-**Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `fullStream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
+**Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `stream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `textStream` | `AsyncIterable<string>` | Async iterable of text chunks |
-| `fullStream` | `AsyncIterable<TextStreamPart>` | Async iterable of all stream events (text deltas, tool calls, etc.) |
+| `stream` | `AsyncIterable<TextStreamPart>` | Async iterable of all stream events (text deltas, tool calls, etc.) |
 | `text` | `Promise<string>` | Full text, resolved on completion |
 | `usage` | `Promise<LanguageModelUsage>` | Token counts, resolved on completion |
 | `finishReason` | `Promise<FinishReason>` | Why generation stopped, resolved on completion |
 | `toolCalls` | `Promise` | Tool calls made during streaming, resolved on completion |
 | `response` | `Promise` | Raw provider response metadata |
+| `responseMessages` | `Promise<ModelMessage[]>` | Accumulated assistant and tool messages from every step |
+| `finalStep` | `Promise<StepResult>` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
 
-`streamText` / `Agent.stream()` `onFinish` receives the wrapped finish payload: `result` (alias for `text`), `cost` (`null` when pricing is missing), and merged `sources` (always an array).
+`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing, or `null` when the pricing catalog cannot be loaded), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -610,16 +617,16 @@ Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known 
 
 ## Providers
 
-`@outputai/llm` ships built-in support for common AI SDK providers. The provider packages are peer dependencies with supported version ranges:
+`@outputai/llm` requires `ai >=7 <8` and ships built-in support for common AI SDK providers. The provider packages are peer dependencies with supported version ranges:
 
 | Prompt `provider` | Peer dependency | Supported range |
 |-------------------|-----------------|-----------------|
-| `anthropic` | `@ai-sdk/anthropic` | `>=3 <4` |
-| `openai` | `@ai-sdk/openai` | `>=3 <4` |
-| `azure` | `@ai-sdk/azure` | `>=3 <4` |
-| `amazon-bedrock` | `@ai-sdk/amazon-bedrock` | `>=4 <5` |
-| `google-vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
-| `perplexity` | `@ai-sdk/perplexity` | `>=3 <4` |
+| `anthropic` | `@ai-sdk/anthropic` | `>=4 <5` |
+| `openai` | `@ai-sdk/openai` | `>=4 <5` |
+| `azure` | `@ai-sdk/azure` | `>=4 <5` |
+| `amazon-bedrock` | `@ai-sdk/amazon-bedrock` | `>=5 <6` |
+| `google-vertex` | `@ai-sdk/google-vertex` | `>=5 <6` |
+| `perplexity` | `@ai-sdk/perplexity` | `>=4 <5` |
 
 Legacy aliases `bedrock` -> `amazon-bedrock` and `vertex` -> `google-vertex` are deprecated but still work; prompt parsing normalizes them to their canonical names and logs a deprecation warning.
 
@@ -719,7 +726,7 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is `null` and a missing-cost warning is logged - register under a models.dev provider id if you need automatic pricing.
+LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
 
 ## Prompt Caching
 
@@ -783,7 +790,7 @@ Enrich {{ company }}.
 
 ### Confirming a cache hit
 
-Cache activity appears in the response usage and the [cost event](/costs/cost-events): the first call reports cache-creation tokens, and later calls within the TTL report cache-read tokens (`cachedInputTokens`), already priced at the cheaper rate in `response.cost`.
+Cache activity appears in the response usage and the [metering event](/costs/cost-events): the first call reports cache creation in `usage.inputTokenDetails.cacheWriteTokens`, and later calls within the TTL report cache reads in `usage.inputTokenDetails.cacheReadTokens`. The corresponding normalized cost items use `group: "input"` with `label: "cache_write"` or `label: "cache_read"`.
 
 <Note>
 Anthropic caches only prefixes above a model-specific minimum - around 1,024 tokens for most Sonnet and Opus models, higher for some. Shorter prefixes are silently not cached, with no error. A request supports at most four cache breakpoints.
@@ -857,10 +864,10 @@ const { result, toolCalls } = await generateText({
 | `stopWhen` | optional | optional | optional |
 | `abortSignal` | optional | optional | optional |
 | `onChunk` | - | optional | optional |
-| `onFinish` | - | - | optional |
+| `onEnd` | - | - | optional |
 | `onError` | - | - | optional |
 
-`toolChoice`, `stopWhen`, and prompt `maxSteps` apply only when tools exist. With tools, an explicit `stopWhen` takes precedence; otherwise Output uses `aiSdk.stepCountIs(maxSteps)` from the prompt (default 10).
+`toolChoice`, `stopWhen`, and prompt `maxSteps` apply only when tools exist. With tools, an explicit `stopWhen` takes precedence; otherwise Output uses `aiSdk.isStepCount(maxSteps)` from the prompt (default 10).
 
 ### generateImage
 
@@ -890,7 +897,7 @@ Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStre
 | `abortSignal` | - | optional | optional | optional |
 | `toolChoice` | - | optional | optional | optional |
 | `onChunk` | - | - | optional | optional |
-| `onFinish` | - | - | - | optional |
+| `onEnd` | - | - | - | optional |
 | `onError` | - | - | - | optional |
 
 ## Retries and Network Timeouts
@@ -901,9 +908,60 @@ Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usua
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
-## LLM call cost event
+## LLM metering events
 
-Each completed text generation call emits a `cost:llm:request` event after the LLM responds and cost can be computed. For direct streams, the event is emitted when the stream finishes. You can observe it with the same [hooks mechanism](/packages/core#error-hooks) as error hooks: register a handler with `on('cost:llm:request', handler)` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`. The handler receives an event envelope whose `payload` field is the same LLM usage attribute exposed on `response.cost`. For payload details, see [Cost Events](/costs/cost-events).
+For direct streams, metering events fire when the stream finishes. Observe them with the [hooks mechanism](/packages/core#error-hooks) by registering handlers with `on()` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`.
+
+### Normalized generation metering
+
+`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMGenerationUsage` and `cost: LLMGenerationCost | null`. Missing model or dimension prices produce an incomplete `LLMGenerationCost`; `cost` itself is `null` when the pricing catalog could not be loaded.
+
+```typescript
+import { on } from '@outputai/core/hooks';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+
+on<LLMGenerationMeteringEvent>('llm:generation:metering', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log(event.payload.usage.total, event.payload.cost?.total);
+});
+```
+
+### Legacy LLM request cost
+
+`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload, so existing hooks do not need a structural migration. The same payload remains attached to priced LLM traces as the deprecated `attributes["llm:usage"]` attribute, preserving existing trace readers.
+
+```typescript
+import { on } from '@outputai/core/hooks';
+import type { LLMUsageEvent } from '@outputai/llm';
+
+on<LLMUsageEvent>('cost:llm:request', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log(event.payload.modelId, event.payload.total, event.payload.usage);
+});
+```
+
+```json
+{
+  "type": "llm:usage",
+  "modelId": "gpt-4o",
+  "usage": [
+    { "type": "input", "ppm": 5, "amount": 217, "total": 0.001085 },
+    { "type": "output", "ppm": 15, "amount": 9, "total": 0.000135 }
+  ],
+  "total": 0.00122,
+  "tokensUsed": 226
+}
+```
+
+Legacy usage line types are frozen as `input`, `input_cached`, `output`, and `reasoning`. The event and trace attribute keep this payload shape for compatibility, while corrected reasoning accounting or AI SDK 7 usage details can change individual values. `LLMUsageEvent` is deprecated only to guide new integrations toward the more complete event and normalized trace attributes.
+
+See [Cost Events](/costs/cost-events) for the complete normalized usage/cost schemas and HTTP cost events.
 
 ## loadPrompt
 

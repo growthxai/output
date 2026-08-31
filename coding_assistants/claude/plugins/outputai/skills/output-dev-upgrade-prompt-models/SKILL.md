@@ -103,7 +103,7 @@ The Output SDK doesn't validate prompt model IDs at build time — invalid IDs o
 - **Within-family only.** This skill never upgrades Sonnet → Opus, never swaps Anthropic for OpenAI. To change tier or provider, edit prompts manually or use [`output-dev-prompt-file`](../output-dev-prompt-file/SKILL.md).
 - **Dated snapshots get bumped.** A pin like `claude-sonnet-4-20250514` becomes the unversioned alias `claude-sonnet-4-6`. If the pin was load-bearing for reproducibility, surface that and skip the file.
 - **`@vertex` and `bedrock` namespace suffixes.** Models like `claude-sonnet-4-20250514@vertex` or `anthropic.claude-sonnet-4-20250514-v1:0` need manual upgrade. The AI Gateway listing covers direct provider IDs only.
-- **Models.dev pricing lag.** Even after the upgrade, `calculateLLMCallCost` may return `total: null` for the brand-new model until [models.dev](https://models.dev) catches up. The runtime call still works.
+- **Models.dev pricing lag.** Even after the upgrade, `response.cost` may be incomplete with `total: null` for the brand-new model until [models.dev](https://models.dev) catches up. The runtime call still works.
 
 ## See also
 

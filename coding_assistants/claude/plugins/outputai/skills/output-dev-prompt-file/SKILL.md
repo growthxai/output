@@ -128,7 +128,7 @@ Allowed top-level keys: `provider`, `model`, `temperature`, `maxOutputTokens`, d
 
 Use `maxOutputTokens` for new prompts. Deprecated `maxTokens` remains on the loaded config and populates `maxOutputTokens` when the canonical key is absent; when both are set, `maxOutputTokens` takes precedence.
 
-Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onFinish` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
+Call arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal` on `generateText` (plus `onChunk` on `generateTextWithStreaming`; plus `onChunk` / `onEnd` / `onError` on `streamText`). `generateImage`: `prompt`, `promptDir`, `variables`, `images`, `mask`, `abortSignal`.
 
 ### Common Provider Configurations
 

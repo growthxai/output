@@ -1,9 +1,118 @@
 ---
 title: "v0.11.0 → v0.12.0"
-description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
+description: "Upgrading Output.ai projects from v0.11.0 to v0.12.0: AI SDK 7, LLM call signatures, loaded prompt shape, aiSdk re-exports, and prompt-only skills in @outputai/llm."
 ---
 
-This guide covers breaking changes in `@outputai/llm`. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start and `cost` / merged `sources` on end.
+This guide covers breaking changes in `@outputai/llm`. The package now uses AI SDK 7 and its matching provider majors. Generation APIs drop native AI SDK call arguments. Skills load only from prompt frontmatter. Call-argument tools merge with prompt YAML tools. Prompt file `config` is a strict key list. Loaded messages carry resolved `providerOptions` instead of tag `attributes`. LLM traces use a single loaded `prompt` on start, keep raw usage and merged sources on end, and store normalized usage and cost as attributes.
+
+## Upgrade AI SDK and provider packages
+
+`@outputai/llm` v0.12 requires these dependency majors:
+
+- `ai`: 7.x
+- `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/azure`, and `@ai-sdk/perplexity`: 4.x
+- `@ai-sdk/amazon-bedrock` and `@ai-sdk/google-vertex`: 5.x
+
+Update only the provider packages your application installs. The complete upstream changes are in the [AI SDK 7 migration guide](https://ai-sdk.dev/docs/migration-guides/migration-guide-7-0).
+
+The separate `@perplexity-ai/ai-sdk` search-tool package is not the official `@ai-sdk/perplexity` provider. Its latest release, `0.1.3`, declares support for AI SDK 5 and 6 only. Projects using `perplexitySearch()` should replace it or verify its behavior with AI SDK 7 before upgrading; package managers may report an unmet peer dependency.
+
+### Rename stream callbacks and properties
+
+`streamText()` and `Agent.stream()` now use `onEnd` instead of `onFinish`:
+
+```ts
+// Before
+await streamText( {
+  prompt: 'writer@v1',
+  onFinish( event ) {
+    console.log( event.result );
+  }
+} );
+
+// After
+await streamText( {
+  prompt: 'writer@v1',
+  onEnd( event ) {
+    console.log( event.result );
+  }
+} );
+```
+
+Rename the corresponding exported types:
+
+- `WrappedStreamTextOnFinishEvent` -> `WrappedStreamTextOnEndEvent`
+- `WrappedStreamTextOnFinishCallback` -> `WrappedStreamTextOnEndCallback`
+
+The wrapped event continues to include `result`, `cost`, and merged `sources`.
+
+AI SDK 7 also renamed the full event stream:
+
+```ts
+// Before
+for await ( const part of result.fullStream ) {
+  // ...
+}
+
+// After
+for await ( const part of result.stream ) {
+  // ...
+}
+```
+
+`fullStream` remains available as a deprecated alias, but migrate to `stream`.
+
+`textStream` is unchanged. Direct AI SDK `onStepFinish` usage becomes `onStepEnd`.
+
+`onChunk` now receives every AI SDK 7 stream part, including start, finish, error, step boundaries, text boundaries, and reasoning boundaries. Update exhaustive handlers to ignore part types they do not use.
+
+### Review native AI SDK response usage
+
+Output returns proxied AI SDK 7 results. If your application reads native response fields beyond Output's `result`, `cost`, and merged `sources`, follow the official AI SDK 7 migration guide linked above instead of treating this guide as a replacement for it.
+
+Output's merged `sources` now includes native sources accumulated across every AI SDK step as well as URLs extracted from tools.
+
+### Normalized usage and cost metadata
+
+Cost calculation uses AI SDK 7's detailed token counts when they reconcile with the aggregate input or output count. Incomplete breakdowns use the aggregate count. Missing cache pricing uses the regular input price, and missing reasoning pricing uses the regular output price.
+
+Traces now store separate `llm:generation:usage` and `llm:generation:cost` attributes. Both include `providerId`, `modelId`, nullable aggregate `input`, `output`, and `total` fields, plus detailed `items`. Priced calls also retain the deprecated `llm:usage` attribute for existing trace consumers.
+
+Usage items have an `amount`, a `group` (`input` or `output`), and one of these labels:
+
+- Input: `no_cache`, `cache_read`, or `cache_write`
+- Output: `text` or `reasoning`
+
+When detailed counts do not reconcile with an aggregate count, that group uses `label: null`. `LLMGenerationUsage.status` is `complete` when both input and output usage are available; otherwise it is `incomplete`.
+
+Cost items repeat the usage identity and amount, then add `ppm`, item `total`, and a status:
+
+- `ok`: the matching price was available.
+- `fallback`: cache or reasoning usage used the regular input or output price.
+- `missing`: no applicable price was available; `ppm` and item `total` are `null`.
+
+`LLMGenerationCost.status` is `precise`, `imprecise`, or `incomplete` based on those item statuses and usage completeness. Missing model or dimension pricing therefore produces a non-null, incomplete `LLMGenerationCost` whose `total` may be `null`. The complete cost object is `null` only when the pricing catalog itself could not be loaded.
+
+The new `llm:generation:metering` event is emitted whenever raw AI SDK usage can be normalized. Its payload is `{ usage: LLMGenerationUsage, cost: LLMGenerationCost | null }`. Prefer it for new integrations because it preserves reported usage independently from pricing and records fallback and missing prices explicitly.
+
+The existing `cost:llm:request` event remains supported with its legacy payload shape, so existing handlers do not need a structural migration for v0.12. Its deprecated `LLMUsageEvent` retains the `input`, `input_cached`, `output`, and `reasoning` line types. Values can differ where AI SDK 7 reports a different breakdown or where v0.12 corrects legacy reasoning double-counting.
+
+Raw AI SDK usage remains available on the response and trace output.
+
+### Update Agent assumptions
+
+`Agent` no longer inherits from AI SDK's `ToolLoopAgent`. Its Output APIs retain their existing behavior, but code must not depend on `Agent instanceof ToolLoopAgent` or other inherited `ToolLoopAgent` members.
+
+The intended `MessageStore` conversation behavior is unchanged. Output reads AI SDK 7's accumulated `responseMessages` so intermediate tool-call and tool-result messages continue to be persisted once.
+
+Custom stores must preserve all AI SDK 7 `ModelMessage` content parts. File data may require binary-safe serialization, and assistant content can contain the new `reasoning-file` part.
+
+### Review provider behavior
+
+- OpenAI reasoning requests now return detailed reasoning summaries by default when reasoning is enabled. Set `providerOptions.openai.reasoningSummary` to `null` in prompt frontmatter to disable them.
+- Function-valued tool descriptions are now accepted in addition to string descriptions.
+
+Call-level `toolApproval`, `runtimeContext`, and `toolsContext` are not exposed by the v0.12 Output wrapper. AI SDK 7's deprecated tool-level `needsApproval` field remains accepted.
 
 ## Skills load only from the prompt file
 
@@ -235,7 +344,7 @@ Prompt files no longer accept authored `<tool>` blocks. Their string content nev
 
 Start-trace `input` on `generateText`, `streamText`, `generateTextWithStreaming`, `generateImage`, and `Agent` (`generate`, `generateWithStreaming`, `stream`) is the loaded prompt object only. Filename, interpolation values, and rendered config live on that object. Agent traces use the same shape as the text APIs (v0.11 recorded only the filename as `prompt`).
 
-End-trace `output` adds `cost` (the same payload as the cost attribute / `cost:llm:request` event; `null` when pricing is missing) and replaces tool-only `sourcesFromTools` with merged `sources` (tool results plus native provider sources; always an array).
+End-trace `output` keeps the raw AI SDK `usage` and replaces tool-only `sourcesFromTools` with merged `sources` (tool results plus native provider sources; always an array). Normalized usage and cost are stored as trace attributes.
 
 ### Start (`input`)
 
@@ -278,7 +387,6 @@ If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `
 | v0.11.0 | v0.12.0 |
 | --- | --- |
 | `result`, `usage`, `providerMetadata` | same |
-| (cost only as a trace attribute) | `cost` on `output` as well (`null` if unknown) |
 | `sourcesFromTools` | `sources` (merged tool + provider sources) |
 
 #### Before
@@ -298,15 +406,61 @@ If you read `input.prompt` as a filename, use `input.prompt.name`. If you read `
 {
   "result": "Acme Corp is a B2B SaaS company...",
   "usage": { "inputTokens": 38, "outputTokens": 204, "totalTokens": 242 },
-  "cost": { "type": "llm:usage", "modelId": "claude-sonnet-4-6", "total": 0.01 },
   "providerMetadata": { "anthropic": {} },
   "sources": []
 }
 ```
 
-If you read `output.sourcesFromTools`, switch to `output.sources`. If you relied on cost only as a trace attribute, it is also on `output.cost`.
+If you read `output.sourcesFromTools`, switch to `output.sources`.
 
-### Response source and cost types
+### Attributes
+
+The raw AI SDK `output.usage` shape remains on the trace output. Normalized usage and cost live under the LLM node's `attributes` object:
+
+```json
+{
+  "llm:generation:usage": {
+    "type": "llm:generation:usage",
+    "providerId": "anthropic",
+    "modelId": "claude-sonnet-4-6",
+    "status": "complete",
+    "input": 38,
+    "output": 204,
+    "total": 242,
+    "items": [
+      { "group": "input", "label": null, "amount": 38 },
+      { "group": "output", "label": null, "amount": 204 }
+    ]
+  },
+  "llm:generation:cost": {
+    "type": "llm:generation:cost",
+    "providerId": "anthropic",
+    "modelId": "claude-sonnet-4-6",
+    "status": "precise",
+    "input": 0.000114,
+    "output": 0.00306,
+    "total": 0.003174,
+    "items": [
+      { "group": "input", "label": null, "amount": 38, "ppm": 3, "total": 0.000114, "status": "ok" },
+      { "group": "output", "label": null, "amount": 204, "ppm": 15, "total": 0.00306, "status": "ok" }
+    ]
+  },
+  "llm:usage": {
+    "type": "llm:usage",
+    "modelId": "claude-sonnet-4-6",
+    "usage": [
+      { "type": "input", "ppm": 3, "amount": 38, "total": 0.000114 },
+      { "type": "output", "ppm": 15, "amount": 204, "total": 0.00306 }
+    ],
+    "total": 0.003174,
+    "tokensUsed": 242
+  }
+}
+```
+
+The legacy `attributes["llm:usage"]` payload remains available for compatibility, so existing trace readers do not need an immediate migration. New integrations should use `attributes["llm:generation:usage"]` and `attributes["llm:generation:cost"]`; these preserve normalized usage independently from pricing and represent detailed dimensions explicitly. The CLI accepts all three keys and prefers the normalized attributes.
+
+### Response source, cost, and metering types
 
 `ExtractedSource` now matches the AI SDK source union. A source can be a URL or a document, so narrow on `sourceType` before reading `url`:
 
@@ -320,15 +474,44 @@ const urls = response.sources
   .map(source => source.url);
 ```
 
-`LLMCallCost` and `LLMUsageEvent` now represent a live `Tracing.Attribute.LLMUsage` instance. The old `components` and `message` fields are gone; read the priced dimensions from `usage`. A missing calculation is represented by `response.cost === null`, not an object with `total: null`.
+`response.cost` and direct-stream `onEnd` cost now use `LLMGenerationCost | null`. The old `LLMCallCost` type is removed.
 
-If you type a serialized event, omit the instance method that is not present in JSON:
+`@outputai/core` no longer exports the LLM-specific `Attribute.LLMUsage` class or `Attribute.Usage` interface. Core now exposes only the generic `Attribute.BaseAttribute` for package-owned trace attributes. Import `LLMGenerationUsage`, `LLMGenerationCost`, and the deprecated legacy `LLMUsageEvent` type from `@outputai/llm`.
+
+In v0.11, `response.cost` used the legacy `llm:usage` shape with priced lines under `usage`. In v0.12, read aggregate costs directly and detailed dimensions from `items`:
 
 ```ts
-import type { LLMUsageEvent } from '@outputai/llm';
+// Before
+const cachedInputCost = response.cost?.usage
+  .find(item => item.type === 'input_cached')
+  ?.total;
 
-type SerializedLLMUsageEvent = Omit<LLMUsageEvent, 'addUsage'>;
+// After
+const cachedInputCost = response.cost?.items
+  .find(item => item.group === 'input' && item.label === 'cache_read')
+  ?.total;
 ```
+
+The new object has `type: "llm:generation:cost"`, `providerId`, `modelId`, nullable `input`, `output`, and `total`, a calculation `status`, and one cost item for each normalized usage item.
+
+Do not use only `response.cost === null` to detect unavailable totals. Missing model or dimension pricing returns an incomplete `LLMGenerationCost`; check `response.cost?.total == null` or inspect its status and item statuses. `response.cost` itself is `null` when the pricing catalog could not be loaded.
+
+`LLMUsageEvent` remains exported from `@outputai/llm` for `cost:llm:request`. Its legacy payload shape remains compatible, but the type is deprecated to guide new integrations toward the more complete metering event.
+
+```ts
+import { on } from '@outputai/core/hooks';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+
+on<LLMGenerationMeteringEvent>('llm:generation:metering', event => {
+  if (!event.payload) {
+    return;
+  }
+
+  console.log(event.payload.usage.total, event.payload.cost?.total);
+});
+```
+
+Use `llm:generation:metering` for new integrations when you need normalized usage and cost data. It fires when usage can be normalized; `event.payload.cost` may be `null` or incomplete. Existing `cost:llm:request` handlers can remain until you choose to adopt the more detailed format.
 
 ## AI SDK helpers come from `aiSdk`
 
@@ -355,7 +538,7 @@ import { generateText, aiSdk } from '@outputai/llm';
 await generateText( {
   prompt: 'writer@v1',
   output: aiSdk.Output.object( { schema } ),
-  stopWhen: aiSdk.stepCountIs( 1 ),
+  stopWhen: aiSdk.isStepCount( 1 ),
   tools: { lookup: aiSdk.tool( { description: 'Lookup', inputSchema: schema, execute } ) }
 } );
 ```
@@ -409,7 +592,7 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `stopWhen` | optional | optional | optional | - |
 | `abortSignal` | optional | optional | optional | optional |
 | `onChunk` | - | optional | optional | - |
-| `onFinish` | - | - | optional | - |
+| `onEnd` | - | - | optional | - |
 | `onError` | - | - | optional | - |
 | `images` | - | - | - | optional |
 | `mask` | - | - | - | optional |
@@ -427,10 +610,10 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `abortSignal` | - | optional | optional | optional |
 | `toolChoice` | - | optional | optional | optional |
 | `onChunk` | - | - | optional | optional |
-| `onFinish` | - | - | - | optional |
+| `onEnd` | - | - | - | optional |
 | `onError` | - | - | - | optional |
 
-`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onFinish` when `finishReason` is not `'error'`.
+`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onEnd` when `finishReason` is not `'error'`.
 
 `streamText()` and `Agent.stream()` now treat `onError` as a fire-and-forget observer. Output maps and forwards the provider error, but exceptions and rejected promises from the callback are ignored. To fail a workflow step with the original error, capture it in `onError` and throw it after consuming the stream.
 
@@ -502,7 +685,7 @@ maxSteps: 5
 await generateText( { prompt: 'writer@v1' } );
 ```
 
-Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: stepCountIs(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
+Any merged tools, including prompt-only Vertex `googleSearch` / `urlContext`, now get `stopWhen: isStepCount(maxSteps)` from that prompt value. Previously the ceiling applied only when call-argument tools or `load_skill` were present; YAML-only grounding stayed at the AI SDK default of one step.
 
 If you need the old one-step grounding behavior, set `maxSteps: 1` on the prompt, or pass `stopWhen` on the call:
 
@@ -511,7 +694,7 @@ import { generateText, aiSdk } from '@outputai/llm';
 
 await generateText( {
   prompt: 'grounded@v1',
-  stopWhen: aiSdk.stepCountIs( 1 )
+  stopWhen: aiSdk.isStepCount( 1 )
 } );
 ```
 
@@ -568,7 +751,16 @@ providerOptions:
 - Add `skills: ./skills` (or explicit file paths) to prompts that relied on colocated auto-discovery.
 - Expect YAML tools and call-argument tools to merge; remove YAML tools if you previously relied on replacement.
 - Strip dropped call arguments from `generateText` / `generateTextWithStreaming` / `streamText` / `generateImage` / `Agent` (`temperature`, `maxOutputTokens`, `maxTokens`, `maxSteps`, `providerOptions`, `maxRetries`, `experimental_transform`, `onStepFinish`, image `n` / `size` / `seed`, and any other AI SDK-only keys). Unknown keys throw. Put model and generation or image config on the prompt file; call-argument `stopWhen` still overrides `maxSteps`.
-- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.stepCountIs(1)` on the call.
+- Update installed AI SDK packages to `ai` 7.x, OpenAI / Anthropic / Azure / Perplexity 4.x, and Amazon Bedrock / Google Vertex 5.x.
+- Rename `onFinish` to `onEnd` in `streamText()` and `Agent.stream()`. Rename the corresponding wrapped callback and event types.
+- Replace `fullStream` with `stream`, and update exhaustive `onChunk` handlers for the expanded AI SDK 7 part union.
+- Replace `stepCountIs()` with `isStepCount()`.
+- Review direct AI SDK result-field access against the official AI SDK 7 migration guide.
+- Use `group` and `label` when reading normalized `LLMGenerationUsage` and `LLMGenerationCost` items. Legacy event lines retain their existing type names.
+- Remove assumptions that Output's `Agent` inherits from AI SDK's `ToolLoopAgent`.
+- Preserve binary file and `reasoning-file` content parts in custom `MessageStore` serializers.
+- Set `providerOptions.openai.reasoningSummary: null` on reasoning prompts that should not return summaries.
+- Set `maxSteps: 1` on YAML-only grounding prompts that must stay one-shot, or pass `stopWhen: aiSdk.isStepCount(1)` on the call.
 - Rename `promptFileDir` to `fileDir`. Read interpolation values from `prompt.variables`.
 - Treat `config.skills` as always `string[]` after `loadPrompt`.
 - Treat `config.maxSteps` as always a positive integer after `loadPrompt` (default 10).
@@ -582,9 +774,11 @@ providerOptions:
 - Escape literal same-name role tags inside messages (`&lt;user&gt;...&lt;/user&gt;`). Different-name semantic tags remain valid content.
 - Give every `options` attribute a value and fix malformed attribute names or quotes; prompt markup now fails explicitly at load.
 - Read LLM trace `input.prompt` as the loaded prompt object (`input.prompt.name`, `input.prompt.variables`). Do not treat `input.prompt` as a filename or read `input.loadedPrompt`.
-- Read LLM trace `output.sources` instead of `output.sourcesFromTools`. Expect `output.cost` on successful LLM nodes (`null` when pricing is missing).
-- Narrow `ExtractedSource` on `sourceType` before reading `url`. Treat `LLMCallCost` / `LLMUsageEvent` as live usage instances and omit `addUsage` when typing serialized JSON.
-- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.stepCountIs`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
+- Read LLM trace `output.sources` instead of `output.sourcesFromTools`.
+- Keep existing `llm:usage` trace readers for compatibility, but prefer `llm:generation:usage` and `llm:generation:cost` for normalized trace metadata.
+- Narrow `ExtractedSource` on `sourceType` before reading `url`. Replace `LLMCallCost` with `LLMGenerationCost`, replace `response.cost.usage` reads with `response.cost.items`, and handle an incomplete cost whose `total` is `null`. Import LLM generation usage and cost types from `@outputai/llm`, not `@outputai/core`.
+- Keep existing `cost:llm:request` handlers for structural compatibility, while allowing corrected reasoning values. Prefer `llm:generation:metering` with `LLMGenerationMeteringEvent` for new normalized usage/cost integrations.
+- Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.
 - Expect `Agent.stream()` to persist message-store history on success.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
