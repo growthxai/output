@@ -586,7 +586,7 @@ Company size: {{ size }} employees
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted. |
+| `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted and normalized with a warning. |
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature; supported range varies by provider |
 | `maxOutputTokens` | `number` | Maximum output tokens |
@@ -621,7 +621,7 @@ Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known 
 | `google-vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
 | `perplexity` | `@ai-sdk/perplexity` | `>=3 <4` |
 
-Legacy aliases `bedrock` → `amazon-bedrock` and `vertex` → `google-vertex` are deprecated but still work; using them logs a deprecation warning.
+Legacy aliases `bedrock` -> `amazon-bedrock` and `vertex` -> `google-vertex` are deprecated but still work; prompt parsing normalizes them to their canonical names and logs a deprecation warning.
 
 Built-in provider instances are initialized lazily. Output creates the provider instance only when a prompt or API call first requests that provider, then reuses it for later calls.
 

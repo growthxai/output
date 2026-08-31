@@ -83,8 +83,9 @@ export type Prompt = {
      * LLM provider.
      *
      * Built-in: `'anthropic'`, `'openai'`, `'azure'`, `'amazon-bedrock'`, `'google-vertex'`,
-     * `'perplexity'`. Legacy aliases `'bedrock'` and `'vertex'` are deprecated but still accepted.
-     * Custom providers registered via {@link registerProvider} are also accepted.
+     * `'perplexity'`. Legacy aliases `'bedrock'` and `'vertex'` are deprecated but still accepted
+     * in prompts and normalized to their canonical names with a warning. Custom providers
+     * registered via {@link registerProvider} are also accepted.
      */
     provider: string;
 

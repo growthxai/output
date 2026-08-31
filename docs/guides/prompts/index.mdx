@@ -90,7 +90,7 @@ const prompt: Prompt = {
 await generateText({ prompt });
 ```
 
-Prompt objects are already resolved and rendered, so `promptDir` and call-level `variables` cannot be used with them. `fileDir` remains the base directory for relative skill paths. Custom objects must use canonical provider names; deprecated provider aliases are normalized only when loading prompt files.
+Prompt objects are already resolved and rendered, so `promptDir` and call-level `variables` cannot be used with them. `fileDir` remains the base directory for relative skill paths. Use canonical provider names in custom objects. Deprecated aliases are still accepted and normalized with a warning.
 
 <Warning>
   Only accept prompt objects from trusted sources. They can select providers and models and load local skill files relative to `fileDir`.
