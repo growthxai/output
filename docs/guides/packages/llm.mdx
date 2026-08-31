@@ -318,11 +318,11 @@ const { output } = await generateText({
 
 ## Agents
 
-The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompt files](/prompts) and the [skills](/prompts/skills) system. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance with a fixed configuration. For single-shot LLM calls without tools, `generateText` is simpler.
+The `Agent` class wraps AI SDK's `ToolLoopAgent` with Output [prompts](/prompts) and the [skills](/prompts/skills) system. Use it when you need multi-step tool execution, conversation history, or a reusable agent instance with a fixed configuration. For single-shot LLM calls without tools, `generateText` is simpler.
 
 ### Construction
 
-The prompt file is loaded and rendered at construction time. Variables and tools are fixed at construction. Skills and `maxSteps` come from the prompt file. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
+A prompt filename is loaded and rendered at construction time. A loaded or custom `Prompt` object can be passed directly instead. Variables and `promptDir` apply only to filename prompts; tools are fixed at construction. Skills and `maxSteps` come from the resolved prompt. The agent is ready to call `generate()`, `generateWithStreaming()`, or `stream()` immediately.
 
 Each call seeds authored `<user>` blocks from the prompt. `<system>` blocks become `instructions`. Authored `<assistant>` blocks are dropped; use `generateText` when the prompt is a few-shot or prefilled thread.
 
@@ -355,9 +355,9 @@ export const reviewContent = step({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `prompt` | `string` | *(required)* | Prompt file name (e.g. `'writing_assistant@v1'`) |
-| `promptDir` | `string` | - | Override the stack-resolved prompt directory |
-| `variables` | `PromptVariables` | - | Template variables rendered at construction |
+| `prompt` | `string \| Prompt` | *(required)* | Prompt filename or a loaded/custom prompt object |
+| `promptDir` | `string` | - | Override the stack-resolved prompt directory for a filename prompt |
+| `variables` | `PromptVariables` | - | Template variables rendered for a filename prompt |
 | `tools` | AI SDK tools | - | Caller tools; merged with prompt YAML tools (`load_skill` last) |
 | `stopWhen` | function or function[] | - | Custom stop condition (overrides prompt `maxSteps` when tools exist) |
 | `output` | `aiSdk.Output` | - | Structured output spec (e.g. `aiSdk.Output.object({ schema })`) |
@@ -586,7 +586,7 @@ Company size: {{ size }} employees
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted. |
+| `provider` | `string` | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity`, or a provider registered with `registerProvider`. Legacy aliases `bedrock` and `vertex` are deprecated but still accepted and normalized with a warning. |
 | `model` | `string` | Model identifier |
 | `temperature` | `number` | Sampling temperature; supported range varies by provider |
 | `maxOutputTokens` | `number` | Maximum output tokens |
@@ -621,7 +621,7 @@ Unknown top-level keys throw `Invalid prompt file`. Snake_case aliases of known 
 | `google-vertex` | `@ai-sdk/google-vertex` | `>=4 <5` |
 | `perplexity` | `@ai-sdk/perplexity` | `>=3 <4` |
 
-Legacy aliases `bedrock` → `amazon-bedrock` and `vertex` → `google-vertex` are deprecated but still work; using them logs a deprecation warning.
+Legacy aliases `bedrock` -> `amazon-bedrock` and `vertex` -> `google-vertex` are deprecated but still work; prompt parsing normalizes them to their canonical names and logs a deprecation warning.
 
 Built-in provider instances are initialized lazily. Output creates the provider instance only when a prompt or API call first requests that provider, then reuses it for later calls.
 
@@ -842,7 +842,7 @@ const { result, toolCalls } = await generateText({
 
 ## Call arguments
 
-`variables` accepts Liquid values, including nested objects and arrays. Use dot notation and Liquid loops to read structured values in the prompt template.
+`prompt` accepts either a prompt filename string or a loaded/custom `Prompt` object. When passing an object, do not also pass `promptDir` or `variables`: prompt objects are already resolved and rendered. For filename prompts, `variables` accepts Liquid values, including nested objects and arrays. Use dot notation and Liquid loops to read structured values in the prompt template.
 
 ### Text APIs
 
@@ -866,9 +866,9 @@ const { result, toolCalls } = await generateText({
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `prompt` | yes | Prompt file name |
-| `promptDir` | no | Override the stack-resolved prompt directory |
-| `variables` | no | Template variables |
+| `prompt` | yes | Prompt filename or a loaded/custom `Prompt` object |
+| `promptDir` | no | Override the stack-resolved prompt directory for a filename prompt |
+| `variables` | no | Template variables for a filename prompt |
 | `images` | no | Source images for image-to-image |
 | `mask` | no | Inpainting mask; requires `images` |
 | `abortSignal` | no | Cancel the request |
@@ -907,7 +907,7 @@ Each completed text generation call emits a `cost:llm:request` event after the L
 
 ## loadPrompt
 
-Load and render a prompt file without generating - useful for debugging:
+Load and render a prompt file for inspection, reuse, or direct use as a generation argument:
 
 ```typescript
 import { loadPrompt } from '@outputai/llm';
@@ -923,6 +923,8 @@ console.log(prompt.messages);     // PromptMessage[] with system, user, or assis
 console.log(prompt.instructions); // string | null
 console.log(prompt.variables);    // { companyName: 'Acme Corp', industry: 'SaaS', size: 250 }
 ```
+
+The returned `Prompt` can be passed directly to `generateText`, `generateTextWithStreaming`, `streamText`, `generateImage`, or `new Agent()`. See [Passing Prompt Objects Directly](/prompts#passing-prompt-objects-directly).
 
 For instruction-mode prompts, `messages` is empty and `instructions` contains the rendered body. For message-mode prompts, `messages` contains the parsed role blocks and `instructions` is `null`. See [Prompt Body Modes](/prompts#prompt-body-modes).
 

@@ -15,6 +15,73 @@ const makeOutput = () => ( { name: 'object' } );
 
 const searchTool = { description: 'Search' };
 const stopWhen = () => false;
+const promptObject = {
+  name: 'custom',
+  config: {
+    provider: 'openai',
+    model: 'gpt-4o',
+    maxSteps: 10,
+    skills: []
+  },
+  messages: [ { role: 'user', content: 'Hello' } ],
+  instructions: null,
+  fileDir: '/prompts',
+  variables: {}
+};
+
+describe( 'prompt arguments', () => {
+  it.each( [
+    [ 'generateText', parseGenerateTextArgs ],
+    [ 'generateTextWithStreaming', parseGenerateTextWithStreamingArgs ],
+    [ 'streamText', parseStreamTextArgs ],
+    [ 'generateImage', parseGenerateImageArgs ],
+    [ 'Agent', parseAgentArgs ]
+  ] )( 'normalizes a prompt object for %s', ( _, parse ) => {
+    expect( parse( { prompt: promptObject } ) ).toEqual( {
+      promptObject
+    } );
+  } );
+
+  it.each( [ 'promptDir', 'variables' ] )( 'rejects %s with a prompt object', field => {
+    expect( () => parseGenerateTextArgs( {
+      prompt: promptObject,
+      [field]: field === 'promptDir' ? '/other' : { topic: 'other' }
+    } ) ).toThrow( `${field} cannot be used when prompt is an object` );
+  } );
+
+  it( 'rejects prompt file arguments with an Agent prompt object', () => {
+    expect( () => parseAgentArgs( {
+      prompt: promptObject,
+      promptDir: '/other'
+    } ) ).toThrow( 'promptDir cannot be used when prompt is an object' );
+  } );
+
+  it( 'reports specific validation issues for an invalid prompt object', () => {
+    expect( () => parseGenerateTextArgs( {
+      prompt: {
+        ...promptObject,
+        config: {
+          provider: 'openai'
+        }
+      }
+    } ) ).toThrow( /prompt\.config\.model/ );
+  } );
+
+  it.each( [
+    [ 'missing', {} ],
+    [ 'numeric', { prompt: 123, variables: { topic: 'testing' } } ]
+  ] )( 'keeps filename-shaped errors for a %s prompt', ( _, args ) => {
+    const error = { message: '' };
+    try {
+      parseGenerateTextArgs( args );
+    } catch ( e ) {
+      error.message = e.message;
+    }
+
+    expect( error.message ).toContain( 'expected string' );
+    expect( error.message ).not.toContain( 'variables cannot be used when prompt is an object' );
+  } );
+} );
 
 describe( 'parseGenerateTextArgs', () => {
   it( 'renames prompt to promptFile and keeps allowlisted leftovers', () => {

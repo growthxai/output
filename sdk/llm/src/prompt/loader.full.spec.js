@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FatalError, ValidationError } from '@outputai/core';
 import { Role } from '../consts.js';
+import { parseAgentArgs, parseGenerateTextArgs } from '../validations.js';
 import { loadPrompt } from './loader.js';
 
 const dirs = [];
@@ -25,6 +26,21 @@ afterEach( () => {
 } );
 
 describe( 'loadPrompt (full)', () => {
+  it( 'round-trips a loaded prompt through generation argument validation', () => {
+    const dir = tempDir();
+    writePrompt( dir, 'round-trip', `---
+provider: openai
+model: gpt-4o
+---
+<user>Hello</user>
+` );
+
+    const prompt = loadPrompt( 'round-trip', {}, dir );
+
+    expect( parseGenerateTextArgs( { prompt } ) ).toEqual( { promptObject: prompt } );
+    expect( parseAgentArgs( { prompt } ) ).toEqual( { promptObject: prompt } );
+  } );
+
   it( 'loads a chat prompt, interpolates frontmatter and body, and returns a validated prompt', () => {
     const dir = tempDir();
     writePrompt( dir, 'chat', `---

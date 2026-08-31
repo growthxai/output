@@ -1,5 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { ValidationError, z } from '@outputai/core';
+import { Role } from './consts.js';
+import { promptSchema } from './prompt/validations.js';
 
 const rejectPromptOwnedCallArg = name => z.unknown().optional().refine(
   value => value === undefined,
@@ -30,10 +32,9 @@ const stopWhenSchema = z.union( [
   z.array( functionSchema ).min( 1 )
 ] );
 
-const opaqueObjectSchema = z.custom(
-  value => value !== null && typeof value === 'object' && !Array.isArray( value ),
-  'Expected object'
-);
+const isObject = value => value !== null && typeof value === 'object' && !Array.isArray( value );
+
+const opaqueObjectSchema = z.custom( isObject, 'Expected object' );
 
 const outputSchema = opaqueObjectSchema;
 
@@ -48,12 +49,25 @@ const messageStoreSchema = z.custom(
 );
 
 const modelMessageSchema = z.object( {
-  role: z.enum( [ 'system', 'user', 'assistant', 'tool' ] ),
+  role: z.enum( [ ...Object.values( Role ), 'tool' ] ),
   content: z.union( [ z.string(), z.array( z.unknown() ) ] )
 } ).loose();
 
-const promptFileCallFields = {
-  prompt: z.string().min( 1 ),
+const promptFileSchema = z.string().min( 1 );
+
+const promptInputSchema = z.unknown().transform( ( value, ctx ) => {
+  const result = ( isObject( value ) ? promptSchema : promptFileSchema ).safeParse( value );
+  if ( !result.success ) {
+    for ( const issue of result.error.issues ) {
+      ctx.addIssue( issue );
+    }
+    return value;
+  }
+  return result.data;
+} );
+
+const promptCallFields = {
+  prompt: promptInputSchema,
   promptDir: z.string().min( 1 ).optional(),
   variables: variablesSchema.optional()
 };
@@ -67,32 +81,51 @@ const textRuntimeCallFields = {
 };
 
 const generateTextCallFields = {
-  ...promptFileCallFields,
+  ...promptCallFields,
   ...promptOwnedCallArgRejection,
   ...textRuntimeCallFields
 };
 
-const toPromptFileArgs = ( { prompt, maxSteps, skills, ...rest } ) => ( {
-  promptFile: prompt,
+const toPromptArgs = ( { prompt, maxSteps, skills, ...rest } ) => ( {
+  ...( typeof prompt === 'string' ? { promptFile: prompt } : { promptObject: prompt } ),
   ...rest
 } );
 
-const generateTextArgsSchema = z.object( generateTextCallFields ).strict().transform( toPromptFileArgs );
+const rejectPromptObjectFileArgs = ( args, ctx ) => {
+  if ( !isObject( args.prompt ) ) {
+    return;
+  }
+
+  for ( const field of [ 'promptDir', 'variables' ] ) {
+    if ( args[field] !== undefined ) {
+      ctx.addIssue( {
+        code: 'custom',
+        path: [ field ],
+        message: `${field} cannot be used when prompt is an object`
+      } );
+    }
+  }
+};
+
+const generateTextArgsSchema = z.object( generateTextCallFields )
+  .strict()
+  .superRefine( rejectPromptObjectFileArgs )
+  .transform( toPromptArgs );
 
 const generateTextWithStreamingArgsSchema = z.object( {
   ...generateTextCallFields,
   onChunk: functionSchema.optional()
-} ).strict().transform( toPromptFileArgs );
+} ).strict().superRefine( rejectPromptObjectFileArgs ).transform( toPromptArgs );
 
 const streamTextArgsSchema = z.object( {
   ...generateTextCallFields,
   onChunk: functionSchema.optional(),
   onError: functionSchema.optional(),
   onFinish: functionSchema.optional()
-} ).strict().transform( toPromptFileArgs );
+} ).strict().superRefine( rejectPromptObjectFileArgs ).transform( toPromptArgs );
 
 const agentCallFields = {
-  ...promptFileCallFields,
+  ...promptCallFields,
   ...promptOwnedCallArgRejection,
   messageStore: messageStoreSchema.optional(),
   output: outputSchema.optional(),
@@ -107,7 +140,10 @@ const agentMethodCallFields = {
   ...promptOwnedCallArgRejection
 };
 
-const agentArgsSchema = z.object( agentCallFields ).strict().transform( toPromptFileArgs );
+const agentArgsSchema = z.object( agentCallFields )
+  .strict()
+  .superRefine( rejectPromptObjectFileArgs )
+  .transform( toPromptArgs );
 
 const agentGenerateArgsSchema = z.object( agentMethodCallFields ).strict();
 
@@ -149,10 +185,12 @@ const generateImageCallFields = {
   abortSignal: z.instanceof( AbortSignal ).optional(),
   images: z.array( imageInputSchema ).min( 1 ).optional(),
   mask: imageInputSchema.optional(),
-  ...promptFileCallFields
+  ...promptCallFields
 };
 
 const generateImageArgsSchema = z.object( generateImageCallFields ).strict().superRefine( ( args, ctx ) => {
+  rejectPromptObjectFileArgs( args, ctx );
+
   if ( args.mask && !args.images ) {
     ctx.addIssue( {
       code: 'custom',
@@ -160,7 +198,7 @@ const generateImageArgsSchema = z.object( generateImageCallFields ).strict().sup
       message: 'mask requires images.'
     } );
   }
-} ).transform( toPromptFileArgs );
+} ).transform( toPromptArgs );
 
 const parseSchema = ( schema, input, errorPrefix ) => {
   const result = schema.safeParse( input );

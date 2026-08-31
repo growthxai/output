@@ -7,8 +7,8 @@ import { loadSkills } from './utils/skills.js';
 import * as Validator from './validations.js';
 
 export const generateText = async args => {
-  const { promptFile, variables, promptDir, ...aiOptions } = Validator.parseGenerateTextArgs( args );
-  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const { promptFile, promptObject, variables, promptDir, ...aiOptions } = Validator.parseGenerateTextArgs( args );
+  const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
   return wrapGeneration( {
@@ -19,8 +19,8 @@ export const generateText = async args => {
 };
 
 export const streamText = args => {
-  const { promptFile, variables, promptDir, onFinish, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
-  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const { promptFile, promptObject, variables, promptDir, onFinish, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
+  const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
   return wrapStream( {
@@ -39,8 +39,8 @@ export const streamText = args => {
  * Generates a completed text response over streaming transport, invoking `onChunk` as parts arrive.
  */
 export const generateTextWithStreaming = async args => {
-  const { promptFile, variables, promptDir, onChunk, ...aiOptions } = Validator.parseGenerateTextWithStreamingArgs( args );
-  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const { promptFile, promptObject, variables, promptDir, onChunk, ...aiOptions } = Validator.parseGenerateTextWithStreamingArgs( args );
+  const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
   return wrapGeneration( {
@@ -70,8 +70,8 @@ export const generateTextWithStreaming = async args => {
 };
 
 export const generateImage = async args => {
-  const { promptFile, promptDir, variables, ...aiOptions } = Validator.parseGenerateImageArgs( args );
-  const prompt = loadPrompt( promptFile, variables, promptDir );
+  const { promptFile, promptObject, promptDir, variables, ...aiOptions } = Validator.parseGenerateImageArgs( args );
+  const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
 
   return wrapGeneration( {
     name: 'generateImage',

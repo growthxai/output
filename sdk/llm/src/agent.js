@@ -14,9 +14,9 @@ export class Agent extends AIToolLoopAgent {
   #store;
 
   constructor( args ) {
-    const { promptFile, promptDir, variables, tools, output, stopWhen, messageStore } = Validator.parseAgentArgs( args );
+    const { promptFile, promptObject, promptDir, variables, tools, output, stopWhen, messageStore } = Validator.parseAgentArgs( args );
 
-    const prompt = loadPrompt( promptFile, variables, promptDir );
+    const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
     const skills = loadSkills( prompt );
 
     const { system, messages, ...aiOptions } = loadAiSdkTextOptions( { prompt, skills, tools, output, stopWhen } );

@@ -189,6 +189,20 @@ describe( 'generate', () => {
       expect( result ).toBe( textResponse );
     } );
 
+    it( 'uses a prompt object without loading a prompt file', async () => {
+      validations.parseGenerateTextArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
+      const { generateText } = await importSut();
+
+      await generateText( { prompt: loadedPrompt } );
+
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills
+      } );
+    } );
+
     it( 'propagates parse errors before wrapping or calling AI SDK', async () => {
       const validationError = new Error( 'Invalid args' );
       validations.parseGenerateTextArgs.mockImplementationOnce( () => {
@@ -249,6 +263,25 @@ describe( 'generate', () => {
       expect( streamMocks.drainStream ).toHaveBeenCalledWith( stream, undefined );
       expect( onChunk ).toHaveBeenCalledWith( { chunk } );
       expect( result ).toEqual( { ...textResponse, output } );
+    } );
+
+    it( 'uses a prompt object without loading a prompt file', async () => {
+      const stream = { output: Promise.resolve( undefined ) };
+      validations.parseGenerateTextWithStreamingArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
+      aiFns.streamText.mockImplementationOnce( options => {
+        options.onFinish( { ...textResponse } );
+        return stream;
+      } );
+      const { generateTextWithStreaming } = await importSut();
+
+      await generateTextWithStreaming( { prompt: loadedPrompt } );
+
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills
+      } );
     } );
 
     it( 'omits onChunk when the caller does not provide it', async () => {
@@ -336,6 +369,20 @@ describe( 'generate', () => {
       expect( wrapMocks.streamHooks.onFinishHook ).toHaveBeenCalledWith( textResponse, onFinish );
       expect( onFinish ).toHaveBeenCalledWith( textResponse );
       expect( result ).toBe( streamResult );
+    } );
+
+    it( 'uses a prompt object without loading a prompt file', async () => {
+      validations.parseStreamTextArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
+      const { streamText } = await importSut();
+
+      streamText( { prompt: loadedPrompt } );
+
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+      expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+      expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt,
+        skills: loadedSkills
+      } );
     } );
 
     it( 'omits onChunk when the caller does not provide it', async () => {
@@ -434,6 +481,18 @@ describe( 'generate', () => {
       } );
       expect( aiFns.generateImage ).toHaveBeenCalledWith( imageOptions );
       expect( result ).toBe( imageResponse );
+    } );
+
+    it( 'uses a prompt object without loading a prompt file', async () => {
+      validations.parseGenerateImageArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
+      const { generateImage } = await importSut();
+
+      await generateImage( { prompt: loadedPrompt } );
+
+      expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+      expect( optionMocks.loadAiSdkImageOptions ).toHaveBeenCalledWith( {
+        prompt: loadedPrompt
+      } );
     } );
 
     it( 'supports text-to-image calls without images or mask', async () => {

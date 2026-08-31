@@ -213,6 +213,23 @@ describe( 'Agent', () => {
     } );
   } );
 
+  it( 'uses a prompt object without loading a prompt file', async () => {
+    validations.parseAgentArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
+    const { Agent } = await importSut();
+
+    new Agent( { prompt: loadedPrompt } );
+
+    expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
+    expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
+    expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
+      prompt: loadedPrompt,
+      skills: loadedSkills,
+      tools: undefined,
+      output: undefined,
+      stopWhen: undefined
+    } );
+  } );
+
   it( 'passes option tools through to ToolLoopAgent', async () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
