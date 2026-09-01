@@ -14,6 +14,7 @@ import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usa
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
+const REQUEST = LLMGenerationUsageItem.Group.REQUEST;
 
 const cases = [
   {
@@ -125,7 +126,8 @@ const cases = [
       { group: INPUT, label: 'no_cache', amount: 1032 },
       { group: INPUT, label: 'cache_read', amount: 0 },
       { group: OUTPUT, label: 'text', amount: 793 },
-      { group: OUTPUT, label: 'reasoning', amount: 588 }
+      { group: OUTPUT, label: 'reasoning', amount: 588 },
+      { group: REQUEST, label: 'grounding_prompt', amount: 1 }
     ]
   },
   {
@@ -198,7 +200,8 @@ describe( 'parseLLMUsage with AI SDK response fixtures', () => {
           model: modelId
         }
       },
-      usage: fixture.usage
+      usage: fixture.usage,
+      steps: fixture.steps
     } );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {

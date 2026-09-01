@@ -36,15 +36,25 @@ function pluralize( count: number, singular: string ): string {
   return count === 1 ? `1 ${singular}` : `${count} ${singular}s`;
 }
 
+// Marks a figure whose call had a real but unpriced charge (e.g. unrated
+// grounding), so a $0.00 line reads as "unpriced" rather than a clean zero.
+const INCOMPLETE_MARKER = '*';
+const INCOMPLETE_FOOTNOTE = '* cost incomplete (unpriced charge such as grounding, or missing usage); the total understates the bill';
+
+function markIncomplete( text: string, incomplete: boolean ): string {
+  return incomplete ? `${text} ${INCOMPLETE_MARKER}` : text;
+}
+
 export function parseCostData( report: CostReport ): ParsedCostData {
-  const byModel: Record<string, { count: number; originalCost: number; adjustedCost: number }> = {};
+  const byModel: Record<string, { count: number; originalCost: number; adjustedCost: number; incomplete: boolean }> = {};
   for ( const r of report.llmCalls ) {
     if ( !byModel[r.model] ) {
-      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0 };
+      byModel[r.model] = { count: 0, originalCost: 0, adjustedCost: 0, incomplete: false };
     }
     byModel[r.model].count++;
     byModel[r.model].originalCost += r.originalCost;
     byModel[r.model].adjustedCost += r.adjustedCost;
+    byModel[r.model].incomplete ||= r.incomplete;
   }
 
   const llmModels: LLMModelSummary[] = Object.entries( byModel )
@@ -105,12 +115,13 @@ function formatSummary( data: ParsedCostData ): string {
       colAligns: [ 'left', 'right', 'right', 'right' ]
     } );
 
+    const anyIncomplete = data.llmModels.some( m => m.incomplete );
     for ( const m of data.llmModels ) {
       table.push( [
         m.model,
         pluralize( m.count, 'call' ),
-        formatCurrency( m.originalCost ),
-        formatCurrency( m.adjustedCost )
+        markIncomplete( formatCurrency( m.originalCost ), m.incomplete ),
+        markIncomplete( formatCurrency( m.adjustedCost ), m.incomplete )
       ] );
     }
 
@@ -123,6 +134,9 @@ function formatSummary( data: ParsedCostData ): string {
 
     lines.push( 'LLM Costs:' );
     lines.push( table.toString() );
+    if ( anyIncomplete ) {
+      lines.push( INCOMPLETE_FOOTNOTE );
+    }
     lines.push( '' );
   }
 
@@ -181,6 +195,7 @@ function formatVerbose( data: ParsedCostData ): string {
       colAligns
     } );
 
+    const anyIncomplete = data.llmCalls.some( r => r.incomplete );
     for ( const r of data.llmCalls ) {
       const row: string[] = [
         r.step,
@@ -194,7 +209,10 @@ function formatVerbose( data: ParsedCostData ): string {
       if ( data.verbose.hasReasoning ) {
         row.push( formatNumber( r.reasoning ) );
       }
-      row.push( formatCurrency( r.originalCost ), formatCurrency( r.adjustedCost ) );
+      row.push(
+        markIncomplete( formatCurrency( r.originalCost ), r.incomplete ),
+        markIncomplete( formatCurrency( r.adjustedCost ), r.incomplete )
+      );
       table.push( row );
     }
 
@@ -215,6 +233,9 @@ function formatVerbose( data: ParsedCostData ): string {
 
     lines.push( 'LLM Calls:' );
     lines.push( table.toString() );
+    if ( anyIncomplete ) {
+      lines.push( INCOMPLETE_FOOTNOTE );
+    }
     lines.push( '' );
   }
 

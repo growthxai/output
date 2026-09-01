@@ -117,6 +117,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "status": "precise",
       "input": 0.001085,
       "output": 0.000135,
+      "request": null,
       "total": 0.00122,
       "items": [
         { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
@@ -154,11 +155,13 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `group` | `"input" \| "output"` | Aggregate category. |
-| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), or `null` for aggregate usage. |
-| `amount` | `number` | Token count for this dimension. |
+| `group` | `"input" \| "output" \| "request"` | Aggregate category. `request` covers per-request charges such as grounding with Google Search, billed per request rather than per token. |
+| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), request detail (`grounding_query`, `grounding_prompt`, or `grounding` when the rate is unknown), or `null` for aggregate usage. |
+| `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query or grounded-request count for `request` items. |
 
 When the detailed counts do not reconcile with the aggregate count, Output keeps the aggregate input or output item instead of recording a misleading breakdown.
+
+Per-request items are recorded independently from tokens and are excluded from the `input`, `output`, and `total` token aggregates above.
 
 ### Normalized cost
 
@@ -166,8 +169,8 @@ When the detailed counts do not reconcile with the aggregate count, Output keeps
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `input`, `output`, `total` | `number \| null` | Aggregate dollar costs for available priced items. |
-| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used, or usage/pricing was incomplete. |
+| `input`, `output`, `request`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `request` holds per-request charges (such as grounding), and `total` is the sum of `input`, `output`, and `request`. |
+| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used, or usage/pricing was incomplete. A per-request charge with no known rate lands `incomplete`. |
 | `items[].ppm` | `number \| null` | Applied price per million tokens. |
 | `items[].total` | `number \| null` | Calculated item cost. |
 | `items[].status` | `"ok" \| "fallback" \| "missing"` | Whether the exact rate, a regular input/output fallback, or no rate was available. |
@@ -202,7 +205,7 @@ on<LLMUsageEvent>( 'cost:llm:request', event => {
 }
 ```
 
-The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` and `tokensUsed` are calculated from those legacy lines. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
+The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types, plus a `grounding_query` or `grounding_prompt` line when a priced per-request grounding charge applies. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` includes every line, but `tokensUsed` is calculated from the token line types only — grounding lines are counted in requests, not tokens, so they are excluded. An unpriced grounding charge produces no legacy line at all. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
 
 Use `llm:generation:metering` for new integrations. It is more faithful to the provider response because usage is independent from pricing, cache writes and reasoning remain explicit, provider identity is included, and fallback or missing prices are represented rather than hidden.
 

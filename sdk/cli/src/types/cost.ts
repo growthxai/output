@@ -64,6 +64,10 @@ export interface LLMCall {
   originalCost: number;
   // Normalized lines used for reporting and optional costs.yml re-pricing.
   lines: LLMUsageLine[];
+  // True when the cost event is INCOMPLETE — a real charge it couldn't price
+  // (e.g. unrated grounding) or usage the provider only partly reported, so
+  // the reported total understates the bill.
+  incomplete: boolean;
 }
 
 export interface HTTPCall {
@@ -145,6 +149,8 @@ export interface LLMCostResult {
   // Cost after applying any costs.yml override (equals originalCost when no
   // override applies).
   adjustedCost: number;
+  // True when the underlying cost event was INCOMPLETE (unpriced charge).
+  incomplete: boolean;
 }
 
 // Result of recomputing a single HTTP cost from costs.yml service rules.
@@ -208,6 +214,8 @@ export interface LLMModelSummary {
   count: number;
   originalCost: number;
   adjustedCost: number;
+  // True when any call for this model had an unpriced (INCOMPLETE) charge.
+  incomplete: boolean;
 }
 
 export interface HostSummary {

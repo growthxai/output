@@ -23,6 +23,7 @@ import { LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
+const REQUEST = LLMGenerationUsageItem.Group.REQUEST;
 const OK = LLMGenerationCostItem.Status.OK;
 const FALLBACK = LLMGenerationCostItem.Status.FALLBACK;
 const MISSING = LLMGenerationCostItem.Status.MISSING;
@@ -153,13 +154,15 @@ const cases = [
     modelId: 'gemini-2.5-flash',
     input: 0.0003096,
     output: 0.0034525,
-    total: 0.0037621,
+    request: 0.035,
+    total: 0.0387621,
     status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
       [ OUTPUT, 'text', 793, 2.5, 0.0019825, OK ],
-      [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, FALLBACK ]
+      [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, FALLBACK ],
+      [ REQUEST, 'grounding_prompt', 1, 35_000, 0.035, OK ]
     ]
   },
   {
@@ -236,6 +239,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
     modelId,
     input,
     output,
+    request = null,
     total,
     status,
     items
@@ -247,7 +251,8 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
           model: modelId
         }
       },
-      usage: fixture.usage
+      usage: fixture.usage,
+      steps: fixture.steps
     } );
     const result = await calculateCosts( usage );
 
@@ -257,7 +262,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       modelId,
       input,
       output,
-      request: null,
+      request,
       total,
       status,
       items: items.map( ( [ group, label, amount, ppm, itemTotal, itemStatus ] ) => ( {

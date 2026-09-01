@@ -125,7 +125,8 @@ function parseLegacyLLMUsageEvent(
     model: event.modelId || 'unknown',
     usage: eventTokenUsage( event.usage ?? [] ),
     originalCost: event.total,
-    lines: event.usage ?? []
+    lines: event.usage ?? [],
+    incomplete: false
   };
 }
 
@@ -143,7 +144,8 @@ function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, even
     model: event.modelId || 'unknown',
     usage: normalizedItemTokenUsage( event.items ),
     originalCost: 0,
-    lines
+    lines,
+    incomplete: false
   };
 }
 
@@ -161,7 +163,10 @@ function parseLLMCostEvent( node: TraceNode, stepName: string | null, event: LLM
     model: event.modelId || 'unknown',
     usage: normalizedItemTokenUsage( event.items ),
     originalCost: event.total ?? 0,
-    lines
+    lines,
+    // An INCOMPLETE event carries a real but unpriced charge (e.g. unrated
+    // grounding). Flag it so the report can mark the understated total.
+    incomplete: event.status === 'incomplete'
   };
 }
 
@@ -623,7 +628,8 @@ function aggregateLLMCosts(
       cached: call.usage.cachedInputTokens ?? 0,
       reasoning: call.usage.reasoningTokens ?? 0,
       originalCost,
-      adjustedCost
+      adjustedCost,
+      incomplete: call.incomplete
     } );
 
     totals.inputTokens += call.usage.inputTokens ?? 0;
