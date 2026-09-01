@@ -106,10 +106,13 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
  *
  * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded
  * on the LLM trace. A non-Promise return (the `streamText` stream) is returned immediately.
+ * When `abortSignal` aborts, its reason is recorded as an LLM trace error. The listener is removed
+ * when the stream ends, reports an error, or fails during setup.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
+ * @param {AbortSignal} [args.abortSignal] - Optional signal used to trace stream cancellation
  * @param {(hooks: { onEndHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
  *   Return the SDK stream, or a Promise of that stream (`Agent.stream`); wire the hooks into SDK
  *   `onEnd` / `onError`

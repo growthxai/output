@@ -613,7 +613,7 @@ Dropped native AI SDK call arguments from `generateText()`, `generateTextWithStr
 | `onEnd` | - | - | - | optional |
 | `onError` | - | - | - | optional |
 
-`generateImage` `mask` still requires `images`. `Agent.stream()` now appends to `messageStore` in its wrapped `onEnd` when `finishReason` is not `'error'`.
+`generateImage` `mask` still requires `images`. `Agent.generate()`, `Agent.generateWithStreaming()`, and `Agent.stream()` append to `messageStore` only when `finishReason` is not `'error'`. Errored turns are not persisted.
 
 `streamText()` and `Agent.stream()` now treat `onError` as a fire-and-forget observer. Output maps and forwards the provider error, but exceptions and rejected promises from the callback are ignored. To fail a workflow step with the original error, capture it in `onError` and throw it after consuming the stream.
 
@@ -780,7 +780,7 @@ providerOptions:
 - Keep existing `cost:llm:request` handlers for structural compatibility, while allowing corrected reasoning values. Prefer `llm:generation:metering` with `LLMGenerationMeteringEvent` for new normalized usage/cost integrations.
 - Import AI SDK helpers and types from `aiSdk` (`aiSdk.Output`, `aiSdk.tool`, `aiSdk.isStepCount`, `aiSdk.ToolSet`, ...). Replace `import { ai }` with `import { aiSdk }`. Do not import cherry-picked AI SDK types from `@outputai/llm`.
 - Replace `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` with their `*Parameters` equivalents. Remove the generic from `OutputAgentGenerateWithStreamingParameters`.
-- Expect `Agent.stream()` to persist message-store history on success.
+- Expect `Agent.generate()`, `Agent.generateWithStreaming()`, and `Agent.stream()` to persist message-store history only when `finishReason` is not `'error'`.
 - Replace `conversationStore` with `messageStore`. Replace `ConversationStore` with `MessageStore`. Remove `createMemoryConversationStore()` and pass your own store.
 - Update Agent tests and error matchers that expected `Agent requires a prompt`.
 - Ensure prompt `provider` and `model` values are non-empty. If set, `maxOutputTokens` and deprecated `maxTokens` must each be positive integers.

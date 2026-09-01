@@ -494,7 +494,7 @@ interface MessageStore {
 `ModelMessage` is an AI SDK type (`aiSdk` / `ai`). There is no built-in store. Implement the interface in memory for a single process, or with your database for durable history.
 
 <Note>
-`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store. `stream()` stores in its wrapped `onEnd` when `finishReason` is not `'error'`.
+`generate()`, `generateWithStreaming()`, and `stream()` append messages to the message store only when `finishReason` is not `'error'`. Errored turns are not persisted.
 </Note>
 
 ### When to Use Agent vs generateText
