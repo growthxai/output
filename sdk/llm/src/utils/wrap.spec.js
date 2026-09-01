@@ -9,7 +9,8 @@ const mocks = vi.hoisted( () => ( {
   calculateCosts: vi.fn(),
   convertCostToLegacy: vi.fn(),
   calculateBase64FileSize: vi.fn(),
-  mapAiError: vi.fn()
+  mapAiError: vi.fn(),
+  randomBytes: vi.fn()
 } ) );
 
 vi.mock( './sources.js', () => ( {
@@ -34,6 +35,10 @@ vi.mock( './image.js', () => ( {
 
 vi.mock( './error_handler.js', () => ( {
   mapAiError: mocks.mapAiError
+} ) );
+
+vi.mock( 'node:crypto', () => ( {
+  randomBytes: mocks.randomBytes
 } ) );
 
 vi.mock( '@outputai/core/sdk/runtime', () => ( {
@@ -88,6 +93,7 @@ describe( 'wrapGeneration / wrapStream', () => {
     mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
     mocks.calculateBase64FileSize.mockReturnValue( 1234 );
     mocks.mapAiError.mockReturnValue( mappedError );
+    mocks.randomBytes.mockReturnValue( Buffer.from( 'a1b2c3d4', 'hex' ) );
   } );
 
   afterEach( () => {
@@ -109,25 +115,26 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( tracing.addEventStart ).toHaveBeenCalledWith( {
         kind: 'llm',
-        id: 'generateText-9000000000',
+        id: 'generateText-9000000000-a1b2c3d4',
         name: 'generateText',
         details: { prompt }
       } );
+      expect( mocks.randomBytes ).toHaveBeenCalledWith( 4 );
       expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
         prompt
       } );
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockCost
       } );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockLegacyCost
       } );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 3, {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockUsage
       } );
       expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockCost );
@@ -145,7 +152,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( meteringEventPayload.usage ).not.toBe( mockUsage );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateText-9000000000',
+        id: 'generateText-9000000000-a1b2c3d4',
         details: {
           result: response.text,
           usage: response.usage,
@@ -193,7 +200,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateImage-9000000000',
+        id: 'generateImage-9000000000-a1b2c3d4',
         details: {
           result: [ { size: 1234, mediaType: 'image/png' } ],
           usage: response.usage,
@@ -216,7 +223,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
 
       expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockUsage
       } );
       expect( event.emit ).toHaveBeenCalledOnce();
@@ -225,7 +232,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         usage: mockUsage
       } );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateText-9000000000',
+        id: 'generateText-9000000000-a1b2c3d4',
         details: {
           result: response.text,
           usage: response.usage,
@@ -247,11 +254,11 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
 
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockCost
       } );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
-        eventId: 'generateText-9000000000',
+        eventId: 'generateText-9000000000-a1b2c3d4',
         attribute: mockUsage
       } );
       expect( tracing.addEventAttribute ).toHaveBeenCalledTimes( 2 );
@@ -276,7 +283,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
       expect( event.emit ).not.toHaveBeenCalled();
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateText-9000000000',
+        id: 'generateText-9000000000-a1b2c3d4',
         details: {
           result: response.text,
           usage: response.usage,
@@ -300,7 +307,7 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'Agent.generate-9000000000',
+        id: 'Agent.generate-9000000000-a1b2c3d4',
         details: mappedError
       } );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
@@ -308,9 +315,9 @@ describe( 'wrapGeneration / wrapStream', () => {
   } );
 
   describe( 'wrapStream', () => {
-    const hooksFrom = name => {
+    const hooksFrom = ( name, options = {} ) => {
       const fn = vi.fn( () => ( {} ) );
-      wrapStream( { name, prompt, fn } );
+      wrapStream( { name, prompt, fn, ...options } );
       return fn.mock.calls[0][0];
     };
 
@@ -323,7 +330,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( result ).toBe( stream );
       expect( tracing.addEventStart ).toHaveBeenCalledWith( {
         kind: 'llm',
-        id: 'streamText-9000000000',
+        id: 'streamText-9000000000-a1b2c3d4',
         name: 'streamText',
         details: { prompt }
       } );
@@ -332,6 +339,44 @@ describe( 'wrapGeneration / wrapStream', () => {
         onErrorHook: expect.any( Function )
       } );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'records an abort signal reason on the llm trace', () => {
+      const abortController = new AbortController();
+      const abortReason = new DOMException( 'Cancelled by caller', 'AbortError' );
+
+      wrapStream( {
+        name: 'streamText',
+        prompt,
+        abortSignal: abortController.signal,
+        fn: () => ( {} )
+      } );
+      abortController.abort( abortReason );
+
+      expect( mocks.mapAiError ).toHaveBeenCalledWith( abortReason );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+    } );
+
+    it( 'records an already-aborted signal before creating the stream', () => {
+      const abortController = new AbortController();
+      const abortReason = new DOMException( 'Already cancelled', 'AbortError' );
+      abortController.abort( abortReason );
+
+      wrapStream( {
+        name: 'streamText',
+        prompt,
+        abortSignal: abortController.signal,
+        fn: () => ( {} )
+      } );
+
+      expect( mocks.mapAiError ).toHaveBeenCalledWith( abortReason );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
     } );
 
     it( 'wraps onEnd, ends the trace, then awaits the callback', async () => {
@@ -355,7 +400,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( proxied.cost ).toEqual( mockCost );
       expect( proxied.sources ).toBe( mergedSources );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'Agent.stream-9000000000',
+        id: 'Agent.stream-9000000000-a1b2c3d4',
         details: {
           result: response.text,
           usage: response.usage,
@@ -364,6 +409,17 @@ describe( 'wrapGeneration / wrapStream', () => {
         }
       } );
       expect( tracing.addEventEnd.mock.invocationCallOrder[0] ).toBeLessThan( callback.mock.invocationCallOrder[0] );
+    } );
+
+    it( 'removes the abort listener when the stream ends', async () => {
+      const abortController = new AbortController();
+      const { onEndHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+
+      await onEndHook( streamResponse() );
+      abortController.abort( new DOMException( 'Too late', 'AbortError' ) );
+
+      expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
+      expect( tracing.addEventError ).not.toHaveBeenCalled();
     } );
 
     it( 'ends the trace and swallows throws from the onEnd callback', async () => {
@@ -388,10 +444,21 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'streamText-9000000000',
+        id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError
       } );
       expect( callback ).toHaveBeenCalledWith( mappedError );
+    } );
+
+    it( 'removes the abort listener when the stream reports an error', async () => {
+      const abortController = new AbortController();
+      const { onErrorHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+
+      await onErrorHook( { error: new Error( 'stream failed' ) } );
+      abortController.abort( new DOMException( 'Too late', 'AbortError' ) );
+
+      expect( tracing.addEventError ).toHaveBeenCalledOnce();
+      expect( mocks.mapAiError ).toHaveBeenCalledOnce();
     } );
 
     it( 'swallows throws from the onError callback', async () => {
@@ -418,10 +485,13 @@ describe( 'wrapGeneration / wrapStream', () => {
 
     it( 'maps a throw from fn onto the llm trace and rethrows', () => {
       const original = new Error( 'create stream' );
+      const abortController = new AbortController();
+      const removeEventListener = vi.spyOn( abortController.signal, 'removeEventListener' );
 
       expect( () => wrapStream( {
         name: 'streamText',
         prompt,
+        abortSignal: abortController.signal,
         fn: () => {
           throw original;
         }
@@ -429,26 +499,31 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'streamText-9000000000',
+        id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError
       } );
+      expect( removeEventListener ).toHaveBeenCalledOnce();
     } );
 
     it( 'maps a rejected promise from fn onto the llm trace and rethrows', async () => {
       const original = new Error( 'prepareCall failed' );
+      const abortController = new AbortController();
+      const removeEventListener = vi.spyOn( abortController.signal, 'removeEventListener' );
 
       await expect( wrapStream( {
         name: 'Agent.stream',
         prompt,
+        abortSignal: abortController.signal,
         fn: () => Promise.reject( original )
       } ) ).rejects.toBe( mappedError );
 
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
-        id: 'Agent.stream-9000000000',
+        id: 'Agent.stream-9000000000-a1b2c3d4',
         details: mappedError
       } );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+      expect( removeEventListener ).toHaveBeenCalledOnce();
     } );
 
     it( 'returns a fulfilled promise from fn without mapping', async () => {

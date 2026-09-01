@@ -50,6 +50,7 @@
   - Fixed unsupported callbacks on completion APIs being silently overwritten by internal callbacks.
   - Fixed Agent using AI SDK's two automatic retries while other Output generation APIs disabled them. Agent now uses `maxRetries: 0`.
   - Added the public `GenerateImageInput` type for `generateImage()` `images` and `mask` values.
+  - Fixed `GenerateImageParameters` allowing `mask` without `images`; the public type now matches runtime validation.
 - Fixed invalid Agent constructor and method arguments being forwarded for late failure by validating messages, callbacks, tool choices, and `MessageStore` implementations at the public boundary.
 
 ## Tools and tool loops
@@ -89,10 +90,11 @@
 ## Streaming and Agent message store
 
 - Fixed stream observer failures escaping or disappearing silently. `streamText()` and `Agent.stream()` `onError` and `onEnd` callbacks are fire-and-forget observers. Output maps and forwards provider errors, and logs and ignores observer exceptions and rejected promises.
+- Added logging for internal stream finalization failures before AI SDK suppresses the callback rejection.
 - Updated Agent message store:
   - Renamed `conversationStore` to `messageStore` and `ConversationStore` to `MessageStore`.
   - Removed `createMemoryConversationStore()`. The caller supplies a `MessageStore` (`getMessages` / `addMessages`).
-  - Fixed `Agent.stream()` to persist to `messageStore` when `finishReason` is not `'error'`.
+  - Fixed `Agent.generate()`, `Agent.generateWithStreaming()`, and `Agent.stream()` to persist to `messageStore` only when `finishReason` is not `'error'`.
   - Fixed stream message-store failures suppressing the user `onEnd`. Failures are logged and stream finalization continues.
   - Fixed Agent store failures producing success-then-error trace sequences. Store persistence completes before a successful trace end.
 
@@ -105,6 +107,8 @@
   - Fixed blank or untrimmed search URLs producing invalid citations or unstable source IDs. URLs are trimmed and blank values are dropped.
   - Fixed wrapped text responses not consistently exposing `sources` as an array.
   - Updated `ExtractedSource` to the AI SDK `generateText` sources item type (url and document).
+- Fixed concurrent same-name LLM calls started in the same millisecond sharing trace IDs.
+- Fixed aborted `streamText()` and `Agent.stream()` calls leaving their LLM trace open. Aborts now conclude the trace with an error.
 - Fixed public cost, source, and stream callback types to match wrapped runtime values. `response.cost` and stream `onEnd` `cost` use `LLMGenerationCost`, or `null` when pricing data is unavailable. Stream `onEnd` types also include wrapped `result` and merged `sources`.
 
 ## AI SDK exports and public parameter types
@@ -113,3 +117,4 @@
 - Removed named AI SDK re-exports (`tool`, `Output`, `smoothStream`, `stepCountIs`, `hasToolCall`, `jsonSchema`) and AI SDK type re-exports (`ToolSet`, `FinishReason`, `ModelMessage`, and others). Use the `aiSdk` namespace (or import from `ai`) for those.
 - Removed the Output-owned `GenerateTextAiSdkOptions`, `StreamTextAiSdkOptions`, and `GenerateImageAiSdkOptions` aliases. Use `GenerateTextParameters`, `StreamTextParameters`, and `GenerateImageParameters`.
 - Updated `OutputAgentGenerateWithStreamingParameters` to no longer accept an output type argument.
+- Removed test specs and fixtures from the published package tarball.

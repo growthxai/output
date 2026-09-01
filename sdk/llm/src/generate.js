@@ -26,6 +26,7 @@ export const streamText = args => {
   return wrapStream( {
     name: 'streamText',
     prompt,
+    abortSignal: aiOptions.abortSignal,
     fn: ( { onEndHook, onErrorHook } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
