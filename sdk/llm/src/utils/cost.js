@@ -62,18 +62,13 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
     } else {
       this.status = LLMGenerationCost.Status.PRECISE;
     }
-    const inputItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.INPUT && exists( p.total ) );
-    if ( inputItems.length > 0 ) {
-      this.input = inputItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
-    }
-    const outputItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.OUTPUT && exists( p.total ) );
-    if ( outputItems.length > 0 ) {
-      this.output = outputItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
-    }
-    const requestItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.REQUEST && exists( p.total ) );
-    if ( requestItems.length > 0 ) {
-      this.request = requestItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
-    }
+    const sumGroup = group => {
+      const groupItems = items.filter( p => p.group === group && exists( p.total ) );
+      return groupItems.length > 0 ? groupItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber() : null;
+    };
+    this.input = sumGroup( LLMGenerationUsageItem.Group.INPUT );
+    this.output = sumGroup( LLMGenerationUsageItem.Group.OUTPUT );
+    this.request = sumGroup( LLMGenerationUsageItem.Group.REQUEST );
     if ( exists( this.input ) || exists( this.output ) || exists( this.request ) ) {
       this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.request ?? 0 ).toNumber();
     }

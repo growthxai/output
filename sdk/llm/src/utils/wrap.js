@@ -16,6 +16,9 @@ const createResponseProxy = ( { response, properties } ) => new Proxy( response,
   }
 } );
 
+/** Provider metadata of the final step, falling back to the response-level metadata */
+const resolveProviderMetadata = response => response.finalStep?.providerMetadata ?? response.providerMetadata;
+
 /** Generate a trace id, starts the tracing and return the id */
 const startTrace = ( { name, prompt } ) => {
   const traceId = `${name}-${Date.now()}-${randomBytes( 4 ).toString( 'hex' )}`;
@@ -74,7 +77,7 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
   try {
     const response = await fn();
     const { usage } = response;
-    const providerMetadata = response.finalStep?.providerMetadata ?? response.providerMetadata;
+    const providerMetadata = resolveProviderMetadata( response );
     const cost = await handleMetering( { traceId, usage, prompt, steps: response.steps } );
 
     if ( Array.isArray( response.images ) ) {
@@ -149,8 +152,8 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
     const state = { proxyResponse: null };
     removeAbortListener();
     try {
-      const { text: result, finalStep, usage, steps } = response;
-      const { providerMetadata } = finalStep;
+      const { text: result, usage, steps } = response;
+      const providerMetadata = resolveProviderMetadata( response );
       const cost = await handleMetering( { traceId, usage, prompt, steps } );
       const sources = extractSources( response );
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );

@@ -6,8 +6,8 @@
  * Verified 2026-09-01: https://cloud.google.com/vertex-ai/generative-ai/pricing
  */
 const UNITS = [
-  { match: /^gemini-3/, label: 'grounding_query', ppm: 14_000 },
-  { match: /^gemini-2/, label: 'grounding_prompt', ppm: 35_000 }
+  { match: /^gemini-3/, label: 'grounding_query', ppm: 14_000, perQuery: true },
+  { match: /^gemini-2/, label: 'grounding_prompt', ppm: 35_000, perQuery: false }
 ];
 
 /**
@@ -29,7 +29,7 @@ export const isGroundingLabel = label => label === GROUNDING_UNKNOWN_LABEL || la
  * here if image or retrieval grounding is enabled.
  *
  * @param {string} modelId - Id of the model that produced the response
- * @param {object} [providerMetadata] - AI SDK provider metadata of the final step
+ * @param {object} [providerMetadata] - AI SDK provider metadata of a single step
  * @returns {{ label: string, amount: number } | null} Grounding label and amount, or null when ungrounded
  */
 export const parseGroundingUsage = ( modelId, providerMetadata ) => {
@@ -46,6 +46,6 @@ export const parseGroundingUsage = ( modelId, providerMetadata ) => {
 
   return {
     label: unit.label,
-    amount: unit.label === 'grounding_query' ? queries.length : 1
+    amount: unit.perQuery ? queries.length : 1
   };
 };
