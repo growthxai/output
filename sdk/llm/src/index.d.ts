@@ -341,9 +341,9 @@ export type ExtractedSource =
 
 export type LLMGenerationUsageStatus = 'complete' | 'incomplete';
 
-/** Token usage reported for one normalized LLM usage component. */
+/** Token usage reported for one normalized LLM usage component. `request` counts billable requests, not tokens. */
 export interface LLMGenerationUsageItem {
-  group: 'input' | 'output';
+  group: 'input' | 'output' | 'request';
   label: string | null;
   amount: number;
 }
@@ -386,7 +386,7 @@ export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
 
 /** Cost calculated for one normalized LLM usage item. */
 export interface LLMGenerationCostItem {
-  group: 'input' | 'output';
+  group: 'input' | 'output' | 'request';
   label: string | null;
   amount: number;
   ppm: number | null;
@@ -401,6 +401,7 @@ export interface LLMGenerationCost extends BaseAttribute {
   modelId: string;
   input: number | null;
   output: number | null;
+  request: number | null;
   total: number | null;
   status: LLMGenerationCostStatus;
   items: LLMGenerationCostItem[];

@@ -63,6 +63,7 @@ function llmCostNode( id: string, model: string, items: LLMGenerationCost['items
     items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + ( item.total ?? 0 ), 0 );
   const input = totalOf( 'input' );
   const output = totalOf( 'output' );
+  const request = totalOf( 'request' );
 
   return {
     id,
@@ -75,7 +76,8 @@ function llmCostNode( id: string, model: string, items: LLMGenerationCost['items
         modelId: model,
         input,
         output,
-        total: input + output,
+        request,
+        total: input + output + request,
         status: 'precise',
         items
       }

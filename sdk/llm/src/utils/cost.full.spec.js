@@ -257,6 +257,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       modelId,
       input,
       output,
+      request: null,
       total,
       status,
       items: items.map( ( [ group, label, amount, ppm, itemTotal, itemStatus ] ) => ( {

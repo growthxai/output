@@ -31,8 +31,8 @@ const handleError = ( { traceId, error: originalError } ) => {
 };
 
 /** Normalize raw AI SDK usage, calculate cost, attach trace attributes, and emit metering events */
-const handleMetering = async ( { traceId, usage: sdkUsage, prompt } ) => {
-  const usageAttribute = parseLLMUsage( { usage: sdkUsage, prompt } );
+const handleMetering = async ( { traceId, usage: sdkUsage, prompt, steps } ) => {
+  const usageAttribute = parseLLMUsage( { usage: sdkUsage, prompt, steps } );
   if ( !usageAttribute ) {
     return null;
   }
@@ -74,17 +74,17 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
   try {
     const response = await fn();
     const { usage } = response;
-    const cost = await handleMetering( { traceId, usage, prompt } );
+    const providerMetadata = response.finalStep?.providerMetadata ?? response.providerMetadata;
+    const cost = await handleMetering( { traceId, usage, prompt, steps: response.steps } );
 
     if ( Array.isArray( response.images ) ) {
-      const { image, images, providerMetadata } = response;
+      const { image, images } = response;
       const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
 
       Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
       return createResponseProxy( { response, properties: { cost, result: image } } );
     } else {
-      const { text: result, finalStep } = response;
-      const { providerMetadata } = finalStep;
+      const { text: result } = response;
       const sources = extractSources( response );
 
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
@@ -149,9 +149,9 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
     const state = { proxyResponse: null };
     removeAbortListener();
     try {
-      const { text: result, finalStep, usage } = response;
+      const { text: result, finalStep, usage, steps } = response;
       const { providerMetadata } = finalStep;
-      const cost = await handleMetering( { traceId, usage, prompt } );
+      const cost = await handleMetering( { traceId, usage, prompt, steps } );
       const sources = extractSources( response );
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
       state.proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );

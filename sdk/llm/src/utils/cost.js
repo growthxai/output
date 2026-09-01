@@ -1,6 +1,7 @@
 import { fetchModelsPricing } from './models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
+import { GROUNDING_PPM } from './grounding.js';
 import { Logger } from '@outputai/core';
 import Decimal from 'decimal.js';
 
@@ -41,6 +42,7 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
   modelId;
   input = null;
   output = null;
+  request = null;
   total = null;
   status = LLMGenerationCost.Status.INCOMPLETE;
   items = [];
@@ -68,8 +70,12 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
     if ( outputItems.length > 0 ) {
       this.output = outputItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
     }
-    if ( exists( this.input ) || exists( this.output ) ) {
-      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).toNumber();
+    const requestItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.REQUEST && exists( p.total ) );
+    if ( requestItems.length > 0 ) {
+      this.request = requestItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber();
+    }
+    if ( exists( this.input ) || exists( this.output ) || exists( this.request ) ) {
+      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.request ?? 0 ).toNumber();
     }
   }
 }
@@ -86,6 +92,10 @@ const resolveValue = values => {
 };
 
 const resolvePrice = ( { group, label, pricing } ) => {
+  // Per-request charges are never token-priced: models.dev has no rate for them.
+  if ( group === LLMGenerationUsageItem.Group.REQUEST ) {
+    return resolveValue( [ GROUNDING_PPM[label] ] );
+  }
   if ( !pricing ) {
     return resolveValue( [] );
   }
@@ -132,6 +142,12 @@ export const calculateCosts = async usage => {
     const total = exists( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
     return new LLMGenerationCostItem( group, label, amount, ppm, total, status );
   } );
+
+  const unrated = items.some( v =>
+    v.group === LLMGenerationUsageItem.Group.REQUEST && v.status === LLMGenerationCostItem.Status.MISSING );
+  if ( unrated ) {
+    Logger.warn( 'Grounded call with no grounding rate for model', { namespace: 'LLM', modelId, providerId } );
+  }
 
   return new LLMGenerationCost( modelId, providerId, items, usage.status );
 };

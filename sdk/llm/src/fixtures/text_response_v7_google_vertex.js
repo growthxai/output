@@ -90,7 +90,13 @@ export default {
       providerMetadata: {
         googleVertex: {
           promptFeedback: null,
-          groundingMetadata: null,
+          groundingMetadata: {
+            webSearchQueries: [
+              'how does a carburetor work',
+              'carburetor venturi effect'
+            ],
+            retrievalQueries: null
+          },
           urlContextMetadata: null,
           safetyRatings: null,
           usageMetadata: {
@@ -117,7 +123,13 @@ export default {
         },
         vertex: {
           promptFeedback: null,
-          groundingMetadata: null,
+          groundingMetadata: {
+            webSearchQueries: [
+              'how does a carburetor work',
+              'carburetor venturi effect'
+            ],
+            retrievalQueries: null
+          },
           urlContextMetadata: null,
           safetyRatings: null,
           usageMetadata: {
@@ -249,7 +261,13 @@ export default {
     providerMetadata: {
       googleVertex: {
         promptFeedback: null,
-        groundingMetadata: null,
+        groundingMetadata: {
+          webSearchQueries: [
+            'how does a carburetor work',
+            'carburetor venturi effect'
+          ],
+          retrievalQueries: null
+        },
         urlContextMetadata: null,
         safetyRatings: null,
         usageMetadata: {
@@ -276,7 +294,13 @@ export default {
       },
       vertex: {
         promptFeedback: null,
-        groundingMetadata: null,
+        groundingMetadata: {
+          webSearchQueries: [
+            'how does a carburetor work',
+            'carburetor venturi effect'
+          ],
+          retrievalQueries: null
+        },
         urlContextMetadata: null,
         safetyRatings: null,
         usageMetadata: {
@@ -325,7 +349,13 @@ export default {
   providerMetadata: {
     googleVertex: {
       promptFeedback: null,
-      groundingMetadata: null,
+      groundingMetadata: {
+        webSearchQueries: [
+          'how does a carburetor work',
+          'carburetor venturi effect'
+        ],
+        retrievalQueries: null
+      },
       urlContextMetadata: null,
       safetyRatings: null,
       usageMetadata: {
@@ -352,7 +382,13 @@ export default {
     },
     vertex: {
       promptFeedback: null,
-      groundingMetadata: null,
+      groundingMetadata: {
+        webSearchQueries: [
+          'how does a carburetor work',
+          'carburetor venturi effect'
+        ],
+        retrievalQueries: null
+      },
       urlContextMetadata: null,
       safetyRatings: null,
       usageMetadata: {

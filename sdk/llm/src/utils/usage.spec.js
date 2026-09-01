@@ -10,6 +10,12 @@ const prompt = {
 };
 
 const parse = usage => parseLLMUsage( { prompt, usage } );
+const step = webSearchQueries => ( { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries } } } } );
+const grounded = ( model, ...steps ) => parseLLMUsage( {
+  prompt: { config: { provider: 'google-vertex', model } },
+  usage: { inputTokens: 100, outputTokens: 50 },
+  steps: steps.map( step )
+} );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
 describe( 'LLMGenerationUsage', () => {
@@ -227,6 +233,69 @@ describe( 'parseLLMUsage', () => {
     } );
     expect( result.items ).toEqual( [
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 15 )
+    ] );
+  } );
+
+  it( 'records a Gemini 3 grounded call as one request item per web search query', () => {
+    const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b', 'c' ] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 50 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_query', 3 )
+    ] );
+  } );
+
+  it( 'records a Gemini 2 grounded call as a single request item', () => {
+    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b', 'c' ] );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_prompt', 1 )
+    );
+  } );
+
+  it( 'keeps grounding out of the token aggregates', () => {
+    const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b', 'c' ] );
+
+    expect( result ).toMatchObject( {
+      status: LLMGenerationUsage.Status.COMPLETE,
+      input: 100,
+      output: 50,
+      total: 150
+    } );
+  } );
+
+  it( 'sums Gemini 3 grounding queries across every step', () => {
+    const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b' ], [ 'c' ], [] );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_query', 3 )
+    );
+  } );
+
+  it( 'charges Gemini 2 once per grounded step across a multi-step run', () => {
+    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b' ], [ 'c' ], [] );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_prompt', 2 )
+    );
+  } );
+
+  it( 'reports grounding for a response without token usage', () => {
+    const result = parseLLMUsage( {
+      prompt,
+      usage: {},
+      steps: [ { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries: [ 'a' ] } } } } ]
+    } );
+
+    expect( result ).toMatchObject( {
+      status: LLMGenerationUsage.Status.INCOMPLETE,
+      input: null,
+      output: null,
+      total: null
+    } );
+    expect( result.items ).toEqual( [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding', 1 )
     ] );
   } );
 

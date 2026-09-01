@@ -4,6 +4,7 @@ import { LLMUsageLegacy, convertCostToLegacy } from './legacy_cost_attribute.js'
 const MODEL_ID = 'test-model';
 const INPUT = 'input';
 const OUTPUT = 'output';
+const REQUEST = 'request';
 const OK = 'ok';
 const FALLBACK = 'fallback';
 const MISSING = 'missing';
@@ -257,6 +258,39 @@ describe( 'convertCostToLegacy', () => {
       ],
       total: 0,
       tokensUsed: 0
+    } );
+  } );
+
+  it( 'carries a priced grounding line without counting it as tokens', () => {
+    expect( convertCostToLegacy( cost( [
+      item( INPUT, null, 100, 2, 0.0002 ),
+      item( OUTPUT, null, 50, 10, 0.0005 ),
+      item( REQUEST, 'grounding_query', 3, 14_000, 0.042 )
+    ] ) ) ).toEqual( {
+      type: 'llm:usage',
+      modelId: MODEL_ID,
+      usage: [
+        { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
+        { type: 'output', ppm: 10, amount: 50, total: 0.0005 },
+        { type: 'grounding_query', ppm: 14_000, amount: 3, total: 0.042 }
+      ],
+      total: 0.0427,
+      tokensUsed: 150
+    } );
+  } );
+
+  it( 'omits an unpriced grounding line', () => {
+    expect( convertCostToLegacy( cost( [
+      item( INPUT, null, 100, 2, 0.0002 ),
+      item( REQUEST, 'grounding', 2, null, null, MISSING )
+    ] ) ) ).toEqual( {
+      type: 'llm:usage',
+      modelId: MODEL_ID,
+      usage: [
+        { type: 'input', ppm: 2, amount: 100, total: 0.0002 }
+      ],
+      total: 0.0002,
+      tokensUsed: 100
     } );
   } );
 
