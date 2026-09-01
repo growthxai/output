@@ -72,6 +72,27 @@ export function renderChangeBlock( change ) {
   return `**${inner}**\n\n${summary}`;
 }
 
+function groupChangesByPackages( changes ) {
+  const groups = new Map();
+
+  for ( const change of changes ) {
+    const key = JSON.stringify( change.packages.map( pkg => pkg.name ).sort() );
+    const group = groups.get( key );
+
+    if ( group ) {
+      group.summaries.push( change.summary );
+      continue;
+    }
+
+    groups.set( key, {
+      packages: change.packages,
+      summaries: [ change.summary ]
+    } );
+  }
+
+  return groups.values();
+}
+
 function renderMigrationLink( guide ) {
   return `See the [v${guide.from} - v${guide.to} migration guide](/migrations/${guide.slug}).`;
 }
@@ -87,8 +108,11 @@ function renderUpdateBlock( release, migrationByToVersion ) {
     lines.push( renderMigrationLink( guide ), '' );
   }
 
-  for ( const change of release.changes ) {
-    lines.push( renderChangeBlock( change ), '' );
+  for ( const group of groupChangesByPackages( release.changes ) ) {
+    lines.push( renderChangeBlock( {
+      packages: group.packages,
+      summary: group.summaries.join( '\n\n' )
+    } ), '' );
   }
 
   lines.push( '</Update>' );

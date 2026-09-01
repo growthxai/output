@@ -203,4 +203,45 @@ describe( 'renderChangelogBody', () => {
     expect( body ).toContain( '**Source is "workflow"**\n\n```js\n{ eventId }\n```' );
     expect( body ).not.toMatch( /\*\*Source is "workflow"\*\*```/ );
   } );
+
+  it( 'groups changes by package set while preserving their order', () => {
+    const body = renderChangelogBody( {
+      releases: [ {
+        version: '0.12.0',
+        date: '2026-09-01',
+        level: 'minor',
+        changes: [
+          { packages: [ pkg( '@outputai/llm' ) ], summary: 'First LLM change.' },
+          { packages: [ pkg( '@outputai/core' ) ], summary: 'Core change.' },
+          { packages: [ pkg( '@outputai/llm' ) ], summary: 'Second LLM change.' },
+          {
+            packages: [ pkg( '@outputai/cli' ), pkg( '@outputai/core' ) ],
+            summary: 'First shared change.'
+          },
+          {
+            packages: [ pkg( '@outputai/core' ), pkg( '@outputai/cli' ) ],
+            summary: 'Second shared change.'
+          }
+        ]
+      } ]
+    } );
+
+    expect( body.match( /\*\*`@outputai\/llm`\*\*/g ) ).toHaveLength( 1 );
+    expect( body.match( /\*\*`@outputai\/cli`, `@outputai\/core`\*\*/g ) ).toHaveLength( 1 );
+    expect( body ).toContain( [
+      '**`@outputai/llm`**',
+      '',
+      'First LLM change.',
+      '',
+      'Second LLM change.'
+    ].join( '\n' ) );
+    expect( body ).toContain( [
+      '**`@outputai/cli`, `@outputai/core`**',
+      '',
+      'First shared change.',
+      '',
+      'Second shared change.'
+    ].join( '\n' ) );
+    expect( body.indexOf( '**`@outputai/llm`**' ) ).toBeLessThan( body.indexOf( '**`@outputai/core`**' ) );
+  } );
 } );
