@@ -58,7 +58,9 @@ export class Agent {
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } )
         } );
-        await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+        if ( response.finishReason !== 'error' ) {
+          await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
+        }
         return response;
       }
     } );
@@ -95,7 +97,9 @@ export class Agent {
         }
 
         state.response.output = await stream.output;
-        await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
+        if ( state.response.finishReason !== 'error' ) {
+          await this.#storeMessages( messages.concat( state.response.responseMessages ?? [] ) );
+        }
 
         return state.response;
       }

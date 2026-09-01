@@ -153,6 +153,7 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
       state.proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
     } catch ( error ) {
+      Logger.error( 'Stream onEnd() handler failed', { namespace: 'LLM', error: error?.message ?? String( error ) } );
       throw handleError( { traceId, error } );
     }
 

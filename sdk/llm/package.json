@@ -9,7 +9,11 @@
     "node": ">=24.15.0"
   },
   "files": [
-    "./src"
+    "./src/!(*.spec).js",
+    "./src/index.d.ts",
+    "./src/prompt/!(*.spec).js",
+    "./src/prompt/markup/!(*.spec).js",
+    "./src/utils/!(*.spec).js"
   ],
   "scripts": {
     "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"

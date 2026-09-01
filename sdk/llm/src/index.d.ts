@@ -281,12 +281,20 @@ export type GenerateImageInput =
     mediaType?: string;
   };
 
+type GenerateImageInputs =
+  | {
+    /** Runtime image inputs for image-to-image generation */
+    images: GenerateImageInput[];
+    /** Optional mask for image editing */
+    mask?: GenerateImageInput;
+  } |
+  {
+    images?: undefined;
+    mask?: never;
+  };
+
 /** Parameters accepted by {@link generateImage}. */
-export type GenerateImageParameters = PromptCallOptions & {
-  /** Runtime image inputs for image-to-image generation */
-  images?: GenerateImageInput[];
-  /** Optional mask for image editing; requires `images` */
-  mask?: GenerateImageInput;
+export type GenerateImageParameters = PromptCallOptions & GenerateImageInputs & {
   /** Abort signal for the request */
   abortSignal?: AbortSignal;
 };
@@ -493,7 +501,7 @@ export function getProviderNames(): string[];
  * Use an LLM model to generate text.
  *
  * This function is a wrapper over the AI SDK's `generateText`.
- * The prompt sets `model`, `messages`, `temperature`, `maxTokens`, `maxSteps`, `skills`, and
+ * The prompt sets `model`, `messages`, generation settings, `maxSteps`, `skills`, and
  * `providerOptions`. Pass either a prompt filename with optional `promptDir` / `variables`, or a
  * loaded or custom {@link Prompt} object. Other call arguments are `tools`, `output`, `toolChoice`,
  * `stopWhen`, and `abortSignal`.

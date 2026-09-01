@@ -379,6 +379,22 @@ describe( 'Agent', () => {
     expect( result ).toBe( aiResponse );
   } );
 
+  it( 'does not store generate messages when finishReason is error', async () => {
+    const store = {
+      getMessages: vi.fn( () => [] ),
+      addMessages: vi.fn()
+    };
+    aiMocks.superGenerate.mockResolvedValueOnce( { ...aiResponse, finishReason: 'error' } );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
+
+    await agent.generate( {
+      messages: [ { role: 'user', content: 'New question' } ]
+    } );
+
+    expect( store.addMessages ).not.toHaveBeenCalled();
+  } );
+
   it( 'generates with streaming, stores messages, and returns the completed response', async () => {
     const store = {
       getMessages: vi.fn( () => [] ),
@@ -436,6 +452,26 @@ describe( 'Agent', () => {
     ] );
     expect( onChunk ).toHaveBeenCalledWith( { chunk } );
     expect( result ).toEqual( { ...aiResponse, output } );
+  } );
+
+  it( 'does not store generateWithStreaming messages when finishReason is error', async () => {
+    const store = {
+      getMessages: vi.fn( () => [] ),
+      addMessages: vi.fn()
+    };
+    const stream = { output: Promise.resolve( undefined ) };
+    aiMocks.superStream.mockImplementationOnce( options => {
+      options.onEnd( { ...aiResponse, finishReason: 'error' } );
+      return stream;
+    } );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1', messageStore: store } );
+
+    await agent.generateWithStreaming( {
+      messages: [ { role: 'user', content: 'New question' } ]
+    } );
+
+    expect( store.addMessages ).not.toHaveBeenCalled();
   } );
 
   it( 'omits onChunk when generateWithStreaming does not receive it', async () => {
