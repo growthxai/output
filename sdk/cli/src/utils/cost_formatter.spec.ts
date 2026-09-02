@@ -40,22 +40,30 @@ function report( llmCalls: LLMCostResult[] ): CostReport {
 }
 
 describe( 'formatCostReport incomplete marker', () => {
-  it( 'marks a model with an unpriced charge and prints the footnote', () => {
-    const out = formatCostReport( report( [ llmResult( { incomplete: true } ) ] ) );
-    expect( out ).toContain( '*' );
+  it( 'marks the model row with an unpriced charge and prints the footnote', () => {
+    const out = formatCostReport( report( [ llmResult( { model: 'gemini-2.5-flash', incomplete: true } ) ] ) );
+    const modelRow = out.split( '\n' ).find( line => line.includes( 'gemini-2.5-flash' ) );
+    expect( modelRow ).toContain( '$0.0037 *' );
     expect( out ).toContain( 'cost incomplete' );
   } );
 
   it( 'omits the marker and footnote when every call is fully priced', () => {
     const out = formatCostReport( report( [ llmResult() ] ) );
+    const modelRow = out.split( '\n' ).find( line => line.includes( 'gemini-2.5-flash' ) );
+    expect( modelRow ).not.toContain( '*' );
     expect( out ).not.toContain( 'cost incomplete' );
   } );
 
-  it( 'marks the flagged call in the verbose table', () => {
+  it( 'marks the flagged call row in the verbose table', () => {
     const out = formatCostReport(
-      report( [ llmResult( { step: 'grounded', incomplete: true } ) ] ),
+      report( [ llmResult( { step: 'grounded', incomplete: true } ), llmResult( { step: 'plain' } ) ] ),
       { verbose: true }
     );
+    const lines = out.split( '\n' );
+    const groundedRow = lines.find( line => line.includes( 'grounded' ) );
+    const plainRow = lines.find( line => line.includes( 'plain' ) );
+    expect( groundedRow ).toContain( '$0.0037 *' );
+    expect( plainRow ).not.toContain( '*' );
     expect( out ).toContain( 'cost incomplete' );
   } );
 } );

@@ -145,8 +145,9 @@ function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, even
     usage: normalizedItemTokenUsage( event.items ),
     originalCost: 0,
     lines,
-    // This path only runs when cost computation produced no llm:generation:cost
-    // attribute at all, so every line here is unpriced by construction.
+    // This path runs whenever cost computation produced no llm:generation:cost
+    // attribute at all (e.g. pricing config missing, not just unrated grounding),
+    // so every line here is unpriced by construction, not only grounding calls.
     incomplete: true
   };
 }

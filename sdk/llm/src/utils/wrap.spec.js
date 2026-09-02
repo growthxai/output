@@ -483,7 +483,6 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( steps[0].providerMetadata.vertex.groundingMetadata.webSearchQueries ).toHaveLength( 2 );
     } );
 
-
     it( 'ends the trace and swallows throws from the onEnd callback', async () => {
       const response = textResponse();
       const { onEndHook } = hooksFrom( 'Agent.stream' );
