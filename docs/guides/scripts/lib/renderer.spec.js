@@ -61,7 +61,7 @@ describe( 'renderChangeBlock', () => {
       ].join( '\n' )
     } );
 
-    expect( out ).not.toMatch( /^#{1,6} /m );
+    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
     expect( out ).toContain( '**`workflow start --monitor`**\n\n' );
     expect( out ).toContain( 'Added a `--monitor` flag.' );
   } );
@@ -73,7 +73,7 @@ describe( 'renderChangeBlock', () => {
       summary: '## Update `x` here\nbody'
     } );
 
-    expect( out ).not.toMatch( /^#{1,6} /m );
+    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
     expect( out ).toContain( '**Update `x` here**\n\nbody' );
     expect( out ).not.toContain( '**Update**`x`' );
   } );
@@ -103,13 +103,13 @@ describe( 'renderChangeBlock', () => {
     expect( out ).not.toContain( '**Dependencies updates**\n\n\n**Vulnerabilities fixed:**' );
   } );
 
-  it( 'leaves no ATX headings that would leak into the page TOC', () => {
+  it( 'demotes summary headings that would leak into the page TOC', () => {
     const out = renderChangeBlock( {
       packages: [ pkg( '@outputai/core' ) ],
       summary: '## Trace Changes\n- item\n\n### Nested\nbody'
     } );
 
-    expect( out ).not.toMatch( /^#{1,6} /m );
+    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
     expect( out ).toContain( '**Trace Changes**' );
     expect( out ).toContain( '**Nested**' );
   } );
@@ -120,17 +120,17 @@ describe( 'renderChangeBlock', () => {
       summary: '- Added a custom dispatcher\n- Added support for dispatcher in init'
     } );
 
-    expect( out.startsWith( '**`@outputai/http`**\n\n- Added a custom dispatcher\n' ) ).toBe( true );
+    expect( out.startsWith( '### `@outputai/http`\n\n- Added a custom dispatcher\n' ) ).toBe( true );
   } );
 
-  it( 'does not put an em dash on the package label line', () => {
+  it( 'renders the package as a level-three heading without an em dash', () => {
     const out = renderChangeBlock( {
       packages: [ pkg( 'output-api' ) ],
       summary: 'Workflow result endpoints changed.'
     } );
 
-    expect( out.startsWith( '**`output-api`**\n\nWorkflow result endpoints changed.' ) ).toBe( true );
-    expect( out.split( '\n' )[0] ).toBe( '**`output-api`**' );
+    expect( out.startsWith( '### `output-api`\n\nWorkflow result endpoints changed.' ) ).toBe( true );
+    expect( out.split( '\n' )[0] ).toBe( '### `output-api`' );
     expect( out ).not.toContain( '—' );
   } );
 
@@ -204,6 +204,25 @@ describe( 'renderChangelogBody', () => {
     expect( body ).not.toMatch( /\*\*Source is "workflow"\*\*```/ );
   } );
 
+  it( 'transforms grouped summaries independently', () => {
+    const body = renderChangelogBody( {
+      releases: [ {
+        version: '0.12.0',
+        date: '2026-09-01',
+        level: 'minor',
+        changes: [
+          { packages: [ pkg( '@outputai/core' ) ], summary: 'Unclosed `code span.' },
+          {
+            packages: [ pkg( '@outputai/core' ) ],
+            summary: 'Later <tag {value} and closing ` marker.'
+          }
+        ]
+      } ]
+    } );
+
+    expect( body ).toContain( 'Later &lt;tag &#123;value} and closing ` marker.' );
+  } );
+
   it( 'groups changes by exact package set while preserving their order', () => {
     const body = renderChangelogBody( {
       releases: [ {
@@ -226,26 +245,48 @@ describe( 'renderChangelogBody', () => {
       } ]
     } );
 
-    expect( body.match( /\*\*`@outputai\/llm`\*\*/g ) ).toHaveLength( 1 );
-    expect( body.match( /\*\*`@outputai\/cli`, `@outputai\/core`\*\*/g ) ).toHaveLength( 1 );
+    expect( body.match( /^### `@outputai\/llm`$/gm ) ).toHaveLength( 1 );
+    expect( body.match( /^### `@outputai\/cli`, `@outputai\/core`$/gm ) ).toHaveLength( 1 );
     expect( body ).toContain( [
-      '**`@outputai/llm`**',
+      '### `@outputai/llm`',
       '',
       'First LLM change.',
-      '',
-      '---',
       '',
       'Second LLM change.'
     ].join( '\n' ) );
     expect( body ).toContain( [
-      '**`@outputai/cli`, `@outputai/core`**',
+      '### `@outputai/cli`, `@outputai/core`',
       '',
       'First shared change.',
       '',
-      '---',
-      '',
       'Second shared change.'
     ].join( '\n' ) );
-    expect( body.indexOf( '**`@outputai/llm`**' ) ).toBeLessThan( body.indexOf( '**`@outputai/core`**' ) );
+    expect( body.indexOf( '### `@outputai/llm`' ) ).toBeLessThan( body.indexOf( '### `@outputai/core`' ) );
+  } );
+
+  it( 'renders package-less and single-change groups', () => {
+    const body = renderChangelogBody( {
+      releases: [ {
+        version: '0.12.0',
+        date: '2026-09-01',
+        level: 'minor',
+        changes: [
+          { packages: [], summary: 'First all-packages change.' },
+          { packages: [ pkg( '@outputai/llm' ) ], summary: 'Only LLM change.' },
+          { packages: [], summary: 'Second all-packages change.' }
+        ]
+      } ]
+    } );
+
+    expect( body.match( /^### All packages$/gm ) ).toHaveLength( 1 );
+    expect( body ).toContain( [
+      '### All packages',
+      '',
+      'First all-packages change.',
+      '',
+      'Second all-packages change.'
+    ].join( '\n' ) );
+    expect( body ).toContain( '### `@outputai/llm`\n\nOnly LLM change.' );
+    expect( body ).not.toContain( '---' );
   } );
 } );

@@ -57,19 +57,30 @@ function collapseExtraBlankLines( text ) {
   return mapOutside( FENCE_RE, text, segment => segment.replace( /\n{3,}/g, '\n\n' ) );
 }
 
+function renderPackageHeading( packages ) {
+  const inner = packages.length === 0
+    ? 'All packages'
+    : packages.map( p => `\`${p.name}\`` ).join( ', ' );
+  return `### ${inner}`;
+}
+
+function renderSummary( summary ) {
+  return escapeMdxText( collapseExtraBlankLines( demoteMarkdownHeadings( summary ) ) );
+}
+
+function renderChangeGroup( { packages, summaries } ) {
+  return `${renderPackageHeading( packages )}\n\n${summaries.map( renderSummary ).join( '\n\n' )}`;
+}
+
 /**
- * Render one changelog change as MDX (package line + summary).
+ * Render one changelog change as MDX (package heading + summary).
  * @param {{ packages: Array<{ name: string }>, summary: string }} change
  * @returns {string}
  */
 export function renderChangeBlock( change ) {
-  const inner = change.packages.length === 0
-    ? 'All packages'
-    : change.packages.map( p => `\`${p.name}\`` ).join( ', ' );
-  // Package label on its own line, then the summary, so a leading `##` or `-`
+  // Package heading on its own line, then the summary, so a leading `##` or `-`
   // in the summary stays a block construct instead of trailing the label.
-  const summary = escapeMdxText( collapseExtraBlankLines( demoteMarkdownHeadings( change.summary ) ) );
-  return `**${inner}**\n\n${summary}`;
+  return renderChangeGroup( { packages: change.packages, summaries: [ change.summary ] } );
 }
 
 function groupChangesByPackageSet( changes ) {
@@ -110,10 +121,7 @@ function renderUpdateBlock( release, migrationByToVersion ) {
   }
 
   for ( const group of groupChangesByPackageSet( release.changes ) ) {
-    lines.push( renderChangeBlock( {
-      packages: group.packages,
-      summary: group.summaries.join( '\n\n---\n\n' )
-    } ), '' );
+    lines.push( renderChangeGroup( group ), '' );
   }
 
   lines.push( '</Update>' );
