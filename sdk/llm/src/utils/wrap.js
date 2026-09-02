@@ -16,20 +16,6 @@ const createResponseProxy = ( { response, properties } ) => new Proxy( response,
   }
 } );
 
-/**
- * Provider metadata of the final step, falling back to the response-level metadata.
- *
- * AI SDK v7 attaches provider metadata to `finalStep`; a text/stream response missing `finalStep`
- * signals a shape regression, so surface it before silently substituting the response-level value.
- * Image responses have no `finalStep` by design, so callers pass `expectFinalStep: false` there.
- */
-const resolveProviderMetadata = ( response, { expectFinalStep = true } = {} ) => {
-  if ( expectFinalStep && !response.finalStep ) {
-    Logger.warn( 'Response missing finalStep; using response-level provider metadata', { namespace: 'LLM' } );
-  }
-  return response.finalStep?.providerMetadata ?? response.providerMetadata;
-};
-
 /** Generate a trace id, starts the tracing and return the id */
 const startTrace = ( { name, prompt } ) => {
   const traceId = `${name}-${Date.now()}-${randomBytes( 4 ).toString( 'hex' )}`;
@@ -88,18 +74,17 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
   try {
     const response = await fn();
     const { usage } = response;
-    const isImage = Array.isArray( response.images );
-    const providerMetadata = resolveProviderMetadata( response, { expectFinalStep: !isImage } );
     const cost = await handleMetering( { traceId, usage, prompt, steps: response.steps } );
 
-    if ( isImage ) {
-      const { image, images } = response;
+    if ( Array.isArray( response.images ) ) {
+      const { image, images, providerMetadata } = response;
       const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
 
       Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
       return createResponseProxy( { response, properties: { cost, result: image } } );
     } else {
-      const { text: result } = response;
+      const { text: result, finalStep } = response;
+      const { providerMetadata } = finalStep;
       const sources = extractSources( response );
 
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
@@ -164,8 +149,8 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
     const state = { proxyResponse: null };
     removeAbortListener();
     try {
-      const { text: result, usage, steps } = response;
-      const providerMetadata = resolveProviderMetadata( response );
+      const { text: result, finalStep, usage, steps } = response;
+      const { providerMetadata } = finalStep;
       const cost = await handleMetering( { traceId, usage, prompt, steps } );
       const sources = extractSources( response );
       Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );

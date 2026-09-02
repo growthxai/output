@@ -194,34 +194,6 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
     } );
 
-    it( 'warns and falls back to response-level metadata when finalStep is missing', async () => {
-      const response = {
-        text: 'hi',
-        usage: { inputTokens: 2 },
-        providerMetadata: { fallback: true },
-        steps: [],
-        sources: []
-      };
-
-      await wrapGeneration( { name: 'generateText', prompt, fn: async () => response } );
-
-      expect( mocks.logger.warn ).toHaveBeenCalledWith(
-        'Response missing finalStep; using response-level provider metadata',
-        { namespace: 'LLM' }
-      );
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( expect.objectContaining( {
-        details: expect.objectContaining( { providerMetadata: { fallback: true } } )
-      } ) );
-    } );
-
-    it( 'does not warn for an image response, which has no finalStep by design', async () => {
-      const response = imageResponse();
-
-      await wrapGeneration( { name: 'generateImage', prompt, fn: async () => response } );
-
-      expect( mocks.logger.warn ).not.toHaveBeenCalled();
-    } );
-
     it( 'wraps an image response using usage and mapped image metadata', async () => {
       const response = imageResponse();
 
