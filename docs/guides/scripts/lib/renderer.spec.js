@@ -204,7 +204,7 @@ describe( 'renderChangelogBody', () => {
     expect( body ).not.toMatch( /\*\*Source is "workflow"\*\*```/ );
   } );
 
-  it( 'groups changes by package set while preserving their order', () => {
+  it( 'groups changes by exact package set while preserving their order', () => {
     const body = renderChangelogBody( {
       releases: [ {
         version: '0.12.0',
@@ -215,11 +215,11 @@ describe( 'renderChangelogBody', () => {
           { packages: [ pkg( '@outputai/core' ) ], summary: 'Core change.' },
           { packages: [ pkg( '@outputai/llm' ) ], summary: 'Second LLM change.' },
           {
-            packages: [ pkg( '@outputai/cli' ), pkg( '@outputai/core' ) ],
+            packages: [ pkg( '@outputai/core' ), pkg( '@outputai/cli' ) ],
             summary: 'First shared change.'
           },
           {
-            packages: [ pkg( '@outputai/core' ), pkg( '@outputai/cli' ) ],
+            packages: [ pkg( '@outputai/cli' ), pkg( '@outputai/core' ) ],
             summary: 'Second shared change.'
           }
         ]
@@ -233,12 +233,16 @@ describe( 'renderChangelogBody', () => {
       '',
       'First LLM change.',
       '',
+      '---',
+      '',
       'Second LLM change.'
     ].join( '\n' ) );
     expect( body ).toContain( [
       '**`@outputai/cli`, `@outputai/core`**',
       '',
       'First shared change.',
+      '',
+      '---',
       '',
       'Second shared change.'
     ].join( '\n' ) );

@@ -17,9 +17,15 @@ See the [v0.10.0 - v0.11.0 migration guide](/migrations/v0.10.0-to-v0.11.0).
 
 CLI env loading now uses Node's `process.loadEnvFile` instead of the `dotenv` package.
 
+---
+
 - Added support for legacy and V2 workflow results from the API, including structured errors;
 
+---
+
 Restore the terminal on abnormal `output dev` exit. Uncaught exceptions and unhandled rejections now leave the alternate-screen buffer and unmount the TUI before exiting, so scrollback and the error stack stay readable.
+
+---
 
 **`workflow start --monitor`**
 
@@ -37,14 +43,24 @@ output workflow start lead_enrichment --input ./test_input.json --monitor
 
 The polling loop moved to a shared module so `workflow monitor` and `workflow start --monitor` run the same code path. Two fixes fall out of that for `workflow monitor` as well: a transient failure on the *first* poll is now retried like any other (it used to abort immediately), and Ctrl+C waits for output to flush before exiting, so a piped session can't lose its last lines. Detaching now also names `workflow status`/`workflow result` for the run you left behind.
 
+---
+
 Fix `--json` output on the `workflow start` and `workflow run` commands. `workflow start` did not support `--json` at all and errored on the flag; it now emits the workflow result as JSON. `workflow run --json` corrupted its JSON output when given a scenario argument, because the "Using scenario:" notice was written to stdout. That notice now goes to stderr, and is suppressed entirely under `--json` so that on success both commands write exactly one JSON object to stdout and nothing else.
 
+---
+
 Renamed the workflow eval CLI command to `output workflow test` (was `output workflow test_eval`). The short `test` name is now the only command id; the `test_eval` name is removed.
+
+---
 
 - Removed install from hot-reload when developing workflows (`output dev`): nodemon no longer runs `npm install` on every reload, and `package.json` is no longer watched. After dependency changes, run `npm install`, bring the stack down (`output dev down` if it is still running), and start `output dev` again.
 - `npm run output:worker` also no longer installs first — run `npm run output:worker:install` (or rely on `output dev`, which still installs on worker start) before build/start. `npx output fix` rewrites `output:worker` in existing projects when you apply it.
 
+---
+
 fix `output dev` memory leak in TUI where workflow run details grew unbounded
+
+---
 
 Add TUI attaching and re-attaching and `dev down` teardown command
 
@@ -96,9 +112,15 @@ Docker drops its redrawing progress bars for plain scrolling lines.
   }
   ```
 
+---
+
 Updated `nanoid` from `5.1.9` to `5.1.16`
 
+---
+
 Removed morgan library, refactored logs to include more information in the message, and renamed the request-log field from `status` to `statusCode`.
+
+---
 
 Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
 
@@ -113,10 +135,16 @@ Added stricter LiquidJs settings for prompt files parsing. The following configu
 }
 ```
 
+---
+
 - Upgraded `liquidJS` from v10.25.7 to v10.27.2 (`.prompt` files template parser).
+
+---
 
 - Permanent AI SDK failures now surface in logs, traces, hooks, and workflow results as the original AI SDK error (for example `AI_APICallError`) instead of a wrapping `FatalError` whose message started with `AI-SDK fatal error`.
 - Schema-mismatch `NoObjectGeneratedError` messages are no longer rewritten to append `First issue is "…" at path […]`. The AI SDK error (and its Zod cause chain) is returned unchanged.
+
+---
 
 - Added `'google-vertex'` provider name support to use the `@ai-sdk/google-vertex` provider, the previous `'vertex'` is still supported as an alias, and it is deprecated;
 - Added `'amazon-bedrock'` provider name support to use the `@ai-sdk/amazon-bedrock` provider, the previous `'bedrock'` is still supported as an alias, and it is deprecated;
@@ -162,6 +190,8 @@ Added stricter LiquidJs settings for prompt files parsing. The following configu
     - `CompleteAsyncError`, do not log an error and close the trace node as an asynchronous handoff;
     - `TemporalFailure`, log the serialized error without `stack`;
     - Other errors, log the serialized original error without `stack` before converting it to an `ApplicationFailure`.
+
+---
 
 **Workflow Activity Invocation**
 
@@ -226,26 +256,42 @@ instead of `this`-based handler dispatch.
   foo();
   ```
 
+---
+
 - Workflow errors passed to `onWorkflowError` and workflow-sourced `onError` are rehydrated to `Error` instances after crossing the Temporal sandbox (preserving `name`, `message`, `cause`, and other enumerable properties).
+
+---
 
 **Global proxy**
 
 - Removed Core worker’s automatic global Undici proxy setup. Starting a worker no longer calls `setGlobalDispatcher()` when proxy environment variables are detected. `@outputai/http` and `@outputai/llm` continue configuring their own proxy-aware dispatchers.
   - This affects direct and third-party Fetch/Undici calls that relied on Core’s global dispatcher; calls through @outputai/http or @outputai/llm retain proxy support.
 
+---
+
 Added `hasErrorType()` workflow tool. It allows detecting if an error has a given Error class in its error chain, either in `.name`, `.type` or `instanceof`. It can be used to test typed errors thrown from activities.
+
+---
 
 - Upgraded Temporal (`temporalio/*`) libs from v1.17.0 to v1.20.3
 - Upgraded `undici` from v8.5.0 to v8.9.0
 
+---
+
 Added a mechanism to await for all hook callbacks to complete before shutting down the worker. Max awaiting period is 30s.
 
+---
+
 - `workflow()`, `step()`, and `evaluator()` now pass the value returned by the Zod `inputSchema` parser to their handler. Workflows and steps also return the value produced by their `outputSchema` parser. Zod transforms, coercions, defaults, and object-key stripping therefore affect the values handled and returned by these components instead of only validating them.
+
+---
 
 - Added `@outputai/core/temporal` for worker-side Temporal access that shares the running worker's connection and namespace;
 - Added `createTemporalClient()`, which returns a Temporal `Client` for operations on any workflow; do not close `client.connection` — the worker owns it;
 - Added `getCurrentWorkflowHandle()`, which returns a handle pinned to the invoking workflow's `workflowId` + `runId` (Temporal Activities only);
 - Both helpers throw a non-retryable `FatalError` outside the worker runtime (and outside an activity context for `getCurrentWorkflowHandle()`); never import `@outputai/core/temporal` from `workflow.ts`.
+
+---
 
 - Added `emit()` to `/hooks` entrypoint to emit custom events. Emitted events can be listened using `on()` and will have their payload wrapped in an envelope:
   ```js
@@ -432,7 +478,11 @@ It seems that the Anthropic API throws this error (HTTP status code 400) when gr
   ```
 - Response headers included via `responseOptions.includeHeaders` are redacted by header name. This covers common sensitive header names such as authorization, token, secret, password, cookie, and key, but it is a best-effort heuristic.
 
+---
+
 Removing support for non-wrapped activity results and legacy child workflow executions (pre v0.8.0). Workflow executions from those versions can no longer be replayed.
+
+---
 
 Add support to Temporal worker tuner options. This can be set using a new environment variable `TEMPORAL_WORKER_TUNER` that accepts a JSON value.
 
@@ -440,7 +490,7 @@ Add support to Temporal worker tuner options. This can be set using a new enviro
 
 <Update label="v0.9.2" description="2026-07-03 - patch release">
 
-**`@outputai/credentials`, `@outputai/output`, `@outputai/evals`, `@outputai/core`, `@outputai/http`, `@outputai/cli`, `@outputai/llm`, `output-api`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/http`, `@outputai/llm`, `@outputai/output`, `output-api`**
 
 Pinning v24.15.0 as the minimal supported Node version
 
@@ -499,6 +549,8 @@ Payload:
 }
 ```
 
+---
+
 Added a new `Logger` export for structured logging from both workflows and steps. Logs use the same `message` plus `metadata` shape as the internal worker logger and are routed through the worker's Winston logger.
 
 All log messages are enriched with execution metadata:
@@ -522,9 +574,11 @@ Supported levels are:
 
 The default displayed level is debug in development and info in production. Override it with `OUTPUT_LOG_LEVEL` env var. This setting also affects internal worker logs.
 
+---
+
 Including /dist when calculating catalog hash to define if catalog workflow needs restart. Excluding /temp.
 
-**`@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/core`, `@outputai/http`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/http`, `@outputai/llm`, `output-api`**
 
 Updating libraries to fix vulnerabilities
 
@@ -541,7 +595,11 @@ Replace the custom `--format json` option with oclif's built-in `--json` flag ac
 
 The "update available" banner no longer prints to stdout: it now goes to stderr (keeping stdout clean for piping in every mode) and is suppressed entirely under `--json`.
 
+---
+
 CLI `start`/`run`/`test`/`dataset generate` now resolve scenarios and route execution against `--catalog`/`OUTPUT_CATALOG_ID` instead of the API server's default catalog. This removes the ~30s scenario-resolution stall in worktrees where the default catalog has no worker polling it. `workflow test` and `workflow dataset generate` also gain a `--catalog` flag (env: `OUTPUT_CATALOG_ID`), matching `list`/`start`/`run`.
+
+---
 
 Add an "Enter input" option to the `output dev` run pane. Edit a payload and press ctrl+r to run it as-is without saving, or ctrl+s to save it as a scenario first. Previously every ad-hoc run forced you to name and save a scenario file.
 
@@ -578,11 +636,17 @@ See the [v0.7.0 - v0.8.0 migration guide](/migrations/v0.7.0-to-v0.8.0).
 
 `getWorkflowResult` now fetches only the first history event (`WorkflowExecutionStarted`) to extract the workflow input, instead of paging through the full event history. Makes input extraction on the result endpoints (`/workflow/:id/result` and `/workflow/:id/runs/:rid/result`) O(1) regardless of history size.
 
+---
+
 Added new `/ready` endpoint to report if API is ready to answer to requests.
 
 Added Temporal connection monitoring. When unhealthy, `/ready` return 503; if lost the API shuts down.
 
+---
+
 Expose structured workflow failure details (`failure` object with `message`, `type`, `retryable`, and a sanitized `cause` chain) in `/workflow/run` and `/workflow/:id/result` responses, alongside the existing `error` string. Also log Temporal/gRPC client errors with full nested context (cause chain, gRPC `code`/`details`, redacted metadata keys, `workflowId`/`runId`/`taskQueue`/query) while keeping client-facing HTTP responses sanitized.
+
+---
 
 The `continued` workflow status was renamed to `continued_as_new` in API responses.
 
@@ -614,14 +678,22 @@ In the CLI, the old value is still supported.
 
 improve worker startup time by only calculating workflow sources
 
+---
+
 Added Temporal connection monitoring. When connection is lost, graceful shuts down the worker.
 
+---
+
 Fixed missing eventDate fields on hook types.
+
+---
 
 Add an opt-in `output-worker --check` workflow bundle check that reproduces the worker's webpack bundling without a Temporal server, catching bad workflow imports — e.g. a transitive `node:` built-in — before they crash-loop the worker at startup. `tsc` cannot detect these; only the Temporal bundle can.
 
 - `output-worker --check` bundles workflows via the same `bundleWorkflowCode` path `Worker.create` uses, exits non-zero with the offending module named, and needs no Temporal connection or worker env.
 - Scaffolded projects gain an opt-in `output:worker:check` script plus README/CI guidance (not wired into any build).
+
+---
 
 - Removed workflow-level usage aggregation from `@outputai/core`; workflows no longer collect activity attributes into final `aggregations` totals or expose those totals in workflow run results.
 - Reworked workflow-to-workflow invocation so direct workflow calls made from workflow code now consistently execute as Temporal child workflows, including calls made through helper functions outside the parent workflow handler.
@@ -631,7 +703,7 @@ Add an opt-in `output-worker --check` workflow bundle check that reproduces the 
 - Refactored workflow validation internals around centralized schemas and explicit validator classes for workflows, steps, and evaluators.
 - Hardened Zod schema detection for multi-package or multi-realm Zod v4 environments.
 
-**`output-api`, `@outputai/cli`**
+**`@outputai/cli`, `output-api`**
 
 - Updated workflow result API responses to return workflow output and trace metadata without workflow-level `aggregations`.
 - Regenerated CLI API types to match the workflow result response shape.
@@ -640,11 +712,15 @@ Add an opt-in `output-worker --check` workflow bundle check that reproduces the 
 
 Faster CLI startup: ship `oclif.manifest.json` in the published package so only the invoked command module is loaded (instead of importing every command on every invocation), move the update check off the critical path (the init hook now only reads the local cache and refreshes it via a detached background process with a 5s registry timeout, instead of awaiting an unbounded `npm view` subprocess), and load `undici` only when a proxy env var is configured.
 
+---
+
 `workflow cost` now calculates costs from the trace events themselves (the as-charged "Original" cost) and applies `costs.yml` as an override layer (the "Adjusted" cost), displaying both per model and per host. This fixes models with no `costs.yml` entry (e.g. `gpt-5.5`) and HTTP hosts (e.g. `api.exa.ai`, `api.firecrawl.dev`) previously reporting $0, and surfaces where the configured `costs.yml` rate diverges from what was actually charged. The bottom line shows the adjusted total with the as-charged total alongside.
 
 Costs come exclusively from trace cost attributes: LLM nodes with an `llm:usage` event and HTTP calls with an `http:request:cost` event are counted as-charged (even on error responses — the event proves a charge); calls without events are not priced. Traces from SDK versions that predate cost attributes (&lt; 0.5) report no costs. Only exact (`computed`) recomputes override an event cost — estimates and failed recomputes never do, and a configured `$0` price is now honored. Body-dependent `costs.yml` service rules require traces recorded with `OUTPUT_TRACE_HTTP_VERBOSE=true` (the dev default).
 
 **`--format json` field changes** (the report shape changed; update any scripts parsing it): `llmTotalCost` → `llmOriginalCost`/`llmAdjustedCost`; `services[]`/`serviceTotalCost` → `httpCosts[]` (grouped by `host`) with `httpOriginalCost`/`httpAdjustedCost`; `unknownModels` removed; per-call `cost`/`warning` → `originalCost`/`adjustedCost`; new `originalTotalCost`; `totalCost` is now the adjusted total.
+
+---
 
 Surface workflow aliases and honor `OUTPUT_CATALOG_ID` in `output workflow list`.
 
@@ -657,6 +733,8 @@ Route `<system>` blocks to the AI SDK `system` option instead of leaving them in
 
 - `loadAiSdkTextOptions` now splits resolved messages: system blocks go to the top-level `system` option (as `SystemModelMessage[]`, so per-message `cacheControl`/`providerOptions` are preserved); only user/assistant/tool messages stay in `messages`. `Agent` consumes the split `system` directly as its `instructions`.
 - Silences the AI SDK warning that system messages in `messages` are a prompt-injection risk; `generateText`/`streamText`/`Agent` also set `allowSystemInMessages: true` as defense-in-depth for caller-supplied message histories.
+
+---
 
 Add per-message provider options to `.prompt` files via `messageOptions`.
 
@@ -763,6 +841,8 @@ Updated `getExecutionContext()` from `core/sdk_activity_integration` to return:
 
 Updated trace workflow node ids to use Temporal `runId`, instead of `workflowId`. This helps to create trees when child workflows "continued as new".
 
+---
+
 Added worker telemetry logs: print Temporal worker status and node memory every X ms, configured by `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` env var. Default `0` - off.
 
 Message examples:
@@ -809,6 +889,8 @@ Message examples:
 }
 ```
 
+---
+
 Improve trace error serialization to preserve nested error causes. Error entries in trace files now include the error `name`, `message`, `stack`, and recursively serialized `cause` values up to 10 levels deep, including JSON-safe non-Error causes where present.
 
 ```js
@@ -835,6 +917,8 @@ Improve trace error serialization to preserve nested error causes. Error entries
 - Added validation for prompt skills, text generation arguments, and image prompt options;
 - Updated `streamText()` to support prompt skills and tools consistently with `generateText()`.
 
+---
+
 - Added runtime image inputs to `generateImage()`, including image-to-image generation and optional masks for image editing;
 - Added validation and TypeScript types for `generateImage()` `images` and `mask` arguments;
 - Added conversion of AI SDK non-retryable API errors to `FatalError` across `generateText()`, `streamText()`, and `generateImage()` so permanent provider failures do not trigger workflow/activity retries:
@@ -849,11 +933,15 @@ Improve trace error serialization to preserve nested error causes. Error entries
   - NoSuchProviderError
   - UnsupportedFunctionalityError
 
+---
+
 Recreate AI SDK `NoObjectGeneratedError` schema validation failures as new `NoObjectGeneratedError` instances with a clearer message:
 
 ```txt
 No object generated: response did not match schema. First issue is "Invalid input: expected string, received number" at path [name].
 ```
+
+---
 
 - Updated `@ai-sdk/*` providers and `ai` itself to peer dependencies, with these supported ranges:
   - `ai`: `>=6 <7`
@@ -867,7 +955,7 @@ No object generated: response did not match schema. First issue is "Invalid inpu
 - No longer re-exports Tavily, Exa, or Perplexity search tool factories.
 - `getRegisteredProviders()` was renamed to `getProviderNames()`.
 
-**`output-api`, `@outputai/llm`**
+**`@outputai/llm`, `output-api`**
 
 Fixing vulnerabilities by updating `qs` and `liquidjs` dependencies.
 
@@ -897,6 +985,8 @@ Removed `.attributes` field from workflow results (both `/run` and `/results` en
 **`@outputai/core`**
 
 Rewriting the catalog workflow startup logic to better handle multiple instances of the worker and avoiding restarting the workflow unnecessarily.
+
+---
 
 - Removed property `.attributes` from workflow result wrapper object: Workflows will no longer accumulate or expose attributes;
 - Added `__output_workflow_wrapper_version=1` field on workflow wrapper object to better version it;
@@ -950,13 +1040,15 @@ Callers may pre-set `eventId` or `eventDate` on the payload to override the gene
 
 Bump default local Temporal namespace retention from 24h to 720h (30 days) so workflow runs aren't garbage-collected within a day during local development.
 
+---
+
 Support multiple `npx output dev` stacks side-by-side:
 
 - Expose `OUTPUT_TEMPORAL_HOST_PORT` (default 7233) so dev Temporal can be relocated off 7233.
 - Document the multi-stack recipe (`DOCKER_SERVICE_NAME`, `OUTPUT_CATALOG_ID`, and the three `OUTPUT_*_HOST_PORT` knobs) in `cli.mdx`.
 - Surface an actionable hint when docker compose fails to bind a host port, naming the conflicting port and the env var that overrides it.
 
-**`@outputai/core`, `@outputai/cli`**
+**`@outputai/cli`, `@outputai/core`**
 
 Attribute signal emission is now opt-in via `OUTPUT_ENABLE_ATTRIBUTE_SIGNAL_EMISSION=true`. Each LLM call and HTTP request previously fired a Temporal signal back to the workflow, bloating workflow history on runs with many calls. With emission off (the new default), workflow results still expose `attributes` and `aggregations` keys but they are empty/zeroed, and the `cost:llm:request` / `cost:http:request` hooks do not fire. Set the env var on the worker process to opt back in.
 
@@ -973,6 +1065,8 @@ Raise gRPC's default 4 MiB message-size cap on the API server's Temporal connect
 **`@outputai/core`**
 
 Fix worker activity Temporal client to use the configured namespace when signaling workflows. This resolves unauthorized signal errors in Temporal Cloud production namespaces.
+
+---
 
 Improve reliability of workflow usage and cost metadata collection. Transient Temporal signal failures while recording activity attributes are now handled gracefully, reducing the chance of worker interruptions during workflow runs.
 
@@ -1035,6 +1129,8 @@ Subscribers (`on('http:request', handler)`) also receive `workflowId`, `runId`, 
 
 Stream trace JSON when writing local files and uploading to S3, avoiding Node.js string length limits for large trace outputs.
 
+---
+
 Added `runId` to the workflow context and the workflow-lifecycle hook payloads. `context.info.runId` exposes the Temporal run id for the current execution attempt; `onWorkflowStart`, `onWorkflowEnd`, and `onWorkflowError` payloads now include `runId` alongside `id` (workflow id). `executionContext` also carries `runId`, so any consumer subscribed via `on(...)` to an `emitEvent`-emitted event (e.g., `cost:llm:request`) receives `runId` automatically. Additive — existing consumers ignoring the field continue to work.
 
 **`@outputai/llm`**
@@ -1053,10 +1149,16 @@ See the [v0.3.0 - v0.4.0 migration guide](/migrations/v0.3.0-to-v0.4.0).
 
 Fixed `output credentials edit` modifying the encrypted credentials file on disk even when the user made no changes in their editor. Because AES-GCM uses a fresh nonce per encryption, the unconditional re-write produced new ciphertext bytes and left the file dirty in git on every invocation. The command now skips the write when the post-editor plaintext is identical to the original.
 
+---
+
 Fixed `output dev` hanging until the health timeout when `docker compose up` exited before creating containers. The CLI now drains and captures recent Compose output, reports early Compose exits immediately, polls status with the same project directory used to start the stack, and only treats running containers as healthy.
+
+---
 
 - Bumped scaffold prompt template default from `claude-haiku-4-5` to `claude-sonnet-4-6` and added a dated `current as of` comment pointing at the new `output-dev-model-selection` skill (workflow scaffold, blog_evaluator example, workflow README example).
 - No CLI behavior change beyond the new default model in generated `.prompt` files.
+
+---
 
 Fix scenario loading in `output dev` for workflows whose name differs from their local folder path. For example, a workflow named `writing_editor` stored in `src/workflows/writing/editor` now shows and runs its scenarios correctly.
 
@@ -1070,7 +1172,11 @@ Bump `entities` dependency from v6 to v8. The API surface used (`encodeXML` / `d
 - Allow TypeScript to generate `.d.ts` files for these workflows without non-portable Zod references.
 - Treat Zod as a peer dependency and avoid leaking schema-specific workflow context types through the invocation config.
 
+---
+
 Fixed workflows having the status 'failed' when cancelled via the API/UI. Now they are correctly marked as 'cancelled'.
+
+---
 
 Add support for discovering and running workflows from installed npm packages.
 
@@ -1108,7 +1214,11 @@ Use `catalog` as the public name for the routing/filtering target across the CLI
 
 Internally the value is still a Temporal task queue — only the user-facing name changes.
 
+---
+
 Fix the workflow runs pane in the CLI so the detail view reflects the highlighted run instead of always showing the latest run. `GET /workflow/runs` now includes `runId` per row, and the CLI fetches results via the pinned `GET /workflow/{id}/runs/{rid}/result` endpoint.
+
+---
 
 Add new workflow history endpoint
 
@@ -1116,7 +1226,7 @@ Add new workflow history endpoint
 
 Optimizing local trace to use less memory and avoid "RangeError: Invalid string length"
 
-**`@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/output`, `@outputai/http`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/http`, `@outputai/llm`, `@outputai/output`, `output-api`**
 
 **Dependencies updates**
 
@@ -1162,9 +1272,11 @@ Optimizing local trace to use less memory and avoid "RangeError: Invalid string 
 
 Update perplexity-ai/ai-sdk to v0.1.3
 
+---
+
 re-export ai.jsonSchema for downstream use
 
-**`@outputai/credentials`, `@outputai/cli`**
+**`@outputai/cli`, `@outputai/credentials`**
 
 Improve encrypted credentials loading: add clearer errors when keys are missing or invalid and ensure the CLI exits gracefully instead of printing stack traces.
 
@@ -1173,15 +1285,23 @@ Improve encrypted credentials loading: add clearer errors when keys are missing 
 - Offer to initialize a git repository when running `output init`. Adds a `--skip-git` flag to opt out in non-interactive / scripted use.
 - Fix `--yes` / `--non-interactive` being rejected as "Nonexistent flag" by oclif's per-command parser when passed to any command.
 
+---
+
 Add non-interactive mode with `--yes`/`--non-interactive` flags and TTY auto-detection for sandbox environments
+
+---
 
 Enable multiple instance of Output to run locally simultaneously in Docker by enabling dynamic port mapping
 
+---
+
 Shadow the worker container's `/app/node_modules` (root pnpm store) with a named Docker volume and run an explicit `output:worker:install` before `output:worker:watch`, so Linux-native packages installed in the container no longer leak into the host's `node_modules/`.
+
+---
 
 Fix issue where values in .env files were silently ignored
 
-**`@outputai/credentials`, `@outputai/core`**
+**`@outputai/core`, `@outputai/credentials`**
 
 - Added new hook functions `onWorkflowStart`, `onWorkflowEnd`, `onWorkflowError`:
   - `onWorkflowStart()`: Triggers when a workflow starts, receives the run id and workflow name;
@@ -1193,7 +1313,7 @@ Fix issue where values in .env files were silently ignored
 - Added `activityId` and `workflowId` to `onError()` hook handler payload when source is `'activity'`;
 - Added `workflowId` to `onError()` hook handler payload when source is `'workflow'`.
 
-**`output-api`, `@outputai/core`**
+**`@outputai/core`, `output-api`**
 
 Updating Temporal libraries from `v1.15.0` to `v1.17.0`:
 - @temporalio/activity;
@@ -1203,7 +1323,7 @@ Updating Temporal libraries from `v1.15.0` to `v1.17.0`:
 - @temporalio/worker;
 - @temporalio/workflow
 
-**`@outputai/core`, `@outputai/cli`**
+**`@outputai/cli`, `@outputai/core`**
 
 Add HTTP and gRPC proxy support for sandbox environments via HTTPS_PROXY and TEMPORAL_GRPC_PROXY env vars
 
@@ -1233,13 +1353,23 @@ See the [v0.1.12 - v0.2.0 migration guide](/migrations/v0.1.12-to-v0.2.0).
 
 Fix `workflow generate` success message to show actual workflow ID and scenario name
 
+---
+
 Add `credentials set` command for programmatic credential updates by dot-notation path. Prompts for confirmation when the write would change a value's shape (primitive → object or object → primitive); pass `--yes` to skip in non-interactive environments.
+
+---
 
 Add interactive workflow run panel to `output dev` with live status polling, keyboard navigation, and Temporal UI integration
 
+---
+
 Update plugin command invocations to match renamed `output-plan-workflow`, `output-build-workflow`, and `output-debug-workflow` skills.
 
+---
+
 Add Docker Compose version check to prevent silent hangs on versions older than v2.24.0
+
+---
 
 Add `output migrate` command for upgrading projects between versions of the Output framework.
 
@@ -1247,9 +1377,15 @@ The command reads the project's current `@outputai/*` version, fetches the match
 
 Under the hood the CLI invokes `/output-migrate` — a Claude Code skill shipped via the `outputai` plugin marketplace. The skill carries the migration logic but no version-specific content; it fetches every guide at runtime so the docs remain the source of truth.
 
+---
+
 Upgrading Docker Node image version from 24.13.0-slim to 24.15.0-slim
 
+---
+
 Update the Claude plugin for Output to improve workflow code generation"
+
+---
 
 Auto-forward OUTPUT_CATALOG_ID as default task queue for workflow run/start commands
 
@@ -1257,6 +1393,8 @@ Auto-forward OUTPUT_CATALOG_ID as default task queue for workflow run/start comm
 
 - Fixed `/run` endpoint response to have the same format as `/result`;
 - Fixed `/status` endpoints `status` field format;
+
+---
 
 Add pinned-run routes and deprecate mutation shortcuts.
 
@@ -1282,7 +1420,7 @@ Switch dataset files to multi-case format where each top-level YAML key is the c
 
 The old single-case format (with a top-level `name:` field) is no longer supported — existing files must be migrated to the new format. Treated as minor rather than major because adoption is still early and the migration is mechanical.
 
-**`@outputai/credentials`, `@outputai/core`, `@outputai/cli`, `@outputai/llm`, `output-api`, `@outputai/evals`, `@outputai/output`, `@outputai/http`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/credentials`, `@outputai/evals`, `@outputai/http`, `@outputai/llm`, `@outputai/output`, `output-api`**
 
 Updating dependencies:
 - @oclif/plugin-help
@@ -1311,7 +1449,7 @@ Adding version overrides to fix vulnerabilities:
 - axios@>=1.0.0 &lt;1.15.0: `>=1.15.0`
 - protobufjs@&lt;7.5.5: `>=7.5.5`
 
-**`@outputai/core`, `@outputai/cli`, `@outputai/llm`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/llm`**
 
 Bumping dependency versions
 
@@ -1319,7 +1457,7 @@ Bumping dependency versions
 
 <Update label="v0.1.12" description="2026-04-07 - patch release">
 
-**`@outputai/llm`, `@outputai/core`**
+**`@outputai/core`, `@outputai/llm`**
 
 Add `agent()` and `skill()` abstractions to `@outputai/llm` for composing reusable LLM agents with structured output and a lazy-loaded skills system. Add `findContentDir()` to `@outputai/core` and fix skill path resolution to be relative to the prompt file rather than the calling module. Add `output-copy-assets` bin to `@outputai/core` to centralise worker asset copying.
 
@@ -1331,7 +1469,11 @@ Add support for workflow alias names.
 
 Add `output fix` command that realigns npm scripts in a host project's `package.json` with the canonical scripts from the CLI. Added `output:worker` and `output:worker:watch` commands to the scaffold. Pinned the dependency versions installed via the CLI-generated `package.json`.
 
+---
+
 Pin `output` to a specific version in the scaffold `package.json` instead of a version range.
+
+---
 
 Update CLI cost configuration for calculating cost of Claude Sonnet 4.6. Improve coding-assistant guidance for schema generation.
 
@@ -1343,9 +1485,15 @@ Update CLI cost configuration for calculating cost of Claude Sonnet 4.6. Improve
 
 Fix worker health checks and add yarn/pnpm support in the dev container. Dev container worker now supports yarn and pnpm projects via corepack. Health check no longer reports success when containers exit or are unhealthy. Worker health-check detection time dropped from ~36s to ~9s. `start_period` extended from 30s to 60s to reduce false positives on cold start.
 
+---
+
 Fix the `plan` and `generate` CLI commands. Suppressed Claude file writes and next-step suggestions during plan generation (the CLI owns those responsibilities). Validates plan-file existence before creating a workflow skeleton in `generate`. Rolls back created skeleton files if the workflow build step fails.
 
+---
+
 Replace log-update / ANSI output in `output dev` with an Ink-based terminal UI, fixing a layout bug where text overlapped after a Docker service recovered from unhealthy.
+
+---
 
 Ensure credential references are resolved when running CLI commands.
 
@@ -1413,7 +1561,7 @@ Patch vulnerable dependencies.
 
 <Update label="v0.1.3" description="2026-03-19 - patch release">
 
-**`@outputai/core`, `@outputai/credentials`, `@outputai/cli`**
+**`@outputai/cli`, `@outputai/core`, `@outputai/credentials`**
 
 Add `credential:` env var convention for automatic secret resolution at worker startup.
 

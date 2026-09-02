@@ -72,11 +72,12 @@ export function renderChangeBlock( change ) {
   return `**${inner}**\n\n${summary}`;
 }
 
-function groupChangesByPackages( changes ) {
+function groupChangesByPackageSet( changes ) {
   const groups = new Map();
 
   for ( const change of changes ) {
-    const key = JSON.stringify( change.packages.map( pkg => pkg.name ).sort() );
+    const packages = [ ...change.packages ].sort( ( a, b ) => a.name.localeCompare( b.name ) );
+    const key = JSON.stringify( packages.map( pkg => pkg.name ) );
     const group = groups.get( key );
 
     if ( group ) {
@@ -85,7 +86,7 @@ function groupChangesByPackages( changes ) {
     }
 
     groups.set( key, {
-      packages: change.packages,
+      packages,
       summaries: [ change.summary ]
     } );
   }
@@ -108,10 +109,10 @@ function renderUpdateBlock( release, migrationByToVersion ) {
     lines.push( renderMigrationLink( guide ), '' );
   }
 
-  for ( const group of groupChangesByPackages( release.changes ) ) {
+  for ( const group of groupChangesByPackageSet( release.changes ) ) {
     lines.push( renderChangeBlock( {
       packages: group.packages,
-      summary: group.summaries.join( '\n\n' )
+      summary: group.summaries.join( '\n\n---\n\n' )
     } ), '' );
   }
 
