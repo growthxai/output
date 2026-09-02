@@ -55,7 +55,7 @@
     "@types/react": "19.2.14",
     "@types/semver": "7.7.1",
     "oclif": "4.23.10",
-    "orval": "8.9.0"
+    "orval": "8.22.0"
   },
   "license": "Apache-2.0",
   "publishConfig": {
