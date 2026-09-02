@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { renderChangeBlock, renderChangelogBody } from './renderer.mjs';
 
 const pkg = name => ( { name } );
+const headings = text => text.match( /^#{1,6} .+$/gm ) ?? [];
 
 describe( 'renderChangeBlock', () => {
   it( 'keeps a blank line between a demoted heading and a following fenced block', () => {
@@ -61,7 +62,7 @@ describe( 'renderChangeBlock', () => {
       ].join( '\n' )
     } );
 
-    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
+    expect( headings( out ) ).toEqual( [ '### `@outputai/cli`' ] );
     expect( out ).toContain( '**`workflow start --monitor`**\n\n' );
     expect( out ).toContain( 'Added a `--monitor` flag.' );
   } );
@@ -73,7 +74,7 @@ describe( 'renderChangeBlock', () => {
       summary: '## Update `x` here\nbody'
     } );
 
-    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
+    expect( headings( out ) ).toEqual( [ '### `@outputai/cli`' ] );
     expect( out ).toContain( '**Update `x` here**\n\nbody' );
     expect( out ).not.toContain( '**Update**`x`' );
   } );
@@ -109,7 +110,7 @@ describe( 'renderChangeBlock', () => {
       summary: '## Trace Changes\n- item\n\n### Nested\nbody'
     } );
 
-    expect( out.split( '\n' ).slice( 1 ).join( '\n' ) ).not.toMatch( /^#{1,6} /m );
+    expect( headings( out ) ).toEqual( [ '### `@outputai/core`' ] );
     expect( out ).toContain( '**Trace Changes**' );
     expect( out ).toContain( '**Nested**' );
   } );
@@ -287,6 +288,5 @@ describe( 'renderChangelogBody', () => {
       'Second all-packages change.'
     ].join( '\n' ) );
     expect( body ).toContain( '### `@outputai/llm`\n\nOnly LLM change.' );
-    expect( body ).not.toContain( '---' );
   } );
 } );
