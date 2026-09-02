@@ -145,7 +145,9 @@ function parseNormalizedLLMUsage( node: TraceNode, stepName: string | null, even
     usage: normalizedItemTokenUsage( event.items ),
     originalCost: 0,
     lines,
-    incomplete: false
+    // This path only runs when cost computation produced no llm:generation:cost
+    // attribute at all, so every line here is unpriced by construction.
+    incomplete: true
   };
 }
 

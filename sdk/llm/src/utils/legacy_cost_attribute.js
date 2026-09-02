@@ -75,9 +75,12 @@ export const convertCostToLegacy = cost => {
     }
   }
 
-  const groundingItem = cost.items.find( ( { group, total } ) => group === 'request' && exists( total ) );
+  // Included even when unrated (status 'missing'), same as cacheReadItem above,
+  // so legacy consumers still see that a grounded call happened.
+  const groundingItem = cost.items.find( ( { group } ) => group === 'request' );
   if ( groundingItem ) {
-    usage.push( { type: groundingItem.label, ppm: groundingItem.ppm, amount: groundingItem.amount } );
+    const ppm = groundingItem.status === 'missing' ? 0 : groundingItem.ppm;
+    usage.push( { type: groundingItem.label, ppm, amount: groundingItem.amount } );
   }
 
   return new LLMUsageLegacy( cost.modelId, usage );

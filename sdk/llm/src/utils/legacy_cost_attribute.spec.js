@@ -279,7 +279,7 @@ describe( 'convertCostToLegacy', () => {
     } );
   } );
 
-  it( 'omits an unpriced grounding line', () => {
+  it( 'carries an unpriced grounding line as $0 rather than omitting it', () => {
     expect( convertCostToLegacy( cost( [
       item( INPUT, null, 100, 2, 0.0002 ),
       item( REQUEST, 'grounding', 2, null, null, MISSING )
@@ -287,7 +287,8 @@ describe( 'convertCostToLegacy', () => {
       type: 'llm:usage',
       modelId: MODEL_ID,
       usage: [
-        { type: 'input', ppm: 2, amount: 100, total: 0.0002 }
+        { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
+        { type: 'grounding', ppm: 0, amount: 2, total: 0 }
       ],
       total: 0.0002,
       tokensUsed: 100

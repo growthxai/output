@@ -427,7 +427,9 @@ describe( 'findLLMCalls', () => {
         outputTokens: 110,
         reasoningTokens: 70
       },
-      originalCost: 0
+      originalCost: 0,
+      // Usage-only means cost computation produced no priced result at all.
+      incomplete: true
     } );
     expect( calls[0].lines ).toEqual( [
       { type: 'input', ppm: 0, amount: 100, total: 0 },
