@@ -1,5 +1,11 @@
 # @outputai/core
 
+## 0.12.0
+
+### Minor Changes
+
+- da26845: Moved LLM-specific trace attributes out of `@outputai/core`. Removed `Attribute.LLMUsage` and `Attribute.Usage`, and exposed the generic `Attribute.BaseAttribute` used by package-owned attributes. Import `LLMGenerationUsage`, `LLMGenerationCost`, and the deprecated legacy `LLMUsageEvent` from `@outputai/llm`.
+
 ## 0.11.0
 
 ### Minor Changes
