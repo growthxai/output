@@ -1,5 +1,4 @@
 import { Tracing } from '@outputai/core/sdk/runtime';
-import { isGroundingLabel } from './grounding.js';
 import Decimal from 'decimal.js';
 
 const exists = v => Number.isFinite( v );
@@ -22,10 +21,7 @@ export class LLMUsageLegacy extends Tracing.Attribute.BaseAttribute {
     for ( const item of usage ) {
       item.total = Decimal( item.amount ).div( 1_000_000 ).mul( item.ppm ).toNumber();
       this.total = this.total.add( item.total );
-      // Per-request lines are counted in requests, not tokens
-      if ( !isGroundingLabel( item.type ) ) {
-        this.tokensUsed = this.tokensUsed.add( item.amount );
-      }
+      this.tokensUsed = this.tokensUsed.add( item.amount );
     }
 
     this.total = this.total.toNumber();
@@ -73,14 +69,6 @@ export const convertCostToLegacy = cost => {
     if ( reasoningItem ) {
       usage.push( { type: 'reasoning', ppm: reasoningItem.ppm, amount: reasoningItem.amount } );
     }
-  }
-
-  // Included even when unrated (status 'missing'), same as cacheReadItem above,
-  // so legacy consumers still see that a grounded call happened.
-  const groundingItem = cost.items.find( ( { group } ) => group === 'request' );
-  if ( groundingItem ) {
-    const ppm = groundingItem.status === 'missing' ? 0 : groundingItem.ppm;
-    usage.push( { type: groundingItem.label, ppm, amount: groundingItem.amount } );
   }
 
   return new LLMUsageLegacy( cost.modelId, usage );

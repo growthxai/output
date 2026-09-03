@@ -261,7 +261,7 @@ describe( 'convertCostToLegacy', () => {
     } );
   } );
 
-  it( 'carries a priced grounding line without counting it as tokens', () => {
+  it( 'omits request-group (grounding) lines; they belong to the new cost attribute only', () => {
     expect( convertCostToLegacy( cost( [
       item( INPUT, null, 100, 2, 0.0002 ),
       item( OUTPUT, null, 50, 10, 0.0005 ),
@@ -271,27 +271,10 @@ describe( 'convertCostToLegacy', () => {
       modelId: MODEL_ID,
       usage: [
         { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
-        { type: 'output', ppm: 10, amount: 50, total: 0.0005 },
-        { type: 'grounding_query', ppm: 14_000, amount: 3, total: 0.042 }
+        { type: 'output', ppm: 10, amount: 50, total: 0.0005 }
       ],
-      total: 0.0427,
+      total: 0.0007,
       tokensUsed: 150
-    } );
-  } );
-
-  it( 'carries an unpriced grounding line as $0 rather than omitting it', () => {
-    expect( convertCostToLegacy( cost( [
-      item( INPUT, null, 100, 2, 0.0002 ),
-      item( REQUEST, 'grounding', 2, null, null, MISSING )
-    ] ) ) ).toEqual( {
-      type: 'llm:usage',
-      modelId: MODEL_ID,
-      usage: [
-        { type: 'input', ppm: 2, amount: 100, total: 0.0002 },
-        { type: 'grounding', ppm: 0, amount: 2, total: 0 }
-      ],
-      total: 0.0002,
-      tokensUsed: 100
     } );
   } );
 
