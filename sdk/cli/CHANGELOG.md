@@ -1,5 +1,23 @@
 # @outputai/cli
 
+## 0.12.0
+
+### Minor Changes
+
+- da26845: Updated `output workflow cost` to read the normalized `llm:generation:cost` and `llm:generation:usage` trace attributes while retaining support for legacy `llm:usage` traces. Cost overrides now reprice cache-read, cache-write, text, and reasoning usage, and model prefix matching selects the most specific configured price.
+
+### Patch Changes
+
+- Updated dependencies [da26845]
+- Updated dependencies [a5ded18]
+- Updated dependencies [b3beef1]
+- Updated dependencies [b3beef1]
+- Updated dependencies [90d8cc0]
+- Updated dependencies [90d8cc0]
+  - @outputai/llm@0.12.0
+  - @outputai/evals@0.12.0
+  - @outputai/credentials@0.12.0
+
 ## 0.11.0
 
 ### Minor Changes
