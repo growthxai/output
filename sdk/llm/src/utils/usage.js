@@ -119,7 +119,8 @@ export const parseLLMUsage = ( { prompt, usage, steps } ) => {
   // Per-query families (Gemini 3) return queries.length per step; per-prompt families (Gemini 2.x)
   // return 1 per grounded step. Summing yields total queries and grounded-step count respectively.
   const grounding = ( steps ?? [] )
-    .map( step => parseGroundingUsage( modelId, step?.providerMetadata ) )
+    .filter( step => step?.providerMetadata )
+    .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
     .filter( Boolean );
   if ( grounding.length > 0 ) {
     const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
