@@ -205,7 +205,7 @@ on<LLMUsageEvent>( 'cost:llm:request', event => {
 }
 ```
 
-The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types, plus a `grounding_query` or `grounding_prompt` line whenever a per-request grounding charge applies. It intentionally retains the old cache-write folding and reasoning fallback behavior. Its `total` includes every line, but `tokensUsed` is calculated from the token line types only — grounding lines are counted in requests, not tokens, so they are excluded. An unpriced grounding charge still produces a legacy line, with `ppm: 0`, so legacy consumers can see that a grounded call happened even though it can't be priced. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
+The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types only. It intentionally retains the old cache-write folding and reasoning fallback behavior, and its shape is frozen: per-request charges such as grounding are never added as new `usage` line types, since existing consumers reduce or map over that array and a new type could break them. Grounding costs are only available on the normalized `llm:generation:cost` attribute and `llm:generation:metering` event described above. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
 
 Use `llm:generation:metering` for new integrations. It is more faithful to the provider response because usage is independent from pricing, cache writes and reasoning remain explicit, provider identity is included, and fallback or missing prices are represented rather than hidden.
 
