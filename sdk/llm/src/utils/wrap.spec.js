@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import imageResponseFixture from '../fixtures/image_response_v7_openai.js';
 import streamResponseFixture from '../fixtures/stream_response_v7_openai.js';
 import textResponseFixture from '../fixtures/text_response_v7_openai.js';
+import vertexTextResponseFixture from '../fixtures/text_response_v7_google_vertex.js';
 
 const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
@@ -10,7 +11,12 @@ const mocks = vi.hoisted( () => ( {
   convertCostToLegacy: vi.fn(),
   calculateBase64FileSize: vi.fn(),
   mapAiError: vi.fn(),
-  randomBytes: vi.fn()
+  randomBytes: vi.fn(),
+  logger: { warn: vi.fn(), error: vi.fn() }
+} ) );
+
+vi.mock( '@outputai/core', () => ( {
+  Logger: mocks.logger
 } ) );
 
 vi.mock( './sources.js', () => ( {
@@ -63,6 +69,7 @@ const clone = value => structuredClone( value );
 const textResponse = () => clone( textResponseFixture );
 const streamResponse = () => clone( streamResponseFixture );
 const imageResponse = () => clone( imageResponseFixture );
+const vertexTextResponse = () => clone( vertexTextResponseFixture );
 
 const prompt = {
   name: 'writer@v1',
@@ -122,7 +129,8 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( mocks.randomBytes ).toHaveBeenCalledWith( 4 );
       expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
-        prompt
+        prompt,
+        steps: response.steps
       } );
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
@@ -172,6 +180,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         usage: { inputTokens: 2 },
         totalUsage: { inputTokens: 99 },
         finalStep: { providerMetadata: undefined },
+        steps: [ { providerMetadata: undefined } ],
         sources: []
       };
 
@@ -179,7 +188,8 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: { inputTokens: 2 },
-        prompt
+        prompt,
+        steps: response.steps
       } );
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
     } );
@@ -195,7 +205,8 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
-        prompt
+        prompt,
+        steps: response.steps
       } );
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
@@ -294,6 +305,16 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( wrapped.cost ).toBeNull();
     } );
 
+    it( 'forwards all step grounding metadata to usage parsing', async () => {
+      const response = vertexTextResponse();
+
+      await wrapGeneration( { name: 'generateText', prompt, fn: async () => response } );
+
+      const { steps } = mocks.parseLLMUsage.mock.calls[0][0];
+      expect( steps ).toBe( response.steps );
+      expect( steps[0].providerMetadata.vertex.groundingMetadata.webSearchQueries ).toHaveLength( 2 );
+    } );
+
     it( 'maps fn errors onto the llm trace and rethrows', async () => {
       const original = new Error( 'boom' );
 
@@ -390,7 +411,8 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
         usage: response.usage,
-        prompt
+        prompt,
+        steps: response.steps
       } );
       expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
@@ -420,6 +442,17 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).not.toHaveBeenCalled();
+    } );
+
+    it( 'forwards all step grounding metadata to usage parsing', async () => {
+      const response = vertexTextResponse();
+      const { onEndHook } = hooksFrom( 'Agent.stream' );
+
+      await onEndHook( response, vi.fn() );
+
+      const { steps } = mocks.parseLLMUsage.mock.calls[0][0];
+      expect( steps ).toBe( response.steps );
+      expect( steps[0].providerMetadata.vertex.groundingMetadata.webSearchQueries ).toHaveLength( 2 );
     } );
 
     it( 'ends the trace and swallows throws from the onEnd callback', async () => {

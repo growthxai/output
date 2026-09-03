@@ -58,11 +58,17 @@ function llmEventNode( id: string, model: string, lines: LLMUsageLine[] ): Trace
   };
 }
 
-function llmCostNode( id: string, model: string, items: LLMGenerationCost['items'] ): TraceNode {
+function llmCostNode(
+  id: string,
+  model: string,
+  items: LLMGenerationCost['items'],
+  status: LLMGenerationCost['status'] = 'precise'
+): TraceNode {
   const totalOf = ( group: LLMGenerationCost['items'][number]['group'] ): number =>
     items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + ( item.total ?? 0 ), 0 );
   const input = totalOf( 'input' );
   const output = totalOf( 'output' );
+  const request = totalOf( 'request' );
 
   return {
     id,
@@ -75,8 +81,9 @@ function llmCostNode( id: string, model: string, items: LLMGenerationCost['items
         modelId: model,
         input,
         output,
-        total: input + output,
-        status: 'precise',
+        request,
+        total: input + output + request,
+        status,
         items
       }
     }
@@ -327,6 +334,75 @@ describe( 'findLLMCalls', () => {
     expect( calls[0].originalCost ).toBeCloseTo( 0.001965, 8 );
   } );
 
+  it( 'reads a priced grounding request item without counting it as tokens', () => {
+    const items: LLMGenerationCost['items'] = [
+      { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
+      { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
+      { group: 'request', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+    ];
+    const calls = findLLMCalls( {
+      kind: 'workflow',
+      children: [ llmCostNode( 'grounded', 'gemini-2.5-flash', items ) ]
+    } );
+
+    expect( calls[0].incomplete ).toBe( false );
+    expect( calls[0].originalCost ).toBeCloseTo( 0.0372921, 8 );
+    // Grounding bills per request, so it must not inflate token usage.
+    expect( calls[0].usage ).toEqual( {
+      inputTokens: 1032,
+      cachedInputTokens: 0,
+      outputTokens: 793,
+      reasoningTokens: 0
+    } );
+    expect( calls[0].lines.find( l => l.type === 'request_grounding_prompt' ) ).toEqual( {
+      type: 'request_grounding_prompt',
+      ppm: 35_000,
+      amount: 1,
+      total: 0.035
+    } );
+  } );
+
+  it( 'preserves a priced grounding charge as-charged when re-pricing at costs.yml rates', () => {
+    const items: LLMGenerationCost['items'] = [
+      { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
+      { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
+      { group: 'request', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+    ];
+    const config = {
+      models: { 'gemini-2.5-flash': { provider: 'google-vertex', input: 0.3, output: 2.5 } },
+      services: {}
+    };
+    const report = calculateCost(
+      { kind: 'workflow', name: 'w', children: [ llmCostNode( 'grounded', 'gemini-2.5-flash', items ) ] },
+      config
+    );
+
+    // grounding has no costs.yml line rate, so it degrades to its as-charged total, not $0.
+    expect( report.llmAdjustedCost ).toBeCloseTo( 0.0372921, 8 );
+  } );
+
+  it( 'flags an unrated grounding charge as incomplete instead of a silent $0', () => {
+    const items: LLMGenerationCost['items'] = [
+      { group: 'input', label: 'no_cache', amount: 1000, ppm: 1, total: 0.001, status: 'ok' },
+      { group: 'output', label: null, amount: 500, ppm: 5, total: 0.0025, status: 'ok' },
+      { group: 'request', label: 'grounding', amount: 3, ppm: null, total: null, status: 'missing' }
+    ];
+    const calls = findLLMCalls( {
+      kind: 'workflow',
+      children: [ llmCostNode( 'unrated', 'gemini-9-ultra', items, 'incomplete' ) ]
+    } );
+
+    expect( calls[0].incomplete ).toBe( true );
+    // The unrated line still shows up (as $0), but the call carries the signal.
+    expect( calls[0].lines.find( l => l.type === 'request_grounding' ) ).toEqual( {
+      type: 'request_grounding',
+      ppm: 0,
+      amount: 3,
+      total: 0
+    } );
+    expect( calls[0].usage ).toMatchObject( { inputTokens: 1000, outputTokens: 500 } );
+  } );
+
   it( 'reads normalized usage without interpreting token totals as cost', () => {
     const items: LLMGenerationUsage['items'] = [
       { group: 'input', label: null, amount: 100 },
@@ -351,7 +427,9 @@ describe( 'findLLMCalls', () => {
         outputTokens: 110,
         reasoningTokens: 70
       },
-      originalCost: 0
+      originalCost: 0,
+      // Usage-only means cost computation produced no priced result at all.
+      incomplete: true
     } );
     expect( calls[0].lines ).toEqual( [
       { type: 'input', ppm: 0, amount: 100, total: 0 },

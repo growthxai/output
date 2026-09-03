@@ -1,12 +1,13 @@
 import Decimal from 'decimal.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
+import { parseGroundingUsage } from './grounding.js';
 
 const exists = v => Number.isSafeInteger( v ) && v >= 0;
 
 const safeSum = ( ...values ) => values.filter( exists ).reduce( ( t, v ) => t + v, 0 );
 
 export class LLMGenerationUsageItem {
-  static Group = { INPUT: 'input', OUTPUT: 'output' };
+  static Group = { INPUT: 'input', OUTPUT: 'output', REQUEST: 'request' };
 
   group;
   label;
@@ -65,10 +66,11 @@ export class LLMGenerationUsage extends Tracing.Attribute.BaseAttribute {
  * @param {string} args.prompt.config.provider - Id of the provider
  * @param {string} args.prompt.config.model - Id of the model
  * @param {object} args.usage - AI SDK usage with aggregate token counts and optional input/output token details
+ * @param {object[]} [args.steps] - AI SDK steps, each with its own `providerMetadata`, used for per-request charges
  *
  * @returns {LLMGenerationUsage | null} LLM generation usage with input, output, total and detailed breakdown
  */
-export const parseLLMUsage = ( { prompt, usage } ) => {
+export const parseLLMUsage = ( { prompt, usage, steps } ) => {
   const { provider: providerId, model: modelId } = prompt.config;
   const { inputTokens, inputTokenDetails, outputTokens, outputTokenDetails } = usage;
   const { noCacheTokens, cacheReadTokens, cacheWriteTokens } = inputTokenDetails ?? {};
@@ -111,6 +113,18 @@ export const parseLLMUsage = ( { prompt, usage } ) => {
     } else {
       items.push( new LLMGenerationUsageItem( group, null, outputTokens ) );
     }
+  }
+
+  // Grounding is billed per step, so aggregate across every step rather than only the final one.
+  // Per-query families (Gemini 3) return queries.length per step; per-prompt families (Gemini 2.x)
+  // return 1 per grounded step. Summing yields total queries and grounded-step count respectively.
+  const grounding = ( steps ?? [] )
+    .filter( step => step?.providerMetadata )
+    .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
+    .filter( Boolean );
+  if ( grounding.length > 0 ) {
+    const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
+    items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, grounding[0].label, amount ) );
   }
 
   if ( items.length === 0 ) {
