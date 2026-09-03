@@ -17,7 +17,7 @@ const UNITS = [
  */
 export const GROUNDING_UNKNOWN_LABEL = 'grounding';
 
-export const GROUNDING_PPM = Object.fromEntries( UNITS.map( u => [ u.label, u.ppm ] ) );
+export const GroundingPpmMap = new Map( UNITS.map( u => [ u.label, u.ppm ] ) );
 
 /**
  * Extracts the billable grounding quantity from provider metadata.

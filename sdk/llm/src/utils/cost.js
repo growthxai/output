@@ -1,7 +1,7 @@
 import { fetchModelsPricing } from './models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
-import { GROUNDING_PPM } from './grounding.js';
+import { GroundingPpmMap } from './grounding.js';
 import { Logger } from '@outputai/core';
 import Decimal from 'decimal.js';
 
@@ -89,7 +89,7 @@ const resolveValue = values => {
 const resolvePrice = ( { group, label, pricing } ) => {
   // Per-request charges are never token-priced: models.dev has no rate for them.
   if ( group === LLMGenerationUsageItem.Group.REQUEST ) {
-    return resolveValue( [ GROUNDING_PPM[label] ] );
+    return resolveValue( [ GroundingPpmMap.get( label ) ] );
   }
   if ( !pricing ) {
     return resolveValue( [] );

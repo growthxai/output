@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import googleVertexText from '../fixtures/text_response_v7_google_vertex.js';
-import { GROUNDING_PPM, GROUNDING_UNKNOWN_LABEL, parseGroundingUsage } from './grounding.js';
+import { GroundingPpmMap, GROUNDING_UNKNOWN_LABEL, parseGroundingUsage } from './grounding.js';
 
 const metadata = ( key, webSearchQueries ) => ( {
   [key]: { groundingMetadata: { webSearchQueries } }
 } );
 
-describe( 'GROUNDING_PPM', () => {
+describe( 'GroundingPpmMap', () => {
   it( 'prices both billing units per million', () => {
-    expect( GROUNDING_PPM ).toEqual( {
-      grounding_query: 14_000,
-      grounding_prompt: 35_000
-    } );
+    expect( GroundingPpmMap ).toEqual( new Map( [
+      [ 'grounding_query', 14_000 ],
+      [ 'grounding_prompt', 35_000 ]
+    ] ) );
   } );
 } );
 
