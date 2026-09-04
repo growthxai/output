@@ -1,5 +1,17 @@
 # @outputai/llm
 
+## 0.13.0
+
+### Minor Changes
+
+- 69255d7: Added support for pricing Gemini grounded search, which providers bill per request rather than per token. `LLMGenerationUsage` and `LLMGenerationCost` items gain a `request` group alongside `input` and `output`. The legacy `cost:llm:request` payload is unchanged and does not carry grounding charges — its shape is frozen, so grounding costs are only visible on the new normalized attribute.
+
+  `output workflow cost` prices these request-based charges and marks any call with an unpriced charge (grounding or otherwise) with a `*` and a "cost incomplete" footnote, since the reported total understates the actual bill.
+
+### Patch Changes
+
+- @outputai/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
