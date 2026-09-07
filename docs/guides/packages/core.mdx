@@ -65,7 +65,21 @@ When you run `output dev`, the CLI starts Docker Compose which launches a worker
 1. **Scans your project** for workflow files (`workflow.js`), step files (`steps.js`), evaluator files (`evaluators.js`), and shared components in `shared/steps/` and `shared/evaluators/`
 2. **Creates a catalog** of all discovered workflows and their activities with metadata (name, description, schemas)
 3. **Connects to Temporal** at the configured address
-4. **Starts processing** workflow executions
+4. **Publishes the catalog** so the API can resolve workflow names for this version of your code
+5. **Starts processing** workflow executions
+
+Publishing the catalog gates step 5. If the worker cannot publish a catalog matching its own source code, it retries and then exits rather than serving requests against an outdated catalog.
+
+### Shutdown
+
+`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities finish within `TEMPORAL_SHUTDOWN_GRACE_TIME`, then closes its Temporal connection. A second signal forces an immediate exit.
+
+Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains, with a forced exit if the drain stalls.
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | A signal requested the shutdown and the worker drained cleanly |
+| `1` | Startup failed, the Temporal connection was lost, or an uncaught error ended the process |
 
 ### File Discovery
 

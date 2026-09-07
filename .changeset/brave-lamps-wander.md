@@ -1,0 +1,13 @@
+---
+"@outputai/core": minor
+---
+
+Hardened worker startup and shutdown around the catalog workflow.
+
+- Changed catalog reconciliation to terminate a stale catalog instead of asking it to complete, so a catalog that stopped processing workflow tasks no longer fails every deploy that follows it.
+- Increased the catalog workflow task timeout to 30s, enough for a cold worker bundle to activate.
+- Added two retries when publishing the catalog before failing the worker.
+- Added a startup gate so a worker never starts unless its catalog matches its own source code.
+- Changed exit codes so kill signals drain in-flight work and exit `0`, while only real failures exit `1`. Alerts that watch for non-zero worker exits will stop firing on every deploy.
+- Added graceful draining for uncaught exceptions and unhandled rejections, with a force quit if the drain stalls.
+- Fixed kill signals during startup killing the process abruptly, since the handler was only installed once the worker was built.

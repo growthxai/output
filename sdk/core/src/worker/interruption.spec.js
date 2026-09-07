@@ -1,98 +1,178 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setupInterruptionHandler } from './interruption.js';
 
-const { mockLog } = vi.hoisted( () => ( {
-  mockLog: { info: vi.fn(), warn: vi.fn() }
+const FORCE_QUIT_GRACE_MS = 1000;
+const FORCE_QUIT_AFTER_FAILURE_MS = 60_000;
+
+const { mockLog, serializeErrorMock } = vi.hoisted( () => ( {
+  mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  serializeErrorMock: vi.fn( () => 'serialized' )
 } ) );
 
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
+vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
+
+// The module keeps its attachment state at module scope, so every test needs a fresh copy.
+const loadModule = async () => {
+  vi.resetModules();
+  return import( './interruption.js' );
+};
 
 describe( 'setupInterruptionHandler', () => {
-  const onHandlers = {};
-  const callback = vi.fn();
-  const exitMock = vi.fn();
-  const originalOn = process.on;
-  const originalExit = process.exit;
+  const handlers = {};
+  const spies = {};
 
   beforeEach( () => {
     vi.clearAllMocks();
-    Object.keys( onHandlers ).forEach( key => delete onHandlers[key] );
-    process.on = vi.fn( ( event, handler ) => {
-      onHandlers[event] = handler;
+    Object.keys( handlers ).forEach( key => delete handlers[key] );
+
+    spies.on = vi.spyOn( process, 'on' ).mockImplementation( ( event, handler ) => {
+      handlers[event] = handler;
+      return process;
     } );
-    process.exit = exitMock;
+    spies.exit = vi.spyOn( process, 'exit' ).mockImplementation( () => undefined );
   } );
 
   afterEach( () => {
     vi.useRealTimers();
-    process.on = originalOn;
-    process.exit = originalExit;
+    vi.restoreAllMocks();
   } );
 
-  it( 'registers interruption signal handlers', () => {
-    setupInterruptionHandler( callback );
+  it( 'attaches a handler for every signal and uncaught error type', async () => {
+    const { setupInterruptionHandler } = await loadModule();
 
-    expect( process.on ).toHaveBeenCalledWith( 'SIGTERM', expect.any( Function ) );
-    expect( process.on ).toHaveBeenCalledWith( 'SIGINT', expect.any( Function ) );
-    expect( process.on ).toHaveBeenCalledWith( 'SIGUSR2', expect.any( Function ) );
+    setupInterruptionHandler( new AbortController() );
+
+    expect( Object.keys( handlers ) ).toEqual( [
+      'SIGTERM',
+      'SIGINT',
+      'SIGUSR2',
+      'uncaughtException',
+      'unhandledRejection'
+    ] );
   } );
 
-  it( 'logs and invokes callback on first SIGTERM', () => {
-    setupInterruptionHandler( callback );
+  it( 'attaches once and keeps the first abort controller', async () => {
+    const { setupInterruptionHandler } = await loadModule();
+    const first = new AbortController();
+    const second = new AbortController();
 
-    onHandlers.SIGTERM();
+    setupInterruptionHandler( first );
+    const attachedCalls = spies.on.mock.calls.length;
+    setupInterruptionHandler( second );
 
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGTERM' } );
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
-    expect( callback ).toHaveBeenCalledOnce();
-    expect( exitMock ).not.toHaveBeenCalled();
+    expect( spies.on ).toHaveBeenCalledTimes( attachedCalls );
+
+    handlers.SIGTERM();
+
+    expect( first.signal.aborted ).toBe( true );
+    expect( second.signal.aborted ).toBe( false );
   } );
 
-  it( 'logs and invokes callback on first SIGINT', () => {
-    setupInterruptionHandler( callback );
+  describe( 'signals', () => {
+    it( 'aborts with a kill signal error naming the signal', async () => {
+      const { setupInterruptionHandler, KillSignError } = await loadModule();
+      const controller = new AbortController();
 
-    onHandlers.SIGINT();
+      setupInterruptionHandler( controller );
+      handlers.SIGTERM();
 
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGINT' } );
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
-    expect( callback ).toHaveBeenCalledOnce();
-    expect( exitMock ).not.toHaveBeenCalled();
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGTERM' } );
+      expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
+      expect( controller.signal.reason ).toBeInstanceOf( KillSignError );
+      expect( controller.signal.reason.message ).toBe( 'SIGTERM' );
+      expect( spies.exit ).not.toHaveBeenCalled();
+    } );
+
+    it( 'ignores a second signal received within the grace window', async () => {
+      vi.useFakeTimers();
+      const { setupInterruptionHandler } = await loadModule();
+      const controller = new AbortController();
+
+      setupInterruptionHandler( controller );
+      handlers.SIGINT();
+      vi.advanceTimersByTime( FORCE_QUIT_GRACE_MS - 1 );
+      handlers.SIGINT();
+
+      expect( mockLog.warn ).not.toHaveBeenCalledWith( 'Force quitting...' );
+      expect( spies.exit ).not.toHaveBeenCalled();
+    } );
+
+    it( 'force quits on a second signal received after the grace window', async () => {
+      vi.useFakeTimers();
+      const { setupInterruptionHandler } = await loadModule();
+      const controller = new AbortController();
+
+      setupInterruptionHandler( controller );
+      handlers.SIGINT();
+      vi.advanceTimersByTime( FORCE_QUIT_GRACE_MS + 1 );
+      handlers.SIGINT();
+
+      expect( mockLog.warn ).toHaveBeenCalledWith( 'Force quitting...' );
+      expect( spies.exit ).toHaveBeenCalledWith( 1 );
+    } );
   } );
 
-  it( 'logs and invokes callback on first SIGUSR2', () => {
-    setupInterruptionHandler( callback );
+  describe( 'uncaught errors', () => {
+    it( 'aborts with an uncaught error wrapping the original', async () => {
+      const { setupInterruptionHandler, UncaughtError } = await loadModule();
+      const controller = new AbortController();
+      const error = new TypeError( 'boom' );
 
-    onHandlers.SIGUSR2();
+      setupInterruptionHandler( controller );
+      handlers.uncaughtException( error );
 
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGUSR2' } );
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
-    expect( callback ).toHaveBeenCalledOnce();
-    expect( exitMock ).not.toHaveBeenCalled();
-  } );
+      // Reporting is left to the abort reason handler unless the forced shutdown kicks in.
+      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( serializeErrorMock ).not.toHaveBeenCalled();
+      expect( controller.signal.reason ).toBeInstanceOf( UncaughtError );
+      expect( controller.signal.reason.message ).toBe( 'uncaughtException' );
+      expect( controller.signal.reason.cause ).toBe( error );
+    } );
 
-  it( 'ignores a second signal received within the grace period', () => {
-    vi.useFakeTimers();
-    setupInterruptionHandler( callback );
+    it( 'wraps non error rejection values for unhandled rejections', async () => {
+      const { setupInterruptionHandler, UncaughtError } = await loadModule();
+      const controller = new AbortController();
 
-    onHandlers.SIGTERM();
-    onHandlers.SIGINT();
+      setupInterruptionHandler( controller );
+      handlers.unhandledRejection( 'not an error' );
 
-    expect( callback ).toHaveBeenCalledOnce();
-    expect( mockLog.warn ).toHaveBeenCalledTimes( 1 );
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
-    expect( exitMock ).not.toHaveBeenCalled();
-  } );
+      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( serializeErrorMock ).not.toHaveBeenCalled();
+      expect( controller.signal.reason ).toBeInstanceOf( UncaughtError );
+      expect( controller.signal.reason.message ).toBe( 'unhandledRejection' );
+      expect( controller.signal.reason.cause ).toBe( 'not an error' );
+    } );
 
-  it( 'force quits on a second signal after the grace period', () => {
-    vi.useFakeTimers();
-    setupInterruptionHandler( callback );
+    it( 'forces an exit and reports the original error when the shutdown outlives the watchdog', async () => {
+      vi.useFakeTimers();
+      const { setupInterruptionHandler } = await loadModule();
+      const error = new Error( 'boom' );
 
-    onHandlers.SIGTERM();
-    vi.advanceTimersByTime( 1001 );
-    onHandlers.SIGINT();
+      setupInterruptionHandler( new AbortController() );
+      handlers.uncaughtException( error );
 
-    expect( callback ).toHaveBeenCalledOnce();
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Force quitting...' );
-    expect( exitMock ).toHaveBeenCalledWith( 1 );
+      vi.advanceTimersByTime( FORCE_QUIT_AFTER_FAILURE_MS - 1 );
+
+      expect( spies.exit ).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime( 1 );
+
+      expect( serializeErrorMock ).toHaveBeenCalledWith( error );
+      expect( mockLog.error ).toHaveBeenCalledWith( 'Uncaught exception shutdown timed out, force quitting...', { error: 'serialized' } );
+      expect( spies.exit ).toHaveBeenCalledWith( 1 );
+    } );
+
+    it( 'keeps the watchdog from holding the process open', async () => {
+      const { setupInterruptionHandler } = await loadModule();
+      setupInterruptionHandler( new AbortController() );
+
+      const timer = { unref: vi.fn() };
+      const setTimeoutSpy = vi.spyOn( globalThis, 'setTimeout' ).mockReturnValue( timer );
+
+      handlers.uncaughtException( new Error( 'boom' ) );
+
+      expect( setTimeoutSpy ).toHaveBeenCalledWith( expect.any( Function ), FORCE_QUIT_AFTER_FAILURE_MS );
+      expect( timer.unref ).toHaveBeenCalledOnce();
+    } );
   } );
 } );

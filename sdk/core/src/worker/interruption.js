@@ -1,14 +1,28 @@
+import { serializeError } from '#helpers/error_serializer';
 import { createChildLogger } from '#logger';
 
 const log = createChildLogger( 'Interruption' );
 
 const FORCE_QUIT_GRACE_MS = 1000;
+const FORCE_QUIT_AFTER_FAILURE_MS = 60_000;
 const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
+const UNCAUGHT_ERROR_TYPES = [ 'uncaughtException', 'unhandledRejection' ];
 
-export const setupInterruptionHandler = cb => {
-  const state = { interruptionReceivedAt: null };
+export class KillSignError extends Error {
+  name = 'KillSignError';
+};
 
-  const handle = signal => {
+export class UncaughtError extends Error {
+  name = 'UncaughtError';
+};
+
+const state = { interruptionReceivedAt: null, attached: false };
+
+export const setupInterruptionHandler = abortController => {
+  if ( state.attached ) {
+    return;
+  }
+  const handleSignal = signal => {
     log.info( 'Signal Received', { signal } );
 
     if ( state.interruptionReceivedAt ) {
@@ -26,8 +40,19 @@ export const setupInterruptionHandler = cb => {
 
     state.interruptionReceivedAt = Date.now();
     log.warn( 'Initiating shutdown...' );
-    cb();
+    abortController.abort( new KillSignError( signal ) );
   };
+  INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handleSignal( signal ) ) );
 
-  INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handle( signal ) ) );
+  const handleUncaught = ( error, type ) => {
+    const uncaughtError = new UncaughtError( type, { cause: error } );
+    abortController.abort( uncaughtError );
+    setTimeout( () => {
+      log.error( 'Uncaught exception shutdown timed out, force quitting...', { error: serializeError( error ) } );
+      process.exit( 1 );
+    }, FORCE_QUIT_AFTER_FAILURE_MS ).unref();
+  };
+  UNCAUGHT_ERROR_TYPES.forEach( type => process.on( type, error => handleUncaught( error, type ) ) );
+
+  state.attached = true;
 };
