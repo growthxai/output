@@ -52,15 +52,15 @@ const state = {
 /* Gracefully shutdown all services, ignore errors */
 const shutdown = async () => {
   const shutdownClients = [
-    [ 'Stopping Worker', state.workerRunner, 'stop', 'running' ],
-    [ 'Stopping Connection Monitor', state.connectionMonitor, 'stop', 'running' ],
-    [ 'Interrupting Catalog Publisher', state.catalogPublisher, 'interrupt', 'running' ],
-    [ 'Closing Connection', state.connection, 'close', null ]
+    { label: 'Stopping Worker', running: () => state.workerRunner?.running, stop: () => state.workerRunner.stop() },
+    { label: 'Stopping Connection Monitor', running: () => state.connectionMonitor?.running, stop: () => state.connectionMonitor.stop() },
+    { label: 'Interrupting Catalog Publisher', running: () => state.catalogPublisher?.running, stop: () => state.catalogPublisher.interrupt() },
+    { label: 'Closing Connection', running: () => state.connection, stop: () => state.connection.close() }
   ];
-  for ( const [ label, client, stopFn, check ] of shutdownClients ) {
-    if ( client && ( !check || client[check] ) ) {
+  for ( const { label, running, stop } of shutdownClients ) {
+    if ( running() ) {
       log.info( `${label}...` );
-      await client[stopFn]().catch( e => log.warn( `${label} error`, { error: e.message } ) );
+      await stop().catch( e => log.warn( `${label} error`, { error: e.message } ) );
     }
   }
 };
