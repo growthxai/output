@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { sleepCancellable } from './promise.js';
 
 // Long enough that a sleep reaching it means the abort was not honored and the test times out.
@@ -46,6 +46,17 @@ describe( 'sleepCancellable', () => {
   } );
 
   it( 'rethrows a rejection that is not an abort', async () => {
-    await expect( sleepCancellable( 10, {} ) ).rejects.toThrow( /AbortSignal/ );
+    const failure = new Error( 'timer failed' );
+    vi.doMock( 'node:timers/promises', () => ( { setTimeout: () => Promise.reject( failure ) } ) );
+    vi.resetModules();
+
+    try {
+      const { sleepCancellable: sleeping } = await import( './promise.js' );
+
+      await expect( sleeping( 10 ) ).rejects.toBe( failure );
+    } finally {
+      vi.doUnmock( 'node:timers/promises' );
+      vi.resetModules();
+    }
   } );
 } );
