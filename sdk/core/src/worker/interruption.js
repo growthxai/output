@@ -3,8 +3,8 @@ import { createChildLogger } from '#logger';
 
 const log = createChildLogger( 'Interruption' );
 
-const FORCE_QUIT_GRACE_MS = 1000;
-const FORCE_QUIT_AFTER_FAILURE_MS = 60_000;
+const DOUBLE_SIGNAL_IGNORE_TIME = 1000;
+const KILL_AFTER_UNCAUGHT_TIME = 60_000;
 const INTERRUPTION_SIGNALS = [ 'SIGTERM', 'SIGINT', 'SIGUSR2' ];
 const UNCAUGHT_ERROR_TYPES = [ 'uncaughtException', 'unhandledRejection' ];
 
@@ -16,43 +16,57 @@ export class UncaughtError extends Error {
   name = 'UncaughtError';
 };
 
-const state = { interruptionReceivedAt: null, attached: false };
+const state = {
+  lastSignalDate: null,
+  setupCompleted: false,
+  uncaughtHandled: false,
+  abortController: null
+};
 
-export const setupInterruptionHandler = abortController => {
-  if ( state.attached ) {
-    return;
-  }
-  const handleSignal = signal => {
-    log.info( 'Signal Received', { signal } );
+/** Creates a countdown to kill the code */
+const createTerminationWatchdog = ( message, timeoutMs ) =>
+  setTimeout( () => {
+    log.warn( message );
+    process.exit( 1 );
+  }, timeoutMs ).unref();
 
-    if ( state.interruptionReceivedAt ) {
-      const elapsed = Date.now() - state.interruptionReceivedAt;
+/** Handles a signal interruption */
+const handleSignal = signal => {
+  log.info( 'Signal Received', { signal } );
 
-      // If running with npx, 2 kill signals are received in rapid succession,
-      // this ignores the second interruption when it is right after the first.
-      if ( elapsed < FORCE_QUIT_GRACE_MS ) {
-        return;
-      }
+  if ( state.lastSignalDate ) {
+    const elapsed = Date.now() - state.lastSignalDate;
+
+    // If running with npx, 2 kill signals are received in rapid succession,
+    // this ignores the second interruption when it is right after the first.
+    if ( elapsed > DOUBLE_SIGNAL_IGNORE_TIME ) {
       log.warn( 'Force quitting...' );
       process.exit( 1 );
-      return;
     }
+    return;
+  }
 
-    state.interruptionReceivedAt = Date.now();
-    log.warn( 'Initiating shutdown...' );
-    abortController.abort( new KillSignError( signal ) );
-  };
-  INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handleSignal( signal ) ) );
+  state.lastSignalDate = Date.now();
+  state.abortController.abort( new KillSignError( signal ) );
+};
 
-  const handleUncaught = ( error, type ) => {
-    const uncaughtError = new UncaughtError( type, { cause: error } );
-    abortController.abort( uncaughtError );
-    setTimeout( () => {
-      log.error( 'Uncaught exception shutdown timed out, force quitting...', { error: serializeError( error ) } );
-      process.exit( 1 );
-    }, FORCE_QUIT_AFTER_FAILURE_MS ).unref();
-  };
-  UNCAUGHT_ERROR_TYPES.forEach( type => process.on( type, error => handleUncaught( error, type ) ) );
+/** handles uncaught exceptions, unhandled promises */
+const handleUncaught = ( error, type ) => {
+  log.warn( 'Uncaught exception', { type, error: serializeError( error ) } );
 
-  state.attached = true;
+  if ( !state.uncaughtHandled ) {
+    state.abortController.abort( new UncaughtError( type, { cause: error } ) );
+    // after detecting an uncaught exception, starts a countdown, if the code doesn't finish in time, force quit
+    createTerminationWatchdog( 'Uncaught exception handling timed out, force quitting...', KILL_AFTER_UNCAUGHT_TIME );
+    state.uncaughtHandled = true;
+  }
+};
+
+export const setupInterruptionHandler = abortController => {
+  if ( !state.setupCompleted ) {
+    state.abortController = abortController;
+    INTERRUPTION_SIGNALS.forEach( signal => process.on( signal, () => handleSignal( signal ) ) );
+    UNCAUGHT_ERROR_TYPES.forEach( type => process.on( type, error => handleUncaught( error, type ) ) );
+    state.setupCompleted = true;
+  }
 };

@@ -77,7 +77,6 @@ describe( 'setupInterruptionHandler', () => {
       handlers.SIGTERM();
 
       expect( mockLog.info ).toHaveBeenCalledWith( 'Signal Received', { signal: 'SIGTERM' } );
-      expect( mockLog.warn ).toHaveBeenCalledWith( 'Initiating shutdown...' );
       expect( controller.signal.reason ).toBeInstanceOf( KillSignError );
       expect( controller.signal.reason.message ).toBe( 'SIGTERM' );
       expect( spies.exit ).not.toHaveBeenCalled();
@@ -121,9 +120,10 @@ describe( 'setupInterruptionHandler', () => {
       setupInterruptionHandler( controller );
       handlers.uncaughtException( error );
 
-      // Reporting is left to the abort reason handler unless the forced shutdown kicks in.
+      // Recorded here because a prior abort would leave the reason handler with nothing to report.
+      expect( mockLog.warn ).toHaveBeenCalledWith( 'Uncaught exception', { type: 'uncaughtException', error: 'serialized' } );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( error );
       expect( mockLog.error ).not.toHaveBeenCalled();
-      expect( serializeErrorMock ).not.toHaveBeenCalled();
       expect( controller.signal.reason ).toBeInstanceOf( UncaughtError );
       expect( controller.signal.reason.message ).toBe( 'uncaughtException' );
       expect( controller.signal.reason.cause ).toBe( error );
@@ -136,20 +136,20 @@ describe( 'setupInterruptionHandler', () => {
       setupInterruptionHandler( controller );
       handlers.unhandledRejection( 'not an error' );
 
+      expect( mockLog.warn ).toHaveBeenCalledWith( 'Uncaught exception', { type: 'unhandledRejection', error: 'serialized' } );
+      expect( serializeErrorMock ).toHaveBeenCalledWith( 'not an error' );
       expect( mockLog.error ).not.toHaveBeenCalled();
-      expect( serializeErrorMock ).not.toHaveBeenCalled();
       expect( controller.signal.reason ).toBeInstanceOf( UncaughtError );
       expect( controller.signal.reason.message ).toBe( 'unhandledRejection' );
       expect( controller.signal.reason.cause ).toBe( 'not an error' );
     } );
 
-    it( 'forces an exit and reports the original error when the shutdown outlives the watchdog', async () => {
+    it( 'forces an exit when the shutdown outlives the watchdog', async () => {
       vi.useFakeTimers();
       const { setupInterruptionHandler } = await loadModule();
-      const error = new Error( 'boom' );
 
       setupInterruptionHandler( new AbortController() );
-      handlers.uncaughtException( error );
+      handlers.uncaughtException( new Error( 'boom' ) );
 
       vi.advanceTimersByTime( FORCE_QUIT_AFTER_FAILURE_MS - 1 );
 
@@ -157,8 +157,7 @@ describe( 'setupInterruptionHandler', () => {
 
       vi.advanceTimersByTime( 1 );
 
-      expect( serializeErrorMock ).toHaveBeenCalledWith( error );
-      expect( mockLog.error ).toHaveBeenCalledWith( 'Uncaught exception shutdown timed out, force quitting...', { error: 'serialized' } );
+      expect( mockLog.warn ).toHaveBeenCalledWith( 'Uncaught exception handling timed out, force quitting...' );
       expect( spies.exit ).toHaveBeenCalledWith( 1 );
     } );
 
