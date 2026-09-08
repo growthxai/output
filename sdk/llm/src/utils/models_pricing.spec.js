@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchModelsPricing, cache } from './models_pricing.js';
 import fixture from '../fixtures/models_api_light.json' with { type: 'json' };
+import fallbackJson from './models_pricing_fallback.json' with { type: 'json' };
 
 const fetchMock = vi.hoisted( () => vi.fn() );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
@@ -21,6 +22,40 @@ const stubFetch = response => {
   fetchMock.mockResolvedValueOnce( response );
   return fetchMock;
 };
+const fallbackEntries = Object.values( fallbackJson )
+  .flatMap( provider => Object.values( provider.models ) )
+  .filter( model => model.cost );
+
+/* A models.dev entry as served by the API: the stripped fallback keeps only the `cost` branch of this shape. */
+const fullTable = ( providerId, modelId, cost ) => ( {
+  [providerId]: {
+    id: providerId,
+    env: [ 'OPENAI_API_KEY' ],
+    npm: '@ai-sdk/openai',
+    name: 'OpenAI',
+    doc: 'https://platform.openai.com/docs/models',
+    models: {
+      [modelId]: {
+        id: modelId,
+        name: 'GPT-4o',
+        description: 'Multimodal flagship model',
+        family: 'gpt-4o',
+        attachment: true,
+        reasoning: false,
+        tool_call: true,
+        structured_output: true,
+        temperature: true,
+        knowledge: '2023-10',
+        release_date: '2024-11-20',
+        last_updated: '2024-11-20',
+        modalities: { input: [ 'text', 'image' ], output: [ 'text' ] },
+        open_weights: false,
+        limit: { context: 128000, output: 16384 },
+        cost
+      }
+    }
+  }
+} );
 
 describe( 'modelsPricing', () => {
   beforeEach( () => {
@@ -71,13 +106,14 @@ describe( 'modelsPricing', () => {
     expect( result.get( `openai/${sharedModelId}` ) ).not.toEqual( result.get( `azure/${sharedModelId}` ) );
   } );
 
-  it( 'returns null when response is not ok and no cache', async () => {
+  it( 'returns the bundled fallback table when response is not ok and no cache', async () => {
     const status = 500;
     stubFetch( { ok: false, status } );
 
     const result = await fetchModelsPricing();
 
-    expect( result ).toBeNull();
+    expect( result ).toBeInstanceOf( Map );
+    expect( result.size ).toBe( fallbackEntries.length );
   } );
 
   it( 'returns stale cache when response is not ok but cache exists', async () => {
@@ -94,13 +130,44 @@ describe( 'modelsPricing', () => {
     expect( result.size ).toBeGreaterThan( 0 );
   } );
 
-  it( 'returns null when fetch rejects and no cache', async () => {
+  it( 'returns the bundled fallback table when fetch rejects and no cache', async () => {
     const error = new Error( 'network failure' );
     fetchMock.mockRejectedValueOnce( error );
 
     const result = await fetchModelsPricing();
 
-    expect( result ).toBeNull();
+    expect( result ).toBeInstanceOf( Map );
+    expect( result.size ).toBe( fallbackEntries.length );
+    expect( result.get( 'openai/gpt-4o-2024-11-20' ) ).toEqual( fallbackJson.openai.models['gpt-4o-2024-11-20'].cost );
+    expect( result.get( 'gpt-4o-2024-11-20' ) ).toBeUndefined();
+  } );
+
+  it( 'maps the stripped fallback entry to the same cost as the full models.dev table', async () => {
+    const providerId = 'openai';
+    const modelId = 'gpt-4o-2024-11-20';
+    const { cost } = fallbackJson[providerId].models[modelId];
+    stubFetch( okResponse( fullTable( providerId, modelId, cost ) ) );
+
+    const remote = await fetchModelsPricing();
+
+    cache.content = null;
+    cache.expiresAt = 0;
+    fetchMock.mockRejectedValueOnce( new Error( 'network failure' ) );
+    const fallback = await fetchModelsPricing();
+
+    expect( remote.get( `${providerId}/${modelId}` ) ).toEqual( fallback.get( `${providerId}/${modelId}` ) );
+    expect( fallback.get( `${providerId}/${modelId}` ) ).toEqual( { input: 2.5, output: 10, cache_read: 1.25 } );
+  } );
+
+  it( 'covers every provider in the fallback table', async () => {
+    fetchMock.mockRejectedValueOnce( new Error( 'network failure' ) );
+
+    const result = await fetchModelsPricing();
+
+    for ( const providerId of Object.keys( fallbackJson ) ) {
+      const modelId = Object.keys( fallbackJson[providerId].models )[0];
+      expect( result.get( `${providerId}/${modelId}` ) ).toEqual( fallbackJson[providerId].models[modelId].cost );
+    }
   } );
 
   it( 'returns stale cache when fetch rejects but cache exists', async () => {

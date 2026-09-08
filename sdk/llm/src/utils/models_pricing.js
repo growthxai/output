@@ -1,5 +1,6 @@
 import { Logger } from '@outputai/core';
 import { EnvHttpProxyAgent, fetch } from 'undici';
+import modelsPricingFallback from './models_pricing_fallback.json' with { type: 'json' };
 
 const logger = Logger.createLogger( 'LLM' );
 const costTableUrl = 'https://models.dev/api.json';
@@ -16,10 +17,10 @@ export const cache = {
 const parseData = data => {
   const map = new Map();
   try {
-    for ( const provider of Object.values( data ) ) {
+    for ( const [ providerId, provider ] of Object.entries( data ) ) {
       for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
         if ( cost ) { // some models don't have cost
-          map.set( `${provider.id}/${modelName}`, cost );
+          map.set( `${providerId}/${modelName}`, cost );
         }
       }
     }
@@ -29,6 +30,8 @@ const parseData = data => {
     return null;
   }
 };
+
+const fallbackTable = parseData( modelsPricingFallback );
 
 const fetchData = async () => {
   try {
@@ -64,5 +67,6 @@ export const fetchModelsPricing = async () => {
     return cache.content;
   }
 
-  return null;
+  logger.warn( 'Models pricing: using built-in fallback.' );
+  return fallbackTable;
 };

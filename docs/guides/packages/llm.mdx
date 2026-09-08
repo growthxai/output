@@ -744,6 +744,8 @@ Built-in providers use Output's default fetch configuration, including longer Un
 
 LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
 
+The catalog is fetched once and cached for a day. If a refresh fails, the previously cached rates are reused; if the catalog is unreachable before anything has been cached, the built-in providers fall back to a snapshot of the catalog bundled with `@outputai/llm`. That snapshot is point-in-time, so during an outage the reported rates can lag the live catalog. Custom registered providers are not in the snapshot and get unavailable totals as described above.
+
 ## Prompt Caching
 
 When a prompt sends the same large prefix on every call - a long system prompt, few-shot examples, a pasted reference document - you can cache that prefix so the provider skips reprocessing it. Cached input is about 90% cheaper and faster to first token. How you enable it depends on the provider.
