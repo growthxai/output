@@ -25,7 +25,7 @@ import { LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
-const REQUEST = LLMGenerationUsageItem.Group.REQUEST;
+const TOOLS = LLMGenerationUsageItem.Group.TOOLS;
 const OK = LLMGenerationCostItem.Status.OK;
 const FALLBACK = LLMGenerationCostItem.Status.FALLBACK;
 const MISSING = LLMGenerationCostItem.Status.MISSING;
@@ -156,7 +156,7 @@ const cases = [
     modelId: 'gemini-2.5-flash',
     input: 0.0003096,
     output: 0.0034525,
-    request: 0.035,
+    tools: 0.035,
     total: 0.0387621,
     status: LLMGenerationCost.Status.IMPRECISE,
     items: [
@@ -164,7 +164,7 @@ const cases = [
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
       [ OUTPUT, 'text', 793, 2.5, 0.0019825, OK ],
       [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, FALLBACK ],
-      [ REQUEST, 'grounding_prompt', 1, 35_000, 0.035, OK ]
+      [ TOOLS, 'grounding_prompt', 1, 35_000, 0.035, OK ]
     ]
   },
   {
@@ -241,7 +241,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
     modelId,
     input,
     output,
-    request = null,
+    tools = null,
     total,
     status,
     items
@@ -264,7 +264,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       modelId,
       input,
       output,
-      request,
+      tools,
       total,
       status,
       pricingFreshness: Freshness.LIVE,

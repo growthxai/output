@@ -4,7 +4,7 @@ import { LLMUsageLegacy, convertCostToLegacy } from './legacy_cost_attribute.js'
 const MODEL_ID = 'test-model';
 const INPUT = 'input';
 const OUTPUT = 'output';
-const REQUEST = 'request';
+const TOOLS = 'tools';
 const OK = 'ok';
 const FALLBACK = 'fallback';
 const MISSING = 'missing';
@@ -261,11 +261,11 @@ describe( 'convertCostToLegacy', () => {
     } );
   } );
 
-  it( 'omits request-group (grounding) lines; they belong to the new cost attribute only', () => {
+  it( 'omits tools-group (grounding) lines; they belong to the new cost attribute only', () => {
     expect( convertCostToLegacy( cost( [
       item( INPUT, null, 100, 2, 0.0002 ),
       item( OUTPUT, null, 50, 10, 0.0005 ),
-      item( REQUEST, 'grounding_query', 3, 14_000, 0.042 )
+      item( TOOLS, 'grounding_query', 3, 14_000, 0.042 )
     ] ) ) ).toEqual( {
       type: 'llm:usage',
       modelId: MODEL_ID,

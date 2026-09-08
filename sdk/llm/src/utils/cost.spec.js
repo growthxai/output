@@ -14,7 +14,7 @@ import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
-const REQUEST = LLMGenerationUsageItem.Group.REQUEST;
+const TOOLS = LLMGenerationUsageItem.Group.TOOLS;
 const MODEL_ID = 'test-model';
 const PROVIDER_ID = 'test-provider';
 
@@ -64,7 +64,7 @@ describe( 'calculateCosts', () => {
       modelId: MODEL_ID,
       input: 2,
       output: 5,
-      request: null,
+      tools: null,
       total: 7,
       status: LLMGenerationCost.Status.PRECISE,
       pricingFreshness: Freshness.LIVE,
@@ -234,18 +234,18 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
-      item( REQUEST, 'grounding_query', 3 )
+      item( TOOLS, 'grounding_query', 3 )
     ] ) );
 
     expect( result ).toMatchObject( {
       input: 2,
       output: 5,
-      request: 0.042,
+      tools: 0.042,
       total: 7.042,
       status: LLMGenerationCost.Status.PRECISE
     } );
     expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationCostItem( REQUEST, 'grounding_query', 3, 14_000, 0.042, LLMGenerationCostItem.Status.OK )
+      new LLMGenerationCostItem( TOOLS, 'grounding_query', 3, 14_000, 0.042, LLMGenerationCostItem.Status.OK )
     );
     expect( Logger.warn ).not.toHaveBeenCalled();
   } );
@@ -256,25 +256,25 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
-      item( REQUEST, 'grounding_prompt', 1 )
+      item( TOOLS, 'grounding_prompt', 1 )
     ] ) );
 
     expect( result ).toMatchObject( {
-      request: 0.035,
+      tools: 0.035,
       total: 7.035,
       status: LLMGenerationCost.Status.PRECISE
     } );
   } );
 
-  it( 'never prices a request item at the input token rate', async () => {
+  it( 'never prices a tools item at the input token rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
     const result = await calculateCosts( usage( [
-      item( REQUEST, 'grounding_query', 2 )
+      item( TOOLS, 'grounding_query', 2 )
     ] ) );
 
     expect( result.items ).toEqual( [
-      new LLMGenerationCostItem( REQUEST, 'grounding_query', 2, 14_000, 0.028, LLMGenerationCostItem.Status.OK )
+      new LLMGenerationCostItem( TOOLS, 'grounding_query', 2, 14_000, 0.028, LLMGenerationCostItem.Status.OK )
     ] );
   } );
 
@@ -284,26 +284,26 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
-      item( REQUEST, 'grounding', 2 )
+      item( TOOLS, 'grounding', 2 )
     ] ) );
 
     expect( result ).toMatchObject( {
       input: 2,
       output: 5,
-      request: null,
+      tools: null,
       total: 7,
       status: LLMGenerationCost.Status.INCOMPLETE
     } );
     expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationCostItem( REQUEST, 'grounding', 2, null, null, LLMGenerationCostItem.Status.MISSING )
+      new LLMGenerationCostItem( TOOLS, 'grounding', 2, null, null, LLMGenerationCostItem.Status.MISSING )
     );
     expect( Logger.warn ).toHaveBeenCalledWith(
-      'Grounded call with no grounding rate for model',
-      { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID }
+      'Tool call with no rate for model',
+      { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID, type: 'grounding' }
     );
   } );
 
-  it( 'leaves an ungrounded cost without a request total', async () => {
+  it( 'leaves an ungrounded cost without a tools total', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
 
     const result = await calculateCosts( usage( [
@@ -311,7 +311,7 @@ describe( 'calculateCosts', () => {
       item( OUTPUT, null, 500_000 )
     ] ) );
 
-    expect( result.request ).toBeNull();
+    expect( result.tools ).toBeNull();
     expect( result.total ).toBe( 7 );
   } );
 

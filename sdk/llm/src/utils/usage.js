@@ -7,7 +7,7 @@ const exists = v => Number.isSafeInteger( v ) && v >= 0;
 const safeSum = ( ...values ) => values.filter( exists ).reduce( ( t, v ) => t + v, 0 );
 
 export class LLMGenerationUsageItem {
-  static Group = { INPUT: 'input', OUTPUT: 'output', REQUEST: 'request' };
+  static Group = { INPUT: 'input', OUTPUT: 'output', TOOLS: 'tools' };
 
   group;
   label;
@@ -124,7 +124,7 @@ export const parseLLMUsage = ( { prompt, usage, steps } ) => {
     .filter( Boolean );
   if ( grounding.length > 0 ) {
     const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
-    items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, grounding[0].label, amount ) );
+    items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
   }
 
   if ( items.length === 0 ) {
