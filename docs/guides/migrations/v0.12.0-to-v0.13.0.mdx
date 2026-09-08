@@ -1,0 +1,62 @@
+---
+title: "v0.12.0 → v0.13.0"
+description: "Upgrading Output.ai projects from v0.12.0 to v0.13.0: worker shutdown defaults, worker exit codes, and the catalog startup gate in @outputai/core."
+---
+
+This guide covers behavior changes in the `@outputai/core` worker. Nothing in your code needs to change, but three runtime behaviors differ: the worker now bounds its own shutdown, kill signals no longer exit non-zero, and a worker refuses to start unless it can publish a catalog matching its own source code.
+
+## Worker shutdown is now bounded
+
+`TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` have defaults:
+
+| Variable | v0.12.0 | v0.13.0 | Meaning |
+| --- | --- | --- | --- |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | unset (Temporal default `0`) | `20s` | How long in-flight activities run before they are asked to cancel |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | unset (no force termination) | `25s` | How long the worker drains before it gives up and terminates |
+
+Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`. It now stops draining after `25s`, throws `GracefulShutdownPeriodExpiredError`, and exits under its own control - closing its Temporal connection, flushing hooks, and logging first.
+
+For most projects this is an improvement, because activities get 20 seconds of runway instead of being asked to cancel the instant a deploy starts.
+
+### Set both values if your activities drain slowly
+
+If your activities routinely run longer than 25 seconds and you raised your platform's shutdown window to accommodate them, set both variables explicitly. Otherwise those activities are cancelled at 20 seconds and abandoned at 25 on every deploy, then retried on the new instance.
+
+Keep grace below force, and force below your platform's shutdown window, so the worker always exits before it is killed:
+
+```bash
+# Platform allows 300s between SIGTERM and SIGKILL
+TEMPORAL_SHUTDOWN_GRACE_TIME=280s
+TEMPORAL_SHUTDOWN_FORCE_TIME=290s
+```
+
+Values above your platform's window never take effect, since the platform terminates the process first. On Render that window is `maxShutdownDelaySeconds`, which defaults to 30 seconds and can be raised to 300. On Kubernetes it is `terminationGracePeriodSeconds`.
+
+An empty value falls back to the default rather than disabling the bound, so there is no longer a way to configure an unbounded drain.
+
+## Worker exit codes
+
+A kill signal now exits `0` once the worker has drained:
+
+| Situation | v0.12.0 | v0.13.0 |
+| --- | --- | --- |
+| `SIGTERM` / `SIGINT` / `SIGUSR2` shutdown | `1` | `0` |
+| A failure while draining | `1` | `0`, logged as a warning |
+| Startup failure, lost connection, or uncaught error | `1` | `1` |
+| A second kill signal arriving after the first | `1` | `1` |
+
+If you alert on non-zero worker exits, those alerts stopped firing on every deploy. If you relied on a non-zero exit to detect that a deploy restarted a worker, watch for the `Bye` log line or a process restart instead.
+
+## Workers exit when the catalog does not match
+
+The worker publishes its catalog during startup and treats it as a gate. If it cannot publish a catalog matching its own source code, it retries twice and then exits rather than serving requests against an outdated catalog.
+
+A worker that would previously have started with a stale catalog now fails its deploy instead. The failure is logged as `Worker error` with the underlying Temporal error.
+
+Reconciliation also changed: a stale catalog workflow is now terminated rather than asked to complete. A catalog that stopped processing workflow tasks no longer blocks every deploy that follows it.
+
+## Checklist
+
+- Set `TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` explicitly if your activities need more than 25 seconds to drain, keeping both under your platform's shutdown window.
+- Update alerts that treat a non-zero worker exit as a failed deploy; a drained kill signal now exits `0`.
+- Expect a worker whose catalog cannot be published to exit instead of starting with a stale catalog.

@@ -12,6 +12,7 @@ export class ConnectionLostError extends Error {
 const MAX_FAILURES = 3;
 const CHECK_INTERVAL_MS = 60_000;
 const CHECK_TIMEOUT_MS = 5_000;
+const HEALTHY_LOG_EVERY_LOOPS = 60;
 
 /**
  * Watches the Temporal connection health.
@@ -43,7 +44,7 @@ export class TemporalConnectionMonitor {
         if ( this.#failures > 0 ) {
           log.info( 'Recovered' );
         }
-        if ( this.#loops === 0 || this.#loops % 60 === 0 ) {
+        if ( this.#loops === 0 || this.#loops % HEALTHY_LOG_EVERY_LOOPS === 0 ) {
           log.info( 'Healthy' );
         }
         this.#failures = 0;

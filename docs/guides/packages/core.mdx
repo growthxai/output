@@ -72,7 +72,7 @@ Publishing the catalog gates step 5. If the worker cannot publish a catalog matc
 
 ### Shutdown
 
-`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities finish within `TEMPORAL_SHUTDOWN_GRACE_TIME`, then closes its Temporal connection. A second signal forces an immediate exit.
+`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, then closes its Temporal connection. A second signal forces an immediate exit.
 
 Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains, with a forced exit if the drain stalls.
 
