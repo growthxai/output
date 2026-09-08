@@ -35,7 +35,7 @@ export class CatalogPublisher {
       const description = await this.#client.workflow.getHandle( workflowId ).describe();
       return description.closeTime ? null : {
         runId: description.runId,
-        hash: description?.memo.hash
+        hash: description.memo?.hash
       };
     } catch ( error ) {
       if ( !( error instanceof WorkflowNotFoundError ) ) {
@@ -144,6 +144,6 @@ export class CatalogPublisher {
 
   interrupt() {
     this.#abortCtrl.abort();
-    return this.#execution?.catch( () => {} ) ?? Promise.resolve();
+    return this.#execution ?? Promise.resolve();
   }
 };

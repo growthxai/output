@@ -117,11 +117,11 @@ const execute = async () => {
   log.info( 'Creating catalog publisher...' );
   state.catalogPublisher = run( () => new CatalogPublisher( { connection, namespace, catalog, catalogHash, signal } ) );
 
-  log.info( 'Publishing catalog workflow...' );
-  await run( () => state.catalogPublisher.run() );
-
   log.info( 'Creating connection monitor...' );
   state.connectionMonitor = run( () => new TemporalConnectionMonitor( { connection, signal } ) );
+
+  log.info( 'Publishing catalog workflow...' );
+  await run( () => state.catalogPublisher.run() );
 
   log.info( 'Creating Temporal worker...' );
   const worker = await run( () => {

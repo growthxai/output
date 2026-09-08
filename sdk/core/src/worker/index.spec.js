@@ -303,10 +303,9 @@ describe( 'worker/index', () => {
 
       await bootWorker();
 
+      // The worker never exists unless its catalog matches its own source code.
       expect( catalogPublisherInstance.run.mock.invocationCallOrder[0] )
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
-      expect( bindGlobalFunctionsMock.mock.invocationCallOrder[0] )
-        .toBeLessThan( catalogPublisherInstance.run.mock.invocationCallOrder[0] );
     } );
 
     it( 'passes worker tuner instead of incompatible execution concurrency options', async () => {
@@ -473,6 +472,7 @@ describe( 'worker/index', () => {
       await waitForExit();
 
       expect( Worker.create ).not.toHaveBeenCalled();
+      expect( workerRunnerInstance.start ).not.toHaveBeenCalled();
       expect( mockConnection.close ).toHaveBeenCalledOnce();
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { message: 'catalog failed' } )

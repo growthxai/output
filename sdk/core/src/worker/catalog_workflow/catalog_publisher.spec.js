@@ -112,6 +112,16 @@ describe( 'CatalogPublisher', () => {
       expect( mockLog.info ).toHaveBeenCalledWith( 'Current catalog workflow hash matches worker, restart skipped' );
     } );
 
+    it( 'terminates and starts when the running catalog carries no memo', async () => {
+      describeMock.mockResolvedValue( { closeTime: undefined, runId: 'run-1', memo: undefined } );
+
+      await createPublisher().run();
+
+      expect( mockLog.warn ).not.toHaveBeenCalled();
+      expect( terminateMock ).toHaveBeenCalledOnce();
+      expect( startMock ).toHaveBeenCalledWith( 'catalog', startArguments );
+    } );
+
     it( 'terminates the pinned run then starts when the running hash differs', async () => {
       describeMock.mockResolvedValue( running( 'old-hash' ) );
 
@@ -295,13 +305,13 @@ describe( 'CatalogPublisher', () => {
       expect( describeMock ).not.toHaveBeenCalled();
     } );
 
-    it( 'swallows the failure when interrupting after a rejected run', async () => {
+    it( 'reports the failure when interrupting after a rejected run', async () => {
       startMock.mockRejectedValue( new Error( 'start failed' ) );
       const publisher = createPublisher();
 
       await expect( publisher.run() ).rejects.toThrow( 'start failed' );
 
-      await expect( publisher.interrupt() ).resolves.toBeUndefined();
+      await expect( publisher.interrupt() ).rejects.toThrow( 'start failed' );
     } );
   } );
 } );

@@ -170,7 +170,7 @@ describe( 'WorkerRunner', () => {
     expect( runner.running ).toBe( false );
   } );
 
-  it( 'resolves stop without reporting a worker failure', async () => {
+  it( 'reports the failure through stop so a drain error is never silent', async () => {
     const error = new Error( 'poll failed' );
     const { worker, fail } = createWorker();
     const runner = createRunner( worker );
@@ -181,7 +181,22 @@ describe( 'WorkerRunner', () => {
     fail( error );
     await rejection;
 
-    await expect( runner.stop() ).resolves.toBeUndefined();
+    await expect( runner.stop() ).rejects.toBe( error );
     expect( worker.shutdown ).not.toHaveBeenCalled();
+  } );
+
+  it( 'reports a drain that fails after stop was called', async () => {
+    const error = new Error( 'drain failed' );
+    const { worker, fail } = createWorker();
+    const runner = createRunner( worker );
+
+    const run = runner.start();
+    const rejection = expect( run ).rejects.toBe( error );
+    const stopped = runner.stop();
+
+    fail( error );
+
+    await expect( stopped ).rejects.toBe( error );
+    await rejection;
   } );
 } );

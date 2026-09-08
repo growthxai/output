@@ -217,12 +217,12 @@ describe( 'TemporalConnectionMonitor', () => {
       expect( monitor.running ).toBe( false );
     } );
 
-    it( 'does not reject from stop after the connection was lost', async () => {
+    it( 'reports the loss through stop so it is never silent', async () => {
       const check = vi.fn().mockRejectedValue( new Error( 'connection refused' ) );
       const monitor = createMonitor( check, { maxFailures: 1 } );
 
       await expect( monitor.start() ).rejects.toThrow( ConnectionLostError );
-      await expect( monitor.stop() ).resolves.toBeUndefined();
+      await expect( monitor.stop() ).rejects.toThrow( ConnectionLostError );
     } );
   } );
 

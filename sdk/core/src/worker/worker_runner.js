@@ -52,13 +52,12 @@ export class WorkerRunner {
 
   /**
    * Triggers the graceful drain.
-   * Never rejects, a failure is reported by start(), this only waits for the worker to settle.
-   * @returns {Promise<void>} resolves when the worker has fully stopped
+   * @returns {Promise<void>} resolves when the worker has fully stopped, rejects when the drain fails
    */
   stop() {
     if ( this.#worker.getStatus().runState === 'RUNNING' ) {
       this.#worker.shutdown();
     }
-    return this.#execution?.catch( () => {} ) ?? Promise.resolve();
+    return this.#execution ?? Promise.resolve();
   }
 };

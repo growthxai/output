@@ -119,11 +119,10 @@ export class TemporalConnectionMonitor {
 
   /**
    * Stops watching, without reporting a connection loss.
-   * Never rejects, a failure is reported by start(), this only waits for the watch to settle.
-   * @returns {Promise<void>} resolves when the watch has fully stopped
+   * @returns {Promise<void>} resolves when the watch has fully stopped, rejects when it failed
    */
   stop() {
     this.#abortCtrl.abort();
-    return this.#execution?.catch( () => {} ) ?? Promise.resolve();
+    return this.#execution ?? Promise.resolve();
   }
 };
