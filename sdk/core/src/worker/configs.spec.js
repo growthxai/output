@@ -69,8 +69,8 @@ describe( 'worker/configs', () => {
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
-    expect( configs.shutdownForceTime ).toBeUndefined();
-    expect( configs.shutdownGraceTime ).toBeUndefined();
+    expect( configs.shutdownForceTime ).toBe( '25s' );
+    expect( configs.shutdownGraceTime ).toBe( '20s' );
     expect( configs.taskQueue ).toBe( 'test-catalog' );
     expect( configs.catalogId ).toBe( 'test-catalog' );
   } );
@@ -136,15 +136,15 @@ describe( 'worker/configs', () => {
     expect( configs.shutdownGraceTime ).toBe( '15s' );
   } );
 
-  it( 'treats empty Temporal shutdown durations as unset', async () => {
+  it( 'falls back to the defaults when Temporal shutdown durations are empty', async () => {
     setEnv( {
       TEMPORAL_SHUTDOWN_FORCE_TIME: '',
       TEMPORAL_SHUTDOWN_GRACE_TIME: ''
     } );
     const configs = await loadConfigs();
 
-    expect( configs.shutdownForceTime ).toBeUndefined();
-    expect( configs.shutdownGraceTime ).toBeUndefined();
+    expect( configs.shutdownForceTime ).toBe( '25s' );
+    expect( configs.shutdownGraceTime ).toBe( '20s' );
   } );
 
   it( 'throws when Temporal shutdown durations are invalid', async () => {

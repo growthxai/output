@@ -11,3 +11,4 @@ Hardened worker startup and shutdown around the catalog workflow.
 - Changed exit codes so kill signals drain in-flight work and exit `0`, while only real failures exit `1`. Alerts that watch for non-zero worker exits will stop firing on every deploy.
 - Added graceful draining for uncaught exceptions and unhandled rejections, with a force quit if the drain stalls.
 - Fixed kill signals during startup killing the process abruptly, since the handler was only installed once the worker was built.
+- Added defaults for `TEMPORAL_SHUTDOWN_GRACE_TIME` (`20s`) and `TEMPORAL_SHUTDOWN_FORCE_TIME` (`25s`), so a wedged drain now ends under the worker's own control instead of waiting for the platform to `SIGKILL` it. Both were previously unset, which left the drain unbounded. Raise them together with your platform's shutdown delay if your activities need longer.

@@ -78,8 +78,8 @@ Uncaught exceptions and unhandled rejections take the same path, so in-flight wo
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown and the worker drained cleanly |
-| `1` | Startup failed, the Temporal connection was lost, or an uncaught error ended the process |
+| `0` | A signal requested the shutdown. Failures while draining are logged as warnings and do not change the code |
+| `1` | Startup failed, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
 
 ### File Discovery
 
@@ -419,8 +419,8 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
-| `TEMPORAL_SHUTDOWN_GRACE_TIME` | Temporal SDK default | Time to let in-flight work drain after worker shutdown starts. Accepts milliseconds or duration strings like `15s`. |
-| `TEMPORAL_SHUTDOWN_FORCE_TIME` | Temporal SDK default | Extra time before forceful worker shutdown. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | `20s` | Time to let in-flight work drain before activities are asked to cancel. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | `25s` | Time before the worker gives up draining and terminates. Accepts milliseconds or duration strings like `15s`. |
 
 ## Logging
 
