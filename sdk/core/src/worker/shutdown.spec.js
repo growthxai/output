@@ -167,6 +167,21 @@ describe( 'shutdownServices', () => {
     } );
   } );
 
+  it( 'warns and reports a service that throws instead of rejecting', async () => {
+    const error = new Error( 'shutdown blew up' );
+    const services = createServices();
+    services.workerRunner.stop.mockImplementation( () => {
+      throw error;
+    } );
+
+    await expect( shutdownServices( services ) ).resolves.toEqual( [ { service: 'worker', error } ] );
+
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Stopping Worker error', {
+      error: { name: 'Error', message: 'shutdown blew up' }
+    } );
+    expect( services.connection.close ).toHaveBeenCalledOnce();
+  } );
+
   it( 'reports every service that failed, in the order they were stopped', async () => {
     const drainError = new Error( 'drain failed' );
     const closeError = new Error( 'close failed' );

@@ -40,10 +40,13 @@ export const shutdownServices = async ( { workerRunner, connectionMonitor, catal
   for ( const { service, label, isActive, stop } of shutdownJobs ) {
     if ( isActive() ) {
       log.info( `${label}...` );
-      await stop().catch( error => {
+      // a try covers a service that throws instead of rejecting, which a catch on the promise would miss
+      try {
+        await stop();
+      } catch ( error ) {
         failures.push( { service, error } );
         log.warn( `${label} error`, { error: serializeError( error ) } );
-      } );
+      }
     }
   }
   return failures;

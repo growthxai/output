@@ -185,6 +185,24 @@ describe( 'WorkerRunner', () => {
     expect( worker.shutdown ).not.toHaveBeenCalled();
   } );
 
+  it( 'never rethrows a drain that fails after the signal aborted', async () => {
+    const error = new Error( 'drain failed' );
+    const controller = new AbortController();
+    const { worker, fail } = createWorker();
+    const runner = createRunner( worker, controller.signal );
+
+    const run = runner.start();
+    const rejection = expect( run ).rejects.toBe( error );
+
+    // Node rethrows a rejected promise returned by an event listener, so the abort listener must not return one
+    controller.abort();
+    fail( error );
+
+    await rejection;
+
+    expect( runner.running ).toBe( false );
+  } );
+
   it( 'reports a drain that fails after stop was called', async () => {
     const error = new Error( 'drain failed' );
     const { worker, fail } = createWorker();

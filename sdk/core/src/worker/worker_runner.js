@@ -40,7 +40,10 @@ export class WorkerRunner {
       return Promise.resolve();
     }
 
-    this.#signal.addEventListener( 'abort', () => this.stop(), { once: true } );
+    // the listener must not return the drain, Node rethrows a rejection returned by an event listener
+    this.#signal.addEventListener( 'abort', () => {
+      this.stop();
+    }, { once: true } );
 
     this.#running = true;
     this.#execution = this.#worker.run().finally( () => {
