@@ -1,6 +1,7 @@
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowId } from '#utils';
 import { resolveWorkflowName } from '../catalog.js';
+import { buildSearchAttributes } from './build_search_attributes.js';
 
 const { defaultTaskQueue, workflowExecutionTimeout } = temporalConfig;
 
@@ -26,6 +27,9 @@ export const start = async ( { client }, workflowName, input, options = {} ) => 
 
   const resolvedName = await resolveWorkflowName( { client, workflowName, taskQueue } );
   const workflowId = userWorkflowId ?? buildWorkflowId();
-  const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+  const handle = await client.workflow.start( resolvedName, {
+    args: [ input ], taskQueue, workflowId, workflowExecutionTimeout,
+    ...buildSearchAttributes( input )
+  } );
   return { workflowId, runId: handle.firstExecutionRunId ?? null };
 };
