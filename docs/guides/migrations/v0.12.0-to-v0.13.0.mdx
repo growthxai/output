@@ -32,6 +32,8 @@ TEMPORAL_SHUTDOWN_FORCE_TIME=290s
 
 Values above your platform's window never take effect, since the platform terminates the process first. On Render that window is `maxShutdownDelaySeconds`, which defaults to 30 seconds and can be raised to 300. On Kubernetes it is `terminationGracePeriodSeconds`.
 
+Raising these only extends shutdowns started by a signal. When an uncaught exception or unhandled rejection starts the shutdown instead, the worker force quits 60 seconds later regardless of `TEMPORAL_SHUTDOWN_FORCE_TIME`, exiting `1` after logging `Uncaught exception handling timed out, force quitting...`. That cap is fixed, so a force time above 60 seconds only fully applies to signal shutdowns.
+
 An empty value falls back to the default rather than disabling the bound, so there is no longer a way to configure an unbounded drain.
 
 ## Worker exit codes
