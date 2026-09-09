@@ -76,6 +76,31 @@ services:
     ports:
       - '8080:8080'
 
+  # Registers the WorkspaceId custom search attribute so dispatches that carry a workspaceId
+  # (see search-attributes-plan.md) are queryable. `create` is idempotent for an unchanged
+  # name/type, so this can safely run on every startup, including against a reused volume.
+  temporal-search-attributes:
+    depends_on:
+      temporal:
+        condition: service_healthy
+    entrypoint:
+      - temporal
+      - operator
+      - search-attribute
+      - create
+      - --address
+      - temporal:7233
+      - --namespace
+      - default
+      - --name
+      - WorkspaceId
+      - --type
+      - Keyword
+    image: temporalio/auto-setup:latest
+    networks:
+      - main
+    restart: 'no'
+
 volumes:
   postgres:
   redis:

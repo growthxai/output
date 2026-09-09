@@ -16,6 +16,10 @@ vi.mock( '#utils', () => ( {
   buildWorkflowId: mockBuildWorkflowId
 } ) );
 
+vi.mock( '#logger', () => ( {
+  logger: { warn: vi.fn() }
+} ) );
+
 vi.mock( '../catalog.js', () => ( {
   resolveWorkflowName: mockResolveWorkflowName
 } ) );

@@ -7,6 +7,8 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+      temporal-search-attributes:
+        condition: service_completed_successfully
       worker:
         condition: service_healthy
     image: node:24.15.0-slim
@@ -27,6 +29,8 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+      temporal-search-attributes:
+        condition: service_completed_successfully
     image: node:24.15.0-slim
     healthcheck:
       test: [ 'CMD-SHELL', 'cd ./test_workflows && npx output-healthcheck' ]
