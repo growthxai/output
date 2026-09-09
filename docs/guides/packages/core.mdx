@@ -78,8 +78,8 @@ Uncaught exceptions and unhandled rejections take the same path, so in-flight wo
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown. Failures while draining are logged as warnings and do not change the code |
-| `1` | Startup failed, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
+| `0` | A signal requested the shutdown and the worker drained. Another service failing to stop is logged as a warning and does not change the code |
+| `1` | Startup failed, the worker failed to drain, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
 
 ### File Discovery
 

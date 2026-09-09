@@ -120,7 +120,7 @@ describe( 'shutdownServices', () => {
   } );
 
   it( 'does nothing when startup never built a service', async () => {
-    await expect( shutdownServices( createEmptyServices() ) ).resolves.toBeUndefined();
+    await expect( shutdownServices( createEmptyServices() ) ).resolves.toEqual( [] );
 
     expect( mockLog.info ).not.toHaveBeenCalled();
     expect( mockLog.warn ).not.toHaveBeenCalled();
@@ -135,12 +135,16 @@ describe( 'shutdownServices', () => {
     expect( mockLog.info ).toHaveBeenCalledWith( 'Closing Connection...' );
   } );
 
-  it( 'warns and keeps going when a service fails to stop', async () => {
+  it( 'reports nothing when every service stops cleanly', async () => {
+    await expect( shutdownServices( createServices() ) ).resolves.toEqual( [] );
+  } );
+
+  it( 'warns, reports the failure and keeps going when a service fails to stop', async () => {
     const error = new Error( 'drain failed' );
     const services = createServices();
     services.workerRunner.stop.mockRejectedValue( error );
 
-    await expect( shutdownServices( services ) ).resolves.toBeUndefined();
+    await expect( shutdownServices( services ) ).resolves.toEqual( [ { service: 'worker', error } ] );
 
     expect( serializeErrorMock ).toHaveBeenCalledWith( error );
     expect( mockLog.warn ).toHaveBeenCalledWith( 'Stopping Worker error', {
@@ -151,15 +155,28 @@ describe( 'shutdownServices', () => {
     expect( services.connection.close ).toHaveBeenCalledOnce();
   } );
 
-  it( 'warns when closing the connection fails', async () => {
+  it( 'warns and reports when closing the connection fails', async () => {
     const error = new Error( 'close failed' );
     const services = createServices();
     services.connection.close.mockRejectedValue( error );
 
-    await expect( shutdownServices( services ) ).resolves.toBeUndefined();
+    await expect( shutdownServices( services ) ).resolves.toEqual( [ { service: 'connection', error } ] );
 
     expect( mockLog.warn ).toHaveBeenCalledWith( 'Closing Connection error', {
       error: { name: 'Error', message: 'close failed' }
     } );
+  } );
+
+  it( 'reports every service that failed, in the order they were stopped', async () => {
+    const drainError = new Error( 'drain failed' );
+    const closeError = new Error( 'close failed' );
+    const services = createServices();
+    services.workerRunner.stop.mockRejectedValue( drainError );
+    services.connection.close.mockRejectedValue( closeError );
+
+    await expect( shutdownServices( services ) ).resolves.toEqual( [
+      { service: 'worker', error: drainError },
+      { service: 'connection', error: closeError }
+    ] );
   } );
 } );

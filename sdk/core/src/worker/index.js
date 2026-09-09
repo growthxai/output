@@ -162,7 +162,7 @@ const execute = async () => {
 execute()
   .catch( async error => abortController.abort( error ) )
   .finally( async () => {
-    await shutdownServices( services );
+    const shutdownFailures = await shutdownServices( services );
 
     const hasError = signal.aborted && !( signal.reason instanceof KillSignError );
     if ( hasError ) {
@@ -173,8 +173,9 @@ execute()
     log.info( 'Flushing hook callbacks...' );
     await flushPendingHooks();
 
+    const exitCode = shutdownFailures.some( v => v.service === 'worker' ) || hasError ? 1 : 0;
     setTimeout( () => {
       log.info( 'Bye' );
-      process.exit( hasError ? 1 : 0 );
+      process.exit( exitCode );
     } );
   } );

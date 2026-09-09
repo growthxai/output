@@ -144,7 +144,7 @@ const {
     } ),
     setupTelemetryMock: vi.fn(),
     setupTemporalLoggerMock: vi.fn(),
-    shutdownServicesMock: vi.fn().mockResolvedValue( undefined ),
+    shutdownServicesMock: vi.fn().mockResolvedValue( [] ),
     workerRunnerInstance
   };
 } );
@@ -392,6 +392,17 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
+    it( 'still exits cleanly when a service other than the worker failed to stop', async () => {
+      await bootWorker();
+      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'connection', error: new Error( 'close failed' ) } ] );
+
+      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
+      await waitForExit();
+
+      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( process.exit ).toHaveBeenCalledWith( 0 );
+    } );
+
     it( 'does not report the worker as terminated when a signal ended the run', async () => {
       await bootWorker();
 
@@ -438,6 +449,16 @@ describe( 'worker/index', () => {
         error: expect.objectContaining( { name: 'UncaughtError', message: 'uncaughtException' } )
       } );
       expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, { error: fault } );
+      expect( process.exit ).toHaveBeenCalledWith( 1 );
+    } );
+
+    it( 'exits with a failure when the worker never finished draining', async () => {
+      await bootWorker();
+      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'worker', error: new Error( 'drain failed' ) } ] );
+
+      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
+      await waitForExit();
+
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
