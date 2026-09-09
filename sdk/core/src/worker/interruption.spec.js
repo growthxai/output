@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const FORCE_QUIT_GRACE_MS = 1000;
-const FORCE_QUIT_AFTER_FAILURE_MS = 60_000;
+const DOUBLE_SIGNAL_IGNORE_TIME = 1000;
+const KILL_AFTER_UNCAUGHT_TIME = 60_000;
 
 const { mockLog, serializeErrorMock } = vi.hoisted( () => ( {
   mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -89,7 +89,7 @@ describe( 'setupInterruptionHandler', () => {
 
       setupInterruptionHandler( controller );
       handlers.SIGINT();
-      vi.advanceTimersByTime( FORCE_QUIT_GRACE_MS - 1 );
+      vi.advanceTimersByTime( DOUBLE_SIGNAL_IGNORE_TIME - 1 );
       handlers.SIGINT();
 
       expect( mockLog.warn ).not.toHaveBeenCalledWith( 'Force quitting...' );
@@ -103,7 +103,7 @@ describe( 'setupInterruptionHandler', () => {
 
       setupInterruptionHandler( controller );
       handlers.SIGINT();
-      vi.advanceTimersByTime( FORCE_QUIT_GRACE_MS + 1 );
+      vi.advanceTimersByTime( DOUBLE_SIGNAL_IGNORE_TIME + 1 );
       handlers.SIGINT();
 
       expect( mockLog.warn ).toHaveBeenCalledWith( 'Force quitting...' );
@@ -151,7 +151,7 @@ describe( 'setupInterruptionHandler', () => {
       setupInterruptionHandler( new AbortController() );
       handlers.uncaughtException( new Error( 'boom' ) );
 
-      vi.advanceTimersByTime( FORCE_QUIT_AFTER_FAILURE_MS - 1 );
+      vi.advanceTimersByTime( KILL_AFTER_UNCAUGHT_TIME - 1 );
 
       expect( spies.exit ).not.toHaveBeenCalled();
 
@@ -170,7 +170,7 @@ describe( 'setupInterruptionHandler', () => {
 
       handlers.uncaughtException( new Error( 'boom' ) );
 
-      expect( setTimeoutSpy ).toHaveBeenCalledWith( expect.any( Function ), FORCE_QUIT_AFTER_FAILURE_MS );
+      expect( setTimeoutSpy ).toHaveBeenCalledWith( expect.any( Function ), KILL_AFTER_UNCAUGHT_TIME );
       expect( timer.unref ).toHaveBeenCalledOnce();
     } );
   } );

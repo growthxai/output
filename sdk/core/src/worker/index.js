@@ -22,6 +22,8 @@ import { setupClientConfig } from '#temporal/client';
 import { serializeError } from '#helpers/error_serializer';
 import { setupTemporalLogger } from './temporal_logger.js';
 import { WorkerRunner } from './worker_runner.js';
+import { shutdownServices } from './shutdown.js';
+
 import './log_hooks.js';
 
 const log = createChildLogger( 'Worker' );
@@ -42,27 +44,11 @@ const {
   workerTuner
 } = configs;
 
-const state = {
+const services = {
   connection: null,
   connectionMonitor: null,
   catalogPublisher: null,
   workerRunner: null
-};
-
-/* Gracefully shutdown all services, ignore errors */
-const shutdown = async () => {
-  const shutdownClients = [
-    { label: 'Stopping Worker', running: () => state.workerRunner?.running, stop: () => state.workerRunner.stop() },
-    { label: 'Stopping Connection Monitor', running: () => state.connectionMonitor?.running, stop: () => state.connectionMonitor.stop() },
-    { label: 'Interrupting Catalog Publisher', running: () => state.catalogPublisher?.running, stop: () => state.catalogPublisher.interrupt() },
-    { label: 'Closing Connection', running: () => state.connection, stop: () => state.connection.close() }
-  ];
-  for ( const { label, running, stop } of shutdownClients ) {
-    if ( running() ) {
-      log.info( `${label}...` );
-      await stop().catch( e => log.warn( `${label} error`, { error: e.message } ) );
-    }
-  }
 };
 
 // Get caller directory from command line arguments
@@ -109,19 +95,19 @@ const execute = async () => {
     log.info( 'Using gRPC proxy', { targetHost: grpcProxy } );
   }
   const connection = await run( () => NativeConnection.connect( { address, tls: Boolean( apiKey ), apiKey, proxy } ) );
-  state.connection = connection;
+  services.connection = connection;
 
   log.info( 'Setting up temporal endpoint...' );
   run( () => setupClientConfig( { connection, namespace } ) );
 
   log.info( 'Creating catalog publisher...' );
-  state.catalogPublisher = run( () => new CatalogPublisher( { connection, namespace, catalog, catalogHash, signal } ) );
+  services.catalogPublisher = run( () => new CatalogPublisher( { connection, namespace, catalog, catalogHash, signal } ) );
 
   log.info( 'Creating connection monitor...' );
-  state.connectionMonitor = run( () => new TemporalConnectionMonitor( { connection, signal } ) );
+  services.connectionMonitor = run( () => new TemporalConnectionMonitor( { connection, signal } ) );
 
   log.info( 'Publishing catalog workflow...' );
-  await run( () => state.catalogPublisher.run() );
+  await run( () => services.catalogPublisher.run() );
 
   log.info( 'Creating Temporal worker...' );
   const worker = await run( () => {
@@ -157,7 +143,7 @@ const execute = async () => {
   run( () => setupTelemetry( { worker } ) );
 
   log.info( 'Creating worker runner...' );
-  state.workerRunner = new WorkerRunner( { worker, signal } );
+  services.workerRunner = new WorkerRunner( { worker, signal } );
 
   /**
    * Runs the worker and connection monitor together
@@ -165,8 +151,8 @@ const execute = async () => {
    */
   log.info( 'Running worker...' );
   await run( () => Promise.race( [
-    state.workerRunner.start(),
-    state.connectionMonitor.start()
+    services.workerRunner.start(),
+    services.connectionMonitor.start()
   ] ) );
 
   signal.throwIfAborted();
@@ -176,7 +162,7 @@ const execute = async () => {
 execute()
   .catch( async error => abortController.abort( error ) )
   .finally( async () => {
-    await shutdown();
+    await shutdownServices( services );
 
     const hasError = signal.aborted && !( signal.reason instanceof KillSignError );
     if ( hasError ) {

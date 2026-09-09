@@ -25,6 +25,7 @@ const {
   setupInterruptionHandlerMock,
   setupTelemetryMock,
   setupTemporalLoggerMock,
+  shutdownServicesMock,
   workerRunnerInstance
 } = vi.hoisted( () => {
   const createDeferred = () => {
@@ -143,6 +144,7 @@ const {
     } ),
     setupTelemetryMock: vi.fn(),
     setupTemporalLoggerMock: vi.fn(),
+    shutdownServicesMock: vi.fn().mockResolvedValue( undefined ),
     workerRunnerInstance
   };
 } );
@@ -191,6 +193,7 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
     return catalogPublisherInstance;
   } )
 } ) );
+vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
   Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
@@ -370,14 +373,19 @@ describe( 'worker/index', () => {
   } );
 
   describe( 'clean termination', () => {
-    it( 'drains the worker and exits successfully on a kill signal', async () => {
+    it( 'shuts every service down and exits successfully on a kill signal', async () => {
       await bootWorker();
 
       interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
       await waitForExit();
 
-      expect( workerRunnerInstance.stop ).toHaveBeenCalledOnce();
-      expect( mockConnection.close ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledWith( {
+        workerRunner: workerRunnerInstance,
+        connectionMonitor: connectionMonitorInstance,
+        catalogPublisher: catalogPublisherInstance,
+        connection: mockConnection
+      } );
       expect( mockLog.error ).not.toHaveBeenCalled();
       expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.anything() );
       expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
@@ -410,7 +418,7 @@ describe( 'worker/index', () => {
       await waitForExit();
 
       expect( flushPendingHooksMock ).toHaveBeenCalledOnce();
-      expect( mockConnection.close.mock.invocationCallOrder[0] )
+      expect( shutdownServicesMock.mock.invocationCallOrder[0] )
         .toBeLessThan( flushPendingHooksMock.mock.invocationCallOrder[0] );
       expect( flushPendingHooksMock.mock.invocationCallOrder[0] )
         .toBeLessThan( process.exit.mock.invocationCallOrder[0] );
@@ -433,14 +441,14 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
-    it( 'reports a lost connection and drains the worker', async () => {
+    it( 'reports a lost connection and shuts down', async () => {
       const error = new Error( 'connection lost' );
       await bootWorker();
 
       promises.connectionMonitor.reject( error );
       await waitForExit();
 
-      expect( workerRunnerInstance.stop ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledOnce();
       expect( serializeErrorMock ).toHaveBeenCalledWith( error );
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { message: 'connection lost' } )
@@ -449,15 +457,14 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
-    it( 'never drains a worker whose run already failed', async () => {
+    it( 'reports a failed worker run', async () => {
       const error = new Error( 'worker crashed' );
       await bootWorker();
 
       promises.workerRunner.reject( error );
       await waitForExit();
 
-      expect( workerRunnerInstance.stop ).not.toHaveBeenCalled();
-      expect( mockConnection.close ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledOnce();
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { message: 'worker crashed' } )
       } );
@@ -473,14 +480,14 @@ describe( 'worker/index', () => {
 
       expect( Worker.create ).not.toHaveBeenCalled();
       expect( workerRunnerInstance.start ).not.toHaveBeenCalled();
-      expect( mockConnection.close ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledOnce();
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { message: 'catalog failed' } )
       } );
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
-    it( 'closes the connection when startup fails before the runner exists', async () => {
+    it( 'hands the partially built services to shutdown when startup fails', async () => {
       const { Worker } = await import( '@temporalio/worker' );
       Worker.create.mockRejectedValueOnce( new Error( 'worker create failed' ) );
 
@@ -488,55 +495,11 @@ describe( 'worker/index', () => {
       await waitForExit();
 
       expect( workerRunnerInstance.start ).not.toHaveBeenCalled();
-      expect( connectionMonitorInstance.stop ).not.toHaveBeenCalled();
-      expect( catalogPublisherInstance.interrupt ).not.toHaveBeenCalled();
-      expect( mockConnection.close ).toHaveBeenCalledOnce();
+      expect( shutdownServicesMock ).toHaveBeenCalledWith( expect.objectContaining( {
+        workerRunner: null,
+        connection: mockConnection
+      } ) );
       expect( process.exit ).toHaveBeenCalledWith( 1 );
-    } );
-  } );
-
-  describe( 'shutdown sequence', () => {
-    it( 'interrupts the catalog publisher while it is still running', async () => {
-      await bootWorker();
-      catalogPublisherInstance.running = true;
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( catalogPublisherInstance.interrupt ).toHaveBeenCalledOnce();
-    } );
-
-    it( 'skips clients that already stopped', async () => {
-      await bootWorker();
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( connectionMonitorInstance.stop ).not.toHaveBeenCalled();
-      expect( catalogPublisherInstance.interrupt ).not.toHaveBeenCalled();
-    } );
-
-    it( 'logs a shutdown failure without skipping the remaining steps', async () => {
-      await bootWorker();
-      workerRunnerInstance.stop.mockRejectedValueOnce( new Error( 'drain failed' ) );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( mockLog.warn ).toHaveBeenCalledWith( 'Stopping Worker error', { error: 'drain failed' } );
-      expect( mockConnection.close ).toHaveBeenCalledOnce();
-      expect( process.exit ).toHaveBeenCalledWith( 0 );
-    } );
-
-    it( 'logs a connection close failure', async () => {
-      mockConnection.close.mockRejectedValueOnce( new Error( 'close failed' ) );
-      await bootWorker();
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( mockLog.warn ).toHaveBeenCalledWith( 'Closing Connection error', { error: 'close failed' } );
-      expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
   } );
 } );
