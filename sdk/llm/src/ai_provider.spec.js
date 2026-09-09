@@ -24,7 +24,8 @@ const undiciSpies = vi.hoisted( () => ( {
 } ) );
 
 const importWithMockedProviders = async ( {
-  modules = makeProviderModules()
+  modules = makeProviderModules(),
+  resolveGoogleVertexAuthOptions = () => ( {} )
 } = {} ) => {
   await vi.resetModules();
 
@@ -33,6 +34,8 @@ const importWithMockedProviders = async ( {
       [exportName]: modules[pkg][exportName]
     } ) );
   }
+
+  vi.doMock( './utils/google_vertex_auth.js', () => ( { resolveGoogleVertexAuthOptions } ) );
 
   vi.doMock( 'undici', async importOriginal => {
     const actual = await importOriginal();
@@ -59,6 +62,7 @@ afterEach( () => {
     vi.doUnmock( pkg );
   }
   vi.doUnmock( 'undici' );
+  vi.doUnmock( './utils/google_vertex_auth.js' );
   undiciSpies.EnvHttpProxyAgent.mockReset();
   undiciSpies.fetch.mockReset();
   vi.resetModules();
@@ -89,6 +93,32 @@ describe( 'getProvider', () => {
       bodyTimeout: 15 * 60 * 1000,
       allowH2: false
     } );
+  } );
+
+  it( 'initializes google-vertex with the resolved Google auth options', async () => {
+    const googleAuthOptions = { credentials: { client_email: 'robot@output-test.iam.gserviceaccount.com' } };
+    const { modules, getProvider } = await importWithMockedProviders( {
+      resolveGoogleVertexAuthOptions: () => ( { googleAuthOptions } )
+    } );
+
+    getProvider( 'google-vertex' );
+
+    expect( modules['@ai-sdk/google-vertex'].createVertex ).toHaveBeenCalledWith( {
+      fetch: expect.any( Function ),
+      googleAuthOptions
+    } );
+  } );
+
+  it( 'throws a friendly error when google-vertex credentials cannot be resolved', async () => {
+    const { getProvider } = await importWithMockedProviders( {
+      resolveGoogleVertexAuthOptions: () => {
+        throw new Error( 'Invalid GCP_CREDENTIALS_JSON: value is neither JSON nor base64 encoded JSON' );
+      }
+    } );
+
+    expect( () => getProvider( 'google-vertex' ) ).toThrow(
+      'Failed to initialize provider "google-vertex": Invalid GCP_CREDENTIALS_JSON: value is neither JSON nor base64 encoded JSON'
+    );
   } );
 
   it( 'passes the custom dispatcher through injected fetch', async () => {
