@@ -30,6 +30,21 @@ Before deploying to any platform, ensure you have:
 - A Temporal backend with a dedicated namespace (e.g. [Temporal Cloud](https://temporal.io/cloud))
 - Your workflow repository on GitHub
 - API keys for any services your workflows use (Anthropic, OpenAI, etc.)
+- The `WorkspaceId` search attribute registered on that namespace (see below)
+
+### Register the WorkspaceId search attribute
+
+The API attaches a `WorkspaceId` [search attribute](https://docs.temporal.io/visibility#search-attribute) to a workflow start whenever its input includes a `workspaceId` string, so runs for a workspace can be found without knowing individual workflow IDs. `./run.sh dev` and `./run.sh prod` register it automatically against the local Temporal server. Every other environment — staging, Temporal Cloud, or any namespace not started by this repo's Docker Compose files — needs it registered once, manually, by whoever administers that namespace:
+
+```bash
+temporal operator search-attribute create \
+  --address <your-temporal-address> \
+  --namespace <your-namespace> \
+  --name WorkspaceId \
+  --type Keyword
+```
+
+This is safe to re-run: creating an attribute that already exists with the same name and type is a no-op. If the attribute isn't registered, the API doesn't fail the request — it logs a warning and starts the workflow without the search attribute, so that workflow just won't be findable by workspace until the attribute is registered.
 
 ## Platform guides
 
