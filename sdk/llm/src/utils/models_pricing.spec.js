@@ -25,8 +25,9 @@ const stubFetch = response => {
 };
 /* Most cases only care about the parsed table; freshness has dedicated assertions below. */
 const fetchModels = async () => ( await fetchModelsPricing() ).models;
-const fallbackEntries = Object.values( fallbackJson )
-  .flatMap( provider => Object.values( provider.models ) )
+const fallbackProviders = Object.entries( fallbackJson ).filter( ( [ key ] ) => key !== '_meta' );
+const fallbackEntries = fallbackProviders
+  .flatMap( ( [ , provider ] ) => Object.values( provider.models ) )
   .filter( model => model.cost );
 
 /* A models.dev entry as served by the API: the stripped fallback keeps only the `cost` branch of this shape. */
@@ -172,10 +173,11 @@ describe( 'modelsPricing', () => {
 
     const result = await fetchModels();
 
-    for ( const providerId of Object.keys( fallbackJson ) ) {
-      const modelId = Object.keys( fallbackJson[providerId].models )[0];
-      expect( result.get( `${providerId}/${modelId}` ) ).toEqual( fallbackJson[providerId].models[modelId].cost );
+    for ( const [ providerId, provider ] of fallbackProviders ) {
+      const modelId = Object.keys( provider.models )[0];
+      expect( result.get( `${providerId}/${modelId}` ) ).toEqual( provider.models[modelId].cost );
     }
+    expect( [ ...result.keys() ].some( key => key.startsWith( '_meta' ) ) ).toBe( false );
   } );
 
   it( 'returns stale cache when fetch rejects but cache exists', async () => {
@@ -286,5 +288,28 @@ describe( 'modelsPricing', () => {
     expect( result.get( 'p1/withCost' ) ).toEqual( { input: 1, output: 2 } );
     expect( result.get( 'withCost' ) ).toBeUndefined();
     expect( result.get( 'p1/noCost' ) ).toBeUndefined();
+  } );
+
+  it( 'treats an ok response with no priced models as a failure', async () => {
+    stubFetch( okResponse( { p1: { models: { noCost: { name: 'x' } } } } ) );
+
+    const { models, freshness } = await fetchModelsPricing();
+
+    expect( freshness ).toBe( Freshness.SNAPSHOT );
+    expect( models.size ).toBe( fallbackEntries.length );
+    expect( cache.content ).toBeNull();
+    expect( state.ignoreLiveRequestsUntil ).toBeGreaterThan( Date.now() );
+  } );
+
+  it( 'keeps the stale cache when a refresh returns an empty table', async () => {
+    stubFetch( okResponse( fixture ) );
+    const fresh = await fetchModels();
+    cache.expiresAt = 0; // force refetch so the empty response is parsed
+
+    stubFetch( okResponse( {} ) );
+    const { models, freshness } = await fetchModelsPricing();
+
+    expect( models ).toBe( fresh );
+    expect( freshness ).toBe( Freshness.STALE );
   } );
 } );

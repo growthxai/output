@@ -1,4 +1,7 @@
 {
+  "_meta": {
+    "createdAt": "2026-09-08T19:34:00.000Z"
+  },
   "google-vertex": {
     "models": {
       "gemini-2.5-flash-tts": {

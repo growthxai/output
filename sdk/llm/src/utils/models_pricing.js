@@ -30,11 +30,17 @@ const parseData = data => {
   const map = new Map();
   try {
     for ( const [ providerId, provider ] of Object.entries( data ) ) {
+      if ( providerId === '_meta' ) {
+        continue;
+      }
       for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
         if ( cost ) { // some models don't have cost
           map.set( `${providerId}/${modelName}`, cost );
         }
       }
+    }
+    if ( map.size === 0 ) {
+      throw new Error( 'Empty response' );
     }
     return map;
   } catch ( error ) {

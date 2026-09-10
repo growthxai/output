@@ -527,7 +527,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost; `null` when usage cannot be normalized |
 
 The `cost` property is an `LLMGenerationCost`:
 
@@ -565,7 +565,7 @@ Detailed cost items are used when the provider breakdown reconciles with the agg
 | `finalStep` | `Promise<StepResult>` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
 
-`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing), and merged `sources` (always an array).
+`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing, `null` when usage cannot be normalized), and merged `sources` (always an array).
 
 ## Prompt Files
 

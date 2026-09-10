@@ -1,9 +1,9 @@
 ---
 title: "v0.12.0 → v0.13.0"
-description: "Upgrading Output.ai projects from v0.12.0 to v0.13.0: worker shutdown defaults, worker exit codes, and the catalog startup gate in @outputai/core."
+description: "Upgrading Output.ai projects from v0.12.0 to v0.13.0: worker shutdown defaults, worker exit codes, the catalog startup gate in @outputai/core, and LLM cost during a pricing outage."
 ---
 
-This guide covers behavior changes in the `@outputai/core` worker. Nothing in your code needs to change, but three runtime behaviors differ: the worker now bounds its own shutdown, every way it can end now has a defined outcome and exit code, and a worker refuses to start unless it can publish a catalog matching its own source code.
+This guide covers behavior changes in the `@outputai/core` worker and in `@outputai/llm` cost reporting. Nothing in your code needs to change, but four runtime behaviors differ: the worker now bounds its own shutdown, every way it can end now has a defined outcome and exit code, a worker refuses to start unless it can publish a catalog matching its own source code, and LLM costs fall back to a bundled pricing snapshot instead of coming back empty.
 
 ## Worker shutdown is now bounded
 
@@ -66,8 +66,15 @@ A worker that would previously have started with a stale catalog now fails its d
 
 Reconciliation also changed: a stale catalog workflow is now terminated rather than asked to complete. A catalog that stopped processing workflow tasks no longer blocks every deploy that follows it.
 
+## LLM cost survives a pricing outage
+
+`@outputai/llm` now ships a snapshot of the pricing table. When the live catalog is unreachable and nothing is cached, costs are calculated from that snapshot instead of coming back as `null`, and are reported with `status: "imprecise"` and `pricingFreshness: "snapshot"`.
+
+If you branch on `cost === null` to skip cost accounting during an outage, that branch stops firing and you start recording snapshot-derived figures instead. Check `pricingFreshness` or `status` for that case. `cost` is still `null` when usage cannot be normalized, and a provider or model missing from the table still produces a non-null, incomplete cost.
+
 ## Checklist
 
 - Set `TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` explicitly if your activities need more than 25 seconds to drain, keeping both under your platform's shutdown window.
 - Update alerts that key off worker exits or the `Fatal error` log line, which is now `Worker error`.
 - Expect a worker whose catalog cannot be published to exit instead of starting with a stale catalog.
+- Replace any `cost === null` check used to detect a pricing outage with a `pricingFreshness` or `status` check.

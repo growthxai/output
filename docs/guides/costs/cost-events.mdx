@@ -115,6 +115,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "providerId": "openai",
       "modelId": "gpt-4o",
       "status": "precise",
+      "pricingFreshness": "cached",
       "input": 0.001085,
       "output": 0.000135,
       "request": null,
@@ -136,7 +137,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
 | `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `payload.usage` | `LLMGenerationUsage` | Normalized provider-reported usage. |
-| `payload.cost` | `LLMGenerationCost \| null` | Cost calculated from that usage. A model or provider missing from the rate table gives an incomplete cost. |
+| `payload.cost` | `LLMGenerationCost \| null` | Cost calculated from that usage. A model or provider missing from the rate table gives an incomplete cost; `null` means no rate table could be built at all. |
 
 ### Normalized usage
 
