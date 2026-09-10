@@ -8,6 +8,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createPerplexity } from '@ai-sdk/perplexity';
 import { createVertex } from '@ai-sdk/google-vertex';
 import { deprecatedProviderAliases } from './deprecated_provider_aliases.js';
+import { resolveGoogleVertexAuthOptions } from './utils/google_vertex_auth.js';
 
 /** This custom dispatcher has longer timeouts. */
 const customDispatcher = new EnvHttpProxyAgent( {
@@ -24,7 +25,7 @@ const providerInitializers = {
   'amazon-bedrock': createAmazonBedrock,
   anthropic: createAnthropic,
   azure: createAzure,
-  'google-vertex': createVertex,
+  'google-vertex': options => createVertex( { ...options, ...resolveGoogleVertexAuthOptions() } ),
   openai: createOpenAI,
   perplexity: createPerplexity
 };

@@ -674,7 +674,23 @@ model: gemini-1.5-pro
 ---
 ```
 
-Requires Google Cloud authentication and configuration. The legacy alias `vertex` is still accepted.
+Requires `GOOGLE_VERTEX_PROJECT` and `GOOGLE_VERTEX_LOCATION`, plus service account credentials. The legacy alias `vertex` is still accepted.
+
+Set `GCP_CREDENTIALS_JSON` to the contents of your service account key file to authenticate without deploying the file itself:
+
+```bash .env
+GOOGLE_VERTEX_PROJECT=lead-enrichment-prod
+GOOGLE_VERTEX_LOCATION=us-central1
+GCP_CREDENTIALS_JSON=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiw...
+```
+
+The value accepts the raw JSON document or its base64 encoding. Prefer base64 for `.env` files and container environments: a downloaded key file spans multiple lines, and most environment variable parsers stop at the first newline.
+
+```bash
+base64 -i gcp-credentials.json | tr -d '\n'
+```
+
+When `GCP_CREDENTIALS_JSON` is unset, the provider uses Application Default Credentials instead - a `GOOGLE_APPLICATION_CREDENTIALS` file path, a `gcloud auth application-default login` session, or the metadata server. On Cloud Run or GKE with workload identity, that means you configure the project and location and nothing else.
 
 ### Amazon Bedrock
 
