@@ -1,4 +1,4 @@
-import { fetchModelsPricing } from './models_pricing.js';
+import { fetchModelsPricing, Freshness } from './models_pricing.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 import { GroundingPpmMap } from './grounding.js';
@@ -45,19 +45,21 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
   request = null;
   total = null;
   status = LLMGenerationCost.Status.INCOMPLETE;
+  pricingFreshness = null;
   items = [];
 
-  constructor( modelId, providerId, items, usageStatus ) {
+  constructor( modelId, providerId, items, usageStatus, pricingFreshness ) {
     super( LLMGenerationCost.TYPE );
     this.modelId = modelId;
     this.providerId = providerId;
     this.items = items;
+    this.pricingFreshness = pricingFreshness;
 
     const meaningfulItems = items.filter( v => v.amount > 0 );
 
     if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING ) || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
       this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) ) {
+    } else if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) || pricingFreshness === Freshness.SNAPSHOT ) {
       this.status = LLMGenerationCost.Status.IMPRECISE;
     } else {
       this.status = LLMGenerationCost.Status.PRECISE;
@@ -118,7 +120,7 @@ const resolvePrice = ( { group, label, pricing } ) => {
  * @returns {Promise<LLMGenerationCost | null>} LLM generation cost with input, output, total and breakdown
  */
 export const calculateCosts = async usage => {
-  const models = await fetchModelsPricing();
+  const { models, freshness: pricingFreshness } = await fetchModelsPricing();
 
   if ( !models ) {
     Logger.warn( 'Failed to fetch models pricing', { namespace: 'LLM' } );
@@ -144,5 +146,5 @@ export const calculateCosts = async usage => {
     Logger.warn( 'Grounded call with no grounding rate for model', { namespace: 'LLM', modelId, providerId } );
   }
 
-  return new LLMGenerationCost( modelId, providerId, items, usage.status );
+  return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );
 };

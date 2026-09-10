@@ -14,11 +14,13 @@ import pricingTable from '../fixtures/models_api_v7_subset.json' with { type: 'j
 
 const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
 
-vi.mock( './models_pricing.js', () => ( {
+vi.mock( './models_pricing.js', async importOriginal => ( {
+  ...await importOriginal(),
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
 import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { Freshness } from './models_pricing.js';
 import { LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
@@ -230,7 +232,7 @@ const cases = [
 describe( 'calculateCosts with AI SDK response fixtures', () => {
   beforeEach( () => {
     mockFetchModelsPricing.mockReset();
-    mockFetchModelsPricing.mockResolvedValue( models );
+    mockFetchModelsPricing.mockResolvedValue( { models, freshness: Freshness.LIVE } );
   } );
 
   it.each( cases )( 'calculates $name cost', async ( {
@@ -265,6 +267,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       request,
       total,
       status,
+      pricingFreshness: Freshness.LIVE,
       items: items.map( ( [ group, label, amount, ppm, itemTotal, itemStatus ] ) => ( {
         group,
         label,

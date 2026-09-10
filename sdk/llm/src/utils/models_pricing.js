@@ -5,6 +5,7 @@ import modelsPricingFallback from './models_pricing_fallback.json' with { type: 
 const logger = Logger.createLogger( 'LLM' );
 const costTableUrl = 'https://models.dev/api.json';
 const cacheTTL = 1000 * 60 * 60 * 24; // 1 day
+const cooldownTTL = 1000 * 60 * 10; // 10 minutes
 
 /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
@@ -12,6 +13,17 @@ const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
 export const cache = {
   content: null,
   expiresAt: 0
+};
+
+export const Freshness = {
+  LIVE: 'live',
+  CACHED: 'cached',
+  STALE: 'stale',
+  SNAPSHOT: 'snapshot'
+};
+
+export const state = {
+  ignoreLiveRequestsUntil: 0
 };
 
 const parseData = data => {
@@ -50,23 +62,26 @@ const fetchData = async () => {
 
 export const fetchModelsPricing = async () => {
   if ( cache.content && cache.expiresAt > Date.now() ) {
-    return cache.content;
+    return { models: cache.content, freshness: Freshness.CACHED };
   }
 
-  const table = await fetchData();
-  const content = table ? parseData( table ) : null;
+  if ( state.ignoreLiveRequestsUntil < Date.now() ) {
+    const table = await fetchData();
+    const models = table ? parseData( table ) : null;
 
-  if ( content ) {
-    cache.content = content;
-    cache.expiresAt = Date.now() + cacheTTL;
-    return content;
+    if ( models ) {
+      cache.content = models;
+      cache.expiresAt = Date.now() + cacheTTL;
+      return { models, freshness: Freshness.LIVE };
+    } else {
+      state.ignoreLiveRequestsUntil = Date.now() + cooldownTTL;
+    }
   }
 
   if ( cache.content ) {
     logger.warn( 'Models pricing: using stale cache.' );
-    return cache.content;
+    return { models: cache.content, freshness: Freshness.STALE };
   }
-
   logger.warn( 'Models pricing: using built-in fallback.' );
-  return fallbackTable;
+  return { models: fallbackTable, freshness: Freshness.SNAPSHOT };
 };
