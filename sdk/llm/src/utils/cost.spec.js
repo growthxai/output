@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
 
-vi.mock( './models_pricing.js', () => ( {
+vi.mock( './models_pricing.js', async importOriginal => ( {
+  ...await importOriginal(),
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
 import { Logger } from '@outputai/core';
 import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { Freshness } from './models_pricing.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
@@ -18,7 +20,8 @@ const PROVIDER_ID = 'test-provider';
 
 const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
 const usage = items => new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, items );
-const pricing = value => new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, value ] ] );
+const table = ( models, freshness = Freshness.LIVE ) => ( { models, freshness } );
+const pricing = ( value, freshness ) => table( new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, value ] ] ), freshness );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
 describe( 'calculateCosts', () => {
@@ -32,7 +35,7 @@ describe( 'calculateCosts', () => {
   } );
 
   it( 'returns null when model pricing cannot be fetched', async () => {
-    mockFetchModelsPricing.mockResolvedValue( null );
+    mockFetchModelsPricing.mockResolvedValue( table( null, Freshness.SNAPSHOT ) );
 
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
@@ -64,6 +67,7 @@ describe( 'calculateCosts', () => {
       request: null,
       total: 7,
       status: LLMGenerationCost.Status.PRECISE,
+      pricingFreshness: Freshness.LIVE,
       items: [
         {
           group: INPUT,
@@ -165,7 +169,7 @@ describe( 'calculateCosts', () => {
   } );
 
   it( 'returns an incomplete cost when the model has no pricing reference', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map() );
+    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
@@ -263,7 +267,7 @@ describe( 'calculateCosts', () => {
   } );
 
   it( 'never prices a request item at the input token rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( new Map() );
+    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
     const result = await calculateCosts( usage( [
       item( REQUEST, 'grounding_query', 2 )
@@ -309,6 +313,55 @@ describe( 'calculateCosts', () => {
 
     expect( result.request ).toBeNull();
     expect( result.total ).toBe( 7 );
+  } );
+
+  it( 'records the pricing freshness reported by the pricing table', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.CACHED ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 1_000_000 ),
+      item( OUTPUT, null, 500_000 )
+    ] ) );
+
+    expect( result.pricingFreshness ).toBe( Freshness.CACHED );
+    expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
+  } );
+
+  it( 'keeps exact rates precise when the cached table is stale', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.STALE ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 1_000_000 ),
+      item( OUTPUT, null, 500_000 )
+    ] ) );
+
+    expect( result.pricingFreshness ).toBe( Freshness.STALE );
+    expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
+  } );
+
+  it( 'marks the cost imprecise when priced from the bundled snapshot', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.SNAPSHOT ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 1_000_000 ),
+      item( OUTPUT, null, 500_000 )
+    ] ) );
+
+    expect( result.pricingFreshness ).toBe( Freshness.SNAPSHOT );
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.total ).toBe( 7 );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.OK ) ).toBe( true );
+  } );
+
+  it( 'keeps an incomplete cost incomplete when priced from the bundled snapshot', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2 }, Freshness.SNAPSHOT ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 100 ),
+      item( OUTPUT, null, 50 )
+    ] ) );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
   } );
 
   it( 'uses decimal arithmetic for fractional prices', async () => {
@@ -368,12 +421,48 @@ describe( 'LLMGenerationCost', () => {
       itemStatus: LLMGenerationCostItem.Status.MISSING,
       amount: 0,
       expected: LLMGenerationCost.Status.PRECISE
+    },
+    {
+      name: 'precise with live pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      pricingFreshness: Freshness.LIVE,
+      expected: LLMGenerationCost.Status.PRECISE
+    },
+    {
+      name: 'precise with cached pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      pricingFreshness: Freshness.CACHED,
+      expected: LLMGenerationCost.Status.PRECISE
+    },
+    {
+      name: 'precise with stale pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      pricingFreshness: Freshness.STALE,
+      expected: LLMGenerationCost.Status.PRECISE
+    },
+    {
+      name: 'imprecise with snapshot pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      pricingFreshness: Freshness.SNAPSHOT,
+      expected: LLMGenerationCost.Status.IMPRECISE
+    },
+    {
+      name: 'incomplete over snapshot pricing',
+      usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.OK,
+      pricingFreshness: Freshness.SNAPSHOT,
+      expected: LLMGenerationCost.Status.INCOMPLETE
     }
-  ] )( 'sets $name status', ( { usageStatus, itemStatus, amount = 100, expected } ) => {
+  ] )( 'sets $name status', ( { usageStatus, itemStatus, amount = 100, pricingFreshness, expected } ) => {
     const cost = new LLMGenerationCost( MODEL_ID, PROVIDER_ID, [
       new LLMGenerationCostItem( INPUT, null, amount, 2, 0.0002, itemStatus )
-    ], usageStatus );
+    ], usageStatus, pricingFreshness );
 
     expect( cost.status ).toBe( expected );
+    expect( cost.pricingFreshness ).toBe( pricingFreshness ?? undefined );
   } );
 } );

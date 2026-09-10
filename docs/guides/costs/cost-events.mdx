@@ -80,7 +80,7 @@ Handler errors are caught and logged by the framework - they never affect the wo
 
 ### Payload
 
-The handler receives the standard event envelope. `payload.usage` is always present; `payload.cost` is `null` when pricing data is unavailable:
+The handler receives the standard event envelope. `payload.usage` is always present, and unpriced models produce an incomplete `payload.cost`:
 
 ```json
 {
@@ -115,6 +115,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "providerId": "openai",
       "modelId": "gpt-4o",
       "status": "precise",
+      "pricingFreshness": "cached",
       "input": 0.001085,
       "output": 0.000135,
       "request": null,
@@ -136,7 +137,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | `workflowDetails` | `object \| undefined` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
 | `outputActivityKind` | `string \| undefined` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
 | `payload.usage` | `LLMGenerationUsage` | Normalized provider-reported usage. |
-| `payload.cost` | `LLMGenerationCost \| null` | Cost calculated from that usage, or `null` when pricing data could not be loaded. |
+| `payload.cost` | `LLMGenerationCost \| null` | Cost calculated from that usage. A model or provider missing from the rate table gives an incomplete cost. |
 
 ### Normalized usage
 
@@ -165,12 +166,13 @@ Per-request items are recorded independently from tokens and are excluded from t
 
 ### Normalized cost
 
-`LLMGenerationCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`.
+`LLMGenerationCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`. When that source is unreachable, rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `input`, `output`, `request`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `request` holds per-request charges (such as grounding), and `total` is the sum of `input`, `output`, and `request`. |
-| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used, or usage/pricing was incomplete. A per-request charge with no known rate lands `incomplete`. |
+| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A per-request charge with no known rate lands `incomplete`. |
+| `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
 | `items[].ppm` | `number \| null` | Applied price per million tokens. |
 | `items[].total` | `number \| null` | Calculated item cost. |
 | `items[].status` | `"ok" \| "fallback" \| "missing"` | Whether the exact rate, a regular input/output fallback, or no rate was available. |

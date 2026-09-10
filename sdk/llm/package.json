@@ -13,7 +13,8 @@
     "./src/index.d.ts",
     "./src/prompt/!(*.spec).js",
     "./src/prompt/markup/!(*.spec).js",
-    "./src/utils/!(*.spec).js"
+    "./src/utils/!(*.spec).js",
+    "./src/utils/*.json"
   ],
   "scripts": {
     "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"

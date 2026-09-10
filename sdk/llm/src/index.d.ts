@@ -383,6 +383,7 @@ export interface LLMUsageEvent {
 
 export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'missing';
 export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
+export type LLMGenerationCostPricingFreshness = 'live' | 'cached' | 'stale' | 'snapshot';
 
 /** Cost calculated for one normalized LLM usage item. */
 export interface LLMGenerationCostItem {
@@ -404,6 +405,8 @@ export interface LLMGenerationCost extends BaseAttribute {
   request: number | null;
   total: number | null;
   status: LLMGenerationCostStatus;
+  /** How current the rate table was. Absent on costs recorded before this field existed. */
+  pricingFreshness?: LLMGenerationCostPricingFreshness | null;
   items: LLMGenerationCostItem[];
 }
 

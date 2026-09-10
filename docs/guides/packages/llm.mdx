@@ -527,7 +527,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items); `null` only when the pricing catalog cannot be loaded |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost; `null` when usage cannot be normalized |
 
 The `cost` property is an `LLMGenerationCost`:
 
@@ -537,6 +537,7 @@ The `cost` property is an `LLMGenerationCost`:
   "providerId": "openai",
   "modelId": "gpt-4o",
   "status": "precise",
+  "pricingFreshness": "cached",
   "input": 0.001085,
   "output": 0.000135,
   "total": 0.00122,
@@ -547,7 +548,7 @@ The `cost` property is an `LLMGenerationCost`:
 }
 ```
 
-Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Missing prices produce `null` item costs and an `incomplete` aggregate status.
+Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Missing prices produce `null` item costs and an `incomplete` aggregate status. `pricingFreshness` reports how current the rate table was (`live`, `cached`, `stale`, or `snapshot`).
 
 **Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `stream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
@@ -564,7 +565,7 @@ Detailed cost items are used when the provider breakdown reconciles with the agg
 | `finalStep` | `Promise<StepResult>` | Final-step reasoning, request, response, and provider metadata |
 | `warnings` | `Promise` | Any warnings from the provider |
 
-`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing, or `null` when the pricing catalog cannot be loaded), and merged `sources` (always an array).
+`streamText` / `Agent.stream()` `onEnd` receives the wrapped end payload: `result` (alias for `text`), `cost` (an incomplete `LLMGenerationCost` when model or dimension pricing is missing, `null` when usage cannot be normalized), and merged `sources` (always an array).
 
 ## Prompt Files
 
@@ -743,6 +744,8 @@ model: claude-haiku-4-5
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
 LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
+
+The catalog is fetched once and cached for a day. If a refresh fails, the previously cached rates are reused; if the catalog is unreachable before anything has been cached, the built-in providers fall back to a snapshot of the catalog bundled with `@outputai/llm`. Every cost records which of these it used in `pricingFreshness`. Because the snapshot is point-in-time and can lag the live catalog by an unbounded amount, a cost priced from it is reported as `imprecise`; a merely stale cache is not, since those rates were accurate when they were fetched. Custom registered providers are not in the snapshot and get unavailable totals as described above.
 
 ## Prompt Caching
 
@@ -930,7 +933,7 @@ For direct streams, metering events fire when the stream finishes. Observe them 
 
 ### Normalized generation metering
 
-`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMGenerationUsage` and `cost: LLMGenerationCost | null`. Missing model or dimension prices produce an incomplete `LLMGenerationCost`; `cost` itself is `null` when the pricing catalog could not be loaded.
+`llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMGenerationUsage` and `cost: LLMGenerationCost | null`. Missing model or dimension prices produce an incomplete `LLMGenerationCost`.
 
 ```typescript
 import { on } from '@outputai/core/hooks';
