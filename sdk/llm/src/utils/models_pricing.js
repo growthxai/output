@@ -44,7 +44,7 @@ const parseData = data => {
     }
     return map;
   } catch ( error ) {
-    logger.error( `Models pricing: Data parsing failure "${error.name}".` );
+    logger.error( `Models pricing: Data parsing failure "${error.message}".` );
     return null;
   }
 };
