@@ -36,10 +36,10 @@ const envVarSchema = z.object( {
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
   // Whether to send activity heartbeats (enabled by default)
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
-  // Set temporal worker shutdown force time
-  TEMPORAL_SHUTDOWN_FORCE_TIME: durationSchema,
-  // Set temporal worker shutdown grace time
-  TEMPORAL_SHUTDOWN_GRACE_TIME: durationSchema,
+  // Set temporal worker shutdown force time, kept under the 30s most platforms allow before SIGKILL
+  TEMPORAL_SHUTDOWN_FORCE_TIME: durationSchema.default( '25s' ),
+  // Set temporal worker shutdown grace time, when in-flight activities are asked to cancel
+  TEMPORAL_SHUTDOWN_GRACE_TIME: durationSchema.default( '20s' ),
   // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080").
   // Must be a bare host:port — no scheme (Temporal's native HTTP CONNECT
   // option is not a URL).

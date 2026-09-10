@@ -1,0 +1,73 @@
+---
+title: "v0.12.0 → v0.13.0"
+description: "Upgrading Output.ai projects from v0.12.0 to v0.13.0: worker shutdown defaults, worker exit codes, and the catalog startup gate in @outputai/core."
+---
+
+This guide covers behavior changes in the `@outputai/core` worker. Nothing in your code needs to change, but three runtime behaviors differ: the worker now bounds its own shutdown, every way it can end now has a defined outcome and exit code, and a worker refuses to start unless it can publish a catalog matching its own source code.
+
+## Worker shutdown is now bounded
+
+`TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` have defaults:
+
+| Variable | v0.12.0 | v0.13.0 | Meaning |
+| --- | --- | --- | --- |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | unset (Temporal default `0`) | `20s` | How long in-flight activities run before they are asked to cancel |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | unset (no force termination) | `25s` | How long the worker drains before it gives up and terminates |
+
+Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`. It now stops draining after `25s`, throws `GracefulShutdownPeriodExpiredError`, and exits under its own control - closing its Temporal connection, flushing hooks, and logging first.
+
+For most projects this is an improvement, because activities get 20 seconds of runway instead of being asked to cancel the instant a deploy starts.
+
+### Set both values if your activities drain slowly
+
+If your activities routinely run longer than 25 seconds and you raised your platform's shutdown window to accommodate them, set both variables explicitly. Otherwise those activities are cancelled at 20 seconds and abandoned at 25 on every deploy, then retried on the new instance.
+
+Keep grace below force, and force below your platform's shutdown window, so the worker always exits before it is killed:
+
+```bash
+# Platform allows 300s between SIGTERM and SIGKILL
+TEMPORAL_SHUTDOWN_GRACE_TIME=280s
+TEMPORAL_SHUTDOWN_FORCE_TIME=290s
+```
+
+Values above your platform's window never take effect, since the platform terminates the process first. On Render that window is `maxShutdownDelaySeconds`, which defaults to 30 seconds and can be raised to 300. On Kubernetes it is `terminationGracePeriodSeconds`.
+
+Raising these only extends shutdowns started by a signal. When an uncaught exception or unhandled rejection starts the shutdown instead, the worker force quits 60 seconds later regardless of `TEMPORAL_SHUTDOWN_FORCE_TIME`, exiting `1` after logging `Uncaught exception handling timed out, force quitting...`. That cap is fixed, so a force time above 60 seconds only fully applies to signal shutdowns.
+
+An empty value falls back to the default rather than disabling the bound, so there is no longer a way to configure an unbounded drain.
+
+## Shutdown scenarios
+
+Every path that ends the worker changed shape. The exit code is also explicit now: v0.12.0 only called `process.exit` on the failure path and let the event loop empty on the success path.
+
+| Scenario | v0.12.0 | v0.13.0 |
+| --- | --- | --- |
+| `SIGTERM`, `SIGINT` or `SIGUSR2` while polling | Stops polling and asks in-flight activities to cancel at once, then waits for them for as long as they take. Exits `0` | Stops polling and lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel. Exits `0` |
+| In-flight work outlives the drain | Nothing bounds it, so the worker waits until the platform sends `SIGKILL`, which cuts the hook flush short. Exit code is whatever the platform reports | Stops draining at `TEMPORAL_SHUTDOWN_FORCE_TIME`, warns with `GracefulShutdownPeriodExpiredError`, flushes hooks. Exits `1` |
+| A signal during startup | No handler was installed until the worker had been built, so the process died on the spot with no teardown and no hook flush. Exits `128 + signal number`, `143` for `SIGTERM` | The handler is installed first, so startup stops at the next step, services are torn down and hooks flush. Exits `0` |
+| A second signal, more than a second after the first | Force quits on the spot, abandoning the drain. Exits `1` | Unchanged |
+| A service other than the worker fails to stop | Warns and carries on with the rest of the teardown. Exit code unaffected | Unchanged |
+| Uncaught exception or unhandled rejection | Not handled, so Node printed the stack and terminated immediately: no drain, no hook flush, no `onError` hook. Exits `1` | Drains exactly like a signal, emits `RUNTIME_ERROR` so `onError` hooks fire, flushes hooks. Exits `1` |
+| An uncaught error whose drain stalls | Not applicable, there was no drain | Force quits 60 seconds after the error. Exits `1` |
+| The Temporal connection is lost | Drains, then reports the loss. Exits `1` | Unchanged |
+| The worker fails while polling or draining | Drains what it can, then reports the failure. Exits `1` | Unchanged |
+| The catalog cannot be published | The catalog ran alongside the worker, so the worker was already polling against a stale catalog when the failure surfaced. Exits `1` | The catalog gates the worker: it retries twice and never starts polling. Exits `1` |
+| Startup fails to load, bundle or connect | Tears down whatever was built. Exits `1` | Unchanged |
+
+If you alert on non-zero worker exits, the situations that produce one changed: a drain that outlives its window now exits `1` under the worker's own control instead of ending in a platform `SIGKILL`, and an uncaught error exits `1` only after draining.
+
+Two log lines moved with this. The failure log is now `Worker error` rather than `Fatal error`, and the last line is always `Bye`, where a failing worker used to end on `Exiting...`.
+
+## Workers exit when the catalog does not match
+
+The worker publishes its catalog during startup and treats it as a gate. If it cannot publish a catalog matching its own source code, it retries twice and then exits rather than serving requests against an outdated catalog.
+
+A worker that would previously have started with a stale catalog now fails its deploy instead. The failure is logged as `Worker error` with the underlying Temporal error.
+
+Reconciliation also changed: a stale catalog workflow is now terminated rather than asked to complete. A catalog that stopped processing workflow tasks no longer blocks every deploy that follows it.
+
+## Checklist
+
+- Set `TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` explicitly if your activities need more than 25 seconds to drain, keeping both under your platform's shutdown window.
+- Update alerts that key off worker exits or the `Fatal error` log line, which is now `Worker error`.
+- Expect a worker whose catalog cannot be published to exit instead of starting with a stale catalog.

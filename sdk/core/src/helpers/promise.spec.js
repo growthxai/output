@@ -1,35 +1,62 @@
 import { describe, it, expect, vi } from 'vitest';
-import { CancellablePromise } from './promise.js';
+import { sleepCancellable } from './promise.js';
 
-describe( 'CancellablePromise', () => {
-  it( 'exposes a pending promise until it is completed', async () => {
-    const cancellable = new CancellablePromise();
-    const onComplete = vi.fn();
+// Long enough that a sleep reaching it means the abort was not honored and the test times out.
+const neverElapses = 60000;
 
-    cancellable.promise.then( onComplete );
+describe( 'sleepCancellable', () => {
+  it( 'resolves only once the timeout elapses', async () => {
+    const order = [];
+    const sleeping = sleepCancellable( 10 ).then( () => order.push( 'slept' ) );
+
     await Promise.resolve();
+    expect( order ).toEqual( [] );
 
-    expect( cancellable.completed ).toBe( false );
-    expect( onComplete ).not.toHaveBeenCalled();
-
-    cancellable.complete();
-    await cancellable.promise;
-
-    expect( cancellable.completed ).toBe( true );
-    expect( onComplete ).toHaveBeenCalledOnce();
+    await sleeping;
+    expect( order ).toEqual( [ 'slept' ] );
   } );
 
-  it( 'can be completed multiple times without resolving again', async () => {
-    const cancellable = new CancellablePromise();
-    const onComplete = vi.fn();
+  it( 'resolves without a signal', async () => {
+    await expect( sleepCancellable( 10 ) ).resolves.toBeUndefined();
+  } );
 
-    cancellable.promise.then( onComplete );
-    cancellable.complete();
-    cancellable.complete();
-    await cancellable.promise;
-    await Promise.resolve();
+  it( 'resolves immediately when the signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
 
-    expect( cancellable.completed ).toBe( true );
-    expect( onComplete ).toHaveBeenCalledOnce();
+    await expect( sleepCancellable( neverElapses, controller.signal ) ).resolves.toBeUndefined();
+  } );
+
+  it( 'resolves as soon as the signal aborts mid sleep', async () => {
+    const controller = new AbortController();
+    const sleeping = sleepCancellable( neverElapses, controller.signal );
+
+    controller.abort();
+
+    await expect( sleeping ).resolves.toBeUndefined();
+  } );
+
+  it( 'swallows the abort reason instead of rejecting with it', async () => {
+    const controller = new AbortController();
+    const sleeping = sleepCancellable( neverElapses, controller.signal );
+
+    controller.abort( new Error( 'shutting down' ) );
+
+    await expect( sleeping ).resolves.toBeUndefined();
+  } );
+
+  it( 'rethrows a rejection that is not an abort', async () => {
+    const failure = new Error( 'timer failed' );
+    vi.doMock( 'node:timers/promises', () => ( { setTimeout: () => Promise.reject( failure ) } ) );
+    vi.resetModules();
+
+    try {
+      const { sleepCancellable: sleeping } = await import( './promise.js' );
+
+      await expect( sleeping( 10 ) ).rejects.toBe( failure );
+    } finally {
+      vi.doUnmock( 'node:timers/promises' );
+      vi.resetModules();
+    }
   } );
 } );

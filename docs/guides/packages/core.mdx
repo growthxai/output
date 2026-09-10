@@ -65,7 +65,21 @@ When you run `output dev`, the CLI starts Docker Compose which launches a worker
 1. **Scans your project** for workflow files (`workflow.js`), step files (`steps.js`), evaluator files (`evaluators.js`), and shared components in `shared/steps/` and `shared/evaluators/`
 2. **Creates a catalog** of all discovered workflows and their activities with metadata (name, description, schemas)
 3. **Connects to Temporal** at the configured address
-4. **Starts processing** workflow executions
+4. **Publishes the catalog** so the API can resolve workflow names for this version of your code
+5. **Starts processing** workflow executions
+
+Publishing the catalog gates step 5. If the worker cannot publish a catalog matching its own source code, it retries and then exits rather than serving requests against an outdated catalog.
+
+### Shutdown
+
+`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, then closes its Temporal connection. A second signal forces an immediate exit.
+
+Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains. That drain is capped at 60 seconds: a worker still shutting down when the cap expires force quits. The cap is fixed, independent of `TEMPORAL_SHUTDOWN_FORCE_TIME`, and applies only to this path - a shutdown started by a signal is bounded by a second signal or by your platform instead.
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | A signal requested the shutdown and the worker drained. Another service failing to stop is logged as a warning and does not change the code |
+| `1` | Startup failed, the worker failed to drain, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
 
 ### File Discovery
 
@@ -405,8 +419,8 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
-| `TEMPORAL_SHUTDOWN_GRACE_TIME` | Temporal SDK default | Time to let in-flight work drain after worker shutdown starts. Accepts milliseconds or duration strings like `15s`. |
-| `TEMPORAL_SHUTDOWN_FORCE_TIME` | Temporal SDK default | Extra time before forceful worker shutdown. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | `20s` | Time to let in-flight work drain before activities are asked to cancel. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | `25s` | Time before the worker gives up draining and terminates. Accepts milliseconds or duration strings like `15s`. |
 
 ## Logging
 
