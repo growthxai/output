@@ -49,10 +49,6 @@ overrides:
   uuid@<14.0.0: 14.0.0
   ws@>=8.0.0 <8.20.1: 8.21.0
 
-peerDependencyRules:
-  allowedVersions:
-    react: 19.2.3
-
 strictDepBuilds: true
 
 trustPolicy: no-downgrade
