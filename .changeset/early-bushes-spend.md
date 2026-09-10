@@ -8,3 +8,4 @@ Added a static subset of the models pricing table, so costs for the six shipped 
 - Changed `LLMGenerationCost.status` to `imprecise` when rates come from the bundled snapshot, since it is a point-in-time copy that can lag the live catalog by an unbounded amount. A stale cache does not downgrade the status, because those rates were accurate when they were fetched.
 - Changed pricing lookups to pause live requests for 10 minutes after a failure, instead of retrying the unreachable catalog on every call.
 - Changed `cost` to stay non-null while the pricing catalog is unreachable, since the snapshot always provides rates. Code that read `cost === null` as an outage signal should read `pricingFreshness` or `status` instead. `cost` is still `null` when usage cannot be normalized.
+- Added a periodic refresh of the bundled snapshot, so upgrading to a newer release picks up a more recent table.

@@ -1,6 +1,6 @@
 import { Logger } from '@outputai/core';
 import { EnvHttpProxyAgent, fetch } from 'undici';
-import modelsPricingFallback from './models_pricing_fallback.json' with { type: 'json' };
+import modelsPricingSnapshot from './models_pricing_snapshot.json' with { type: 'json' };
 
 const logger = Logger.createLogger( 'LLM' );
 const costTableUrl = 'https://models.dev/api.json';
@@ -49,7 +49,7 @@ const parseData = data => {
   }
 };
 
-const fallbackTable = parseData( modelsPricingFallback );
+const fallbackTable = parseData( modelsPricingSnapshot );
 
 const fetchData = async () => {
   try {

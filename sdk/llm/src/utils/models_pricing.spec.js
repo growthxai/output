@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchModelsPricing, cache, state, Freshness } from './models_pricing.js';
 import fixture from '../fixtures/models_api_light.json' with { type: 'json' };
-import fallbackJson from './models_pricing_fallback.json' with { type: 'json' };
+import fallbackJson from './models_pricing_snapshot.json' with { type: 'json' };
 
 const fetchMock = vi.hoisted( () => vi.fn() );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
