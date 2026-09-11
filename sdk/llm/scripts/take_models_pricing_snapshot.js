@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * This is a script-like file, it isn't used in this tree, only by ops.
- * It lives to resolve the target file more reliable and because it shares syntax or surrounding files.
+ * - Takes a snapshot from the models.dev
+ * - Removes providers other than those that the LLM natively supports
+ * - Strip fields other then "cost"
+ * - Write to a file
  */
 
 import { writeFileSync } from 'node:fs';
@@ -9,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 const url = 'https://models.dev/api.json';
 const timeout = 1000 * 60; // 1 minute
 
-const target = new URL( './models_pricing_snapshot.json', import.meta.url ).pathname;
+const target = new URL( '../src/utils/models_pricing_snapshot.json', import.meta.url ).pathname;
 
 // Order maters, keep in alphabetical order
 export const supportedProviders = [
