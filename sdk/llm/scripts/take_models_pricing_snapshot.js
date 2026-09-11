@@ -7,11 +7,12 @@
  */
 
 import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const url = 'https://models.dev/api.json';
 const timeout = 1000 * 60; // 1 minute
 
-const target = new URL( '../src/utils/models_pricing_snapshot.json', import.meta.url ).pathname;
+const target = fileURLToPath( new URL( '../src/utils/models_pricing_snapshot.json', import.meta.url ) );
 
 // Order maters, keep in alphabetical order
 export const supportedProviders = [
