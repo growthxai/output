@@ -72,14 +72,16 @@ Publishing the catalog gates step 5. If the worker cannot publish a catalog matc
 
 ### Shutdown
 
-`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, then closes its Temporal connection. A second signal forces an immediate exit.
+`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, closes its Temporal connection, then awaits pending hook callbacks for up to `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`. A second signal forces an immediate exit.
+
+Those three values are a single budget, and it has to fit inside the window your platform allows between `SIGTERM` and `SIGKILL`. The worst case is `TEMPORAL_SHUTDOWN_FORCE_TIME` plus `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`, since the drain runs to its bound and then the flush runs to its own. The defaults total 25 seconds against the 30 seconds most platforms allow, leaving 5 seconds of margin. Raise the platform window before raising any of them - on Render that is `maxShutdownDelaySeconds`, on Kubernetes `terminationGracePeriodSeconds` - or the platform terminates the process mid-flush and the hook data is lost.
 
 Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains. That drain is capped at 60 seconds: a worker still shutting down when the cap expires force quits. The cap is fixed, independent of `TEMPORAL_SHUTDOWN_FORCE_TIME`, and applies only to this path - a shutdown started by a signal is bounded by a second signal or by your platform instead.
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown and the worker drained. Another service failing to stop is logged as a warning and does not change the code |
-| `1` | Startup failed, the worker failed to drain, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
+| `0` | A signal requested the shutdown, whether or not the drain completed inside `TEMPORAL_SHUTDOWN_FORCE_TIME`. A service failing to stop is logged as a warning and does not change the code |
+| `1` | Startup failed, the worker failed to stop for a reason other than the drain expiring, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
 
 ### File Discovery
 
@@ -115,6 +117,8 @@ When you call a step from a workflow, Output executes it as a durable activity w
 ## Hooks
 
 Register handlers in hook files that the worker loads at startup (list paths under `outputai.hookFiles` in `package.json`). Import from `@outputai/core/hooks`. The framework wraps each handler in a try/catch: failures are logged and do not stop the worker or workflow runs.
+
+**Keep handlers fast.** Every handler is tracked while it runs, and a [shutdown](#shutdown) awaits all the pending ones together under a single `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` budget. There is no opt-out, so one handler awaiting a slow network call spends the allowance every other pending handler needs, and they can all be dropped together. Write to stdout or an in-process buffer and let your log pipeline or a sidecar ship the data. If a handler genuinely has to await remote I/O, batch it and raise `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` along with your platform's shutdown window.
 
 Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — and an **`eventDate`**, the millisecond epoch timestamp for when the event was emitted. Use `eventId` as a stable per-emit idempotency key for downstream dedup (webhook retry handling, ClickHouse `ReplacingMergeTree`, audit logs, etc.). Distinct emits — including `http:request` and `cost:http:request` for the same fetch — receive distinct `eventId`s.
 
@@ -419,8 +423,9 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` | `0` | Interval between worker telemetry log messages. `0` means off. |
-| `TEMPORAL_SHUTDOWN_GRACE_TIME` | `20s` | Time to let in-flight work drain before activities are asked to cancel. Accepts milliseconds or duration strings like `15s`. |
-| `TEMPORAL_SHUTDOWN_FORCE_TIME` | `25s` | Time before the worker gives up draining and terminates. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | `15s` | Time to let in-flight work drain before activities are asked to cancel. Accepts milliseconds or duration strings like `15s`. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | `20s` | Time before the worker gives up draining and terminates. Accepts milliseconds or duration strings like `15s`. |
+| `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` | `5000` (5s) | Time to await pending hook callbacks after the drain, before exiting without them. Spent after `TEMPORAL_SHUTDOWN_FORCE_TIME`, so both count against your platform's shutdown window. |
 
 ## Logging
 

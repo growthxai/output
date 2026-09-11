@@ -8,6 +8,7 @@ const {
   connectionMonitorInstance,
   createCatalogMock,
   flushPendingHooksMock,
+  GracefulShutdownPeriodExpiredError,
   hashSourceCodeMock,
   initInterceptorsMock,
   interruption,
@@ -58,7 +59,8 @@ const {
     maxConcurrentWorkflowTaskPolls: 5,
     workerTuner: undefined,
     shutdownForceTime: undefined,
-    shutdownGraceTime: undefined
+    shutdownGraceTime: undefined,
+    hookFlushTimeoutMs: 5000
   };
 
   /**
@@ -116,6 +118,11 @@ const {
     name = 'UncaughtError';
   };
 
+  /** Stands in for the Temporal error thrown when the drain outlives the force time */
+  class GracefulShutdownPeriodExpiredError extends Error {
+    name = 'GracefulShutdownPeriodExpiredError';
+  };
+
   const interruption = { controller: null, KillSignError, UncaughtError };
 
   return {
@@ -125,6 +132,7 @@ const {
     connectionMonitorInstance,
     createCatalogMock: vi.fn().mockReturnValue( { workflowNames: [ 'demo' ] } ),
     flushPendingHooksMock: vi.fn().mockResolvedValue( undefined ),
+    GracefulShutdownPeriodExpiredError,
     hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
     initInterceptorsMock: vi.fn().mockReturnValue( [] ),
     interruption,
@@ -196,7 +204,8 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
 vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
-  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
+  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) },
+  GracefulShutdownPeriodExpiredError
 } ) );
 
 const importWorker = async () => {
@@ -403,6 +412,18 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
+    it( 'still exits cleanly when the drain outlived the force time', async () => {
+      await bootWorker();
+      const error = new GracefulShutdownPeriodExpiredError( 'Timed out while waiting for worker to shutdown gracefully' );
+      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'worker', error } ] );
+
+      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
+      await waitForExit();
+
+      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( process.exit ).toHaveBeenCalledWith( 0 );
+    } );
+
     it( 'does not report the worker as terminated when a signal ended the run', async () => {
       await bootWorker();
 
@@ -428,7 +449,7 @@ describe( 'worker/index', () => {
       interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
       await waitForExit();
 
-      expect( flushPendingHooksMock ).toHaveBeenCalledOnce();
+      expect( flushPendingHooksMock ).toHaveBeenCalledWith( 5000 );
       expect( shutdownServicesMock.mock.invocationCallOrder[0] )
         .toBeLessThan( flushPendingHooksMock.mock.invocationCallOrder[0] );
       expect( flushPendingHooksMock.mock.invocationCallOrder[0] )

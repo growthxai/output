@@ -15,7 +15,8 @@ const CONFIG_KEYS = [
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED',
   'TEMPORAL_SHUTDOWN_FORCE_TIME',
-  'TEMPORAL_SHUTDOWN_GRACE_TIME'
+  'TEMPORAL_SHUTDOWN_GRACE_TIME',
+  'OUTPUT_HOOK_FLUSH_TIMEOUT_MS'
 ];
 
 const setEnv = ( overrides = {} ) => {
@@ -69,8 +70,9 @@ describe( 'worker/configs', () => {
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
-    expect( configs.shutdownForceTime ).toBe( '25s' );
-    expect( configs.shutdownGraceTime ).toBe( '20s' );
+    expect( configs.shutdownForceTime ).toBe( '20s' );
+    expect( configs.shutdownGraceTime ).toBe( '15s' );
+    expect( configs.hookFlushTimeoutMs ).toBe( 5000 );
     expect( configs.taskQueue ).toBe( 'test-catalog' );
     expect( configs.catalogId ).toBe( 'test-catalog' );
   } );
@@ -139,12 +141,14 @@ describe( 'worker/configs', () => {
   it( 'falls back to the defaults when Temporal shutdown durations are empty', async () => {
     setEnv( {
       TEMPORAL_SHUTDOWN_FORCE_TIME: '',
-      TEMPORAL_SHUTDOWN_GRACE_TIME: ''
+      TEMPORAL_SHUTDOWN_GRACE_TIME: '',
+      OUTPUT_HOOK_FLUSH_TIMEOUT_MS: ''
     } );
     const configs = await loadConfigs();
 
-    expect( configs.shutdownForceTime ).toBe( '25s' );
-    expect( configs.shutdownGraceTime ).toBe( '20s' );
+    expect( configs.shutdownForceTime ).toBe( '20s' );
+    expect( configs.shutdownGraceTime ).toBe( '15s' );
+    expect( configs.hookFlushTimeoutMs ).toBe( 5000 );
   } );
 
   it( 'throws when Temporal shutdown durations are invalid', async () => {
