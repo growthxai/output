@@ -68,7 +68,7 @@ function llmCostNode(
     items.filter( item => item.group === group ).reduce( ( sum, item ) => sum + ( item.total ?? 0 ), 0 );
   const input = totalOf( 'input' );
   const output = totalOf( 'output' );
-  const request = totalOf( 'request' );
+  const tools = totalOf( 'tools' );
 
   return {
     id,
@@ -81,8 +81,8 @@ function llmCostNode(
         modelId: model,
         input,
         output,
-        request,
-        total: input + output + request,
+        tools,
+        total: input + output + tools,
         status,
         items
       }
@@ -334,11 +334,11 @@ describe( 'findLLMCalls', () => {
     expect( calls[0].originalCost ).toBeCloseTo( 0.001965, 8 );
   } );
 
-  it( 'reads a priced grounding request item without counting it as tokens', () => {
+  it( 'reads a priced grounding tools item without counting it as tokens', () => {
     const items: LLMGenerationCost['items'] = [
       { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
       { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
-      { group: 'request', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+      { group: 'tools', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
     ];
     const calls = findLLMCalls( {
       kind: 'workflow',
@@ -354,8 +354,8 @@ describe( 'findLLMCalls', () => {
       outputTokens: 793,
       reasoningTokens: 0
     } );
-    expect( calls[0].lines.find( l => l.type === 'request_grounding_prompt' ) ).toEqual( {
-      type: 'request_grounding_prompt',
+    expect( calls[0].lines.find( l => l.type === 'tools_grounding_prompt' ) ).toEqual( {
+      type: 'tools_grounding_prompt',
       ppm: 35_000,
       amount: 1,
       total: 0.035
@@ -366,7 +366,7 @@ describe( 'findLLMCalls', () => {
     const items: LLMGenerationCost['items'] = [
       { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
       { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
-      { group: 'request', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+      { group: 'tools', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
     ];
     const config = {
       models: { 'gemini-2.5-flash': { provider: 'google-vertex', input: 0.3, output: 2.5 } },
@@ -385,7 +385,7 @@ describe( 'findLLMCalls', () => {
     const items: LLMGenerationCost['items'] = [
       { group: 'input', label: 'no_cache', amount: 1000, ppm: 1, total: 0.001, status: 'ok' },
       { group: 'output', label: null, amount: 500, ppm: 5, total: 0.0025, status: 'ok' },
-      { group: 'request', label: 'grounding', amount: 3, ppm: null, total: null, status: 'missing' }
+      { group: 'tools', label: 'grounding', amount: 3, ppm: null, total: null, status: 'missing' }
     ];
     const calls = findLLMCalls( {
       kind: 'workflow',
@@ -394,8 +394,8 @@ describe( 'findLLMCalls', () => {
 
     expect( calls[0].incomplete ).toBe( true );
     // The unrated line still shows up (as $0), but the call carries the signal.
-    expect( calls[0].lines.find( l => l.type === 'request_grounding' ) ).toEqual( {
-      type: 'request_grounding',
+    expect( calls[0].lines.find( l => l.type === 'tools_grounding' ) ).toEqual( {
+      type: 'tools_grounding',
       ppm: 0,
       amount: 3,
       total: 0

@@ -42,7 +42,7 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
   modelId;
   input = null;
   output = null;
-  request = null;
+  tools = null;
   total = null;
   status = LLMGenerationCost.Status.INCOMPLETE;
   pricingFreshness = null;
@@ -70,9 +70,9 @@ export class LLMGenerationCost extends Tracing.Attribute.BaseAttribute {
     };
     this.input = sumGroup( LLMGenerationUsageItem.Group.INPUT );
     this.output = sumGroup( LLMGenerationUsageItem.Group.OUTPUT );
-    this.request = sumGroup( LLMGenerationUsageItem.Group.REQUEST );
-    if ( exists( this.input ) || exists( this.output ) || exists( this.request ) ) {
-      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.request ?? 0 ).toNumber();
+    this.tools = sumGroup( LLMGenerationUsageItem.Group.TOOLS );
+    if ( exists( this.input ) || exists( this.output ) || exists( this.tools ) ) {
+      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.tools ?? 0 ).toNumber();
     }
   }
 }
@@ -89,8 +89,8 @@ const resolveValue = values => {
 };
 
 const resolvePrice = ( { group, label, pricing } ) => {
-  // Per-request charges are never token-priced: models.dev has no rate for them.
-  if ( group === LLMGenerationUsageItem.Group.REQUEST ) {
+  // Tool charges are never token-priced: models.dev has no rate for them.
+  if ( group === LLMGenerationUsageItem.Group.TOOLS ) {
     return resolveValue( [ GroundingPpmMap.get( label ) ] );
   }
   if ( !pricing ) {
@@ -140,10 +140,10 @@ export const calculateCosts = async usage => {
     return new LLMGenerationCostItem( group, label, amount, ppm, total, status );
   } );
 
-  const unrated = items.some( v =>
-    v.group === LLMGenerationUsageItem.Group.REQUEST && v.status === LLMGenerationCostItem.Status.MISSING );
+  const unrated = items.find( v =>
+    v.group === LLMGenerationUsageItem.Group.TOOLS && v.status === LLMGenerationCostItem.Status.MISSING );
   if ( unrated ) {
-    Logger.warn( 'Grounded call with no grounding rate for model', { namespace: 'LLM', modelId, providerId } );
+    Logger.warn( 'Tool call with no rate for model', { namespace: 'LLM', modelId, providerId, type: unrated.label } );
   }
 
   return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );

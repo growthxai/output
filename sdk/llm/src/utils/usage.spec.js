@@ -236,21 +236,21 @@ describe( 'parseLLMUsage', () => {
     ] );
   } );
 
-  it( 'records a Gemini 3 grounded call as one request item per web search query', () => {
+  it( 'records a Gemini 3 grounded call as one tools item per web search query', () => {
     const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b', 'c' ] );
 
     expect( result.items ).toEqual( [
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 50 ),
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_query', 3 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_query', 3 )
     ] );
   } );
 
-  it( 'records a Gemini 2 grounded call as a single request item', () => {
+  it( 'records a Gemini 2 grounded call as a single tools item', () => {
     const result = grounded( 'gemini-2.5-flash', [ 'a', 'b', 'c' ] );
 
     expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_prompt', 1 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 1 )
     );
   } );
 
@@ -269,7 +269,7 @@ describe( 'parseLLMUsage', () => {
     const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b' ], [ 'c' ], [] );
 
     expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_query', 3 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_query', 3 )
     );
   } );
 
@@ -277,7 +277,7 @@ describe( 'parseLLMUsage', () => {
     const result = grounded( 'gemini-2.5-flash', [ 'a', 'b' ], [ 'c' ], [] );
 
     expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding_prompt', 2 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 2 )
     );
   } );
 
@@ -295,7 +295,7 @@ describe( 'parseLLMUsage', () => {
       total: null
     } );
     expect( result.items ).toEqual( [
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.REQUEST, 'grounding', 1 )
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding', 1 )
     ] );
   } );
 

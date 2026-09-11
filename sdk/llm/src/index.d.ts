@@ -341,9 +341,9 @@ export type ExtractedSource =
 
 export type LLMGenerationUsageStatus = 'complete' | 'incomplete';
 
-/** Token usage reported for one normalized LLM usage component. `request` counts billable requests, not tokens. */
+/** Token usage reported for one normalized LLM usage component. `tools` counts billable tool calls, not tokens. */
 export interface LLMGenerationUsageItem {
-  group: 'input' | 'output' | 'request';
+  group: 'input' | 'output' | 'tools';
   label: string | null;
   amount: number;
 }
@@ -387,7 +387,7 @@ export type LLMGenerationCostPricingFreshness = 'live' | 'cached' | 'stale' | 's
 
 /** Cost calculated for one normalized LLM usage item. */
 export interface LLMGenerationCostItem {
-  group: 'input' | 'output' | 'request';
+  group: 'input' | 'output' | 'tools';
   label: string | null;
   amount: number;
   ppm: number | null;
@@ -402,7 +402,7 @@ export interface LLMGenerationCost extends BaseAttribute {
   modelId: string;
   input: number | null;
   output: number | null;
-  request: number | null;
+  tools: number | null;
   total: number | null;
   status: LLMGenerationCostStatus;
   /** How current the rate table was. Absent on costs recorded before this field existed. */

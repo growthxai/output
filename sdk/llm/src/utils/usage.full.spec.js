@@ -14,7 +14,7 @@ import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usa
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
-const REQUEST = LLMGenerationUsageItem.Group.REQUEST;
+const TOOLS = LLMGenerationUsageItem.Group.TOOLS;
 
 const cases = [
   {
@@ -127,7 +127,7 @@ const cases = [
       { group: INPUT, label: 'cache_read', amount: 0 },
       { group: OUTPUT, label: 'text', amount: 793 },
       { group: OUTPUT, label: 'reasoning', amount: 588 },
-      { group: REQUEST, label: 'grounding_prompt', amount: 1 }
+      { group: TOOLS, label: 'grounding_prompt', amount: 1 }
     ]
   },
   {

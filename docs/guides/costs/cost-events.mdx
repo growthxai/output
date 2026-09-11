@@ -118,7 +118,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "pricingFreshness": "cached",
       "input": 0.001085,
       "output": 0.000135,
-      "request": null,
+      "tools": null,
       "total": 0.00122,
       "items": [
         { "group": "input", "label": "no_cache", "amount": 217, "ppm": 5, "total": 0.001085, "status": "ok" },
@@ -156,13 +156,13 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `group` | `"input" \| "output" \| "request"` | Aggregate category. `request` covers per-request charges such as grounding with Google Search, billed per request rather than per token. |
-| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), request detail (`grounding_query`, `grounding_prompt`, or `grounding` when the rate is unknown), or `null` for aggregate usage. |
-| `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query or grounded-request count for `request` items. |
+| `group` | `"input" \| "output" \| "tools"` | Aggregate category. `tools` covers tool charges such as grounding with Google Search, billed per request rather than per token. |
+| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), tool detail (`grounding_query`, `grounding_prompt`, or `grounding` when the rate is unknown), or `null` for aggregate usage. |
+| `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query or grounded-request count for `tools` items. |
 
 When the detailed counts do not reconcile with the aggregate count, Output keeps the aggregate input or output item instead of recording a misleading breakdown.
 
-Per-request items are recorded independently from tokens and are excluded from the `input`, `output`, and `total` token aggregates above.
+Tool items are recorded independently from tokens and are excluded from the `input`, `output`, and `total` token aggregates above.
 
 ### Normalized cost
 
@@ -170,8 +170,8 @@ Per-request items are recorded independently from tokens and are excluded from t
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `input`, `output`, `request`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `request` holds per-request charges (such as grounding), and `total` is the sum of `input`, `output`, and `request`. |
-| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A per-request charge with no known rate lands `incomplete`. |
+| `input`, `output`, `tools`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `tools` holds tool charges (such as grounding), and `total` is the sum of `input`, `output`, and `tools`. |
+| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
 | `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
 | `items[].ppm` | `number \| null` | Applied price per million tokens. |
 | `items[].total` | `number \| null` | Calculated item cost. |
