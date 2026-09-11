@@ -1,34 +1,39 @@
 {
   "_meta": {
-    "createdAt": "2026-09-10T22:11:03.880Z"
+    "createdAt": "2026-09-11T15:41:29.811Z"
   },
   "amazon-bedrock": {
     "models": {
       "amazon.nova-2-lite-v1:0": {
         "cost": {
           "input": 0.33,
-          "output": 2.75
+          "output": 2.75,
+          "cache_read": 0.0825,
+          "cache_write": 0.33
         }
       },
       "amazon.nova-lite-v1:0": {
         "cost": {
           "input": 0.06,
           "output": 0.24,
-          "cache_read": 0.015
+          "cache_read": 0.015,
+          "cache_write": 0.06
         }
       },
       "amazon.nova-micro-v1:0": {
         "cost": {
           "input": 0.035,
           "output": 0.14,
-          "cache_read": 0.00875
+          "cache_read": 0.00875,
+          "cache_write": 0.035
         }
       },
       "amazon.nova-pro-v1:0": {
         "cost": {
           "input": 0.8,
           "output": 3.2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "cache_write": 0.8
         }
       },
       "anthropic.claude-fable-5": {
@@ -131,21 +136,24 @@
         "cost": {
           "input": 0.063,
           "output": 0.252,
-          "cache_read": 0.01575
+          "cache_read": 0.01575,
+          "cache_write": 0.063
         }
       },
       "apac.amazon.nova-micro-v1:0": {
         "cost": {
           "input": 0.037,
           "output": 0.148,
-          "cache_read": 0.00925
+          "cache_read": 0.00925,
+          "cache_write": 0.037
         }
       },
       "apac.amazon.nova-pro-v1:0": {
         "cost": {
           "input": 0.84,
           "output": 3.36,
-          "cache_read": 0.21
+          "cache_read": 0.21,
+          "cache_write": 0.84
         }
       },
       "au.anthropic.claude-haiku-4-5-20251001-v1:0": {
@@ -216,7 +224,8 @@
         "cost": {
           "input": 0.064,
           "output": 0.256,
-          "cache_read": 0.016
+          "cache_read": 0.016,
+          "cache_write": 0.064
         }
       },
       "deepseek.r1-v1:0": {
@@ -241,28 +250,32 @@
         "cost": {
           "input": 0.374,
           "output": 3.157,
-          "cache_read": 0.0935
+          "cache_read": 0.0935,
+          "cache_write": 0.374
         }
       },
       "eu.amazon.nova-lite-v1:0": {
         "cost": {
           "input": 0.069,
           "output": 0.276,
-          "cache_read": 0.01725
+          "cache_read": 0.01725,
+          "cache_write": 0.069
         }
       },
       "eu.amazon.nova-micro-v1:0": {
         "cost": {
           "input": 0.04,
           "output": 0.16,
-          "cache_read": 0.01
+          "cache_read": 0.01,
+          "cache_write": 0.04
         }
       },
       "eu.amazon.nova-pro-v1:0": {
         "cost": {
           "input": 0.92,
           "output": 3.68,
-          "cache_read": 0.23
+          "cache_read": 0.23,
+          "cache_write": 0.92
         }
       },
       "eu.anthropic.claude-fable-5": {
@@ -355,7 +368,8 @@
         "cost": {
           "input": 0.3,
           "output": 2.5,
-          "cache_read": 0.075
+          "cache_read": 0.075,
+          "cache_write": 0.3
         }
       },
       "global.anthropic.claude-fable-5": {
@@ -559,14 +573,14 @@
       },
       "google.gemma-3-12b-it": {
         "cost": {
-          "input": 0.049999999999999996,
-          "output": 0.09999999999999999
+          "input": 0.09,
+          "output": 0.29
         }
       },
       "google.gemma-3-27b-it": {
         "cost": {
-          "input": 0.12,
-          "output": 0.2
+          "input": 0.23,
+          "output": 0.38
         }
       },
       "google.gemma-3-4b-it": {
@@ -575,11 +589,82 @@
           "output": 0.08
         }
       },
+      "google.gemma-4-26b-a4b": {
+        "cost": {
+          "input": 0.13,
+          "output": 0.4
+        }
+      },
+      "google.gemma-4-31b": {
+        "cost": {
+          "input": 0.14,
+          "output": 0.4
+        }
+      },
+      "google.gemma-4-e2b": {
+        "cost": {
+          "input": 0.04,
+          "output": 0.08
+        }
+      },
+      "in.openai.gpt-5.6-luna": {
+        "cost": {
+          "input": 0.22,
+          "output": 1.32,
+          "cache_read": 0.022,
+          "cache_write": 0.275,
+          "tiers": [
+            {
+              "input": 0.44,
+              "output": 1.98,
+              "cache_read": 0.044,
+              "cache_write": 0.55,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 0.44,
+            "output": 1.98,
+            "cache_read": 0.044,
+            "cache_write": 0.55
+          }
+        }
+      },
+      "in.openai.gpt-5.6-terra": {
+        "cost": {
+          "input": 2.2,
+          "output": 13.2,
+          "cache_read": 0.22,
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 19.8,
+              "cache_read": 0.44,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4.4,
+            "output": 19.8,
+            "cache_read": 0.44,
+            "cache_write": 5.5
+          }
+        }
+      },
       "jp.amazon.nova-2-lite-v1:0": {
         "cost": {
           "input": 0.396,
           "output": 3.311,
-          "cache_read": 0.099
+          "cache_read": 0.099,
+          "cache_write": 0.396
         }
       },
       "jp.anthropic.claude-haiku-4-5-20251001-v1:0": {
@@ -950,54 +1035,78 @@
       },
       "qwen.qwen3-coder-480b-a35b-v1:0": {
         "cost": {
-          "input": 0.22,
+          "input": 0.45,
           "output": 1.8
         }
       },
       "qwen.qwen3-coder-next": {
         "cost": {
-          "input": 0.22,
-          "output": 1.8
+          "input": 0.5,
+          "output": 1.2
         }
       },
       "qwen.qwen3-next-80b-a3b": {
         "cost": {
-          "input": 0.14,
-          "output": 1.4
+          "input": 0.15,
+          "output": 1.2
         }
       },
       "qwen.qwen3-vl-235b-a22b": {
         "cost": {
-          "input": 0.3,
-          "output": 1.5
+          "input": 0.53,
+          "output": 2.66
+        }
+      },
+      "us-gov.openai.gpt-oss-120b-1:0": {
+        "cost": {
+          "input": 0.18,
+          "output": 0.72
+        }
+      },
+      "us-gov.openai.gpt-oss-20b-1:0": {
+        "cost": {
+          "input": 0.084,
+          "output": 0.36
         }
       },
       "us.amazon.nova-2-lite-v1:0": {
         "cost": {
           "input": 0.33,
           "output": 2.75,
-          "cache_read": 0.0825
+          "cache_read": 0.0825,
+          "cache_write": 0.33
         }
       },
       "us.amazon.nova-lite-v1:0": {
         "cost": {
           "input": 0.06,
           "output": 0.24,
-          "cache_read": 0.015
+          "cache_read": 0.015,
+          "cache_write": 0.06
         }
       },
       "us.amazon.nova-micro-v1:0": {
         "cost": {
           "input": 0.035,
           "output": 0.14,
-          "cache_read": 0.00875
+          "cache_read": 0.00875,
+          "cache_write": 0.035
+        }
+      },
+      "us.amazon.nova-premier-v1:0": {
+        "cost": {
+          "input": 2.5,
+          "output": 12.5,
+          "cache_read": 0.625,
+          "cache_write": 2.5
         }
       },
       "us.amazon.nova-pro-v1:0": {
         "cost": {
           "input": 0.8,
           "output": 3.2,
-          "cache_read": 0.2
+          "cache_read": 0.2,
+          "cache_write": 0.8
         }
       },
       "us.anthropic.claude-fable-5": {
