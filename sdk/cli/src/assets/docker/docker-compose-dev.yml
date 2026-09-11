@@ -74,10 +74,37 @@ services:
     ports:
       - '${OUTPUT_TEMPORAL_UI_HOST_PORT:-8080}:8080'
 
+  # Registers the WorkspaceId custom search attribute so dispatches that carry a workspaceId
+  # are queryable. `create` is idempotent for an unchanged name/type, so this can safely run
+  # on every startup, including against a reused volume.
+  temporal-search-attributes:
+    depends_on:
+      temporal:
+        condition: service_healthy
+    entrypoint:
+      - temporal
+      - operator
+      - search-attribute
+      - create
+      - --address
+      - temporal:7233
+      - --namespace
+      - default
+      - --name
+      - WorkspaceId
+      - --type
+      - Keyword
+    image: temporalio/auto-setup:latest
+    networks:
+      - main
+    restart: 'no'
+
   api:
     depends_on:
       temporal:
         condition: service_healthy
+      temporal-search-attributes:
+        condition: service_completed_successfully
       worker:
         condition: service_healthy
     image: outputai/api:${OUTPUT_API_VERSION:-0.12.0}
@@ -99,6 +126,8 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+      temporal-search-attributes:
+        condition: service_completed_successfully
     image: node:24.15.0-slim
     healthcheck:
       test: [ 'CMD-SHELL', 'npx output-healthcheck' ]

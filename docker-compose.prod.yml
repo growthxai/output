@@ -6,6 +6,8 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+      temporal-search-attributes:
+        condition: service_completed_successfully
     init: true
     build:
       context: .

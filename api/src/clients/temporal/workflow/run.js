@@ -5,6 +5,7 @@ import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { logger } from '#logger';
 import { formatStatus } from '../types.js';
+import { startWorkflowExecution } from './start_workflow_execution.js';
 
 const { defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
 
@@ -45,7 +46,9 @@ export const run = async ( { client }, workflowName, input, options = {} ) => {
 
   const workflowId = userWorkflowId ?? buildWorkflowId();
   const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
-  const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+  const handle = await startWorkflowExecution( client, resolvedName, input, {
+    args: [ input ], taskQueue, workflowId, workflowExecutionTimeout
+  } );
   const runId = handle.firstExecutionRunId ?? null;
 
   try {
