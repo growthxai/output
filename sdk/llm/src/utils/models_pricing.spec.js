@@ -1,17 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchModelsPricing, cache, state, Freshness } from './models_pricing.js';
 import fixture from '../fixtures/models_api_light.json' with { type: 'json' };
-import fallbackJson from './models_pricing_snapshot.json' with { type: 'json' };
 
 const fetchMock = vi.hoisted( () => vi.fn() );
 const EnvHttpProxyAgentMock = vi.hoisted( () => vi.fn( function EnvHttpProxyAgent( options ) {
   this.options = options;
+} ) );
+/* Stands in for the shipped snapshot: this suite covers fetch, cache and cooldown behaviour, not the catalog contents. */
+const fallbackJson = vi.hoisted( () => ( {
+  _meta: { createdAt: '2026-01-01T00:00:00.000Z' },
+  anthropic: {
+    models: {
+      'claude-sonnet-4-6': { cost: { input: 3, output: 15 } }
+    }
+  },
+  openai: {
+    models: {
+      'gpt-4o-2024-11-20': { cost: { input: 2.5, output: 10, cache_read: 1.25 } },
+      'text-embedding-3-small': {} // unpriced models are dropped
+    }
+  }
 } ) );
 
 vi.mock( 'undici', () => ( {
   EnvHttpProxyAgent: EnvHttpProxyAgentMock,
   fetch: fetchMock
 } ) );
+vi.mock( './models_pricing_snapshot.json', () => ( { default: fallbackJson } ) );
 
 const costTableUrl = 'https://models.dev/api.json';
 const cooldownTTL = 1000 * 60 * 10; // mirrors models_pricing.js
