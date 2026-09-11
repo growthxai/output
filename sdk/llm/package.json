@@ -17,7 +17,8 @@
     "./src/utils/*.json"
   ],
   "scripts": {
-    "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"
+    "build": "pnpm exec tsc -p ./tsconfig.typecheck.json",
+    "take-models-pricing-snapshot": "node ./scripts/take_models_pricing_snapshot.js"
   },
   "dependencies": {
     "@outputai/core": "workspace:",
