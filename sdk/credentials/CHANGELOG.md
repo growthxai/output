@@ -1,5 +1,22 @@
 # @outputai/credentials
 
+## 0.13.0
+
+### Patch Changes
+
+- 806ba4c: ## Dependencies updates
+
+  ### Published dependency ranges
+
+  - js-yaml: `4.3.1` -> `4.3.2` (catalog), shipped by `@outputai/cli` and `@outputai/credentials`
+
+  ### API runtime
+
+  - qs: `6.15.2` -> `6.16.0`, reached through `express`, which also moves `side-channel` from `1.1.0` to `1.1.1`
+
+- Updated dependencies [4f4bf8f]
+  - @outputai/core@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes
