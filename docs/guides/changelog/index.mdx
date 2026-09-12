@@ -9,6 +9,56 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.13.0" description="2026-09-12 - minor release">
+
+See the [v0.12.0 - v0.13.0 migration guide](/migrations/v0.12.0-to-v0.13.0).
+
+### `@outputai/core`
+
+Hardened worker startup and shutdown around the catalog workflow.
+
+- Changed catalog reconciliation to terminate a stale catalog instead of asking it to complete, so a catalog that stopped processing workflow tasks no longer fails every deploy that follows it.
+- Increased the catalog workflow task timeout to 30s, enough for a cold worker bundle to activate.
+- Added two retries when publishing the catalog before failing the worker.
+- Added a startup gate so a worker never starts unless its catalog matches its own source code.
+- Changed the worker to always exit explicitly: `0` for a signal shutdown, `1` for a startup failure, a lost connection, an uncaught error, or a worker that failed to stop. A drain the worker had to abandon is not a failure - it is the bound working as intended - so it exits `0` and records a `Stopping Worker error` warning carrying the `GracefulShutdownPeriodExpiredError`.
+- Added graceful draining for uncaught exceptions and unhandled rejections, with a force quit if the drain stalls.
+- Fixed kill signals during startup killing the process abruptly, since the handler was only installed once the worker was built.
+- Added defaults for `TEMPORAL_SHUTDOWN_GRACE_TIME` (`15s`) and `TEMPORAL_SHUTDOWN_FORCE_TIME` (`20s`), so a wedged drain now ends under the worker's own control instead of waiting for the platform to `SIGKILL` it. Both were previously unset, which left the drain unbounded and meant the hook flush was never reached on a deploy that caught in-flight work. Raise them together with your platform's shutdown delay if your activities need longer.
+- Added `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` (`5000`) for the hook flush allowance, previously hardcoded at `30000`. The flush runs after the drain, so force time plus flush timeout is the worst-case shutdown and has to fit your platform's window: the defaults total 25s against the 30s most platforms allow. At the old 30s the flush could not complete on a default window.
+
+### `@outputai/llm`
+
+Added a static subset of the models pricing table, so costs for the six shipped providers can be calculated even when the live models pricing provider is down.
+
+- Added `pricingFreshness` to `LLMGenerationCost`, reporting whether the rates were fetched during the call (`live`), served from the 24 hour cache (`cached`), kept past that cache's expiry because a refresh failed (`stale`), or read from the bundled snapshot (`snapshot`).
+- Changed `LLMGenerationCost.status` to `imprecise` when rates come from the bundled snapshot, since it is a point-in-time copy that can lag the live catalog by an unbounded amount. A stale cache does not downgrade the status, because those rates were accurate when they were fetched.
+- Changed pricing lookups to pause live requests for 10 minutes after a failure, instead of retrying the unreachable catalog on every call.
+- Changed `cost` to stay non-null while the pricing catalog is unreachable, since the snapshot always provides rates. Code that read `cost === null` as an outage signal should read `pricingFreshness` or `status` instead. `cost` is still `null` when usage cannot be normalized.
+- Added a periodic refresh of the bundled snapshot, so upgrading to a newer release picks up a more recent table.
+
+Added `GCP_CREDENTIALS_JSON` support to the built-in `google-vertex` provider. Set it to the contents of a service account key file, either raw JSON or base64 encoded, to authenticate Vertex AI without deploying a credentials file. When the variable is unset the provider keeps using Application Default Credentials, so existing `GOOGLE_APPLICATION_CREDENTIALS`, `gcloud` and metadata server setups are unchanged.
+
+### `@outputai/cli`, `@outputai/llm`
+
+Added support for pricing Gemini grounded search, which providers bill per request rather than per token. `LLMGenerationUsage` and `LLMGenerationCost` items gain a `tools` group alongside `input` and `output`, and `LLMGenerationCost` gains a matching `tools` aggregate that is included in `total`. The legacy `cost:llm:request` payload is unchanged and does not carry grounding charges - its shape is frozen, so grounding costs are only visible on the new normalized attribute.
+
+`output workflow cost` prices these tool charges and marks any call with an unpriced charge (grounding or otherwise) with a `*` and a "cost incomplete" footnote, since the reported total understates the actual bill.
+
+### `@outputai/cli`, `@outputai/credentials`, `output-api`
+
+**Dependencies updates**
+
+**Published dependency ranges**
+
+- js-yaml: `4.3.1` -> `4.3.2` (catalog), shipped by `@outputai/cli` and `@outputai/credentials`
+
+**API runtime**
+
+- qs: `6.15.2` -> `6.16.0`, reached through `express`, which also moves `side-channel` from `1.1.0` to `1.1.1`
+
+</Update>
+
 <Update label="v0.12.0" description="2026-09-02 - minor release">
 
 See the [v0.11.0 - v0.12.0 migration guide](/migrations/v0.11.0-to-v0.12.0).

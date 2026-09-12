@@ -1,5 +1,33 @@
 # @outputai/cli
 
+## 0.13.0
+
+### Minor Changes
+
+- 69255d7: Added support for pricing Gemini grounded search, which providers bill per request rather than per token. `LLMGenerationUsage` and `LLMGenerationCost` items gain a `tools` group alongside `input` and `output`, and `LLMGenerationCost` gains a matching `tools` aggregate that is included in `total`. The legacy `cost:llm:request` payload is unchanged and does not carry grounding charges - its shape is frozen, so grounding costs are only visible on the new normalized attribute.
+
+  `output workflow cost` prices these tool charges and marks any call with an unpriced charge (grounding or otherwise) with a `*` and a "cost incomplete" footnote, since the reported total understates the actual bill.
+
+### Patch Changes
+
+- 806ba4c: ## Dependencies updates
+
+  ### Published dependency ranges
+
+  - js-yaml: `4.3.1` -> `4.3.2` (catalog), shipped by `@outputai/cli` and `@outputai/credentials`
+
+  ### API runtime
+
+  - qs: `6.15.2` -> `6.16.0`, reached through `express`, which also moves `side-channel` from `1.1.0` to `1.1.1`
+
+- Updated dependencies [1243f78]
+- Updated dependencies [69255d7]
+- Updated dependencies [806ba4c]
+- Updated dependencies [39bbc03]
+  - @outputai/llm@0.13.0
+  - @outputai/credentials@0.13.0
+  - @outputai/evals@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
