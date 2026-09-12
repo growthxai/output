@@ -36,10 +36,13 @@ const envVarSchema = z.object( {
   OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 2 * 60 * 1000 ) ), // 2min
   // Whether to send activity heartbeats (enabled by default)
   OUTPUT_ACTIVITY_HEARTBEAT_ENABLED: z.transform( v => v === undefined ? true : isStringboolTrue( v ) ),
-  // Set temporal worker shutdown force time, kept under the 30s most platforms allow before SIGKILL
-  TEMPORAL_SHUTDOWN_FORCE_TIME: durationSchema.default( '25s' ),
+  // Set temporal worker shutdown force time. Defaults budget a shutdown against the 30s most
+  // platforms allow before SIGKILL: force time + OUTPUT_HOOK_FLUSH_TIMEOUT_MS + 5s of margin.
+  TEMPORAL_SHUTDOWN_FORCE_TIME: durationSchema.default( '20s' ),
   // Set temporal worker shutdown grace time, when in-flight activities are asked to cancel
-  TEMPORAL_SHUTDOWN_GRACE_TIME: durationSchema.default( '20s' ),
+  TEMPORAL_SHUTDOWN_GRACE_TIME: durationSchema.default( '15s' ),
+  // How long the worker awaits pending hook callbacks once the drain is over, before exiting anyway
+  OUTPUT_HOOK_FLUSH_TIMEOUT_MS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 * 1000 ) ), // 5s
   // HTTP CONNECT proxy for Temporal gRPC connections (e.g. "proxy-host:8080").
   // Must be a bare host:port — no scheme (Temporal's native HTTP CONNECT
   // option is not a URL).
@@ -70,4 +73,5 @@ export const activityHeartbeatIntervalMs = envVars.OUTPUT_ACTIVITY_HEARTBEAT_INT
 export const activityHeartbeatEnabled = envVars.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED;
 export const shutdownForceTime = envVars.TEMPORAL_SHUTDOWN_FORCE_TIME;
 export const shutdownGraceTime = envVars.TEMPORAL_SHUTDOWN_GRACE_TIME;
+export const hookFlushTimeoutMs = envVars.OUTPUT_HOOK_FLUSH_TIMEOUT_MS;
 export const grpcProxy = envVars.TEMPORAL_GRPC_PROXY;

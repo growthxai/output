@@ -7,27 +7,35 @@ This guide covers behavior changes in the `@outputai/core` worker and in `@outpu
 
 ## Worker shutdown is now bounded
 
-`TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` have defaults:
+`TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` have defaults, and the previously hardcoded hook flush allowance is now `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`:
 
 | Variable | v0.12.0 | v0.13.0 | Meaning |
 | --- | --- | --- | --- |
-| `TEMPORAL_SHUTDOWN_GRACE_TIME` | unset (Temporal default `0`) | `20s` | How long in-flight activities run before they are asked to cancel |
-| `TEMPORAL_SHUTDOWN_FORCE_TIME` | unset (no force termination) | `25s` | How long the worker drains before it gives up and terminates |
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | unset (Temporal default `0`) | `15s` | How long in-flight activities run before they are asked to cancel |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | unset (no force termination) | `20s` | How long the worker drains before it gives up and terminates |
+| `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` | hardcoded `30000` | `5000` | How long pending hook callbacks are awaited once the drain is over |
 
-Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`. It now stops draining after `25s`, throws `GracefulShutdownPeriodExpiredError`, and exits under its own control - closing its Temporal connection, flushing hooks, and logging first.
+Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`, which meant the hook flush was never reached at all on a deploy that caught in-flight work. It now stops draining after `20s`, throws `GracefulShutdownPeriodExpiredError`, and exits under its own control - closing its Temporal connection, flushing hooks, and logging first.
 
-For most projects this is an improvement, because activities get 20 seconds of runway instead of being asked to cancel the instant a deploy starts.
+For most projects this is an improvement, because activities get 15 seconds of runway instead of being asked to cancel the instant a deploy starts, and buffered hook data actually gets written.
 
-### Set both values if your activities drain slowly
+### The three values are one budget
 
-If your activities routinely run longer than 25 seconds and you raised your platform's shutdown window to accommodate them, set both variables explicitly. Otherwise those activities are cancelled at 20 seconds and abandoned at 25 on every deploy, then retried on the new instance.
+The drain runs to `TEMPORAL_SHUTDOWN_FORCE_TIME` and only then does the flush start, so the worst-case shutdown is force time plus flush timeout. That total has to fit inside the window your platform allows between `SIGTERM` and `SIGKILL`. The defaults total 25 seconds against the 30 seconds most platforms allow, leaving 5 seconds of margin.
 
-Keep grace below force, and force below your platform's shutdown window, so the worker always exits before it is killed:
+The hook flush is the part to watch when retuning. It used to be 30 seconds, which on a default platform window could not complete; it is now 5 seconds, which fits. Five seconds is ample for handlers that write to stdout or an in-process buffer, which is what hook handlers should be doing - they all share this one budget, so a single handler awaiting remote I/O spends the allowance the others need. If you do have a handler that must await a network round trip, batch it and raise both this value and your platform's window, in that order.
+
+### Set the values explicitly if your activities drain slowly
+
+If your activities routinely run longer than 20 seconds and you raised your platform's shutdown window to accommodate them, set the variables explicitly. Otherwise those activities are cancelled at 15 seconds and abandoned at 20 on every deploy, then retried on the new instance.
+
+Keep grace below force, and force plus flush below your platform's shutdown window, so the worker always exits before it is killed:
 
 ```bash
 # Platform allows 300s between SIGTERM and SIGKILL
 TEMPORAL_SHUTDOWN_GRACE_TIME=280s
-TEMPORAL_SHUTDOWN_FORCE_TIME=290s
+TEMPORAL_SHUTDOWN_FORCE_TIME=285s
+OUTPUT_HOOK_FLUSH_TIMEOUT_MS=10000
 ```
 
 Values above your platform's window never take effect, since the platform terminates the process first. On Render that window is `maxShutdownDelaySeconds`, which defaults to 30 seconds and can be raised to 300. On Kubernetes it is `terminationGracePeriodSeconds`.
@@ -43,18 +51,18 @@ Every path that ends the worker changed shape. The exit code is also explicit no
 | Scenario | v0.12.0 | v0.13.0 |
 | --- | --- | --- |
 | `SIGTERM`, `SIGINT` or `SIGUSR2` while polling | Stops polling and asks in-flight activities to cancel at once, then waits for them for as long as they take. Exits `0` | Stops polling and lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel. Exits `0` |
-| In-flight work outlives the drain | Nothing bounds it, so the worker waits until the platform sends `SIGKILL`, which cuts the hook flush short. Exit code is whatever the platform reports | Stops draining at `TEMPORAL_SHUTDOWN_FORCE_TIME`, warns with `GracefulShutdownPeriodExpiredError`, flushes hooks. Exits `1` |
+| In-flight work outlives the drain | Nothing bounds it, so the worker waits until the platform sends `SIGKILL` and the hook flush is never reached. Exit code is whatever the platform reports | Stops draining at `TEMPORAL_SHUTDOWN_FORCE_TIME`, warns with `GracefulShutdownPeriodExpiredError`, flushes hooks. Exits `0`, since the bound worked as intended |
 | A signal during startup | No handler was installed until the worker had been built, so the process died on the spot with no teardown and no hook flush. Exits `128 + signal number`, `143` for `SIGTERM` | The handler is installed first, so startup stops at the next step, services are torn down and hooks flush. Exits `0` |
 | A second signal, more than a second after the first | Force quits on the spot, abandoning the drain. Exits `1` | Unchanged |
 | A service other than the worker fails to stop | Warns and carries on with the rest of the teardown. Exit code unaffected | Unchanged |
 | Uncaught exception or unhandled rejection | Not handled, so Node printed the stack and terminated immediately: no drain, no hook flush, no `onError` hook. Exits `1` | Drains exactly like a signal, emits `RUNTIME_ERROR` so `onError` hooks fire, flushes hooks. Exits `1` |
 | An uncaught error whose drain stalls | Not applicable, there was no drain | Force quits 60 seconds after the error. Exits `1` |
 | The Temporal connection is lost | Drains, then reports the loss. Exits `1` | Unchanged |
-| The worker fails while polling or draining | Drains what it can, then reports the failure. Exits `1` | Unchanged |
+| The worker fails to stop for a reason other than the drain expiring | Drains what it can, then reports the failure. Exits `1` | Unchanged |
 | The catalog cannot be published | The catalog ran alongside the worker, so the worker was already polling against a stale catalog when the failure surfaced. Exits `1` | The catalog gates the worker: it retries twice and never starts polling. Exits `1` |
 | Startup fails to load, bundle or connect | Tears down whatever was built. Exits `1` | Unchanged |
 
-If you alert on non-zero worker exits, the situations that produce one changed: a drain that outlives its window now exits `1` under the worker's own control instead of ending in a platform `SIGKILL`, and an uncaught error exits `1` only after draining.
+If you alert on non-zero worker exits, the situations that produce one changed. A drain that outlives its window is no longer one of them: it is an expected outcome of a deploy landing on busy work, so it exits `0` and records only the `Stopping Worker error` warning carrying the `GracefulShutdownPeriodExpiredError`. Alert on that log line if you want to track it. An uncaught error still exits `1`, but now only after draining.
 
 Two log lines moved with this. The failure log is now `Worker error` rather than `Fatal error`, and the last line is always `Bye`, where a failing worker used to end on `Exiting...`.
 
@@ -74,7 +82,8 @@ If you branch on `cost === null` to skip cost accounting during an outage, that 
 
 ## Checklist
 
-- Set `TEMPORAL_SHUTDOWN_GRACE_TIME` and `TEMPORAL_SHUTDOWN_FORCE_TIME` explicitly if your activities need more than 25 seconds to drain, keeping both under your platform's shutdown window.
+- Set `TEMPORAL_SHUTDOWN_GRACE_TIME`, `TEMPORAL_SHUTDOWN_FORCE_TIME` and `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` explicitly if your activities need more than 20 seconds to drain, keeping force time plus flush timeout under your platform's shutdown window.
+- Raise `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` if your hook callbacks do real I/O, since the allowance dropped from a hardcoded 30 seconds to 5.
 - Update alerts that key off worker exits or the `Fatal error` log line, which is now `Worker error`.
 - Expect a worker whose catalog cannot be published to exit instead of starting with a stale catalog.
 - Replace any `cost === null` check used to detect a pricing outage with a `pricingFreshness` or `status` check.

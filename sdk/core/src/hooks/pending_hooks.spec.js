@@ -24,7 +24,7 @@ describe( 'pending hooks', () => {
     } );
     pendingHooks.add( hookPromise );
 
-    const flushPromise = flushPendingHooks();
+    const flushPromise = flushPendingHooks( 5000 );
     const state = { flushed: false };
     flushPromise.then( () => {
       state.flushed = true;
@@ -42,8 +42,8 @@ describe( 'pending hooks', () => {
     vi.useFakeTimers();
     pendingHooks.add( new Promise( () => {} ) );
 
-    const flushPromise = flushPendingHooks();
-    await vi.advanceTimersByTimeAsync( 30_000 );
+    const flushPromise = flushPendingHooks( 5000 );
+    await vi.advanceTimersByTimeAsync( 5000 );
 
     await expect( flushPromise ).resolves.toBeUndefined();
   } );
@@ -53,8 +53,8 @@ describe( 'pending hooks', () => {
     pendingHooks.add( new Promise( () => {} ) );
     pendingHooks.add( new Promise( () => {} ) );
 
-    const flushPromise = flushPendingHooks();
-    await vi.advanceTimersByTimeAsync( 30_000 );
+    const flushPromise = flushPendingHooks( 5000 );
+    await vi.advanceTimersByTimeAsync( 5000 );
     await flushPromise;
 
     expect( logMock.warn ).toHaveBeenCalledWith( expect.any( String ), { count: 2 } );
