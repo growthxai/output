@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-09-11T15:41:29.811Z"
+    "createdAt": "2026-09-14T06:24:50.389Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -821,8 +821,8 @@
       },
       "mistral.voxtral-small-24b-2507": {
         "cost": {
-          "input": 0.15,
-          "output": 0.35
+          "input": 0.1,
+          "output": 0.3
         }
       },
       "moonshot.kimi-k2-thinking": {
