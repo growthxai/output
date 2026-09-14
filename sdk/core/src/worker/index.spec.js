@@ -8,7 +8,6 @@ const {
   connectionMonitorInstance,
   createCatalogMock,
   flushPendingHooksMock,
-  GracefulShutdownPeriodExpiredError,
   hashSourceCodeMock,
   initInterceptorsMock,
   interruption,
@@ -118,11 +117,6 @@ const {
     name = 'UncaughtError';
   };
 
-  /** Stands in for the Temporal error thrown when the drain outlives the force time */
-  class GracefulShutdownPeriodExpiredError extends Error {
-    name = 'GracefulShutdownPeriodExpiredError';
-  };
-
   const interruption = { controller: null, KillSignError, UncaughtError };
 
   return {
@@ -132,7 +126,6 @@ const {
     connectionMonitorInstance,
     createCatalogMock: vi.fn().mockReturnValue( { workflowNames: [ 'demo' ] } ),
     flushPendingHooksMock: vi.fn().mockResolvedValue( undefined ),
-    GracefulShutdownPeriodExpiredError,
     hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
     initInterceptorsMock: vi.fn().mockReturnValue( [] ),
     interruption,
@@ -204,8 +197,7 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
 vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
-  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) },
-  GracefulShutdownPeriodExpiredError
+  Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
 } ) );
 
 const importWorker = async () => {
@@ -412,18 +404,6 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
-    it( 'still exits cleanly when the drain outlived the force time', async () => {
-      await bootWorker();
-      const error = new GracefulShutdownPeriodExpiredError( 'Timed out while waiting for worker to shutdown gracefully' );
-      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'worker', error } ] );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( mockLog.error ).not.toHaveBeenCalled();
-      expect( process.exit ).toHaveBeenCalledWith( 0 );
-    } );
-
     it( 'does not report the worker as terminated when a signal ended the run', async () => {
       await bootWorker();
 
@@ -482,7 +462,6 @@ describe( 'worker/index', () => {
 
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
-
     it( 'reports a lost connection and shuts down', async () => {
       const error = new Error( 'connection lost' );
       await bootWorker();

@@ -1,4 +1,4 @@
-import { Worker, NativeConnection, GracefulShutdownPeriodExpiredError } from '@temporalio/worker';
+import { Worker, NativeConnection } from '@temporalio/worker';
 import * as configs from './configs.js';
 import { loadActivities } from './loader/activities.js';
 import { loadWorkflows } from './loader/workflows.js';
@@ -174,8 +174,7 @@ execute()
     log.info( 'Flushing hook callbacks...' );
     await flushPendingHooks( hookFlushTimeoutMs );
 
-    // An expired drain is the bound working as intended, not a worker failure, so it keeps exit code 0.
-    const workerFailedToStop = shutdownFailures.some( v => v.service === 'worker' && !( v.error instanceof GracefulShutdownPeriodExpiredError ) );
+    const workerFailedToStop = shutdownFailures.some( v => v.service === 'worker' );
     const exitCode = workerFailedToStop || hasError ? 1 : 0;
     setTimeout( () => {
       log.info( 'Bye' );
