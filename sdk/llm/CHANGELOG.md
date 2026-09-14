@@ -1,5 +1,27 @@
 # @outputai/llm
 
+## 0.13.0
+
+### Minor Changes
+
+- 1243f78: Added a static subset of the models pricing table, so costs for the six shipped providers can be calculated even when the live models pricing provider is down.
+
+  - Added `pricingFreshness` to `LLMGenerationCost`, reporting whether the rates were fetched during the call (`live`), served from the 24 hour cache (`cached`), kept past that cache's expiry because a refresh failed (`stale`), or read from the bundled snapshot (`snapshot`).
+  - Changed `LLMGenerationCost.status` to `imprecise` when rates come from the bundled snapshot, since it is a point-in-time copy that can lag the live catalog by an unbounded amount. A stale cache does not downgrade the status, because those rates were accurate when they were fetched.
+  - Changed pricing lookups to pause live requests for 10 minutes after a failure, instead of retrying the unreachable catalog on every call.
+  - Changed `cost` to stay non-null while the pricing catalog is unreachable, since the snapshot always provides rates. Code that read `cost === null` as an outage signal should read `pricingFreshness` or `status` instead. `cost` is still `null` when usage cannot be normalized.
+  - Added a periodic refresh of the bundled snapshot, so upgrading to a newer release picks up a more recent table.
+
+- 69255d7: Added support for pricing Gemini grounded search, which providers bill per request rather than per token. `LLMGenerationUsage` and `LLMGenerationCost` items gain a `tools` group alongside `input` and `output`, and `LLMGenerationCost` gains a matching `tools` aggregate that is included in `total`. The legacy `cost:llm:request` payload is unchanged and does not carry grounding charges - its shape is frozen, so grounding costs are only visible on the new normalized attribute.
+
+  `output workflow cost` prices these tool charges and marks any call with an unpriced charge (grounding or otherwise) with a `*` and a "cost incomplete" footnote, since the reported total understates the actual bill.
+
+### Patch Changes
+
+- 39bbc03: Added `GCP_CREDENTIALS_JSON` support to the built-in `google-vertex` provider. Set it to the contents of a service account key file, either raw JSON or base64 encoded, to authenticate Vertex AI without deploying a credentials file. When the variable is unset the provider keeps using Application Default Credentials, so existing `GOOGLE_APPLICATION_CREDENTIALS`, `gcloud` and metadata server setups are unchanged.
+- Updated dependencies [4f4bf8f]
+  - @outputai/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
