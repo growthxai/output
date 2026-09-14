@@ -177,7 +177,7 @@ execute()
     const workerFailedToStop = shutdownFailures.some( v => v.service === 'worker' );
     const exitCode = workerFailedToStop || hasError ? 1 : 0;
     setTimeout( () => {
-      log.info( 'Bye' );
+      log.info( 'Bye', { exitCode } );
       process.exit( exitCode );
     } );
   } );

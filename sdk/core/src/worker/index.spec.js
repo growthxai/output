@@ -389,7 +389,7 @@ describe( 'worker/index', () => {
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
       expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.anything() );
-      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye' );
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0 } );
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
