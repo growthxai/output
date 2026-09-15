@@ -16,6 +16,10 @@ vi.mock( '#utils', () => ( {
   buildWorkflowId: mockBuildWorkflowId
 } ) );
 
+vi.mock( '#logger', () => ( {
+  logger: { warn: vi.fn() }
+} ) );
+
 vi.mock( '../catalog.js', () => ( {
   resolveWorkflowName: mockResolveWorkflowName
 } ) );
@@ -66,6 +70,18 @@ describe( 'start', () => {
       taskQueue: 'custom-queue'
     } ) );
     expect( result ).toEqual( { workflowId: 'provided-id', runId: null } );
+  } );
+
+  it( 'includes a WorkspaceId search attribute when the input has a workspaceId', async () => {
+    const temporalStart = vi.fn().mockResolvedValue( { firstExecutionRunId: 'run-1' } );
+    const client = { workflow: { start: temporalStart } };
+    const { start } = await import( './start.js' );
+
+    await start( { client }, 'workflow', { workspaceId: 'my-workspace-id' } );
+
+    expect( temporalStart ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
+      searchAttributes: { WorkspaceId: [ 'my-workspace-id' ] }
+    } ) );
   } );
 
   it( 'propagates catalog resolution errors before starting', async () => {
