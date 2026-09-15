@@ -1,5 +1,17 @@
 # @outputai/output
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [3d517c0]
+  - @outputai/core@0.13.1
+  - @outputai/cli@0.13.1
+  - @outputai/credentials@0.13.1
+  - @outputai/evals@0.13.1
+  - @outputai/http@0.13.1
+  - @outputai/llm@0.13.1
+
 ## 0.13.0
 
 ### Patch Changes

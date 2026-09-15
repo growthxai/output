@@ -1,5 +1,13 @@
 # @outputai/cli
 
+## 0.13.1
+
+### Patch Changes
+
+- @outputai/credentials@0.13.1
+- @outputai/evals@0.13.1
+- @outputai/llm@0.13.1
+
 ## 0.13.0
 
 ### Minor Changes
