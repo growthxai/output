@@ -1,6 +1,6 @@
 import * as AI from 'ai';
 import { loadPrompt } from './prompt/loader.js';
-import { wrapGeneration, wrapStream } from './utils/wrap.js';
+import { wrapImageGeneration, wrapStream, wrapTextGeneration } from './utils/wrap.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { drainStream } from './utils/stream.js';
 import { loadSkills } from './utils/skills.js';
@@ -11,10 +11,13 @@ export const generateText = async args => {
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  return wrapGeneration( {
+  return wrapTextGeneration( {
     name: 'generateText',
     prompt,
-    fn: () => AI.generateText( loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ) )
+    fn: wiringOptions => AI.generateText( {
+      ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+      ...wiringOptions
+    } )
   } );
 };
 
@@ -27,9 +30,10 @@ export const streamText = args => {
     name: 'streamText',
     prompt,
     abortSignal: aiOptions.abortSignal,
-    fn: ( { onEndHook, onErrorHook } ) => AI.streamText( {
+    fn: ( { onEndHook, onErrorHook, telemetry } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
+      telemetry,
       onEnd: response => onEndHook( response, onEnd ),
       onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
     } )
@@ -44,14 +48,15 @@ export const generateTextWithStreaming = async args => {
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  return wrapGeneration( {
+  return wrapTextGeneration( {
     name: 'generateTextWithStreaming',
     prompt,
-    fn: async () => {
+    fn: async wiringOptions => {
       const state = { response: null };
       const stream = AI.streamText( {
         ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
         ...( onChunk && { onChunk } ),
+        ...wiringOptions,
         onEnd: res => {
           state.response = res;
         },
@@ -74,7 +79,7 @@ export const generateImage = async args => {
   const { promptFile, promptObject, promptDir, variables, ...aiOptions } = Validator.parseGenerateImageArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
 
-  return wrapGeneration( {
+  return wrapImageGeneration( {
     name: 'generateImage',
     prompt,
     fn: () => AI.generateImage( loadAiSdkImageOptions( { prompt, ...aiOptions } ) )

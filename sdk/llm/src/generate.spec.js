@@ -32,7 +32,8 @@ const optionMocks = vi.hoisted( () => ( {
 } ) );
 
 const wrapMocks = vi.hoisted( () => ( {
-  wrapGeneration: vi.fn(),
+  wrapTextGeneration: vi.fn(),
+  wrapImageGeneration: vi.fn(),
   wrapStream: vi.fn(),
   streamHooks: { onEndHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
@@ -59,7 +60,8 @@ vi.mock( './ai_sdk_options.js', () => ( {
 } ) );
 
 vi.mock( './utils/wrap.js', () => ( {
-  wrapGeneration: ( ...args ) => wrapMocks.wrapGeneration( ...args ),
+  wrapTextGeneration: ( ...args ) => wrapMocks.wrapTextGeneration( ...args ),
+  wrapImageGeneration: ( ...args ) => wrapMocks.wrapImageGeneration( ...args ),
   wrapStream: ( ...args ) => wrapMocks.wrapStream( ...args )
 } ) );
 
@@ -81,6 +83,10 @@ const textOptions = {
   model: 'MODEL',
   messages: loadedPrompt.messages,
   providerOptions: { test: true }
+};
+
+const wiringOptions = {
+  telemetry: { integrations: { onStepEnd: vi.fn(), onEnd: vi.fn(), onError: vi.fn() } }
 };
 
 const textResponse = {
@@ -124,10 +130,12 @@ describe( 'generate', () => {
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
     optionMocks.loadAiSdkImageOptions.mockReset().mockReturnValue( imageOptions );
 
-    wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
+    wrapMocks.wrapTextGeneration.mockReset().mockImplementation( async ( { fn } ) => fn( wiringOptions ) );
+    wrapMocks.wrapImageGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
     wrapMocks.streamHooks = {
       onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
-      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
+      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) ),
+      telemetry: wiringOptions.telemetry
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
 
@@ -171,7 +179,7 @@ describe( 'generate', () => {
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'test@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).toHaveBeenCalledWith( loadedPrompt );
-      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
         name: 'generateText',
         prompt: loadedPrompt,
         fn: expect.any( Function )
@@ -185,7 +193,7 @@ describe( 'generate', () => {
         stopWhen,
         abortSignal
       } );
-      expect( aiFns.generateText ).toHaveBeenCalledWith( textOptions );
+      expect( aiFns.generateText ).toHaveBeenCalledWith( { ...textOptions, ...wiringOptions } );
       expect( result ).toBe( textResponse );
     } );
 
@@ -212,13 +220,13 @@ describe( 'generate', () => {
 
       await expect( generateText( { prompt: '' } ) ).rejects.toThrow( validationError );
       expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
-      expect( wrapMocks.wrapGeneration ).not.toHaveBeenCalled();
+      expect( wrapMocks.wrapTextGeneration ).not.toHaveBeenCalled();
       expect( aiFns.generateText ).not.toHaveBeenCalled();
     } );
   } );
 
   describe( 'generateTextWithStreaming', () => {
-    it( 'consumes the stream inside wrapGeneration and returns the completed response', async () => {
+    it( 'consumes the stream inside wrapTextGeneration and returns the completed response', async () => {
       const { generateTextWithStreaming } = await importSut();
       const variables = { topic: 'testing' };
       const output = { summary: 'Structured result' };
@@ -245,7 +253,7 @@ describe( 'generate', () => {
         promptDir: '/prompts',
         onChunk
       } );
-      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
         name: 'generateTextWithStreaming',
         prompt: loadedPrompt,
         fn: expect.any( Function )
@@ -256,6 +264,7 @@ describe( 'generate', () => {
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
+        ...wiringOptions,
         onChunk,
         onEnd: expect.any( Function ),
         onError: expect.any( Function )
@@ -366,6 +375,7 @@ describe( 'generate', () => {
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
         onChunk,
+        telemetry: wiringOptions.telemetry,
         onEnd: expect.any( Function ),
         onError: expect.any( Function )
       } );
@@ -473,7 +483,7 @@ describe( 'generate', () => {
       } );
       expect( promptMocks.loadPrompt ).toHaveBeenCalledWith( 'image@v1', variables, '/prompts' );
       expect( skillMocks.loadSkills ).not.toHaveBeenCalled();
-      expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+      expect( wrapMocks.wrapImageGeneration ).toHaveBeenCalledWith( {
         name: 'generateImage',
         prompt: loadedPrompt,
         fn: expect.any( Function )
@@ -523,7 +533,7 @@ describe( 'generate', () => {
 
       await expect( generateImage( { prompt: '' } ) ).rejects.toThrow( validationError );
       expect( promptMocks.loadPrompt ).not.toHaveBeenCalled();
-      expect( wrapMocks.wrapGeneration ).not.toHaveBeenCalled();
+      expect( wrapMocks.wrapImageGeneration ).not.toHaveBeenCalled();
       expect( aiFns.generateImage ).not.toHaveBeenCalled();
     } );
   } );

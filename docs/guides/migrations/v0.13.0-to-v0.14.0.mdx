@@ -1,0 +1,63 @@
+---
+title: "v0.13.0 → v0.14.0"
+description: "Upgrading Output.ai projects from v0.13.0 to v0.14.0: failed and aborted LLM calls now report the usage and cost they already spent."
+---
+
+This guide covers one behavior change in `@outputai/llm`. Nothing in your code needs to change, but LLM calls that fail after the model ran now report usage and cost instead of reporting nothing, so the same traffic produces more metering events and a higher total.
+
+## What changed
+
+Usage and cost used to be read from the value a call returned. A call that threw returned nothing, so everything it had already spent went unreported - even when the provider had answered and the failure came afterwards, in output validation, in the tool loop, or in your own code.
+
+Usage is now collected from the AI SDK lifecycle events as the call progresses, so billing no longer depends on reaching a return statement. Every generation that produced at least one completed step reports what that step cost, whether the call ends with a response, an error, or an abort.
+
+Nothing changed in the shape of `LLMGenerationUsage`, `LLMGenerationCost`, the `llm:generation:usage` / `llm:generation:cost` trace attributes, or the `llm:generation:metering` and `cost:llm:request` events. A failing call still throws, and the thrown error still carries no cost - the numbers reach the trace and the events only.
+
+## Where cost is now recovered
+
+### `generateText` / `Agent.generate`
+
+- Output or schema validation failure after the model answered (`NoObjectGeneratedError`, `NoOutputGeneratedError`)
+- Tool loop failing after at least one step finished
+- Your own post-response code throwing, including an `Agent.generate` message store failure
+- Abort after at least one step finished
+
+### `generateTextWithStreaming` / `Agent.generateWithStreaming`
+
+- Provider error part mid stream, once the stream closes
+- Abort mid stream, after at least one step finished
+- Output parse or validation failure on the structured output
+- Message store failure after the stream finished (`Agent.generateWithStreaming`)
+
+### `streamText` / `Agent.stream`
+
+- Error part that ends the run with steps already collected
+- Abort after at least one step finished
+
+## Where it still is not
+
+Nothing was spent, or nothing was reported, so there is nothing to bill:
+
+- Any failure before the first step completes: authentication, a rejected request, an unknown model or provider, a connection error
+- An abort before the first step completes, for every method
+- A provider that stalls without closing the stream after a failure, if the step events had not arrived within the 250 ms drain allowance (`generateTextWithStreaming`, `Agent.generateWithStreaming`)
+- A `streamText` consumer that abandons the stream instead of reading it
+- `generateImage`, which has no step loop: a failure there always precedes any usage
+
+## Migration steps
+
+### Re-baseline cost dashboards and budgets
+
+Totals rise for unchanged traffic, by the cost of failures that were previously invisible. The size of the shift depends on how often your workflows hit the paths above - a workflow with a strict output schema and a retrying activity can move noticeably, since each attempt bills the tokens it spent.
+
+If you alert on a cost threshold, expect the step change at the upgrade and reset the baseline rather than treating it as a spike.
+
+### Expect metering events on failed runs
+
+Code that assumed a `llm:generation:metering` or `cost:llm:request` event implies a successful generation no longer holds. Billing is emitted once per call, and per attempt when an activity retries.
+
+To distinguish the two cases, read the trace: an LLM event that also carries an error is a failed call that still spent tokens.
+
+### Nothing to change in call sites
+
+No signatures, options, or return shapes changed. `cost` on a returned response behaves as before.

@@ -1,12 +1,10 @@
 import { extractSources } from './sources.js';
-import { parseLLMUsage } from './usage.js';
-import { calculateCosts } from './cost.js';
 import { calculateBase64FileSize } from './image.js';
-import { Tracing, Event } from '@outputai/core/sdk/runtime';
+import { Tracing } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
 import { Logger } from '@outputai/core';
-import { convertCostToLegacy } from './legacy_cost_attribute.js';
+import { Metering } from './metering.js';
 import { randomBytes } from 'node:crypto';
 
 /** Creates a proxy of the AI SDK response and attach virtual getters to it based on an object map */
@@ -30,37 +28,65 @@ const handleError = ( { traceId, error: originalError } ) => {
   return error;
 };
 
-/** Normalize raw AI SDK usage, calculate cost, attach trace attributes, and emit metering events */
-const handleMetering = async ( { traceId, usage: sdkUsage, prompt, steps } ) => {
-  const usageAttribute = parseLLMUsage( { usage: sdkUsage, prompt, steps } );
-  if ( !usageAttribute ) {
-    return null;
+const inlineTry = async fn => {
+  try {
+    return { result: await fn(), error: null };
+  } catch ( error ) {
+    return { result: null, error };
   }
-
-  const costAttribute = await calculateCosts( usageAttribute );
-  if ( costAttribute ) {
-    Tracing.addEventAttribute( { eventId: traceId, attribute: costAttribute } );
-    // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-    const legacyPayload = convertCostToLegacy( costAttribute );
-    if ( legacyPayload ) {
-      Event.emit( 'cost:llm:request', structuredClone( legacyPayload ) );
-      Tracing.addEventAttribute( { eventId: traceId, attribute: legacyPayload } );
-    }
-  }
-
-  Tracing.addEventAttribute( { eventId: traceId, attribute: usageAttribute } );
-  Event.emit( 'llm:generation:metering', structuredClone( { cost: costAttribute, usage: usageAttribute } ) );
-  return costAttribute;
 };
 
 /**
- * Runs a completing AI SDK call (`generateText`, `generateImage`, `generateTextWithStreaming`,
- * `Agent.generate`, `Agent.generateWithStreaming`): start the LLM trace, run `fn`, attach cost
- * (and sources on text), end the trace, and return a proxied response.
+ * Runs a completing AI SDK text call (`generateText`, `generateTextWithStreaming`,
+ * `Agent.generate`, `Agent.generateWithStreaming`): starts the LLM trace, runs `fn`, ends the trace
+ * and returns the response proxied with `result` (`text`), `cost` and merged `sources`.
  *
- * Text responses get `result` (`text`), `cost`, and merged `sources`. Image responses get
- * `result` (`image`) and `cost`. Trace output keeps raw `response.usage`; normalized usage and
- * cost are trace attributes.
+ * `fn` must spread the wiring options into the call, so usage is metered from the SDK lifecycle
+ * events instead of the returned response and still lands when `fn` throws after the model ran.
+ * Trace output keeps raw `response.usage`; normalized usage and cost are trace attributes.
+ *
+ * @param {object} args
+ * @param {string} args.name - Trace event name
+ * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
+ * @param {( wiringOptions: { telemetry: object } ) => Promise<object>} args.fn - AI SDK call; spread
+ *   `wiringOptions` into the call options and return the SDK response
+ * @returns {Promise<object>} Proxied SDK response
+ */
+export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
+  const traceId = startTrace( { name, prompt } );
+
+  const metering = new Metering( { traceId, prompt } );
+
+  const telemetry = {
+    integrations: {
+      onStepEnd: metering.recordStep,
+      onEnd: metering.recordResponse
+    }
+  };
+
+  const { result: response, error } = await inlineTry( () => fn( { telemetry } ) );
+
+  await metering.bill();
+
+  if ( error ) {
+    throw handleError( { traceId, error } );
+  }
+
+  const { text: result, finalStep, usage } = response;
+  const providerMetadata = finalStep?.providerMetadata;
+  const sources = extractSources( response );
+
+  Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
+  return createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
+};
+
+/**
+ * Runs `generateImage`: starts the LLM trace, meters the returned usage, ends the trace and returns
+ * the response proxied with `result` (the first `image`) and `cost`.
+ *
+ * Image calls expose no telemetry lifecycle events, so usage is read from the response. With no
+ * step loop and no output parsing, a throw can only happen before any usage exists; it is mapped
+ * and recorded without metering.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
@@ -68,28 +94,21 @@ const handleMetering = async ( { traceId, usage: sdkUsage, prompt, steps } ) => 
  * @param {() => Promise<object>} args.fn - AI SDK call; must return the SDK response
  * @returns {Promise<object>} Proxied SDK response
  */
-export const wrapGeneration = async ( { name, prompt, fn } ) => {
+export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
+  const metering = new Metering( { traceId, prompt } );
   try {
     const response = await fn();
-    const { usage } = response;
-    const cost = await handleMetering( { traceId, usage, prompt, steps: response.steps } );
 
-    if ( Array.isArray( response.images ) ) {
-      const { image, images, providerMetadata } = response;
-      const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
+    metering.recordResponse( response );
+    await metering.bill();
 
-      Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
-      return createResponseProxy( { response, properties: { cost, result: image } } );
-    } else {
-      const { text: result, finalStep } = response;
-      const { providerMetadata } = finalStep;
-      const sources = extractSources( response );
+    const { usage, image, images, providerMetadata } = response;
+    const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
 
-      Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
-      return createResponseProxy( { response, properties: { cost, sources, result } } );
-    }
+    Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
+    return createResponseProxy( { response, properties: { cost: metering.attributes.cost, result: image } } );
 
   } catch ( error ) {
     throw handleError( { traceId, error } );
@@ -99,98 +118,110 @@ export const wrapGeneration = async ( { name, prompt, fn } ) => {
 /**
  * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
- * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)`. Call
- * `onEndHook` from the SDK `onEnd`: it wraps the response, ends the trace, then invokes
- * `callback` without rethrowing. Call `onErrorHook` from SDK `onError`: it maps the error,
- * records it, and invokes `callback` without rethrowing. Callback failures are logged.
+ * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)` to wire into the
+ * SDK `onEnd` / `onError`, plus `telemetry` to spread into the call. Both hooks bill, end or record
+ * the trace, then invoke `callback`; callback failures are logged, never rethrown.
  *
- * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded
- * on the LLM trace. A non-Promise return (the `streamText` stream) is returned immediately.
- * When `abortSignal` aborts, its reason is recorded as an LLM trace error. The listener is removed
- * when the stream ends, reports an error, or fails during setup.
+ * Metering is fed by `telemetry`, where `onStepEnd` collects step usage so the tokens survive the
+ * exits that report no response: `NoOutputGeneratedError` skips `onEnd`, and an abort fires neither
+ * terminal hook. The SDK awaits its `onAbort` before enqueueing the abort part, so billing from
+ * there always lands before the consumer observes the cancellation.
+ *
+ * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded on
+ * the trace; a non-Promise return (the `streamText` stream) is returned as is, with a rejection of
+ * its `output` promise recorded without being swallowed from the consumer. An abort on
+ * `abortSignal` records its reason as a trace error, and the listener is removed when the stream
+ * ends, reports an error, or fails during setup. An abort the SDK raises on its own timeout leaves
+ * `abortSignal` untouched, so `onAbort` records that one instead.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
  * @param {AbortSignal} [args.abortSignal] - Optional signal used to trace stream cancellation
- * @param {(hooks: { onEndHook: Function, onErrorHook: Function }) => object | Promise<object>} args.fn -
- *   Return the SDK stream, or a Promise of that stream (`Agent.stream`); wire the hooks into SDK
- *   `onEnd` / `onError`
+ * @param {( wiring: { onEndHook: Function, onErrorHook: Function, telemetry: object } ) =>
+ *   object | Promise<object>} args.fn - Return the SDK stream, or a Promise of that stream
+ *   (`Agent.stream`)
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
 export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
   const traceId = startTrace( { name, prompt } );
-
-  const onAbortHook = reason =>
-    handleError( {
-      traceId,
-      error: reason instanceof Error ? reason : new Error( 'Streaming aborted.', { cause: reason } )
-    } );
+  const metering = new Metering( { traceId, prompt } );
 
   const handleAbort = () => {
-    if ( !abortSignal ) {
-      return () => {};
-    }
-
-    if ( abortSignal.aborted ) {
-      onAbortHook( abortSignal.reason );
-      return () => {};
-    }
-
-    const listener = () => onAbortHook( abortSignal.reason );
-    abortSignal.addEventListener( 'abort', listener, { once: true } );
-
-    return () => abortSignal.removeEventListener( 'abort', listener );
+    const error = abortSignal?.reason instanceof Error ? abortSignal.reason : new Error( 'Streaming aborted.', { cause: abortSignal?.reason } );
+    handleError( { traceId, error } );
   };
 
-  const removeAbortListener = handleAbort();
+  if ( abortSignal ) {
+    if ( abortSignal.aborted ) {
+      handleAbort();
+    } else {
+      abortSignal.addEventListener( 'abort', handleAbort, { once: true } );
+    }
+  }
+  const removeAbortListener = () => abortSignal?.removeEventListener( 'abort', handleAbort );
+
+  const telemetry = {
+    integrations: {
+      onStepEnd: metering.recordStep,
+      onAbort: async () => {
+        await metering.bill();
+        // abortion was caused by timeout and not signal
+        if ( !abortSignal?.aborted ) {
+          handleError( { traceId, error: new Error( 'Streaming timed out.' ) } );
+        }
+      }
+    }
+  };
 
   const onEndHook = async ( response, callback ) => {
-    const state = { proxyResponse: null };
     removeAbortListener();
+
+    metering.recordResponse( response );
+    await metering.bill();
+
+    const { text: result, finalStep, usage } = response;
+    const sources = extractSources( response );
+    Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata: finalStep?.providerMetadata, sources } } );
+    const proxyResponse = createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
+
+    // ignore callback errors as this callback is fire and forget
     try {
-      const { text: result, finalStep, usage, steps } = response;
-      const { providerMetadata } = finalStep;
-      const cost = await handleMetering( { traceId, usage, prompt, steps } );
-      const sources = extractSources( response );
-      Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
-      state.proxyResponse = createResponseProxy( { response, properties: { cost, sources, result } } );
-    } catch ( error ) {
-      Logger.error( 'Stream onEnd() handler failed', { namespace: 'LLM', error: error?.message ?? String( error ) } );
-      throw handleError( { traceId, error } );
+      await callback?.( proxyResponse );
+    } catch ( e ) {
+      Logger.error( 'Stream onEnd() callback failed', { namespace: 'LLM', error: e?.message ?? String( e ) } );
     }
 
-    try {
-      await callback?.( state.proxyResponse );
-    } catch ( callbackError ) {
-      // ignore these as this callback is fire and forget
-      Logger.error( 'Stream onEnd() callback failed', {
-        namespace: 'LLM',
-        error: callbackError instanceof Error ? callbackError.message : String( callbackError )
-      } );
-    }
+    return proxyResponse;
   };
 
   const onErrorHook = async ( event, callback ) => {
-    const error = handleError( { traceId, error: event.error } );
     removeAbortListener();
+
+    await metering.bill();
+
+    const error = handleError( { traceId, error: event.error } );
+
+    // ignore these as this callback is fire and forget
     try {
       await callback?.( error );
-    } catch ( callbackError ) {
-      // ignore these as this callback is fire and forget
-      Logger.error( 'Stream onError() callback failed', {
-        namespace: 'LLM',
-        error: callbackError instanceof Error ? callbackError.message : String( callbackError )
-      } );
+    } catch ( e ) {
+      Logger.error( 'Stream onError() callback failed', { namespace: 'LLM', error: e?.message ?? String( e ) } );
     }
   };
 
+  /** The consumer owns `stream.output`, so its rejection only reaches the trace if we observe it too */
+  const recordOutputError = stream => {
+    stream?.output?.catch( error => handleError( { traceId, error } ) );
+    return stream;
+  };
+
   try {
-    const stream = fn( { onEndHook, onErrorHook } );
-    return isPromise( stream ) ? stream.catch( error => {
+    const stream = fn( { onEndHook, onErrorHook, telemetry } );
+    return isPromise( stream ) ? stream.then( recordOutputError ).catch( error => {
       removeAbortListener();
       throw handleError( { traceId, error } );
-    } ) : stream;
+    } ) : recordOutputError( stream );
   } catch ( error ) {
     removeAbortListener();
     throw handleError( { traceId, error } );

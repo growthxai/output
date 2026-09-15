@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { parseGroundingUsage } from './grounding.js';
+import { extractUsageFromSteps } from './usage_tools.js';
 
 const exists = v => Number.isSafeInteger( v ) && v >= 0;
 
@@ -58,19 +59,37 @@ export class LLMGenerationUsage extends Tracing.Attribute.BaseAttribute {
 }
 
 /**
- * Converts raw AI SDK usage to LLMGenerationUsage data
+ * Returns usage from response or reconstruct it from steps.
+ *
+ * The token check is load-bearing: aborted and truncated calls still report an aggregate, but with
+ * every token count undefined, and the steps are then the only record of what was already spent.
+ */
+const resolveUsage = ( { usage, steps } ) => {
+  if ( usage && ( exists( usage.inputTokens ) || exists( usage.outputTokens ) ) ) {
+    return usage;
+  }
+  return Array.isArray( steps ) && steps.length > 0 ? extractUsageFromSteps( steps ) : null;
+};
+
+/**
+ * Converts raw AI SDK usage to LLMGenerationUsage data.
+ *
+ * Reads `response.usage`, falling back to the sum of `response.steps` usage when the aggregate is
+ * missing tokens (truncated or failed streams). Grounding is aggregated from `response.steps`, so a
+ * partial `{ steps }` response is accepted when only the steps are known.
  *
  * @param {object} args
  * @param {object} args.prompt - Output prompt with model configuration
- * @param {object} args.prompt.config - Prompt model configuration
- * @param {string} args.prompt.config.provider - Id of the provider
- * @param {string} args.prompt.config.model - Id of the model
- * @param {object} args.usage - AI SDK usage with aggregate token counts and optional input/output token details
- * @param {object[]} [args.steps] - AI SDK steps, each with its own `providerMetadata`, used for per-request charges
+ * @param {object} [args.usage] - AI SDK response usage
+ * @param {object} [args.steps] - AI SDK response steps
  *
  * @returns {LLMGenerationUsage | null} LLM generation usage with input, output, total and detailed breakdown
  */
-export const parseLLMUsage = ( { prompt, usage, steps } ) => {
+export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [] } ) => {
+  const usage = resolveUsage( { usage: usageArg, steps } );
+  if ( !usage ) {
+    return null;
+  }
   const { provider: providerId, model: modelId } = prompt.config;
   const { inputTokens, inputTokenDetails, outputTokens, outputTokenDetails } = usage;
   const { noCacheTokens, cacheReadTokens, cacheWriteTokens } = inputTokenDetails ?? {};
@@ -118,13 +137,15 @@ export const parseLLMUsage = ( { prompt, usage, steps } ) => {
   // Grounding is billed per step, so aggregate across every step rather than only the final one.
   // Per-query families (Gemini 3) return queries.length per step; per-prompt families (Gemini 2.x)
   // return 1 per grounded step. Summing yields total queries and grounded-step count respectively.
-  const grounding = ( steps ?? [] )
-    .filter( step => step?.providerMetadata )
-    .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
-    .filter( Boolean );
-  if ( grounding.length > 0 ) {
-    const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
-    items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
+  if ( Array.isArray( steps ) ) {
+    const grounding = steps
+      .filter( step => step?.providerMetadata )
+      .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
+      .filter( Boolean );
+    if ( grounding.length > 0 ) {
+      const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
+      items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
+    }
   }
 
   if ( items.length === 0 ) {

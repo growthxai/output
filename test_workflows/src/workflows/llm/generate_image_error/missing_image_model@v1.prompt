@@ -1,0 +1,8 @@
+---
+provider: openai
+model: gpt-image-this-model-does-not-exist
+size: 1024x1024
+n: 1
+---
+
+Draw a single red carburetor on a white background.

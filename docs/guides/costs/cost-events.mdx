@@ -76,7 +76,11 @@ Handler errors are caught and logged by the framework - they never affect the wo
 
 ### When events fire
 
-`llm:generation:metering` is emitted after generation completes for text, image, and Agent calls whenever usage is available. For direct `streamText()` and `Agent.stream()` usage, it fires when the stream finishes, not when it starts.
+`llm:generation:metering` is emitted after a generation ends for text, image, and Agent calls whenever usage is available. For direct `streamText()` and `Agent.stream()` usage, it fires when the stream finishes, not when it starts.
+
+A failed generation also emits. Usage is collected as the call progresses, so a call that throws or is aborted after completing at least one step reports what it spent - an output that never validated, a tool loop that broke mid-run, an aborted stream, or a failure in your own code after the model answered. An event is therefore not proof of a successful call; a trace event carrying both usage and an error is a failure that still cost money. Failures before the first step completes report nothing, because no usage exists yet.
+
+One event is emitted per call. Activity retries emit one per attempt, since each attempt calls the provider.
 
 ### Payload
 

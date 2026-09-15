@@ -1,0 +1,15 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0
+maxOutputTokens: 256
+maxSteps: 3
+---
+
+<assistant>
+You are a tool-using assistant. Call the get_time tool whenever you need the current time.
+</assistant>
+
+<user>
+Tell me the current time. Call the tool first, then answer in one short sentence.
+</user>
