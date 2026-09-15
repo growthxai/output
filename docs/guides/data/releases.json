@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "0.13.1",
+      "date": "2026-09-15",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "quick-dolls-settle",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Changed the worker to exit `1` on any shutdown failure, including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME`. v0.13.0 exempted an abandoned drain from the failure exit code, which never took effect in practice."
+        }
+      ]
+    },
+    {
       "version": "0.13.0",
       "date": "2026-09-14",
       "level": "minor",

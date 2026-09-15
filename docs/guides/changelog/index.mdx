@@ -9,6 +9,14 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.13.1" description="2026-09-15 - patch release">
+
+### `@outputai/core`
+
+Changed the worker to exit `1` on any shutdown failure, including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME`. v0.13.0 exempted an abandoned drain from the failure exit code, which never took effect in practice.
+
+</Update>
+
 <Update label="v0.13.0" description="2026-09-14 - minor release">
 
 See the [v0.12.0 - v0.13.0 migration guide](/migrations/v0.12.0-to-v0.13.0).
