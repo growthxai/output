@@ -80,8 +80,8 @@ Uncaught exceptions and unhandled rejections take the same path, so in-flight wo
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown, whether or not the drain completed inside `TEMPORAL_SHUTDOWN_FORCE_TIME`. A service failing to stop is logged as a warning and does not change the code |
-| `1` | Startup failed, the worker failed to stop for a reason other than the drain expiring, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
+| `0` | A signal requested the shutdown and the worker drained inside `TEMPORAL_SHUTDOWN_FORCE_TIME`. A service other than the worker failing to stop is logged as a warning and does not change the code |
+| `1` | Startup failed, the worker failed to stop for any reason - including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME` - the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
 
 ### File Discovery
 

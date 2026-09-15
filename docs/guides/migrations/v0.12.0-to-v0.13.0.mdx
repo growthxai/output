@@ -15,7 +15,7 @@ This guide covers behavior changes in the `@outputai/core` worker and in `@outpu
 | `TEMPORAL_SHUTDOWN_FORCE_TIME` | unset (no force termination) | `20s` | How long the worker drains before it gives up and terminates |
 | `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` | hardcoded `30000` | `5000` | How long pending hook callbacks are awaited once the drain is over |
 
-Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`, which meant the hook flush was never reached at all on a deploy that caught in-flight work. It now stops draining after `20s`, throws `GracefulShutdownPeriodExpiredError`, and exits under its own control - closing its Temporal connection, flushing hooks, and logging first.
+Previously the worker never force-terminated: it waited indefinitely for in-flight activities and was stopped only when the platform sent `SIGKILL`, which meant the hook flush was never reached at all on a deploy that caught in-flight work. It now stops draining after `20s` and exits under its own control with code `1` - closing its Temporal connection, flushing hooks, and logging first.
 
 For most projects this is an improvement, because activities get 15 seconds of runway instead of being asked to cancel the instant a deploy starts, and buffered hook data actually gets written.
 
@@ -51,18 +51,18 @@ Every path that ends the worker changed shape. The exit code is also explicit no
 | Scenario | v0.12.0 | v0.13.0 |
 | --- | --- | --- |
 | `SIGTERM`, `SIGINT` or `SIGUSR2` while polling | Stops polling and asks in-flight activities to cancel at once, then waits for them for as long as they take. Exits `0` | Stops polling and lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel. Exits `0` |
-| In-flight work outlives the drain | Nothing bounds it, so the worker waits until the platform sends `SIGKILL` and the hook flush is never reached. Exit code is whatever the platform reports | Stops draining at `TEMPORAL_SHUTDOWN_FORCE_TIME`, warns with `GracefulShutdownPeriodExpiredError`, flushes hooks. Exits `0`, since the bound worked as intended |
+| In-flight work outlives the drain | Nothing bounds it, so the worker waits until the platform sends `SIGKILL` and the hook flush is never reached. Exit code is whatever the platform reports | Stops draining at `TEMPORAL_SHUTDOWN_FORCE_TIME`, warns with `Stopping Worker error`, flushes hooks. Exits `1` |
 | A signal during startup | No handler was installed until the worker had been built, so the process died on the spot with no teardown and no hook flush. Exits `128 + signal number`, `143` for `SIGTERM` | The handler is installed first, so startup stops at the next step, services are torn down and hooks flush. Exits `0` |
 | A second signal, more than a second after the first | Force quits on the spot, abandoning the drain. Exits `1` | Unchanged |
 | A service other than the worker fails to stop | Warns and carries on with the rest of the teardown. Exit code unaffected | Unchanged |
 | Uncaught exception or unhandled rejection | Not handled, so Node printed the stack and terminated immediately: no drain, no hook flush, no `onError` hook. Exits `1` | Drains exactly like a signal, emits `RUNTIME_ERROR` so `onError` hooks fire, flushes hooks. Exits `1` |
 | An uncaught error whose drain stalls | Not applicable, there was no drain | Force quits 60 seconds after the error. Exits `1` |
 | The Temporal connection is lost | Drains, then reports the loss. Exits `1` | Unchanged |
-| The worker fails to stop for a reason other than the drain expiring | Drains what it can, then reports the failure. Exits `1` | Unchanged |
+| The worker fails to stop | Drains what it can, then reports the failure. Exits `1` | Unchanged |
 | The catalog cannot be published | The catalog ran alongside the worker, so the worker was already polling against a stale catalog when the failure surfaced. Exits `1` | The catalog gates the worker: it retries twice and never starts polling. Exits `1` |
 | Startup fails to load, bundle or connect | Tears down whatever was built. Exits `1` | Unchanged |
 
-If you alert on non-zero worker exits, the situations that produce one changed. A drain that outlives its window is no longer one of them: it is an expected outcome of a deploy landing on busy work, so it exits `0` and records only the `Stopping Worker error` warning carrying the `GracefulShutdownPeriodExpiredError`. Alert on that log line if you want to track it. An uncaught error still exits `1`, but now only after draining.
+If you alert on non-zero worker exits, the situations that produce one changed. A drain that outlives its window is now one of them, where v0.12.0 hung until the platform stepped in, so expect an exit `1` from any deploy that lands on work longer than `TEMPORAL_SHUTDOWN_FORCE_TIME`. Nothing in the logs separates it from another failure to stop: the `Stopping Worker error` warning reports `IllegalStateError: Worker still in use`, because the forced termination leaves in-flight polls behind, and Temporal's own `Worker failed` line serializes its error as empty. Treat a non-zero exit on a deploy you triggered as routine. An uncaught error still exits `1`, but now only after draining.
 
 Two log lines moved with this. The failure log is now `Worker error` rather than `Fatal error`, and the last line is always `Bye`, where a failing worker used to end on `Exiting...`.
 
