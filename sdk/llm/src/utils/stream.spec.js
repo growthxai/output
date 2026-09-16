@@ -161,17 +161,18 @@ describe( 'drainStream', () => {
     expect( deadline.timeouts ).toEqual( [ 250 ] );
   } );
 
-  it( 'gives up on a stream that stalls after the caller aborted', async () => {
+  it( 'gives up on a stream that stalls after the caller aborted and throws the abort reason', async () => {
     const deadline = controllableDeadline();
     const abortController = new AbortController();
-    abortController.abort( new Error( 'Cancelled by caller' ) );
-    const stalling = releasableStreamOf( [ { type: 'text-delta', text: 'hi' } ] );
+    const reason = new Error( 'Cancelled by caller' );
+    abortController.abort( reason );
+    const stalling = releasableStreamOf( [] );
     const drained = drainStream( stalling, abortController.signal );
 
     await flush();
     deadline.fire();
 
-    await expect( drained ).resolves.toBeUndefined();
+    await expect( drained ).rejects.toBe( reason );
     expect( stalling.state.returned ).toBe( true );
   } );
 

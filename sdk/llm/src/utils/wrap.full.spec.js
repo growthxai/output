@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateText, streamText, stepCountIs, tool } from 'ai';
+import { generateText, streamText, stepCountIs, tool, ToolLoopAgent } from 'ai';
 import { MockLanguageModelV4, simulateReadableStream } from 'ai/test';
 import { z } from '@outputai/core';
 import { Tracing, Event } from '@outputai/core/sdk/runtime';
@@ -111,6 +111,20 @@ describe( 'wrap against the real ai sdk', () => {
     } ) ).rejects.toThrow();
 
     expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15 } );
+  } );
+
+  // Agents forward call options through `prepareCall`, which keeps `telemetry` only as an unknown key
+  it( 'bills an agent generation, so the telemetry option must survive prepareCall', async () => {
+    const agent = new ToolLoopAgent( { model: generatingModel() } );
+
+    const wrapped = await wrapTextGeneration( {
+      name: 'Agent.generate',
+      prompt,
+      fn: wiringOptions => agent.generate( { messages: [ { role: 'user', content: 'hi' } ], ...wiringOptions } )
+    } );
+
+    expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15, status: 'complete' } );
+    expect( wrapped.cost ).toBe( mockCost );
   } );
 
   it( 'bills a stream that reports an error before the usage it already spent', async () => {

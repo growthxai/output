@@ -58,6 +58,12 @@ Code that assumed a `llm:generation:metering` or `cost:llm:request` event implie
 
 To distinguish the two cases, read the trace: an LLM event that also carries an error is a failed call that still spent tokens.
 
+### Re-point globally registered AI SDK telemetry integrations
+
+`@outputai/llm` now passes its own per-call `telemetry.integrations` to every text and stream call, and the AI SDK gives per-call integrations precedence over globally registered ones. Integrations registered with `aiSdk.registerTelemetry()` - OpenTelemetry, Langfuse, AI DevTools - no longer receive lifecycle events from `generateText`, `streamText`, or the `Agent` methods. They keep working for AI SDK calls you make directly.
+
+If you relied on one for spend or latency data on Output calls, read it from the [metering events](/costs/cost-events) or the trace instead.
+
 ### Nothing to change in call sites
 
 No signatures, options, or return shapes changed. `cost` on a returned response behaves as before.

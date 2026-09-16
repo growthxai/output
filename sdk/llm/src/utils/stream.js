@@ -7,17 +7,23 @@ const TIMED_OUT = Symbol( 'drain-timed-out' );
 
 /** Extracts the error an abort or error part should surface, or null for every other part */
 const extractError = ( part, abortSignal ) => {
-  if ( part.type === 'abort' ) {
+  if ( part?.type === 'abort' ) {
     const reason = abortSignal?.reason;
     return reason instanceof Error ?
       reason :
       new Error( part.reason ?? 'Streaming generation aborted.', { cause: reason } );
   }
 
-  if ( part.type === 'error' ) {
+  if ( part?.type === 'error' ) {
     return part.error instanceof Error ?
       part.error :
       new Error( part.error ? String( part.error ) : 'Streaming generation failed.', { cause: part.error } );
+  }
+
+  if ( abortSignal?.aborted ) {
+    return abortSignal.reason instanceof Error ?
+      abortSignal.reason :
+      new Error( 'Streaming generation aborted.', { cause: abortSignal.reason } );
   }
 
   return null;
@@ -48,16 +54,18 @@ export const drainStream = async ( stream, abortSignal ) => {
     const hasDeadline = state.error || abortSignal?.aborted;
     const result = await ( hasDeadline ? nextWithin( iterator, FAILURE_DRAIN_TIMEOUT_MS ) : iterator.next() );
 
-    if ( result === TIMED_OUT ) {
-      iterator.return?.()?.catch( () => {} );
-      break;
-    }
-
     if ( result.done ) {
       break;
     }
 
-    state.error ??= extractError( result.value, abortSignal );
+    if ( result?.value || abortSignal?.aborted ) {
+      state.error ??= extractError( result.value, abortSignal );
+    }
+
+    if ( result === TIMED_OUT ) {
+      iterator.return?.()?.catch( () => {} );
+      break;
+    }
   }
 
   if ( state.error ) {

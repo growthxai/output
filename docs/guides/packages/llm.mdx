@@ -927,6 +927,12 @@ Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usua
 
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
 
+## AI SDK telemetry integrations
+
+Output passes its own per-call `telemetry.integrations` to every text and stream call, which is how usage is metered. The AI SDK gives per-call integrations precedence over globally registered ones, so integrations registered with `aiSdk.registerTelemetry()` - OpenTelemetry, Langfuse, AI DevTools - do not receive lifecycle events from `@outputai/llm` calls. They still work for AI SDK calls you make directly.
+
+Provider-level instrumentation is unaffected, and Output's own tracing covers every LLM call.
+
 ## LLM metering events
 
 For direct streams, metering events fire when the stream finishes. Observe them with the [hooks mechanism](/packages/core#error-hooks) by registering handlers with `on()` from `@outputai/core/hooks` in a hook file listed under `outputai.hookFiles`.

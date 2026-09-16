@@ -42,7 +42,7 @@ const extractSourcesFromSteps = steps =>
  */
 export const extractSources = response => {
   const { steps, sources: sourcesFromResponse } = response;
-  const sourcesFromTools = extractSourcesFromSteps( steps );
+  const sourcesFromTools = extractSourcesFromSteps( asArray( steps ) );
   const allSources = sourcesFromTools.concat( asArray( sourcesFromResponse ) );
   return new Map( allSources.map( s => [ s.url ?? s.id, s ] ) ).values().toArray();
 };
