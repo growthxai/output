@@ -95,7 +95,7 @@ export class Agent {
         await drainStream( stream, abortSignal );
 
         if ( !state.response ) {
-          throw new Error( 'Agent streaming generation completed without a response.' );
+          throw new Error( 'Streaming completed without a response.' );
         }
 
         state.response.output = await stream.output;
@@ -127,10 +127,9 @@ export class Agent {
           onEndHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {
               await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) )
-                .catch( error => Logger.error( 'Agent.stream message store persistence failed', {
-                  namespace: 'LLM',
-                  error: error instanceof Error ? error.message : String( error )
-                } ) );
+                .catch( error =>
+                  Logger.error( 'Message store persistence failed', { namespace: 'LLM', error: error?.message || String( error ) } )
+                );
             }
             await onEnd?.( parsedResponse );
           } ),

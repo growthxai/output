@@ -25,6 +25,10 @@ const nonRetryableAiSdkErrorTypes = [
  * @returns {object} A new Error
  */
 export const mapAiError = error => {
+  if ( !( error instanceof Error ) ) {
+    return error;
+  }
+
   if ( error instanceof FatalError ) {
     return error;
   }

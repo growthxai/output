@@ -11,19 +11,19 @@ const extractError = ( part, abortSignal ) => {
     const reason = abortSignal?.reason;
     return reason instanceof Error ?
       reason :
-      new Error( part.reason ?? 'Streaming generation aborted.', { cause: reason } );
+      new Error( part.reason ?? 'Streaming aborted.', { cause: reason } );
   }
 
   if ( part?.type === 'error' ) {
     return part.error instanceof Error ?
       part.error :
-      new Error( part.error ? String( part.error ) : 'Streaming generation failed.', { cause: part.error } );
+      new Error( part.error ? String( part.error ) : 'Streaming failed.', { cause: part.error } );
   }
 
   if ( abortSignal?.aborted ) {
     return abortSignal.reason instanceof Error ?
       abortSignal.reason :
-      new Error( 'Streaming generation aborted.', { cause: abortSignal.reason } );
+      new Error( 'Streaming aborted.', { cause: abortSignal.reason } );
   }
 
   return null;

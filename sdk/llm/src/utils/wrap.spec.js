@@ -5,16 +5,19 @@ import textResponseFixture from '../fixtures/text_response_v7_openai.js';
 
 const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
-  calculateBase64FileSize: vi.fn(),
+  serializeImagesFromResponse: vi.fn(),
   mapAiError: vi.fn(),
   randomBytes: vi.fn(),
   logger: { warn: vi.fn(), error: vi.fn() },
+  /** Stands in for the framework error, which is never retried */
+  FatalError: class FatalError extends Error {},
   meterings: [],
   billedCost: null
 } ) );
 
 vi.mock( '@outputai/core', () => ( {
-  Logger: mocks.logger
+  Logger: mocks.logger,
+  FatalError: mocks.FatalError
 } ) );
 
 vi.mock( './sources.js', () => ( {
@@ -22,7 +25,7 @@ vi.mock( './sources.js', () => ( {
 } ) );
 
 vi.mock( './image.js', () => ( {
-  calculateBase64FileSize: mocks.calculateBase64FileSize
+  serializeImagesFromResponse: mocks.serializeImagesFromResponse
 } ) );
 
 vi.mock( './error_handler.js', () => ( {
@@ -82,6 +85,7 @@ const prompt = {
 
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
 const mappedError = new Error( 'mapped' );
+const serializedImages = [ { size: 1234, mediaType: 'image/png' } ];
 
 describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
   beforeEach( () => {
@@ -90,7 +94,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
     mocks.meterings.length = 0;
     mocks.billedCost = mockCost;
     mocks.extractSources.mockReturnValue( [] );
-    mocks.calculateBase64FileSize.mockReturnValue( 1234 );
+    mocks.serializeImagesFromResponse.mockReturnValue( serializedImages );
     mocks.mapAiError.mockReturnValue( mappedError );
     mocks.randomBytes.mockReturnValue( Buffer.from( 'a1b2c3d4', 'hex' ) );
   } );
@@ -218,6 +222,21 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
+    it( 'wraps a response handling failure in a fatal error after billing', async () => {
+      const error = await wrapTextGeneration( { name: 'generateText', prompt, fn: async () => null } ).catch( e => e );
+
+      expect( error ).toBeInstanceOf( mocks.FatalError );
+      expect( error.message ).toBe( 'AI SDK response handling failed.' );
+      expect( error.cause ).toBeInstanceOf( TypeError );
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( mocks.mapAiError ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'generateText-9000000000-a1b2c3d4',
+        details: error
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
     it( 'maps fn errors onto the llm trace and rethrows', async () => {
       const original = new Error( 'boom' );
 
@@ -257,11 +276,11 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( metering().traceId ).toBe( 'generateImage-9000000000-a1b2c3d4' );
       expect( metering().recordResponse ).toHaveBeenCalledWith( response );
       expect( metering().bill ).toHaveBeenCalledOnce();
-      expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64 );
+      expect( mocks.serializeImagesFromResponse ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateImage-9000000000-a1b2c3d4',
         details: {
-          result: [ { size: 1234, mediaType: 'image/png' } ],
+          result: serializedImages,
           usage: response.usage,
           providerMetadata: response.providerMetadata
         }
@@ -269,6 +288,21 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( mocks.extractSources ).not.toHaveBeenCalled();
       expect( wrapped.result ).toBe( response.image );
       expect( wrapped.cost ).toBe( mockCost );
+    } );
+
+    it( 'bills before wrapping a response handling failure in a fatal error', async () => {
+      const error = await wrapImageGeneration( { name: 'generateImage', prompt, fn: async () => null } ).catch( e => e );
+
+      expect( error ).toBeInstanceOf( mocks.FatalError );
+      expect( error.cause ).toBeInstanceOf( TypeError );
+      expect( metering().recordResponse ).toHaveBeenCalledWith( null );
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( mocks.serializeImagesFromResponse ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'generateImage-9000000000-a1b2c3d4',
+        details: error
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
     it( 'maps fn errors onto the llm trace and rethrows without billing', async () => {
@@ -462,11 +496,13 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       const response = textResponse();
       const { onEndHook } = hooksFrom( 'Agent.stream' );
 
-      const proxied = await onEndHook( response, async () => {
+      const callback = vi.fn( async () => {
         throw new Error( 'user onEnd' );
       } );
 
-      expect( proxied.result ).toBe( response.text );
+      await onEndHook( response, callback );
+
+      expect( callback.mock.calls[0][0].result ).toBe( response.text );
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).not.toHaveBeenCalled();
       expect( mocks.mapAiError ).not.toHaveBeenCalled();
@@ -474,6 +510,35 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         namespace: 'LLM',
         error: 'user onEnd'
       } );
+    } );
+
+    it( 'records a response handling failure on the trace without ending it', async () => {
+      const callback = vi.fn();
+      const { onEndHook } = hooksFrom( 'streamText' );
+
+      await expect( onEndHook( null, callback ) ).resolves.toBeUndefined();
+
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( callback ).not.toHaveBeenCalled();
+      expect( mocks.logger.error ).toHaveBeenCalledWith( 'AI SDK response handling failed', {
+        namespace: 'LLM',
+        error: expect.any( String )
+      } );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: expect.any( mocks.FatalError )
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'skips a callback that is not a function', async () => {
+      const response = streamResponse();
+      const { onEndHook } = hooksFrom( 'streamText' );
+
+      await expect( onEndHook( response, 'not-a-function' ) ).resolves.toBeUndefined();
+
+      expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
+      expect( mocks.logger.error ).not.toHaveBeenCalled();
     } );
 
     it( 'bills onError, maps the event error, and forwards it to the callback', async () => {
@@ -487,6 +552,23 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( metering().bill.mock.invocationCallOrder[0] )
         .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+      expect( callback ).toHaveBeenCalledWith( mappedError );
+    } );
+
+    it( 'normalizes an error event that carries no error instance', async () => {
+      const callback = vi.fn();
+      const { onErrorHook } = hooksFrom( 'streamText' );
+
+      await onErrorHook( { error: { code: 500 } }, callback );
+
+      const [ recorded ] = mocks.mapAiError.mock.calls[0];
+      expect( recorded ).toBeInstanceOf( Error );
+      expect( recorded.message ).toBe( 'Streaming failed.' );
+      expect( recorded.cause ).toEqual( { code: 500 } );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError

@@ -102,23 +102,23 @@ export class Metering {
       return;
     }
 
-    const responseSteps = this.#response?.steps;
-    const steps = Array.isArray( responseSteps ) && responseSteps.length > 0 ? responseSteps : this.#recordedSteps;
-    const usage = this.#response?.usage;
-
-    if ( !usage && steps.length === 0 ) {
-      return;
-    }
-
-    this.#billed = true;
-
     try {
+      const responseSteps = this.#response?.steps;
+      const steps = Array.isArray( responseSteps ) && responseSteps.length > 0 ? responseSteps : this.#recordedSteps;
+      const usage = this.#response?.usage;
+
+      if ( !usage && steps.length === 0 ) {
+        return;
+      }
+
+      this.#billed = true;
+
       await this.#createAttributes( { usage, steps } );
       this.#attachAttributes();
       this.#emitEvents();
 
     } catch ( error ) {
-      Logger.error( 'Metering failed', { namespace: 'LLM', error: error?.message ?? String( error ) } );
+      Logger.error( 'Metering failed', { namespace: 'LLM', error: error?.message || String( error ) } );
     }
   };
 

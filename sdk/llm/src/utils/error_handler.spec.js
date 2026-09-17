@@ -227,4 +227,14 @@ describe( 'mapAiError', () => {
 
     expect( mapAiError( error ) ).toBe( error );
   } );
+
+  it.each( [
+    [ 'undefined', undefined ],
+    [ 'null', null ],
+    [ 'a string', 'stream exploded' ],
+    [ 'a number', 500 ],
+    [ 'an error-shaped object', { message: 'Grammar compilation timed out.', statusCode: 400, isRetryable: false } ]
+  ] )( 'returns %s unmapped instead of throwing', ( _name, value ) => {
+    expect( mapAiError( value ) ).toBe( value );
+  } );
 } );

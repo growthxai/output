@@ -1,9 +1,9 @@
 import { extractSources } from './sources.js';
-import { calculateBase64FileSize } from './image.js';
+import { serializeImagesFromResponse } from './image.js';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { mapAiError } from './error_handler.js';
 import { isPromise } from 'node:util/types';
-import { Logger } from '@outputai/core';
+import { FatalError, Logger } from '@outputai/core';
 import { Metering } from './metering.js';
 import { randomBytes } from 'node:crypto';
 
@@ -21,14 +21,26 @@ const startTrace = ( { name, prompt } ) => {
   return traceId;
 };
 
-/** Map AI Error, add an error trace entry and return the new error */
-const handleError = ( { traceId, error: originalError } ) => {
+/** Handle AI SDK errors: map them, add an error trace entry and return the new error */
+const handleAiSdkError = ( { traceId, error: originalError } ) => {
   const error = mapAiError( originalError );
   Tracing.addEventError( { id: traceId, details: error } );
   return error;
 };
 
-const inlineTry = async fn => {
+/**
+ * Handle a failure of our own response handling: wrap it, add an error trace entry and return it.
+ * Fatal on purpose - such a failure is deterministic, so a retry pays for the model call again and
+ * fails the same way.
+ */
+const handleResponseError = ( { traceId, error: cause } ) => {
+  const error = new FatalError( 'AI SDK response handling failed.', { cause } );
+  Tracing.addEventError( { id: traceId, details: error } );
+  return error;
+};
+
+/** Invokes an async function, wrapped in a try/catch, return { result, error } */
+const inlineTryAsync = async fn => {
   try {
     return { result: await fn(), error: null };
   } catch ( error ) {
@@ -44,6 +56,10 @@ const inlineTry = async fn => {
  * `fn` must spread the wiring options into the call, so usage is metered from the SDK lifecycle
  * events instead of the returned response and still lands when `fn` throws after the model ran.
  * Trace output keeps raw `response.usage`; normalized usage and cost are trace attributes.
+ *
+ * Reading the billed response is guarded: a throw from `fn` is mapped as an SDK error, while a
+ * failure of our own handling becomes a `FatalError` recorded on the trace. The proxy is built
+ * before the trace ends, so a call that fails there never leaves an `end` entry next to an `error`.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
@@ -64,20 +80,27 @@ export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
     }
   };
 
-  const { result: response, error } = await inlineTry( () => fn( { telemetry } ) );
+  const { result: response, error } = await inlineTryAsync( () => fn( { telemetry } ) );
 
   await metering.bill();
 
   if ( error ) {
-    throw handleError( { traceId, error } );
+    throw handleAiSdkError( { traceId, error } );
   }
 
-  const { text: result, finalStep, usage } = response;
-  const providerMetadata = finalStep?.providerMetadata;
-  const sources = extractSources( response );
+  try {
+    const { text: result, finalStep, usage } = response;
+    const providerMetadata = finalStep?.providerMetadata;
+    const sources = extractSources( response );
 
-  Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
-  return createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
+    // Create proxy first, as this could theoretically fail
+    const responseProxy = createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
+    Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
+
+    return responseProxy;
+  } catch ( error ) {
+    throw handleResponseError( { traceId, error } );
+  }
 };
 
 /**
@@ -85,8 +108,9 @@ export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
  * the response proxied with `result` (the first `image`) and `cost`.
  *
  * Image calls expose no telemetry lifecycle events, so usage is read from the response. With no
- * step loop and no output parsing, a throw can only happen before any usage exists; it is mapped
- * and recorded without metering.
+ * step loop and no output parsing, a throw from `fn` happens before any usage exists, so it is
+ * mapped and recorded without metering. Reading the billed response is guarded the same way
+ * `wrapTextGeneration` guards it: a failure there is a `FatalError` recorded after billing.
  *
  * @param {object} args
  * @param {string} args.name - Trace event name
@@ -98,20 +122,38 @@ export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
   const metering = new Metering( { traceId, prompt } );
+
+  const { result: response, error } = await inlineTryAsync( fn );
+
+  if ( error ) {
+    throw handleAiSdkError( { traceId, error } );
+  }
+
+  metering.recordResponse( response );
+  await metering.bill();
+
   try {
-    const response = await fn();
+    const { usage, image: result, providerMetadata } = response;
+    const serializeImages = serializeImagesFromResponse( response );
 
-    metering.recordResponse( response );
-    await metering.bill();
+    // Create proxy first, as this could theoretically fail
+    const responseProxy = createResponseProxy( { response, properties: { cost: metering.attributes.cost, result } } );
 
-    const { usage, image, images, providerMetadata } = response;
-    const mappedImages = images.map( ( { mediaType, base64 } ) => ( { size: calculateBase64FileSize( base64 ), mediaType } ) );
-
-    Tracing.addEventEnd( { id: traceId, details: { result: mappedImages, usage, providerMetadata } } );
-    return createResponseProxy( { response, properties: { cost: metering.attributes.cost, result: image } } );
-
+    Tracing.addEventEnd( { id: traceId, details: { result: serializeImages, usage, providerMetadata } } );
+    return responseProxy;
   } catch ( error ) {
-    throw handleError( { traceId, error } );
+    throw handleResponseError( { traceId, error } );
+  }
+};
+
+/** Awaits a consumer callback, logging and swallowing its failures: the hooks are fire and forget */
+const invokeCallback = async ( cb, args, cbName ) => {
+  if ( typeof cb === 'function' ) {
+    try {
+      await cb( ...args );
+    } catch ( e ) {
+      Logger.error( `Stream ${cbName}() callback failed`, { namespace: 'LLM', error: e?.message || String( e ) } );
+    }
   }
 };
 
@@ -120,7 +162,14 @@ export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
  *
  * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)` to wire into the
  * SDK `onEnd` / `onError`, plus `telemetry` to spread into the call. Both hooks bill, end or record
- * the trace, then invoke `callback`; callback failures are logged, never rethrown.
+ * the trace, then invoke `callback`; a `callback` that is not a function is skipped, and callback
+ * failures are logged, never rethrown.
+ *
+ * Neither hook throws, because the SDK invokes them through `notify`, which swallows callback
+ * failures and discards their return: a failure while reading the response would vanish, so it is
+ * logged and recorded as a trace error here instead. An `onError`
+ * event carrying no `Error` is normalized to `Streaming failed.` with the original value as `cause`,
+ * so the trace always closes and the consumer callback always runs.
  *
  * Metering is fed by `telemetry`, where `onStepEnd` collects step usage so the tokens survive the
  * exits that report no response: `NoOutputGeneratedError` skips `onEnd`, and an abort fires neither
@@ -149,7 +198,7 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
 
   const handleAbort = () => {
     const error = abortSignal?.reason instanceof Error ? abortSignal.reason : new Error( 'Streaming aborted.', { cause: abortSignal?.reason } );
-    handleError( { traceId, error } );
+    handleAiSdkError( { traceId, error } );
   };
 
   if ( abortSignal ) {
@@ -168,7 +217,7 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
         await metering.bill();
         // abortion was caused by timeout and not signal
         if ( !abortSignal?.aborted ) {
-          handleError( { traceId, error: new Error( 'Streaming timed out.' ) } );
+          handleAiSdkError( { traceId, error: new Error( 'Streaming timed out.' ) } );
         }
       }
     }
@@ -180,50 +229,54 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
     metering.recordResponse( response );
     await metering.bill();
 
-    const { text: result, finalStep, usage } = response;
-    const sources = extractSources( response );
-    Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata: finalStep?.providerMetadata, sources } } );
-    const proxyResponse = createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
-
-    // ignore callback errors as this callback is fire and forget
     try {
-      await callback?.( proxyResponse );
-    } catch ( e ) {
-      Logger.error( 'Stream onEnd() callback failed', { namespace: 'LLM', error: e?.message ?? String( e ) } );
-    }
+      const { text: result, finalStep, usage } = response;
+      const providerMetadata = finalStep?.providerMetadata;
+      const sources = extractSources( response );
 
-    return proxyResponse;
+      const proxyResponse = createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
+      Tracing.addEventEnd( { id: traceId, details: { result, usage, providerMetadata, sources } } );
+
+      await invokeCallback( callback, [ proxyResponse ], 'onEnd' );
+    } catch ( error ) {
+      Logger.error( 'AI SDK response handling failed', { namespace: 'LLM', error: error?.message || String( error ) } );
+      handleResponseError( { traceId, error } );
+    }
   };
 
   const onErrorHook = async ( event, callback ) => {
     removeAbortListener();
-
     await metering.bill();
 
-    const error = handleError( { traceId, error: event.error } );
-
-    // ignore these as this callback is fire and forget
-    try {
-      await callback?.( error );
-    } catch ( e ) {
-      Logger.error( 'Stream onError() callback failed', { namespace: 'LLM', error: e?.message ?? String( e ) } );
-    }
+    const error = event?.error instanceof Error ? event.error : new Error( 'Streaming failed.', { cause: event?.error } );
+    const mappedError = handleAiSdkError( { traceId, error } );
+    await invokeCallback( callback, [ mappedError ], 'onError' );
   };
 
-  /** The consumer owns `stream.output`, so its rejection only reaches the trace if we observe it too */
-  const recordOutputError = stream => {
-    stream?.output?.catch( error => handleError( { traceId, error } ) );
+  const handleStreamError = error => {
+    removeAbortListener();
+    return handleAiSdkError( { traceId, error } );
+  };
+
+  const addStreamOutputErrorHandler = stream => {
+    stream.output?.catch( error => handleAiSdkError( { traceId, error } ) );
     return stream;
   };
 
-  try {
-    const stream = fn( { onEndHook, onErrorHook, telemetry } );
-    return isPromise( stream ) ? stream.then( recordOutputError ).catch( error => {
-      removeAbortListener();
-      throw handleError( { traceId, error } );
-    } ) : recordOutputError( stream );
-  } catch ( error ) {
-    removeAbortListener();
-    throw handleError( { traceId, error } );
-  }
+  const createStream = () => {
+    try {
+      return fn( { onEndHook, onErrorHook, telemetry } );
+    } catch ( error ) {
+      throw handleStreamError( error );
+    }
+  };
+
+  const stream = createStream();
+
+  /** Streams can be a promise or not, for both cases add the handler to catch .output errors, and if it is a promise add a .catch handler to observe errors there as well */
+  return isPromise( stream ) ?
+    stream.then( addStreamOutputErrorHandler ).catch( e => {
+      throw handleStreamError( e );
+    } ) :
+    addStreamOutputErrorHandler( stream );
 };

@@ -66,7 +66,7 @@ export const generateTextWithStreaming = async args => {
       await drainStream( stream, aiOptions.abortSignal );
 
       if ( !state.response ) {
-        throw new Error( 'Streaming generation completed without a response.' );
+        throw new Error( 'Streaming completed without a response.' );
       }
 
       state.response.output = await stream.output;

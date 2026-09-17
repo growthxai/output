@@ -590,10 +590,7 @@ describe( 'Agent', () => {
 
     await expect( streamOptions.onEnd( aiResponse ) ).resolves.toBeUndefined();
 
-    expect( loggerMocks.error ).toHaveBeenCalledWith(
-      'Agent.stream message store persistence failed',
-      { namespace: 'LLM', error: persistenceError.message }
-    );
+    expect( loggerMocks.error ).toHaveBeenCalledWith( 'Message store persistence failed', { namespace: 'LLM', error: persistenceError.message } );
     expect( onEnd ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );

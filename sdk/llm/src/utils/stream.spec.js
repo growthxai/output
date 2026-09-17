@@ -109,7 +109,7 @@ describe( 'drainStream', () => {
   } );
 
   it( 'throws a generic abort error when no reason is available', async () => {
-    await expect( drainStream( streamOf( [ { type: 'abort' } ] ) ) ).rejects.toThrow( 'Streaming generation aborted.' );
+    await expect( drainStream( streamOf( [ { type: 'abort' } ] ) ) ).rejects.toThrow( 'Streaming aborted.' );
   } );
 
   it( 'throws the provider error when the error part is an Error', async () => {
@@ -123,7 +123,7 @@ describe( 'drainStream', () => {
   } );
 
   it( 'throws a generic stream error when the error part has no value', async () => {
-    await expect( drainStream( streamOf( [ { type: 'error', error: null } ] ) ) ).rejects.toThrow( 'Streaming generation failed.' );
+    await expect( drainStream( streamOf( [ { type: 'error', error: null } ] ) ) ).rejects.toThrow( 'Streaming failed.' );
   } );
 
   it( 'keeps reading after a failure so the sdk can report the steps that preceded it', async () => {
