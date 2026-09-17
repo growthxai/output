@@ -13,6 +13,8 @@ Usage is now collected from the AI SDK lifecycle events as the call progresses, 
 
 Nothing changed in the shape of `LLMGenerationUsage`, `LLMGenerationCost`, the `llm:generation:usage` / `llm:generation:cost` trace attributes, or the `llm:generation:metering` and `cost:llm:request` events. A failing call still throws, and the thrown error still carries no cost - the numbers reach the trace and the events only.
 
+Response sources are now normalized on the way out: urls are trimmed, entries carrying neither a url nor an id are dropped, and a malformed `sources` payload is logged and yields no sources instead of failing the call.
+
 ## Where cost is now recovered
 
 ### `generateText` / `Agent.generate`
@@ -40,7 +42,7 @@ Nothing was spent, or nothing was reported, so there is nothing to bill:
 
 - Any failure before the first step completes: authentication, a rejected request, an unknown model or provider, a connection error
 - An abort before the first step completes, for every method
-- A provider that stalls without closing the stream after a failure, if the step events had not arrived within the 250 ms drain allowance (`generateTextWithStreaming`, `Agent.generateWithStreaming`)
+- A provider that stalls without closing the stream after a failure, if the step events had not arrived before the stream went quiet for 250 ms (`generateTextWithStreaming`, `Agent.generateWithStreaming`)
 - A `streamText` consumer that abandons the stream instead of reading it
 - `generateImage`, which has no step loop: a failure there always precedes any usage
 

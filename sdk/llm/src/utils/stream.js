@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
-/** Time a failed stream gets to deliver its remaining parts before the drain gives up on it */
+/** How long a failed stream may go quiet before the drain gives up on its remaining parts */
 const FAILURE_DRAIN_TIMEOUT_MS = 250;
 
 const TIMED_OUT = Symbol( 'drain-timed-out' );
@@ -39,9 +39,10 @@ const nextWithin = async ( iterator, timeoutMs ) =>
  *
  * The draining continues past a failure on purpose: the AI SDK fires its lifecycle callbacks as parts flow through the
  * stream, so `onStepEnd` and `onEnd` - and with them the usage of everything already spent - only arrive if something
- * keeps reading. A stalled provider can leave the stream open forever, so once a failure is captured the remaining
- * parts get `FAILURE_DRAIN_TIMEOUT_MS` to arrive before the drain gives up and throws anyway. A healthy stream ends
- * immediately after a failure, so the timeout is not part of the normal path; a successful stream is never timed out.
+ * keeps reading. A stalled provider can leave the stream open forever, so once a failure is captured every read waits
+ * at most `FAILURE_DRAIN_TIMEOUT_MS` for the next part, and the drain gives up and throws anyway when none arrives.
+ * A healthy stream ends immediately after a failure, so the timeout is not part of the normal path; a successful
+ * stream is never timed out.
  *
  * @param {object} stream - AI SDK stream result with `stream`
  * @param {AbortSignal} [abortSignal] - Used to recover the original abort reason

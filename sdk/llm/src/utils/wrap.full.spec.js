@@ -23,7 +23,16 @@ const prompt = {
   config: { provider: 'openai', model: 'gpt-test' }
 };
 
+/** Grounded prompt, so the web searches reported by the steps resolve to a per-query billing unit */
+const groundedPrompt = {
+  name: 'writer@v1',
+  config: { provider: 'google-vertex', model: 'gemini-3-pro' }
+};
+
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
+
+/** Provider metadata a grounded Vertex step carries */
+const groundedMetadata = webSearchQueries => ( { vertex: { groundingMetadata: { webSearchQueries } } } );
 
 /** Usage shape the language model protocol reports; the sdk flattens it before we see it */
 const modelUsage = {
@@ -111,6 +120,48 @@ describe( 'wrap against the real ai sdk', () => {
     } ) ).rejects.toThrow();
 
     expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15 } );
+  } );
+
+  // Grounding is reported per step, so a run that never reaches `onEnd` has the step events as its only record
+  it( 'sums the tokens and the grounding of every completed step when the run fails mid loop', async () => {
+    const state = { modelCalls: 0 };
+    const model = new MockLanguageModelV4( {
+      doGenerate: async () => {
+        state.modelCalls += 1;
+        // two grounded steps finish, then the provider fails the third one
+        if ( state.modelCalls > 2 ) {
+          throw new Error( 'provider failed mid loop' );
+        }
+        return {
+          content: [ { type: 'tool-call', toolCallId: `call-${state.modelCalls}`, toolName: 'search', input: '{}' } ],
+          finishReason: 'tool-calls',
+          usage: modelUsage,
+          providerMetadata: groundedMetadata( [ 'a', 'b' ] ),
+          warnings: []
+        };
+      }
+    } );
+
+    await expect( wrapTextGeneration( {
+      name: 'generateText',
+      prompt: groundedPrompt,
+      fn: wiringOptions => generateText( {
+        model,
+        prompt: 'hi',
+        maxRetries: 0,
+        stopWhen: stepCountIs( 5 ),
+        tools: { search: tool( { inputSchema: z.object( {} ), execute: async () => 'result' } ) },
+        ...wiringOptions
+      } )
+    } ) ).rejects.toThrow();
+
+    // per-step usage, summed: treating the aggregate as per-step would double-count
+    expect( billedUsage() ).toMatchObject( {
+      input: 20,
+      output: 10,
+      total: 30,
+      items: expect.arrayContaining( [ { group: 'tools', label: 'grounding_query', amount: 4 } ] )
+    } );
   } );
 
   // Agents forward call options through `prepareCall`, which keeps `telemetry` only as an unknown key
