@@ -9,7 +9,7 @@ Output.ai is an AI framework for building reliable production-ready LLM workflow
 ## Documentation References
 
 - **Project setup & commands**: See [README.md](README.md)
-- **Workflow structure & examples**: See [README.md#workflow-structure](README.md#workflow-structure)
+- **Workflow structure & examples**: See [README.md#example-workflows](README.md#example-workflows)
 - **Framework packages**:
   - Core: [sdk/core/README.md](sdk/core/README.md)
   - LLM: [sdk/llm/README.md](sdk/llm/README.md)
@@ -32,7 +32,7 @@ Output.ai is an AI framework for building reliable production-ready LLM workflow
 
 Configuration is documented in:
 
-- Root environment: [README.md#env-file](README.md#env-file)
+- Root environment: [README.md#quick-start](README.md#quick-start)
 - Workflow secrets: Required in `test_workflows/.env`
 
 ## Package Management
@@ -91,4 +91,4 @@ Use these specialized agents when working across technical domains:
 ### Confirming the system is working
 
 - From the root directory, run `./run.sh dev`
-  - And from a separate terminal, run `curl -X POST http://localhost:3001/workflow -H "Content-Type: application/json" -d '{"workflowName": "simple", "input": {"values": [1, 2, 3, 4, 5]}}'`
+  - And from a separate terminal, run `curl -X POST http://localhost:3001/workflow/run -H "Content-Type: application/json" -d '{"workflowName": "simple", "input": {"values": [1, 2, 3, 4, 5]}}'`
