@@ -48,6 +48,10 @@ Output is a monorepo. The core packages for most documentation are below; read t
 
 **Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct framework patterns.
 
+**Local preview**: run `./run.sh docs:mint` from the repo root to serve these docs at `http://localhost/`.
+
+**Generated file**: `openapi.json` in this directory is copied from `api/openapi.json` by the root `pnpm build:packages` script — don't hand-edit it.
+
 ---
 
 ## 3. Target Audience
