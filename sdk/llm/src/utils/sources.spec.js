@@ -140,26 +140,26 @@ describe( 'extractSources', () => {
   } );
 
   it( 'keeps blank-url sources under their id instead of collapsing them', () => {
-    const sources = [
-      { type: 'source', sourceType: 'document', id: 'doc-a', url: '', title: 'A' },
-      { type: 'source', sourceType: 'document', id: 'doc-b', url: '   ', title: 'B' }
-    ];
-    const result = extractSources( { sources } );
+    const docA = { type: 'source', sourceType: 'document', id: 'doc-a', url: '', title: 'A' };
+    const docB = { type: 'source', sourceType: 'document', id: 'doc-b', url: '   ', title: 'B' };
+    const result = extractSources( { sources: [ docA, docB ] } );
 
-    expect( result.map( s => s.id ) ).toEqual( [ 'doc-a', 'doc-b' ] );
-    expect( result.every( s => !( 'url' in s ) ) ).toBe( true );
+    expect( result ).toEqual( [ docA, docB ] );
+    expect( result[0] ).toBe( docA );
+    expect( result[1] ).toBe( docB );
   } );
 
-  it( 'trims response urls so they dedupe against tool hits', () => {
+  it( 'dedupes response sources on the trimmed url, leaving the source untouched', () => {
     const url = 'https://shared.test';
+    const responseSource = { type: 'source', sourceType: 'url', id: 'b', url: `  ${url}  `, title: 'from-response' };
     const result = extractSources( {
       steps: [ searchStep( [ { url, title: 'from-tool' } ] ) ],
-      sources: [ { type: 'source', sourceType: 'url', id: 'b', url: `  ${url}  `, title: 'from-response' } ]
+      sources: [ responseSource ]
     } );
 
     expect( result ).toHaveLength( 1 );
-    expect( result[0].url ).toBe( url );
-    expect( result[0].title ).toBe( 'from-response' );
+    expect( result[0] ).toBe( responseSource );
+    expect( result[0].url ).toBe( `  ${url}  ` );
   } );
 
   it( 'logs and returns no sources when reading the response throws', () => {

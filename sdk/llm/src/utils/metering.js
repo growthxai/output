@@ -7,12 +7,12 @@ import { convertCostToLegacy } from './legacy_cost_attribute.js';
 /**
  * Collects the usage of a single LLM call and bills it once.
  *
- * Steps and the response are recorded as the SDK lifecycle reports them, so a call that throws
- * after the model ran is still billed for what it spent. `bill()` parses the usage, costs it,
- * attaches both as trace attributes and emits the metering events; it never throws.
+ * Steps are recorded as the SDK lifecycle reports them, and the response is handed to `bill()` by
+ * the paths that have one, so a call that throws after the model ran is still billed for what it
+ * spent. `bill()` parses the usage, costs it, attaches both as trace attributes and emits the
+ * metering events; it never throws.
  */
 export class Metering {
-  #response = null;
   #recordedSteps = [];
   #billed = false;
   #prompt;
@@ -77,17 +77,6 @@ export class Metering {
   };
 
   /**
-   * Records the final response, whose aggregate usage and steps take precedence when billing.
-   *
-   * @param {object} response - AI SDK response
-   */
-  recordResponse = response => {
-    if ( !this.#billed ) {
-      this.#response = response;
-    }
-  };
-
-  /**
    * Bills the recorded usage: parses it, costs it, attaches the trace attributes and emits the
    * metering events. Later calls and later records are ignored, so it is safe to call from every
    * path that can end the call. Read the result from `attributes`.
@@ -95,17 +84,19 @@ export class Metering {
    * An empty collector is not a final answer: the SDK reports a stream error before the steps that
    * preceded it, so billing stays open until there is usage or a step to report.
    *
+   * @param {object} [response] - AI SDK response, whose aggregate usage and steps take precedence
+   *   over the recorded steps; omitted by the paths that end without one
    * @returns {Promise<void>}
    */
-  bill = async () => {
+  bill = async ( response = null ) => {
     if ( this.#billed ) {
       return;
     }
 
     try {
-      const responseSteps = this.#response?.steps;
+      const responseSteps = response?.steps;
       const steps = Array.isArray( responseSteps ) && responseSteps.length > 0 ? responseSteps : this.#recordedSteps;
-      const usage = this.#response?.usage;
+      const usage = response?.usage;
 
       if ( !usage && steps.length === 0 ) {
         return;

@@ -925,13 +925,9 @@ Output always sets AI SDK `maxRetries` to 0. In Output workflows, LLM calls usua
 
 `generateText`, `generateTextWithStreaming`, `Agent.generate()`, and `Agent.generateWithStreaming()` reject on failures. With direct `streamText` or `Agent.stream()` usage, capture the error in `onError` and throw it after consuming the stream, as shown in their direct-stream examples.
 
+A failure in the SDK's own response handling - reading the model response, merging sources, building the returned response - is not retried: it throws a non-retryable `FatalError` wrapping the original error, so Temporal fails the activity on the first attempt. Such a failure is deterministic, and a retry would pay for the model call again and fail the same way. The usage already spent is still billed and recorded on the trace.
+
 Built-in providers are initialized with a custom fetch that extends Undici's `headersTimeout` and `bodyTimeout` to 15 minutes. This helps long-running LLM responses where the provider accepts the request but takes longer to return response headers or body chunks, for example reasoning-heavy calls. Active cancellation still works: if you pass `abortSignal`, or the AI SDK/provider aborts the request, that cancellation wins.
-
-## AI SDK telemetry integrations
-
-Output passes its own per-call `telemetry.integrations` to every text and stream call, which is how usage is metered. The AI SDK gives per-call integrations precedence over globally registered ones, so integrations registered with `aiSdk.registerTelemetry()` - OpenTelemetry, Langfuse, AI DevTools - do not receive lifecycle events from `@outputai/llm` calls. They still work for AI SDK calls you make directly.
-
-Provider-level instrumentation is unaffected, and Output's own tracing covers every LLM call.
 
 ## LLM metering events
 

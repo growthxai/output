@@ -53,9 +53,11 @@ const inlineTryAsync = async fn => {
  * `Agent.generate`, `Agent.generateWithStreaming`): starts the LLM trace, runs `fn`, ends the trace
  * and returns the response proxied with `result` (`text`), `cost` and merged `sources`.
  *
- * `fn` must spread the wiring options into the call, so usage is metered from the SDK lifecycle
- * events instead of the returned response and still lands when `fn` throws after the model ran.
- * Trace output keeps raw `response.usage`; normalized usage and cost are trace attributes.
+ * `fn` receives `onStepEndHook` to wire into the SDK `onStepEnd`, so the usage of every completed
+ * step is collected as the call progresses and still lands when `fn` throws after the model ran.
+ * The response `fn` returns is billed directly, and its aggregate usage takes precedence over the
+ * collected steps. Trace output keeps raw `response.usage`; normalized usage and cost are trace
+ * attributes.
  *
  * Reading the billed response is guarded: a throw from `fn` is mapped as an SDK error, while a
  * failure of our own handling becomes a `FatalError` recorded on the trace. The proxy is built
@@ -64,8 +66,8 @@ const inlineTryAsync = async fn => {
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
- * @param {( wiringOptions: { telemetry: object } ) => Promise<object>} args.fn - AI SDK call; spread
- *   `wiringOptions` into the call options and return the SDK response
+ * @param {( wiring: { onStepEndHook: Function } ) => Promise<object>} args.fn - AI SDK call; wire
+ *   `onStepEndHook` into the call `onStepEnd` and return the SDK response
  * @returns {Promise<object>} Proxied SDK response
  */
 export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
@@ -73,16 +75,11 @@ export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
 
   const metering = new Metering( { traceId, prompt } );
 
-  const telemetry = {
-    integrations: {
-      onStepEnd: metering.recordStep,
-      onEnd: metering.recordResponse
-    }
-  };
+  const onStepEndHook = metering.recordStep;
 
-  const { result: response, error } = await inlineTryAsync( () => fn( { telemetry } ) );
+  const { result: response, error } = await inlineTryAsync( () => fn( { onStepEndHook } ) );
 
-  await metering.bill();
+  await metering.bill( response );
 
   if ( error ) {
     throw handleAiSdkError( { traceId, error } );
@@ -107,7 +104,7 @@ export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
  * Runs `generateImage`: starts the LLM trace, meters the returned usage, ends the trace and returns
  * the response proxied with `result` (the first `image`) and `cost`.
  *
- * Image calls expose no telemetry lifecycle events, so usage is read from the response. With no
+ * Image calls expose no step lifecycle, so usage is read from the response. With no
  * step loop and no output parsing, a throw from `fn` happens before any usage exists, so it is
  * mapped and recorded without metering. Reading the billed response is guarded the same way
  * `wrapTextGeneration` guards it: a failure there is a `FatalError` recorded after billing.
@@ -129,8 +126,7 @@ export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
     throw handleAiSdkError( { traceId, error } );
   }
 
-  metering.recordResponse( response );
-  await metering.bill();
+  await metering.bill( response );
 
   try {
     const { usage, image: result, providerMetadata } = response;
@@ -161,9 +157,9 @@ const invokeCallback = async ( cb, args, cbName ) => {
  * Starts an LLM trace around a live AI SDK stream (`streamText`, `Agent.stream`).
  *
  * `fn` receives `onEndHook(response, callback)` and `onErrorHook(event, callback)` to wire into the
- * SDK `onEnd` / `onError`, plus `telemetry` to spread into the call. Both hooks bill, end or record
- * the trace, then invoke `callback`; a `callback` that is not a function is skipped, and callback
- * failures are logged, never rethrown.
+ * SDK `onEnd` / `onError`, plus `onStepEndHook` and `onAbortHook` for `onStepEnd` / `onAbort`. Both
+ * terminal hooks bill, end or record the trace, then invoke `callback`; a `callback` that is not a
+ * function is skipped, and callback failures are logged, never rethrown.
  *
  * Neither hook throws, because the SDK invokes them through `notify`, which swallows callback
  * failures and discards their return: a failure while reading the response would vanish, so it is
@@ -171,10 +167,10 @@ const invokeCallback = async ( cb, args, cbName ) => {
  * event carrying no `Error` is normalized to `Streaming failed.` with the original value as `cause`,
  * so the trace always closes and the consumer callback always runs.
  *
- * Metering is fed by `telemetry`, where `onStepEnd` collects step usage so the tokens survive the
- * exits that report no response: `NoOutputGeneratedError` skips `onEnd`, and an abort fires neither
- * terminal hook. The SDK awaits its `onAbort` before enqueueing the abort part, so billing from
- * there always lands before the consumer observes the cancellation.
+ * Metering is fed by `onStepEndHook`, which collects step usage so the tokens survive the exits
+ * that report no response: `NoOutputGeneratedError` skips `onEnd`, and an abort fires neither
+ * terminal hook. `onAbortHook` bills that case, and the SDK awaits it before enqueueing the abort
+ * part, so billing from there always lands before the consumer observes the cancellation.
  *
  * A throw or rejected Promise from `fn` (stream creation / Agent setup) is mapped and recorded on
  * the trace; a non-Promise return (the `streamText` stream) is returned as is, with a rejection of
@@ -187,9 +183,9 @@ const invokeCallback = async ( cb, args, cbName ) => {
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
  * @param {AbortSignal} [args.abortSignal] - Optional signal used to trace stream cancellation
- * @param {( wiring: { onEndHook: Function, onErrorHook: Function, telemetry: object } ) =>
- *   object | Promise<object>} args.fn - Return the SDK stream, or a Promise of that stream
- *   (`Agent.stream`)
+ * @param {( wiring: { onEndHook: Function, onErrorHook: Function, onStepEndHook: Function,
+ *   onAbortHook: Function } ) => object | Promise<object>} args.fn - Wire the hooks into the call
+ *   and return the SDK stream, or a Promise of that stream (`Agent.stream`)
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
 export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
@@ -210,24 +206,22 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
   }
   const removeAbortListener = () => abortSignal?.removeEventListener( 'abort', handleAbort );
 
-  const telemetry = {
-    integrations: {
-      onStepEnd: metering.recordStep,
-      onAbort: async () => {
-        await metering.bill();
-        // abortion was caused by timeout and not signal
-        if ( !abortSignal?.aborted ) {
-          handleAiSdkError( { traceId, error: new Error( 'Streaming timed out.' ) } );
-        }
-      }
+  const onStepEndHook = metering.recordStep;
+
+  const onAbortHook = async () => {
+    removeAbortListener();
+
+    await metering.bill();
+    // abortion was caused by timeout and not signal
+    if ( !abortSignal?.aborted ) {
+      handleAiSdkError( { traceId, error: new Error( 'Streaming timed out.' ) } );
     }
   };
 
   const onEndHook = async ( response, callback ) => {
     removeAbortListener();
 
-    metering.recordResponse( response );
-    await metering.bill();
+    await metering.bill( response );
 
     try {
       const { text: result, finalStep, usage } = response;
@@ -265,7 +259,7 @@ export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
 
   const createStream = () => {
     try {
-      return fn( { onEndHook, onErrorHook, telemetry } );
+      return fn( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } );
     } catch ( error ) {
       throw handleStreamError( error );
     }

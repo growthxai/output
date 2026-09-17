@@ -86,7 +86,7 @@ const textOptions = {
 };
 
 const wiringOptions = {
-  telemetry: { integrations: { onStepEnd: vi.fn(), onEnd: vi.fn(), onError: vi.fn() } }
+  onStepEndHook: vi.fn()
 };
 
 const textResponse = {
@@ -135,7 +135,8 @@ describe( 'generate', () => {
     wrapMocks.streamHooks = {
       onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
       onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) ),
-      telemetry: wiringOptions.telemetry
+      onStepEndHook: wiringOptions.onStepEndHook,
+      onAbortHook: vi.fn()
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
 
@@ -193,7 +194,7 @@ describe( 'generate', () => {
         stopWhen,
         abortSignal
       } );
-      expect( aiFns.generateText ).toHaveBeenCalledWith( { ...textOptions, ...wiringOptions } );
+      expect( aiFns.generateText ).toHaveBeenCalledWith( { ...textOptions, onStepEnd: wiringOptions.onStepEndHook } );
       expect( result ).toBe( textResponse );
     } );
 
@@ -264,7 +265,7 @@ describe( 'generate', () => {
       } );
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
-        ...wiringOptions,
+        onStepEnd: wiringOptions.onStepEndHook,
         onChunk,
         onEnd: expect.any( Function ),
         onError: expect.any( Function )
@@ -375,7 +376,8 @@ describe( 'generate', () => {
       expect( aiFns.streamText ).toHaveBeenCalledWith( {
         ...textOptions,
         onChunk,
-        telemetry: wiringOptions.telemetry,
+        onStepEnd: wrapMocks.streamHooks.onStepEndHook,
+        onAbort: wrapMocks.streamHooks.onAbortHook,
         onEnd: expect.any( Function ),
         onError: expect.any( Function )
       } );

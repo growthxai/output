@@ -51,13 +51,13 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generate',
       prompt: this.#prompt,
-      fn: async wiringOptions => {
+      fn: async ( { onStepEndHook } ) => {
         const response = await this.#agent.generate( {
           messages: combinedMessages,
           allowSystemInMessages: true,
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } ),
-          ...wiringOptions
+          onStepEnd: onStepEndHook
         } );
         if ( response.finishReason !== 'error' ) {
           await this.#storeMessages( messages.concat( response.responseMessages ?? [] ) );
@@ -77,7 +77,7 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generateWithStreaming',
       prompt: this.#prompt,
-      fn: async wiringOptions => {
+      fn: async ( { onStepEndHook } ) => {
         const state = { response: null };
         const stream = await this.#agent.stream( {
           messages: combinedMessages,
@@ -85,7 +85,7 @@ export class Agent {
           ...( onChunk && { onChunk } ),
           ...( abortSignal && { abortSignal } ),
           ...( toolChoice && { toolChoice } ),
-          ...wiringOptions,
+          onStepEnd: onStepEndHook,
           onEnd: res => {
             state.response = res;
           },
@@ -116,13 +116,14 @@ export class Agent {
       name: 'Agent.stream',
       prompt: this.#prompt,
       abortSignal,
-      fn: ( { onEndHook, onErrorHook, telemetry } ) => this.#agent.stream( {
+      fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => this.#agent.stream( {
         messages: combinedMessages,
         allowSystemInMessages: true,
         ...( onChunk && { onChunk } ),
         ...( abortSignal && { abortSignal } ),
         ...( toolChoice && { toolChoice } ),
-        telemetry,
+        onStepEnd: onStepEndHook,
+        onAbort: onAbortHook,
         onEnd: response =>
           onEndHook( response, async parsedResponse => {
             if ( response.finishReason !== 'error' ) {

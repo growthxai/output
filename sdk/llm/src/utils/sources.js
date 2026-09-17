@@ -33,8 +33,10 @@ const extractSourcesFromSteps = steps =>
     .flatMap( step => asArray( step?.toolResults ) )
     .flatMap( toolResult => asArray( toolResult?.output?.results ) )
     .filter( item => isNonBlankUrl( item?.url ) )
-    .map( item => buildSource( item ) )
-    .map( item => ( { key: item.url, source: item } ) );
+    .map( item => {
+      const source = buildSource( item );
+      return { key: source.url, source };
+    } );
 
 /**
  * Extract only the valid sources from the response (has url or id).
@@ -45,18 +47,8 @@ const extractSourcesFromSteps = steps =>
  */
 const extractValidSourcesFromResponse = sources =>
   asArray( sources )
-    .filter( item => item !== null && typeof item === 'object' )
-    .filter( item => isNonBlankUrl( item.url ) || typeof item.id === 'string' )
-    .map( item => {
-      const itemCopy = { ...item };
-      if ( isNonBlankUrl( itemCopy.url ) ) {
-        itemCopy.url = itemCopy.url.trim();
-      } else {
-        delete itemCopy.url;
-      }
-      return itemCopy;
-    } )
-    .map( item => ( { key: item.url ?? item.id, source: item } ) );
+    .filter( item => item !== null && typeof item === 'object' && ( isNonBlankUrl( item.url ) || typeof item.id === 'string' ) )
+    .map( item => ( { key: isNonBlankUrl( item.url ) ? item.url.trim() : item.id, source: item } ) );
 
 /** Deduplicate wrapped sources by their key */
 const deduplicateSources = sources => new Map( sources.map( item => [ item.key, item.source ] ) ).values().toArray();

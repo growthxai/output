@@ -14,9 +14,9 @@ export const generateText = async args => {
   return wrapTextGeneration( {
     name: 'generateText',
     prompt,
-    fn: wiringOptions => AI.generateText( {
+    fn: ( { onStepEndHook } ) => AI.generateText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
-      ...wiringOptions
+      onStepEnd: onStepEndHook
     } )
   } );
 };
@@ -30,10 +30,11 @@ export const streamText = args => {
     name: 'streamText',
     prompt,
     abortSignal: aiOptions.abortSignal,
-    fn: ( { onEndHook, onErrorHook, telemetry } ) => AI.streamText( {
+    fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
-      telemetry,
+      onStepEnd: onStepEndHook,
+      onAbort: onAbortHook,
       onEnd: response => onEndHook( response, onEnd ),
       onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
     } )
@@ -51,12 +52,12 @@ export const generateTextWithStreaming = async args => {
   return wrapTextGeneration( {
     name: 'generateTextWithStreaming',
     prompt,
-    fn: async wiringOptions => {
+    fn: async ( { onStepEndHook } ) => {
       const state = { response: null };
       const stream = AI.streamText( {
         ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
         ...( onChunk && { onChunk } ),
-        ...wiringOptions,
+        onStepEnd: onStepEndHook,
         onEnd: res => {
           state.response = res;
         },

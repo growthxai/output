@@ -98,11 +98,11 @@ describe( 'wrap against the real ai sdk', () => {
     vi.restoreAllMocks();
   } );
 
-  it( 'bills a completed generation from the telemetry events', async () => {
+  it( 'bills a completed generation from the returned response', async () => {
     const wrapped = await wrapTextGeneration( {
       name: 'generateText',
       prompt,
-      fn: wiringOptions => generateText( { model: generatingModel(), prompt: 'hi', ...wiringOptions } )
+      fn: ( { onStepEndHook } ) => generateText( { model: generatingModel(), prompt: 'hi', onStepEnd: onStepEndHook } )
     } );
 
     expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15, status: 'complete' } );
@@ -113,13 +113,56 @@ describe( 'wrap against the real ai sdk', () => {
     await expect( wrapTextGeneration( {
       name: 'generateText',
       prompt,
-      fn: async wiringOptions => {
-        await generateText( { model: generatingModel(), prompt: 'hi', ...wiringOptions } );
+      fn: async ( { onStepEndHook } ) => {
+        await generateText( { model: generatingModel(), prompt: 'hi', onStepEnd: onStepEndHook } );
         throw new Error( 'output validation failed' );
       }
     } ) ).rejects.toThrow();
 
     expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15 } );
+  } );
+
+  // Grounding never reaches the aggregate usage, so it has to be read from the steps the response carries
+  it( 'sums the tokens and the grounding of every step of a completed run', async () => {
+    const state = { modelCalls: 0 };
+    const model = new MockLanguageModelV4( {
+      doGenerate: async () => {
+        state.modelCalls += 1;
+        // the first step searches and calls the tool, the second one answers
+        const searching = state.modelCalls === 1;
+        return {
+          content: searching ?
+            [ { type: 'tool-call', toolCallId: 'call-1', toolName: 'search', input: '{}' } ] :
+            [ { type: 'text', text: 'hello' } ],
+          finishReason: searching ? 'tool-calls' : 'stop',
+          usage: modelUsage,
+          providerMetadata: groundedMetadata( [ 'a', 'b' ] ),
+          warnings: []
+        };
+      }
+    } );
+
+    const wrapped = await wrapTextGeneration( {
+      name: 'generateText',
+      prompt: groundedPrompt,
+      fn: ( { onStepEndHook } ) => generateText( {
+        model,
+        prompt: 'hi',
+        maxRetries: 0,
+        stopWhen: stepCountIs( 5 ),
+        tools: { search: tool( { inputSchema: z.object( {} ), execute: async () => 'result' } ) },
+        onStepEnd: onStepEndHook
+      } )
+    } );
+
+    expect( billedUsage() ).toMatchObject( {
+      input: 20,
+      output: 10,
+      total: 30,
+      status: 'complete',
+      items: expect.arrayContaining( [ { group: 'tools', label: 'grounding_query', amount: 4 } ] )
+    } );
+    expect( wrapped.cost ).toBe( mockCost );
   } );
 
   // Grounding is reported per step, so a run that never reaches `onEnd` has the step events as its only record
@@ -145,13 +188,13 @@ describe( 'wrap against the real ai sdk', () => {
     await expect( wrapTextGeneration( {
       name: 'generateText',
       prompt: groundedPrompt,
-      fn: wiringOptions => generateText( {
+      fn: ( { onStepEndHook } ) => generateText( {
         model,
         prompt: 'hi',
         maxRetries: 0,
         stopWhen: stepCountIs( 5 ),
         tools: { search: tool( { inputSchema: z.object( {} ), execute: async () => 'result' } ) },
-        ...wiringOptions
+        onStepEnd: onStepEndHook
       } )
     } ) ).rejects.toThrow();
 
@@ -164,14 +207,15 @@ describe( 'wrap against the real ai sdk', () => {
     } );
   } );
 
-  // Agents forward call options through `prepareCall`, which keeps `telemetry` only as an unknown key
-  it( 'bills an agent generation, so the telemetry option must survive prepareCall', async () => {
+  // Agents merge the step callback with their own settings, so the hook must survive `prepareCall`
+  it( 'bills an agent generation, so the step hook must survive prepareCall', async () => {
     const agent = new ToolLoopAgent( { model: generatingModel() } );
 
     const wrapped = await wrapTextGeneration( {
       name: 'Agent.generate',
       prompt,
-      fn: wiringOptions => agent.generate( { messages: [ { role: 'user', content: 'hi' } ], ...wiringOptions } )
+      fn: ( { onStepEndHook } ) =>
+        agent.generate( { messages: [ { role: 'user', content: 'hi' } ], onStepEnd: onStepEndHook } )
     } );
 
     expect( billedUsage() ).toMatchObject( { input: 10, output: 5, total: 15, status: 'complete' } );
@@ -188,10 +232,11 @@ describe( 'wrap against the real ai sdk', () => {
     const stream = wrapStream( {
       name: 'streamText',
       prompt,
-      fn: ( { onEndHook, onErrorHook, telemetry } ) => streamText( {
+      fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => streamText( {
         model: streamingModel( chunks ),
         prompt: 'hi',
-        telemetry,
+        onStepEnd: onStepEndHook,
+        onAbort: onAbortHook,
         onEnd: response => onEndHook( response ),
         onError: event => onErrorHook( event )
       } )
@@ -210,10 +255,11 @@ describe( 'wrap against the real ai sdk', () => {
     const stream = wrapStream( {
       name: 'streamText',
       prompt,
-      fn: ( { onEndHook, onErrorHook, telemetry } ) => streamText( {
+      fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => streamText( {
         model: streamingModel( chunks ),
         prompt: 'hi',
-        telemetry,
+        onStepEnd: onStepEndHook,
+        onAbort: onAbortHook,
         onEnd: response => onEndHook( response ),
         onError: event => onErrorHook( event )
       } )
@@ -247,13 +293,14 @@ describe( 'wrap against the real ai sdk', () => {
       name: 'streamText',
       prompt,
       abortSignal: abortController.signal,
-      fn: ( { onEndHook, onErrorHook, telemetry } ) => streamText( {
+      fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => streamText( {
         model,
         prompt: 'hi',
         abortSignal: abortController.signal,
         stopWhen: stepCountIs( 3 ),
         tools: { stop: tool( { inputSchema: z.object( {} ), execute: async () => 'stopped' } ) },
-        telemetry,
+        onStepEnd: onStepEndHook,
+        onAbort: onAbortHook,
         onEnd: response => onEndHook( response ),
         onError: event => onErrorHook( event )
       } )

@@ -120,7 +120,7 @@ const textOptions = {
 };
 
 const wiringOptions = {
-  telemetry: { integrations: { onStepEnd: vi.fn(), onEnd: vi.fn(), onError: vi.fn() } }
+  onStepEndHook: vi.fn()
 };
 
 const assistantMessage = { role: 'assistant', content: 'response' };
@@ -151,7 +151,8 @@ describe( 'Agent', () => {
     wrapMocks.streamHooks = {
       onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
       onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) ),
-      telemetry: wiringOptions.telemetry
+      onStepEndHook: wiringOptions.onStepEndHook,
+      onAbortHook: vi.fn()
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
@@ -303,7 +304,7 @@ describe( 'Agent', () => {
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
       allowSystemInMessages: true,
-      ...wiringOptions
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -324,7 +325,7 @@ describe( 'Agent', () => {
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
       allowSystemInMessages: true,
-      ...wiringOptions
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -360,7 +361,7 @@ describe( 'Agent', () => {
       allowSystemInMessages: true,
       abortSignal,
       toolChoice: 'required',
-      ...wiringOptions
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -450,7 +451,7 @@ describe( 'Agent', () => {
       onChunk,
       abortSignal,
       toolChoice: 'required',
-      ...wiringOptions,
+      onStepEnd: wiringOptions.onStepEndHook,
       onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );
@@ -560,7 +561,8 @@ describe( 'Agent', () => {
       allowSystemInMessages: true,
       onChunk,
       abortSignal,
-      telemetry: wiringOptions.telemetry,
+      onStepEnd: wrapMocks.streamHooks.onStepEndHook,
+      onAbort: wrapMocks.streamHooks.onAbortHook,
       onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );

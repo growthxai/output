@@ -44,7 +44,6 @@ vi.mock( './metering.js', () => ( {
       this.prompt = prompt;
       this.attributes = { usage: null, cost: null, legacy: null };
       this.recordStep = vi.fn();
-      this.recordResponse = vi.fn();
       this.bill = vi.fn( async () => {
         this.attributes.cost = mocks.billedCost;
       } );
@@ -103,11 +102,8 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
     vi.restoreAllMocks();
   } );
 
-  /** Reports the SDK end event the way the awaited telemetry dispatch does, then returns the response */
-  const meteredFn = response => async wiringOptions => {
-    await wiringOptions.telemetry.integrations.onEnd( response );
-    return response;
-  };
+  /** Completes the way the sdk does: the response the wrapper bills is the one `fn` returns */
+  const meteredFn = response => async () => response;
 
   describe( 'wrapTextGeneration', () => {
     it( 'starts an llm trace, bills, and ends with raw usage and sources', async () => {
@@ -128,8 +124,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         details: { prompt }
       } );
       expect( mocks.randomBytes ).toHaveBeenCalledWith( 4 );
-      expect( metering().recordResponse ).toHaveBeenCalledWith( response );
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000-a1b2c3d4',
@@ -153,19 +148,12 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( metering().prompt ).toBe( prompt );
     } );
 
-    it( 'wires the sdk lifecycle events to the collector', async () => {
+    it( 'wires the step hook to the collector', async () => {
       const fn = vi.fn( async () => textResponse() );
 
       await wrapTextGeneration( { name: 'generateText', prompt, fn } );
 
-      expect( fn ).toHaveBeenCalledWith( {
-        telemetry: {
-          integrations: {
-            onStepEnd: metering().recordStep,
-            onEnd: metering().recordResponse
-          }
-        }
-      } );
+      expect( fn ).toHaveBeenCalledWith( { onStepEndHook: metering().recordStep } );
     } );
 
     it( 'bills before ending the trace', async () => {
@@ -196,8 +184,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
       const wrapped = await wrapTextGeneration( { name: 'generateText', prompt, fn: async () => response } );
 
-      expect( metering().recordResponse ).not.toHaveBeenCalled();
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( wrapped.cost ).toBeNull();
       expect( wrapped.result ).toBe( response.text );
     } );
@@ -209,14 +196,15 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       await expect( wrapTextGeneration( {
         name: 'generateText',
         prompt,
-        fn: async ( { telemetry } ) => {
-          telemetry.integrations.onStepEnd( step );
+        fn: async ( { onStepEndHook } ) => {
+          onStepEndHook( step );
           throw original;
         }
       } ) ).rejects.toBe( mappedError );
 
       expect( metering().recordStep ).toHaveBeenCalledWith( step );
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      // no response to bill, so the collector falls back to the step it recorded
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( null );
       expect( metering().bill.mock.invocationCallOrder[0] )
         .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
@@ -274,8 +262,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         details: { prompt }
       } );
       expect( metering().traceId ).toBe( 'generateImage-9000000000-a1b2c3d4' );
-      expect( metering().recordResponse ).toHaveBeenCalledWith( response );
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.serializeImagesFromResponse ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateImage-9000000000-a1b2c3d4',
@@ -295,8 +282,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
       expect( error ).toBeInstanceOf( mocks.FatalError );
       expect( error.cause ).toBeInstanceOf( TypeError );
-      expect( metering().recordResponse ).toHaveBeenCalledWith( null );
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( null );
       expect( mocks.serializeImagesFromResponse ).not.toHaveBeenCalled();
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'generateImage-9000000000-a1b2c3d4',
@@ -349,12 +335,8 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( fn ).toHaveBeenCalledWith( {
         onEndHook: expect.any( Function ),
         onErrorHook: expect.any( Function ),
-        telemetry: {
-          integrations: {
-            onStepEnd: metering().recordStep,
-            onAbort: expect.any( Function )
-          }
-        }
+        onStepEndHook: metering().recordStep,
+        onAbortHook: expect.any( Function )
       } );
       expect( metering().traceId ).toBe( 'streamText-9000000000-a1b2c3d4' );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
@@ -417,10 +399,10 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
     it( 'bills what the collector holds when the sdk aborts the stream', async () => {
       const abortController = new AbortController();
-      const { telemetry } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+      const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
       abortController.abort( new DOMException( 'Cancelled by caller', 'AbortError' ) );
 
-      await telemetry.integrations.onAbort();
+      await onAbortHook();
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       // the signal listener already recorded the abort, so the hook must not add a second error
@@ -429,9 +411,9 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
     it( 'records a timeout abort that never reached the signal', async () => {
       const abortController = new AbortController();
-      const { telemetry } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+      const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
 
-      await telemetry.integrations.onAbort();
+      await onAbortHook();
 
       const [ recorded ] = mocks.mapAiError.mock.calls[0];
       expect( recorded.message ).toBe( 'Streaming timed out.' );
@@ -444,9 +426,9 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
     } );
 
     it( 'records a timeout abort when the call carries no signal', async () => {
-      const { telemetry } = hooksFrom( 'streamText' );
+      const { onAbortHook } = hooksFrom( 'streamText' );
 
-      await telemetry.integrations.onAbort();
+      await onAbortHook();
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).toHaveBeenCalledOnce();
@@ -461,8 +443,7 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
       await onEndHook( response, callback );
 
-      expect( metering().recordResponse ).toHaveBeenCalledWith( response );
-      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( callback ).toHaveBeenCalledOnce();
       const proxied = callback.mock.calls[0][0];
@@ -578,18 +559,15 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
     it( 'bills on every terminal hook and leaves deduplication to the collector', async () => {
       const response = streamResponse();
-      const { onEndHook, onErrorHook, telemetry } = hooksFrom( 'streamText' );
+      const { onEndHook, onErrorHook, onStepEndHook } = hooksFrom( 'streamText' );
 
       // The sdk reports the error before the steps that preceded it, so onEnd is the one with usage
       await onErrorHook( { error: new Error( 'provider chunk failed' ) }, vi.fn() );
-      await telemetry.integrations.onStepEnd( response.steps[0] );
+      await onStepEndHook( response.steps[0] );
       await onEndHook( response );
 
-      expect( metering().bill ).toHaveBeenCalledTimes( 2 );
       expect( metering().recordStep ).toHaveBeenCalledWith( response.steps[0] );
-      expect( metering().recordResponse ).toHaveBeenCalledWith( response );
-      expect( metering().recordResponse.mock.invocationCallOrder[0] )
-        .toBeLessThan( metering().bill.mock.invocationCallOrder[1] );
+      expect( metering().bill.mock.calls ).toEqual( [ [], [ response ] ] );
     } );
 
     it( 'removes the abort listener when the stream reports an error', async () => {
