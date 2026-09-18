@@ -23,39 +23,41 @@ This skill is about **project-wide hook registration** for cost data already emi
 
 ### 1. Create a hook file
 
-Hook files are plain JavaScript, loaded directly by the worker at startup — not compiled from a `.ts` source, and not part of your `src/` TypeScript build.
-
-```javascript
-// src/cost_hooks.js
+```typescript
+// src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
+import type { HttpRequestCostEvent } from '@outputai/http';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 
-on('cost:http:request', async event => {
+on<HttpRequestCostEvent>('cost:http:request', async event => {
   // handle HTTP cost
 });
 
-on('llm:generation:metering', async event => {
+on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
   // handle LLM cost
 });
 ```
 
 ### 2. Register the file
 
-Add the file to `outputai.hookFiles` in `package.json`, alongside any existing hook files. Paths are relative to the package root, pointing at the `.js` file itself:
+Add the file to `outputai.hookFiles` in `package.json`, alongside any existing hook files. Paths are relative to the package root and point at the **built** `.js` output — `npm run output:worker:build` compiles `src/` to `dist/` (per `tsconfig.json`'s `rootDir`/`outDir`), so `src/cost_hooks.ts` is registered as `dist/cost_hooks.js`, not the `.ts` source itself. The worker loads these files at startup.
 
 ```json
 {
   "outputai": {
     "hookFiles": [
       "node_modules/@outputai/credentials/dist/hooks.js",
-      "./src/cost_hooks.js"
+      "./dist/cost_hooks.js"
     ]
   }
 }
 ```
 
+If you'd rather skip the build step, a hook file can also be plain, uncompiled JavaScript registered directly at its `src/` path (`"./src/cost_hooks.js"`) — see `docs/guides/operations/error-hooks.mdx` for that variant. The rest of this skill uses TypeScript + the built-output path, since that's what the framework's own examples (and every other file in a scaffolded project) use.
+
 ## Events You Can Subscribe To
 
-| Event | Type import (for `.ts` code elsewhere in your project) | When it fires | Prefer for |
+| Event | Type import | When it fires | Prefer for |
 |-------|-------------|----------------|-------------|
 | `llm:generation:metering` | `LLMGenerationMeteringEvent` from `@outputai/llm` | After every LLM generation (text, image, Agent, streaming) that reports usage — including failed calls that got at least partial usage | New LLM cost integrations |
 | `cost:llm:request` | `LLMUsageEvent` from `@outputai/llm` | Legacy/compatible LLM cost event, same completion path | Existing handlers only — do not use for new work |
@@ -67,20 +69,22 @@ Every event carries the same envelope: `eventId` (UUID v4, stable idempotency ke
 
 Use this when spend needs to reach an external observability system over HTTP. Forward the raw envelope plus payload; redact anything that might carry secrets (API keys or tokens embedded in query strings) before logging or sending the URL.
 
-```javascript
-// src/cost_hooks.js
+```typescript
+// src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
 import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
+import type { HttpRequestCostEvent } from '@outputai/http';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 
 const observabilityClient = createKyClient({
-  prefix: credentials.require('observability.webhook_url'),
+  prefix: credentials.require('observability.webhook_url') as string,
   timeout: 5000,
   retry: { limit: 1 }
 });
 
 // Strip query strings — some APIs put API keys or tokens there.
-const redactUrl = url => {
+const redactUrl = (url: string): string => {
   try {
     const parsed = new URL(url);
     return `${parsed.origin}${parsed.pathname}`;
@@ -89,7 +93,7 @@ const redactUrl = url => {
   }
 };
 
-on('cost:http:request', async event => {
+on<HttpRequestCostEvent>('cost:http:request', async event => {
   if (!event.workflowDetails || !event.payload) {
     return;
   }
@@ -112,7 +116,7 @@ on('cost:http:request', async event => {
   }
 });
 
-on('llm:generation:metering', async event => {
+on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
   if (!event.workflowDetails || !event.payload) {
     return;
   }
@@ -139,14 +143,16 @@ on('llm:generation:metering', async event => {
 
 Use this when spend just needs to land in your log platform as structured facets, without a separate network call. Use the framework `Logger` so fields are emitted consistently with the rest of the worker's logs.
 
-```javascript
-// src/cost_hooks.js
+```typescript
+// src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
 import { Logger } from '@outputai/core';
+import type { HttpRequestCostEvent } from '@outputai/http';
+import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 
 const log = Logger.createLogger('CostObservability');
 
-const redactUrl = url => {
+const redactUrl = (url: string): string => {
   try {
     const parsed = new URL(url);
     return `${parsed.origin}${parsed.pathname}`;
@@ -155,7 +161,7 @@ const redactUrl = url => {
   }
 };
 
-on('cost:http:request', async event => {
+on<HttpRequestCostEvent>('cost:http:request', async event => {
   if (!event.workflowDetails || !event.payload) {
     return;
   }
@@ -168,7 +174,7 @@ on('cost:http:request', async event => {
   });
 });
 
-on('llm:generation:metering', async event => {
+on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
   if (!event.workflowDetails || !event.payload) {
     return;
   }
@@ -194,8 +200,8 @@ on('llm:generation:metering', async event => {
 
 ## Verification Checklist
 
-- [ ] Hook file is plain JavaScript (not compiled from `.ts`) and imports `on` from `@outputai/core/hooks`
-- [ ] Hook file registered in `outputai.hookFiles` in `package.json`, pointing directly at that `.js` file
+- [ ] Hook file registered in `outputai.hookFiles` in `package.json`, pointing at the **built** `.js` path (`dist/...`), not the `.ts` source
+- [ ] Hook file imports `on` from `@outputai/core/hooks`
 - [ ] Handlers guard on missing `workflowDetails` / `payload`
 - [ ] URLs are redacted (query string stripped) before logging or forwarding
 - [ ] `llm:generation:metering` used instead of legacy `cost:llm:request` for new work
