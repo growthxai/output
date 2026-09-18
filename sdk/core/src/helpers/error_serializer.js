@@ -61,6 +61,18 @@ export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth 
   !target || depth >= maxDepth ? result :
     flattenPrototypeChain( Object.getPrototypeOf( target ), depth + 1, result.concat( target ), maxDepth );
 
+// Realm agnostic check for DOMException, works for AbortController errors even on environments without DOMExceptions
+export const isDomException = target => Object.prototype.toString.call( target ) === '[object DOMException]';
+
+const evaluateSpecialObjectsKeysList = target => {
+  // DOMException has a special serialization because it carries a bunch of legacy constant fields
+  // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
+  if ( isDomException( target ) ) {
+    return [ 'name', 'stack', 'code', 'message' ];
+  }
+  return null;
+};
+
 /**
  * Define the best "name" for an Error object
  * Rules: Assigned .name property > inherited .name if not "Error" > constructor.name
@@ -176,6 +188,8 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     const prototypes = flattenPrototypeChain( target );
     const receiver = target;
 
+    const strictKeysList = evaluateSpecialObjectsKeysList( target );
+
     const props = prototypes.reduce( ( projection, proto ) => {
       if ( Object.keys( projection ).length > MAX_OBJECT_KEYS ) {
         return projection;
@@ -184,6 +198,10 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
       const keys = Object.getOwnPropertyNames( proto );
       for ( const key of keys ) {
         if ( options.ignoredKeys.some( e => e.test ? e.test( key ) : e === key ) ) {
+          continue;
+        }
+
+        if ( Array.isArray( strictKeysList ) && !strictKeysList.includes( key ) ) {
           continue;
         }
 
@@ -212,7 +230,7 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     if ( !options.ignoredKeys.includes( 'name' ) && target instanceof Error ) {
       const name = resolveErrorName( target );
       if ( name !== undefined ) {
-        props.name = name;
+        props.name = typeof name === 'string' ? truncateString( name ) : serializeValue( name, options, nextState );
       }
     }
 
