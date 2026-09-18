@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   flattenPrototypeChain,
   isDomException,
@@ -45,6 +45,10 @@ describe( 'error serializer helpers', () => {
   } );
 
   describe( 'isDomException', () => {
+    afterEach( () => {
+      vi.unstubAllGlobals();
+    } );
+
     it( 'detects DOMExceptions, including abort reasons, and rejects lookalikes', () => {
       expect( isDomException( new DOMException( 'aborted', 'AbortError' ) ) ).toBe( true );
       expect( isDomException( AbortSignal.abort().reason ) ).toBe( true );
@@ -64,8 +68,6 @@ describe( 'error serializer helpers', () => {
         message: 'aborted',
         code: 20
       } );
-
-      vi.unstubAllGlobals();
     } );
   } );
 

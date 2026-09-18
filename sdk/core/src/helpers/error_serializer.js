@@ -230,7 +230,7 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     if ( !options.ignoredKeys.includes( 'name' ) && target instanceof Error ) {
       const name = resolveErrorName( target );
       if ( name !== undefined ) {
-        props.name = serializeValue( name, options, nextState );
+        props.name = typeof name === 'string' ? truncateString( name ) : serializeValue( name, options, nextState );
       }
     }
 
