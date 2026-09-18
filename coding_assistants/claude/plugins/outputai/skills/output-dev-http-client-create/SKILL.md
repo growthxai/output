@@ -509,12 +509,12 @@ const client = createKyClient({
 });
 ```
 
-The constant above only needs to be non-zero — `config/costs.yml` (see `output-dev-workflow-cost`) can override the actual dollar figure per service afterward, via a `services.<name>` entry with `url_pattern` and `default_price`/`endpoints`, without another code change. Prefer that file over inventing more env vars once you have more than one or two notional rates to tune.
+The constant above is a placeholder — `config/costs.yml` (see `output-dev-workflow-cost`) can override the actual dollar figure per service afterward, via a `services.<name>` entry with `url_pattern` and `default_price`/`endpoints`, without another code change. Prefer that file over inventing more env vars once you have more than one or two notional rates to tune.
 
 **Rules:**
 
 - Never `throw` from an `afterResponse` cost hook — a throw there fails the request itself. Wrap body parsing in `try/catch` and silently skip on parse failure.
-- The hook fires once per attempt, including retries — cost only successful (`response.ok`) attempts, since a failed attempt didn't get you what you're paying for and `costs.yml` overrides can't distinguish a failed attempt's cost from a successful one's.
+- The hook fires once per attempt, including retries — cost only successful (`response.ok`) attempts, since a failed attempt didn't get you what you're paying for.
 - Only do this for paid third-party APIs. Free or internal services don't need it.
 - Skip this pattern for LLM providers — those costs are computed automatically from token usage via `llm:generation:metering`. `addRequestCost` is for non-LLM HTTP calls only.
 - To consume these costs elsewhere (forward to your own observability system, log them, alert on them), see `output-dev-cost-hooks`.

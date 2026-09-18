@@ -298,7 +298,7 @@ Clients live in `src/shared/clients/` and are shared across all workflows.
 ```typescript
 // src/shared/clients/example.ts
 import { FatalError, ValidationError } from '@outputai/core';
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 
 const API_KEY = credentials.require( 'example.api_key' );
@@ -307,17 +307,9 @@ const client = createKyClient( {
   prefix: 'https://api.example.com',
   headers: { Authorization: `Bearer ${API_KEY}` },
   timeout: 30000,
-  retry: { limit: 3, statusCodes: [ 408, 429, 500, 502, 503, 504 ] },
-  hooks: {
-    // Paid APIs only — remove this hook for free or internal services.
-    // See output-dev-http-client-create for the metered vs. flat-rate cases.
-    afterResponse: [
-      ( _request, _options, response ) => {
-        if ( !response.ok ) return;
-        addRequestCost( response, 0.005 );
-      }
-    ]
-  }
+  retry: { limit: 3, statusCodes: [ 408, 429, 500, 502, 503, 504 ] }
+  // If this is a paid API, add an `afterResponse` cost hook — see
+  // output-dev-http-client-create. Free/internal services need nothing more.
 } );
 
 export async function fetchFromExample( query: string ): Promise<ExampleResponse> {

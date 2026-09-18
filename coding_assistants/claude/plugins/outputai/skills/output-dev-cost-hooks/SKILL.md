@@ -53,7 +53,7 @@ Add the file to `outputai.hookFiles` in `package.json`, alongside any existing h
 }
 ```
 
-If you'd rather skip the build step, a hook file can also be plain, uncompiled JavaScript registered directly at its `src/` path (`"./src/cost_hooks.js"`) — see `docs/guides/operations/error-hooks.mdx` for that variant. The rest of this skill uses TypeScript + the built-output path, since that's what the framework's own examples (and every other file in a scaffolded project) use.
+If you'd rather skip the build step, a hook file can also be plain, uncompiled JavaScript registered directly at its `src/` path (`"./src/cost_hooks.js"`) — see `https://docs.output.ai/operations/error-hooks` for that variant. The rest of this skill uses TypeScript + the built-output path, since that's what the framework's own examples (and every other file in a scaffolded project) use.
 
 ## Events You Can Subscribe To
 
@@ -72,16 +72,29 @@ Use this when spend needs to reach an external observability system over HTTP. F
 ```typescript
 // src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
-import { createKyClient } from '@outputai/http';
 import { credentials } from '@outputai/credentials';
 import type { HttpRequestCostEvent } from '@outputai/http';
 import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 
-const observabilityClient = createKyClient({
-  prefix: credentials.require('observability.webhook_url') as string,
-  timeout: 5000,
-  retry: { limit: 1 }
-});
+// Use plain fetch here, not createKyClient/outputFetch. Handlers run inside
+// the emitting step's async context, so a traced client would add its own
+// HTTP trace event to that step's trace on every forwarded cost event.
+const webhookUrl = credentials.require('observability.webhook_url') as string;
+
+const postEvent = async (json: Record<string, unknown>): Promise<void> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    await fetch(`${webhookUrl}/events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(json),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 
 // Strip query strings — some APIs put API keys or tokens there.
 const redactUrl = (url: string): string => {
@@ -101,15 +114,13 @@ on<HttpRequestCostEvent>('cost:http:request', async event => {
   // A caught failure here logs with this handler's own context; an
   // uncaught one is still caught and logged by the framework either way.
   try {
-    await observabilityClient.post('events', {
-      json: {
-        eventId: event.eventId,
-        eventDate: event.eventDate,
-        workflowId: event.workflowDetails.workflowId,
-        kind: 'http',
-        url: redactUrl(event.payload.url),
-        totalUsd: event.payload.total
-      }
+    await postEvent({
+      eventId: event.eventId,
+      eventDate: event.eventDate,
+      workflowId: event.workflowDetails.workflowId,
+      kind: 'http',
+      url: redactUrl(event.payload.url),
+      totalUsd: event.payload.total
     });
   } catch (error) {
     console.warn('cost_hooks: failed to forward HTTP cost event', error);
@@ -122,16 +133,14 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
   }
 
   try {
-    await observabilityClient.post('events', {
-      json: {
-        eventId: event.eventId,
-        eventDate: event.eventDate,
-        workflowId: event.workflowDetails.workflowId,
-        kind: 'llm',
-        providerId: event.payload.usage.providerId,
-        modelId: event.payload.usage.modelId,
-        totalUsd: event.payload.cost?.total ?? null
-      }
+    await postEvent({
+      eventId: event.eventId,
+      eventDate: event.eventDate,
+      workflowId: event.workflowDetails.workflowId,
+      kind: 'llm',
+      providerId: event.payload.usage.providerId,
+      modelId: event.payload.usage.modelId,
+      totalUsd: event.payload.cost?.total ?? null
     });
   } catch (error) {
     console.warn('cost_hooks: failed to forward LLM cost event', error);
