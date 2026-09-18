@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   flattenPrototypeChain,
+  isDomException,
   resolveErrorName,
   serializeError,
   truncateArray,
@@ -40,6 +41,31 @@ describe( 'error serializer helpers', () => {
 
       expect( flattenPrototypeChain( child, 0, [], 2 ) ).toEqual( [ child, parent ] );
       expect( flattenPrototypeChain( child, 0, [], 3 ) ).toEqual( [ child, parent, grandparent ] );
+    } );
+  } );
+
+  describe( 'isDomException', () => {
+    it( 'detects DOMExceptions, including abort reasons, and rejects lookalikes', () => {
+      expect( isDomException( new DOMException( 'aborted', 'AbortError' ) ) ).toBe( true );
+      expect( isDomException( AbortSignal.abort().reason ) ).toBe( true );
+      expect( isDomException( new Error( 'aborted' ) ) ).toBe( false );
+      expect( isDomException( { name: 'AbortError', code: 20 } ) ).toBe( false );
+      expect( isDomException( undefined ) ).toBe( false );
+      expect( isDomException( null ) ).toBe( false );
+    } );
+
+    it( 'detects DOMExceptions where the global is unavailable, as in the workflow sandbox', () => {
+      const error = new DOMException( 'aborted', 'AbortError' );
+      vi.stubGlobal( 'DOMException', undefined );
+
+      expect( isDomException( error ) ).toBe( true );
+      expect( serializeError( error, { dropKeys: [ 'stack' ] } ) ).toEqual( {
+        name: 'AbortError',
+        message: 'aborted',
+        code: 20
+      } );
+
+      vi.unstubAllGlobals();
     } );
   } );
 

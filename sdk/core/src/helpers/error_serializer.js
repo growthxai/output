@@ -61,6 +61,9 @@ export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth 
   !target || depth >= maxDepth ? result :
     flattenPrototypeChain( Object.getPrototypeOf( target ), depth + 1, result.concat( target ), maxDepth );
 
+// Realm agnostic check for DOMException, works for AbortController errors even on environments without DOMExceptions
+export const isDomException = target => Object.prototype.toString.call( target ) === '[object DOMException]';
+
 const shouldIgnoreKey = ( ignoredKeys, key ) => ignoredKeys.some( e => e.test ? e.test( key ) : e === key );
 
 /**
@@ -131,7 +134,9 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
       return target.toString();
     }
 
-    if ( target instanceof DOMException ) {
+    // DOMException has a special serialization because it caries a bunch of legacy constant fields
+    // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
+    if ( isDomException( target ) ) {
       return [ 'name', 'stack', 'code', 'message' ]
         .filter( k => !shouldIgnoreKey( options.ignoredKeys, k ) )
         .reduce( ( o, k ) => Object.assign( o, { [k]: serializeValue( tryOrUndefined( () => target[k] ), options, nextState ) } ), {} );
