@@ -64,7 +64,14 @@ export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth 
 // Realm agnostic check for DOMException, works for AbortController errors even on environments without DOMExceptions
 export const isDomException = target => Object.prototype.toString.call( target ) === '[object DOMException]';
 
-const shouldIgnoreKey = ( ignoredKeys, key ) => ignoredKeys.some( e => e.test ? e.test( key ) : e === key );
+const evaluateSpecialObjectsKeysList = target => {
+  // DOMException has a special serialization because it carries a bunch of legacy constant fields
+  // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
+  if ( isDomException( target ) ) {
+    return [ 'name', 'stack', 'code', 'message' ];
+  }
+  return null;
+};
 
 /**
  * Define the best "name" for an Error object
@@ -134,14 +141,6 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
       return target.toString();
     }
 
-    // DOMException has a special serialization because it caries a bunch of legacy constant fields
-    // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
-    if ( isDomException( target ) ) {
-      return [ 'name', 'stack', 'code', 'message' ]
-        .filter( k => !shouldIgnoreKey( options.ignoredKeys, k ) )
-        .reduce( ( o, k ) => Object.assign( o, { [k]: serializeValue( tryOrUndefined( () => target[k] ), options, nextState ) } ), {} );
-    }
-
     if ( typeof target === 'bigint' ) {
       return ( target >= MAX_BIGINT || target <= -MAX_BIGINT ) ? Marker.BigIntTooLarge : `${target}n`;
     }
@@ -189,6 +188,8 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     const prototypes = flattenPrototypeChain( target );
     const receiver = target;
 
+    const strictKeysList = evaluateSpecialObjectsKeysList( target );
+
     const props = prototypes.reduce( ( projection, proto ) => {
       if ( Object.keys( projection ).length > MAX_OBJECT_KEYS ) {
         return projection;
@@ -196,7 +197,11 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
 
       const keys = Object.getOwnPropertyNames( proto );
       for ( const key of keys ) {
-        if ( shouldIgnoreKey( options.ignoredKeys, key ) ) {
+        if ( options.ignoredKeys.some( e => e.test ? e.test( key ) : e === key ) ) {
+          continue;
+        }
+
+        if ( Array.isArray( strictKeysList ) && !strictKeysList.includes( key ) ) {
           continue;
         }
 
@@ -225,7 +230,7 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     if ( !options.ignoredKeys.includes( 'name' ) && target instanceof Error ) {
       const name = resolveErrorName( target );
       if ( name !== undefined ) {
-        props.name = name;
+        props.name = serializeValue( name, options, nextState );
       }
     }
 

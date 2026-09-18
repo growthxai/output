@@ -236,13 +236,13 @@ describe( 'serializeError', () => {
     } );
   } );
 
-  it( 'keeps the readable DOMException fields when one of them throws', () => {
+  it( 'marks circular DOMException fields and drops properties outside the allowed list', () => {
     const error = new DOMException( 'aborted', 'AbortError' );
-    // a name pointing back at the exception makes the stack getter recurse until it throws
-    Object.defineProperty( error, 'name', { value: error, enumerable: true } );
+    Object.defineProperty( error, 'message', { value: error, enumerable: true } );
+    error.attempt = 2;
 
-    expect( serializeError( { reason: error, sibling: 'preserved' } ) ).toEqual( {
-      reason: { name: '[Circular Reference]', message: 'aborted', code: 20 },
+    expect( serializeError( { reason: error, sibling: 'preserved' }, { dropKeys: [ 'stack' ] } ) ).toEqual( {
+      reason: { name: 'AbortError', message: '[Circular Reference]', code: 20 },
       sibling: 'preserved'
     } );
   } );
@@ -349,6 +349,17 @@ describe( 'serializeError', () => {
     expect( serialized['own-49'] ).toBe( 49 );
     expect( serialized ).not.toHaveProperty( 'inherited' );
     expect( serialized['...'] ).toBe( '[Maximum Object Properties Reached]' );
+  } );
+
+  it( 'serializes the resolved error name instead of returning it raw', () => {
+    const circular = new Error( 'boom' );
+    circular.name = circular;
+    const oversized = new Error( 'boom' );
+    oversized.name = 'n'.repeat( 16_385 );
+
+    expect( serializeError( circular, { dropKeys: [ 'stack' ] } ).name ).toBe( '[Circular Reference]' );
+    expect( serializeError( oversized, { dropKeys: [ 'stack' ] } ).name )
+      .toBe( `${'n'.repeat( 16_384 )}... [1 more characters omitted]` );
   } );
 
   it( 'retains error identity when properties reach the object limit', () => {
