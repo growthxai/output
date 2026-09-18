@@ -158,8 +158,8 @@ importers:
         specifier: 0.2.92
         version: 0.2.92(zod@4.4.3)
       '@hackylabs/deep-redact':
-        specifier: 3.0.5
-        version: 3.0.5
+        specifier: 4.1.0
+        version: 4.1.0
       '@inquirer/prompts':
         specifier: 8.4.2
         version: 8.4.2(@types/node@24.10.15)
@@ -1118,8 +1118,9 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hackylabs/deep-redact@3.0.5':
-    resolution: {integrity: sha512-CI6TJytOngHiD9RCjBBwsBrg5kCkyK74RBxawLCQ8b6yOzDgIPN4/zRI/YvL6IV18Xcb6HI93Fo2bzJ19efNqQ==}
+  '@hackylabs/deep-redact@4.1.0':
+    resolution: {integrity: sha512-vCrM/H7qydAf6kCjVRIHlX0g9x3EFjFPw1rdkou/3kvH80ti28qBJkZjo1Cdx64IVyIP/bQ58JAoeaFR8kl1Bw==}
+    engines: {node: '>=22.18.0'}
 
   '@hono/node-server@2.0.10':
     resolution: {integrity: sha512-ZcnNVhKTmyDJeg0UlnZjvM73JBsTAuhrH/J4fjwGOw59PwOW51r4J+p6CsKZWXdKSme4MFqU62CZMOsdDrU4CA==}
@@ -6504,7 +6505,7 @@ snapshots:
       protobufjs: 7.6.5
       yargs: 17.7.2
 
-  '@hackylabs/deep-redact@3.0.5': {}
+  '@hackylabs/deep-redact@4.1.0': {}
 
   '@hono/node-server@2.0.10(hono@4.13.5)':
     dependencies:
