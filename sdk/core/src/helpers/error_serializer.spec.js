@@ -194,6 +194,33 @@ describe( 'serializeError', () => {
     expect( serializeError( /request-\d+/gi ) ).toBe( '/request-\\d+/gi' );
   } );
 
+  it( 'serializes DOMException values without the legacy prototype constants', () => {
+    const error = new DOMException( 'Cancelled by caller', 'AbortError' );
+
+    expect( serializeError( error ) ).toEqual( {
+      name: 'AbortError',
+      message: 'Cancelled by caller',
+      code: 20,
+      stack: expect.stringContaining( 'AbortError: Cancelled by caller' )
+    } );
+    expect( serializeError( error, { dropKeys: [ /stack/ ] } ) ).toEqual( {
+      name: 'AbortError',
+      message: 'Cancelled by caller',
+      code: 20
+    } );
+  } );
+
+  it( 'keeps the readable DOMException fields when one of them throws', () => {
+    const error = new DOMException( 'aborted', 'AbortError' );
+    // a name pointing back at the exception makes the stack getter recurse until it throws
+    Object.defineProperty( error, 'name', { value: error, enumerable: true } );
+
+    expect( serializeError( { reason: error, sibling: 'preserved' } ) ).toEqual( {
+      reason: { name: '[Circular Reference]', message: 'aborted', code: 20 },
+      sibling: 'preserved'
+    } );
+  } );
+
   it( 'serializes bigint values with an n suffix', () => {
     expect( serializeError( 42n ) ).toBe( '42n' );
     expect( serializeError( -42n ) ).toBe( '-42n' );

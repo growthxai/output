@@ -61,6 +61,8 @@ export const flattenPrototypeChain = ( target, depth = 0, result = [], maxDepth 
   !target || depth >= maxDepth ? result :
     flattenPrototypeChain( Object.getPrototypeOf( target ), depth + 1, result.concat( target ), maxDepth );
 
+const shouldIgnoreKey = ( ignoredKeys, key ) => ignoredKeys.some( e => e.test ? e.test( key ) : e === key );
+
 /**
  * Define the best "name" for an Error object
  * Rules: Assigned .name property > inherited .name if not "Error" > constructor.name
@@ -129,6 +131,12 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
       return target.toString();
     }
 
+    if ( target instanceof DOMException ) {
+      return [ 'name', 'stack', 'code', 'message' ]
+        .filter( k => !shouldIgnoreKey( options.ignoredKeys, k ) )
+        .reduce( ( o, k ) => Object.assign( o, { [k]: serializeValue( tryOrUndefined( () => target[k] ), options, nextState ) } ), {} );
+    }
+
     if ( typeof target === 'bigint' ) {
       return ( target >= MAX_BIGINT || target <= -MAX_BIGINT ) ? Marker.BigIntTooLarge : `${target}n`;
     }
@@ -183,7 +191,7 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
 
       const keys = Object.getOwnPropertyNames( proto );
       for ( const key of keys ) {
-        if ( options.ignoredKeys.some( e => e.test ? e.test( key ) : e === key ) ) {
+        if ( shouldIgnoreKey( options.ignoredKeys, key ) ) {
           continue;
         }
 
