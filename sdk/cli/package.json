@@ -25,9 +25,9 @@
     "prebuild": "npm run generate:api"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.92",
+    "@anthropic-ai/claude-agent-sdk": "0.3.268",
     "@hackylabs/deep-redact": "3.0.5",
-    "@inquirer/prompts": "8.4.2",
+    "@inquirer/prompts": "8.7.2",
     "@oclif/core": "4.10.6",
     "@oclif/plugin-help": "6.2.45",
     "@outputai/credentials": "workspace:",
@@ -36,15 +36,15 @@
     "change-case": "5.4.4",
     "cli-progress": "3.12.0",
     "cli-table3": "0.6.5",
-    "date-fns": "4.1.0",
+    "date-fns": "4.4.0",
     "debug": "4.4.3",
     "handlebars": "4.7.9",
     "ink": "7.0.1",
     "ink-spinner": "5.0.0",
     "js-yaml": "catalog:",
-    "json-schema-library": "11.4.0",
+    "json-schema-library": "11.6.2",
     "ky": "catalog:",
-    "react": "19.2.5",
+    "react": "19.3.0",
     "semver": "catalog:",
     "undici": "catalog:"
   },
@@ -52,10 +52,10 @@
     "@types/cli-progress": "3.11.6",
     "@types/debug": "4.1.13",
     "@types/js-yaml": "catalog:",
-    "@types/react": "19.2.14",
-    "@types/semver": "7.7.1",
+    "@types/react": "19.3.0",
+    "@types/semver": "7.8.0",
     "oclif": "4.23.10",
-    "orval": "8.24.0"
+    "orval": "8.31.0"
   },
   "license": "Apache-2.0",
   "publishConfig": {
