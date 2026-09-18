@@ -509,12 +509,12 @@ const client = createKyClient({
 });
 ```
 
-The constant above is a placeholder — `config/costs.yml` (see `output-dev-workflow-cost`) can override the actual dollar figure per service afterward, via a `services.<name>` entry with `url_pattern` and `default_price`/`endpoints`, without another code change. Prefer that file over inventing more env vars once you have more than one or two notional rates to tune.
+The constant above is a placeholder — `config/costs.yml` (see `output-dev-workflow-cost`) can override the actual dollar figure per service afterward, without another code change. Add a `services.<name>` entry with `type: request`, a matching `url_pattern`, and an `endpoints.<name>` block giving `pattern` + `price` for the call. (`default_price` only applies inside a `models`/`model_path` entry, for picking a fallback price when the request's model isn't in `models` — it does nothing paired with a bare `url_pattern`.) Prefer that file over inventing more env vars once you have more than one or two notional rates to tune.
 
 **Rules:**
 
 - Never `throw` from an `afterResponse` cost hook — a throw there fails the request itself. Wrap body parsing in `try/catch` and silently skip on parse failure.
-- The hook fires once per attempt, including retries — cost only successful (`response.ok`) attempts, since a failed attempt didn't get you what you're paying for.
+- The hook fires once per attempt, including retries — skip `!response.ok` attempts unless you know the API bills failed requests too (the framework itself does count a recorded cost event "regardless of HTTP status" once one exists — the event is proof of a charge). When in doubt, check the provider's billing docs before adding the guard.
 - Only do this for paid third-party APIs. Free or internal services don't need it.
 - Skip this pattern for LLM providers — those costs are computed automatically from token usage via `llm:generation:metering`. `addRequestCost` is for non-LLM HTTP calls only.
 - To consume these costs elsewhere (forward to your own observability system, log them, alert on them), see `output-dev-cost-hooks`.

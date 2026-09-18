@@ -79,9 +79,22 @@ import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 // Use plain fetch here, not createKyClient/outputFetch. Handlers run inside
 // the emitting step's async context, so a traced client would add its own
 // HTTP trace event to that step's trace on every forwarded cost event.
-const webhookUrl = credentials.require('observability.webhook_url') as string;
+//
+// Read the credential lazily with `get`, not `require`, at module scope: a
+// hook file is imported at worker startup by an unguarded `await import()`
+// (there's no try/catch around it), so a `require()` that throws here takes
+// the whole worker down. `get`/`require` also only see workflow-scoped
+// credentials from inside an activity — at startup, outside any activity,
+// they resolve the global credential set only, so keep this in a global
+// (not per-workflow) credential file.
+const getWebhookUrl = (): string | undefined => credentials.get('observability.webhook_url') as string | undefined;
 
 const postEvent = async (json: Record<string, unknown>): Promise<void> => {
+  const webhookUrl = getWebhookUrl();
+  if (!webhookUrl) {
+    return;
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
