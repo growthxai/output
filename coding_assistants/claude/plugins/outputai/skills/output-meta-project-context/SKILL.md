@@ -83,6 +83,7 @@ src/
 | Zod import | `import { z } from '@outputai/core'` | `import { z } from 'zod'` |
 | HTTP client | `import { createKyClient } from '@outputai/http'` | `import axios from 'axios'` |
 | HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
+| Cost tracking | `addRequestCost` in an `afterResponse` hook for paid APIs | Cost left untracked, or tracked only at call sites |
 | Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
 | LLM calls | `import { generateText, aiSdk } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
@@ -173,6 +174,7 @@ src/
 | `output-dev-upgrade-prompt-models` | Bulk-upgrade `model:` fields across `.prompt` files |
 | `output-dev-scenario-file` | Test input JSON files |
 | `output-dev-http-client-create` | Shared HTTP API client patterns |
+| `output-dev-cost-hooks` | Subscribe to cost events (`cost:http:request`, `llm:generation:metering`) for observability |
 | `output-dev-skill-file` | Author `.md` skill files for the framework's lazy-loaded instructions |
 | `output-dev-create-skeleton` | Generate workflow skeleton |
 
@@ -306,6 +308,8 @@ const client = createKyClient( {
   headers: { Authorization: `Bearer ${API_KEY}` },
   timeout: 30000,
   retry: { limit: 3, statusCodes: [ 408, 429, 500, 502, 503, 504 ] }
+  // If this is a paid API, add an `afterResponse` cost hook — see
+  // output-dev-http-client-create. Free/internal services need nothing more.
 } );
 
 export async function fetchFromExample( query: string ): Promise<ExampleResponse> {
@@ -327,7 +331,7 @@ export async function fetchFromExample( query: string ): Promise<ExampleResponse
 - `FatalError`: 401, 403, 404 (won't succeed on retry)
 - `ValidationError`: 429, 5xx (may succeed on retry)
 
-See `output-dev-http-client-create` for comprehensive patterns.
+See `output-dev-http-client-create` for comprehensive patterns, and `output-dev-cost-hooks` for forwarding cost events to your own observability system.
 
 ### Evaluator Pattern
 

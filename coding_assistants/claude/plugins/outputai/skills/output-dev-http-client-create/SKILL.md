@@ -88,6 +88,15 @@ const apiKey = credentials.require('service.api_key');
 const apiKey = process.env.SERVICE_API_KEY;
 ```
 
+### Cost Tracking Import
+
+```typescript
+// CORRECT - Attach spend to paid API calls with @outputai/http
+import { addRequestCost, createKyClient } from '@outputai/http';
+
+// WRONG - Tracking cost yourself in a side table, or skipping it for paid APIs
+```
+
 ## Basic Client Structure
 
 ### Simple Function-Based Client
@@ -411,6 +420,105 @@ const client = createKyClient({
 | 429 | ValidationError | Rate limit, will succeed after wait |
 | 500+ | ValidationError | Server errors may be temporary |
 
+## Attaching Request Cost (Paid APIs)
+
+If the service a client wraps charges money per request, attach that cost to the request's trace so it shows up in `npx output workflow cost` (see `output-dev-workflow-cost`) and in any `cost:http:request` hook handlers (see `output-dev-cost-hooks`).
+
+Do this **on the client itself**, in an `afterResponse` hook — not at each call site. That way every function or method that goes through the client is costed automatically, and nobody integrating with the client later has to remember to do it.
+
+`addRequestCost(response, totalUsd)` only works on a response that came from `outputFetch` or `createKyClient` — including a `response.clone()` of one, so it's safe to call from inside an `afterResponse` hook (ky passes hooks a clone). If the response didn't originate from `@outputai/http`, `addRequestCost` no-ops with a console warning.
+
+There are two common pricing shapes for paid third-party APIs:
+
+### Metered APIs (cost is in the response)
+
+Some APIs report what a specific call cost — in a response header or a JSON field (credits used, units billed, etc). Read that field and pass it straight to `addRequestCost`. Guard against free or cached responses that legitimately report zero cost.
+
+```typescript
+import { addRequestCost, createKyClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
+
+const API_KEY = credentials.require('service.api_key');
+
+const client = createKyClient({
+  prefix: 'https://api.service.com',
+  headers: { Authorization: `Bearer ${API_KEY}` },
+  timeout: 30000,
+  retry: { limit: 3, statusCodes: [408, 429, 500, 502, 503, 504] },
+  hooks: {
+    afterResponse: [
+      async (_request, _options, response) => {
+        // Errored responses (4xx/5xx) and retried attempts aren't billed the
+        // same as a successful call — skip them rather than over-counting.
+        if (!response.ok) {
+          return;
+        }
+
+        try {
+          const body = await response.clone().json() as { creditsUsed?: number; cached?: boolean };
+
+          // Skip cached or free responses that legitimately cost nothing.
+          if (body.cached || !body.creditsUsed) {
+            return;
+          }
+
+          const usdPerCredit = 0.01;
+          addRequestCost(response, body.creditsUsed * usdPerCredit);
+        } catch {
+          // Never let cost tracking break the request.
+        }
+      }
+    ]
+  }
+});
+```
+
+### Flat-rate / subscription APIs (assign a notional cost)
+
+When a service is billed as a flat monthly fee or subscription tier, there's no true marginal cost per call — but recording *some* per-call figure keeps spend comparable across services in `workflow cost` and any cost dashboards. Assign a notional per-call USD rate as a constant, overridable by a non-secret environment variable so it can be tuned without a code change.
+
+```typescript
+import { addRequestCost, createKyClient } from '@outputai/http';
+import { credentials } from '@outputai/credentials';
+
+const API_KEY = credentials.require('service.api_key');
+
+// Notional per-call cost for a flat-rate subscription. Not a secret, so a
+// plain env var is fine here — unlike API keys, which must go through
+// @outputai/credentials.
+const NOTIONAL_COST_USD = Number(process.env.SERVICE_NOTIONAL_COST_USD ?? 0.005);
+
+const client = createKyClient({
+  prefix: 'https://api.service.com',
+  headers: { Authorization: `Bearer ${API_KEY}` },
+  timeout: 30000,
+  retry: { limit: 3, statusCodes: [408, 429, 500, 502, 503, 504] },
+  hooks: {
+    afterResponse: [
+      (_request, _options, response) => {
+        // Errored responses (4xx/5xx) and retried attempts aren't billed the
+        // same as a successful call — skip them rather than over-counting.
+        if (!response.ok) {
+          return;
+        }
+
+        addRequestCost(response, NOTIONAL_COST_USD);
+      }
+    ]
+  }
+});
+```
+
+The constant above is a placeholder — `config/costs.yml` (see `output-dev-workflow-cost`) can override the actual dollar figure per service afterward, without another code change. Add a `services.<name>` entry with `type: request`, a matching `url_pattern`, and an `endpoints.<name>` block giving `pattern` + `price` for the call. (`default_price` only applies inside a `models`/`model_path` entry, for picking a fallback price when the request's model isn't in `models` — it does nothing paired with a bare `url_pattern`.) Prefer that file over inventing more env vars once you have more than one or two notional rates to tune.
+
+**Rules:**
+
+- Never `throw` from an `afterResponse` cost hook — a throw there fails the request itself. Wrap body parsing in `try/catch` and silently skip on parse failure.
+- The hook fires once per attempt, including retries — skip `!response.ok` attempts unless you know the API bills failed requests too (the framework itself does count a recorded cost event "regardless of HTTP status" once one exists — the event is proof of a charge). When in doubt, check the provider's billing docs before adding the guard.
+- Only do this for paid third-party APIs. Free or internal services don't need it.
+- Skip this pattern for LLM providers — those costs are computed automatically from token usage via `llm:generation:metering`. `addRequestCost` is for non-LLM HTTP calls only.
+- To consume these costs elsewhere (forward to your own observability system, log them, alert on them), see `output-dev-cost-hooks`.
+
 ## Best Practices
 
 ### 1. Use Credentials for API Keys
@@ -502,6 +610,7 @@ export interface ServiceResponse {
 - [ ] Non-HEAD responses are consumed or cancelled when only metadata is used
 - [ ] JSDoc documentation for exported functions
 - [ ] TypeScript interfaces exported for response types
+- [ ] Paid third-party API calls attach cost via `addRequestCost` in an `afterResponse` hook
 
 ## Related Skills
 
@@ -509,5 +618,6 @@ export interface ServiceResponse {
 - `output-dev-evaluator-function` - Using clients in evaluators
 - `output-dev-folder-structure` - Understanding project layout
 - `output-dev-credentials` - Encrypted secrets management
+- `output-dev-cost-hooks` - Subscribing to cost events (`cost:http:request`, `llm:generation:metering`) for observability
 - `output-error-http-client` - Troubleshooting HTTP issues
 - `output-error-try-catch` - Proper error handling patterns
