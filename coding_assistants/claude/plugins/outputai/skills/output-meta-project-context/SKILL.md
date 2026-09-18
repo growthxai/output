@@ -309,10 +309,11 @@ const client = createKyClient( {
   timeout: 30000,
   retry: { limit: 3, statusCodes: [ 408, 429, 500, 502, 503, 504 ] },
   hooks: {
-    // Attach cost automatically for every call through this client.
+    // Paid APIs only — remove this hook for free or internal services.
     // See output-dev-http-client-create for the metered vs. flat-rate cases.
     afterResponse: [
       ( _request, _options, response ) => {
+        if ( !response.ok ) return;
         addRequestCost( response, 0.005 );
       }
     ]

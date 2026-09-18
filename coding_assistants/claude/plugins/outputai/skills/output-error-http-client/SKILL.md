@@ -291,6 +291,7 @@ const client = createKyClient( {
   hooks: {
     afterResponse: [
       ( _request, _options, response ) => {
+        if ( !response.ok ) return;
         addRequestCost( response, 0.005 );
       }
     ]
