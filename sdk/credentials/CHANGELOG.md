@@ -1,5 +1,12 @@
 # @outputai/credentials
 
+## 0.14.0
+
+### Patch Changes
+
+- Updated dependencies [3d517c0]
+  - @outputai/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes
