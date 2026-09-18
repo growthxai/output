@@ -45,7 +45,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@aws-sdk/lib-storage": "3.1038.0",
-    "@babel/generator": "7.29.1",
+    "@babel/generator": "8.0.5",
     "@babel/parser": "7.29.2",
     "@babel/traverse": "7.29.0",
     "@babel/types": "7.29.0",
