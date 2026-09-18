@@ -115,6 +115,8 @@ TOTAL ESTIMATED COST (adjusted)   $0.0163
 As-charged (from trace)           $0.0163
 ```
 
+API Costs only include calls where the client attached a dollar amount with `addRequestCost` (see `output-dev-http-client-create`, "Attaching Request Cost (Paid APIs)"). An HTTP call that never calls `addRequestCost` is still traced but contributes nothing here — that's expected for free or internal services, and a gap to fix for paid ones.
+
 ### JSON format fields:
 ```json
 {

@@ -1,6 +1,6 @@
 ---
 name: output-error-http-client
-description: Fix HTTP client misuse in Output SDK steps. Use when seeing untraced requests, missing error details, axios-related errors, or when HTTP calls aren't being properly logged and retried.
+description: Fix HTTP client misuse in Output SDK steps. Use when seeing untraced requests, missing error details, axios-related errors, HTTP calls aren't being properly logged and retried, or paid API costs are missing from cost reports.
 allowed-tools: [Bash, Read]
 ---
 
@@ -265,6 +265,39 @@ export const fetchData = step( {
 } );
 ```
 
+## Missing Cost Tracking for Paid APIs
+
+### Symptom
+
+A client wraps a paid third-party API, but its calls never show up in the `API Costs` section of `npx output workflow cost` — they're traced (so tracing works), but their cost is always $0 or absent from the report.
+
+### Root Cause
+
+`npx output workflow cost` only knows about HTTP spend that was explicitly attached with `addRequestCost` from `@outputai/http`. Tracing a request is automatic; costing it is not — a client that never calls `addRequestCost` will trace correctly and cost nothing, which is expected for free/internal services but a bug for paid ones.
+
+### Solution
+
+Attach cost inside an `afterResponse` hook on the client so every call is costed automatically, rather than at each call site. See `output-dev-http-client-create` (section "Attaching Request Cost (Paid APIs)") for the metered-response and flat-rate patterns, and `output-dev-cost-hooks` for forwarding those costs to an external observability system.
+
+```typescript
+// WRONG: paid API, no cost tracking
+const client = createKyClient( { prefix: 'https://api.service.com' } );
+
+// CORRECT: cost attached automatically for every call
+import { addRequestCost, createKyClient } from '@outputai/http';
+
+const client = createKyClient( {
+  prefix: 'https://api.service.com',
+  hooks: {
+    afterResponse: [
+      ( _request, _options, response ) => {
+        addRequestCost( response, 0.005 );
+      }
+    ]
+  }
+} );
+```
+
 ## Finding axios/fetch Usage
 
 Search your codebase:
@@ -313,3 +346,4 @@ After migrating to createKyClient:
 - For I/O in workflow functions, see `output-error-direct-io`
 - For connection issues, see `output-services-check`
 - For encrypted secrets management, see `output-dev-credentials`
+- For attaching and forwarding request cost, see `output-dev-http-client-create` and `output-dev-cost-hooks`
