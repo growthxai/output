@@ -1,5 +1,15 @@
 # @outputai/cli
 
+## 0.14.0
+
+### Patch Changes
+
+- a28b894: Updated the scaffolded `CLAUDE.md`'s HTTP client convention to point agents at `addRequestCost` from an `afterResponse` hook for paid APIs, and at forwarding cost events via `output-dev-cost-hooks`.
+- Updated dependencies [318b2e6]
+  - @outputai/llm@0.14.0
+  - @outputai/credentials@0.14.0
+  - @outputai/evals@0.14.0
+
 ## 0.13.0
 
 ### Minor Changes
