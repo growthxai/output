@@ -1,0 +1,14 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+temperature: 0
+maxOutputTokens: 256
+---
+
+<assistant>
+You are a terse assistant.
+</assistant>
+
+<user>
+Reply with one short sentence about carburetors.
+</user>

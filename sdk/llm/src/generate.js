@@ -1,6 +1,6 @@
 import * as AI from 'ai';
 import { loadPrompt } from './prompt/loader.js';
-import { wrapGeneration, wrapStream } from './utils/wrap.js';
+import { wrapImageGeneration, wrapStream, wrapTextGeneration } from './utils/wrap.js';
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { drainStream } from './utils/stream.js';
 import { loadSkills } from './utils/skills.js';
@@ -11,10 +11,13 @@ export const generateText = async args => {
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  return wrapGeneration( {
+  return wrapTextGeneration( {
     name: 'generateText',
     prompt,
-    fn: () => AI.generateText( loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ) )
+    fn: ( { onStepEndHook } ) => AI.generateText( {
+      ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+      onStepEnd: onStepEndHook
+    } )
   } );
 };
 
@@ -27,9 +30,11 @@ export const streamText = args => {
     name: 'streamText',
     prompt,
     abortSignal: aiOptions.abortSignal,
-    fn: ( { onEndHook, onErrorHook } ) => AI.streamText( {
+    fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => AI.streamText( {
       ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
       ...( onChunk && { onChunk } ),
+      onStepEnd: onStepEndHook,
+      onAbort: onAbortHook,
       onEnd: response => onEndHook( response, onEnd ),
       onError: event => onErrorHook( event, error => onError?.( { ...event, error } ) )
     } )
@@ -44,14 +49,15 @@ export const generateTextWithStreaming = async args => {
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
 
-  return wrapGeneration( {
+  return wrapTextGeneration( {
     name: 'generateTextWithStreaming',
     prompt,
-    fn: async () => {
+    fn: async ( { onStepEndHook } ) => {
       const state = { response: null };
       const stream = AI.streamText( {
         ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
         ...( onChunk && { onChunk } ),
+        onStepEnd: onStepEndHook,
         onEnd: res => {
           state.response = res;
         },
@@ -61,7 +67,7 @@ export const generateTextWithStreaming = async args => {
       await drainStream( stream, aiOptions.abortSignal );
 
       if ( !state.response ) {
-        throw new Error( 'Streaming generation completed without a response.' );
+        throw new Error( 'Streaming completed without a response.' );
       }
 
       state.response.output = await stream.output;
@@ -74,7 +80,7 @@ export const generateImage = async args => {
   const { promptFile, promptObject, promptDir, variables, ...aiOptions } = Validator.parseGenerateImageArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
 
-  return wrapGeneration( {
+  return wrapImageGeneration( {
     name: 'generateImage',
     prompt,
     fn: () => AI.generateImage( loadAiSdkImageOptions( { prompt, ...aiOptions } ) )

@@ -2,41 +2,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import imageResponseFixture from '../fixtures/image_response_v7_openai.js';
 import streamResponseFixture from '../fixtures/stream_response_v7_openai.js';
 import textResponseFixture from '../fixtures/text_response_v7_openai.js';
-import vertexTextResponseFixture from '../fixtures/text_response_v7_google_vertex.js';
 
 const mocks = vi.hoisted( () => ( {
   extractSources: vi.fn(),
-  parseLLMUsage: vi.fn(),
-  calculateCosts: vi.fn(),
-  convertCostToLegacy: vi.fn(),
-  calculateBase64FileSize: vi.fn(),
+  serializeImagesFromResponse: vi.fn(),
   mapAiError: vi.fn(),
   randomBytes: vi.fn(),
-  logger: { warn: vi.fn(), error: vi.fn() }
+  logger: { warn: vi.fn(), error: vi.fn() },
+  /** Stands in for the framework error, which is never retried */
+  FatalError: class FatalError extends Error {},
+  meterings: [],
+  billedCost: null
 } ) );
 
 vi.mock( '@outputai/core', () => ( {
-  Logger: mocks.logger
+  Logger: mocks.logger,
+  FatalError: mocks.FatalError
 } ) );
 
 vi.mock( './sources.js', () => ( {
   extractSources: mocks.extractSources
 } ) );
 
-vi.mock( './usage.js', () => ( {
-  parseLLMUsage: mocks.parseLLMUsage
-} ) );
-
-vi.mock( './cost.js', () => ( {
-  calculateCosts: mocks.calculateCosts
-} ) );
-
-vi.mock( './legacy_cost_attribute.js', () => ( {
-  convertCostToLegacy: mocks.convertCostToLegacy
-} ) );
-
 vi.mock( './image.js', () => ( {
-  calculateBase64FileSize: mocks.calculateBase64FileSize
+  serializeImagesFromResponse: mocks.serializeImagesFromResponse
 } ) );
 
 vi.mock( './error_handler.js', () => ( {
@@ -45,6 +34,22 @@ vi.mock( './error_handler.js', () => ( {
 
 vi.mock( 'node:crypto', () => ( {
   randomBytes: mocks.randomBytes
+} ) );
+
+/** Stands in for the real collector: records what the wrapper feeds it and exposes the billed cost */
+vi.mock( './metering.js', () => ( {
+  Metering: class {
+    constructor( { traceId, prompt } ) {
+      this.traceId = traceId;
+      this.prompt = prompt;
+      this.attributes = { usage: null, cost: null, legacy: null };
+      this.recordStep = vi.fn();
+      this.bill = vi.fn( async () => {
+        this.attributes.cost = mocks.billedCost;
+      } );
+      mocks.meterings.push( this );
+    }
+  }
 } ) );
 
 vi.mock( '@outputai/core/sdk/runtime', () => ( {
@@ -59,46 +64,36 @@ vi.mock( '@outputai/core/sdk/runtime', () => ( {
   }
 } ) );
 
-import { Tracing, Event } from '@outputai/core/sdk/runtime';
-import { wrapGeneration, wrapStream } from './wrap.js';
+import { Tracing } from '@outputai/core/sdk/runtime';
+import { wrapImageGeneration, wrapStream, wrapTextGeneration } from './wrap.js';
 
 const tracing = vi.mocked( Tracing, true );
-const event = vi.mocked( Event, true );
 
 const clone = value => structuredClone( value );
 const textResponse = () => clone( textResponseFixture );
 const streamResponse = () => clone( streamResponseFixture );
 const imageResponse = () => clone( imageResponseFixture );
-const vertexTextResponse = () => clone( vertexTextResponseFixture );
+
+/** Collector built by the wrapper under test */
+const metering = () => mocks.meterings.at( -1 );
 
 const prompt = {
   name: 'writer@v1',
   config: { provider: 'openai', model: 'test-model' }
 };
 
-const mockUsage = {
-  type: 'llm:generation:usage',
-  providerId: 'openai',
-  modelId: 'test-model',
-  status: 'complete',
-  input: 2,
-  output: 1,
-  total: 3,
-  items: []
-};
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
-const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 const mappedError = new Error( 'mapped' );
+const serializedImages = [ { size: 1234, mediaType: 'image/png' } ];
 
-describe( 'wrapGeneration / wrapStream', () => {
+describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     vi.spyOn( Date, 'now' ).mockReturnValue( 9_000_000_000 );
+    mocks.meterings.length = 0;
+    mocks.billedCost = mockCost;
     mocks.extractSources.mockReturnValue( [] );
-    mocks.parseLLMUsage.mockReturnValue( mockUsage );
-    mocks.calculateCosts.mockResolvedValue( mockCost );
-    mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
-    mocks.calculateBase64FileSize.mockReturnValue( 1234 );
+    mocks.serializeImagesFromResponse.mockReturnValue( serializedImages );
     mocks.mapAiError.mockReturnValue( mappedError );
     mocks.randomBytes.mockReturnValue( Buffer.from( 'a1b2c3d4', 'hex' ) );
   } );
@@ -107,17 +102,19 @@ describe( 'wrapGeneration / wrapStream', () => {
     vi.restoreAllMocks();
   } );
 
-  describe( 'wrapGeneration', () => {
-    it( 'starts an llm trace, wraps a text response, and ends with raw usage and sources', async () => {
-      const structuredCloneSpy = vi.spyOn( globalThis, 'structuredClone' );
+  /** Completes the way the sdk does: the response the wrapper bills is the one `fn` returns */
+  const meteredFn = response => async () => response;
+
+  describe( 'wrapTextGeneration', () => {
+    it( 'starts an llm trace, bills, and ends with raw usage and sources', async () => {
       const response = textResponse();
       const mergedSources = [ { url: 'https://merged.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
 
-      const wrapped = await wrapGeneration( {
+      const wrapped = await wrapTextGeneration( {
         name: 'generateText',
         prompt,
-        fn: async () => response
+        fn: meteredFn( response )
       } );
 
       expect( tracing.addEventStart ).toHaveBeenCalledWith( {
@@ -127,37 +124,7 @@ describe( 'wrapGeneration / wrapStream', () => {
         details: { prompt }
       } );
       expect( mocks.randomBytes ).toHaveBeenCalledWith( 4 );
-      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
-        usage: response.usage,
-        prompt,
-        steps: response.steps
-      } );
-      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
-      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockCost
-      } );
-      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockLegacyCost
-      } );
-      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 3, {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockUsage
-      } );
-      expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockCost );
-      expect( event.emit ).toHaveBeenNthCalledWith( 1, 'cost:llm:request', mockLegacyCost );
-      expect( event.emit ).toHaveBeenNthCalledWith( 2, 'llm:generation:metering', {
-        cost: mockCost,
-        usage: mockUsage
-      } );
-      expect( structuredCloneSpy ).toHaveBeenCalledWith( mockLegacyCost );
-      expect( structuredCloneSpy ).toHaveBeenCalledWith( { cost: mockCost, usage: mockUsage } );
-      const legacyEventPayload = event.emit.mock.calls[0][1];
-      const meteringEventPayload = event.emit.mock.calls[1][1];
-      expect( legacyEventPayload ).not.toBe( mockLegacyCost );
-      expect( meteringEventPayload.cost ).not.toBe( mockCost );
-      expect( meteringEventPayload.usage ).not.toBe( mockUsage );
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'generateText-9000000000-a1b2c3d4',
@@ -169,9 +136,31 @@ describe( 'wrapGeneration / wrapStream', () => {
         }
       } );
       expect( wrapped.result ).toBe( response.text );
-      expect( wrapped.cost ).toEqual( mockCost );
+      expect( wrapped.cost ).toBe( mockCost );
       expect( wrapped.sources ).toBe( mergedSources );
       expect( wrapped.text ).toBe( response.text );
+    } );
+
+    it( 'builds the collector for the trace it started', async () => {
+      await wrapTextGeneration( { name: 'generateText', prompt, fn: meteredFn( textResponse() ) } );
+
+      expect( metering().traceId ).toBe( 'generateText-9000000000-a1b2c3d4' );
+      expect( metering().prompt ).toBe( prompt );
+    } );
+
+    it( 'wires the step hook to the collector', async () => {
+      const fn = vi.fn( async () => textResponse() );
+
+      await wrapTextGeneration( { name: 'generateText', prompt, fn } );
+
+      expect( fn ).toHaveBeenCalledWith( { onStepEndHook: metering().recordStep } );
+    } );
+
+    it( 'bills before ending the trace', async () => {
+      await wrapTextGeneration( { name: 'generateText', prompt, fn: meteredFn( textResponse() ) } );
+
+      expect( metering().bill.mock.invocationCallOrder[0] )
+        .toBeLessThan( tracing.addEventEnd.mock.invocationCallOrder[0] );
     } );
 
     it( 'uses usage instead of deprecated totalUsage', async () => {
@@ -184,141 +173,62 @@ describe( 'wrapGeneration / wrapStream', () => {
         sources: []
       };
 
-      await wrapGeneration( { name: 'generateText', prompt, fn: async () => response } );
+      await wrapTextGeneration( { name: 'generateText', prompt, fn: meteredFn( response ) } );
 
-      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
-        usage: { inputTokens: 2 },
-        prompt,
-        steps: response.steps
-      } );
-      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+      expect( tracing.addEventEnd.mock.calls[0][0].details.usage ).toBe( response.usage );
     } );
 
-    it( 'wraps an image response using usage and mapped image metadata', async () => {
-      const response = imageResponse();
-
-      const wrapped = await wrapGeneration( {
-        name: 'generateImage',
-        prompt,
-        fn: async () => response
-      } );
-
-      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
-        usage: response.usage,
-        prompt,
-        steps: response.steps
-      } );
-      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
-      expect( mocks.calculateBase64FileSize ).toHaveBeenCalledWith( response.images[0].base64Data );
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateImage-9000000000-a1b2c3d4',
-        details: {
-          result: [ { size: 1234, mediaType: 'image/png' } ],
-          usage: response.usage,
-          providerMetadata: response.providerMetadata
-        }
-      } );
-      expect( mocks.extractSources ).not.toHaveBeenCalled();
-      expect( wrapped.result ).toBe( response.image );
-      expect( wrapped.cost ).toEqual( mockCost );
-    } );
-
-    it( 'emits normalized usage when cost is missing', async () => {
-      mocks.calculateCosts.mockResolvedValue( null );
+    it( 'proxies a null cost when there was nothing to bill', async () => {
+      mocks.billedCost = null;
       const response = textResponse();
 
-      const wrapped = await wrapGeneration( {
-        name: 'generateText',
-        prompt,
-        fn: async () => response
-      } );
+      const wrapped = await wrapTextGeneration( { name: 'generateText', prompt, fn: async () => response } );
 
-      expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockUsage
-      } );
-      expect( event.emit ).toHaveBeenCalledOnce();
-      expect( event.emit ).toHaveBeenCalledWith( 'llm:generation:metering', {
-        cost: null,
-        usage: mockUsage
-      } );
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateText-9000000000-a1b2c3d4',
-        details: {
-          result: response.text,
-          usage: response.usage,
-          providerMetadata: response.finalStep.providerMetadata,
-          sources: []
-        }
-      } );
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( wrapped.cost ).toBeNull();
+      expect( wrapped.result ).toBe( response.text );
     } );
 
-    it( 'skips the legacy attribute and event when the cost cannot be converted', async () => {
-      mocks.convertCostToLegacy.mockReturnValue( null );
-      const response = textResponse();
+    it( 'bills the recorded steps when the call fails after the model ran', async () => {
+      const original = new Error( 'no output generated' );
+      const step = { usage: { inputTokens: 2, outputTokens: 1 }, providerMetadata: { openai: {} } };
 
-      await wrapGeneration( {
+      await expect( wrapTextGeneration( {
         name: 'generateText',
         prompt,
-        fn: async () => response
-      } );
-
-      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 1, {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockCost
-      } );
-      expect( tracing.addEventAttribute ).toHaveBeenNthCalledWith( 2, {
-        eventId: 'generateText-9000000000-a1b2c3d4',
-        attribute: mockUsage
-      } );
-      expect( tracing.addEventAttribute ).toHaveBeenCalledTimes( 2 );
-      expect( event.emit ).toHaveBeenCalledOnce();
-      expect( event.emit ).toHaveBeenCalledWith( 'llm:generation:metering', {
-        cost: mockCost,
-        usage: mockUsage
-      } );
-    } );
-
-    it( 'skips cost calculation when usage cannot be parsed', async () => {
-      mocks.parseLLMUsage.mockReturnValue( null );
-      const response = textResponse();
-
-      const wrapped = await wrapGeneration( {
-        name: 'generateText',
-        prompt,
-        fn: async () => response
-      } );
-
-      expect( mocks.calculateCosts ).not.toHaveBeenCalled();
-      expect( tracing.addEventAttribute ).not.toHaveBeenCalled();
-      expect( event.emit ).not.toHaveBeenCalled();
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
-        id: 'generateText-9000000000-a1b2c3d4',
-        details: {
-          result: response.text,
-          usage: response.usage,
-          providerMetadata: response.finalStep.providerMetadata,
-          sources: []
+        fn: async ( { onStepEndHook } ) => {
+          onStepEndHook( step );
+          throw original;
         }
-      } );
-      expect( wrapped.cost ).toBeNull();
+      } ) ).rejects.toBe( mappedError );
+
+      expect( metering().recordStep ).toHaveBeenCalledWith( step );
+      // no response to bill, so the collector falls back to the step it recorded
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( null );
+      expect( metering().bill.mock.invocationCallOrder[0] )
+        .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
-    it( 'forwards all step grounding metadata to usage parsing', async () => {
-      const response = vertexTextResponse();
+    it( 'wraps a response handling failure in a fatal error after billing', async () => {
+      const error = await wrapTextGeneration( { name: 'generateText', prompt, fn: async () => null } ).catch( e => e );
 
-      await wrapGeneration( { name: 'generateText', prompt, fn: async () => response } );
-
-      const { steps } = mocks.parseLLMUsage.mock.calls[0][0];
-      expect( steps ).toBe( response.steps );
-      expect( steps[0].providerMetadata.vertex.groundingMetadata.webSearchQueries ).toHaveLength( 2 );
+      expect( error ).toBeInstanceOf( mocks.FatalError );
+      expect( error.message ).toBe( 'AI SDK response handling failed.' );
+      expect( error.cause ).toBeInstanceOf( TypeError );
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( mocks.mapAiError ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'generateText-9000000000-a1b2c3d4',
+        details: error
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
     it( 'maps fn errors onto the llm trace and rethrows', async () => {
       const original = new Error( 'boom' );
 
-      await expect( wrapGeneration( {
+      await expect( wrapTextGeneration( {
         name: 'Agent.generate',
         prompt,
         fn: async () => {
@@ -331,6 +241,73 @@ describe( 'wrapGeneration / wrapStream', () => {
         id: 'Agent.generate-9000000000-a1b2c3d4',
         details: mappedError
       } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+  } );
+
+  describe( 'wrapImageGeneration', () => {
+    it( 'bills the returned response and wraps the first image', async () => {
+      const response = imageResponse();
+
+      const wrapped = await wrapImageGeneration( {
+        name: 'generateImage',
+        prompt,
+        fn: async () => response
+      } );
+
+      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
+        kind: 'llm',
+        id: 'generateImage-9000000000-a1b2c3d4',
+        name: 'generateImage',
+        details: { prompt }
+      } );
+      expect( metering().traceId ).toBe( 'generateImage-9000000000-a1b2c3d4' );
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
+      expect( mocks.serializeImagesFromResponse ).toHaveBeenCalledWith( response );
+      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
+        id: 'generateImage-9000000000-a1b2c3d4',
+        details: {
+          result: serializedImages,
+          usage: response.usage,
+          providerMetadata: response.providerMetadata
+        }
+      } );
+      expect( mocks.extractSources ).not.toHaveBeenCalled();
+      expect( wrapped.result ).toBe( response.image );
+      expect( wrapped.cost ).toBe( mockCost );
+    } );
+
+    it( 'bills before wrapping a response handling failure in a fatal error', async () => {
+      const error = await wrapImageGeneration( { name: 'generateImage', prompt, fn: async () => null } ).catch( e => e );
+
+      expect( error ).toBeInstanceOf( mocks.FatalError );
+      expect( error.cause ).toBeInstanceOf( TypeError );
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( null );
+      expect( mocks.serializeImagesFromResponse ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'generateImage-9000000000-a1b2c3d4',
+        details: error
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'maps fn errors onto the llm trace and rethrows without billing', async () => {
+      const original = new Error( 'image boom' );
+
+      await expect( wrapImageGeneration( {
+        name: 'generateImage',
+        prompt,
+        fn: async () => {
+          throw original;
+        }
+      } ) ).rejects.toBe( mappedError );
+
+      expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'generateImage-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+      expect( metering().bill ).not.toHaveBeenCalled();
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
   } );
@@ -357,8 +334,11 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
       expect( fn ).toHaveBeenCalledWith( {
         onEndHook: expect.any( Function ),
-        onErrorHook: expect.any( Function )
+        onErrorHook: expect.any( Function ),
+        onStepEndHook: metering().recordStep,
+        onAbortHook: expect.any( Function )
       } );
+      expect( metering().traceId ).toBe( 'streamText-9000000000-a1b2c3d4' );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
@@ -381,6 +361,23 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
     } );
 
+    it( 'wraps a non-error abort reason before recording it', () => {
+      const abortController = new AbortController();
+
+      wrapStream( {
+        name: 'streamText',
+        prompt,
+        abortSignal: abortController.signal,
+        fn: () => ( {} )
+      } );
+      abortController.abort( 'user navigated away' );
+
+      const [ recorded ] = mocks.mapAiError.mock.calls[0];
+      expect( recorded ).toBeInstanceOf( Error );
+      expect( recorded.message ).toBe( 'Streaming aborted.' );
+      expect( recorded.cause ).toBe( 'user navigated away' );
+    } );
+
     it( 'records an already-aborted signal before creating the stream', () => {
       const abortController = new AbortController();
       const abortReason = new DOMException( 'Already cancelled', 'AbortError' );
@@ -400,7 +397,44 @@ describe( 'wrapGeneration / wrapStream', () => {
       } );
     } );
 
-    it( 'wraps onEnd, ends the trace, then awaits the callback', async () => {
+    it( 'bills what the collector holds when the sdk aborts the stream', async () => {
+      const abortController = new AbortController();
+      const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+      abortController.abort( new DOMException( 'Cancelled by caller', 'AbortError' ) );
+
+      await onAbortHook();
+
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      // the signal listener already recorded the abort, so the hook must not add a second error
+      expect( tracing.addEventError ).toHaveBeenCalledOnce();
+    } );
+
+    it( 'records a timeout abort that never reached the signal', async () => {
+      const abortController = new AbortController();
+      const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
+
+      await onAbortHook();
+
+      const [ recorded ] = mocks.mapAiError.mock.calls[0];
+      expect( recorded.message ).toBe( 'Streaming timed out.' );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+      expect( metering().bill.mock.invocationCallOrder[0] )
+        .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
+    } );
+
+    it( 'records a timeout abort when the call carries no signal', async () => {
+      const { onAbortHook } = hooksFrom( 'streamText' );
+
+      await onAbortHook();
+
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( tracing.addEventError ).toHaveBeenCalledOnce();
+    } );
+
+    it( 'bills onEnd, ends the trace, then awaits the callback', async () => {
       const response = streamResponse();
       const mergedSources = [ { url: 'https://s.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
@@ -409,17 +443,12 @@ describe( 'wrapGeneration / wrapStream', () => {
 
       await onEndHook( response, callback );
 
-      expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
-        usage: response.usage,
-        prompt,
-        steps: response.steps
-      } );
-      expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+      expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
       expect( callback ).toHaveBeenCalledOnce();
       const proxied = callback.mock.calls[0][0];
       expect( proxied.result ).toBe( response.text );
-      expect( proxied.cost ).toEqual( mockCost );
+      expect( proxied.cost ).toBe( mockCost );
       expect( proxied.sources ).toBe( mergedSources );
       expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
         id: 'Agent.stream-9000000000-a1b2c3d4',
@@ -444,43 +473,101 @@ describe( 'wrapGeneration / wrapStream', () => {
       expect( tracing.addEventError ).not.toHaveBeenCalled();
     } );
 
-    it( 'forwards all step grounding metadata to usage parsing', async () => {
-      const response = vertexTextResponse();
-      const { onEndHook } = hooksFrom( 'Agent.stream' );
-
-      await onEndHook( response, vi.fn() );
-
-      const { steps } = mocks.parseLLMUsage.mock.calls[0][0];
-      expect( steps ).toBe( response.steps );
-      expect( steps[0].providerMetadata.vertex.groundingMetadata.webSearchQueries ).toHaveLength( 2 );
-    } );
-
     it( 'ends the trace and swallows throws from the onEnd callback', async () => {
       const response = textResponse();
       const { onEndHook } = hooksFrom( 'Agent.stream' );
 
-      await expect( onEndHook( response, async () => {
+      const callback = vi.fn( async () => {
         throw new Error( 'user onEnd' );
-      } ) ).resolves.toBeUndefined();
+      } );
 
+      await onEndHook( response, callback );
+
+      expect( callback.mock.calls[0][0].result ).toBe( response.text );
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).not.toHaveBeenCalled();
       expect( mocks.mapAiError ).not.toHaveBeenCalled();
+      expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onEnd() callback failed', {
+        namespace: 'LLM',
+        error: 'user onEnd'
+      } );
     } );
 
-    it( 'maps onError events and forwards the mapped error to the callback', () => {
+    it( 'records a response handling failure on the trace without ending it', async () => {
+      const callback = vi.fn();
+      const { onEndHook } = hooksFrom( 'streamText' );
+
+      await expect( onEndHook( null, callback ) ).resolves.toBeUndefined();
+
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( callback ).not.toHaveBeenCalled();
+      expect( mocks.logger.error ).toHaveBeenCalledWith( 'AI SDK response handling failed', {
+        namespace: 'LLM',
+        error: expect.any( String )
+      } );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: expect.any( mocks.FatalError )
+      } );
+      expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'skips a callback that is not a function', async () => {
+      const response = streamResponse();
+      const { onEndHook } = hooksFrom( 'streamText' );
+
+      await expect( onEndHook( response, 'not-a-function' ) ).resolves.toBeUndefined();
+
+      expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
+      expect( mocks.logger.error ).not.toHaveBeenCalled();
+    } );
+
+    it( 'bills onError, maps the event error, and forwards it to the callback', async () => {
       const original = new Error( 'stream failed' );
       const callback = vi.fn();
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      onErrorHook( { error: original }, callback );
+      await onErrorHook( { error: original }, callback );
 
+      expect( metering().bill ).toHaveBeenCalledOnce();
+      expect( metering().bill.mock.invocationCallOrder[0] )
+        .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
       expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
       expect( tracing.addEventError ).toHaveBeenCalledWith( {
         id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError
       } );
       expect( callback ).toHaveBeenCalledWith( mappedError );
+    } );
+
+    it( 'normalizes an error event that carries no error instance', async () => {
+      const callback = vi.fn();
+      const { onErrorHook } = hooksFrom( 'streamText' );
+
+      await onErrorHook( { error: { code: 500 } }, callback );
+
+      const [ recorded ] = mocks.mapAiError.mock.calls[0];
+      expect( recorded ).toBeInstanceOf( Error );
+      expect( recorded.message ).toBe( 'Streaming failed.' );
+      expect( recorded.cause ).toEqual( { code: 500 } );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+      expect( callback ).toHaveBeenCalledWith( mappedError );
+    } );
+
+    it( 'bills on every terminal hook and leaves deduplication to the collector', async () => {
+      const response = streamResponse();
+      const { onEndHook, onErrorHook, onStepEndHook } = hooksFrom( 'streamText' );
+
+      // The sdk reports the error before the steps that preceded it, so onEnd is the one with usage
+      await onErrorHook( { error: new Error( 'provider chunk failed' ) }, vi.fn() );
+      await onStepEndHook( response.steps[0] );
+      await onEndHook( response );
+
+      expect( metering().recordStep ).toHaveBeenCalledWith( response.steps[0] );
+      expect( metering().bill.mock.calls ).toEqual( [ [], [ response ] ] );
     } );
 
     it( 'removes the abort listener when the stream reports an error', async () => {
@@ -500,6 +587,11 @@ describe( 'wrapGeneration / wrapStream', () => {
       await expect( onErrorHook( { error: new Error( 'x' ) }, () => {
         throw new Error( 'user onError' );
       } ) ).resolves.toBeUndefined();
+
+      expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onError() callback failed', {
+        namespace: 'LLM',
+        error: 'user onError'
+      } );
     } );
 
     it( 'awaits and swallows rejected promises from the onError callback', async () => {
@@ -510,6 +602,7 @@ describe( 'wrapGeneration / wrapStream', () => {
       const { onErrorHook } = hooksFrom( 'streamText' );
 
       const hookPromise = onErrorHook( { error: new Error( 'x' ) }, callback );
+      await Promise.resolve();
 
       expect( hookPromise ).toBeInstanceOf( Promise );
       state.rejection( new Error( 'async user onError' ) );
@@ -567,6 +660,44 @@ describe( 'wrapGeneration / wrapStream', () => {
         prompt,
         fn: () => Promise.resolve( stream )
       } ) ).resolves.toBe( stream );
+
+      expect( mocks.mapAiError ).not.toHaveBeenCalled();
+      expect( tracing.addEventError ).not.toHaveBeenCalled();
+    } );
+
+    it( 'records a rejected output promise on the llm trace', async () => {
+      const original = new Error( 'output did not match schema' );
+      const stream = { output: Promise.reject( original ) };
+
+      const result = wrapStream( { name: 'streamText', prompt, fn: () => stream } );
+      await expect( stream.output ).rejects.toBe( original );
+
+      expect( result ).toBe( stream );
+      expect( mocks.mapAiError ).toHaveBeenCalledWith( original );
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'streamText-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+    } );
+
+    it( 'records a rejected output promise of a stream fn resolved to', async () => {
+      const original = new Error( 'output did not match schema' );
+      const stream = { output: Promise.reject( original ) };
+
+      await wrapStream( { name: 'Agent.stream', prompt, fn: () => Promise.resolve( stream ) } );
+      await expect( stream.output ).rejects.toBe( original );
+
+      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+        id: 'Agent.stream-9000000000-a1b2c3d4',
+        details: mappedError
+      } );
+    } );
+
+    it( 'leaves the trace untouched when the output resolves', async () => {
+      const stream = { output: Promise.resolve( { answer: 'ok' } ) };
+
+      wrapStream( { name: 'streamText', prompt, fn: () => stream } );
+      await stream.output;
 
       expect( mocks.mapAiError ).not.toHaveBeenCalled();
       expect( tracing.addEventError ).not.toHaveBeenCalled();

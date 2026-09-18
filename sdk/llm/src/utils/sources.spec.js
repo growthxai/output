@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const mocks = vi.hoisted( () => ( {
+  logger: { error: vi.fn() }
+} ) );
+
+vi.mock( '@outputai/core', () => ( {
+  Logger: mocks.logger
+} ) );
+
 import { extractSources } from './sources.js';
 
 const hashedId = url => createHash( 'sha256' ).update( url ).digest( 'hex' ).slice( 0, 16 );
@@ -11,6 +20,10 @@ const searchStep = results => ( {
 } );
 
 describe( 'extractSources', () => {
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
+
   it( 'returns empty when steps and sources are missing or empty', () => {
     expect( extractSources( {} ) ).toEqual( [] );
     expect( fromSteps( undefined ) ).toEqual( [] );
@@ -117,6 +130,61 @@ describe( 'extractSources', () => {
 
     expect( sources ).toHaveLength( 2 );
     expect( sources[0].url ).toBe( url );
-    expect( sources[1] ).toBe( doc );
+    expect( sources[1] ).toEqual( doc );
+  } );
+
+  it( 'drops response sources that carry neither a url nor an id', () => {
+    const sources = [ null, undefined, 'https://string.test', 42, [], { title: 'no keys' }, { url: 5 } ];
+
+    expect( extractSources( { sources } ) ).toEqual( [] );
+  } );
+
+  it( 'keeps blank-url sources under their id instead of collapsing them', () => {
+    const docA = { type: 'source', sourceType: 'document', id: 'doc-a', url: '', title: 'A' };
+    const docB = { type: 'source', sourceType: 'document', id: 'doc-b', url: '   ', title: 'B' };
+    const result = extractSources( { sources: [ docA, docB ] } );
+
+    expect( result ).toEqual( [ docA, docB ] );
+    expect( result[0] ).toBe( docA );
+    expect( result[1] ).toBe( docB );
+  } );
+
+  it( 'dedupes response sources on the trimmed url, leaving the source untouched', () => {
+    const url = 'https://shared.test';
+    const responseSource = { type: 'source', sourceType: 'url', id: 'b', url: `  ${url}  `, title: 'from-response' };
+    const result = extractSources( {
+      steps: [ searchStep( [ { url, title: 'from-tool' } ] ) ],
+      sources: [ responseSource ]
+    } );
+
+    expect( result ).toHaveLength( 1 );
+    expect( result[0] ).toBe( responseSource );
+    expect( result[0].url ).toBe( `  ${url}  ` );
+  } );
+
+  it( 'logs and returns no sources when reading the response throws', () => {
+    const response = {
+      get steps() {
+        throw new Error( 'steps exploded' );
+      }
+    };
+
+    expect( extractSources( response ) ).toEqual( [] );
+    expect( mocks.logger.error ).toHaveBeenCalledWith(
+      'Sources extraction failed',
+      expect.objectContaining( { namespace: 'LLM', error: 'steps exploded' } )
+    );
+  } );
+
+  it( 'logs and returns no sources when a source getter throws', () => {
+    const sources = [ {
+      type: 'source',
+      get url() {
+        throw new Error( 'url exploded' );
+      }
+    } ];
+
+    expect( extractSources( { sources } ) ).toEqual( [] );
+    expect( mocks.logger.error ).toHaveBeenCalledOnce();
   } );
 } );

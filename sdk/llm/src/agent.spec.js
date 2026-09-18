@@ -36,7 +36,7 @@ const optionMocks = vi.hoisted( () => ( {
 } ) );
 
 const wrapMocks = vi.hoisted( () => ( {
-  wrapGeneration: vi.fn(),
+  wrapTextGeneration: vi.fn(),
   wrapStream: vi.fn(),
   streamHooks: { onEndHook: vi.fn(), onErrorHook: vi.fn() }
 } ) );
@@ -88,7 +88,7 @@ vi.mock( './ai_sdk_options.js', () => ( {
 } ) );
 
 vi.mock( './utils/wrap.js', () => ( {
-  wrapGeneration: ( ...args ) => wrapMocks.wrapGeneration( ...args ),
+  wrapTextGeneration: ( ...args ) => wrapMocks.wrapTextGeneration( ...args ),
   wrapStream: ( ...args ) => wrapMocks.wrapStream( ...args )
 } ) );
 
@@ -119,6 +119,10 @@ const textOptions = {
   temperature: 0.3
 };
 
+const wiringOptions = {
+  onStepEndHook: vi.fn()
+};
+
 const assistantMessage = { role: 'assistant', content: 'response' };
 
 const aiResponse = {
@@ -143,10 +147,12 @@ describe( 'Agent', () => {
 
     optionMocks.loadAiSdkTextOptions.mockReset().mockReturnValue( textOptions );
 
-    wrapMocks.wrapGeneration.mockReset().mockImplementation( async ( { fn } ) => fn() );
+    wrapMocks.wrapTextGeneration.mockReset().mockImplementation( async ( { fn } ) => fn( wiringOptions ) );
     wrapMocks.streamHooks = {
       onEndHook: vi.fn( async ( response, callback ) => callback?.( response ) ),
-      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) )
+      onErrorHook: vi.fn( ( event, callback ) => callback?.( event.error ) ),
+      onStepEndHook: wiringOptions.onStepEndHook,
+      onAbortHook: vi.fn()
     };
     wrapMocks.wrapStream.mockReset().mockImplementation( ( { fn } ) => fn( wrapMocks.streamHooks ) );
     streamMocks.drainStream.mockReset().mockResolvedValue( undefined );
@@ -290,14 +296,15 @@ describe( 'Agent', () => {
     await agent.generate();
 
     expect( validations.parseAgentGenerateArgs ).toHaveBeenCalledWith( undefined );
-    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
-      allowSystemInMessages: true
+      allowSystemInMessages: true,
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -317,7 +324,8 @@ describe( 'Agent', () => {
 
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
-      allowSystemInMessages: true
+      allowSystemInMessages: true,
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -352,7 +360,8 @@ describe( 'Agent', () => {
       ],
       allowSystemInMessages: true,
       abortSignal,
-      toolChoice: 'required'
+      toolChoice: 'required',
+      onStepEnd: wiringOptions.onStepEndHook
     } );
   } );
 
@@ -367,7 +376,7 @@ describe( 'Agent', () => {
 
     const result = await agent.generate( { messages: [ callerMessage ] } );
 
-    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
       fn: expect.any( Function )
@@ -428,7 +437,7 @@ describe( 'Agent', () => {
       abortSignal,
       toolChoice: 'required'
     } );
-    expect( wrapMocks.wrapGeneration ).toHaveBeenCalledWith( {
+    expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
       prompt: loadedPrompt,
       fn: expect.any( Function )
@@ -442,6 +451,7 @@ describe( 'Agent', () => {
       onChunk,
       abortSignal,
       toolChoice: 'required',
+      onStepEnd: wiringOptions.onStepEndHook,
       onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );
@@ -551,6 +561,8 @@ describe( 'Agent', () => {
       allowSystemInMessages: true,
       onChunk,
       abortSignal,
+      onStepEnd: wrapMocks.streamHooks.onStepEndHook,
+      onAbort: wrapMocks.streamHooks.onAbortHook,
       onEnd: expect.any( Function ),
       onError: expect.any( Function )
     } );
@@ -580,10 +592,7 @@ describe( 'Agent', () => {
 
     await expect( streamOptions.onEnd( aiResponse ) ).resolves.toBeUndefined();
 
-    expect( loggerMocks.error ).toHaveBeenCalledWith(
-      'Agent.stream message store persistence failed',
-      { namespace: 'LLM', error: persistenceError.message }
-    );
+    expect( loggerMocks.error ).toHaveBeenCalledWith( 'Message store persistence failed', { namespace: 'LLM', error: persistenceError.message } );
     expect( onEnd ).toHaveBeenCalledWith( aiResponse );
     expect( result ).toEqual( { textStream: 'stream' } );
   } );

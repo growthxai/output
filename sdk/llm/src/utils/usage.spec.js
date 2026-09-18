@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Tracing } from '@outputai/core/sdk/runtime';
 import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
+
+const mocks = vi.hoisted( () => ( {
+  extractUsageFromSteps: vi.fn()
+} ) );
+
+vi.mock( './usage_tools.js', () => ( {
+  extractUsageFromSteps: mocks.extractUsageFromSteps
+} ) );
 
 const prompt = {
   config: {
@@ -9,12 +17,18 @@ const prompt = {
   }
 };
 
-const parse = usage => parseLLMUsage( { prompt, usage } );
-const step = webSearchQueries => ( { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries } } } } );
+// AI SDK shape when a run ends without an aggregate usage report
+const nullUsage = {
+  inputTokens: undefined,
+  inputTokenDetails: { noCacheTokens: undefined, cacheReadTokens: undefined, cacheWriteTokens: undefined },
+  outputTokens: undefined,
+  outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined }
+};
+
 const grounded = ( model, ...steps ) => parseLLMUsage( {
   prompt: { config: { provider: 'google-vertex', model } },
   usage: { inputTokens: 100, outputTokens: 50 },
-  steps: steps.map( step )
+  steps: steps.map( webSearchQueries => ( { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries } } } } ) )
 } );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
@@ -72,8 +86,12 @@ describe( 'LLMGenerationUsage', () => {
 } );
 
 describe( 'parseLLMUsage', () => {
+  beforeEach( () => {
+    mocks.extractUsageFromSteps.mockReset();
+  } );
+
   it( 'uses complete input and output breakdowns', () => {
-    const result = parse( {
+    const usage = {
       inputTokens: 100,
       inputTokenDetails: {
         noCacheTokens: 70,
@@ -85,7 +103,8 @@ describe( 'parseLLMUsage', () => {
         textTokens: 40,
         reasoningTokens: 10
       }
-    } );
+    };
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( serialize( result ) ).toEqual( {
       type: LLMGenerationUsage.TYPE,
@@ -106,7 +125,7 @@ describe( 'parseLLMUsage', () => {
   } );
 
   it( 'uses sparse breakdowns when their reported values match the aggregates', () => {
-    const result = parse( {
+    const usage = {
       inputTokens: 100,
       inputTokenDetails: {
         noCacheTokens: 80,
@@ -116,7 +135,8 @@ describe( 'parseLLMUsage', () => {
       outputTokenDetails: {
         textTokens: 50
       }
-    } );
+    };
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result.items ).toEqual( [
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'no_cache', 80 ),
@@ -127,10 +147,12 @@ describe( 'parseLLMUsage', () => {
   } );
 
   it( 'uses aggregate items when no breakdown is reported', () => {
-    const result = parse( {
+    const usage = {
       inputTokens: 100,
       outputTokens: 50
-    } );
+    };
+
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result.items ).toEqual( [
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
@@ -145,7 +167,7 @@ describe( 'parseLLMUsage', () => {
   } );
 
   it( 'uses aggregate items when reported breakdowns do not match', () => {
-    const result = parse( {
+    const usage = {
       inputTokens: 100,
       inputTokenDetails: {
         noCacheTokens: 90,
@@ -157,7 +179,8 @@ describe( 'parseLLMUsage', () => {
         textTokens: 40,
         reasoningTokens: 5
       }
-    } );
+    };
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result.items ).toEqual( [
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 100 ),
@@ -166,7 +189,7 @@ describe( 'parseLLMUsage', () => {
   } );
 
   it( 'preserves known zero aggregates', () => {
-    const result = parse( {
+    const usage = {
       inputTokens: 0,
       inputTokenDetails: {
         noCacheTokens: 0,
@@ -178,7 +201,8 @@ describe( 'parseLLMUsage', () => {
         textTokens: 0,
         reasoningTokens: 0
       }
-    } );
+    };
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result ).toMatchObject( {
       status: LLMGenerationUsage.Status.COMPLETE,
@@ -206,7 +230,7 @@ describe( 'parseLLMUsage', () => {
       item: new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 15 )
     }
   ] )( 'marks $name-only usage incomplete', ( { usage, expected, item } ) => {
-    const result = parse( usage );
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result ).toMatchObject( {
       status: LLMGenerationUsage.Status.INCOMPLETE,
@@ -220,10 +244,7 @@ describe( 'parseLLMUsage', () => {
     -1,
     1.5
   ] )( 'ignores invalid aggregate value %s', inputTokens => {
-    const result = parse( {
-      inputTokens,
-      outputTokens: 15
-    } );
+    const result = parseLLMUsage( { prompt, usage: { inputTokens, outputTokens: 15 } } );
 
     expect( result ).toMatchObject( {
       status: LLMGenerationUsage.Status.INCOMPLETE,
@@ -282,6 +303,8 @@ describe( 'parseLLMUsage', () => {
   } );
 
   it( 'reports grounding for a response without token usage', () => {
+    mocks.extractUsageFromSteps.mockReturnValue( {} );
+
     const result = parseLLMUsage( {
       prompt,
       usage: {},
@@ -299,8 +322,31 @@ describe( 'parseLLMUsage', () => {
     ] );
   } );
 
+  it( 'rebuilds usage from the steps when no aggregate is reported', () => {
+    const steps = [ { usage: {} }, { usage: {} } ];
+    mocks.extractUsageFromSteps.mockReturnValue( { inputTokens: 300, outputTokens: 30 } );
+
+    const result = parseLLMUsage( { prompt, usage: nullUsage, steps } );
+
+    expect( mocks.extractUsageFromSteps ).toHaveBeenCalledWith( steps );
+    expect( result.items ).toEqual( [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 300 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, null, 30 )
+    ] );
+  } );
+
+  it( 'ignores the steps when an aggregate is reported', () => {
+    const usage = { inputTokens: 100, outputTokens: 50 };
+    const steps = [ { usage: {} } ];
+
+    const result = parseLLMUsage( { prompt, usage, steps } );
+
+    expect( mocks.extractUsageFromSteps ).not.toHaveBeenCalled();
+    expect( result ).toMatchObject( { input: 100, output: 50, total: 150 } );
+  } );
+
   it( 'returns null when neither aggregate is reported', () => {
-    const result = parse( {
+    const usage = {
       inputTokenDetails: {
         noCacheTokens: 10
       },
@@ -308,7 +354,9 @@ describe( 'parseLLMUsage', () => {
         textTokens: 5
       },
       totalTokens: 15
-    } );
+    };
+
+    const result = parseLLMUsage( { prompt, usage } );
 
     expect( result ).toBeNull();
   } );
