@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-09-14T06:24:50.389Z"
+    "createdAt": "2026-09-21T06:25:19.707Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -78,10 +78,10 @@
       },
       "anthropic.claude-opus-4-6-v1": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "anthropic.claude-opus-4-7": {
@@ -118,10 +118,10 @@
       },
       "anthropic.claude-sonnet-4-6": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "anthropic.claude-sonnet-5": {
@@ -156,20 +156,28 @@
           "cache_write": 0.84
         }
       },
+      "apac.anthropic.claude-sonnet-4-20250514-v1:0": {
+        "cost": {
+          "input": 3,
+          "output": 15,
+          "cache_read": 0.3,
+          "cache_write": 3.75
+        }
+      },
       "au.anthropic.claude-haiku-4-5-20251001-v1:0": {
         "cost": {
-          "input": 1,
-          "output": 5,
-          "cache_read": 0.1,
-          "cache_write": 1.25
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.11,
+          "cache_write": 1.375
         }
       },
       "au.anthropic.claude-opus-4-6-v1": {
         "cost": {
-          "input": 16.5,
-          "output": 82.5,
-          "cache_read": 1.65,
-          "cache_write": 20.625
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "au.anthropic.claude-opus-4-7": {
@@ -182,26 +190,26 @@
       },
       "au.anthropic.claude-opus-4-8": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "au.anthropic.claude-opus-5": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "au.anthropic.claude-sonnet-4-5-20250929-v1:0": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "au.anthropic.claude-sonnet-4-6": {
@@ -214,10 +222,10 @@
       },
       "au.anthropic.claude-sonnet-5": {
         "cost": {
-          "input": 2,
-          "output": 10,
-          "cache_read": 0.2,
-          "cache_write": 2.5
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
         }
       },
       "ca.amazon.nova-lite-v1:0": {
@@ -334,6 +342,14 @@
           "cache_write": 6.875
         }
       },
+      "eu.anthropic.claude-sonnet-4-20250514-v1:0": {
+        "cost": {
+          "input": 3,
+          "output": 15,
+          "cache_read": 0.3,
+          "cache_write": 3.75
+        }
+      },
       "eu.anthropic.claude-sonnet-4-5-20250929-v1:0": {
         "cost": {
           "input": 3.3,
@@ -434,6 +450,14 @@
           "output": 25,
           "cache_read": 0.5,
           "cache_write": 6.25
+        }
+      },
+      "global.anthropic.claude-sonnet-4-20250514-v1:0": {
+        "cost": {
+          "input": 3,
+          "output": 15,
+          "cache_read": 0.3,
+          "cache_write": 3.75
         }
       },
       "global.anthropic.claude-sonnet-4-5-20250929-v1:0": {
@@ -669,58 +693,58 @@
       },
       "jp.anthropic.claude-haiku-4-5-20251001-v1:0": {
         "cost": {
-          "input": 1,
-          "output": 5,
-          "cache_read": 0.1,
-          "cache_write": 1.25
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.11,
+          "cache_write": 1.375
         }
       },
       "jp.anthropic.claude-opus-4-7": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "jp.anthropic.claude-opus-4-8": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "jp.anthropic.claude-opus-5": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "jp.anthropic.claude-sonnet-4-5-20250929-v1:0": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "jp.anthropic.claude-sonnet-4-6": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "jp.anthropic.claude-sonnet-5": {
         "cost": {
-          "input": 2,
-          "output": 10,
-          "cache_read": 0.2,
-          "cache_write": 2.5
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
         }
       },
       "meta.llama3-1-70b-instruct-v1:0": {
@@ -1111,10 +1135,10 @@
       },
       "us.anthropic.claude-fable-5": {
         "cost": {
-          "input": 10,
-          "output": 50,
-          "cache_read": 1,
-          "cache_write": 12.5
+          "input": 11,
+          "output": 55,
+          "cache_read": 1.1,
+          "cache_write": 13.75
         }
       },
       "us.anthropic.claude-fable-5-1": {
@@ -1127,10 +1151,10 @@
       },
       "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
         "cost": {
-          "input": 1,
-          "output": 5,
-          "cache_read": 0.1,
-          "cache_write": 1.25
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.11,
+          "cache_write": 1.375
         }
       },
       "us.anthropic.claude-opus-4-1-20250805-v1:0": {
@@ -1143,66 +1167,74 @@
       },
       "us.anthropic.claude-opus-4-5-20251101-v1:0": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "us.anthropic.claude-opus-4-6-v1": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "us.anthropic.claude-opus-4-7": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "us.anthropic.claude-opus-4-8": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
         }
       },
       "us.anthropic.claude-opus-5": {
         "cost": {
-          "input": 5,
-          "output": 25,
-          "cache_read": 0.5,
-          "cache_write": 6.25
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
+        }
+      },
+      "us.anthropic.claude-sonnet-4-20250514-v1:0": {
+        "cost": {
+          "input": 3,
+          "output": 15,
+          "cache_read": 0.3,
+          "cache_write": 3.75
         }
       },
       "us.anthropic.claude-sonnet-4-5-20250929-v1:0": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "us.anthropic.claude-sonnet-4-6": {
         "cost": {
-          "input": 3,
-          "output": 15,
-          "cache_read": 0.3,
-          "cache_write": 3.75
+          "input": 3.3,
+          "output": 16.5,
+          "cache_read": 0.33,
+          "cache_write": 4.125
         }
       },
       "us.anthropic.claude-sonnet-5": {
         "cost": {
-          "input": 2,
-          "output": 10,
-          "cache_read": 0.2,
-          "cache_write": 2.5
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
         }
       },
       "us.deepseek.r1-v1:0": {
@@ -2101,6 +2133,20 @@
           "cache_read": 1.25
         }
       },
+      "gpt-image-2.5-flare": {
+        "cost": {
+          "input": 5,
+          "output": 30,
+          "cache_read": 1.25
+        }
+      },
+      "gpt-image-2.5-sunburst": {
+        "cost": {
+          "input": 5,
+          "output": 30,
+          "cache_read": 1.25
+        }
+      },
       "grok-4-1-fast-non-reasoning": {
         "cost": {
           "input": 0.2,
@@ -2831,6 +2877,13 @@
           "input": 1,
           "output": 3.2,
           "cache_read": 0.1
+        }
+      },
+      "zai-org/glm-5.2-maas": {
+        "cost": {
+          "input": 1.4,
+          "output": 4.4,
+          "cache_read": 0.14
         }
       }
     }
