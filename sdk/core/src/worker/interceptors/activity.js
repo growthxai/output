@@ -44,7 +44,7 @@ export class ActivityExecutionInterceptor {
     const { traceInfo, workflowDetails } = headersToObject( input.headers );
     const outputActivityKind = this.activityKindMap.get( activityType );
     const workflowFilename = this.workflowsPathMap.get( workflowType );
-    // Activities retry carry the same id, so the concatenating "attempts" discrete trace entries.
+    // Retries reuse the same activityId, so the attempt is appended to keep each attempt a discrete trace entry.
     const traceId = `${activityId}:${attempt}`;
 
     if ( !outputActivityKind ) {
