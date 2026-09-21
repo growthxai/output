@@ -68,7 +68,7 @@ const evaluateSpecialObjectsKeysList = target => {
   // DOMException has a special serialization because it carries a bunch of legacy constant fields
   // https://developer.mozilla.org/en-US/docs/Web/API/DOMException
   if ( isDomException( target ) ) {
-    return [ 'name', 'stack', 'code', 'message' ];
+    return [ 'name', 'message', 'code', 'cause', 'stack' ];
   }
   return null;
 };
