@@ -45,7 +45,8 @@ export class ActivityExecutionInterceptor {
     const outputActivityKind = this.activityKindMap.get( activityType );
     const workflowFilename = this.workflowsPathMap.get( workflowType );
     // Retries reuse the same activityId, so the attempt is appended to keep each attempt a discrete trace entry.
-    const traceId = `${activityId}:${attempt}`;
+    // Also prefix with the runId to avoid conflict with child workflows.
+    const traceId = `${runId}:${activityId}:${attempt}`;
 
     if ( !outputActivityKind ) {
       throw new Error( `Activity interceptor: activity "${activityType}" was not registered.` );
