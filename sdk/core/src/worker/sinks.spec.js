@@ -167,7 +167,7 @@ describe( 'worker/sinks', () => {
     expect( addEventErrorMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'trace.start records trace start events with workflow parent context', async () => {
+  it( 'trace.start parents trace start events on the current workflow, not its parent workflow', async () => {
     const { sinks } = await import( './sinks.js' );
 
     sinks.trace.start.fn( workflowInfo, {
@@ -182,7 +182,7 @@ describe( 'worker/sinks', () => {
       kind: ComponentType.STEP,
       name: 'myStep',
       details: { input: true },
-      parentId: 'parent-run-1',
+      parentId: 'run-1',
       traceInfo: { traceId: 'trace-1' }
     } );
   } );

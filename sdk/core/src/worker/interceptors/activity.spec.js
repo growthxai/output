@@ -8,6 +8,7 @@ const runWithContextMock = vi.hoisted( () => vi.fn().mockImplementation( async f
 const activityInfoMock = vi.hoisted( () => ( {
   workflowExecution: { workflowId: 'wf-1', runId: 'run-1' },
   activityId: 'act-1',
+  attempt: 1,
   activityType: 'myWorkflow#myStep',
   workflowType: 'myWorkflow'
 } ) );
@@ -87,6 +88,7 @@ describe( 'ActivityExecutionInterceptor', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     activityInfoMock.workflowType = 'myWorkflow';
+    activityInfoMock.attempt = 1;
     delete activityInfoMock.retryPolicy;
     vi.useFakeTimers();
     // Default: heartbeat enabled with 50ms interval for fast tests
@@ -114,25 +116,40 @@ describe( 'ActivityExecutionInterceptor', () => {
       { activityInfo: activityInfoMock, workflowDetails: workflowDetailsMock, outputActivityKind: 'step' }
     );
     expect( addEventStartMock ).toHaveBeenCalledWith( {
-      id: 'act-1',
+      id: 'act-1:1',
       name: 'myWorkflow#myStep',
       kind: 'step',
       parentId: 'run-1',
       details: { someInput: 'data' },
       traceInfo: traceInfoMock
     } );
-    expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1', details: { result: 'ok' }, traceInfo: traceInfoMock } );
+    expect( addEventEndMock ).toHaveBeenCalledWith( { id: 'act-1:1', details: { result: 'ok' }, traceInfo: traceInfoMock } );
     expect( addEventErrorMock ).not.toHaveBeenCalled();
     expect( runWithContextMock ).toHaveBeenCalledWith(
       expect.any( Function ),
       expect.objectContaining( {
-        parentId: 'act-1',
+        parentId: 'act-1:1',
         activityInfo: activityInfoMock,
         workflowDetails: workflowDetailsMock,
         outputActivityKind: 'step',
         workflowFilename: '/workflows/myWorkflow.js',
         traceInfo: traceInfoMock
       } )
+    );
+  } );
+
+  it( 'scopes trace ids by attempt so retries do not reuse the same id', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    activityInfoMock.attempt = 3;
+    const next = vi.fn().mockResolvedValue( { result: 'ok' } );
+
+    await expect( interceptor.execute( makeInput(), next ) ).resolves.toEqual( { result: 'ok' } );
+    expect( addEventStartMock ).toHaveBeenCalledWith( expect.objectContaining( { id: 'act-1:3', parentId: 'run-1' } ) );
+    expect( addEventEndMock ).toHaveBeenCalledWith( expect.objectContaining( { id: 'act-1:3' } ) );
+    expect( runWithContextMock ).toHaveBeenCalledWith(
+      expect.any( Function ),
+      expect.objectContaining( { parentId: 'act-1:3' } )
     );
   } );
 
@@ -210,7 +227,7 @@ describe( 'ActivityExecutionInterceptor', () => {
         }
       } ]
     } );
-    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1', details: cause, traceInfo: traceInfoMock } );
+    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1:1', details: cause, traceInfo: traceInfoMock } );
     expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
       activityInfo: activityInfoMock,
       workflowDetails: workflowDetailsMock,
@@ -226,7 +243,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     const next = vi.fn().mockRejectedValue( error );
 
     await expect( interceptor.execute( makeInput(), next ) ).rejects.toBe( error );
-    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1', details: error, traceInfo: traceInfoMock } );
+    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'act-1:1', details: error, traceInfo: traceInfoMock } );
     expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
       activityInfo: activityInfoMock,
       workflowDetails: workflowDetailsMock,
@@ -245,7 +262,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_START, expect.any( Object ) );
     expect( mainEventBusEmitMock ).toHaveBeenCalledTimes( 1 );
     expect( addEventEndMock ).toHaveBeenCalledWith( {
-      id: 'act-1',
+      id: 'act-1:1',
       details: ActivitySpecialOutput.ASYNC_HANDOFF,
       traceInfo: traceInfoMock
     } );

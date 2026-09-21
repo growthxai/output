@@ -40,10 +40,12 @@ export class ActivityExecutionInterceptor {
 
   async execute( input, next ) {
     const activityInfo = activityInfoFn();
-    const { workflowExecution: { runId }, activityId, activityType, workflowType } = activityInfo;
+    const { workflowExecution: { runId }, activityId, attempt, activityType, workflowType } = activityInfo;
     const { traceInfo, workflowDetails } = headersToObject( input.headers );
     const outputActivityKind = this.activityKindMap.get( activityType );
     const workflowFilename = this.workflowsPathMap.get( workflowType );
+    // Activities retry carry the same id, so the concatenating "attempts" discrete trace entries.
+    const traceId = `${activityId}:${attempt}`;
 
     if ( !outputActivityKind ) {
       throw new Error( `Activity interceptor: activity "${activityType}" was not registered.` );
@@ -58,7 +60,7 @@ export class ActivityExecutionInterceptor {
 
     // Adds context accessible information
     const storageContext = {
-      parentId: activityId,
+      parentId: traceId,
       outputActivityKind,
       activityInfo,
       workflowDetails,
@@ -67,7 +69,7 @@ export class ActivityExecutionInterceptor {
     };
 
     mainEventBus.emit( BusEventType.ACTIVITY_START, { activityInfo, workflowDetails, outputActivityKind } );
-    Tracing.addEventStart( { id: activityId, name: activityType, kind: outputActivityKind, parentId: runId, details: input.args[0], traceInfo } );
+    Tracing.addEventStart( { id: traceId, name: activityType, kind: outputActivityKind, parentId: runId, details: input.args[0], traceInfo } );
 
     try {
       // Sends heartbeat to communicate that activity is still alive
@@ -76,20 +78,20 @@ export class ActivityExecutionInterceptor {
       const output = await Storage.runWithContext( async _ => next( input ), storageContext );
 
       mainEventBus.emit( BusEventType.ACTIVITY_END, { activityInfo, workflowDetails, outputActivityKind } );
-      Tracing.addEventEnd( { id: activityId, details: output, traceInfo } );
+      Tracing.addEventEnd( { id: traceId, details: output, traceInfo } );
 
       return output;
 
     } catch ( error ) {
       // Record async completion handoff as a trace end without emitting a bus event.
       if ( error instanceof CompleteAsyncError ) {
-        Tracing.addEventEnd( { id: activityId, details: ActivitySpecialOutput.ASYNC_HANDOFF, traceInfo } );
+        Tracing.addEventEnd( { id: traceId, details: ActivitySpecialOutput.ASYNC_HANDOFF, traceInfo } );
         throw error;
       }
 
       const unwrappedError = error instanceof TransparentFatalError ? error.cause : error;
 
-      Tracing.addEventError( { id: activityId, details: unwrappedError, traceInfo } );
+      Tracing.addEventError( { id: traceId, details: unwrappedError, traceInfo } );
       mainEventBus.emit( BusEventType.ACTIVITY_ERROR, { activityInfo, workflowDetails, outputActivityKind, error: unwrappedError } );
 
       // Native Temporal errors are just re-thrown
