@@ -1,5 +1,5 @@
 ---
-"@outputai/core": patch
+"@outputai/core": minor
 ---
 
 - Fixed activity trace event ids colliding across attempts and across workflows. Temporal numbers activity ids per workflow run and reuses them on retry, so every attempt of an activity shared one id, and a parent and its child workflow both produced an `act-1`. The tree builder merged the colliding entries: only the last attempt's input, error and timing survived, the LLM and HTTP calls of every attempt were listed as children of that one node, and a nested workflow's step surfaced a second time as a phantom node directly under the root. Activities are now traced as `<runId>:<activityId>:<attempt>`, so each attempt in each run is its own node with its own input, output or error, timing and children.
