@@ -9,6 +9,40 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.14.0" description="2026-09-22 - minor release">
+
+See the [v0.13.0 - v0.14.0 migration guide](/migrations/v0.13.0-to-v0.14.0).
+
+### `@outputai/llm`
+
+Added usage and cost reporting for generations that fail after the model ran. Usage is now collected from the AI SDK lifecycle events as the call progresses, so billing no longer depends on the call returning a response. Attribute and event shapes are unchanged - failed calls simply stop being free, which raises reported cost for unchanged traffic. Failures before the first completed step still report nothing, because nothing was spent or reported: authentication, rejected requests, unknown models, connection errors, aborts before the first step, and every `generateImage` error.
+
+- Added billing for `generateText` and `Agent.generate` failures that follow a completed step: output or schema validation (`NoObjectGeneratedError`, `NoOutputGeneratedError`), a tool loop that breaks mid-run, an abort, and post-response code such as an `Agent.generate` message store failure.
+- Added billing for `generateTextWithStreaming` and `Agent.generateWithStreaming` failures: a provider error part mid stream, an abort after a completed step, a structured output that never validates, and a message store failure after the stream finished.
+- Added billing for `streamText` and `Agent.stream` runs that end on an error part or on an abort with steps already collected.
+- Added the abort reason and the structured output rejection to the LLM trace event, so a cancelled stream and an output that never validated are no longer traced as clean calls.
+- Updated streamed generations to consume the whole stream after a failure before rethrowing, since step usage is only reported while something keeps reading. A stream that goes quiet for 250 ms after failing is abandoned, and the original error is thrown anyway.
+- Updated billing to run once per call, so a generation reporting several lifecycle events is metered a single time. Activity retries continue to bill per attempt, because each attempt calls the provider.
+- Updated response sources to be filtered before they are returned: entries carrying neither a url nor an id are dropped, and a malformed `sources` payload is logged and yields no sources instead of failing the call. Every source that survives is returned exactly as the AI SDK produced it.
+- Updated a failure in the SDK's own response handling to throw a non-retryable `FatalError` wrapping the original error, since such a failure is deterministic and a retry pays for the model call again. Generic streaming error messages were normalized to `Streaming aborted.`, `Streaming failed.` and `Streaming completed without a response.`.
+
+### `@outputai/core`
+
+Changed the worker to exit `1` on any shutdown failure, including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME`. v0.13.0 exempted an abandoned drain from the failure exit code, which never took effect in practice.
+
+Updated error serialization to keep only `name`, `message`, `code` and `stack` for `DOMException` values, instead of also projecting the 25 legacy numeric constants their prototype carries. Aborted operations, whose reason is usually a `DOMException`, now read like any other error in traces and logs.
+
+Fixed two defects that made trace trees merge or drop nodes.
+
+- Fixed activity trace event ids colliding across attempts and across workflows. Temporal numbers activity ids per workflow run and reuses them on retry, so every attempt of an activity shared one id, and a parent and its child workflow both produced an `act-1`. The tree builder merged the colliding entries: only the last attempt's input, error and timing survived, the LLM and HTTP calls of every attempt were listed as children of that one node, and a nested workflow's step surfaced a second time as a phantom node directly under the root. Activities are now traced as `<runId>:<activityId>:<attempt>`, so each attempt in each run is its own node with its own input, output or error, timing and children.
+- Fixed webhook trace events being parented on the parent workflow's run id. In a root workflow the event had no parent and was dropped from the trace file; in a child workflow it landed beside the child instead of inside it. These events now parent on the running workflow. A wait whose `resume` signal never arrives is traced as a `webhook` node with a null `endedAt`.
+
+### `@outputai/cli`
+
+Updated the scaffolded `CLAUDE.md`'s HTTP client convention to point agents at `addRequestCost` from an `afterResponse` hook for paid APIs, and at forwarding cost events via `output-dev-cost-hooks`.
+
+</Update>
+
 <Update label="v0.13.0" description="2026-09-14 - minor release">
 
 See the [v0.12.0 - v0.13.0 migration guide](/migrations/v0.12.0-to-v0.13.0).

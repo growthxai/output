@@ -1,5 +1,19 @@
 # @outputai/core
 
+## 0.14.0
+
+### Minor Changes
+
+- a4f6bd4: Fixed two defects that made trace trees merge or drop nodes.
+
+  - Fixed activity trace event ids colliding across attempts and across workflows. Temporal numbers activity ids per workflow run and reuses them on retry, so every attempt of an activity shared one id, and a parent and its child workflow both produced an `act-1`. The tree builder merged the colliding entries: only the last attempt's input, error and timing survived, the LLM and HTTP calls of every attempt were listed as children of that one node, and a nested workflow's step surfaced a second time as a phantom node directly under the root. Activities are now traced as `<runId>:<activityId>:<attempt>`, so each attempt in each run is its own node with its own input, output or error, timing and children.
+  - Fixed webhook trace events being parented on the parent workflow's run id. In a root workflow the event had no parent and was dropped from the trace file; in a child workflow it landed beside the child instead of inside it. These events now parent on the running workflow. A wait whose `resume` signal never arrives is traced as a `webhook` node with a null `endedAt`.
+
+### Patch Changes
+
+- 3d517c0: Changed the worker to exit `1` on any shutdown failure, including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME`. v0.13.0 exempted an abandoned drain from the failure exit code, which never took effect in practice.
+- 38c895c: Updated error serialization to keep only `name`, `message`, `code` and `stack` for `DOMException` values, instead of also projecting the 25 legacy numeric constants their prototype carries. Aborted operations, whose reason is usually a `DOMException`, now read like any other error in traces and logs.
+
 ## 0.13.0
 
 ### Minor Changes
