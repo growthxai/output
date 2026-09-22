@@ -65,7 +65,7 @@ export const sinks = {
   trace: {
     start: {
       fn: ( workflowInfo, { id, name, kind, details } ) =>
-        Tracing.addEventStart( { id, kind, name, details, parentId: workflowInfo.parent?.runId, traceInfo: workflowInfo.memo.traceInfo } ),
+        Tracing.addEventStart( { id, kind, name, details, parentId: workflowInfo.runId, traceInfo: workflowInfo.memo.traceInfo } ),
       callDuringReplay: false
     },
 

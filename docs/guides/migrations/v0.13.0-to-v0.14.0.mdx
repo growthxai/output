@@ -1,9 +1,11 @@
 ---
 title: "v0.13.0 → v0.14.0"
-description: "Upgrading Output.ai projects from v0.13.0 to v0.14.0: failed and aborted LLM calls now report the usage and cost they already spent."
+description: "Upgrading Output.ai projects from v0.13.0 to v0.14.0: failed and aborted LLM calls now report the usage and cost they already spent, and trace node ids for steps and activities changed shape."
 ---
 
 This guide covers a billing behavior change in `@outputai/llm`: LLM calls that fail after the model ran now report usage and cost instead of reporting nothing, so the same traffic produces more metering events and a higher total. One smaller break comes with it: a failure in the SDK's own response handling is no longer retryable.
+
+A separate change in `@outputai/core` affects anything that reads trace files: step, evaluator, and internal activity nodes have a new `id` shape. See [Trace node ids](#trace-node-ids) at the end of this guide.
 
 ## What changed
 
@@ -69,3 +71,28 @@ The generic streaming error messages were normalized at the same time: `Streamin
 ### Nothing to change in call sites
 
 No signatures, options, or return shapes changed, and `cost` on a returned response behaves as before. The only code-level effect is the one above: the retry semantics of a response-handling failure.
+
+## Trace node ids
+
+In trace files, the `id` of step, evaluator, and internal activity nodes was Temporal's activity id. It is now `<runId>:<activityId>:<attempt>`:
+
+```json
+"id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:2:1"
+```
+
+Temporal numbers activity ids per workflow run and reuses them on retry, so the old ids were not unique within a trace file. Entries that collided were merged into one node, which was then listed once per colliding entry. A retried step reported only its last attempt's input, error, and timing while carrying every attempt's LLM and HTTP calls as its children, and a child workflow's step appeared a second time directly under the root, overwriting whatever the root's own activity with that number was.
+
+Two visible differences in new traces:
+
+- A retried step appears once per attempt, as sibling nodes sharing the same `name`. A step that failed twice before succeeding is three nodes, not one.
+- A child workflow's steps appear only inside that child workflow's node.
+
+Reported cost is unchanged. Duplicated nodes were already ignored by id when costs were summed, so the same generations are counted, once each.
+
+### Update readers that key on node ids
+
+Code that treats a step's `id` as Temporal's activity id needs to change. Run ids contain no colon, so splitting the `id` on `:` always yields three parts and the activity id is the middle one. Prefer matching on `name` and the enclosing workflow node where you can, since that does not depend on the id format.
+
+Code that reads a step's `children` to reason about a run should expect them spread across one node per attempt rather than pooled on a single node.
+
+`output workflow debug`, `output workflow cost`, and `output workflow dataset generate` need no changes. The run detail view lists one entry per attempt, so a retried step appears more than once.

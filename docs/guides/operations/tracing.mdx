@@ -11,7 +11,7 @@ Traces are written automatically when the worker runs. You don't need to add any
 
 Each traced workflow execution produces a trace tree. The root is the workflow, and children are everything that ran inside it:
 
-- **Steps and evaluators** — input, output (or error), start/end timestamps;
+- **Steps and evaluators** — input, output (or error), start/end timestamps. A step that is retried appears once per attempt, as sibling nodes, each with its own input, output or error, timing, and children;
 - **LLM calls** - the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, raw token usage, and normalized usage/cost attributes. Text calls also include merged `sources`; image calls do not;
 - **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
 - **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
@@ -94,7 +94,7 @@ Each trace file is a single JSON object — the root workflow node. Every node i
 
 | Field | Description |
 |-------|-------------|
-| `id` | Unique identifier for this node |
+| `id` | Unique identifier for this node. Workflow nodes use the run id. Steps, evaluators, and internal activities use `<runId>:<activityId>:<attempt>`, so each attempt of a step, in each run, is a distinct node |
 | `kind` | Event kind. Common values include `workflow`, `step`, `evaluator`, `llm`, `http`, and `internal_step`. Other event kinds, such as `webhook`, can appear for specific workflow helpers. |
 | `name` | Workflow name or activity type |
 | `startedAt` / `endedAt` | Unix timestamps (ms) |
@@ -110,7 +110,7 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
 
 ```json
 {
-  "id": "1",
+  "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:1:1",
   "kind": "step",
   "name": "lead_enrichment#generateSummary",
   "startedAt": 1761952643861,
@@ -190,7 +190,7 @@ When a step fails, it has an `error` object instead of `output`. The error inclu
 
 ```json
 {
-  "id": "1",
+  "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:1:1",
   "kind": "step",
   "name": "lead_enrichment#lookupCompany",
   "startedAt": 1766083745644,
@@ -206,13 +206,15 @@ When a step fails, it has an `error` object instead of `output`. The error inclu
 
 The parent workflow node also gets an `error` when the run fails, so you can see at the root level that something went wrong.
 
+When a failed step is retried, each attempt is traced separately: you get one node per attempt, sharing the same `name` but differing in the trailing attempt number of the `id`. This lets you compare what each attempt received, how it failed, and how long the backoff between attempts was.
+
 ### Full Workflow Trace
 
 A complete trace puts it all together — the workflow root with all its step children:
 
 ```json
 {
-  "id": "lead_enrichment-758d51b8-7bc0-40a4-b851-c692dff14910",
+  "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83",
   "kind": "workflow",
   "name": "lead_enrichment",
   "startedAt": 1769527009211,
@@ -221,7 +223,7 @@ A complete trace puts it all together — the workflow root with all its step ch
   "output": { "company": "Acme Corp", "summary": "Acme Corp is a B2B SaaS company..." },
   "children": [
     {
-      "id": "1",
+      "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:1:1",
       "kind": "step",
       "name": "lead_enrichment#lookupCompany",
       "startedAt": 1769527009222,
@@ -231,7 +233,7 @@ A complete trace puts it all together — the workflow root with all its step ch
       "children": []
     },
     {
-      "id": "2",
+      "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:2:1",
       "kind": "step",
       "name": "lead_enrichment#generateSummary",
       "input": { "name": "Acme Corp", "industry": "SaaS", "size": 250 },
@@ -239,7 +241,7 @@ A complete trace puts it all together — the workflow root with all its step ch
       "children": [{ "kind": "llm", "..." : "..." }]
     },
     {
-      "id": "3",
+      "id": "019a3c1f-8e4d-7a52-b0c6-1f7d9e2a4b83:3:1",
       "kind": "evaluator",
       "name": "lead_enrichment#judgeSummaryQuality",
       "input": { "summary": "Acme Corp is a B2B SaaS company...", "companyName": "Acme Corp" },
@@ -256,7 +258,7 @@ Child workflows appear as `kind: "workflow"` children with their own nested tree
 
 ```json
 {
-  "id": "parent-44710c05-child-081d68e7",
+  "id": "019a3c1f-9b21-7c07-8d4a-5e6f0a1b2c34",
   "kind": "workflow",
   "name": "child_workflow",
   "startedAt": 1766179342625,
@@ -264,10 +266,12 @@ Child workflows appear as `kind: "workflow"` children with their own nested tree
   "input": { "companyDomain": "acme.com" },
   "output": { "result": "..." },
   "children": [
-    { "kind": "step", "name": "child_workflow#someStep", "..." : "..." }
+    { "id": "019a3c1f-9b21-7c07-8d4a-5e6f0a1b2c34:1:1", "kind": "step", "name": "child_workflow#someStep", "..." : "..." }
   ]
 }
 ```
+
+A child workflow shares its parent's trace file, and Temporal numbers activity ids per run, so a parent step and a child step can both be activity `1`. The run id in each step's `id` is what keeps them apart.
 
 ### Continue-as-New
 
