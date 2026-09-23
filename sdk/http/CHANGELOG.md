@@ -1,5 +1,14 @@
 # @outputai/http
 
+## 0.14.0
+
+### Patch Changes
+
+- Updated dependencies [3d517c0]
+- Updated dependencies [38c895c]
+- Updated dependencies [a4f6bd4]
+  - @outputai/core@0.14.0
+
 ## 0.13.0
 
 ### Patch Changes
