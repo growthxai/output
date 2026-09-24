@@ -30,7 +30,7 @@
     "@inquirer/prompts": "8.4.2",
     "@oclif/core": "4.10.6",
     "@oclif/plugin-help": "6.2.45",
-    "@outputai/credentials": "workspace:",
+    "@outputai/core": "workspace:",
     "@outputai/evals": "workspace:",
     "@outputai/llm": "workspace:",
     "change-case": "5.4.4",

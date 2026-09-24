@@ -20,7 +20,8 @@ const basePlan = (): FixPlan => ( {
   hasChanges: true,
   scriptsToRemove: [ { key: 'dev', value: 'old' } ],
   scriptsToAdd: [ { key: 'output:new', value: 'echo new' } ],
-  scriptsToReplace: [ { key: 'output:dev', before: 'old dev', after: 'output dev' } ]
+  scriptsToReplace: [ { key: 'output:dev', before: 'old dev', after: 'output dev' } ],
+  hookFilesToRemove: []
 } );
 
 describe( 'fix command', () => {

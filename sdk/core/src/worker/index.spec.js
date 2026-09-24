@@ -260,7 +260,6 @@ describe( 'worker/index', () => {
       expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
       expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
       expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
-      expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKER_BEFORE_START );
       expect( initTracing ).toHaveBeenCalledOnce();
       expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
       expect( hashSourceCodeMock ).toHaveBeenCalledWith( '/test/caller/dir' );

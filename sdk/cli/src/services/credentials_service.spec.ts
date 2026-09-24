@@ -10,7 +10,7 @@ vi.mock( 'node:fs', () => ( {
   }
 } ) );
 
-vi.mock( '@outputai/credentials', async importOriginal => ( {
+vi.mock( '@outputai/core/credentials', async importOriginal => ( {
   ...( await importOriginal<Record<string, unknown>>() ),
   encrypt: vi.fn( ( plaintext: string ) => `encrypted:${plaintext}` ),
   decrypt: vi.fn( ( ciphertext: string ) => ciphertext.replace( 'encrypted:', '' ) ),

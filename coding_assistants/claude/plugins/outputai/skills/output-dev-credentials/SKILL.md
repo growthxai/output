@@ -1,6 +1,6 @@
 ---
 name: output-dev-credentials
-description: Store and reference encrypted secrets in Output SDK workflows using @outputai/credentials. Use when integrating API keys, database passwords, or third-party tokens.
+description: Store and reference encrypted secrets in Output SDK workflows using @outputai/core/credentials. Use when integrating API keys, database passwords, or third-party tokens.
 allowed-tools: [Read, Write, Edit, Bash, Glob]
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob]
 
 ## Overview
 
-The `@outputai/credentials` package provides encrypted secrets management for Output SDK workflows. It replaces `process.env` patterns with a structured, encrypted YAML-based system that supports scoped credentials with deep merging.
+The `@outputai/core/credentials` package provides encrypted secrets management for Output SDK workflows. It replaces `process.env` patterns with a structured, encrypted YAML-based system that supports scoped credentials with deep merging.
 
 ## When to Use This Skill
 
@@ -23,7 +23,7 @@ The `@outputai/credentials` package provides encrypted secrets management for Ou
 ### Import
 
 ```typescript
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 ```
 
 ### `credentials.get(path, defaultValue?)`
@@ -47,10 +47,6 @@ const apiKey = credentials.require('anthropic.api_key');
 ```
 
 ### Error Types
-
-```typescript
-import { MissingCredentialError, MissingKeyError } from '@outputai/credentials';
-```
 
 | Error | Thrown When | Fix |
 |-------|------------|-----|
@@ -166,7 +162,7 @@ const client = createKyClient({
 
 ```typescript
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const apiKey = credentials.require('service.api_key');
 
@@ -189,7 +185,7 @@ const client = createKyClient({
 Replace the default encrypted YAML backend with Vault, AWS Secrets Manager, etc.:
 
 ```typescript
-import { setProvider } from '@outputai/credentials';
+import { setProvider } from '@outputai/core/credentials';
 
 setProvider({
   loadGlobal: ({ environment }) => {
@@ -225,7 +221,7 @@ interface CredentialsProvider {
 
 ## Verification Checklist
 
-- [ ] `credentials` imported from `@outputai/credentials`
+- [ ] `credentials` imported from `@outputai/core/credentials`
 - [ ] `credentials.require()` used for mandatory secrets (not `process.env`)
 - [ ] `credentials.get()` used with default for optional values
 - [ ] `*.key` listed in `.gitignore`

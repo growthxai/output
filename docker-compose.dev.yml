@@ -46,6 +46,8 @@ services:
       - OUTPUT_TRACE_LOCAL_ON=true
       - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
       - NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=4096}
+      # Public key for the credentials_demo fixture only; it guards no real secrets.
+      - OUTPUT_CREDENTIALS_KEY_CREDENTIALS_DEMO=903cee2fc321494ecb679d5cf6aa7ae8d800f633b6b1f72c9748f8fea0c537f5
     command: sh -c "corepack enable && pnpm install --frozen-lockfile && npm run build:packages && cd ./test_workflows && npm run output:worker:watch"
     working_dir: /app
     volumes:

@@ -9,7 +9,7 @@ import {
   resolveWorkflowCredentialsPath,
   resolveWorkflowKeyPath,
   resolveWorkflowKeyEnvVar
-} from '@outputai/credentials';
+} from '@outputai/core/credentials';
 
 export type CredentialsEnvironment = string | undefined;
 export type WorkflowTarget = string | undefined;

@@ -85,7 +85,7 @@ The `_env` section maps credential paths to environment variables. See `output-c
 ## Accessing Credentials in Code
 
 ```typescript
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 // Safe read — returns undefined if not found
 const region = credentials.get('aws.region');

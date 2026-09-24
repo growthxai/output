@@ -1,0 +1,106 @@
+---
+title: "v0.14.0 → v0.15.0"
+description: "Upgrading Output.ai projects from v0.14.0 to v0.15.0: @outputai/credentials is folded into @outputai/core, the onBeforeWorkerStart hook is removed, and credentials errors are no longer retried."
+---
+
+This guide covers the move of `@outputai/credentials` into `@outputai/core`. The package is no longer published: its API now lives at `@outputai/core/credentials`, and the worker resolves `credential:` env refs on its own, so the hook file that used to wire it up must go.
+
+Two smaller breaks come with it: the `onBeforeWorkerStart` hook is removed, and credentials errors are now non-retryable.
+
+## What changed
+
+- `@outputai/credentials` is replaced by the `@outputai/core/credentials` subpath. Nothing else needs installing: `@outputai/core` (and `@outputai/output`, which depends on it) ships it.
+- Importing the package no longer has a side effect. The worker resolves `credential:` env refs itself, after hook files, workflows, and activities are loaded and before the Temporal worker starts.
+- The encrypted YAML provider is the default. `setProvider()` is only needed to plug in a custom provider.
+- The exports were trimmed to what projects use. See [Removed exports](#removed-exports).
+- `MissingKeyError`, `InvalidCredentialsKeyError`, `MalformedCredentialsKeyError`, and the error thrown by `credentials.require()` now extend `FatalError`.
+- A missing or invalid key while resolving `credential:` env refs now stops the worker at startup. Before, the error was logged and the worker started with the refs unresolved.
+- `onBeforeWorkerStart` is removed from `@outputai/core/hooks`.
+
+## Migration steps
+
+### Remove the credentials hook file entry
+
+Projects scaffolded before v0.15.0 list a hook file from the credentials package in `package.json`:
+
+```json
+{
+  "outputai": {
+    "hookFiles": [
+      "node_modules/@outputai/credentials/dist/hooks.js"
+    ]
+  }
+}
+```
+
+The file no longer exists, so the worker fails to start while the entry is there. Remove it by hand, or run:
+
+```bash
+npx output fix
+```
+
+`output fix` drops every `outputai.hookFiles` entry pointing into `@outputai/credentials`.
+
+### Delete hook files that only import the package
+
+Some projects register credentials with a hook file of their own instead:
+
+```ts
+// src/hooks/register_credentials.ts
+import '@outputai/credentials';
+```
+
+If that is all the file does, delete it and remove its entry from `outputai.hookFiles`. If it does more, remove only the import.
+
+### Update imports
+
+Replace every import of `@outputai/credentials` with `@outputai/core/credentials`, including module mocks in tests:
+
+```ts
+// Before
+import { credentials } from '@outputai/credentials';
+vi.mock( '@outputai/credentials', () => ( { credentials: { get: vi.fn() } } ) );
+
+// After
+import { credentials } from '@outputai/core/credentials';
+vi.mock( '@outputai/core/credentials', () => ( { credentials: { get: vi.fn() } } ) );
+```
+
+### Remove the dependency
+
+Delete `@outputai/credentials` from `dependencies`, `devDependencies`, and `peerDependencies` in `package.json`, then reinstall. If your project depends on `@outputai/core` directly rather than through `@outputai/output`, bump it to `0.15.0`.
+
+### Removed exports
+
+| Removed | Use instead |
+|---------|-------------|
+| `getProvider` | Keep a reference to the provider you pass to `setProvider()` |
+| `encryptedYamlProvider` | Nothing - it is the default provider, so drop the `setProvider( encryptedYamlProvider )` call |
+| `MissingCredentialError` | Check `error.name === 'MissingCredentialError'`, or `error instanceof FatalError` |
+| `GlobalContext`, `WorkflowContext` | `Parameters<CredentialsProvider['loadGlobal']>[0]` and `Parameters<CredentialsProvider['loadForWorkflow']>[0]` |
+
+### Replace `onBeforeWorkerStart`
+
+The hook existed to resolve `credential:` env refs, which the worker now does directly. Move any other handler body to the top level of its hook file, where it runs when the worker loads the file:
+
+```ts
+// Before
+import { onBeforeWorkerStart } from '@outputai/core/hooks';
+
+onBeforeWorkerStart( () => {
+  setupMetrics();
+} );
+
+// After
+setupMetrics();
+```
+
+Hook files load before `credential:` env refs are resolved. A handler that read a resolved env var such as `process.env.ANTHROPIC_API_KEY` sees the raw `credential:...` value at the top level. Read the secret with `credentials.get()` instead, or defer the read until first use.
+
+### Re-check retries around credentials errors
+
+A step that fails on a missing key, a key that cannot decrypt the file, a malformed key, or a missing required credential now fails on its first attempt instead of running through its retry policy. These failures are deterministic, so retries could not succeed. If you relied on a retry to pick up a key deployed mid-run, restart the workflow after deploying the key instead.
+
+### Make sure the worker has its key
+
+If your `.env` uses `credential:` refs, the worker now exits at startup when the matching key is missing or wrong. Set `OUTPUT_CREDENTIALS_KEY` (or `OUTPUT_CREDENTIALS_KEY_<ENVIRONMENT>`) or provide the key file before deploying. See [Credentials](/packages/core/credentials#deploying-to-production).

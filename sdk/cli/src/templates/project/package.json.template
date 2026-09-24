@@ -23,8 +23,5 @@
   },
   "engines": {
     "node": ">=24.3.0"
-  },
-  "outputai": {
-    "hookFiles": ["node_modules/@outputai/credentials/dist/hooks.js"]
   }
 }

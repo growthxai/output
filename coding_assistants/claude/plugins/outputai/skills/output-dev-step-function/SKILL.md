@@ -372,7 +372,7 @@ Use FatalError for permanent failures that should not be retried:
 
 ```typescript
 import { FatalError } from '@outputai/core';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 // Authentication failures
 if ( response.status === 401 ) {

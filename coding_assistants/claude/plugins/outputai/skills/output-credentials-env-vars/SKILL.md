@@ -52,7 +52,7 @@ postgres:
 ## How It Works
 
 1. Worker loads `.env` via dotenv — `ANTHROPIC_API_KEY` = `"credential:anthropic.api_key"`
-2. Worker loads all workflow activity files (importing `@outputai/credentials`)
+2. Worker loads all workflow activity files (importing `@outputai/core/credentials`)
 3. Worker calls `runStartupHooks()` — `resolveCredentialRefs()` runs
 4. `resolveCredentialRefs()` scans `process.env` for `credential:` prefix values
 5. Each matching var is replaced with the actual decrypted credential value
@@ -126,7 +126,7 @@ If the log line appears, credentials are wired correctly.
 If you need to call `resolveCredentialRefs()` outside of a worker context:
 
 ```typescript
-import { resolveCredentialRefs } from '@outputai/credentials';
+import { resolveCredentialRefs } from '@outputai/core/credentials';
 
 // Returns array of env var names that were resolved
 const resolved = resolveCredentialRefs();

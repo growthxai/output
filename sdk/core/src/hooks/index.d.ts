@@ -186,14 +186,6 @@ export type ErrorHookPayload =
 export declare function onError( handler: ( payload: ErrorHookPayload ) => void ): void;
 
 /**
- * Register a handler to be invoked once, before the worker starts processing tasks.
- * It is invoked before Worker.create().
- *
- * @param handler - Function called with no arguments.
- */
-export declare function onBeforeWorkerStart( handler: () => void ): void;
-
-/**
  * Register a handler to be invoked when a workflow run starts.
  *
  * Excludes the $catalog internal workflow.

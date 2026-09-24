@@ -31,3 +31,5 @@ agent-os/
 pnpm-publish-summary.json
 
 docker-compose.remote.yml
+
+test_workflows/config/credentials

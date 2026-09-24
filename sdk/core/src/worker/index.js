@@ -23,6 +23,7 @@ import { serializeError } from '#helpers/error_serializer';
 import { setupTemporalLogger } from './temporal_logger.js';
 import { WorkerRunner } from './worker_runner.js';
 import { shutdownServices } from './shutdown.js';
+import { init as initCredentials } from '#credentials/init';
 
 import './log_hooks.js';
 
@@ -76,7 +77,8 @@ const execute = async () => {
   log.info( 'Loading activities...', { callerDir } );
   const { activities } = await run( () => loadActivities( callerDir, workflows ) );
 
-  mainEventBus.emit( BusEventType.WORKER_BEFORE_START );
+  log.info( 'Initializing credentials...' );
+  initCredentials();
 
   log.info( 'Initializing tracing...' );
   await run( initTracing );

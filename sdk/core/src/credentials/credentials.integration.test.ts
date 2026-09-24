@@ -1,35 +1,61 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
-import { encryptedYamlProvider, getNestedValue, credentials, resolveCredentialRefs } from '@outputai/credentials';
-import { Objects } from '@outputai/core/sdk/helpers';
+import { resolve, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { dump as stringifyYaml } from 'js-yaml';
+import { deepMerge } from '../helpers/object.js';
+import { credentials, resolveCredentialRefs } from './credentials.js';
+import { encryptedYamlProvider } from './encrypted_yaml_provider.js';
+import { encrypt, generateKey } from './encryption.js';
+import { getNestedValue } from './paths.js';
+import { setProvider } from './provider_registry.js';
 
-const __dirname = dirname( fileURLToPath( import.meta.url ) );
-const TEST_WORKFLOWS_ROOT = resolve( __dirname, '../../..' );
-const WORKFLOW_DIR = __dirname;
+const GLOBAL_YAML = stringifyYaml( {
+  test: { secret: 'credentials_are_working', nested: { deep_value: 42 } }
+} );
 
-describe( 'credentials_demo - real encrypted credentials', () => {
-  const originalCwd = process.cwd();
+const WORKFLOW_YAML = stringifyYaml( {
+  test: { secret: 'workflow_specific_secret' },
+  workflow_only: { value: 'per_workflow_data' }
+} );
+
+const KEY_ENV_VARS = [ 'OUTPUT_CREDENTIALS_KEY', 'OUTPUT_CREDENTIALS_KEY_DEMO' ];
+
+describe( 'real encrypted credentials', () => {
+  const savedArgv2 = process.argv[2];
+  const savedEnv: Record<string, string | undefined> = {};
+  const rootDir = mkdtempSync( join( tmpdir(), 'output-credentials-' ) );
+  const workflowDir = resolve( rootDir, 'src/workflows/demo' );
 
   beforeAll( () => {
-    const globalPath = resolve( TEST_WORKFLOWS_ROOT, 'config/credentials.yml.enc' );
-    const keyPath = resolve( TEST_WORKFLOWS_ROOT, 'config/credentials.key' );
-    const workflowPath = resolve( WORKFLOW_DIR, 'credentials.yml.enc' );
+    const key = generateKey();
 
-    if ( !existsSync( globalPath ) || !existsSync( keyPath ) || !existsSync( workflowPath ) ) {
-      throw new Error(
-        'Encrypted credential files not found. Run: output credentials init'
-      );
+    mkdirSync( resolve( rootDir, 'config' ), { recursive: true } );
+    mkdirSync( workflowDir, { recursive: true } );
+    writeFileSync( resolve( rootDir, 'config/credentials.key' ), key );
+    writeFileSync( resolve( rootDir, 'config/credentials.yml.enc' ), encrypt( GLOBAL_YAML, key ) );
+    writeFileSync( resolve( workflowDir, 'credentials.yml.enc' ), encrypt( WORKFLOW_YAML, key ) );
+
+    for ( const name of KEY_ENV_VARS ) {
+      savedEnv[name] = process.env[name];
+      delete process.env[name];
     }
 
-    // The encrypted YAML provider resolves global credentials from process.cwd()
-    // In production, the worker runs from the test_workflows directory
-    process.chdir( TEST_WORKFLOWS_ROOT );
+    // The provider resolves the project root from an absolute argv[2].
+    process.argv[2] = rootDir;
+    setProvider( encryptedYamlProvider );
   } );
 
   afterAll( () => {
-    process.chdir( originalCwd );
+    process.argv[2] = savedArgv2;
+    for ( const name of KEY_ENV_VARS ) {
+      if ( savedEnv[name] === undefined ) {
+        delete process.env[name];
+      } else {
+        process.env[name] = savedEnv[name];
+      }
+    }
+    rmSync( rootDir, { recursive: true, force: true } );
   } );
 
   it( 'should load and decrypt global credentials', () => {
@@ -42,8 +68,8 @@ describe( 'credentials_demo - real encrypted credentials', () => {
 
   it( 'should load and decrypt per-workflow credentials', () => {
     const workflow = encryptedYamlProvider.loadForWorkflow( {
-      workflowName: 'credentials_demo',
-      workflowDir: WORKFLOW_DIR,
+      workflowName: 'demo',
+      workflowDir,
       environment: undefined
     } );
 
@@ -55,18 +81,15 @@ describe( 'credentials_demo - real encrypted credentials', () => {
   it( 'should merge global + workflow credentials correctly', () => {
     const global = encryptedYamlProvider.loadGlobal( { environment: undefined } );
     const workflow = encryptedYamlProvider.loadForWorkflow( {
-      workflowName: 'credentials_demo',
-      workflowDir: WORKFLOW_DIR,
+      workflowName: 'demo',
+      workflowDir,
       environment: undefined
     } );
 
-    const merged = Objects.deepMerge( global, workflow! ) as Record<string, unknown>;
+    const merged = deepMerge( global, workflow! ) as Record<string, unknown>;
 
-    // Workflow-specific value overrides global
     expect( getNestedValue( merged, 'test.secret' ) ).toBe( 'workflow_specific_secret' );
-    // Global value inherited (not present in workflow credentials)
     expect( getNestedValue( merged, 'test.nested.deep_value' ) ).toBe( 42 );
-    // Workflow-only value present
     expect( getNestedValue( merged, 'workflow_only.value' ) ).toBe( 'per_workflow_data' );
   } );
 

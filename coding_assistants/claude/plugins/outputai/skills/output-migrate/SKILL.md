@@ -65,7 +65,8 @@ If the user provided a `from-version` argument, use it and skip the rest of this
 Otherwise, read `package.json` at the project root and resolve the current framework version from the first entry that exists, in this order:
   1. `dependencies["@outputai/core"]`
   2. `devDependencies["@outputai/core"]`
-  3. `dependencies["@outputai/cli"]`
+  3. `dependencies["@outputai/output"]`
+  4. `dependencies["@outputai/cli"]`
 
 Strip any leading `^` or `~`. If no `@outputai/*` package is present, stop and tell the user: "This project doesn't depend on any @outputai/* packages — nothing to migrate."
 

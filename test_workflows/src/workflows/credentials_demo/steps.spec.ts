@@ -5,7 +5,7 @@ const FAKE_STORE: Record<string, unknown> = {
   'test.nested.deep_value': 42
 };
 
-vi.mock( '@outputai/credentials', () => ( {
+vi.mock( '@outputai/core/credentials', () => ( {
   credentials: {
     get: ( path: string, defaultValue: unknown = undefined ) =>
       FAKE_STORE[path] ?? defaultValue,

@@ -18,7 +18,6 @@
   "dependencies": {
     "@growthxlabs/workflows_catalog": "0.0.14",
     "@outputai/core": "workspace:^",
-    "@outputai/credentials": "workspace:^",
     "@outputai/evals": "workspace:^",
     "@outputai/http": "workspace:^",
     "@outputai/llm": "workspace:^",

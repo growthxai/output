@@ -44,7 +44,7 @@ Designing Output SDK workflow architecture and structure.
 Planning step functions that handle all I/O operations.
 
 - HTTP client integrations using `@outputai/http`
-- Credentials management using `@outputai/credentials`
+- Credentials management using `@outputai/core/credentials`
 - LLM operations using `@outputai/llm`
 - Error handling with FatalError and ValidationError
 - Retry strategies and timeout configurations
