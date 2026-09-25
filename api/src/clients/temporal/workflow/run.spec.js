@@ -178,6 +178,23 @@ describe( 'run', () => {
     } );
   } );
 
+  it( 'includes a WorkspaceId search attribute when the input has a workspaceId', async () => {
+    const handle = {
+      firstExecutionRunId: 'run-1',
+      result: vi.fn().mockResolvedValue( {} ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'COMPLETED' }, memo: { payloadVersion: '2' } } )
+    };
+    const start = vi.fn().mockResolvedValue( handle );
+    const client = { workflow: { start } };
+    const { run } = await import( './run.js' );
+
+    await run( { client }, 'workflow', { workspaceId: 'my-workspace-id' } );
+
+    expect( start ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
+      searchAttributes: { WorkspaceId: [ 'my-workspace-id' ] }
+    } ) );
+  } );
+
   it( 'annotates and rethrows errors from describe', async () => {
     const describeError = new Error( 'describe failed' );
     const handle = {
