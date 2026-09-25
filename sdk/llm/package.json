@@ -23,19 +23,19 @@
   "dependencies": {
     "@outputai/core": "workspace:",
     "decimal.js": "10.6.0",
-    "entities": "8.0.0",
+    "entities": "8.1.0",
     "gray-matter": "4.0.3",
-    "liquidjs": "10.27.2",
+    "liquidjs": "10.29.0",
     "undici": "catalog:"
   },
   "devDependencies": {
-    "@ai-sdk/amazon-bedrock": "5.0.57",
-    "@ai-sdk/anthropic": "4.0.39",
-    "@ai-sdk/azure": "4.0.43",
-    "@ai-sdk/google-vertex": "5.0.54",
-    "@ai-sdk/openai": "4.0.42",
-    "@ai-sdk/perplexity": "4.0.29",
-    "ai": "7.0.66"
+    "@ai-sdk/amazon-bedrock": "5.0.87",
+    "@ai-sdk/anthropic": "4.0.57",
+    "@ai-sdk/azure": "4.0.74",
+    "@ai-sdk/google-vertex": "5.0.87",
+    "@ai-sdk/openai": "4.0.70",
+    "@ai-sdk/perplexity": "4.0.47",
+    "ai": "7.0.106"
   },
   "peerDependencies": {
     "@ai-sdk/amazon-bedrock": ">=5 <6",
