@@ -2,19 +2,14 @@ node_modules
 .pnpm-store/
 .DS_Store
 .env
+*.enc
+*.key
 temp/
 _temp/
 dist/
 logs/
 .vscode/
 docs/reference/
-
-# Encrypted credentials keys (never commit)
-**/config/credentials.key
-**/config/credentials/*.key
-# Per-workflow credentials keys
-**/src/workflows/*/credentials.key
-
 gcp-credentials.json
 
 # LLM Tools / Plugings / Systems
@@ -31,5 +26,3 @@ agent-os/
 pnpm-publish-summary.json
 
 docker-compose.remote.yml
-
-test_workflows/config/credentials
