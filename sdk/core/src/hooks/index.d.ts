@@ -1,4 +1,5 @@
 import type { Info } from '@temporalio/activity';
+import type { SearchAttributes } from '@temporalio/common';
 
 export interface WorkflowDetails {
   /**
@@ -77,6 +78,13 @@ export interface WorkflowDetails {
    * Starts at 1 and increments for every retry if there is a `retryPolicy`
    */
   attempt: number;
+  /**
+   * Temporal search attributes set on this workflow execution, if any.
+   * Uses the legacy untyped form (`typedSearchAttributes` is not forwarded here,
+   * since it does not survive the sink/activity-header serialization boundary
+   * as a usable class instance — see https://github.com/temporalio/sdk-typescript/issues/1635).
+   */
+  searchAttributes?: SearchAttributes;
 }
 
 /**

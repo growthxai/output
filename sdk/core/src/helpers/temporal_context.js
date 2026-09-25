@@ -8,5 +8,6 @@ export const createWorkflowDetails = info => ( {
   runStartTime: info.runStartTime.getTime(),
   startTime: info.startTime.getTime(),
   workflowId: info.workflowId,
-  workflowType: info.workflowType
+  workflowType: info.workflowType,
+  searchAttributes: info.searchAttributes
 } );
