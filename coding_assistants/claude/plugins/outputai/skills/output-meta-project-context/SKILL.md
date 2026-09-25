@@ -192,7 +192,7 @@ src/
 |-------|---------|
 | `output-dev-credentials` | Full credentials system reference (API, scopes, merging, custom providers) |
 | `output-credentials-init` | Initialize encrypted credentials files for the first time |
-| `output-credentials-edit` | View and edit credential values with `show`/`get`/`edit` commands |
+| `output-credentials-edit` | View and edit credential values with `show`/`get`/`set`/`edit` commands |
 | `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 
 ---
@@ -230,6 +230,7 @@ npx output workflow dataset generate <name> --input '{}'  # Generate dataset
 # Credentials
 npx output credentials init                  # Initialize encrypted credentials
 npx output credentials edit                  # Edit credentials (decrypts, opens $EDITOR)
+npx output credentials set <path> <value>    # Set single credential value
 npx output credentials show                  # Show decrypted credentials
 npx output credentials get <path>            # Get single credential value
 ```

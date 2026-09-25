@@ -24,7 +24,7 @@ ENV_VAR_NAME=credential:<dot.path>
 ### Example `.env`
 
 ```bash
-# These are resolved automatically from config/credentials.yml.enc
+# These are resolved automatically from the global credentials
 ANTHROPIC_API_KEY=credential:anthropic.api_key
 OPENAI_API_KEY=credential:openai.api_key
 
@@ -53,12 +53,14 @@ postgres:
 
 When the worker starts, every env var set to `credential:<path>` is replaced with the decrypted value at that path. By the time a workflow runs, `ANTHROPIC_API_KEY` holds the real key and LLM SDKs read it as usual.
 
+Values come from the global credentials for the current environment: `config/credentials/<NODE_ENV>.yml.enc` when it exists, otherwise `config/credentials.yml.enc`. Workflow-scoped credentials are never used for env vars, so keep these paths in the global file.
+
 ## Precedence Rules
 
 Real env var values always take precedence. If `ANTHROPIC_API_KEY` is already set to a non-`credential:` value (e.g. from the shell or a CI secret), it is **never overwritten**:
 
 ```bash
-# Real value — never replaced
+# Real value - never replaced
 ANTHROPIC_API_KEY=sk-ant-real-override
 
 # Placeholder — gets replaced at startup
@@ -93,19 +95,6 @@ Start the worker and look for the log line:
 ```
 
 If the log line lists your env vars, credentials are wired correctly.
-
-## Programmatic Access
-
-If you need to call `resolveCredentialRefs()` outside of a worker context:
-
-```typescript
-import { resolveCredentialRefs } from '@outputai/core/credentials';
-
-// Returns array of env var names that were resolved
-const resolved = resolveCredentialRefs();
-console.log('Resolved:', resolved);
-// → ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
-```
 
 ## Verification Checklist
 

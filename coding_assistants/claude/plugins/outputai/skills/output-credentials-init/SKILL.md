@@ -9,7 +9,7 @@ allowed-tools: [Read, Bash, Glob]
 ## When to Use This Skill
 
 - First time setting up credentials for a project
-- Adding production/staging environment-specific credentials
+- Adding production/development environment-specific credentials
 - Adding per-workflow credentials that override global ones
 - Re-initializing credentials after losing a key file
 
@@ -25,9 +25,9 @@ The `npx output credentials init` command generates two files:
 # Global credentials (most common)
 npx output credentials init
 
-# Environment-specific
+# Environment-specific (only production and development are read by the worker, based on NODE_ENV)
 npx output credentials init -e production
-npx output credentials init -e staging
+npx output credentials init -e development
 
 # Per-workflow credentials (overrides globals for that workflow)
 npx output credentials init -w my_workflow

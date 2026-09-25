@@ -9,6 +9,10 @@
     "dark": "#000"
   },
   "favicon": "/favicon.svg",
+  "redirects": [
+    { "source": "/packages/credentials", "destination": "/packages/core/credentials" },
+    { "source": "/operations/credentials", "destination": "/packages/core/credentials" }
+  ],
   "navigation": {
     "tabs": [
       {

@@ -1,6 +1,6 @@
 ---
 name: output-credentials-edit
-description: View and edit encrypted credentials in an Output.ai project. Use when adding secrets, updating API keys, verifying credential values, or retrieving a specific credential.
+description: View, edit, and set encrypted credentials in an Output.ai project. Use when adding secrets, updating API keys, verifying credential values, or retrieving a specific credential.
 allowed-tools: [Read, Bash, Glob]
 ---
 
@@ -23,13 +23,26 @@ npx output credentials edit
 
 # Edit environment-specific
 npx output credentials edit -e production
-npx output credentials edit -e staging
+npx output credentials edit -e development
 
 # Edit per-workflow credentials
 npx output credentials edit -w my_workflow
 ```
 
 The file is decrypted to a temp file, opened in `$EDITOR`, then re-encrypted on save. The temp file is securely wiped (overwritten with null bytes) after closing.
+
+Only `production` and `development` are valid environments: the worker picks the file from `NODE_ENV` and ignores any other name.
+
+### Set (Single value, no editor)
+
+```bash
+# Set a single credential by dot-notation path
+npx output credentials set anthropic.api_key sk-ant-...
+npx output credentials set openai.api_key sk-... -e production
+npx output credentials set stripe.secret_key sk_live_... -w payment_processing
+```
+
+Prefer `set` in non-interactive sessions, where `$EDITOR` can't be used. Intermediate keys are created as needed. When the new value would replace an object with a string (or the reverse), `set` asks for confirmation; pass `-y` to skip it.
 
 ### Show (Print to stdout)
 
@@ -106,8 +119,9 @@ Per-workflow credentials deep-merge over global credentials at runtime. Workflow
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `MissingKeyError` | Key file not found and env var not set | Run `output credentials init` or set `OUTPUT_CREDENTIALS_KEY` |
-| `MissingCredentialError` | Path not found in credentials | Run `npx output credentials edit` and add the value |
-| `aes/gcm: invalid ghash tag` | Key doesn't match encrypted file | Key and `.yml.enc` are out of sync — re-init or use correct key |
+| `MissingCredentialError` | Path not found in credentials | Add the value with `npx output credentials set` or `edit` |
+| `InvalidCredentialsKeyError` | Key doesn't match the encrypted file, or the file is corrupted | Use the key the file was encrypted with, or re-init with `--force` (discards existing values) |
+| `MalformedCredentialsKeyError` | Key isn't exactly 64 hex characters | Check the key for typos, whitespace, or truncation |
 
 ## Verification Checklist
 
