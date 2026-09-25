@@ -74,13 +74,7 @@ aws:
 stripe:
   secret_key: sk_live_...
   webhook_secret: whsec_...
-
-_env:
-  ANTHROPIC_API_KEY: anthropic.api_key
-  OPENAI_API_KEY: openai.api_key
 ```
-
-The `_env` section maps credential paths to environment variables. See `output-credentials-env-vars`.
 
 ## Accessing Credentials in Code
 

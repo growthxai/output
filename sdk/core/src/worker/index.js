@@ -78,7 +78,7 @@ const execute = async () => {
   const { activities } = await run( () => loadActivities( callerDir, workflows ) );
 
   log.info( 'Initializing credentials...' );
-  initCredentials();
+  run( initCredentials );
 
   log.info( 'Initializing tracing...' );
   await run( initTracing );

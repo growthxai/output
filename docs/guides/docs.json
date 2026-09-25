@@ -137,7 +137,6 @@
                 ]
               },
               "packages/cli",
-              "packages/credentials",
               "packages/evals",
               "packages/http",
               "packages/llm"

@@ -71,12 +71,7 @@ anthropic:
   api_key: ""
 openai:
   api_key: ""
-_env:
-  ANTHROPIC_API_KEY: anthropic.api_key
-  OPENAI_API_KEY: openai.api_key
 ```
-
-The `_env` section wires credentials to environment variables automatically at worker startup. See `output-credentials-env-vars` for details.
 
 ## After Init: Add Your Secrets
 

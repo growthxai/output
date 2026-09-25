@@ -51,37 +51,14 @@ postgres:
 
 ## How It Works
 
-1. Worker loads `.env` via dotenv — `ANTHROPIC_API_KEY` = `"credential:anthropic.api_key"`
-2. Worker loads all workflow activity files (importing `@outputai/core/credentials`)
-3. Worker calls `runStartupHooks()` — `resolveCredentialRefs()` runs
-4. `resolveCredentialRefs()` scans `process.env` for `credential:` prefix values
-5. Each matching var is replaced with the actual decrypted credential value
-6. `ANTHROPIC_API_KEY` is now `"sk-ant-..."` in `process.env`
-7. LLM SDK reads it normally when the first workflow activity runs
-
-## The `_env` Section in Credentials YAML
-
-The credentials file can also declare the mapping directly in an `_env` section. New projects scaffold with this pre-configured:
-
-```yaml
-anthropic:
-  api_key: sk-ant-...
-openai:
-  api_key: sk-...
-
-_env:
-  ANTHROPIC_API_KEY: anthropic.api_key
-  OPENAI_API_KEY: openai.api_key
-```
-
-> **Note:** The `_env` section is metadata only — it documents the intended mapping but does not drive resolution. Resolution is driven by the `credential:` values in `.env`. Keep both in sync.
+When the worker starts, every env var set to `credential:<path>` is replaced with the decrypted value at that path. By the time a workflow runs, `ANTHROPIC_API_KEY` holds the real key and LLM SDKs read it as usual.
 
 ## Precedence Rules
 
 Real env var values always take precedence. If `ANTHROPIC_API_KEY` is already set to a non-`credential:` value (e.g. from the shell or a CI secret), it is **never overwritten**:
 
 ```bash
-# Real value — never touched by resolveCredentialRefs
+# Real value — never replaced
 ANTHROPIC_API_KEY=sk-ant-real-override
 
 # Placeholder — gets replaced at startup
@@ -89,10 +66,6 @@ ANTHROPIC_API_KEY=credential:anthropic.api_key
 ```
 
 This means you can override any credential ref at deploy time without changing files.
-
-## Idempotency
-
-After the first resolution, `ANTHROPIC_API_KEY` contains the real API key string — it no longer starts with `credential:`. Subsequent calls to `resolveCredentialRefs()` are no-ops for that variable.
 
 ## Setting Up the Convention
 
@@ -116,10 +89,10 @@ OPENAI_API_KEY=credential:openai.api_key
 Start the worker and look for the log line:
 
 ```
-Startup hooks resolved env vars {"vars":["ANTHROPIC_API_KEY","OPENAI_API_KEY"]}
+[info] Credentials: Resolved credential env vars { vars: [ "ANTHROPIC_API_KEY", "OPENAI_API_KEY" ] }
 ```
 
-If the log line appears, credentials are wired correctly.
+If the log line lists your env vars, credentials are wired correctly.
 
 ## Programmatic Access
 
@@ -138,7 +111,7 @@ console.log('Resolved:', resolved);
 
 - [ ] `config/credentials.yml.enc` contains the target credential paths
 - [ ] `.env` uses `credential:<path>` values for the relevant env vars
-- [ ] Worker startup log shows `Startup hooks resolved env vars`
+- [ ] Worker startup log shows `Resolved credential env vars` listing the expected env vars
 - [ ] First LLM workflow run succeeds (confirming `ANTHROPIC_API_KEY` is set correctly)
 - [ ] Setting a real env var in the shell overrides the credential ref
 

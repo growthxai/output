@@ -151,10 +151,12 @@ const {
 } );
 
 const initTracing = vi.fn().mockResolvedValue( undefined );
+const initCredentials = vi.fn();
 
 vi.mock( '#logger', () => ( { createChildLogger: () => mockLog } ) );
 vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMock } ) );
 vi.mock( '#tracing', () => ( { init: initTracing } ) );
+vi.mock( '#credentials/init', () => ( { init: initCredentials } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 vi.mock( '#hooks/pending_hooks', () => ( { flushPendingHooks: flushPendingHooksMock } ) );
 vi.mock( '#temporal/client', () => ( { setupClientConfig: setupClientConfigMock } ) );
@@ -260,6 +262,7 @@ describe( 'worker/index', () => {
       expect( loadHooksMock ).toHaveBeenCalledWith( '/test/caller/dir' );
       expect( loadWorkflowsMock ).toHaveBeenCalledWith( '/test/caller/dir' );
       expect( loadActivitiesMock ).toHaveBeenCalledWith( '/test/caller/dir', [] );
+      expect( initCredentials ).toHaveBeenCalledOnce();
       expect( initTracing ).toHaveBeenCalledOnce();
       expect( createCatalogMock ).toHaveBeenCalledWith( { workflows: [], activities: {} } );
       expect( hashSourceCodeMock ).toHaveBeenCalledWith( '/test/caller/dir' );

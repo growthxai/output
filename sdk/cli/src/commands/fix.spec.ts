@@ -76,6 +76,20 @@ describe( 'fix command', () => {
     expect( cmd.log ).toHaveBeenCalledWith( 'Done, package.json is properly configured.' );
   } );
 
+  it( 'should list hook files to remove', async () => {
+    vi.mocked( fixService.planFix ).mockReturnValue( {
+      ...basePlan(),
+      hookFilesToRemove: [ 'node_modules/@outputai/credentials/dist/hooks.js' ]
+    } );
+    vi.mocked( confirm ).mockResolvedValue( false );
+
+    const cmd = createTestCommand();
+    await cmd.run();
+
+    expect( cmd.log ).toHaveBeenCalledWith( '\n  Hook files to remove:' );
+    expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '"node_modules/@outputai/credentials/dist/hooks.js"' ) );
+  } );
+
   it( 'should not apply when user declines', async () => {
     vi.mocked( fixService.planFix ).mockReturnValue( basePlan() );
     vi.mocked( confirm ).mockResolvedValue( false );
