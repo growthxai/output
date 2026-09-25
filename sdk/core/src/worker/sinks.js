@@ -20,6 +20,9 @@ export const sinks = {
     start: {
       fn: ( workflowInfo, input ) => {
         const { runId, workflowType, memo: { traceInfo }, parent } = workflowInfo;
+        console.log( 'SPIKE_SEARCH_ATTR_DEBUG', JSON.stringify( {
+          workflowDetails: createWorkflowDetails( workflowInfo )
+        } ) );
         mainEventBus.emit( BusEventType.WORKFLOW_START, { workflowDetails: createWorkflowDetails( workflowInfo ) } );
         if ( traceInfo ) {
           Tracing.addEventStart( {
