@@ -38,7 +38,7 @@
     "typescript": "5.9.3",
     "typescript-eslint": "8.59.1",
     "vite": "8.0.16",
-    "vitest": "4.1.11"
+    "vitest": "5.0.1"
   },
   "license": "UNLICENSED",
   "repository": {
