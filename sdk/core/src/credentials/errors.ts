@@ -1,4 +1,6 @@
-export class MissingKeyError extends Error {
+import { FatalError } from '#errors';
+
+export class MissingKeyError extends FatalError {
   constructor( environment?: string | null ) {
     const envVar = environment ?
       `OUTPUT_CREDENTIALS_KEY_${environment.toUpperCase()}` :
@@ -11,14 +13,14 @@ export class MissingKeyError extends Error {
   }
 }
 
-export class MissingCredentialError extends Error {
+export class MissingCredentialError extends FatalError {
   constructor( path: string ) {
     super( `Required credential not found: "${path}".` );
     this.name = 'MissingCredentialError';
   }
 }
 
-export class InvalidCredentialsKeyError extends Error {
+export class InvalidCredentialsKeyError extends FatalError {
   constructor( credentialsPath: string, underlyingError?: string ) {
     const message = underlyingError ?
       `Failed to decrypt ${credentialsPath}: ${underlyingError}. ` +
@@ -31,7 +33,7 @@ export class InvalidCredentialsKeyError extends Error {
   }
 }
 
-export class MalformedCredentialsKeyError extends Error {
+export class MalformedCredentialsKeyError extends FatalError {
   constructor( credentialsPath: string, detail: string ) {
     super(
       `Credentials key for ${credentialsPath} is malformed (${detail}). ` +

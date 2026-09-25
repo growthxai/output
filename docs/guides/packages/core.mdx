@@ -125,7 +125,6 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 | Function | When it runs | Payload |
 |----------|--------------|---------|
 | `onError` | Activity, workflow, or runtime error | Object always includes `eventId`, `eventDate`, `source`, and `error`. Other fields depend on `source` — see below and [Error Hooks](/operations/error-hooks) |
-| `onBeforeWorkerStart` | Once after hooks, workflows, and activities are loaded; before the Temporal worker is created | None |
 | `onWorkflowStart` | A user workflow execution starts | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowEnd` | A user workflow execution completes successfully | `eventId`, `eventDate`, `workflowDetails` |
 | `onWorkflowError` | A user workflow execution fails | `eventId`, `eventDate`, `workflowDetails`, `error` |
@@ -293,6 +292,18 @@ The workflow pauses after sending the request and waits for a response at `/work
 `sendPostRequestAndAwaitWebhook` is not primarily designed for secure or sensitive HTTP exchanges. Its request arguments are stored in Temporal history and can appear in trace files, so secrets can leak if they are placed directly in URLs, payloads, or literal headers. Use `$ENV_VAR_NAME` placeholders for request header secrets and avoid secrets in URLs and payloads.
 </Warning>
 
+## Credentials
+
+The `@outputai/core/credentials` subpath reads encrypted secrets from `credentials.yml.enc` files, scoped globally, per environment, or per workflow. Use it in steps and other worker-side code:
+
+```typescript
+import { credentials } from '@outputai/core/credentials';
+
+const apiKey = credentials.require('anthropic.api_key');
+```
+
+The worker also resolves `credential:<path>` values in environment variables at startup. See [Credentials](/packages/core/credentials) for setup, key management, and deployment.
+
 ## Temporal Access in the Worker
 
 The `@outputai/core/temporal` subpath gives worker-side code direct access to the Temporal layer, sharing the worker's live connection — no extra configuration, TLS, or credentials handling. Temporal Activities can additionally access the workflow execution that invoked them.
@@ -345,7 +356,7 @@ await handle.signal('resume', payload);
 Each call creates a lightweight client while reusing the worker's live connection. Do not close `client.connection`; the worker owns its lifecycle.
 
 <Warning>
-`createTemporalClient()` is available after the worker establishes its Temporal connection; early lifecycle hooks such as `onBeforeWorkerStart` run before that point. `getCurrentWorkflowHandle()` additionally requires a Temporal Activity context. Elsewhere (e.g. unit tests), they throw a non-retryable `FatalError`; mock the helpers in those tests. Never import `@outputai/core/temporal` from `workflow.ts` — workflows run in Temporal's isolated sandbox and cannot hold connections, so the import would fail the workflow bundle.
+`createTemporalClient()` is available after the worker establishes its Temporal connection; code that runs while hook files load runs before that point. `getCurrentWorkflowHandle()` additionally requires a Temporal Activity context. Elsewhere (e.g. unit tests), they throw a non-retryable `FatalError`; mock the helpers in those tests. Never import `@outputai/core/temporal` from `workflow.ts` — workflows run in Temporal's isolated sandbox and cannot hold connections, so the import would fail the workflow bundle.
 </Warning>
 
 <Warning>

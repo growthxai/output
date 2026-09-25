@@ -64,6 +64,52 @@ describe( 'fix package', () => {
     ].sort() );
   } );
 
+  it( 'should remove hook files pointing to @outputai/credentials and keep the others', async () => {
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    const pkg = {
+      name: 'my-proj',
+      outputai: {
+        hookFiles: [
+          'dist/hooks/cost_hooks.js',
+          'node_modules/@outputai/credentials/dist/hooks.js',
+          'dist/hooks/register_credentials.js'
+        ]
+      }
+    };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
+
+    const plan = planFix( tmpDir );
+
+    expect( plan.hookFilesToRemove ).toEqual( [ 'node_modules/@outputai/credentials/dist/hooks.js' ] );
+
+    applyFix( plan );
+
+    const next = JSON.parse( await fs.readFile( path.join( tmpDir, 'package.json' ), 'utf-8' ) ) as {
+      outputai: { hookFiles: string[] };
+    };
+
+    expect( next.outputai.hookFiles ).toEqual( [ 'dist/hooks/cost_hooks.js', 'dist/hooks/register_credentials.js' ] );
+  } );
+
+  it( 'should leave outputai untouched when hookFiles is missing or not an array', async () => {
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    const missing = { name: 'my-proj', outputai: {} };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( missing, null, 2 ), 'utf-8' );
+
+    const missingPlan = planFix( tmpDir );
+
+    expect( missingPlan.hookFilesToRemove ).toEqual( [] );
+    expect( JSON.parse( missingPlan.packageJsonUpdatedContent ).outputai ).toEqual( {} );
+
+    const malformed = { name: 'my-proj', outputai: { hookFiles: 'node_modules/@outputai/credentials/dist/hooks.js' } };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( malformed, null, 2 ), 'utf-8' );
+
+    const malformedPlan = planFix( tmpDir );
+
+    expect( malformedPlan.hookFilesToRemove ).toEqual( [] );
+    expect( JSON.parse( malformedPlan.packageJsonUpdatedContent ).outputai ).toEqual( malformed.outputai );
+  } );
+
   it( 'should throw when package.json is missing', async () => {
     const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
     expect( () => planFix( tmpDir ) ).toThrow( /No package\.json found/ );

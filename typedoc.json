@@ -2,7 +2,7 @@
   "entryPoints": [
     "./sdk/core/src/hooks/index.d.ts",
     "./sdk/core/src/index.d.ts",
-    "./sdk/credentials/src/index.ts",
+    "./sdk/core/src/credentials/index.ts",
     "./sdk/evals/src/index.ts",
     "./sdk/http/src/index.ts",
     "./sdk/core/src/sdk/runtime/index.d.ts",

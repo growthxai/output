@@ -1,6 +1,6 @@
 ---
 name: output-dev-credentials
-description: Store and reference encrypted secrets in Output SDK workflows using @outputai/credentials. Use when integrating API keys, database passwords, or third-party tokens.
+description: Store and reference encrypted secrets in Output SDK workflows using @outputai/core/credentials. Use when integrating API keys, database passwords, or third-party tokens.
 allowed-tools: [Read, Write, Edit, Bash, Glob]
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: [Read, Write, Edit, Bash, Glob]
 
 ## Overview
 
-The `@outputai/credentials` package provides encrypted secrets management for Output SDK workflows. It replaces `process.env` patterns with a structured, encrypted YAML-based system that supports scoped credentials with deep merging.
+The `@outputai/core/credentials` package provides encrypted secrets management for Output SDK workflows. It replaces `process.env` patterns with a structured, encrypted YAML-based system that supports scoped credentials with deep merging.
 
 ## When to Use This Skill
 
@@ -23,7 +23,7 @@ The `@outputai/credentials` package provides encrypted secrets management for Ou
 ### Import
 
 ```typescript
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 ```
 
 ### `credentials.get(path, defaultValue?)`
@@ -48,14 +48,14 @@ const apiKey = credentials.require('anthropic.api_key');
 
 ### Error Types
 
-```typescript
-import { MissingCredentialError, MissingKeyError } from '@outputai/credentials';
-```
-
 | Error | Thrown When | Fix |
 |-------|------------|-----|
 | `MissingCredentialError` | `credentials.require()` path not found | Add the credential via `output credentials edit` |
 | `MissingKeyError` | No decryption key available | Set `OUTPUT_CREDENTIALS_KEY` env var or create `.key` file |
+| `InvalidCredentialsKeyError` | Key doesn't match the encrypted file, or the file is corrupted | Use the key the file was encrypted with |
+| `MalformedCredentialsKeyError` | Key isn't exactly 64 hex characters | Check the key for typos, whitespace, or truncation |
+
+All four extend `FatalError`, so a step that throws one fails without retries. A key error while resolving `credential:` env vars stops the worker at startup.
 
 ## CLI Commands
 
@@ -74,15 +74,20 @@ output credentials edit -w payment_processing          # Workflow
 output credentials show                               # Global
 output credentials show -e development                 # Environment
 
+# Set a single credential value (no editor needed)
+output credentials set anthropic.api_key sk-ant-...    # Global
+output credentials set stripe.key sk_live_... -w payment_processing # Workflow
+
 # Get single credential value
 output credentials get anthropic.api_key               # Global
 output credentials get stripe.key -w payment_processing # Workflow
 ```
 
 **Flags:**
-- `-e` / `--environment`: Target environment (production, development)
+- `-e` / `--environment`: Target environment (`production` or `development`, the only values the worker reads)
 - `-w` / `--workflow`: Target a specific workflow
-- `-f` / `--force`: Overwrite existing credentials (init only)
+- `-f` / `--force`: `init` overwrites existing credentials; `edit` and `set` re-encrypt with the current key when it can't decrypt the file (discards existing values)
+- `-y` / `--yes`: Skip the confirmation when `set` replaces a value of a different shape (`set` only)
 - Note: `-e` and `-w` are mutually exclusive
 
 ## Three-Tier Scope System
@@ -166,7 +171,7 @@ const client = createKyClient({
 
 ```typescript
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const apiKey = credentials.require('service.api_key');
 
@@ -179,7 +184,7 @@ const client = createKyClient({
 ### Migration Steps
 
 1. Run `output credentials init` to create the encrypted file and key
-2. Run `output credentials edit` to add your secrets
+2. Run `output credentials edit` (or `output credentials set <path> <value>`) to add your secrets
 3. Replace `process.env.X` reads with `credentials.require('x')` or `credentials.get('x', default)`
 4. Remove environment variables from `.env` files
 5. Add `*.key` to `.gitignore`
@@ -189,7 +194,7 @@ const client = createKyClient({
 Replace the default encrypted YAML backend with Vault, AWS Secrets Manager, etc.:
 
 ```typescript
-import { setProvider } from '@outputai/credentials';
+import { setProvider } from '@outputai/core/credentials';
 
 setProvider({
   loadGlobal: ({ environment }) => {
@@ -200,6 +205,8 @@ setProvider({
   }
 });
 ```
+
+Call `setProvider()` in a hook file listed under `outputai.hookFiles`, not in step code. Hook files load before the worker resolves `credential:` env vars, so those resolve through the custom provider too.
 
 ### Provider Interface
 
@@ -225,7 +232,7 @@ interface CredentialsProvider {
 
 ## Verification Checklist
 
-- [ ] `credentials` imported from `@outputai/credentials`
+- [ ] `credentials` imported from `@outputai/core/credentials`
 - [ ] `credentials.require()` used for mandatory secrets (not `process.env`)
 - [ ] `credentials.get()` used with default for optional values
 - [ ] `*.key` listed in `.gitignore`

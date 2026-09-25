@@ -9,6 +9,10 @@
     "dark": "#000"
   },
   "favicon": "/favicon.svg",
+  "redirects": [
+    { "source": "/packages/credentials", "destination": "/packages/core/credentials" },
+    { "source": "/operations/credentials", "destination": "/packages/core/credentials" }
+  ],
   "navigation": {
     "tabs": [
       {
@@ -96,7 +100,6 @@
             "group": "Production Readiness",
             "icon": "shield-halved",
             "pages": [
-              "operations/credentials",
               "operations/error-handling",
               "operations/error-hooks",
               "operations/external-workflow-packages",
@@ -130,9 +133,14 @@
             "group": "Packages",
             "icon": "cube",
             "pages": [
-              "packages/core",
+              {
+                "group": "@outputai/core",
+                "pages": [
+                  "packages/core",
+                  "packages/core/credentials"
+                ]
+              },
               "packages/cli",
-              "packages/credentials",
               "packages/evals",
               "packages/http",
               "packages/llm"
@@ -164,7 +172,8 @@
                   "migrations/v0.10.0-to-v0.11.0",
                   "migrations/v0.11.0-to-v0.12.0",
                   "migrations/v0.12.0-to-v0.13.0",
-                  "migrations/v0.13.0-to-v0.14.0"
+                  "migrations/v0.13.0-to-v0.14.0",
+                  "migrations/v0.14.0-to-v0.15.0"
                 ]
               }
             ]

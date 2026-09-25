@@ -44,9 +44,9 @@ const activityContext = ( workflowType: string, workflowFilename: string ) => ( 
 } );
 
 const mockCoreInternalContext = ( getActivityContext: () => ReturnType<typeof activityContext> | null ) => {
-  vi.doMock( '@outputai/core/sdk/runtime', () => ( {
-    Context: {
-      getActivityContext
+  vi.doMock( '#async_storage', () => ( {
+    Storage: {
+      load: getActivityContext
     }
   } ) );
 };

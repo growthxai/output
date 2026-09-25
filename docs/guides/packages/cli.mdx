@@ -27,6 +27,7 @@ npx output workflow run lead_enrichment acme
 | `output dev` | Start development services |
 | `output dev down` | Stop development services |
 | `output update` | Update CLI and agent configuration |
+| `output fix` | Align `package.json` with the current project template |
 | `output workflow plan` | Generate a workflow plan from a description |
 | `output workflow generate` | Generate workflow code from a plan |
 | `output workflow list` | List available workflows |
@@ -44,6 +45,11 @@ npx output workflow run lead_enrichment acme
 | `output workflow test` | Run evaluations against a workflow |
 | `output workflow dataset list` | List datasets for a workflow |
 | `output workflow dataset generate` | Generate a dataset from a scenario or trace |
+| `output credentials init` | Create an encryption key and encrypted credentials file |
+| `output credentials edit` | Edit encrypted credentials in `$EDITOR` |
+| `output credentials set` | Set a credential value by dot-notation path |
+| `output credentials get` | Print a credential value by dot-notation path |
+| `output credentials show` | Print all decrypted credentials |
 
 ## Project Commands
 
@@ -172,6 +178,16 @@ With no flags, updates everything. Use flags to update specific components:
 |------|-------------|
 | `--cli` | Update CLI packages only |
 | `--agents` | Update Claude Code agent configuration only |
+
+### output fix
+
+Align the project's `package.json` with the current project template:
+
+```bash
+output fix
+```
+
+The command adds missing Output scripts, replaces outdated ones, removes deprecated ones, and drops `outputai.hookFiles` entries that point to `@outputai/credentials`. It prints the planned changes and asks for confirmation before writing.
 
 ## Workflow Commands
 
@@ -686,6 +702,101 @@ output workflow dataset generate simple --trace logs/runs/simple/trace.json --na
 
 # Generate datasets from the most recent runs (traces fetched via the API)
 output workflow dataset generate simple --download --limit 10
+```
+
+## Credentials Commands
+
+These commands manage the encrypted credentials files read by [`@outputai/core/credentials`](/packages/core/credentials). Every command targets the global credentials by default and accepts these flags to pick another scope:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--environment, -e` | - | Target environment (e.g. `production`, `development`) |
+| `--workflow, -w` | - | Target a specific workflow directory |
+
+<Note>
+`--environment` and `--workflow` are mutually exclusive.
+</Note>
+
+### output credentials init
+
+Create an encryption key and an encrypted credentials file:
+
+```bash
+output credentials init
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--force, -f` | false | Overwrite existing credentials |
+
+### output credentials edit
+
+Decrypt the credentials file, open it in `$EDITOR`, and re-encrypt it on save:
+
+```bash
+output credentials edit
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--force, -f` | false | When the current key can't decrypt the file, start from an empty file and re-encrypt with the current key (discards existing values) |
+
+### output credentials set
+
+Set a credential value by dot-notation path:
+
+```bash
+output credentials set <path> <value>
+```
+
+<ParamField path="path" type="string" required>
+  Dot-notation path to the credential (e.g. `anthropic.api_key`)
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  Value to set
+</ParamField>
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--yes, -y` | false | Skip the confirmation prompt when overwriting a value of a different shape |
+| `--force, -f` | false | Re-encrypt with the current key even if it can't decrypt the existing file (discards existing values) |
+
+### output credentials get
+
+Print a single credential value by dot-notation path:
+
+```bash
+output credentials get <path>
+```
+
+<ParamField path="path" type="string" required>
+  Dot-notation path to the credential (e.g. `anthropic.api_key`)
+</ParamField>
+
+### output credentials show
+
+Print all decrypted credentials, for debugging:
+
+```bash
+output credentials show
+```
+
+```bash
+# Initialize production credentials
+output credentials init --environment production
+
+# Initialize workflow-specific credentials
+output credentials init --workflow payment_processing
+
+# Edit production credentials
+output credentials edit -e production
+
+# Set a value without opening an editor
+output credentials set anthropic.api_key sk-ant-xxxxx
+
+# Get a workflow-specific credential
+output credentials get stripe.secret_key --workflow payment_processing
 ```
 
 ## Environment Configuration

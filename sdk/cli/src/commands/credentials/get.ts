@@ -1,6 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { load as parseYaml } from 'js-yaml';
-import { getNestedValue } from '@outputai/credentials';
+import { getNestedValue } from '@outputai/core/credentials';
 import {
   decryptCredentials,
   credentialsExist,

@@ -8,8 +8,9 @@
     "node": ">=24.15.0"
   },
   "scripts": {
+    "build:test_credentials": "node src/workflows/credentials_demo/seed_credentials.mjs",
     "output:worker:install": "corepack enable && CI=1 pnpm install --frozen-lockfile",
-    "output:worker:build": "rm -rf dist/* && tsc && output-copy-assets",
+    "output:worker:build": "rm -rf dist/* && tsc && npm run build:test_credentials && output-copy-assets",
     "output:worker:start": "output-worker",
     "output:worker:check": "output-worker --check",
     "output:worker": "npm run output:worker:build && npm run output:worker:start",
@@ -18,7 +19,6 @@
   "dependencies": {
     "@growthxlabs/workflows_catalog": "0.0.14",
     "@outputai/core": "workspace:^",
-    "@outputai/credentials": "workspace:^",
     "@outputai/evals": "workspace:^",
     "@outputai/http": "workspace:^",
     "@outputai/llm": "workspace:^",

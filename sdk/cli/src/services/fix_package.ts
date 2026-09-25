@@ -9,6 +9,9 @@ const templateRelativePath = path.join( 'templates', 'project', 'package.json.te
 /** Legacy script names from older versions of the project */
 export const legacyScripts = [ 'dev' ] as const;
 
+/** Hook files from the @outputai/credentials package, which was folded into @outputai/core */
+const credentialsHookFilePattern = /@outputai[\\/]credentials([\\/]|$)/;
+
 function getTemplatesPackageJsonPath(): string {
   const __filename = fileURLToPath( import.meta.url );
   const __dirname = path.dirname( __filename );
@@ -38,6 +41,18 @@ function parsePackageJsonObject( raw: string, packagePath: string ): Record<stri
   }
 }
 
+function removeCredentialsHookFiles( pkg: Record<string, unknown> ): string[] {
+  const section = pkg.outputai as { hookFiles?: unknown } | undefined;
+  if ( typeof section !== 'object' || section === null || !Array.isArray( section.hookFiles ) ) {
+    return [];
+  }
+
+  const hookFiles = section.hookFiles as unknown[];
+  const removed = hookFiles.filter( ( file ): file is string => typeof file === 'string' && credentialsHookFilePattern.test( file ) );
+  section.hookFiles = hookFiles.filter( file => !removed.includes( file as string ) );
+  return removed;
+}
+
 function parseTemplatePackageJson( processed: string ): { scripts?: Record<string, string> } {
   try {
     return JSON.parse( processed ) as { scripts?: Record<string, string> };
@@ -63,7 +78,7 @@ export interface ScriptToReplace {
 }
 
 /**
- * Plan for aligning `scripts` with the scaffold template (reads only; no write until apply).
+ * Plan for aligning `scripts` with the scaffold template and dropping stale hook files (reads only; no write until apply).
  */
 export interface FixPlan {
   packageJsonPath: string;
@@ -72,6 +87,7 @@ export interface FixPlan {
   scriptsToRemove: ScriptToRemove[];
   scriptsToReplace: ScriptToReplace[];
   scriptsToAdd: ScriptToAdd[];
+  hookFilesToRemove: string[];
 }
 
 /**
@@ -124,6 +140,8 @@ export function planFix( projectRoot: string ): FixPlan {
 
   pkg.scripts = scripts;
 
+  const hookFilesToRemove = removeCredentialsHookFiles( pkg );
+
   const packageJsonUpdatedContent = `${JSON.stringify( pkg, null, 2 )}\n`;
   const hasChanges = packageJsonUpdatedContent !== raw;
 
@@ -133,7 +151,8 @@ export function planFix( projectRoot: string ): FixPlan {
     hasChanges,
     scriptsToRemove,
     scriptsToReplace,
-    scriptsToAdd
+    scriptsToAdd,
+    hookFilesToRemove
   };
 }
 

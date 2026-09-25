@@ -7,7 +7,7 @@ vi.mock( '#services/credentials_service.js' );
 vi.mock( 'js-yaml', () => ( {
   load: vi.fn( ( yaml: string ) => ( { anthropic: { api_key: yaml.includes( 'sk-test' ) ? 'sk-test' : undefined } } ) )
 } ) );
-vi.mock( '@outputai/credentials', () => ( {
+vi.mock( '@outputai/core/credentials', () => ( {
   getNestedValue: vi.fn( ( obj: any, path: string ) => {
     const parts = path.split( '.' );
     return parts.reduce( ( acc: any, part: string ) => acc?.[part], obj );

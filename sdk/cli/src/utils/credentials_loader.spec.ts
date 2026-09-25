@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import * as credentials from '@outputai/credentials';
+import * as credentials from '@outputai/core/credentials';
 import { loadCredentialRefs } from './credentials_loader.js';
 
-vi.mock( '@outputai/credentials', async () => {
-  const actual = await vi.importActual<typeof import( '@outputai/credentials' )>( '@outputai/credentials' );
+vi.mock( '@outputai/core/credentials', async () => {
+  const actual = await vi.importActual<typeof import( '@outputai/core/credentials' )>( '@outputai/core/credentials' );
   return {
     ...actual,
     resolveCredentialRefs: vi.fn()

@@ -44,13 +44,13 @@ import { z } from 'zod';
 import { z } from '@outputai/core';
 ```
 
-**CRITICAL**: Always use `@outputai/credentials` for secrets, NEVER `process.env`:
+**CRITICAL**: Always use `@outputai/core/credentials` for secrets, NEVER `process.env`:
 ```typescript
 // Wrong
 const apiKey = process.env.SERVICE_API_KEY;
 
 // Correct
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 const apiKey = credentials.require( 'service.api_key' );
 ```
 
@@ -245,7 +245,7 @@ Don't wrap step calls in try-catch. Let failures propagate for proper retry hand
 Always define inputSchema and outputSchema for type safety and validation.
 
 ### 6. Credentials Usage
-Never use `process.env` for secrets. Use `credentials.require()` from `@outputai/credentials` for mandatory secrets and `credentials.get()` with a default for optional values. See `output-dev-credentials` skill for setup and migration guidance.
+Never use `process.env` for secrets. Use `credentials.require()` from `@outputai/core/credentials` for mandatory secrets and `credentials.get()` with a default for optional values. See `output-dev-credentials` skill for setup and migration guidance.
 
 ### 7. Inline LLM Schemas
 Define schemas for `aiSdk.Output.object()` in `types.ts` and import them. Never define schemas inline in step functions -- this causes duplication and drift.

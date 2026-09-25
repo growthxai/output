@@ -84,7 +84,7 @@ src/
 | HTTP client | `import { createKyClient } from '@outputai/http'` | `import axios from 'axios'` |
 | HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
 | Cost tracking | `addRequestCost` in an `afterResponse` hook for paid APIs | Cost left untracked, or tracked only at call sites |
-| Credentials | `import { credentials } from '@outputai/credentials'` | `process.env.SECRET` |
+| Credentials | `import { credentials } from '@outputai/core/credentials'` | `process.env.SECRET` |
 | LLM calls | `import { generateText, aiSdk } from '@outputai/llm'` | Direct provider SDK |
 | ES imports | `import { fn } from './file.js'` | `import { fn } from './file'` |
 | Workflow I/O | Call steps for any I/O | Direct fetch/http in workflow |
@@ -192,7 +192,7 @@ src/
 |-------|---------|
 | `output-dev-credentials` | Full credentials system reference (API, scopes, merging, custom providers) |
 | `output-credentials-init` | Initialize encrypted credentials files for the first time |
-| `output-credentials-edit` | View and edit credential values with `show`/`get`/`edit` commands |
+| `output-credentials-edit` | View and edit credential values with `show`/`get`/`set`/`edit` commands |
 | `output-credentials-env-vars` | Wire credentials to env vars using the `credential:` convention |
 
 ---
@@ -230,6 +230,7 @@ npx output workflow dataset generate <name> --input '{}'  # Generate dataset
 # Credentials
 npx output credentials init                  # Initialize encrypted credentials
 npx output credentials edit                  # Edit credentials (decrypts, opens $EDITOR)
+npx output credentials set <path> <value>    # Set single credential value
 npx output credentials show                  # Show decrypted credentials
 npx output credentials get <path>            # Get single credential value
 ```
@@ -299,7 +300,7 @@ Clients live in `src/shared/clients/` and are shared across all workflows.
 // src/shared/clients/example.ts
 import { FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require( 'example.api_key' );
 

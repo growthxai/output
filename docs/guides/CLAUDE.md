@@ -38,7 +38,7 @@ Temporal replays workflow code on failures. If you make an API call directly in 
 
 ## 2. Package Architecture
 
-Output is a monorepo. The core packages for most documentation are below; read the source directly, as the READMEs are only an overview. Other published packages: `@outputai/cli`, `@outputai/credentials`, `@outputai/evals`, `@outputai/output` (framework).
+Output is a monorepo. The core packages for most documentation are below; read the source directly, as the READMEs are only an overview. Other published packages: `@outputai/cli`, `@outputai/evals`, `@outputai/output` (framework).
 
 | Package | Purpose | Source Location |
 |---------|---------|-----------------|

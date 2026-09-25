@@ -193,7 +193,7 @@ export const getProjectSuccessMessage = (
     steps.push( {
       step: 'Add your API credentials',
       command: 'npx output credentials edit',
-      note: 'Learn more: https://docs.output.ai/packages/credentials'
+      note: 'Learn more: https://docs.output.ai/packages/core/credentials'
     } );
   }
 
