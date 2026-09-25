@@ -13,7 +13,6 @@ The original `/credentials` behavior and interface were kept, with the exception
 - Removed unused exports:
   - `getProvider`
   - `encryptedYamlProvider`
-  - `MissingCredentialError`
   - `GlobalContext`
   - `WorkflowContext`
 - Updated all typed errors to inherit from `FatalError`, so when thrown, they fail the workflow execution. This includes:

@@ -13,7 +13,7 @@ Two smaller breaks come with it: the `onBeforeWorkerStart` hook is removed, and 
 - Importing the package no longer has a side effect. The worker resolves `credential:` env refs itself, after hook files, workflows, and activities are loaded and before the Temporal worker starts.
 - The encrypted YAML provider is the default. `setProvider()` is only needed to plug in a custom provider.
 - The exports were trimmed to what projects use. See [Removed exports](#removed-exports).
-- `MissingKeyError`, `InvalidCredentialsKeyError`, `MalformedCredentialsKeyError`, and the error thrown by `credentials.require()` now extend `FatalError`.
+- `MissingKeyError`, `MissingCredentialError`, `InvalidCredentialsKeyError`, and `MalformedCredentialsKeyError` now extend `FatalError`.
 - A missing or invalid key while resolving `credential:` env refs now stops the worker at startup. Before, the error was logged and the worker started with the refs unresolved.
 - `onBeforeWorkerStart` is removed from `@outputai/core/hooks`.
 
@@ -76,7 +76,6 @@ Delete `@outputai/credentials` from `dependencies`, `devDependencies`, and `peer
 |---------|-------------|
 | `getProvider` | Keep a reference to the provider you pass to `setProvider()` |
 | `encryptedYamlProvider` | Nothing - it is the default provider, so drop the `setProvider( encryptedYamlProvider )` call |
-| `MissingCredentialError` | Check `error.name === 'MissingCredentialError'`, or `error instanceof FatalError` |
 | `GlobalContext`, `WorkflowContext` | `Parameters<CredentialsProvider['loadGlobal']>[0]` and `Parameters<CredentialsProvider['loadForWorkflow']>[0]` |
 
 ### Replace `onBeforeWorkerStart`

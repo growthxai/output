@@ -1,7 +1,7 @@
 export { credentials, resolveCredentialRefs } from './credentials.js';
 export { setProvider } from './provider_registry.js';
 export { encrypt, decrypt, generateKey } from './encryption.js';
-export { InvalidCredentialsKeyError, MalformedCredentialsKeyError, MissingKeyError } from './errors.js';
+export { InvalidCredentialsKeyError, MalformedCredentialsKeyError, MissingCredentialError, MissingKeyError } from './errors.js';
 export {
   getNestedValue,
   resolveCredentialsPath,
