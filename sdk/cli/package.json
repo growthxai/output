@@ -54,7 +54,7 @@
     "@types/js-yaml": "catalog:",
     "@types/react": "19.2.14",
     "@types/semver": "7.7.1",
-    "oclif": "4.23.10",
+    "oclif": "6.0.0",
     "orval": "8.24.0"
   },
   "license": "Apache-2.0",
