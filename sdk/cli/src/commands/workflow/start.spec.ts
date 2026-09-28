@@ -169,6 +169,43 @@ describe( 'workflow start command', () => {
       expect( result ).toEqual( { workflowId: 'wf-123' } );
     } );
 
+    it( 'passes --search-attributes to postWorkflowStart', async () => {
+      const { cmd, postWorkflowStart, resolveInput } = await createCommand( { 'search-attributes': '{"ClientId":"acme","Tags":["a"]}' } );
+      resolveInput.mockResolvedValue( {} );
+      postWorkflowStart.mockResolvedValue( {
+        data: { workflowId: 'wf-123' },
+        status: 200,
+        headers: new Headers()
+      } as any );
+
+      await cmd.run();
+
+      expect( postWorkflowStart ).toHaveBeenCalledWith(
+        expect.objectContaining( { searchAttributes: { ClientId: 'acme', Tags: [ 'a' ] } } )
+      );
+    } );
+
+    it( 'omits searchAttributes when --search-attributes is not set', async () => {
+      const { cmd, postWorkflowStart, resolveInput } = await createCommand();
+      resolveInput.mockResolvedValue( {} );
+      postWorkflowStart.mockResolvedValue( {
+        data: { workflowId: 'wf-123' },
+        status: 200,
+        headers: new Headers()
+      } as any );
+
+      await cmd.run();
+
+      expect( postWorkflowStart.mock.calls[0][0].searchAttributes ).toBeUndefined();
+    } );
+
+    it( 'rejects invalid --search-attributes before calling the API', async () => {
+      const { cmd, postWorkflowStart } = await createCommand( { 'search-attributes': '{"ClientId":{"id":1}}' } );
+
+      await expect( cmd.run() ).rejects.toThrow( 'must be a string, number, boolean, or array of strings' );
+      expect( postWorkflowStart ).not.toHaveBeenCalled();
+    } );
+
     it( 'passes undefined catalog through when none is set', async () => {
       const { cmd, postWorkflowStart, resolveInput } = await createCommand();
       resolveInput.mockResolvedValue( {} );

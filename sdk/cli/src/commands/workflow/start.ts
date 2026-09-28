@@ -5,6 +5,7 @@ import { handleApiError, handleCommandError } from '#utils/error_handler.js';
 import { isErrorStatus } from '#utils/format_workflow_result.js';
 import { gatedMonitorStreamFlags, MONITOR_DEFAULTS } from '#utils/monitor_flags.js';
 import { resolveInput } from '#utils/resolve_input.js';
+import { parseSearchAttributesFlag } from '#utils/search_attributes_flag.js';
 
 /**
  * Distinct from 1 (the workflow itself failed) and 2 (usage): the workflow was
@@ -24,6 +25,7 @@ export default class WorkflowStart extends Command {
     '<%= config.bin %> <%= command.id %> simple --input input.json',
     '<%= config.bin %> <%= command.id %> simple --input input.json --monitor',
     '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog',
+    '<%= config.bin %> <%= command.id %> simple basic_input --search-attributes \'{"ClientId":"acme"}\'',
     '<%= config.bin %> <%= command.id %> simple --json'
   ];
 
@@ -51,6 +53,12 @@ export default class WorkflowStart extends Command {
       deprecateAliases: true,
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
+    } ),
+    'search-attributes': Flags.string( {
+      char: 'a',
+      description: 'Temporal search attributes as a JSON object or file path, e.g. {"ClientId":"acme"}. ' +
+        'Each attribute must be registered on the namespace',
+      required: false
     } ),
     // No `default: false`: a defaulted flag counts as present, so it would
     // satisfy the `dependsOn` guard the three flags in `gatedMonitorStreamFlags`
@@ -88,6 +96,8 @@ export default class WorkflowStart extends Command {
       );
     }
 
+    const searchAttributes = parseSearchAttributesFlag( flags['search-attributes'] );
+
     const input = await resolveInput( {
       workflowName: args.workflowName,
       scenario: args.scenario,
@@ -102,7 +112,8 @@ export default class WorkflowStart extends Command {
     const response = await postWorkflowStart( {
       workflowName: args.workflowName,
       input,
-      catalog: flags.catalog
+      catalog: flags.catalog,
+      searchAttributes
     } );
 
     if ( !response || !response.data ) {

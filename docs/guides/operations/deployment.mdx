@@ -44,6 +44,8 @@ Callers can attach Temporal [search attributes](https://docs.temporal.io/search-
 }
 ```
 
+From the CLI, pass the same map with `--search-attributes`: `output workflow run lead_enrichment --input input.json --search-attributes '{"ClientId":"acme"}'`.
+
 Each attribute must be registered on the namespace before any caller sends it. This happens once per namespace, done by whoever administers it:
 
 ```bash
