@@ -34,3 +34,19 @@
 // onActivityStart( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
 // onActivityEnd( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
 // onActivityError( payload => console.log( colorize( 'onActivityError()' ), payload ) );
+
+// SPIKE: checks whether searchAttributes survives the step-event (stepEventBus) path
+// for `cost:http:request` subscribers. Remove or replace with a spec before merge.
+import { Logger } from '@outputai/core';
+import { on } from '@outputai/core/hooks';
+
+on( 'cost:http:request', event => {
+  if ( !event.workflowDetails?.workflowId ) return;
+
+  Logger.info( 'http.usage', {
+    clientId: event.workflowDetails.searchAttributes?.WorkspaceId?.[ 0 ],
+    url: event.payload?.url,
+    requestId: event.payload?.requestId,
+    costUsd: event.payload?.total
+  } );
+} );
