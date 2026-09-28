@@ -19,7 +19,8 @@ type WorkflowDetailsSource = Pick<
   'runStartTime' |
   'startTime' |
   'workflowId' |
-  'workflowType'
+  'workflowType' |
+  'searchAttributes'
 >;
 
 describe( 'createWorkflowDetails', () => {
@@ -36,7 +37,14 @@ describe( 'createWorkflowDetails', () => {
       runStartTime: new Date( '2026-06-02T09:30:00.000Z' ),
       startTime: new Date( '2026-06-02T09:00:00.000Z' ),
       workflowId: 'workflow-id',
-      workflowType: 'prompt'
+      workflowType: 'prompt',
+      searchAttributes: {
+        CustomerId: [ 'cust-1' ],
+        Tags: [ 'a', 'b' ],
+        Priority: [ 3 ],
+        IsTest: [ true ],
+        ScheduledAt: [ new Date( '2026-06-02T08:00:00.000Z' ) ]
+      }
     } satisfies WorkflowDetailsSource;
 
     expect( createWorkflowDetails( workflowInfo ) ).toEqual( {
@@ -49,7 +57,14 @@ describe( 'createWorkflowDetails', () => {
       runStartTime: Date.parse( '2026-06-02T09:30:00.000Z' ),
       startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
       workflowId: 'workflow-id',
-      workflowType: 'prompt'
+      workflowType: 'prompt',
+      searchAttributes: {
+        CustomerId: [ 'cust-1' ],
+        Tags: [ 'a', 'b' ],
+        Priority: [ 3 ],
+        IsTest: [ true ],
+        ScheduledAt: [ '2026-06-02T08:00:00.000Z' ]
+      }
     } );
   } );
 
@@ -64,7 +79,8 @@ describe( 'createWorkflowDetails', () => {
       runStartTime: new Date( '2026-06-02T09:30:00.000Z' ),
       startTime: new Date( '2026-06-02T09:00:00.000Z' ),
       workflowId: 'workflow-id',
-      workflowType: 'prompt'
+      workflowType: 'prompt',
+      searchAttributes: {}
     } satisfies WorkflowDetailsSource;
 
     expect( createWorkflowDetails( workflowInfo ) ).toEqual( {
@@ -77,7 +93,8 @@ describe( 'createWorkflowDetails', () => {
       runStartTime: Date.parse( '2026-06-02T09:30:00.000Z' ),
       startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
       workflowId: 'workflow-id',
-      workflowType: 'prompt'
+      workflowType: 'prompt',
+      searchAttributes: {}
     } );
   } );
 } );

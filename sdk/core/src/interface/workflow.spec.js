@@ -338,6 +338,53 @@ describe( 'workflow()', () => {
       } ) );
     } );
 
+    it( 'forwards inheritable search attributes to attached and detached children', async () => {
+      const { workflow } = await import( './workflow.js' );
+      const { ParentClosePolicy } = await import( '@temporalio/workflow' );
+      installGlobalDispatcher( 'run-123' );
+      const scheduledStartTime = new Date( '2026-06-02T09:00:00.000Z' );
+      setWorkflowInfo( {
+        searchAttributes: {
+          ClientId: [ 'client-1' ],
+          TemporalScheduledById: [ 'schedule-1' ],
+          TemporalScheduledStartTime: [ scheduledStartTime ],
+          BuildIds: [ 'unversioned' ]
+        }
+      } );
+
+      const wf = workflow( workflowDefinition( { name: 'sa_child_wf', fn: vi.fn() } ) );
+
+      await wf( {} );
+      await wf( {}, { detached: true } );
+
+      expect( executeChildMock ).toHaveBeenCalledTimes( 2 );
+      expect( executeChildMock.mock.calls[0][1] ).toMatchObject( {
+        parentClosePolicy: ParentClosePolicy.TERMINATE,
+        searchAttributes: { ClientId: [ 'client-1' ] }
+      } );
+      expect( executeChildMock.mock.calls[1][1] ).toMatchObject( {
+        parentClosePolicy: ParentClosePolicy.ABANDON,
+        searchAttributes: { ClientId: [ 'client-1' ] }
+      } );
+      expect( executeChildMock.mock.calls[0][1].searchAttributes ).toEqual( { ClientId: [ 'client-1' ] } );
+      expect( executeChildMock.mock.calls[1][1].searchAttributes ).toEqual( { ClientId: [ 'client-1' ] } );
+    } );
+
+    it( 'omits searchAttributes when the parent has none to inherit', async () => {
+      const { workflow } = await import( './workflow.js' );
+      installGlobalDispatcher( 'run-123' );
+      const wf = workflow( workflowDefinition( { name: 'sa_none_child_wf', fn: vi.fn() } ) );
+
+      setWorkflowInfo();
+      await wf( {} );
+      setWorkflowInfo( { searchAttributes: { TemporalScheduledById: [ 'schedule-1' ] } } );
+      await wf( {} );
+
+      expect( executeChildMock ).toHaveBeenCalledTimes( 2 );
+      expect( executeChildMock.mock.calls[0][1] ).not.toHaveProperty( 'searchAttributes' );
+      expect( executeChildMock.mock.calls[1][1] ).not.toHaveProperty( 'searchAttributes' );
+    } );
+
     it( 'propagates executeChild errors without root ApplicationFailure wrapping', async () => {
       const { workflow } = await import( './workflow.js' );
       const error = new Error( 'child failed' );

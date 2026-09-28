@@ -1,3 +1,5 @@
+import { serializeSearchAttributes } from './search_attributes.js';
+
 export const createWorkflowDetails = info => ( {
   attempt: info.attempt,
   continuedFromExecutionRunId: info.continuedFromExecutionRunId,
@@ -9,5 +11,5 @@ export const createWorkflowDetails = info => ( {
   startTime: info.startTime.getTime(),
   workflowId: info.workflowId,
   workflowType: info.workflowType,
-  searchAttributes: info.searchAttributes
+  searchAttributes: serializeSearchAttributes( info.searchAttributes )
 } );

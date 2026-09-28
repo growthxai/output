@@ -35,18 +35,17 @@
 // onActivityEnd( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
 // onActivityError( payload => console.log( colorize( 'onActivityError()' ), payload ) );
 
-// SPIKE: checks whether searchAttributes survives the step-event (stepEventBus) path
-// for `cost:http:request` subscribers. Remove or replace with a spec before merge.
-import { Logger } from '@outputai/core';
-import { on } from '@outputai/core/hooks';
+// Search attributes demo: logs workflowDetails.searchAttributes for runs started with a
+// `searchAttributes` map (e.g. { "WorkspaceId": "demo" }). Covers both delivery paths:
+// workflow lifecycle events (sinks) and activity events (headers).
+import { onWorkflowStart, onActivityStart } from '@outputai/core/hooks';
 
-on( 'cost:http:request', event => {
-  if ( !event.workflowDetails?.workflowId ) return;
+const logSearchAttributes = event => ( { workflowDetails: { workflowId, workflowType, parent, searchAttributes } } ) => {
+  if ( !searchAttributes || Object.keys( searchAttributes ).length === 0 ) {
+    return;
+  }
+  console.log( '[search-attributes]', event, { workflowType, workflowId, parentWorkflowId: parent?.workflowId, searchAttributes } );
+};
 
-  Logger.info( 'http.usage', {
-    clientId: event.workflowDetails.searchAttributes?.WorkspaceId?.[ 0 ],
-    url: event.payload?.url,
-    requestId: event.payload?.requestId,
-    costUsd: event.payload?.total
-  } );
-} );
+onWorkflowStart( logSearchAttributes( 'workflow:start' ) );
+onActivityStart( logSearchAttributes( 'activity:start' ) );

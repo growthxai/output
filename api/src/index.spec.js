@@ -185,6 +185,38 @@ describe( 'API endpoints', () => {
       expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { taskQueue: 'wins' } ) );
     } );
 
+    it( 'forwards searchAttributes to run', async () => {
+      const searchAttributes = { ClientId: 'abc', Priority: 5, Urgent: true, Tags: [ 'a', 'b' ] };
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, searchAttributes } )
+        .expect( 200 );
+      expect( mockClient.workflow.run ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { searchAttributes } ) );
+    } );
+
+    it( 'passes undefined searchAttributes to run when omitted', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {} } )
+        .expect( 200 );
+      expect( mockClient.workflow.run.mock.calls[0][2].searchAttributes ).toBeUndefined();
+    } );
+
+    it.each( [
+      [ 'object', { Nested: { a: 1 } } ],
+      [ 'null', { Empty: null } ],
+      [ 'number array', { Scores: [ 1, 2 ] } ],
+      [ 'mixed array', { Tags: [ 'a', 1 ] } ],
+      [ 'non-object map', [ 'ClientId' ] ]
+    ] )( 'rejects searchAttributes with %s values with 400', async ( _, searchAttributes ) => {
+      const res = await request( `http://localhost:${PORT}` )
+        .post( '/workflow/run' )
+        .send( { workflowName: 'MyWorkflow', input: {}, searchAttributes } )
+        .expect( 400 );
+      expect( res.body ).toMatchObject( { error: 'ValidationError' } );
+      expect( mockClient.workflow.run ).not.toHaveBeenCalled();
+    } );
+
     it( 'validation error returns 400', async () => {
       const res = await request( `http://localhost:${PORT}` ).post( '/workflow/run' ).send( { input: { x: 1 } } ).expect( 400 );
       expect( res.body ).toMatchObject( { error: 'ValidationError', message: 'Invalid Payload' } );
@@ -233,6 +265,38 @@ describe( 'API endpoints', () => {
 
     it( 'validation error returns 400', async () => {
       await request( `http://localhost:${PORT}` ).post( '/workflow/start' ).send( {} ).expect( 400 );
+      expect( mockClient.workflow.start ).not.toHaveBeenCalled();
+    } );
+
+    it( 'forwards searchAttributes to start', async () => {
+      const searchAttributes = { ClientId: 'abc', Priority: 5, Urgent: true, Tags: [ 'a', 'b' ] };
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/start' )
+        .send( { workflowName: 'MyWorkflow', input: {}, searchAttributes } )
+        .expect( 200 );
+      expect( mockClient.workflow.start ).toHaveBeenCalledWith( 'MyWorkflow', {}, expect.objectContaining( { searchAttributes } ) );
+    } );
+
+    it( 'passes undefined searchAttributes to start when omitted', async () => {
+      await request( `http://localhost:${PORT}` )
+        .post( '/workflow/start' )
+        .send( { workflowName: 'MyWorkflow', input: {} } )
+        .expect( 200 );
+      expect( mockClient.workflow.start.mock.calls[0][2].searchAttributes ).toBeUndefined();
+    } );
+
+    it.each( [
+      [ 'object', { Nested: { a: 1 } } ],
+      [ 'null', { Empty: null } ],
+      [ 'number array', { Scores: [ 1, 2 ] } ],
+      [ 'mixed array', { Tags: [ 'a', 1 ] } ],
+      [ 'non-object map', [ 'ClientId' ] ]
+    ] )( 'rejects searchAttributes with %s values with 400', async ( _, searchAttributes ) => {
+      const res = await request( `http://localhost:${PORT}` )
+        .post( '/workflow/start' )
+        .send( { workflowName: 'MyWorkflow', input: {}, searchAttributes } )
+        .expect( 400 );
+      expect( res.body ).toMatchObject( { error: 'ValidationError' } );
       expect( mockClient.workflow.start ).not.toHaveBeenCalled();
     } );
   } );

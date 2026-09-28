@@ -1,5 +1,4 @@
 import type { Info } from '@temporalio/activity';
-import type { SearchAttributes } from '@temporalio/common';
 
 export interface WorkflowDetails {
   /**
@@ -79,12 +78,11 @@ export interface WorkflowDetails {
    */
   attempt: number;
   /**
-   * Temporal search attributes set on this workflow execution, if any.
-   * Uses the legacy untyped form (`typedSearchAttributes` is not forwarded here,
-   * since it does not survive the sink/activity-header serialization boundary
-   * as a usable class instance — see https://github.com/temporalio/sdk-typescript/issues/1635).
+   * Temporal search attributes set on this workflow execution, if any. Datetime values are ISO strings.
+   * Uses the untyped form because `typedSearchAttributes` does not survive the sink/activity-header
+   * serialization boundary (https://github.com/temporalio/sdk-typescript/issues/1635).
    */
-  searchAttributes?: SearchAttributes;
+  searchAttributes?: Record<string, string[] | number[] | boolean[]>;
 }
 
 /**
