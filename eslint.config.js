@@ -191,7 +191,7 @@ export default [
 
   // Keep sdk/core TS specs linted without requiring a tsconfig for test-only files
   {
-    files: [ 'sdk/core/**/*.spec.ts' ],
+    files: [ 'sdk/core/**/*.spec.ts', 'sdk/core/**/*.integration.test.ts' ],
     languageOptions: {
       parserOptions: {
         project: false

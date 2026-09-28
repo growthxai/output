@@ -3,7 +3,7 @@ import {
   MalformedCredentialsKeyError,
   MissingKeyError,
   resolveCredentialRefs
-} from '@outputai/credentials';
+} from '@outputai/core/credentials';
 
 const isCredentialsConfigError = ( error: unknown ): error is Error =>
   error instanceof MissingKeyError ||

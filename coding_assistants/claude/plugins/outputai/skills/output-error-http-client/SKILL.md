@@ -203,7 +203,7 @@ export const createUser = step( {
 ```typescript
 import { z, step } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 export const createUser = step( {
   name: 'createUser',

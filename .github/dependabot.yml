@@ -8,7 +8,6 @@ updates:
       - '/sdk/cli'
       - '/sdk/http'
       - '/sdk/evals'
-      - '/sdk/credentials'
       - '/sdk/llm'
       - '/test_workflows'
     schedule:

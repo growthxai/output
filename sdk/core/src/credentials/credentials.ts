@@ -1,8 +1,8 @@
 import { dirname } from 'node:path';
 import { MissingCredentialError } from './errors.js';
-import { Context } from '@outputai/core/sdk/runtime';
-import { Objects } from '@outputai/core/sdk/helpers';
+import { deepMerge } from '#helpers/object';
 import { getProvider } from './provider_registry.js';
+import { Storage } from '#async_storage';
 
 const getNestedValue = ( obj: Record<string, unknown>, dotPath: string ): unknown =>
   dotPath.split( '.' ).reduce( ( acc: unknown, part: string ) =>
@@ -37,13 +37,14 @@ const loadForWorkflow = ( workflowName: string, workflowDir: string | undefined 
     workflowDir,
     environment: detectEnvironment()
   } );
-  const merged = workflowData ? Objects.deepMerge( globalData, workflowData ) as Record<string, unknown> : globalData;
+  const merged = workflowData ? deepMerge( globalData, workflowData ) as Record<string, unknown> : globalData;
   cache.set( workflowName, merged );
   return merged;
 };
 
 const getWorkflowContext = () => {
-  const ctx = Context.getActivityContext();
+  const ctx = Storage.load();
+
   if ( !ctx ) {
     return { workflowName: undefined, workflowDir: undefined };
   }

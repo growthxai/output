@@ -33,8 +33,6 @@ const onError = cb => {
     callHookCb( cb, { source: 'runtime', ...payload }, 'onError' ) );
 };
 
-const onBeforeWorkerStart = cb => mainEventBus.on( BusEventType.WORKER_BEFORE_START, () => callHookCb( cb, undefined, 'onBeforeWorkerStart' ) );
-
 // Workflow Life-cycle
 // --------------------------------------
 const onWorkflowStart = cb => mainEventBus.on( BusEventType.WORKFLOW_START, payload => callHookCb( cb, payload, 'onWorkflowStart' ) );
@@ -68,7 +66,6 @@ export {
   onActivityEnd,
   onActivityError,
   onActivityStart,
-  onBeforeWorkerStart,
   onError,
   onWorkflowEnd,
   onWorkflowError,

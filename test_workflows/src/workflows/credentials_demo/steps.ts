@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 export const readCredential = step( {
   name: 'readCredential',

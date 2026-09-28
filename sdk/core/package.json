@@ -26,11 +26,18 @@
     "./temporal": {
       "types": "./src/temporal/index.d.ts",
       "import": "./src/temporal/index.js"
+    },
+    "./credentials": {
+      "types": "./dist/credentials/index.d.ts",
+      "import": "./dist/credentials/index.js"
     }
   },
   "files": [
     "./src",
-    "./bin"
+    "./dist",
+    "./bin",
+    "!**/*.spec.*",
+    "!src/credentials"
   ],
   "bin": {
     "output-worker": "./bin/worker.sh",
@@ -40,7 +47,7 @@
   },
   "scripts": {
     "worker": "node ./src/worker/index.js",
-    "build": "pnpm exec tsc -p ./tsconfig.typecheck.json"
+    "build": "rm -rf ./dist && tsc && pnpm exec tsc -p ./tsconfig.typecheck.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
@@ -49,12 +56,14 @@
     "@babel/parser": "7.29.2",
     "@babel/traverse": "7.29.0",
     "@babel/types": "7.29.0",
+    "@noble/ciphers": "2.2.0",
     "@temporalio/activity": "catalog:",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
     "folder-hash": "4.1.3",
+    "js-yaml": "catalog:",
     "json-stream-stringify": "3.1.6",
     "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
@@ -65,6 +74,7 @@
     "zod": ">=4.3 <5"
   },
   "devDependencies": {
+    "@types/js-yaml": "catalog:",
     "zod": "catalog:"
   },
   "license": "Apache-2.0",
@@ -74,6 +84,7 @@
   "imports": {
     "#bus": "./src/bus.js",
     "#consts": "./src/consts.js",
+    "#credentials/*": "./dist/credentials/*.js",
     "#errors": "./src/errors.js",
     "#logger": "./src/logger/index.js",
     "#hooks/*": "./src/hooks/*.js",

@@ -46,7 +46,6 @@ Add the file to `outputai.hookFiles` in `package.json`, alongside any existing h
 {
   "outputai": {
     "hookFiles": [
-      "node_modules/@outputai/credentials/dist/hooks.js",
       "./dist/cost_hooks.js"
     ]
   }
@@ -72,7 +71,7 @@ Use this when spend needs to reach an external observability system over HTTP. F
 ```typescript
 // src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 import type { HttpRequestCostEvent } from '@outputai/http';
 import type { LLMGenerationMeteringEvent } from '@outputai/llm';
 

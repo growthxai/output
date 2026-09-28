@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { load as parseYaml } from 'js-yaml';
-import { encrypt, decrypt, generateKey } from '@outputai/credentials';
+import { encrypt, decrypt, generateKey } from '@outputai/core/credentials';
 import {
   initCredentials,
   decryptCredentials,

@@ -38,7 +38,6 @@ import {
   onActivityEnd,
   onActivityError,
   onActivityStart,
-  onBeforeWorkerStart,
   onError,
   onWorkflowEnd,
   onWorkflowError,
@@ -153,18 +152,6 @@ describe( 'hooks/index', () => {
         }
       } );
       expect( serializeErrorMock ).toHaveBeenCalledWith( expect.objectContaining( { message: 'boom' } ) );
-    } );
-  } );
-
-  describe( 'onBeforeWorkerStart', () => {
-    it( 'registers and invokes handler with undefined payload', async () => {
-      const handler = vi.fn().mockResolvedValue( undefined );
-      onBeforeWorkerStart( handler );
-
-      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKER_BEFORE_START, expect.any( Function ) );
-      await mainOnHandlers[BusEventType.WORKER_BEFORE_START]();
-
-      expect( handler ).toHaveBeenCalledWith( undefined );
     } );
   } );
 

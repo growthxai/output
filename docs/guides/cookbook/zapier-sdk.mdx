@@ -35,7 +35,7 @@ npm install -D @zapier/zapier-sdk-cli @types/node typescript
 Your `package.json` must set `"type": "module"` — both SDKs are ESM.
 
 Authenticate once locally and register the apps you want to call:
- 
+
 ```bash
 npx zapier-sdk login          # one-time browser OAuth
 npx zapier-sdk add slack      # writes .zapier-manifest.json
@@ -71,7 +71,7 @@ ZAPIER_CLIENT_SECRET=credential:zapier.client_secret
 Put the configured SDK in its own file under `src/clients/` so every step imports the same instance — matching the API client pattern used elsewhere in Output (e.g. `src/clients/jina.ts`):
 
 ```ts src/clients/zapier.ts
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 import { createZapierSdk } from '@zapier/zapier-sdk';
 
 
@@ -145,7 +145,7 @@ export const postToSlackChannel = step( {
     inputSchema: PostToSlackInput,
     outputSchema: WorkflowOutputSchema,
     fn: async ({ channel, message }) => {
-    
+
       const { data: firstSlackConnection } = await zapier.findFirstConnection({
         search: 'Slack Connection 2', // if you have more than one app it's better to provide the complete name
         appKey: 'slack',

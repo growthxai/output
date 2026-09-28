@@ -12,7 +12,7 @@ const Ansi: Record<string, string> = {
 
 export default class Fix extends Command {
   static description =
-    'Fix Output scripts in the package.json (reset overwrites, add missing and remove deprecated)';
+    'Fix Output scripts in the package.json (reset overwrites, add missing and remove deprecated) and remove stale hook files';
 
   static examples = [
     '<%= config.bin %> <%= command.id %>'
@@ -35,6 +35,10 @@ export default class Fix extends Command {
     if ( plan.scriptsToRemove.length > 0 ) {
       this.log( '\n  Scripts to remove:' );
       plan.scriptsToRemove.forEach( ( { key } ) => this.log( `    ${Ansi.RED}-${Ansi.RESET} "${key}"` ) );
+    }
+    if ( plan.hookFilesToRemove.length > 0 ) {
+      this.log( '\n  Hook files to remove:' );
+      plan.hookFilesToRemove.forEach( file => this.log( `    ${Ansi.RED}-${Ansi.RESET} "${file}"` ) );
     }
 
     this.log( '' );

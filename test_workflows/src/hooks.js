@@ -2,7 +2,6 @@
 //   onError,
 //   on,
 //   emit,
-//   onBeforeWorkerStart,
 //   onWorkflowStart,
 //   onWorkflowEnd,
 //   onWorkflowError,
@@ -25,12 +24,6 @@
 
 // // Generic on error
 // onError( payload => console.log( colorize( 'onError()' ), payload ) );
-
-// // Worker start
-// onBeforeWorkerStart( () => {
-//   console.log( colorize( 'onBeforeWorkerStart()' ) )
-//   emit( 'test', { message: 'foo' } );
-// } );
 
 // // Workflow lifecycle
 // onWorkflowStart( payload => console.log( colorize( 'onWorkflowStart()' ), payload ) );

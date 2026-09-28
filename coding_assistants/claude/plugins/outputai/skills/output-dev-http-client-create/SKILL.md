@@ -80,8 +80,8 @@ class MyCustomError extends Error { ... }
 ### Credentials Import
 
 ```typescript
-// CORRECT - Use @outputai/credentials for secrets
-import { credentials } from '@outputai/credentials';
+// CORRECT - Use @outputai/core/credentials for secrets
+import { credentials } from '@outputai/core/credentials';
 const apiKey = credentials.require('service.api_key');
 
 // WRONG - Never use process.env for secrets
@@ -104,7 +104,7 @@ import { addRequestCost, createKyClient } from '@outputai/http';
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
 const BASE_URL = 'https://api.service.com';
@@ -150,7 +150,7 @@ export async function fetchServiceData(query: string): Promise<ServiceResponse> 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 export interface ServiceOptions {
   model?: string;
@@ -214,7 +214,7 @@ export class ServiceClient {
 ```typescript
 import { FatalError } from '@outputai/core';
 import { createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const JINA_API_KEY = credentials.require('jina.api_key');
 const JINA_BASE_URL = 'https://r.jina.ai';
@@ -291,7 +291,7 @@ export async function scrapeTextWithJina(url: string): Promise<string> {
 ```typescript
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { FatalError, ValidationError } from '@outputai/core';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 export interface GeminiImageGenerationOptions {
   prompt: string;
@@ -436,7 +436,7 @@ Some APIs report what a specific call cost — in a response header or a JSON fi
 
 ```typescript
 import { addRequestCost, createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
 
@@ -479,13 +479,13 @@ When a service is billed as a flat monthly fee or subscription tier, there's no 
 
 ```typescript
 import { addRequestCost, createKyClient } from '@outputai/http';
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
 
 // Notional per-call cost for a flat-rate subscription. Not a secret, so a
 // plain env var is fine here — unlike API keys, which must go through
-// @outputai/credentials.
+// @outputai/core/credentials.
 const NOTIONAL_COST_USD = Number(process.env.SERVICE_NOTIONAL_COST_USD ?? 0.005);
 
 const client = createKyClient({
@@ -523,10 +523,10 @@ The constant above is a placeholder — `config/costs.yml` (see `output-dev-work
 
 ### 1. Use Credentials for API Keys
 
-Prefer `@outputai/credentials` over `process.env` for secrets management. See `output-dev-credentials` skill for details.
+Prefer `@outputai/core/credentials` over `process.env` for secrets management. See `output-dev-credentials` skill for details.
 
 ```typescript
-import { credentials } from '@outputai/credentials';
+import { credentials } from '@outputai/core/credentials';
 
 // credentials.require() throws MissingCredentialError if not found
 const apiKey = credentials.require('service.api_key');

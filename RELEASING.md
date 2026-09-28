@@ -13,7 +13,6 @@ This monorepo publishes the following packages to npm:
 | `@outputai/llm` | `sdk/llm` | LLM integration (generateText, prompt loading) |
 | `@outputai/http` | `sdk/http` | HTTP client with tracing |
 | `@outputai/evals` | `sdk/evals` | Evaluation framework (LLM-as-judge) |
-| `@outputai/credentials` | `sdk/credentials` | Encrypted credential management |
 | `@outputai/output` | `sdk/framework` | Umbrella package (re-exports all SDK packages) |
 | `output-api` | `api` | API server (private, Docker image only) |
 
