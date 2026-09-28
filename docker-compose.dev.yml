@@ -2,6 +2,31 @@ include:
   - docker-compose.temporal.yml
 
 services:
+  # Registers a demo WorkspaceId search attribute for local testing of caller-supplied
+  # searchAttributes. Dev only: prod includes docker-compose.temporal.yml, so this must not live there.
+  # `create` is idempotent for an unchanged name/type, so it can run on every startup.
+  temporal-search-attributes:
+    depends_on:
+      temporal:
+        condition: service_healthy
+    entrypoint:
+      - temporal
+      - operator
+      - search-attribute
+      - create
+      - --address
+      - temporal:7233
+      - --namespace
+      - default
+      - --name
+      - WorkspaceId
+      - --type
+      - Keyword
+    image: temporalio/auto-setup:latest
+    networks:
+      - main
+    restart: 'no'
+
   api:
     init: true
     depends_on:
