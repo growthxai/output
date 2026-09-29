@@ -25,6 +25,8 @@ Workflow execution failures are different from API request errors. `POST /workfl
 
 **400 ValidationError** — Request body or query parameters failed schema validation (e.g. missing required fields, wrong types). The `issues` array lists each validation failure.
 
+A 400 is also returned when Temporal rejects a request's `searchAttributes`: the attribute is not registered on the namespace, its value does not match the registered type, or the name is reserved. The `message` names the attribute and the reason, and never includes the submitted value. The workflow is not started. See [Search attributes](/operations/deployment#search-attributes).
+
 **404 WorkflowNotFoundError** — The given workflow execution ID does not exist, the workflow type is not in the catalog for the task queue, or the catalog workflow itself was not found.
 
 **408 WorkflowExecutionTimedOutError** — Returned only by `POST /workflow/run` when the workflow did not complete within the request timeout (or the configured max waiting time).

@@ -39,6 +39,6 @@ describe( 'parseSearchAttributesFlag', () => {
   } );
 
   it( 'reports invalid JSON', () => {
-    expect( () => parseSearchAttributesFlag( '{not json' ) ).toThrow( /Invalid JSON input|Input file not found/ );
+    expect( () => parseSearchAttributesFlag( '{not json' ) ).toThrow( /^--search-attributes: (Invalid JSON input|Input file not found)/ );
   } );
 } );

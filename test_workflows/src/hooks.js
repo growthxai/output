@@ -41,7 +41,7 @@
 import { onWorkflowStart, onActivityStart } from '@outputai/core/hooks';
 
 const logSearchAttributes = event => ( { workflowDetails: { workflowId, workflowType, parent, searchAttributes } } ) => {
-  if ( !searchAttributes || Object.keys( searchAttributes ).length === 0 ) {
+  if ( !searchAttributes ) {
     return;
   }
   console.log( '[search-attributes]', event, { workflowType, workflowId, parentWorkflowId: parent?.workflowId, searchAttributes } );

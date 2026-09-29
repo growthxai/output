@@ -8,6 +8,10 @@ describe( 'serializeSearchAttributes', () => {
     expect( serializeSearchAttributes( null ) ).toBeUndefined();
   } );
 
+  it( 'returns undefined for an empty object', () => {
+    expect( serializeSearchAttributes( {} ) ).toBeUndefined();
+  } );
+
   it( 'converts Date values to ISO strings', () => {
     const date = new Date( '2026-06-02T09:00:00.000Z' );
 

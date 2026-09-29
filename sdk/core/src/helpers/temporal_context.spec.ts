@@ -94,7 +94,7 @@ describe( 'createWorkflowDetails', () => {
       startTime: Date.parse( '2026-06-02T09:00:00.000Z' ),
       workflowId: 'workflow-id',
       workflowType: 'prompt',
-      searchAttributes: {}
+      searchAttributes: undefined
     } );
   } );
 } );

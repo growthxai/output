@@ -20,5 +20,13 @@ const validate = ( parsed: unknown ): PostWorkflowRunBodySearchAttributes => {
   return parsed as PostWorkflowRunBodySearchAttributes;
 };
 
+const parse = ( flag: string ): unknown => {
+  try {
+    return parseInputFlag( flag );
+  } catch ( error ) {
+    throw new Error( `--search-attributes: ${( error as Error ).message}` );
+  }
+};
+
 export const parseSearchAttributesFlag = ( flag?: string ): PostWorkflowRunBodySearchAttributes | undefined =>
-  ( flag === undefined ? undefined : validate( parseInputFlag( flag ) ) );
+  ( flag === undefined ? undefined : validate( parse( flag ) ) );
