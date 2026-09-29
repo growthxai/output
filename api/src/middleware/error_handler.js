@@ -58,7 +58,7 @@ const findGrpcError = err =>
 // Temporal server rejections for search attributes. Only the attribute name (and registered type)
 // is extracted: the type-mismatch message also embeds the submitted value, which is not echoed.
 const SEARCH_ATTRIBUTE_REJECTIONS = [
-  [ /no mapping defined for search attribute (.+)$/, ( [ , name ] ) => `search attribute ${name} is not registered on the namespace` ],
+  [ /no mapping defined for search attribute (\S+)$/, ( [ , name ] ) => `search attribute ${name} is not registered on the namespace` ],
   [ /search attribute (.+?) is not defined/, ( [ , name ] ) => `search attribute ${name} is not registered on the namespace` ],
   [
     /invalid value .*?for search attribute (.+?) of type (\w+)/,

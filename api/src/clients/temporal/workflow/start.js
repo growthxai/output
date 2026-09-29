@@ -1,7 +1,6 @@
 import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowId } from '#utils';
 import { resolveWorkflowName } from '../catalog.js';
-import { startWorkflowExecution } from './start_workflow_execution.js';
 import { toTemporalSearchAttributes } from './to_temporal_search_attributes.js';
 
 const { defaultTaskQueue, workflowExecutionTimeout } = temporalConfig;
@@ -29,7 +28,7 @@ export const start = async ( { client }, workflowName, input, options = {} ) => 
 
   const resolvedName = await resolveWorkflowName( { client, workflowName, taskQueue } );
   const workflowId = userWorkflowId ?? buildWorkflowId();
-  const handle = await startWorkflowExecution( client, resolvedName, {
+  const handle = await client.workflow.start( resolvedName, {
     args: [ input ], taskQueue, workflowId, workflowExecutionTimeout,
     ...toTemporalSearchAttributes( searchAttributes )
   } );
