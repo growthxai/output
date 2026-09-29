@@ -107,6 +107,22 @@ describe( 'workflow interceptors', () => {
       expect( out ).toBe( 'result' );
     } );
 
+    it( 'includes serialized search attributes in the workflowDetails header', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const interceptor = interceptors().outbound[0];
+      workflowInfoMock.mockReturnValue( {
+        ...workflowInfo,
+        searchAttributes: { CustomerId: [ 'cust-1' ], ScheduledAt: [ startTime ] }
+      } );
+
+      await interceptor.scheduleActivity( { headers: {}, activityType: 'MyWorkflow#step1', options: {} }, vi.fn() );
+
+      expect( memoToHeadersMock.mock.calls[0][0].workflowDetails.searchAttributes ).toEqual( {
+        CustomerId: [ 'cust-1' ],
+        ScheduledAt: [ '2026-06-02T09:00:00.000Z' ]
+      } );
+    } );
+
     it( 'merges component activity options over the scheduled activity input options', async () => {
       activityOptionsDefault['MyWorkflow#step1'] = { scheduleToCloseTimeout: 60 };
       workflowInfoMock.mockReturnValue( {

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { runInNewContext } from 'node:vm';
 import { serializeSearchAttributes, inheritableSearchAttributes } from './search_attributes.js';
 
 describe( 'serializeSearchAttributes', () => {
@@ -10,6 +11,13 @@ describe( 'serializeSearchAttributes', () => {
   it( 'converts Date values to ISO strings', () => {
     const date = new Date( '2026-06-02T09:00:00.000Z' );
 
+    expect( serializeSearchAttributes( { ScheduledAt: [ date ] } ) ).toEqual( { ScheduledAt: [ '2026-06-02T09:00:00.000Z' ] } );
+  } );
+
+  it( 'converts Date values created in another realm', () => {
+    const date = runInNewContext( 'new Date( "2026-06-02T09:00:00.000Z" )' );
+
+    expect( date instanceof Date ).toBe( false );
     expect( serializeSearchAttributes( { ScheduledAt: [ date ] } ) ).toEqual( { ScheduledAt: [ '2026-06-02T09:00:00.000Z' ] } );
   } );
 

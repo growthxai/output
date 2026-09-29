@@ -1,4 +1,4 @@
-const serializeValue = value => value instanceof Date ? value.toISOString() : value;
+const serializeValue = value => typeof value?.toISOString === 'function' ? value.toISOString() : value;
 
 /**
  * Converts Datetime (Date) search attribute values to ISO strings so the result survives JSON and structured-clone boundaries identically.

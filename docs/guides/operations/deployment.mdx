@@ -46,7 +46,17 @@ Callers can attach Temporal [search attributes](https://docs.temporal.io/search-
 
 From the CLI, pass the same map with `--search-attributes`: `output workflow run lead_enrichment --input input.json --search-attributes '{"ClientId":"acme"}'`.
 
-Each attribute must be registered on the namespace before any caller sends it. This happens once per namespace, done by whoever administers it:
+Each attribute must be registered on the namespace before any caller sends it. This happens once per namespace, done by whoever administers it.
+
+On Temporal Cloud, use [`tcld`](https://docs.temporal.io/cloud/tcld/namespace):
+
+```bash
+tcld namespace search-attributes add \
+  --namespace <your-namespace> \
+  --search-attribute "ClientId=Keyword"
+```
+
+On a self-hosted Temporal server, use the Temporal CLI:
 
 ```bash
 temporal operator search-attribute create \
@@ -56,7 +66,11 @@ temporal operator search-attribute create \
   --type Keyword
 ```
 
-Re-running the command with the same name and type is a no-op. The type you register determines the JSON value callers send:
+Re-running the self-hosted command with the same name and type is a no-op.
+
+Before any caller sends `searchAttributes`, upgrade the API and every worker to a version that supports them. An older API ignores the field, and an older worker doesn't pass the attributes to hooks or child workflows.
+
+The type you register determines the JSON value callers send:
 
 | Type | JSON value | Example |
 |------|------------|---------|

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mainEventBus, stepEventBus } from '#bus';
-import { BusEventType } from '#consts';
 import { Storage } from '#async_storage';
 import { createWorkflowDetails } from '#helpers/temporal_context';
+import { sinks } from '../worker/sinks.js';
 import { headersToObject, memoToHeaders } from '../worker/interceptors/headers.js';
 import { on, onWorkflowStart } from './index.js';
 import { pendingHooks } from './pending_hooks.js';
@@ -15,6 +15,7 @@ const workflowInfo = {
   startTime: new Date( '2026-06-02T09:00:00.000Z' ),
   workflowId: 'wf-1',
   workflowType: 'prompt',
+  memo: {},
   searchAttributes: {
     CustomerId: [ 'cust-1' ],
     ScheduledAt: [ new Date( '2026-06-02T08:00:00.000Z' ) ]
@@ -35,18 +36,18 @@ describe( 'hooks receive workflowDetails.searchAttributes', () => {
     pendingHooks.clear();
   } );
 
-  it( 'delivers them to workflow lifecycle hooks fed by sinks', async () => {
+  it( 'delivers them to workflow lifecycle hooks via the start sink', async () => {
     const handler = vi.fn();
     onWorkflowStart( handler );
 
-    mainEventBus.emit( BusEventType.WORKFLOW_START, { workflowDetails: createWorkflowDetails( structuredClone( workflowInfo ) ) } );
+    sinks.workflow.start.fn( structuredClone( workflowInfo ), {} );
     await flushHooks();
 
     expect( handler ).toHaveBeenCalledOnce();
     expect( handler.mock.calls[0][0].workflowDetails.searchAttributes ).toEqual( expectedSearchAttributes );
   } );
 
-  it( 'delivers them to generic event hooks emitted inside activities', async () => {
+  it( 'delivers them to event hooks emitted inside activities, from round-tripped headers', async () => {
     const handler = vi.fn();
     on( 'llm:generation:metering', handler );
 
