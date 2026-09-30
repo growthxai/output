@@ -1,7 +1,7 @@
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import yaml from 'js-yaml';
+import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
 import { DatasetSchema } from '@outputai/evals';
 import type { Dataset } from '@outputai/evals';
 import { getTrace } from '#services/trace_reader.js';
@@ -49,7 +49,7 @@ export async function resolveDefaultDatasetsDir(
 }
 
 export async function readDatasetFile( filePath: string ): Promise<Dataset[]> {
-  const raw = yaml.load( await readFile( filePath, 'utf-8' ) );
+  const raw = parseYaml( await readFile( filePath, 'utf-8' ) );
 
   if ( !raw || typeof raw !== 'object' || Array.isArray( raw ) ) {
     throw new Error( `Invalid dataset file: ${filePath}` );
@@ -103,7 +103,7 @@ export async function writeDataset( dataset: Dataset, filePath: string ): Promis
     await mkdir( dir, { recursive: true } );
   }
 
-  const loaded = existsSync( filePath ) ? yaml.load( await readFile( filePath, 'utf-8' ) ) : null;
+  const loaded = existsSync( filePath ) ? parseYaml( await readFile( filePath, 'utf-8' ) ) : null;
   const fileObj: Record<string, unknown> =
     ( loaded && typeof loaded === 'object' && !Array.isArray( loaded ) ) ?
       loaded as Record<string, unknown> :
@@ -112,7 +112,7 @@ export async function writeDataset( dataset: Dataset, filePath: string ): Promis
   const { name, _source, ...caseBody } = dataset;
   fileObj[name] = { ...( fileObj[name] as object ), ...caseBody };
 
-  await writeFile( filePath, yaml.dump( fileObj, { lineWidth: 120, noRefs: true, sortKeys: false } ), 'utf-8' );
+  await writeFile( filePath, stringifyYaml( fileObj, { lineWidth: 120, noRefs: true, sortKeys: false } ), 'utf-8' );
 }
 
 export async function listDatasets(

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import yaml from 'js-yaml';
+import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
 import { readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir, datasetFilePath } from './datasets.js';
 import * as catalog from '#api/workflow_catalog.js';
 
@@ -25,7 +25,7 @@ afterEach( async () => {
 } );
 
 function writeYaml( filePath: string, obj: unknown ) {
-  return writeFile( filePath, yaml.dump( obj, { lineWidth: 120, noRefs: true, sortKeys: false } ), 'utf-8' );
+  return writeFile( filePath, stringifyYaml( obj, { lineWidth: 120, noRefs: true, sortKeys: false } ), 'utf-8' );
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ describe( 'writeDataset', () => {
 
     await writeDataset( dataset, filePath );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     expect( raw ).toHaveProperty( 'new_case' );
     expect( ( raw.new_case as Record<string, unknown> ).input ).toEqual( { q: 'hello' } );
     expect( raw.new_case ).not.toHaveProperty( 'name' );
@@ -203,7 +203,7 @@ describe( 'writeDataset', () => {
 
     await writeDataset( dataset, filePath );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     expect( ( raw.my_case as Record<string, unknown> ) ).not.toHaveProperty( '_source' );
   } );
 
@@ -219,7 +219,7 @@ describe( 'writeDataset', () => {
       filePath
     );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     expect( raw ).toHaveProperty( 'case_b' );
     expect( ( raw.case_b as Record<string, unknown> ).ground_truth ).toEqual( { expected: 2 } );
   } );
@@ -242,7 +242,7 @@ describe( 'writeDataset', () => {
       filePath
     );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     const caseObj = raw.my_case as Record<string, unknown>;
     expect( caseObj ).toHaveProperty( 'last_output' );
     expect( caseObj ).toHaveProperty( 'last_eval' );
@@ -253,7 +253,7 @@ describe( 'writeDataset', () => {
     const filePath = join( ctx.tmpDir, 'deep', 'nested', 'cases.yml' );
     await writeDataset( { name: 'my_case', input: { q: 'x' } }, filePath );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     expect( raw ).toHaveProperty( 'my_case' );
   } );
 
@@ -263,7 +263,7 @@ describe( 'writeDataset', () => {
 
     await writeDataset( { name: 'my_case', input: { q: 'x' } }, filePath );
 
-    const raw = yaml.load( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, unknown>;
     expect( raw ).toHaveProperty( 'my_case' );
   } );
 } );
