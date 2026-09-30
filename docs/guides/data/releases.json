@@ -1,6 +1,51 @@
 {
   "releases": [
     {
+      "version": "0.15.0",
+      "date": "2026-09-30",
+      "level": "minor",
+      "changes": [
+        {
+          "id": "four-cycles-add",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            }
+          ],
+          "summary": "- Updated the CLI to use `@outputai/core` for credentials features.\n- Updated `output fix` to remove the now-unused `outputai.hookFiles` entry pointing to `@outputai/credentials`.\n- Updated the scaffolding of new projects to no longer include the credentials entry in `outputai.hookFiles`."
+        },
+        {
+          "id": "plain-meteors-rescue",
+          "packages": [
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Folded `@outputai/credentials` as a feature of `@outputai/core`, under the `@outputai/core/credentials` entry point. Usage is the same, and credentials are still loaded during worker startup (after workflows are loaded). The `outputai.hookFiles` config is no longer necessary. Other changes are:\n\n- Updated the worker to fail startup when there are errors loading credentials.\n- Removed the `onBeforeWorkerStart` hook.\n\nThe original `/credentials` behavior and interface were kept, with the exception of these changes:\n\n- Updated to use the encrypted YAML provider as the default.\n- Removed unused exports:\n  - `getProvider`\n  - `encryptedYamlProvider`\n  - `GlobalContext`\n  - `WorkflowContext`\n- Updated all typed errors to inherit from `FatalError`, so when thrown, they fail the workflow execution. This includes:\n  - `MissingKeyError`\n  - `MissingCredentialError`\n  - `InvalidCredentialsKeyError`\n  - `MalformedCredentialsKeyError`"
+        },
+        {
+          "id": "search-attributes-start",
+          "packages": [
+            {
+              "name": "output-api",
+              "bump": "minor"
+            },
+            {
+              "name": "@outputai/core",
+              "bump": "minor"
+            },
+            {
+              "name": "@outputai/cli",
+              "bump": "minor"
+            }
+          ],
+          "summary": "Added support for Temporal search attributes on workflow runs:\n\n- Added an optional `searchAttributes` map to `/workflow/run` and `/workflow/start`. Unregistered attributes or mistyped values return 400 and the workflow is not started.\n- Added a `--search-attributes` flag to `output workflow run` and `output workflow start`.\n- Added `workflowDetails.searchAttributes` to hook payloads, with `Datetime` values as ISO strings.\n- Updated child workflows to inherit their parent's search attributes, excluding Temporal system attributes."
+        }
+      ]
+    },
+    {
       "version": "0.14.0",
       "date": "2026-09-22",
       "level": "minor",

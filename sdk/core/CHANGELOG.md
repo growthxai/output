@@ -1,5 +1,35 @@
 # @outputai/core
 
+## 0.15.0
+
+### Minor Changes
+
+- 51e8690: Folded `@outputai/credentials` as a feature of `@outputai/core`, under the `@outputai/core/credentials` entry point. Usage is the same, and credentials are still loaded during worker startup (after workflows are loaded). The `outputai.hookFiles` config is no longer necessary. Other changes are:
+
+  - Updated the worker to fail startup when there are errors loading credentials.
+  - Removed the `onBeforeWorkerStart` hook.
+
+  The original `/credentials` behavior and interface were kept, with the exception of these changes:
+
+  - Updated to use the encrypted YAML provider as the default.
+  - Removed unused exports:
+    - `getProvider`
+    - `encryptedYamlProvider`
+    - `GlobalContext`
+    - `WorkflowContext`
+  - Updated all typed errors to inherit from `FatalError`, so when thrown, they fail the workflow execution. This includes:
+    - `MissingKeyError`
+    - `MissingCredentialError`
+    - `InvalidCredentialsKeyError`
+    - `MalformedCredentialsKeyError`
+
+- 46e7530: Added support for Temporal search attributes on workflow runs:
+
+  - Added an optional `searchAttributes` map to `/workflow/run` and `/workflow/start`. Unregistered attributes or mistyped values return 400 and the workflow is not started.
+  - Added a `--search-attributes` flag to `output workflow run` and `output workflow start`.
+  - Added `workflowDetails.searchAttributes` to hook payloads, with `Datetime` values as ISO strings.
+  - Updated child workflows to inherit their parent's search attributes, excluding Temporal system attributes.
+
 ## 0.14.0
 
 ### Minor Changes
