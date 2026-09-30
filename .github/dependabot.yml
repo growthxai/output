@@ -15,6 +15,7 @@ updates:
         applies-to: 'version-updates'
       minor-updates:
         update-types: ['patch', 'minor']
+        exclude-patterns: ['@babel/*', 'oclif', '@oclif/*']
         applies-to: 'version-updates'
     cooldown:
       default-days: 3
