@@ -3,13 +3,6 @@ updates:
   - package-ecosystem: npm
     directories:
       - '/'
-      - '/api'
-      - '/sdk/core'
-      - '/sdk/cli'
-      - '/sdk/http'
-      - '/sdk/evals'
-      - '/sdk/llm'
-      - '/test_workflows'
     schedule:
       interval: weekly
     open-pull-requests-limit: 25
