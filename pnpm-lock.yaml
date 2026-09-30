@@ -40,8 +40,8 @@ catalogs:
       specifier: 7.8.5
       version: 7.8.5
     undici:
-      specifier: 8.10.2
-      version: 8.10.2
+      specifier: 8.11.0
+      version: 8.11.0
     winston:
       specifier: 3.19.0
       version: 3.19.0
@@ -219,7 +219,7 @@ importers:
         version: 7.8.5
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.11.0
     devDependencies:
       '@types/cli-progress':
         specifier: 3.11.6
@@ -298,7 +298,7 @@ importers:
         version: 0.1.11
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.11.0
       winston:
         specifier: 'catalog:'
         version: 3.19.0
@@ -348,7 +348,7 @@ importers:
         version: 2.0.2
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.11.0
 
   sdk/llm:
     dependencies:
@@ -369,7 +369,7 @@ importers:
         version: 10.29.0
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.11.0
     devDependencies:
       '@ai-sdk/amazon-bedrock':
         specifier: 5.0.88
@@ -4896,8 +4896,8 @@ packages:
     resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.10.2:
-    resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
+  undici@8.11.0:
+    resolution: {integrity: sha512-AdzuGcAkzhbha3GgCSoUBx2P0quwym6qdFNCQz/fDGZc8w9XJ741wHUbt2kTmfPz+ZIOMkySFkiY7RXmiDDC8w==}
     engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
@@ -10037,7 +10037,7 @@ snapshots:
 
   undici@7.29.1: {}
 
-  undici@8.10.2: {}
+  undici@8.11.0: {}
 
   unicorn-magic@0.3.0: {}
 
