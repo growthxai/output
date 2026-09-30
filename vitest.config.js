@@ -10,6 +10,7 @@ export default defineConfig( {
     include: [ '**/*.{spec,test}.{ts,js}' ],
     exclude: [ 'node_modules/**', '**/node_modules/**', '**/*.integration.test.(ts|js)', '**/dist/**', '.claude/**' ],
     globals: true,
+    clearMocks: false,
     sourcemap: true // Enable source maps for debugging
   }
 } );
