@@ -11,7 +11,7 @@ vi.mock( 'node:fs', () => ( {
 
 const mockLoad = vi.fn();
 vi.mock( 'js-yaml', () => ( {
-  default: { load: ( ...args: unknown[] ) => mockLoad( ...args ) }
+  load: ( ...args: unknown[] ) => mockLoad( ...args )
 } ) );
 
 import {

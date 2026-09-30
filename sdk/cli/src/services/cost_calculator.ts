@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import yaml from 'js-yaml';
+import { load as parseYaml } from 'js-yaml';
 import type {
   LLMGenerationCost,
   LLMGenerationCostItem,
@@ -192,7 +192,7 @@ export function extractValue( obj: unknown, path: string ): unknown {
 }
 
 function loadYaml( filePath: string ): PricingConfig {
-  return yaml.load( readFileSync( filePath, 'utf-8' ) ) as PricingConfig;
+  return parseYaml( readFileSync( filePath, 'utf-8' ) ) as PricingConfig;
 }
 
 export function loadPricingConfig( configPath?: string ): PricingConfig {
