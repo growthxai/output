@@ -54,7 +54,7 @@
     "@aws-sdk/lib-storage": "3.1136.0",
     "@babel/generator": "7.29.1",
     "@babel/parser": "7.29.9",
-    "@babel/traverse": "7.29.0",
+    "@babel/traverse": "8.0.6",
     "@babel/types": "7.29.0",
     "@noble/ciphers": "2.4.0",
     "@temporalio/activity": "catalog:",
