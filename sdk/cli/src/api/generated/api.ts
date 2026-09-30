@@ -317,9 +317,9 @@ export interface WorkflowResultV1Response {
   runId: string | null;
   status: WorkflowResultStatus;
   /** The original input passed to the workflow, null if unavailable */
-  input: unknown | null;
+  input: unknown;
   /** The result of workflow, null if workflow failed */
-  output: unknown | null;
+  output: unknown;
   trace: TraceInfoV1 | null;
   /**
      * Error message if workflow failed, null otherwise
@@ -358,9 +358,9 @@ export interface WorkflowResultV2Response {
   runId: string | null;
   status: WorkflowResultStatus;
   /** The original input passed to the workflow, null if unavailable */
-  input: unknown | null;
+  input: unknown;
   /** Direct workflow output, null if no output is available */
-  output: unknown | null;
+  output: unknown;
   trace: TraceInfoV2 | null;
   error: SerializedWorkflowError | null;
 }
@@ -805,11 +805,25 @@ export const getPostWorkflowRunUrl = () => {
  */
 export const postWorkflowRun = async (postWorkflowRunBody: PostWorkflowRunBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowRunResponse> => {
 
-  return customFetchInstance<postWorkflowRunResponse>(getPostWorkflowRunUrl(),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowRunResponse>(getPostWorkflowRunUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowRunBody)
   }
 );}
@@ -868,11 +882,25 @@ export const getPostWorkflowStartUrl = () => {
  */
 export const postWorkflowStart = async (postWorkflowStartBody: PostWorkflowStartBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowStartResponse> => {
 
-  return customFetchInstance<postWorkflowStartResponse>(getPostWorkflowStartUrl(),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowStartResponse>(getPostWorkflowStartUrl(),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowStartBody)
   }
 );}
@@ -1149,11 +1177,25 @@ export const postWorkflowIdRunsRidTerminate = async (id: string,
     rid: string,
     postWorkflowIdRunsRidTerminateBody?: PostWorkflowIdRunsRidTerminateBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdRunsRidTerminateResponse> => {
 
-  return customFetchInstance<postWorkflowIdRunsRidTerminateResponse>(getPostWorkflowIdRunsRidTerminateUrl(id,rid),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdRunsRidTerminateResponse>(getPostWorkflowIdRunsRidTerminateUrl(id,rid),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdRunsRidTerminateBody)
   }
 );}
@@ -1210,11 +1252,25 @@ export const getPostWorkflowIdTerminateUrl = (id: string,) => {
 export const postWorkflowIdTerminate = async (id: string,
     postWorkflowIdTerminateBody?: PostWorkflowIdTerminateBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdTerminateResponse> => {
 
-  return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdTerminateResponse>(getPostWorkflowIdTerminateUrl(id),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdTerminateBody)
   }
 );}
@@ -1272,11 +1328,25 @@ export const postWorkflowIdRunsRidReset = async (id: string,
     rid: string,
     resetWorkflowRequest: ResetWorkflowRequest, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdRunsRidResetResponse> => {
 
-  return customFetchInstance<postWorkflowIdRunsRidResetResponse>(getPostWorkflowIdRunsRidResetUrl(id,rid),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdRunsRidResetResponse>(getPostWorkflowIdRunsRidResetUrl(id,rid),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(resetWorkflowRequest)
   }
 );}
@@ -1333,11 +1403,25 @@ export const getPostWorkflowIdResetUrl = (id: string,) => {
 export const postWorkflowIdReset = async (id: string,
     resetWorkflowRequest: ResetWorkflowRequest, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdResetResponse> => {
 
-  return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdResetResponse>(getPostWorkflowIdResetUrl(id),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(resetWorkflowRequest)
   }
 );}
@@ -2128,11 +2212,25 @@ export const getPostWorkflowIdFeedbackUrl = (id: string,) => {
 export const postWorkflowIdFeedback = async (id: string,
     postWorkflowIdFeedbackBody: PostWorkflowIdFeedbackBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdFeedbackResponse> => {
 
-  return customFetchInstance<postWorkflowIdFeedbackResponse>(getPostWorkflowIdFeedbackUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdFeedbackResponse>(getPostWorkflowIdFeedbackUrl(id),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdFeedbackBody)
   }
 );}
@@ -2185,11 +2283,25 @@ export const postWorkflowIdSignalSignal = async (id: string,
     signal: string,
     postWorkflowIdSignalSignalBody: PostWorkflowIdSignalSignalBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdSignalSignalResponse> => {
 
-  return customFetchInstance<postWorkflowIdSignalSignalResponse>(getPostWorkflowIdSignalSignalUrl(id,signal),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdSignalSignalResponse>(getPostWorkflowIdSignalSignalUrl(id,signal),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdSignalSignalBody)
   }
 );}
@@ -2242,11 +2354,25 @@ export const postWorkflowIdQueryQuery = async (id: string,
     query: string,
     postWorkflowIdQueryQueryBody: PostWorkflowIdQueryQueryBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdQueryQueryResponse> => {
 
-  return customFetchInstance<postWorkflowIdQueryQueryResponse>(getPostWorkflowIdQueryQueryUrl(id,query),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdQueryQueryResponse>(getPostWorkflowIdQueryQueryUrl(id,query),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdQueryQueryBody)
   }
 );}
@@ -2299,11 +2425,25 @@ export const postWorkflowIdUpdateUpdate = async (id: string,
     update: string,
     postWorkflowIdUpdateUpdateBody: PostWorkflowIdUpdateUpdateBody, options?: Parameters<typeof customFetchInstance>[1]): Promise<postWorkflowIdUpdateUpdateResponse> => {
 
-  return customFetchInstance<postWorkflowIdUpdateUpdateResponse>(getPostWorkflowIdUpdateUpdateUrl(id,update),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetchInstance<postWorkflowIdUpdateUpdateResponse>(getPostWorkflowIdUpdateUpdateUrl(id,update),
   {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(postWorkflowIdUpdateUpdateBody)
   }
 );}
