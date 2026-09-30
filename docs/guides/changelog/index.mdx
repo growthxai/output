@@ -9,6 +9,48 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.15.0" description="2026-09-30 - minor release">
+
+See the [v0.14.0 - v0.15.0 migration guide](/migrations/v0.14.0-to-v0.15.0).
+
+### `@outputai/cli`
+
+- Updated the CLI to use `@outputai/core` for credentials features.
+- Updated `output fix` to remove the now-unused `outputai.hookFiles` entry pointing to `@outputai/credentials`.
+- Updated the scaffolding of new projects to no longer include the credentials entry in `outputai.hookFiles`.
+
+### `@outputai/core`
+
+Folded `@outputai/credentials` as a feature of `@outputai/core`, under the `@outputai/core/credentials` entry point. Usage is the same, and credentials are still loaded during worker startup (after workflows are loaded). The `outputai.hookFiles` config is no longer necessary. Other changes are:
+
+- Updated the worker to fail startup when there are errors loading credentials.
+- Removed the `onBeforeWorkerStart` hook.
+
+The original `/credentials` behavior and interface were kept, with the exception of these changes:
+
+- Updated to use the encrypted YAML provider as the default.
+- Removed unused exports:
+  - `getProvider`
+  - `encryptedYamlProvider`
+  - `GlobalContext`
+  - `WorkflowContext`
+- Updated all typed errors to inherit from `FatalError`, so when thrown, they fail the workflow execution. This includes:
+  - `MissingKeyError`
+  - `MissingCredentialError`
+  - `InvalidCredentialsKeyError`
+  - `MalformedCredentialsKeyError`
+
+### `@outputai/cli`, `@outputai/core`, `output-api`
+
+Added support for Temporal search attributes on workflow runs:
+
+- Added an optional `searchAttributes` map to `/workflow/run` and `/workflow/start`. Unregistered attributes or mistyped values return 400 and the workflow is not started.
+- Added a `--search-attributes` flag to `output workflow run` and `output workflow start`.
+- Added `workflowDetails.searchAttributes` to hook payloads, with `Datetime` values as ISO strings.
+- Updated child workflows to inherit their parent's search attributes, excluding Temporal system attributes.
+
+</Update>
+
 <Update label="v0.14.0" description="2026-09-22 - minor release">
 
 See the [v0.13.0 - v0.14.0 migration guide](/migrations/v0.13.0-to-v0.14.0).
