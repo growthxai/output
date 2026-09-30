@@ -30,6 +30,71 @@ Before deploying to any platform, ensure you have:
 - A Temporal backend with a dedicated namespace (e.g. [Temporal Cloud](https://temporal.io/cloud))
 - Your workflow repository on GitHub
 - API keys for any services your workflows use (Anthropic, OpenAI, etc.)
+- Any [search attributes](#search-attributes) your callers send, registered on that namespace
+
+## Search attributes
+
+Callers can attach Temporal [search attributes](https://docs.temporal.io/search-attribute) to a run by sending a `searchAttributes` map alongside `input` on `/workflow/run` or `/workflow/start`. Search attributes make runs queryable in Temporal (for example, all runs for one customer) without knowing individual workflow IDs:
+
+```json
+{
+  "workflowName": "lead_enrichment",
+  "input": { "domain": "example.com" },
+  "searchAttributes": { "ClientId": "acme" }
+}
+```
+
+From the CLI, pass the same map with `--search-attributes`: `output workflow run lead_enrichment --input input.json --search-attributes '{"ClientId":"acme"}'`.
+
+Each attribute must be registered on the namespace before any caller sends it. This happens once per namespace, done by whoever administers it.
+
+On Temporal Cloud, use [`tcld`](https://docs.temporal.io/cloud/tcld/namespace):
+
+```bash
+tcld namespace search-attributes add \
+  --namespace <your-namespace> \
+  --search-attribute "ClientId=Keyword"
+```
+
+On a self-hosted Temporal server, use the Temporal CLI:
+
+```bash
+temporal operator search-attribute create \
+  --address <your-temporal-address> \
+  --namespace <your-namespace> \
+  --name ClientId \
+  --type Keyword
+```
+
+Re-running the self-hosted command with the same name and type is a no-op.
+
+Before any caller sends `searchAttributes`, upgrade the API and every worker to a version that supports them. An older API ignores the field, and an older worker doesn't pass the attributes to hooks or child workflows.
+
+The type you register determines the JSON value callers send:
+
+| Type | JSON value | Example |
+|------|------------|---------|
+| `Keyword` | string (exact match) | `"acme"` |
+| `Text` | string (full-text search) | `"quarterly report"` |
+| `Int` | integer | `42` |
+| `Double` | number | `0.75` |
+| `Bool` | boolean | `true` |
+| `Datetime` | ISO 8601 string | `"2026-01-15T09:30:00Z"` |
+| `KeywordList` | array of strings | `["sales", "emea"]` |
+
+Validation is fail-fast. If an attribute isn't registered on the namespace, or its value doesn't match the registered type, the API returns 400 and the workflow is not started. Temporal's server-side limits on attribute count and size also apply; see the [Temporal search attribute docs](https://docs.temporal.io/search-attribute) for current values.
+
+Child workflows, including detached ones, inherit their parent's search attributes, and runs started with `continueAsNew` keep them, so every run in the tree is queryable by the same value. Temporal's own system attributes (names starting with `Temporal`, plus `BuildIds`) are not copied to children, so don't use the `Temporal` prefix for your own attributes.
+
+`./run.sh dev` registers a demo `WorkspaceId` (`Keyword`) attribute on the local Temporal server so you can try this locally. Production compose files and projects created with `output init` don't register any attributes.
+
+<Warning>
+Search attribute values are stored in Temporal's visibility store as plain values, not encoded or encrypted like workflow payloads. Don't put secrets or other sensitive data in them.
+</Warning>
+
+### Reading search attributes in hooks
+
+Hooks receive a run's search attributes in `workflowDetails.searchAttributes`, with each value as an array (`Datetime` values as ISO strings). When exporting them to a metrics system, pick specific approved keys rather than forwarding the whole map, because every distinct value becomes a tag and unbounded tag cardinality gets expensive. Search attributes are asserted by the caller: use them for attribution, not for authorization decisions.
 
 ## Platform guides
 

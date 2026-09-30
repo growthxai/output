@@ -136,7 +136,7 @@ Every hook payload includes an **`eventId`** — a UUID v4 stamped per emit — 
 **Context objects on hook payloads**
 
 - `activityInfo` is Temporal's Activity execution info object. See Temporal's [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) reference for all fields.
-- `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). It includes `workflowId`, `runId`, `workflowType`, `parent`, `root`, `firstExecutionRunId`, `continuedFromExecutionRunId`, `startTime`, `runStartTime`, and `attempt`.
+- `workflowDetails` is Output's serializable subset of Temporal's [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo). It includes `workflowId`, `runId`, `workflowType`, `parent`, `root`, `firstExecutionRunId`, `continuedFromExecutionRunId`, `startTime`, `runStartTime`, `attempt`, and `searchAttributes` (omitted when the run has none).
 - `outputActivityKind` is Output metadata for activity hooks and custom events emitted from activities. Possible values are `step`, `evaluator`, and `internal_step`.
 
 **SDK and custom event envelopes**
@@ -194,6 +194,7 @@ type WorkflowDetails = {
   startTime: number;
   runStartTime: number;
   attempt: number;
+  searchAttributes?: Record<string, string[] | number[] | boolean[]>;
 };
 ```
 

@@ -34,3 +34,18 @@
 // onActivityStart( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
 // onActivityEnd( payload => console.log( colorize( 'onActivityStart()' ), payload ) );
 // onActivityError( payload => console.log( colorize( 'onActivityError()' ), payload ) );
+
+// Search attributes demo: logs workflowDetails.searchAttributes for runs started with a
+// `searchAttributes` map (e.g. { "WorkspaceId": "demo" }). Covers both delivery paths:
+// workflow lifecycle events (sinks) and activity events (headers).
+import { onWorkflowStart, onActivityStart } from '@outputai/core/hooks';
+
+const logSearchAttributes = event => ( { workflowDetails: { workflowId, workflowType, parent, searchAttributes } } ) => {
+  if ( !searchAttributes ) {
+    return;
+  }
+  console.log( '[search-attributes]', event, { workflowType, workflowId, parentWorkflowId: parent?.workflowId, searchAttributes } );
+};
+
+onWorkflowStart( logSearchAttributes( 'workflow:start' ) );
+onActivityStart( logSearchAttributes( 'activity:start' ) );

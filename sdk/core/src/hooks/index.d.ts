@@ -77,6 +77,12 @@ export interface WorkflowDetails {
    * Starts at 1 and increments for every retry if there is a `retryPolicy`
    */
   attempt: number;
+  /**
+   * Temporal search attributes set on this workflow execution, if any. Datetime values are ISO strings.
+   * Uses the untyped form because `typedSearchAttributes` does not survive the sink/activity-header
+   * serialization boundary (https://github.com/temporalio/sdk-typescript/issues/1635).
+   */
+  searchAttributes?: Record<string, string[] | number[] | boolean[]>;
 }
 
 /**

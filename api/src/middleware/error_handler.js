@@ -51,6 +51,37 @@ const directGrpcHttpStatus = err =>
 const grpcHttpStatus = err =>
   ( err ? directGrpcHttpStatus( err ) ?? grpcHttpStatus( err.cause ) : undefined );
 
+/** First gRPC ServiceError link in the error's cause chain, if any. */
+const findGrpcError = err =>
+  ( !err || isGrpcServiceError( err ) ? err : findGrpcError( err.cause ) );
+
+// Temporal server rejections for search attributes. Only the attribute name (and registered type)
+// is extracted: the type-mismatch message also embeds the submitted value, which is not echoed.
+const SEARCH_ATTRIBUTE_REJECTIONS = [
+  [ /no mapping defined for search attribute (\S+)$/, ( [ , name ] ) => `search attribute ${name} is not registered on the namespace` ],
+  [ /search attribute (.+?) is not defined/, ( [ , name ] ) => `search attribute ${name} is not registered on the namespace` ],
+  [
+    /invalid value .*?for search attribute (.+?) of type (\w+)/,
+    ( [ , name, type ] ) => `search attribute ${name} value does not match its registered type ${type}`
+  ],
+  [ /^(.+?) attribute can't be set in SearchAttributes/, ( [ , name ] ) => `search attribute ${name} is reserved and cannot be set` ]
+];
+
+/**
+ * Short, value-free diagnostic for an INVALID_ARGUMENT search-attribute rejection in the cause chain.
+ * Returns null when the rejection is not about search attributes.
+ */
+const searchAttributeDiagnostic = err => {
+  const grpcError = findGrpcError( err );
+  if ( grpcError?.code !== GRPC_STATUS.INVALID_ARGUMENT || !/search ?attribute/i.test( grpcError.details ) ) {
+    return null;
+  }
+  const [ match, format ] = SEARCH_ATTRIBUTE_REJECTIONS
+    .map( ( [ pattern, fmt ] ) => [ grpcError.details.match( pattern ), fmt ] )
+    .find( ( [ m ] ) => m ) ?? [];
+  return match ? format( match ) : 'invalid search attributes';
+};
+
 export default function errorHandler( error, req, res, next ) {
   res.locals.error = error; // Surface the error to the HTTP access logger on every path.
 
@@ -70,6 +101,11 @@ export default function errorHandler( error, req, res, next ) {
   const response = error instanceof ZodError ?
     { error: 'ValidationError', message: 'Invalid Payload', issues: error.issues } :
     { error: error.constructor.name, message: error.message };
+
+  const saDiagnostic = searchAttributeDiagnostic( error );
+  if ( saDiagnostic ) {
+    response.message = `${error.message}: ${saDiagnostic}`;
+  }
 
   // If error includes workflowId, includes it in the response
   response.workflowId = error.workflowId;

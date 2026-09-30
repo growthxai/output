@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { ZodError } from 'zod';
+import { ServiceError } from '@temporalio/client';
 
 import {
   CatalogNotAvailableError,
@@ -269,4 +270,68 @@ describe( 'error_handler', () => {
       expect.objectContaining( { requestId: 'req-123' } )
     );
   } );
+  describe( 'search attribute rejections', () => {
+    const grpcError = ( code, details ) =>
+      Object.assign( new Error( `${code} ERROR: ${details}` ), { code, details, metadata: {} } );
+    const startFailure = ( code, details ) => new ServiceError( 'Failed to start Workflow', { cause: grpcError( code, details ) } );
+
+    it( 'names an unregistered search attribute', async () => {
+      const { httpRes } = await sendError( startFailure( 3, 'Namespace default has no mapping defined for search attribute Nope' ) );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body ).toEqual( {
+        error: 'ServiceError',
+        message: 'Failed to start Workflow: search attribute Nope is not registered on the namespace'
+      } );
+      expect( logger.error ).not.toHaveBeenCalled();
+    } );
+
+    it( 'names an undefined search attribute (alternate server message)', async () => {
+      const { httpRes } = await sendError( startFailure( 3, 'search attribute Nope is not defined' ) );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body.message ).toBe( 'Failed to start Workflow: search attribute Nope is not registered on the namespace' );
+    } );
+
+    it( 'names the attribute and registered type on a type mismatch without echoing the value', async () => {
+      const { httpRes } = await sendError(
+        startFailure( 3, 'invalid value for search attribute Priority of type Int: [secret-value]' )
+      );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body.message ).toBe( 'Failed to start Workflow: search attribute Priority value does not match its registered type Int' );
+      expect( JSON.stringify( httpRes.body ) ).not.toContain( 'secret-value' );
+    } );
+
+    it( 'names a reserved system attribute', async () => {
+      const { httpRes } = await sendError( startFailure( 3, 'WorkflowType attribute can\'t be set in SearchAttributes' ) );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body.message ).toBe( 'Failed to start Workflow: search attribute WorkflowType is reserved and cannot be set' );
+    } );
+
+    it( 'falls back to a generic diagnostic for unrecognized search attribute rejections', async () => {
+      const { httpRes } = await sendError(
+        startFailure( 3, 'search attribute Big value size 5000 exceeds size limit 2048: some-value' )
+      );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body.message ).toBe( 'Failed to start Workflow: invalid search attributes' );
+    } );
+
+    it( 'leaves other INVALID_ARGUMENT errors unchanged', async () => {
+      const { httpRes } = await sendError( startFailure( 3, 'WorkflowId is not set on request' ) );
+
+      expect( httpRes.status ).toBe( 400 );
+      expect( httpRes.body ).toEqual( { error: 'ServiceError', message: 'Failed to start Workflow' } );
+    } );
+
+    it( 'does not add a diagnostic for non-INVALID_ARGUMENT codes mentioning search attributes', async () => {
+      const { httpRes } = await sendError( startFailure( 9, 'search attribute Nope is not defined' ) );
+
+      expect( httpRes.status ).toBe( 409 );
+      expect( httpRes.body.message ).toBe( 'Failed to start Workflow' );
+    } );
+  } );
+
 } );

@@ -68,6 +68,30 @@ describe( 'start', () => {
     expect( result ).toEqual( { workflowId: 'provided-id', runId: null } );
   } );
 
+  it( 'passes search attributes to client.workflow.start, wrapping scalars', async () => {
+    const temporalStart = vi.fn().mockResolvedValue( {} );
+    const client = { workflow: { start: temporalStart } };
+    const { start } = await import( './start.js' );
+
+    await start( { client }, 'workflow', {}, { searchAttributes: { Priority: 5, Tags: [ 'a' ] } } );
+
+    expect( temporalStart ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
+      searchAttributes: { Priority: [ 5 ], Tags: [ 'a' ] }
+    } ) );
+  } );
+
+  it( 'omits search attributes from start options when absent or empty', async () => {
+    const temporalStart = vi.fn().mockResolvedValue( {} );
+    const client = { workflow: { start: temporalStart } };
+    const { start } = await import( './start.js' );
+
+    await start( { client }, 'workflow', {} );
+    await start( { client }, 'workflow', {}, { searchAttributes: {} } );
+
+    expect( temporalStart.mock.calls[0][1] ).not.toHaveProperty( 'searchAttributes' );
+    expect( temporalStart.mock.calls[1][1] ).not.toHaveProperty( 'searchAttributes' );
+  } );
+
   it( 'propagates catalog resolution errors before starting', async () => {
     const error = new Error( 'catalog unavailable' );
     const temporalStart = vi.fn();

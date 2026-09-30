@@ -137,6 +137,37 @@ describe( 'workflow run command', () => {
       );
     } );
 
+    it( 'passes --search-attributes to postWorkflowRun', async () => {
+      const { cmd, postWorkflowRun } = await createCommand();
+      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+        args: { workflowName: 'my_workflow', scenario: 'basic' },
+        flags: { input: undefined, catalog: undefined, 'search-attributes': '{"ClientId":"acme"}', format: 'text' }
+      } );
+      postWorkflowRun.mockResolvedValue( {
+        data: { v: '2', workflowId: 'wf-1', runId: 'run-1', status: 'completed', input: {}, output: {}, trace: null, error: null },
+        status: 200,
+        headers: new Headers()
+      } as any );
+
+      await cmd.run();
+
+      expect( postWorkflowRun ).toHaveBeenCalledWith(
+        expect.objectContaining( { searchAttributes: { ClientId: 'acme' } } ),
+        expect.anything()
+      );
+    } );
+
+    it( 'rejects invalid --search-attributes before calling the API', async () => {
+      const { cmd, postWorkflowRun } = await createCommand();
+      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+        args: { workflowName: 'my_workflow', scenario: 'basic' },
+        flags: { input: undefined, catalog: undefined, 'search-attributes': '["acme"]', format: 'text' }
+      } );
+
+      await expect( cmd.run() ).rejects.toThrow( '--search-attributes must be a JSON object' );
+      expect( postWorkflowRun ).not.toHaveBeenCalled();
+    } );
+
     it( 'retries when response has Retry-After and succeeds on second attempt', async () => {
       const { cmd, postWorkflowRun, resolveInput } = await createCommand();
       resolveInput.mockResolvedValue( {} );

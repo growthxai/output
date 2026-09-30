@@ -2,6 +2,7 @@
 import { proxyActivities, inWorkflowContext, executeChild, workflowInfo, uuid4, ParentClosePolicy, upsertMemo } from '@temporalio/workflow';
 import { WorkflowValidator } from './validations/index.js';
 import { toUrlSafeBase64 } from '#helpers/string';
+import { inheritableSearchAttributes } from '#helpers/search_attributes';
 import { WorkflowContext } from '#helpers/workflow_context';
 import { deepMerge } from '#helpers/object';
 import { defaultOptions } from './workflow_activity_options.js';
@@ -48,7 +49,7 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       );
     }
 
-    const { workflowId, runId, memo, root } = workflowInfo();
+    const { workflowId, runId, memo, root, searchAttributes } = workflowInfo();
     const isRoot = !root;
 
     checkGlobalContextContamination( runId );
@@ -59,7 +60,14 @@ export function workflow( { name, description, inputSchema, outputSchema, fn, op
       const parentClosePolicy = ParentClosePolicy[invocationOptions?.detached ? 'ABANDON' : 'TERMINATE'];
       const childWorkflowId = `${workflowId}-${toUrlSafeBase64( uuid4() )}`;
       const args = [ input, { activityOptions: invocationOptions?.activityOptions } ];
-      return executeChild( name, { args, workflowId: childWorkflowId, parentClosePolicy, memo } );
+      const childSearchAttributes = inheritableSearchAttributes( searchAttributes );
+      return executeChild( name, {
+        args,
+        workflowId: childWorkflowId,
+        parentClosePolicy,
+        memo,
+        ...( childSearchAttributes && { searchAttributes: childSearchAttributes } )
+      } );
     }
 
     // Resolve the activity options: invocation options > definition options > parent options > default options, then enforce final SDK options

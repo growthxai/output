@@ -287,6 +287,7 @@ output workflow run <workflowName> [scenario]
 |------|---------|-------------|
 | `--input, -i` | — | JSON input or file path (overrides scenario) |
 | `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog name (the deprecated `--task-queue, -q` aliases still work) |
+| `--search-attributes, -a` | — | Temporal [search attributes](/operations/deployment#search-attributes) as a JSON object or file path |
 | `--format, -f` | text | Output format: json, text |
 
 ```bash
@@ -320,6 +321,7 @@ output workflow start <workflowName> [scenario]
 |------|---------|-------------|
 | `--input, -i` | — | JSON input or file path (overrides scenario) |
 | `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog name (the deprecated `--task-queue, -q` aliases still work) |
+| `--search-attributes, -a` | — | Temporal [search attributes](/operations/deployment#search-attributes) as a JSON object or file path |
 | `--monitor, -m` | false | Attach after starting and stream status updates until the workflow ends |
 
 Add `--monitor` to start a workflow and watch it in one command, instead of

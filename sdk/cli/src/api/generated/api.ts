@@ -436,6 +436,11 @@ export type ServiceUnavailableResponse = ErrorResponse;
  */
 export type InternalServerErrorResponse = ErrorResponse;
 
+/**
+ * (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400.
+ */
+export type PostWorkflowRunBodySearchAttributes = {[key: string]: string | number | boolean | string[]};
+
 export type PostWorkflowRunBody = {
   /** The name of the workflow to execute */
   workflowName: string;
@@ -450,9 +455,16 @@ export type PostWorkflowRunBody = {
      * @deprecated
      */
   taskQueue?: string;
+  /** (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400. */
+  searchAttributes?: PostWorkflowRunBodySearchAttributes;
   /** (Optional) The max time to wait for the execution, defaults to 30s */
   timeout?: number;
 };
+
+/**
+ * (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400.
+ */
+export type PostWorkflowStartBodySearchAttributes = {[key: string]: string | number | boolean | string[]};
 
 export type PostWorkflowStartBody = {
   /** The name of the workflow to execute */
@@ -468,6 +480,8 @@ export type PostWorkflowStartBody = {
      * @deprecated
      */
   taskQueue?: string;
+  /** (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400. */
+  searchAttributes?: PostWorkflowStartBodySearchAttributes;
 };
 
 export type PostWorkflowStart200 = {

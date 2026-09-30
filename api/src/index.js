@@ -26,6 +26,10 @@ const PINNED_MUTATION_SUNSET = new Date( '2026-07-16T00:00:00Z' ).toUTCString();
 // or operators since the value is interpolated into the visibility query string.
 const QUERY_IDENTIFIER = /^[a-z0-9_.@-]+$/i;
 const queryIdentifier = z.string().regex( QUERY_IDENTIFIER );
+const searchAttributesSchema = z.record(
+  z.string(),
+  z.union( [ z.string(), z.number(), z.boolean(), z.array( z.string() ) ] )
+);
 
 /**
  * Resolve the catalog field on workflow run/start request bodies, accepting
@@ -588,6 +592,17 @@ app.use( ( req, res, next ) => {
  *                 type: string
  *                 deprecated: true
  *                 description: Deprecated alias for `catalog`. If both are sent, `catalog` wins.
+ *               searchAttributes:
+ *                 type: object
+ *                 description: (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400.
+ *                 additionalProperties:
+ *                   oneOf:
+ *                     - type: string
+ *                     - type: number
+ *                     - type: boolean
+ *                     - type: array
+ *                       items:
+ *                         type: string
  *               timeout:
  *                 type: number
  *                 description: (Optional) The max time to wait for the execution, defaults to 30s
@@ -618,13 +633,15 @@ app.post( '/workflow/run', async ( req, res ) => {
     workflowId: z.string().optional(),
     catalog: queryIdentifier.optional(),
     taskQueue: queryIdentifier.optional(),
-    timeout: z.coerce.number().int().min( 250 ).optional()
+    timeout: z.coerce.number().int().min( 250 ).optional(),
+    searchAttributes: searchAttributesSchema.optional()
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/run' );
   const result = await client.workflow.run( parsed.workflowName, parsed.input, {
     workflowId: parsed.workflowId,
     taskQueue: catalog,
-    timeout: parsed.timeout
+    timeout: parsed.timeout,
+    searchAttributes: parsed.searchAttributes
   } );
   res.json( result );
 } );
@@ -659,6 +676,17 @@ app.post( '/workflow/run', async ( req, res ) => {
  *                 type: string
  *                 deprecated: true
  *                 description: Deprecated alias for `catalog`. If both are sent, `catalog` wins.
+ *               searchAttributes:
+ *                 type: object
+ *                 description: (Optional) Temporal search attributes to set on the execution. Each attribute must be registered on the namespace. Values are scalars (string, number, boolean) or string arrays (KeywordList). Unregistered names or values that do not match the registered type are rejected with 400.
+ *                 additionalProperties:
+ *                   oneOf:
+ *                     - type: string
+ *                     - type: number
+ *                     - type: boolean
+ *                     - type: array
+ *                       items:
+ *                         type: string
  *     responses:
  *       200:
  *         description: The workflow start result
@@ -691,11 +719,16 @@ app.post( '/workflow/start', async ( req, res ) => {
     input: z.any().optional(),
     workflowId: z.string().optional(),
     catalog: queryIdentifier.optional(),
-    taskQueue: queryIdentifier.optional()
+    taskQueue: queryIdentifier.optional(),
+    searchAttributes: searchAttributesSchema.optional()
   } ).parse( req.body );
   const catalog = resolveCatalogField( parsed, '/workflow/start' );
 
-  res.json( await client.workflow.start( parsed.workflowName, parsed.input, { workflowId: parsed.workflowId, taskQueue: catalog } ) );
+  res.json( await client.workflow.start( parsed.workflowName, parsed.input, {
+    workflowId: parsed.workflowId,
+    taskQueue: catalog,
+    searchAttributes: parsed.searchAttributes
+  } ) );
 } );
 
 /**

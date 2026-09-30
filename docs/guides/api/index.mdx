@@ -21,6 +21,14 @@ curl -X POST http://localhost:3001/workflow/run \
   -d '{"workflowName": "summarize_url", "input": {"url": "https://example.com/article"}}'
 ```
 
+To attach Temporal search attributes to the run, add a `searchAttributes` map next to `input`. The same field works on `/workflow/start`. See [Search attributes](/operations/deployment#search-attributes) for registration and behavior.
+
+```bash
+curl -X POST http://localhost:3001/workflow/run \
+  -H "Content-Type: application/json" \
+  -d '{"workflowName": "summarize_url", "input": {"url": "https://example.com/article"}, "searchAttributes": {"ClientId": "acme"}}'
+```
+
 ### Start and Poll (Asynchronous)
 
 `POST /workflow/start` returns the workflow ID immediately. Poll for status and retrieve the result when ready. Use this for longer workflows — minutes or more — where blocking a request isn't practical.

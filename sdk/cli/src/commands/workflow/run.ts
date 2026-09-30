@@ -3,6 +3,7 @@ import { postWorkflowRun, type WorkflowResultResponse } from '#api/generated/api
 import { formatWorkflowResult, isErrorStatus } from '#utils/format_workflow_result.js';
 import { handleApiError } from '#utils/error_handler.js';
 import { resolveInput } from '#utils/resolve_input.js';
+import { parseSearchAttributesFlag } from '#utils/search_attributes_flag.js';
 import { getRetryDelayFromResponse } from '#utils/header_utils.js';
 import { sleep } from '#utils/sleep.js';
 import { HttpError } from '#api/http_client.js';
@@ -48,7 +49,8 @@ export default class WorkflowRun extends Command {
     '<%= config.bin %> <%= command.id %> simple my_scenario --json',
     '<%= config.bin %> <%= command.id %> simple --input \'{"values":[1,2,3]}\'',
     '<%= config.bin %> <%= command.id %> simple --input input.json',
-    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog'
+    '<%= config.bin %> <%= command.id %> simple --input \'{"key":"value"}\' --catalog my-catalog',
+    '<%= config.bin %> <%= command.id %> simple basic_input --search-attributes \'{"ClientId":"acme"}\''
   ];
 
   static override args = {
@@ -75,11 +77,19 @@ export default class WorkflowRun extends Command {
       deprecateAliases: true,
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
+    } ),
+    'search-attributes': Flags.string( {
+      char: 'a',
+      description: 'Temporal search attributes as a JSON object or file path, e.g. {"ClientId":"acme"}. ' +
+        'Each attribute must be registered on the namespace',
+      required: false
     } )
   };
 
   async run(): Promise<WorkflowResultResponse> {
     const { args, flags } = await this.parse( WorkflowRun );
+
+    const searchAttributes = parseSearchAttributesFlag( flags['search-attributes'] );
 
     const input = await resolveInput( {
       workflowName: args.workflowName,
@@ -96,7 +106,8 @@ export default class WorkflowRun extends Command {
       body: {
         workflowName: args.workflowName,
         input,
-        catalog: flags.catalog
+        catalog: flags.catalog,
+        searchAttributes
       },
       options: { config: { timeout: 600000 } as const },
       log: msg => this.log( msg )

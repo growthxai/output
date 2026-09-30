@@ -5,6 +5,7 @@ import { temporal as temporalConfig } from '#configs';
 import { buildWorkflowResult } from '../workflow_result.js';
 import { logger } from '#logger';
 import { formatStatus } from '../types.js';
+import { toTemporalSearchAttributes } from './to_temporal_search_attributes.js';
 
 const { defaultTaskQueue, workflowExecutionTimeout, workflowExecutionMaxWaiting } = temporalConfig;
 
@@ -33,19 +34,23 @@ const execute = async ( { handle, executionTimeout } ) => {
  * @param {Object} [options] - Optional configuration
  * @param {string} [options.workflowId] - Optional custom workflow ID. If not provided, one will be generated.
  * @param {string} [options.taskQueue] - The task queue to send the workflow execution to. Fallbacks to the default task queue.
+ * @param {Record<string, string|number|boolean|string[]>} [options.searchAttributes] - Temporal search attributes to set on the execution. Each must be registered on the namespace.
  * @throws {WorkflowNotFoundError}
  * @throws {WorkflowExecutionTimedOutError}
  * @throws {CatalogNotAvailableError}
  * @returns {WorkflowResult}
  */
 export const run = async ( { client }, workflowName, input, options = {} ) => {
-  const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout } = options;
+  const { workflowId: userWorkflowId, taskQueue = defaultTaskQueue, timeout, searchAttributes } = options;
 
   const resolvedName = await resolveWorkflowName( { client, workflowName, taskQueue } );
 
   const workflowId = userWorkflowId ?? buildWorkflowId();
   const executionTimeout = timeout ?? workflowExecutionMaxWaiting;
-  const handle = await client.workflow.start( resolvedName, { args: [ input ], taskQueue, workflowId, workflowExecutionTimeout } );
+  const handle = await client.workflow.start( resolvedName, {
+    args: [ input ], taskQueue, workflowId, workflowExecutionTimeout,
+    ...toTemporalSearchAttributes( searchAttributes )
+  } );
   const runId = handle.firstExecutionRunId ?? null;
 
   try {

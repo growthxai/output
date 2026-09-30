@@ -126,6 +126,36 @@ describe( 'run', () => {
     } ) );
   } );
 
+  it( 'passes search attributes to client.workflow.start, wrapping scalars', async () => {
+    const handle = {
+      result: vi.fn().mockResolvedValue( null ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'COMPLETED' }, memo: {} } )
+    };
+    const start = vi.fn().mockResolvedValue( handle );
+    const client = { workflow: { start } };
+    const { run } = await import( './run.js' );
+
+    await run( { client }, 'workflow', {}, { searchAttributes: { ClientId: 'abc', Tags: [ 'a', 'b' ] } } );
+
+    expect( start ).toHaveBeenCalledWith( 'resolved-workflow', expect.objectContaining( {
+      searchAttributes: { ClientId: [ 'abc' ], Tags: [ 'a', 'b' ] }
+    } ) );
+  } );
+
+  it( 'omits search attributes from start options when empty', async () => {
+    const handle = {
+      result: vi.fn().mockResolvedValue( null ),
+      describe: vi.fn().mockResolvedValue( { status: { name: 'COMPLETED' }, memo: {} } )
+    };
+    const start = vi.fn().mockResolvedValue( handle );
+    const client = { workflow: { start } };
+    const { run } = await import( './run.js' );
+
+    await run( { client }, 'workflow', {}, { searchAttributes: {} } );
+
+    expect( start.mock.calls[0][1] ).not.toHaveProperty( 'searchAttributes' );
+  } );
+
   it( 'returns failed workflow results instead of throwing WorkflowFailedError', async () => {
     const workflowError = new MockWorkflowFailedError( 'workflow failed' );
     const trace = { remote: 's3://bucket/trace.json' };
