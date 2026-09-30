@@ -1,6 +1,6 @@
 name: Dependabot Validation
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - main
 
