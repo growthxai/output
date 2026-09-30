@@ -8,7 +8,7 @@ export default defineConfig( {
     silent: true,
     environment: 'node',
     include: [ '**/*.{spec,test}.{ts,js}' ],
-    exclude: [ 'node_modules/**', '**/node_modules/**', '**/*.integration.test.(ts|js)', '**/dist/**' ],
+    exclude: [ 'node_modules/**', '**/node_modules/**', '**/*.integration.test.(ts|js)', '**/dist/**', '.claude/**' ],
     globals: true,
     sourcemap: true // Enable source maps for debugging
   }

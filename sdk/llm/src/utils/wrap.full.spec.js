@@ -41,6 +41,9 @@ const modelUsage = {
   totalTokens: { total: 15 }
 };
 
+/** Finish reason the language model protocol reports; the sdk reads its unified value */
+const finish = unified => ( { unified, raw: undefined } );
+
 const textChunks = [
   { type: 'stream-start', warnings: [] },
   { type: 'text-start', id: '1' },
@@ -55,13 +58,13 @@ const toolCallChunks = [
   { type: 'tool-input-delta', id: 'call-1', delta: '{}' },
   { type: 'tool-input-end', id: 'call-1' },
   { type: 'tool-call', toolCallId: 'call-1', toolName: 'stop', input: '{}' },
-  { type: 'finish', finishReason: 'tool-calls', usage: modelUsage }
+  { type: 'finish', finishReason: finish( 'tool-calls' ), usage: modelUsage }
 ];
 
 const generatingModel = () => new MockLanguageModelV4( {
   doGenerate: async () => ( {
     content: [ { type: 'text', text: 'hello' } ],
-    finishReason: 'stop',
+    finishReason: finish( 'stop' ),
     usage: modelUsage,
     warnings: []
   } )
@@ -134,7 +137,7 @@ describe( 'wrap against the real ai sdk', () => {
           content: searching ?
             [ { type: 'tool-call', toolCallId: 'call-1', toolName: 'search', input: '{}' } ] :
             [ { type: 'text', text: 'hello' } ],
-          finishReason: searching ? 'tool-calls' : 'stop',
+          finishReason: finish( searching ? 'tool-calls' : 'stop' ),
           usage: modelUsage,
           providerMetadata: groundedMetadata( [ 'a', 'b' ] ),
           warnings: []
@@ -177,7 +180,7 @@ describe( 'wrap against the real ai sdk', () => {
         }
         return {
           content: [ { type: 'tool-call', toolCallId: `call-${state.modelCalls}`, toolName: 'search', input: '{}' } ],
-          finishReason: 'tool-calls',
+          finishReason: finish( 'tool-calls' ),
           usage: modelUsage,
           providerMetadata: groundedMetadata( [ 'a', 'b' ] ),
           warnings: []
@@ -226,7 +229,7 @@ describe( 'wrap against the real ai sdk', () => {
     const chunks = [
       ...textChunks,
       { type: 'error', error: new Error( 'provider chunk failed' ) },
-      { type: 'finish', finishReason: 'error', usage: modelUsage }
+      { type: 'finish', finishReason: finish( 'error' ), usage: modelUsage }
     ];
 
     const stream = wrapStream( {
@@ -250,7 +253,7 @@ describe( 'wrap against the real ai sdk', () => {
   } );
 
   it( 'bills a stream that ends normally', async () => {
-    const chunks = [ ...textChunks, { type: 'finish', finishReason: 'stop', usage: modelUsage } ];
+    const chunks = [ ...textChunks, { type: 'finish', finishReason: finish( 'stop' ), usage: modelUsage } ];
 
     const stream = wrapStream( {
       name: 'streamText',
@@ -284,7 +287,7 @@ describe( 'wrap against the real ai sdk', () => {
         }
         const chunks = state.modelCalls === 1 ?
           toolCallChunks :
-          [ ...textChunks, { type: 'finish', finishReason: 'stop', usage: modelUsage } ];
+          [ ...textChunks, { type: 'finish', finishReason: finish( 'stop' ), usage: modelUsage } ];
         return { stream: simulateReadableStream( { chunks } ) };
       }
     } );
