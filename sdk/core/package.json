@@ -52,10 +52,10 @@
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
     "@aws-sdk/lib-storage": "3.1138.0",
-    "@babel/generator": "7.29.1",
+    "@babel/generator": "8.0.6",
     "@babel/parser": "7.29.9",
-    "@babel/traverse": "7.29.0",
-    "@babel/types": "7.29.0",
+    "@babel/traverse": "8.0.6",
+    "@babel/types": "8.0.6",
     "@noble/ciphers": "2.4.0",
     "@temporalio/activity": "catalog:",
     "@temporalio/client": "catalog:",
