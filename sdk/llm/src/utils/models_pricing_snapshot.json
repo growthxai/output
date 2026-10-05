@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-09-28T06:27:22.589Z"
+    "createdAt": "2026-10-05T06:31:10.976Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -133,6 +133,14 @@
         }
       },
       "anthropic.claude-sonnet-5": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.2,
+          "cache_write": 2.5
+        }
+      },
+      "anthropic.claude-sonnet-5-5": {
         "cost": {
           "input": 2,
           "output": 10,
@@ -398,6 +406,14 @@
           "cache_write": 2.75
         }
       },
+      "eu.anthropic.claude-sonnet-5-5": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
+        }
+      },
       "eu.mistral.pixtral-large-2502-v1:0": {
         "cost": {
           "input": 2,
@@ -509,6 +525,14 @@
         }
       },
       "global.anthropic.claude-sonnet-5": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.2,
+          "cache_write": 2.5
+        }
+      },
+      "global.anthropic.claude-sonnet-5-5": {
         "cost": {
           "input": 2,
           "output": 10,
@@ -680,7 +704,40 @@
           }
         }
       },
+      "global.openai.gpt-6.1-sol": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 15,
+            "cache_read": 0.2,
+            "cache_write": 5
+          }
+        }
+      },
       "global.xai.grok-4.6": {
+        "cost": {
+          "input": 2,
+          "output": 6,
+          "cache_read": 0.5
+        }
+      },
+      "global.xai.grok-4.7": {
         "cost": {
           "input": 2,
           "output": 6,
@@ -721,6 +778,30 @@
         "cost": {
           "input": 0.04,
           "output": 0.08
+        }
+      },
+      "in.anthropic.claude-haiku-4-5-20251001-v1:0": {
+        "cost": {
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.11,
+          "cache_write": 1.375
+        }
+      },
+      "in.anthropic.claude-opus-5": {
+        "cost": {
+          "input": 5.5,
+          "output": 27.5,
+          "cache_read": 0.55,
+          "cache_write": 6.875
+        }
+      },
+      "in.anthropic.claude-sonnet-5": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
         }
       },
       "in.openai.gpt-5.6-luna": {
@@ -1155,6 +1236,32 @@
           }
         }
       },
+      "openai.gpt-6.1-sol": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.11,
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 16.5,
+              "cache_read": 0.22,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4.4,
+            "output": 16.5,
+            "cache_read": 0.22,
+            "cache_write": 5.5
+          }
+        }
+      },
       "openai.gpt-oss-120b": {
         "cost": {
           "input": 0.15,
@@ -1397,6 +1504,14 @@
           "cache_write": 2.75
         }
       },
+      "us.anthropic.claude-sonnet-5-5": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.22,
+          "cache_write": 2.75
+        }
+      },
       "us.deepseek.r1-v1:0": {
         "cost": {
           "input": 1.35,
@@ -1603,6 +1718,32 @@
           }
         }
       },
+      "us.openai.gpt-6.1-sol": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.11,
+          "cache_write": 2.75,
+          "tiers": [
+            {
+              "input": 4.4,
+              "output": 16.5,
+              "cache_read": 0.22,
+              "cache_write": 5.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4.4,
+            "output": 16.5,
+            "cache_read": 0.22,
+            "cache_write": 5.5
+          }
+        }
+      },
       "us.writer.palmyra-x4-v1:0": {
         "cost": {
           "input": 2.5,
@@ -1616,6 +1757,13 @@
         }
       },
       "us.xai.grok-4.6": {
+        "cost": {
+          "input": 2.2,
+          "output": 6.6,
+          "cache_read": 0.55
+        }
+      },
+      "us.xai.grok-4.7": {
         "cost": {
           "input": 2.2,
           "output": 6.6,
@@ -1789,6 +1937,14 @@
           "cache_read": 0.2,
           "cache_write": 2.5
         }
+      },
+      "claude-sonnet-5-5": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.2,
+          "cache_write": 2.5
+        }
       }
     }
   },
@@ -1935,6 +2091,14 @@
         }
       },
       "claude-sonnet-5": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.2,
+          "cache_write": 2.5
+        }
+      },
+      "claude-sonnet-5-5": {
         "cost": {
           "input": 2,
           "output": 10,
@@ -2393,6 +2557,32 @@
           }
         }
       },
+      "gpt-6.1-sol": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 15,
+            "cache_read": 0.2,
+            "cache_write": 5
+          }
+        }
+      },
       "gpt-chat-latest": {
         "cost": {
           "input": 5,
@@ -2791,6 +2981,14 @@
           "output": 15,
           "cache_read": 0.3,
           "cache_write": 3.75
+        }
+      },
+      "claude-sonnet-5-5@default": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.2,
+          "cache_write": 2.5
         }
       },
       "claude-sonnet-5@default": {
@@ -3613,6 +3811,32 @@
             "input": 4,
             "output": 15,
             "cache_read": 0.4,
+            "cache_write": 5
+          }
+        }
+      },
+      "gpt-6.1-sol": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "cache_write": 2.5,
+          "tiers": [
+            {
+              "input": 4,
+              "output": 15,
+              "cache_read": 0.2,
+              "cache_write": 5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 4,
+            "output": 15,
+            "cache_read": 0.2,
             "cache_write": 5
           }
         }
