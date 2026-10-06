@@ -47,18 +47,19 @@ services:
       - POSTGRES_SEEDS=postgresql
       - DEFAULT_NAMESPACE_RETENTION=720h
     image: temporalio/auto-setup:latest
+    # auto-setup has no env var for custom search attributes; `create` is idempotent for an unchanged name/type.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        (until temporal operator search-attribute create --address temporal:7233 --namespace default --name WorkspaceId --type Keyword; do sleep 1; done) &
+        exec /etc/temporal/entrypoint.sh autosetup
     networks:
       - main
     ports:
       - '7233:7233'
     healthcheck:
-      test:
-        [
-          'CMD',
-          'sh',
-          '-c',
-          'tctl --address temporal:7233 cluster health 2>&1 | grep -q "temporal.api.workflowservice.v1.WorkflowService: SERVING"'
-        ]
+      test: ['CMD-SHELL', 'temporal operator search-attribute list --address temporal:7233 --namespace default | grep -q WorkspaceId']
       interval: 3s
       timeout: 5s
       retries: 20
