@@ -4,30 +4,6 @@
 
 set -e
 
-check_docker_compose_version() {
-  local required_version="2.24.0"
-  local current_version
-  current_version=$(docker compose version --short 2>/dev/null) || {
-    echo "Error: Docker Compose is not installed. Please install Docker Compose."
-    echo "Visit: https://docs.docker.com/compose/install/"
-    exit 1
-  }
-
-  local current_major current_minor current_patch
-  IFS='.' read -r current_major current_minor current_patch <<< "$current_version"
-
-  local required_major required_minor required_patch
-  IFS='.' read -r required_major required_minor required_patch <<< "$required_version"
-
-  if [ "$current_major" -lt "$required_major" ] ||
-     { [ "$current_major" -eq "$required_major" ] && [ "$current_minor" -lt "$required_minor" ]; } ||
-     { [ "$current_major" -eq "$required_major" ] && [ "$current_minor" -eq "$required_minor" ] && [ "${current_patch%%[-+]*}" -lt "$required_patch" ]; }; then
-    echo "Error: Docker Compose >=${required_version} is required (found v${current_version})."
-    echo "Please update Docker Compose: https://docs.docker.com/compose/install/"
-    exit 1
-  fi
-}
-
 cmd=$1
 
 if [[ $cmd == 'validate' ]]; then
@@ -46,22 +22,19 @@ elif [[ $cmd == 'docs:mint' ]]; then
     -w /app mint -c "cd ./docs/guides; mint dev"
 
 elif [[ $cmd == 'dev' ]]; then
-  check_docker_compose_version
-  docker compose -f ./docker-compose.dev.yml up
+  printf "\e[1;35m\nStarting development environment\e[0m\n\n"
+
+  temporal_address=$(sed -n 's/^TEMPORAL_ADDRESS=//p' .env 2>/dev/null | tail -n 1)
+  if [[ -n $temporal_address ]]; then
+    printf "\e[0;33mUsing remote Temporal. TEMPORAL_ADDRESS found in .env, API and worker will connect to \"%s\" with TEMPORAL_API_KEY, TEMPORAL_NAMESPACE vars. Local Temporal still runs, but is unused.\e[0m\n\n" "$temporal_address"
+  else
+    printf "\e[2mUsing local Temporal. Set TEMPORAL_ADDRESS, TEMPORAL_API_KEY, TEMPORAL_NAMESPACE at .env to connect the API and worker to a remote server.\e[0m\n\n"
+  fi
+
+  docker compose -f ./docker-compose.yml up
 
 elif [[ $cmd == 'dev:destroy' ]]; then
-  check_docker_compose_version
-  docker compose -f ./docker-compose.dev.yml down -v
-
-elif [[ $cmd == 'remote' ]]; then
-  check_docker_compose_version
-  printf "\e[0;35m\nConnecting local API and test_workflows worker to a remote Temporal server.\nIt uses TEMPORAL_ADDRESS, TEMPORAL_API_KEY, TEMPORAL_NAMESPACE from ./test_workflows/.env.\e[0m\n\n"
-
-  docker compose -f ./docker-compose.remote.yml up
-
-elif [[ $cmd == 'remote:destroy' ]]; then
-  check_docker_compose_version
-  docker compose -f ./docker-compose.remote.yml down -v
+  docker compose -f ./docker-compose.yml down -v
 
 else
   docker run -it --rm --entrypoint bash \
