@@ -86,7 +86,7 @@ Validation is fail-fast. If an attribute isn't registered on the namespace, or i
 
 Child workflows, including detached ones, inherit their parent's search attributes, and runs started with `continueAsNew` keep them, so every run in the tree is queryable by the same value. Temporal's own system attributes (names starting with `Temporal`, plus `BuildIds`) are not copied to children, so don't use the `Temporal` prefix for your own attributes.
 
-`./run.sh dev` registers a demo `WorkspaceId` (`Keyword`) attribute on the local Temporal server so you can try this locally. Production compose files and projects created with `output init` don't register any attributes.
+`./run.sh dev` registers a demo `WorkspaceId` (`Keyword`) attribute on the local Temporal server so you can try this locally. Projects created with `output init` don't register any attributes.
 
 <Warning>
 Search attribute values are stored in Temporal's visibility store as plain values, not encoded or encrypted like workflow payloads. Don't put secrets or other sensitive data in them.

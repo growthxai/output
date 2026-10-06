@@ -98,7 +98,7 @@ services:
       - OUTPUT_API_PORT=3001
       - OUTPUT_CATALOG_ID=main
       - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
-      - TEMPORAL_API_KEY=$${TEMPORAL_API_KEY:-}
+      - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
     command: node /app/api/src/index.js
     ports:
@@ -126,7 +126,7 @@ services:
       - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
       - TEST_API_URL=http://api:3001
       - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
-      - TEMPORAL_API_KEY=$${TEMPORAL_API_KEY:-}
+      - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
       - OUTPUT_CATALOG_ID=main
       - OUTPUT_REDIS_URL=redis://redis:6379
