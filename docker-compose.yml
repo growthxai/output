@@ -118,7 +118,7 @@ services:
       interval: 3s
       timeout: 10s
       retries: 20
-      start_period: 30s
+      start_period: 300s
     networks:
       - main
     env_file: './test_workflows/.env'
