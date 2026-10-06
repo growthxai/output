@@ -59,7 +59,13 @@ services:
     ports:
       - '7233:7233'
     healthcheck:
-      test: ['CMD-SHELL', 'temporal operator search-attribute list --address temporal:7233 --namespace default | grep -q WorkspaceId']
+      test:
+        [
+          'CMD',
+          'sh',
+          '-c',
+          'tctl --address temporal:7233 cluster health 2>&1 | grep -q "temporal.api.workflowservice.v1.WorkflowService: SERVING" && temporal operator search-attribute list --address temporal:7233 --namespace default | grep -q WorkspaceId'
+        ]
       interval: 3s
       timeout: 5s
       retries: 20
