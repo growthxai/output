@@ -12,13 +12,7 @@ The API is intended to be run from the project root using the `run.sh` script:
 
 This starts the entire Output environment including the API server, Temporal, and workers.
 
-To start the entire Output environment including the API server and Temporal, but without a worker, use:
-
-```bash
-./run.sh prod
-```
-
-For both scenarios, the server runs on port 3001 by default (or `PORT` env variable).
+The server runs on port 3001 by default (or `OUTPUT_API_PORT` env variable).
 
 ## API Endpoints
 

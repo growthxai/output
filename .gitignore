@@ -24,5 +24,3 @@ agent-os/
 
 # Pnpm publish report
 pnpm-publish-summary.json
-
-docker-compose.remote.yml

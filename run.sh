@@ -58,13 +58,15 @@ elif [[ $cmd == 'dev:destroy' ]]; then
   check_docker_compose_version
   docker compose -f ./docker-compose.dev.yml down -v
 
-elif [[ $cmd == 'prod' ]]; then
+elif [[ $cmd == 'remote' ]]; then
   check_docker_compose_version
-  docker compose -f ./docker-compose.prod.yml up --build
+  printf "\e[0;35m\nConnecting local API and test_workflows worker to a remote Temporal server.\nIt uses TEMPORAL_ADDRESS, TEMPORAL_API_KEY, TEMPORAL_NAMESPACE from ./test_workflows/.env.\e[0m\n\n"
 
-elif [[ $cmd == 'prod:destroy' ]]; then
+  docker compose -f ./docker-compose.remote.yml up
+
+elif [[ $cmd == 'remote:destroy' ]]; then
   check_docker_compose_version
-  docker compose -f ./docker-compose.prod.yml down -v
+  docker compose -f ./docker-compose.remote.yml down -v
 
 else
   docker run -it --rm --entrypoint bash \
