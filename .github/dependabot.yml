@@ -1,21 +1,34 @@
 version: 2
 updates:
+  # Version updates for Temporal and the AI SDK only. Setting target-branch detaches this entry from
+  # security updates, so `allow` does not filter vulnerability fixes for other packages.
+  - package-ecosystem: npm
+    directories:
+      - '/'
+    target-branch: main
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 25
+    allow:
+      - dependency-name: 'ai'
+      - dependency-name: '*ai-sdk*'
+      - dependency-name: '@temporalio/*'
+    groups:
+      ai-sdk:
+        patterns: ['ai', '*ai-sdk*']
+      temporal:
+        patterns: ['@temporalio/*']
+    cooldown:
+      default-days: 7
+
+  # Security updates for every package, grouped into one PR. A limit of 0 disables version updates here.
   - package-ecosystem: npm
     directories:
       - '/'
     schedule:
       interval: weekly
-    open-pull-requests-limit: 25
+    open-pull-requests-limit: 0
     groups:
-      babel:
-        patterns: ['@babel/*']
-        applies-to: 'version-updates'
-      oclif:
-        patterns: ['oclif', '@oclif/*']
-        applies-to: 'version-updates'
-      minor-updates:
-        update-types: ['patch', 'minor']
-        exclude-patterns: ['@babel/*', 'oclif', '@oclif/*']
-        applies-to: 'version-updates'
-    cooldown:
-      default-days: 3
+      security:
+        patterns: ['*']
+        applies-to: 'security-updates'
