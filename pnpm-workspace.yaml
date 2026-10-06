@@ -32,20 +32,24 @@ minimumReleaseAgeExclude:
 
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': 0.96.0
+  '@grpc/grpc-js@>=1.14.0 <1.14.5': 1.14.5
   '@hono/node-server@<=2.0.9': 2.0.10
+  '@modelcontextprotocol/sdk@>=1.12.0 <1.31.0': 1.31.0
   '@types/node@<24': 24.10.15
   body-parser@>=2.0.0 <2.3.0: 2.3.0
-  brace-expansion@<=5.0.9: 5.0.9
+  brace-expansion@<5.0.12: 5.0.12
   browserslist@<=4.28.8: 4.28.8
   esbuild@>=0.27.3 <0.28.1: 0.28.1
-  fast-uri@>=3.0.0 <3.1.6: 3.1.6
-  hono@>=4.12.0 <4.13.5: 4.13.5
-  ip-address@<10.3.1: 10.3.1
+  fast-uri@>=3.0.0 <3.1.8: 3.1.8
+  hono@>=4.12.0 <4.13.7: 4.13.10
+  ip-address@<10.7.1: 10.7.2
   js-yaml@>=3.0.0 <3.15.2: 3.15.2
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
   nanoid@<3.3.18: 3.3.18
   postcss@<8.5.23: 8.5.23
+  proxy-addr@<2.0.8: 2.0.8
   qs@>=6.11.1 <=6.15.2: 6.16.0
+  undici@>=7.0.0 <7.29.1: 7.29.1
   uuid@<14.0.0: 14.0.0
   ws@>=8.0.0 <8.20.1: 8.21.0
 
