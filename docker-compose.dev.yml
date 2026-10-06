@@ -103,6 +103,7 @@ services:
       - '3001:3001'
     volumes:
       - ./:/app
+      - worker_node_modules:/app/node_modules
 
   worker:
     init: true

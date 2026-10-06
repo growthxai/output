@@ -47,11 +47,6 @@ elif [[ $cmd == 'docs:mint' ]]; then
 
 elif [[ $cmd == 'dev' ]]; then
   check_docker_compose_version
-  docker run -it --rm \
-    -v $(pwd):/app \
-    -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    -e CI=1 \
-    -w /app node:24.15.0-slim sh -c "corepack enable && pnpm install --frozen-lockfile"
   docker compose -f ./docker-compose.dev.yml up
 
 elif [[ $cmd == 'dev:destroy' ]]; then

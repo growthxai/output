@@ -18,6 +18,9 @@ services:
 
   api:
     init: true
+    depends_on:
+      worker:
+        condition: service_healthy
     image: node:24.15.0-slim
     networks:
       - main
@@ -30,10 +33,17 @@ services:
       - '3001:3001'
     volumes:
       - ./:/app
+      - worker_node_modules:/app/node_modules
 
   worker:
     init: true
     image: node:24.15.0
+    healthcheck:
+      test: [ 'CMD-SHELL', 'cd ./test_workflows && npx output-healthcheck' ]
+      interval: 3s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
     networks:
       - main
     env_file: './test_workflows/.env'
