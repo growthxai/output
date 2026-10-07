@@ -1,21 +1,13 @@
 version: 2
 updates:
+  # Security updates for every package, grouped into one PR. A limit of 0 disables version updates.
   - package-ecosystem: npm
     directories:
       - '/'
     schedule:
       interval: weekly
-    open-pull-requests-limit: 25
+    open-pull-requests-limit: 0
     groups:
-      babel:
-        patterns: ['@babel/*']
-        applies-to: 'version-updates'
-      oclif:
-        patterns: ['oclif', '@oclif/*']
-        applies-to: 'version-updates'
-      minor-updates:
-        update-types: ['patch', 'minor']
-        exclude-patterns: ['@babel/*', 'oclif', '@oclif/*']
-        applies-to: 'version-updates'
-    cooldown:
-      default-days: 3
+      security:
+        patterns: ['*']
+        applies-to: 'security-updates'
