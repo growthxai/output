@@ -64,6 +64,8 @@ vi.mock( './headers.js', () => ( {
 const mainEventBusEmitMock = vi.fn();
 vi.mock( '#bus', () => ( { mainEventBus: { emit: mainEventBusEmitMock } } ) );
 
+vi.mock( '#logger', () => ( { createChildLogger: () => ( { warn: vi.fn() } ) } ) );
+
 vi.mock( '../configs.js', () => ( {
   get activityHeartbeatEnabled() {
     return process.env.OUTPUT_ACTIVITY_HEARTBEAT_ENABLED !== 'false';
@@ -251,6 +253,20 @@ describe( 'ActivityExecutionInterceptor', () => {
       outputActivityKind: 'step',
       error: cause
     } );
+  } );
+
+  it( 'fails without retry when the wrapped error exceeds the Temporal failure size limit', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const error = new Error( 'x'.repeat( 700_000 ) );
+    const next = vi.fn().mockRejectedValue( error );
+
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
+
+    expect( thrown ).toBeInstanceOf( ApplicationFailure );
+    expect( thrown ).toMatchObject( { type: 'Error', nonRetryable: true, cause: undefined } );
+    expect( thrown.message ).toMatch( /not retried\]$/ );
+    expect( addEventErrorMock ).toHaveBeenCalledWith( { id: 'run-1:act-1:1', details: error, traceInfo: traceInfoMock } );
   } );
 
   it( 'rethrows existing Temporal failures unchanged', async () => {
