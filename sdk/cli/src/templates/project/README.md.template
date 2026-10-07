@@ -27,7 +27,7 @@ src/
 
 ### Clients Directory
 
-The `src/clients/` directory contains API clients using `@outputai/http` for external services.
+The `src/clients/` directory contains API clients using `@outputai/core/http` for external services.
 
 ### Shared Directory
 

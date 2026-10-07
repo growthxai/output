@@ -1,6 +1,4 @@
-import ky from 'ky';
 import type { KyInstance, Options } from 'ky';
-import { outputFetch } from '../fetch/index.js';
 
 /**
  * Creates a ky client.
@@ -9,7 +7,7 @@ import { outputFetch } from '../fetch/index.js';
  *
  * @example
  * ```ts
- * import { createKyClient } from '@outputai/http';
+ * import { createKyClient } from '@outputai/core/http';
  *
  * const client = createKyClient({
  *   prefix: 'https://api.example.com',
@@ -24,5 +22,4 @@ import { outputFetch } from '../fetch/index.js';
  * @param options - The ky options to extend the base client.
  * @returns A ky instance extended with Output.ai tracing hooks.
  */
-export const createKyClient = ( options: Options = {} ): KyInstance =>
-  ky.create( { fetch: outputFetch as NonNullable<Options['fetch']>, ...options } );
+export declare function createKyClient( options?: Options ): KyInstance;

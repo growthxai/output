@@ -60,8 +60,8 @@ import { JinaClient } from '../clients/jina_client.js';
 ### HTTP Client Import
 
 ```typescript
-// CORRECT - Use @outputai/http wrapper
-import { createKyClient } from '@outputai/http';
+// CORRECT - Use @outputai/core/http wrapper
+import { createKyClient } from '@outputai/core/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -91,8 +91,8 @@ const apiKey = process.env.SERVICE_API_KEY;
 ### Cost Tracking Import
 
 ```typescript
-// CORRECT - Attach spend to paid API calls with @outputai/http
-import { addRequestCost, createKyClient } from '@outputai/http';
+// CORRECT - Attach spend to paid API calls with @outputai/core/http
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 
 // WRONG - Tracking cost yourself in a side table, or skipping it for paid APIs
 ```
@@ -103,7 +103,7 @@ import { addRequestCost, createKyClient } from '@outputai/http';
 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
@@ -149,7 +149,7 @@ export async function fetchServiceData(query: string): Promise<ServiceResponse> 
 
 ```typescript
 import { FatalError, ValidationError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 export interface ServiceOptions {
@@ -213,7 +213,7 @@ export class ServiceClient {
 
 ```typescript
 import { FatalError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const JINA_API_KEY = credentials.require('jina.api_key');
@@ -426,7 +426,7 @@ If the service a client wraps charges money per request, attach that cost to the
 
 Do this **on the client itself**, in an `afterResponse` hook — not at each call site. That way every function or method that goes through the client is costed automatically, and nobody integrating with the client later has to remember to do it.
 
-`addRequestCost(response, totalUsd)` only works on a response that came from `outputFetch` or `createKyClient` — including a `response.clone()` of one, so it's safe to call from inside an `afterResponse` hook (ky passes hooks a clone). If the response didn't originate from `@outputai/http`, `addRequestCost` no-ops with a console warning.
+`addRequestCost(response, totalUsd)` only works on a response that came from `outputFetch` or `createKyClient` — including a `response.clone()` of one, so it's safe to call from inside an `afterResponse` hook (ky passes hooks a clone). If the response didn't originate from `@outputai/core/http`, `addRequestCost` no-ops with a console warning.
 
 There are two common pricing shapes for paid third-party APIs:
 
@@ -435,7 +435,7 @@ There are two common pricing shapes for paid third-party APIs:
 Some APIs report what a specific call cost — in a response header or a JSON field (credits used, units billed, etc). Read that field and pass it straight to `addRequestCost`. Guard against free or cached responses that legitimately report zero cost.
 
 ```typescript
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
@@ -478,7 +478,7 @@ const client = createKyClient({
 When a service is billed as a flat monthly fee or subscription tier, there's no true marginal cost per call — but recording *some* per-call figure keeps spend comparable across services in `workflow cost` and any cost dashboards. Assign a notional per-call USD rate as a constant, overridable by a non-secret environment variable so it can be tuned without a code change.
 
 ```typescript
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require('service.api_key');
@@ -601,7 +601,7 @@ export interface ServiceResponse {
 
 - [ ] Client file located in `src/shared/clients/` directory
 - [ ] File named `{service}_client.ts`
-- [ ] `createKyClient` imported from `@outputai/http` (not axios)
+- [ ] `createKyClient` imported from `@outputai/core/http` (not axios)
 - [ ] `FatalError` and `ValidationError` imported from `@outputai/core`
 - [ ] API key validation in constructor/initialization
 - [ ] Retry configuration for appropriate status codes

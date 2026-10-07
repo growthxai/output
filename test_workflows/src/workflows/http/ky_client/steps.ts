@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { createKyClient, undici } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( {
   prefix: 'https://httpbin.io',
@@ -49,18 +49,6 @@ export const nodeFormDataStep = step( {
   fn: async () => {
     const form = new globalThis.FormData();
     form.set( 'source', 'node' );
-    const body = await client.post( 'post', { body: form } ).json<{ form: Record<string, string[]> }>();
-    return body.form.source?.[0] ?? '';
-  }
-} );
-
-export const undiciFormDataStep = step( {
-  name: 'kyUndiciFormData',
-  description: 'Sends Undici FormData through the Ky client',
-  outputSchema: z.string(),
-  fn: async () => {
-    const form = new undici.FormData();
-    form.set( 'source', 'undici' );
     const body = await client.post( 'post', { body: form } ).json<{ form: Record<string, string[]> }>();
     return body.form.source?.[0] ?? '';
   }

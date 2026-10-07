@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { EventAction } from '../trace_consts.js';
-import { Attribute } from '#trace_attribute';
 import buildTraceTree from './build_trace_tree.js';
 
 describe( 'build_trace_tree', () => {
@@ -29,12 +28,12 @@ this can indicate it timed out or was interrupted.>>' );
 
   it( 'add_attr action stores attribute details by type on node.attributes', () => {
     const requestCount = {
-      type: Attribute.HTTPRequestCount.TYPE,
+      type: 'http:request:count',
       url: 'https://api.example.test',
       requestId: 'req-1'
     };
     const requestCost = {
-      type: Attribute.HTTPRequestCost.TYPE,
+      type: 'http:request:cost',
       url: 'https://api.example.test',
       requestId: 'req-1',
       total: 0.2
@@ -49,20 +48,20 @@ this can indicate it timed out or was interrupted.>>' );
     const result = buildTraceTree( entries );
     expect( result ).not.toBeNull();
     expect( result.children[0].attributes ).toEqual( {
-      [Attribute.HTTPRequestCount.TYPE]: requestCount,
-      [Attribute.HTTPRequestCost.TYPE]: requestCost
+      ['http:request:count']: requestCount,
+      ['http:request:cost']: requestCost
     } );
   } );
 
   it( 'add_attr action overwrites prior value for the same attribute type', () => {
     const firstCost = {
-      type: Attribute.HTTPRequestCost.TYPE,
+      type: 'http:request:cost',
       url: 'https://api.example.test',
       requestId: 'req-1',
       total: 1
     };
     const secondCost = {
-      type: Attribute.HTTPRequestCost.TYPE,
+      type: 'http:request:cost',
       url: 'https://api.example.test',
       requestId: 'req-1',
       total: 2
@@ -74,7 +73,7 @@ this can indicate it timed out or was interrupted.>>' );
       { id: 'wf', action: EventAction.END, details: {}, timestamp: 4 }
     ];
     const result = buildTraceTree( entries );
-    expect( result.attributes ).toEqual( { [Attribute.HTTPRequestCost.TYPE]: secondCost } );
+    expect( result.attributes ).toEqual( { ['http:request:cost']: secondCost } );
   } );
 
   it( 'add_attr does not attach nodes as children (only start does)', () => {
@@ -84,7 +83,7 @@ this can indicate it timed out or was interrupted.>>' );
         id: 'orphan',
         parentId: 'wf',
         action: EventAction.ADD_ATTR,
-        details: { type: Attribute.HTTPRequestCount.TYPE, url: 'https://api.example.test', requestId: 'req-1' },
+        details: { type: 'http:request:count', url: 'https://api.example.test', requestId: 'req-1' },
         timestamp: 2
       },
       { id: 'wf', action: EventAction.END, details: {}, timestamp: 3 }
@@ -109,7 +108,7 @@ this can indicate it timed out or was interrupted.>>' );
 
   it( 'builds a tree from workflow/step/IO entries with grouping and sorting', () => {
     const stepAttribute = {
-      type: Attribute.HTTPRequestCount.TYPE,
+      type: 'http:request:count',
       url: 'https://api.example.test/step-1',
       requestId: 'req-step-1'
     };
@@ -170,7 +169,7 @@ this can indicate it timed out or was interrupted.>>' );
           endedAt: 2800,
           input: { x: 1 },
           output: { done: true },
-          attributes: { [Attribute.HTTPRequestCount.TYPE]: stepAttribute },
+          attributes: { ['http:request:count']: stepAttribute },
           children: [
             {
               id: 'io1',

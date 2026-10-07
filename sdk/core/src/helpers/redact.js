@@ -43,7 +43,8 @@ export const redactHeaders = headers => {
     wordEndMatcher( 'key' )
   ];
 
-  return Object.entries( headers ).reduce( ( redacted, [ key, value ] ) => {
+  const plainHeaders = Object.fromEntries( headers );
+  return Object.entries( plainHeaders ).reduce( ( redacted, [ key, value ] ) => {
     const lowKey = key.toLowerCase();
     const isSensitive = !ignoreHeaders.has( lowKey ) && sensitiveHeadersPatterns.some( rx => rx.test( lowKey ) );
     return Object.assign( redacted, { [key]: isSensitive ? '[REDACTED]' : value } );

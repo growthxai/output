@@ -1,19 +1,31 @@
 import { FatalError } from '#errors';
 import { redactHeaders } from './redact.js';
 
+const jsonMatcher = /^application\/(?:json|[^;\s]+?\+json)(?:\s*;.*)?$/i;
+const textMatcher = /^(?:text\/|application\/(?:xml|[^;\s]+?\+xml|x-www-form-urlencoded|javascript)(?:\s*;|$))/i;
+
 /**
- * Consume the body of a Response according it its content-type and returns it
+ * Consume the body of a Response according it its content-type and returns it:
+ * - JSON content-type: parsed JSON, or the raw text if the body is empty or not valid JSON
+ * - text-like content-type: the text as-is
+ * - anything else: the body bytes as a base64 string
  * @param {Response} response
- * @returns {string|object|undefined|null} The response body content
+ * @returns {string|object|null} The response body content
  */
-const consumeBody = async response => {
-  const headers = Object.fromEntries( response.headers ) ?? {};
-  const contentType = ( headers['content-type'] ?? '' ).trim().toLowerCase();
-  const jsonMatcher = /^application\/(?:json|[^;\s]+?\+json)(?:\s*;.*)?$/i;
+export const consumeBody = async response => {
+  const contentType = ( response.headers.get( 'content-type' ) ?? '' ).trim();
   if ( jsonMatcher.test( contentType ) ) {
-    return response.json();
+    const text = await response.text();
+    if ( text.length === 0 ) {
+      return text;
+    }
+    try {
+      return JSON.parse( text );
+    } catch {
+      return text;
+    }
   }
-  if ( contentType.startsWith( 'text/' ) ) {
+  if ( textMatcher.test( contentType ) ) {
     return response.text();
   }
   return response.arrayBuffer().then( buf => Buffer.from( buf ).toString( 'base64' ) );
@@ -33,7 +45,7 @@ export const serializeResponse = async ( response, { includeHeaders = false, inc
   status: response.status,
   statusText: response.statusText,
   ok: response.ok,
-  ...( includeHeaders && { headers: redactHeaders( Object.fromEntries( response.headers ) ) } ),
+  ...( includeHeaders && { headers: redactHeaders( response.headers ) } ),
   ...( includeBody && { body: await consumeBody( response ) } )
 } );
 

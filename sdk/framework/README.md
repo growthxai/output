@@ -8,5 +8,5 @@ Unified package for building durable LLM applications with the Output Framework.
 - [Getting Started](https://docs.output.ai/)
 - [@outputai/core](https://docs.output.ai/packages/core) - Workflow orchestration and worker runtime
 - [@outputai/llm](https://docs.output.ai/packages/llm) - LLM generation with prompt templating
-- [@outputai/http](https://docs.output.ai/packages/http) - HTTP client with tracing
+- [@outputai/core/http](https://docs.output.ai/packages/core/http) - HTTP client with tracing
 - [@outputai/cli](https://docs.output.ai/packages/cli) - CLI for creating and running workflows

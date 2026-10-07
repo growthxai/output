@@ -7,7 +7,7 @@ The [cost estimation CLI](/costs) shows you costs after a workflow finishes. Met
 
 - **`llm:generation:metering`** - recommended for LLM integrations. It carries normalized usage and cost, including calls without available pricing.
 - **`cost:llm:request`** - the compatible legacy LLM cost event. Existing handlers can keep using it.
-- **`cost:http:request`** - emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/http#attaching-request-cost) from `@outputai/http`.
+- **`cost:http:request`** - emitted when you attach a dollar cost to an HTTP response with [`addRequestCost`](/packages/core/http#attaching-request-cost) from `@outputai/core/http`.
 
 Use them to log spend and usage to your observability stack, trigger alerts, or aggregate costs per workflow over time.
 
@@ -51,7 +51,7 @@ on<LLMGenerationMeteringEvent>( 'llm:generation:metering', async ( {
 
 ```typescript src/http_cost_hooks.ts
 import { on } from '@outputai/core/hooks';
-import type { HttpRequestCostEvent } from '@outputai/http';
+import type { HttpRequestCostEvent } from '@outputai/core/http';
 
 on<HttpRequestCostEvent>( 'cost:http:request', async ( { eventId, eventDate, workflowDetails, activityInfo, payload } ) => {
   if (!workflowDetails || !activityInfo || !payload) {
@@ -217,7 +217,7 @@ Use `llm:generation:metering` for new integrations. It is more faithful to the p
 
 ## HTTP request cost
 
-Events fire only when your code calls [`addRequestCost( response, total )`](/packages/http#attaching-request-cost) with a response returned by `outputFetch` or `createKyClient`. The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
+Events fire only when your code calls [`addRequestCost( response, total )`](/packages/core/http#attaching-request-cost) with a response returned by `outputFetch` or `createKyClient`. The SDK attaches the cost to the existing HTTP trace event and emits `cost:http:request`. If the response did not originate from this package, `addRequestCost` no-ops (with a console warning) and **no** hook event is emitted.
 
 ### Payload
 

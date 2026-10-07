@@ -1,5 +1,5 @@
 import { step } from '@outputai/core';
-import { outputFetch } from '@outputai/http';
+import { outputFetch } from '@outputai/core/http';
 
 export const call = step( {
   name: 'call',

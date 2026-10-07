@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock( '@outputai/core/sdk/runtime', () => ( {
-  Event: {
+vi.mock( '#bus', () => ( {
+  stepEventBus: {
     emit: vi.fn()
   }
 } ) );
 
-import { Event } from '@outputai/core/sdk/runtime';
+import { stepEventBus } from '#bus';
 import { emitError, emitFailure, emitSuccess } from './events.js';
 
-const event = vi.mocked( Event, true );
+const bus = vi.mocked( stepEventBus, true );
 
 beforeEach( () => {
-  event.emit.mockClear();
+  bus.emit.mockClear();
 } );
 
 describe( 'instrumented_fetch/events', () => {
@@ -25,7 +25,7 @@ describe( 'instrumented_fetch/events', () => {
       durationMs: 12
     } );
 
-    expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
+    expect( bus.emit ).toHaveBeenCalledWith( 'sdk:http:request', {
       requestId: 'request-success',
       method: 'GET',
       url: 'https://example.com/success',
@@ -44,7 +44,7 @@ describe( 'instrumented_fetch/events', () => {
       durationMs: 23
     } );
 
-    expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
+    expect( bus.emit ).toHaveBeenCalledWith( 'sdk:http:request', {
       requestId: 'request-error',
       method: 'POST',
       url: 'https://example.com/error',
@@ -62,7 +62,7 @@ describe( 'instrumented_fetch/events', () => {
       durationMs: 34
     } );
 
-    expect( event.emit ).toHaveBeenCalledWith( 'http:request', {
+    expect( bus.emit ).toHaveBeenCalledWith( 'sdk:http:request', {
       requestId: 'request-failure',
       method: 'DELETE',
       url: 'https://example.com/failure',

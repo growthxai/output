@@ -300,9 +300,6 @@ importers:
       stacktrace-parser:
         specifier: 0.1.11
         version: 0.1.11
-      undici:
-        specifier: 'catalog:'
-        version: 8.11.0
       winston:
         specifier: 'catalog:'
         version: 3.19.0
@@ -310,6 +307,12 @@ importers:
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
+      ky:
+        specifier: 'catalog:'
+        version: 2.0.2
+      undici:
+        specifier: 'catalog:'
+        version: 8.11.0
       zod:
         specifier: 'catalog:'
         version: 4.6.5
@@ -334,25 +337,9 @@ importers:
       '@outputai/evals':
         specifier: 'workspace:'
         version: link:../evals
-      '@outputai/http':
-        specifier: 'workspace:'
-        version: link:../http
       '@outputai/llm':
         specifier: 'workspace:'
         version: link:../llm
-
-  sdk/http:
-    dependencies:
-      '@outputai/core':
-        specifier: 'workspace:'
-        version: link:../core
-    devDependencies:
-      ky:
-        specifier: 'catalog:'
-        version: 2.0.2
-      undici:
-        specifier: 'catalog:'
-        version: 8.11.0
 
   sdk/llm:
     dependencies:
@@ -408,9 +395,6 @@ importers:
       '@outputai/evals':
         specifier: workspace:^
         version: link:../sdk/evals
-      '@outputai/http':
-        specifier: workspace:^
-        version: link:../sdk/http
       '@outputai/llm':
         specifier: workspace:^
         version: link:../sdk/llm
