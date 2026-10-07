@@ -216,7 +216,6 @@ export default [
       'vite.config.js',
       'eslint.config.js',
       'prettier.config.js',
-      'docker-compose.*.yml',
       '**/bin/*.js',
       '**/*.config.{js,ts}',
       '**/*.spec.{js,ts}',

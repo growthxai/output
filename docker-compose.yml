@@ -96,7 +96,7 @@ services:
       - main
     environment:
       - OUTPUT_API_PORT=3001
-      - OUTPUT_CATALOG_ID=main
+      - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
       - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
       - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
@@ -128,7 +128,7 @@ services:
       - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
       - TEMPORAL_API_KEY=${TEMPORAL_API_KEY:-}
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
-      - OUTPUT_CATALOG_ID=main
+      - OUTPUT_CATALOG_ID=${OUTPUT_CATALOG_ID:-main}
       - OUTPUT_REDIS_URL=redis://redis:6379
       - OUTPUT_TRACE_LOCAL_ON=true
       - OUTPUT_TRACE_HOST_PATH=${PWD}/test_workflows/logs
