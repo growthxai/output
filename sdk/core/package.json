@@ -60,6 +60,7 @@
     "@temporalio/activity": "catalog:",
     "@temporalio/client": "catalog:",
     "@temporalio/common": "catalog:",
+    "@temporalio/proto": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
     "folder-hash": "4.1.3",

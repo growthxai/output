@@ -9,6 +9,7 @@ import { mainEventBus } from '#bus';
 import { inheritsFromAnyNamedType } from '#helpers/errors';
 import { serializeError } from '#helpers/error_serializer';
 import { FatalError, TransparentFatalError } from '#errors';
+import { capFailureSize } from './failure_size.js';
 
 /*
   This interceptor wraps every activity execution with cross-cutting concerns:
@@ -97,15 +98,15 @@ export class ActivityExecutionInterceptor {
 
       // Native Temporal errors are just re-thrown
       if ( error instanceof TemporalFailure ) {
-        throw error;
+        throw error instanceof ApplicationFailure ? capFailureSize( error ) : error;
       }
 
       const nonRetryable = error instanceof FatalError || inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] );
-      throw ApplicationFailure.fromError( unwrappedError, {
+      throw capFailureSize( ApplicationFailure.fromError( unwrappedError, {
         nonRetryable,
         cause: unwrappedError,
         details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
-      } );
+      } ) );
     } finally {
       clearInterval( state.heartbeat );
     }
