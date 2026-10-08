@@ -178,6 +178,69 @@ describe( 'workflow interceptors', () => {
         nonRetryableErrorTypes: [ 'DomainError', 'FatalError' ]
       } );
     } );
+
+    describe( 'startChildWorkflowExecution', () => {
+      const parentMemo = { traceInfo: { runId: 'root-run' }, activityOptions: { scheduleToCloseTimeout: 60 } };
+
+      const run = async ( options, info = { ...workflowInfo, memo: parentMemo } ) => {
+        workflowInfoMock.mockReturnValue( info );
+        const { interceptors } = await import( './workflow.js' );
+        const next = vi.fn().mockResolvedValue( 'result' );
+        const input = { workflowType: 'Child', options, headers: {}, seq: 1 };
+        const out = await interceptors().outbound[0].startChildWorkflowExecution( input, next );
+        return { out, next, input };
+      };
+
+      it( 'injects the parent traceInfo and activityOptions when the child has no memo', async () => {
+        const { out, next, input } = await run( { workflowId: 'child-1' } );
+
+        expect( out ).toBe( 'result' );
+        expect( next ).toHaveBeenCalledWith( {
+          ...input,
+          options: { workflowId: 'child-1', memo: parentMemo }
+        } );
+      } );
+
+      it( 'does not overwrite memo values set by the caller', async () => {
+        const memo = { traceInfo: { runId: 'other' }, activityOptions: { heartbeatTimeout: 5 }, custom: 'x' };
+        const { next } = await run( { memo } );
+
+        expect( next.mock.calls[0][0].options.memo ).toEqual( memo );
+      } );
+
+      it( 'fills only the missing keys of a partial caller memo', async () => {
+        const { next } = await run( { memo: { custom: 'x' } } );
+
+        expect( next.mock.calls[0][0].options.memo ).toEqual( { ...parentMemo, custom: 'x' } );
+      } );
+
+      it( 'inherits the parent search attributes without system ones', async () => {
+        const { next } = await run( {}, {
+          ...workflowInfo,
+          memo: parentMemo,
+          searchAttributes: { ClientId: [ 'client-1' ], BuildIds: [ 'unversioned' ] }
+        } );
+
+        expect( next.mock.calls[0][0].options.searchAttributes ).toEqual( { ClientId: [ 'client-1' ] } );
+      } );
+
+      it( 'does not overwrite search attributes set by the caller', async () => {
+        const searchAttributes = { ClientId: [ 'client-2' ] };
+        const { next } = await run( { searchAttributes }, {
+          ...workflowInfo,
+          memo: parentMemo,
+          searchAttributes: { ClientId: [ 'client-1' ] }
+        } );
+
+        expect( next.mock.calls[0][0].options.searchAttributes ).toEqual( searchAttributes );
+      } );
+
+      it( 'adds nothing when the parent memo has no trace context', async () => {
+        const { next } = await run( {}, { ...workflowInfo, memo: undefined } );
+
+        expect( next.mock.calls[0][0].options.memo ).toEqual( {} );
+      } );
+    } );
   } );
 
   describe( 'WorkflowExecutionInterceptor', () => {
