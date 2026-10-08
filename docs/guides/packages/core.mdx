@@ -401,10 +401,11 @@ These map to Temporal worker slots, pollers, and tuners. See [Worker Tuning](/op
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Max Activity Task executions at once. |
-| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Max Workflow Task executions at once. |
-| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Max number of Workflow Executions in the sticky workflow cache. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | Temporal's (`40`) | Max Workflow Task executions at once. |
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | Temporal's (from heap) | Max number of Workflow Executions in the sticky workflow cache. Unset, Temporal sizes it from the isolate's heap limit. |
 | `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | Max concurrent pollers for Activity Task Queues. |
 | `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS` | `5` | Max concurrent pollers for Workflow Task Queues. |
+| `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE` | Temporal's (`1`) | Threads running workflow sandboxes. Each is a separate V8 isolate. |
 | `TEMPORAL_WORKER_TUNER` | — | JSON-encoded Temporal Worker tuner configuration. |
 
 ### Activity heartbeating

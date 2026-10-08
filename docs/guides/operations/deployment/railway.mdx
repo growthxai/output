@@ -121,14 +121,14 @@ USER appuser
 ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:$PATH"
 
-# V8 heap = 80% of container memory (leaves room for Temporal Rust runtime + OS)
+# V8 heap per isolate = 80% of container memory (leaves room for Temporal Rust runtime + OS)
 ENV NODE_OPTIONS="--max-old-space-size-percentage=80 --heapsnapshot-signal=SIGUSR2"
 
 CMD ["output-worker"]
 ```
 
 <Tip>
-The `NODE_OPTIONS` setting allocates 80% of container memory to the V8 heap, leaving room for the Temporal Rust runtime and OS overhead. Adjust the percentage based on your Railway plan and workflow memory requirements.
+The `NODE_OPTIONS` setting caps the V8 heap at 80% of container memory, leaving room for the Temporal Rust runtime and OS overhead. The cap applies to each V8 isolate rather than to the process as a whole, and a worker runs one isolate per workflow thread plus one on its main thread, so lower the percentage if you raise `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE`. See [Memory and Isolates](/operations/worker-tuning#memory-and-isolates).
 </Tip>
 
 Commit the new `ops/` directory and push to GitHub before continuing:
@@ -322,9 +322,11 @@ Workers scale independently from the API. If workflows are queuing up in Tempora
 
 ### Out of memory errors
 
-1. Increase `NODE_OPTIONS` memory allocation
-2. Upgrade Railway plan for more resources
-3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+1. Read the `Worker isolates` log at startup. It warns when the isolates could together commit more heap than the container allows
+2. If the container is being killed, lower the `NODE_OPTIONS` percentage or `TEMPORAL_MAX_CACHED_WORKFLOWS`
+3. If Node reports `ERR_WORKER_OUT_OF_MEMORY` while the container has memory to spare, the per-isolate cap is too low - raise the percentage
+4. Upgrade Railway plan for more resources
+5. Check for memory leaks in workflow code (large payloads, unbounded arrays)
 
 ### Credentials not found
 
