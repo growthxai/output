@@ -62,8 +62,8 @@ describe( 'worker/configs', () => {
     expect( configs.address ).toBe( 'localhost:7233' );
     expect( configs.namespace ).toBe( 'default' );
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 40 );
-    expect( configs.maxConcurrentWorkflowTaskExecutions ).toBe( 200 );
-    expect( configs.maxCachedWorkflows ).toBe( 1000 );
+    expect( configs.maxConcurrentWorkflowTaskExecutions ).toBeUndefined();
+    expect( configs.maxCachedWorkflows ).toBeUndefined();
     expect( configs.maxConcurrentActivityTaskPolls ).toBe( 5 );
     expect( configs.maxConcurrentWorkflowTaskPolls ).toBe( 5 );
     expect( configs.workerTuner ).toBeUndefined();
