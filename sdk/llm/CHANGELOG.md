@@ -1,5 +1,13 @@
 # @outputai/llm
 
+## 0.15.0
+
+### Patch Changes
+
+- Updated dependencies [51e8690]
+- Updated dependencies [46e7530]
+  - @outputai/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
