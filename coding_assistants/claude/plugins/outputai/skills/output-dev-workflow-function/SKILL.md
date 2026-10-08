@@ -292,7 +292,7 @@ fn: async input => {
 }
 ```
 
-A child started with `executeChild` from `@temporalio/workflow` is also traced: the framework fills in the parent's trace context, activity options and search attributes unless the caller sets them in the child options.
+A child started with `executeChild` or `startChild` from `@temporalio/workflow` is also traced: the framework fills in the parent's trace context and activity options for the memo keys the caller left out, and the parent's search attributes unless the caller sets `searchAttributes` or `typedSearchAttributes` (even empty).
 
 ## What is Allowed in Workflow fn
 

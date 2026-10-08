@@ -114,7 +114,7 @@ This lets a parent tune a child workflow branch for the current use case, while 
 
 ### Raw `executeChild`
 
-A child started with `executeChild` from `@temporalio/workflow` is traced like one started through a workflow invocation. When the caller doesn't set them, the framework fills in the parent's trace context, activity options and search attributes. Values you pass in the child's `memo` or `searchAttributes` options are kept as given.
+A child started with `executeChild` from `@temporalio/workflow` is traced like one started through a workflow invocation. When the caller doesn't set them, the framework fills in the parent's trace context, activity options and search attributes. Values you pass in the child's `memo` are kept as given and the parent's trace context and activity options fill only the keys you left out, so `memo: {}` still inherits them. Search attributes are all-or-nothing: if you set `searchAttributes` or `typedSearchAttributes`, even empty, the parent's are not inherited. This applies to `startChild` as well.
 
 ## Lifecycle
 

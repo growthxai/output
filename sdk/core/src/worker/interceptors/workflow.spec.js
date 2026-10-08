@@ -235,10 +235,57 @@ describe( 'workflow interceptors', () => {
         expect( next.mock.calls[0][0].options.searchAttributes ).toEqual( searchAttributes );
       } );
 
+      it( 'does not merge parent search attributes into caller search attributes with different keys', async () => {
+        const searchAttributes = { Other: [ 'x' ] };
+        const { next } = await run( { searchAttributes }, {
+          ...workflowInfo,
+          memo: parentMemo,
+          searchAttributes: { ClientId: [ 'client-1' ] }
+        } );
+
+        expect( next.mock.calls[0][0].options.searchAttributes ).toStrictEqual( searchAttributes );
+      } );
+
+      it( 'inherits nothing when the caller sets empty search attributes', async () => {
+        const { next } = await run( { searchAttributes: {} }, {
+          ...workflowInfo,
+          memo: parentMemo,
+          searchAttributes: { ClientId: [ 'client-1' ] }
+        } );
+
+        expect( next.mock.calls[0][0].options.searchAttributes ).toStrictEqual( {} );
+      } );
+
+      it( 'inherits nothing when the caller sets typedSearchAttributes', async () => {
+        const typedSearchAttributes = [ { key: { name: 'Other', type: 'KEYWORD' }, value: 'x' } ];
+        const { next } = await run( { typedSearchAttributes }, {
+          ...workflowInfo,
+          memo: parentMemo,
+          searchAttributes: { ClientId: [ 'client-1' ] }
+        } );
+
+        const { options } = next.mock.calls[0][0];
+        expect( options.typedSearchAttributes ).toBe( typedSearchAttributes );
+        expect( options ).not.toHaveProperty( 'searchAttributes' );
+      } );
+
+      it( 'still fills parent memo keys when the caller passes an empty memo', async () => {
+        const { next } = await run( { memo: {} } );
+
+        expect( next.mock.calls[0][0].options.memo ).toStrictEqual( parentMemo );
+      } );
+
+      it( 'omits the memo keys the parent does not have', async () => {
+        const { next } = await run( {}, { ...workflowInfo, memo: { traceInfo: parentMemo.traceInfo } } );
+
+        expect( next.mock.calls[0][0].options.memo ).toStrictEqual( { traceInfo: parentMemo.traceInfo } );
+      } );
+
+
       it( 'adds nothing when the parent memo has no trace context', async () => {
         const { next } = await run( {}, { ...workflowInfo, memo: undefined } );
 
-        expect( next.mock.calls[0][0].options.memo ).toEqual( {} );
+        expect( next.mock.calls[0][0].options.memo ).toStrictEqual( {} );
       } );
     } );
   } );

@@ -40,11 +40,14 @@ class HeadersInjectionInterceptor {
   /*
     Child workflows started with a raw executeChild have no memo, so they get no traceInfo and are not traced.
     Fill in the parent's trace context, activity options and search attributes, without overwriting what the caller set.
+    Memo is merged per key. Search attributes are all-or-nothing: if the caller sets searchAttributes or
+    typedSearchAttributes (even empty), nothing is inherited.
   */
   async startChildWorkflowExecution( input, next ) {
     const { memo: parentMemo, searchAttributes: parentSearchAttributes } = workflowInfo();
     const { traceInfo, activityOptions } = parentMemo ?? {};
-    const searchAttributes = input.options?.searchAttributes ?? inheritableSearchAttributes( parentSearchAttributes );
+    const callerSetSearchAttributes = input.options?.searchAttributes ?? input.options?.typedSearchAttributes;
+    const searchAttributes = callerSetSearchAttributes ? undefined : inheritableSearchAttributes( parentSearchAttributes );
     return next( {
       ...input,
       options: {
