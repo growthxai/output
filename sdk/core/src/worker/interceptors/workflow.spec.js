@@ -281,7 +281,6 @@ describe( 'workflow interceptors', () => {
         expect( next.mock.calls[0][0].options.memo ).toStrictEqual( { traceInfo: parentMemo.traceInfo } );
       } );
 
-
       it( 'adds nothing when the parent memo has no trace context', async () => {
         const { next } = await run( {}, { ...workflowInfo, memo: undefined } );
 
