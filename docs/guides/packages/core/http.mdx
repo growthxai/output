@@ -63,6 +63,10 @@ export const client = createKyClient({
 
 By default, the client uses `outputFetch`. Providing Ky's `fetch` option overrides it, so requests made by that client are not automatically traced by Output.
 
+<Warning>
+Use the global `FormData` with Ky clients. Ky sends `undici.FormData` bodies as the text `[object FormData]`.
+</Warning>
+
 You can extend clients to create specialized instances:
 
 ```typescript

@@ -253,7 +253,7 @@ const response = await sendHttpRequest({
 `sendHttpRequest` is only callable from within workflows. Steps and evaluators can make HTTP requests directly using fetch or any HTTP client.
 </Warning>
 
-By default, `sendHttpRequest` returns only response metadata: `url`, `status`, `statusText`, and `ok`. Use `responseOptions.includeHeaders` to include response headers and `responseOptions.includeBody` to include the body. Included response headers are redacted automatically; response bodies are returned as-is.
+By default, `sendHttpRequest` returns only response metadata: `url`, `status`, `statusText`, and `ok`. Use `responseOptions.includeHeaders` to include response headers and `responseOptions.includeBody` to include the body. Included response headers are redacted automatically. Response bodies are parsed by content type: JSON is parsed (empty or invalid JSON is returned as raw text), text-like types (`text/*`, XML, form-urlencoded, and JavaScript) are returned as text, and anything else is returned as a base64 string.
 
 Use `$ENV_VAR_NAME` placeholders for secret header values:
 
@@ -304,6 +304,18 @@ const apiKey = credentials.require('anthropic.api_key');
 ```
 
 The worker also resolves `credential:<path>` values in environment variables at startup. See [Credentials](/packages/core/credentials) for setup, key management, and deployment.
+
+## HTTP Clients
+
+The `@outputai/core/http` subpath provides traced HTTP clients for steps and other worker-side code. Requests are recorded in the trace and emit `http:request` events:
+
+```typescript
+import { createKyClient } from '@outputai/core/http';
+
+const client = createKyClient({ prefix: 'https://api.example.com' });
+```
+
+It also exports `outputFetch`, a traced drop-in for `fetch`, and `addRequestCost` to attach a cost to a request. See [HTTP](/packages/core/http) for the full API.
 
 ## Temporal Access in the Worker
 
