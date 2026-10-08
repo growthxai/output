@@ -1,5 +1,27 @@
 # @outputai/cli
 
+## 0.15.0
+
+### Minor Changes
+
+- 51e8690: - Updated the CLI to use `@outputai/core` for credentials features.
+  - Updated `output fix` to remove the now-unused `outputai.hookFiles` entry pointing to `@outputai/credentials`.
+  - Updated the scaffolding of new projects to no longer include the credentials entry in `outputai.hookFiles`.
+- 46e7530: Added support for Temporal search attributes on workflow runs:
+
+  - Added an optional `searchAttributes` map to `/workflow/run` and `/workflow/start`. Unregistered attributes or mistyped values return 400 and the workflow is not started.
+  - Added a `--search-attributes` flag to `output workflow run` and `output workflow start`.
+  - Added `workflowDetails.searchAttributes` to hook payloads, with `Datetime` values as ISO strings.
+  - Updated child workflows to inherit their parent's search attributes, excluding Temporal system attributes.
+
+### Patch Changes
+
+- Updated dependencies [51e8690]
+- Updated dependencies [46e7530]
+  - @outputai/core@0.15.0
+  - @outputai/evals@0.15.0
+  - @outputai/llm@0.15.0
+
 ## 0.14.0
 
 ### Patch Changes
