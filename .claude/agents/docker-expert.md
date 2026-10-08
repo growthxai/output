@@ -27,8 +27,8 @@ You are an expert in containerization for the Output project, with deep knowledg
 
 - **API Server**: Express server containerization, environment configuration
 - **Workers**: Temporal worker containers, workflow loading, resource allocation
-- **Development**: docker-compose.dev.yml patterns, file mounting, debugging
-- **Production**: docker-compose.prod.yml patterns, build optimization, monitoring
+- **Development**: docker-compose.yml patterns (`./run.sh dev`), file mounting, debugging; TEMPORAL_* vars in the root .env point the local API and worker at a remote Temporal
+- **Production**: ops/api.Dockerfile image builds, build optimization, monitoring
 
 ## Docker Compose Architecture
 

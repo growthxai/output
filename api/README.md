@@ -12,13 +12,7 @@ The API is intended to be run from the project root using the `run.sh` script:
 
 This starts the entire Output environment including the API server, Temporal, and workers.
 
-To start the entire Output environment including the API server and Temporal, but without a worker, use:
-
-```bash
-./run.sh prod
-```
-
-For both scenarios, the server runs on port 3001 by default (or `PORT` env variable).
+The server listens on `OUTPUT_API_PORT` (default `3000`); `./run.sh dev` sets it to `3001`.
 
 ## API Endpoints
 
@@ -40,7 +34,7 @@ For both scenarios, the server runs on port 3001 by default (or `PORT` env varia
 
 ## Authentication
 
-Production mode requires Basic Auth via `API_AUTH_TOKEN` environment variable. Note: The `/health` endpoint is always accessible without authentication.
+Production mode requires Basic Auth via `OUTPUT_API_AUTH_TOKEN` environment variable. Note: The `/health` endpoint is always accessible without authentication.
 
 ## Logging
 
@@ -108,12 +102,12 @@ Errors are logged with structured context:
 
 | Variable | Description |
 |----------|-------------|
-| `PORT` | Server port (default: 3000) |
-| `API_AUTH_TOKEN` | Authentication token for production mode |
+| `OUTPUT_API_PORT` | Server port (default: 3000) |
+| `OUTPUT_API_AUTH_TOKEN` | Authentication token for production mode |
 | `TEMPORAL_ADDRESS` | Temporal server address |
-| `AWS_ACCESS_KEY_ID` | AWS access key for S3 trace fetching |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 trace fetching |
-| `AWS_REGION` | AWS region for S3 (default: us-west-1) |
+| `OUTPUT_AWS_ACCESS_KEY_ID` | AWS access key for S3 trace fetching |
+| `OUTPUT_AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 trace fetching |
+| `OUTPUT_AWS_REGION` | AWS region for S3 (default: us-west-1) |
 
 The AWS credentials are used by the `/workflow/:id/trace-log` endpoint to fetch remote trace files stored in S3.
 
