@@ -14,6 +14,7 @@ const {
   loadActivitiesMock,
   loadHooksMock,
   loadWorkflowsMock,
+  logIsolateSizingMock,
   mainEventBusMock,
   mockConnection,
   mockLog,
@@ -56,6 +57,7 @@ const {
     maxCachedWorkflows: 1000,
     maxConcurrentActivityTaskPolls: 5,
     maxConcurrentWorkflowTaskPolls: 5,
+    workflowThreadPoolSize: undefined,
     workerTuner: undefined,
     shutdownForceTime: undefined,
     shutdownGraceTime: undefined,
@@ -132,6 +134,7 @@ const {
     loadActivitiesMock: vi.fn().mockResolvedValue( { activities: {} } ),
     loadHooksMock: vi.fn().mockResolvedValue( undefined ),
     loadWorkflowsMock: vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } ),
+    logIsolateSizingMock: vi.fn(),
     mainEventBusMock: { emit: vi.fn(), on: vi.fn() },
     mockConnection: { close: vi.fn().mockResolvedValue( undefined ) },
     mockLog: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -169,7 +172,7 @@ vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
 vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
-vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
+vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock, logIsolateSizing: logIsolateSizingMock } ) );
 vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );
 vi.mock( './temporal_logger.js', () => ( { setupTemporalLogger: setupTemporalLoggerMock } ) );
 vi.mock( './log_hooks.js', () => ( {} ) );

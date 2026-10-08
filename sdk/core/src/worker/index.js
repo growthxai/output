@@ -15,7 +15,7 @@ import { CatalogPublisher } from './catalog_workflow/catalog_publisher.js';
 import { mainEventBus } from '#bus';
 import { flushPendingHooks } from '#hooks/pending_hooks';
 import { BusEventType } from '#consts';
-import { setupTelemetry } from './telemetry.js';
+import { setupTelemetry, logIsolateSizing } from './telemetry.js';
 import { TemporalConnectionMonitor } from './connection_monitor.js';
 import { bindGlobalFunctions } from './global_functions.js';
 import { setupClientConfig } from '#temporal/client';
@@ -40,6 +40,7 @@ const {
   maxCachedWorkflows,
   maxConcurrentActivityTaskPolls,
   maxConcurrentWorkflowTaskPolls,
+  workflowThreadPoolSize,
   shutdownForceTime,
   shutdownGraceTime,
   hookFlushTimeoutMs,
@@ -130,17 +131,21 @@ const execute = async () => {
       ...( workerTuner ? {
         tuner: workerTuner
       } : {
-        maxConcurrentWorkflowTaskExecutions,
+        ...( maxConcurrentWorkflowTaskExecutions !== undefined && { maxConcurrentWorkflowTaskExecutions } ),
         maxConcurrentActivityTaskExecutions
       } ),
-      maxCachedWorkflows,
+      ...( maxCachedWorkflows !== undefined && { maxCachedWorkflows } ),
       maxConcurrentActivityTaskPolls,
       maxConcurrentWorkflowTaskPolls,
       bundlerOptions: { webpackConfigHook },
+      // Omitted when unset so @temporalio/worker applies its own default, which depends on reuseV8Context.
+      ...( workflowThreadPoolSize !== undefined && { workflowThreadPoolSize } ),
       ...( shutdownForceTime !== undefined && { shutdownForceTime } ),
       ...( shutdownGraceTime !== undefined && { shutdownGraceTime } )
     } );
   } );
+
+  run( () => logIsolateSizing( { worker } ) );
 
   log.info( 'Setting up telemetry...' );
   run( () => setupTelemetry( { worker } ) );

@@ -18,10 +18,11 @@ These env vars map to Temporal worker execution slots, cache, and pollers. See T
 | Variable | Default | Resource | Effect |
 |----------|---------|----------|--------|
 | `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS` | `40` | Compute | Maximum Activity Task executions running at once. Each Output step, evaluator, LLM call wrapper, or API call is usually an activity. Raise this to process more activities concurrently; lower it to reduce memory, CPU, or outbound API pressure. |
-| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | Compute | Maximum Workflow Task executions running at once. Workflow Tasks are usually lightweight state-machine work. Raise this if Workflow Task backlog grows and CPU is low; lower it if Workflow Task timeouts increase. |
-| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Memory | Maximum Workflow Executions kept in Temporal's [sticky workflow cache](https://docs.temporal.io/sticky-execution). Higher values reduce workflow replay work; lower values free memory sooner after traffic spikes. |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | Temporal's (`40`) | Compute | Maximum Workflow Task executions running at once. Workflow Tasks are usually lightweight state-machine work. Raise this if Workflow Task backlog grows and CPU is low; lower it if Workflow Task timeouts increase. |
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | Temporal's (from heap) | Memory | Maximum Workflow Executions kept in Temporal's [sticky workflow cache](https://docs.temporal.io/sticky-execution). Higher values reduce workflow replay work; lower values free memory sooner after traffic spikes. Unset, Temporal sizes it from the isolate's heap limit, assuming roughly 600 cached Workflow Executions per GB - set it explicitly where payloads are heavier. |
 | `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS` | `5` | IO | Number of concurrent Activity Task pollers. Raise this if activity execution slots are available but the worker is not fetching tasks fast enough. Keep it lower than activity execution slots. |
 | `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS` | `5` | IO | Number of concurrent Workflow Task pollers. Raise this if workflow execution slots are available but polling is the bottleneck. Keep it lower than workflow execution slots. |
+| `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE` | Temporal's (`1`) | Memory | Number of threads running workflow sandboxes. Each one is a separate V8 isolate, so this multiplies the heap the process can commit. See [Memory and isolates](#memory-and-isolates). |
 
 Example:
 
@@ -32,6 +33,14 @@ TEMPORAL_MAX_CACHED_WORKFLOWS=50
 TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS=10
 TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS=10
 ```
+
+## Memory and Isolates
+
+A worker runs one V8 isolate on its main thread and one more per workflow thread, so the isolate count is `1 + TEMPORAL_WORKFLOW_THREAD_POOL_SIZE`.
+
+A `NODE_OPTIONS` heap cap applies to each isolate separately, not to the process as a whole. On a 4 GB container, `--max-old-space-size-percentage=85` lets every isolate grow to about 3.4 GB, so two isolates can commit well past what the container holds. Size the cap against the isolate count rather than the container.
+
+The worker logs a `Worker isolates` record at startup with the isolate count, the heap limit it resolved, the heap all isolates could commit together, and the container limit. It warns when that projection exceeds the container, and when there are more Workflow Task slots than cached Workflow Executions - in which case tasks evict each other and the worker replays history to recover.
 
 ## Worker Tuner
 
@@ -56,6 +65,7 @@ Polling and cache settings still apply:
 - `TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS`
 - `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS`
 - `TEMPORAL_MAX_CACHED_WORKFLOWS`
+- `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE`
 
 ### Resource-Based Tuner
 

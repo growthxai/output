@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const configMock = vi.hoisted( () => ( { workerTelemetryIntervalMs: 0 } ) );
 const logMock = vi.hoisted( () => ( { info: vi.fn(), warn: vi.fn() } ) );
 const createChildLoggerMock = vi.hoisted( () => vi.fn( () => logMock ) );
+const getHeapStatisticsMock = vi.hoisted( () => vi.fn( () => ( { heap_size_limit: 4_000 } ) ) );
+
+vi.mock( 'node:v8', () => ( { getHeapStatistics: getHeapStatisticsMock } ) );
 
 vi.mock( './configs.js', () => ( {
   get workerTelemetryIntervalMs() {
@@ -32,7 +35,7 @@ describe( 'worker/telemetry', () => {
 
     availableMemoryMock.mockReturnValue( 1_000 );
     constrainedMemoryMock.mockReturnValue( 2_000 );
-    memoryUsageMock.mockReturnValue( { heapUsed: 300 } );
+    memoryUsageMock.mockReturnValue( { rss: 1_200, heapUsed: 300 } );
 
     vi.spyOn( process, 'availableMemory' ).mockImplementation( availableMemoryMock );
     vi.spyOn( process, 'constrainedMemory' ).mockImplementation( constrainedMemoryMock );
@@ -73,7 +76,9 @@ describe( 'worker/telemetry', () => {
       memory: {
         availableMemory: 1_000,
         constrainedMemory: 2_000,
-        memoryUsage: { heapUsed: 300 }
+        memoryUsage: { rss: 1_200, heapUsed: 300 },
+        nonMainHeap: 900,
+        heapSizeLimit: 4_000
       }
     } );
   } );

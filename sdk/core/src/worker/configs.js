@@ -22,13 +22,31 @@ const envVarSchema = z.object( {
   // Worker concurrency — tune these via env vars to adjust for your workload.
   // Each step (API, LLM, etc.) call is one activity. Lower this to reduce memory pressure.
   TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 40 ) ),
-  // Workflows are lightweight state machines — this can be high.
-  TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 200 ) ),
-  // LRU cache for sticky workflow execution. Lower values free memory faster after surges.
-  TEMPORAL_MAX_CACHED_WORKFLOWS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 1000 ) ),
+  /*
+  Workflow tasks that may run at once. These are short state transitions, so this is rarely the
+  throughput limit - activity concurrency above is. Left unset so @temporalio/worker applies its
+  own default of 40; the startup 'Worker isolates' log reports it as workflowTaskSlots.
+  https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxconcurrentworkflowtaskexecutions
+  */
+  TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().optional() ),
+  /*
+  LRU cache for sticky workflow execution, holding each workflow's state until it completes or is
+  evicted. Left unset so @temporalio/worker sizes it from the isolate's heap limit, which a flat
+  value here cannot track. That formula assumes roughly 600 cached workflows per GB, so set this
+  where payloads are heavier - the startup 'Worker isolates' log reports what it resolved to.
+  https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxcachedworkflows
+  */
+  TEMPORAL_MAX_CACHED_WORKFLOWS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().optional() ),
   // How aggressively the worker pulls tasks from Temporal.
   TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
   TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
+  /*
+  Threads running workflow sandboxes. Each is a V8 isolate and NODE_OPTIONS heap caps apply per
+  isolate, so this multiplies the heap the process can commit - the startup 'Worker isolates'
+  log reports the total. Left unset so @temporalio/worker picks: 1 with reuseV8Context, 2 without.
+  https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#workflowthreadpoolsize
+  */
+  TEMPORAL_WORKFLOW_THREAD_POOL_SIZE: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().optional() ),
   // JSON-encoded Temporal Worker tuner options.
   TEMPORAL_WORKER_TUNER: workerTunerEnvSchema,
   // Activity configs
@@ -64,6 +82,7 @@ export const maxConcurrentWorkflowTaskExecutions = envVars.TEMPORAL_MAX_CONCURRE
 export const maxCachedWorkflows = envVars.TEMPORAL_MAX_CACHED_WORKFLOWS;
 export const maxConcurrentActivityTaskPolls = envVars.TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS;
 export const maxConcurrentWorkflowTaskPolls = envVars.TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS;
+export const workflowThreadPoolSize = envVars.TEMPORAL_WORKFLOW_THREAD_POOL_SIZE;
 export const workerTuner = envVars.TEMPORAL_WORKER_TUNER;
 export const namespace = envVars.TEMPORAL_NAMESPACE;
 export const taskQueue = envVars.OUTPUT_CATALOG_ID;
