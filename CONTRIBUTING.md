@@ -40,7 +40,7 @@ npm run lint          # Lint code
 - Prefer functional over object-oriented style.
 - Don't opt out of lint rules without discussion.
 
-See [CLAUDE.md](CLAUDE.md) for the full set of conventions.
+See [AGENTS.md](AGENTS.md) for the full set of conventions.
 
 ## Questions
 

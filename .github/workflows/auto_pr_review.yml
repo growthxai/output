@@ -35,6 +35,15 @@ jobs:
         id: schema
         run: echo "json=$(jq -c . .github/scripts/pr_review.schema.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Load review prompt
+        id: prompt
+        run: |
+          {
+            echo 'text<<EOF_PROMPT'
+            cat .github/scripts/pr_review.prompt.md
+            echo 'EOF_PROMPT'
+          } >> "$GITHUB_OUTPUT"
+
       # Pin to commit SHA (not floating @v1). Bump deliberately when upgrading.
       - name: Run PR review
         id: review
@@ -45,7 +54,7 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            /pr-review
+            ${{ steps.prompt.outputs.text }}
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep,WebSearch,WebFetch"
             --json-schema '${{ steps.schema.outputs.json }}'

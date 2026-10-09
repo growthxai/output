@@ -1,7 +1,3 @@
----
-description: Automated PR review for Output.ai
----
-
 ## Objective
 
 Review this pull request. Do not modify code.
@@ -40,12 +36,13 @@ Work in this order. Do not emit structured output until step 4.
 
 1. **Existing code** — conventions from neighboring packages and patterns in the diff’s area.
 2. **Product docs** (`docs/guides/`) — secondary.
-3. **LLM/agent files** (`CLAUDE.md`, `.claude/**`, skills, agents) — hints only; may be stale. Never override code or docs.
+3. **LLM/agent files** (`AGENTS.md`, `.claude/**`, skills, agents) — hints only; may be stale. Never override code or docs.
 
 **Public-facing code** (docs candidates):
 
 - `sdk/*` — published `@outputai/*` packages
 - `api/` — public HTTP API (`output-api`, Docker image)
+- `coding_assistants/claude/plugins/outputai/` — published Claude Code plugin; its skills and agents describe SDK APIs and must stay in sync with them like `docs/guides/`
 
 Docs live under `docs/guides/` (Mintlify), including `migrations/` and `docs/guides/openapi.json` when the HTTP contract changes.
 
@@ -68,6 +65,7 @@ Craft and footprint:
 - Matches **existing code** in the area (style, naming, ESM, layout, abstractions)
 - **KISS** / **YAGNI** / **DRY** — straightforward over clever; no generality “for later”; avoid copy-paste without inventing one-off abstractions
 - **Dependencies** — question new deps and bumps; prefer monorepo utilities. Unjustified additions → **Must-fix**
+- **No lint/format findings** — ESLint runs in CI; do not report anything it enforces (spacing, quotes, max-len, braces)
 
 ### Correctness
 
@@ -77,7 +75,7 @@ Does the changed code do the right thing?
 
 ### Documentation
 
-Judge by **effect of the diff**, not path alone. `sdk/*` / `api/` changes do not automatically need docs if external behavior is unchanged. When docs are in scope (`docs/guides/**`, OpenAPI when relevant):
+Judge by **effect of the diff**, not path alone. `sdk/*` / `api/` changes do not automatically need docs if external behavior is unchanged. When docs are in scope (`docs/guides/**`, the Claude Code plugin, OpenAPI when relevant):
 
 - Sync with what public code actually exposes after this PR
 - Completeness for new/changed user-facing capability
