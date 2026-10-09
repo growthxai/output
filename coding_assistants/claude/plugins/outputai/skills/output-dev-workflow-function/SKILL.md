@@ -300,6 +300,7 @@ Pass activity options as the second argument: `await enrichCompanyWorkflow( inpu
 
 ### Allowed (Deterministic Operations)
 - Calling step functions
+- Calling other workflows as functions (child workflows)
 - Pure data transformations
 - Conditional logic based on input
 - Array operations (map, filter, reduce)
