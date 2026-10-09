@@ -5,14 +5,14 @@ description: "Build typed, observable API clients for reliable third-party integ
 
 AI workflows talk to external APIs constantly — search engines, content services, data providers, internal tools. You could install a dedicated SDK for each one, but that adds maintenance overhead. Writing raw `fetch` calls works, but you lose visibility into what's happening across your workflow, and it becomes tedious to maintain.
 
-Output ships `createKyClient` from `@outputai/http` as the standard way to write Ky API clients. Every request is automatically traced, so you see exactly what your workflow called in the same trace as the step that called it, what came back, and how long it took. You (or Claude Code) write thin, typed wrappers — one file per API — that your steps import.
+Output ships `createKyClient` from `@outputai/core/http` as the standard way to write Ky API clients. Every request is automatically traced, so you see exactly what your workflow called in the same trace as the step that called it, what came back, and how long it took. You (or Claude Code) write thin, typed wrappers — one file per API — that your steps import.
 
 ## Your First Client
 
 Here's a simple client that searches the web using [Tavily](https://tavily.com). Create a file at `src/clients/tavily.ts`:
 
 ```typescript src/clients/tavily.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { FatalError } from '@outputai/core';
 
 const getApiKey = () => {
@@ -141,7 +141,7 @@ API responses can change without warning — a field gets renamed, a type change
 Zod schemas catch this at the boundary. Define what the API should return, and parse the response immediately:
 
 ```typescript src/clients/clearbit.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { z } from '@outputai/core';
 
 const createClient = () =>
@@ -201,7 +201,7 @@ Ky clients throw two common error types:
 By default, Output retries failed steps automatically. This is great for transient errors (server hiccups, network blips), but you don't want to retry when the API key is missing or the resource doesn't exist. Here's how to handle the common cases:
 
 ```typescript src/clients/search.ts
-import { createKyClient, ky } from '@outputai/http';
+import { createKyClient, ky } from '@outputai/core/http';
 import { FatalError } from '@outputai/core';
 
 const getApiKey = () => {
@@ -277,7 +277,7 @@ Each method creates a fresh client instance, keeping things stateless. Your step
 Some APIs don't return results immediately. Instead, they give you a task ID and you poll until the work is done. Research APIs and batch processing services commonly work this way:
 
 ```typescript src/clients/research.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { FatalError } from '@outputai/core';
 
 // Clients run inside steps (activities), not workflows.
@@ -349,7 +349,7 @@ Turn this off in production. Response bodies from search APIs and content servic
 Here's the full Tavily client with search, extract, and crawl methods. This is a production-ready example you can copy and adapt — it demonstrates environment variable validation, typed interfaces, multiple methods, and transforming the API's `snake_case` responses into `camelCase` for your TypeScript code:
 
 ```typescript src/clients/tavily.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { FatalError } from '@outputai/core';
 
 const TAVILY_API_URL = 'https://api.tavily.com';
@@ -517,7 +517,7 @@ export const tavilyClient = {
 
 ## What's Next
 
-- [@outputai/http API reference](/packages/http) — `outputFetch`, `createKyClient`, and configuration options
+- [@outputai/core/http API reference](/packages/core/http) — `outputFetch`, `createKyClient`, and configuration options
 - [Steps](/steps) — Where clients get used: wrapping API calls in retryable steps
 - [Tracing](/operations/tracing) — How request traces appear in the Temporal UI
 - [Error Handling](/operations/error-handling) — `FatalError`, `ValidationError`, and retry policies

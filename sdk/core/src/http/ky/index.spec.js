@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Options } from 'ky';
 import { outputFetch } from '../fetch/index.js';
 
 const kyMock = vi.hoisted( () => ( {
@@ -25,7 +24,7 @@ describe( 'createKyClient', () => {
   } );
 
   it( 'forwards Ky options', () => {
-    const options: Options = {
+    const options = {
       prefix: 'https://example.com',
       timeout: 30_000,
       retry: { limit: 3 }
@@ -37,7 +36,7 @@ describe( 'createKyClient', () => {
   } );
 
   it( 'allows callers to override fetch', () => {
-    const fetch = vi.fn( async () => new Response() ) as NonNullable<Options['fetch']>;
+    const fetch = vi.fn( async () => new Response() );
 
     createKyClient( { fetch } );
 

@@ -20,7 +20,7 @@ Ensure you have a deep understanding of the Output SDK and its capabilities. If 
 Before proceeding with any workflow operation, verify:
 
 - **ES Modules**: All imports MUST use `.js` extension for ESM modules
-- **HTTP Client**: NEVER use axios directly - always use @outputai/http wrapper
+- **HTTP Client**: NEVER use axios directly - always use @outputai/core/http wrapper
 - **HTTP Bodies**: Consume non-HEAD response bodies with `.json()`/`.text()` or cancel unused bodies with
   `response.body?.cancel()`
 - **LLM Client**: NEVER use a direct llm call - always use @outputai/llm wrapper

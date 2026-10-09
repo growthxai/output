@@ -1,19 +1,19 @@
 ---
-title: "@outputai/http"
+title: "HTTP"
 description: "Make traceable HTTP requests from your steps"
 ---
 
-The `@outputai/http` package provides Fetch and Ky clients instrumented for [tracing](/operations/tracing). Every request — URL, method, status code, and timing — is recorded as a child node in the trace tree.
+The `@outputai/core/http` module provides Fetch and Ky clients instrumented for [tracing](/operations/tracing). Every request — URL, method, status code, and timing — is recorded as a child node in the trace tree.
 
 It exposes two entry points:
 
 - `outputFetch` — a Fetch-compatible function backed by [Undici](https://undici.nodejs.org/).
 - `createKyClient` — creates a [Ky](https://github.com/sindresorhus/ky) client that uses `outputFetch`.
 
-Ky and Undici are peer dependencies. Current npm and pnpm versions install compatible peers automatically, so the normal package installation is enough:
+Ky and Undici are peer dependencies of `@outputai/core`. Current npm and pnpm versions install compatible peers automatically, so the normal package installation is enough:
 
 ```bash
-pnpm add @outputai/http
+pnpm add @outputai/core
 ```
 
 Install Ky or Undici explicitly only when you need to pin their versions or resolve a peer-version conflict.
@@ -23,7 +23,7 @@ Install Ky or Undici explicitly only when you need to pin their versions or reso
 Use `outputFetch` when you want the standard Fetch API:
 
 ```typescript
-import { outputFetch } from '@outputai/http';
+import { outputFetch } from '@outputai/core/http';
 
 const response = await outputFetch( 'https://api.example.com/users', {
   method: 'POST',
@@ -47,7 +47,7 @@ Like native Fetch, `outputFetch` returns responses for HTTP error statuses. It o
 The typical pattern is to create a client per external service in your [clients directory](/clients), then import it in your steps:
 
 ```typescript clients/jina.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 export const client = createKyClient({
   prefix: 'https://r.jina.ai',
@@ -62,6 +62,10 @@ export const client = createKyClient({
 `createKyClient` accepts Ky's complete options object and returns a standard Ky instance. All Ky methods, hooks, retries, timeout behavior, and `.extend()` support remain available.
 
 By default, the client uses `outputFetch`. Providing Ky's `fetch` option overrides it, so requests made by that client are not automatically traced by Output.
+
+<Warning>
+Use the global `FormData` with Ky clients. Ky sends `undici.FormData` bodies as the text `[object FormData]`.
+</Warning>
 
 You can extend clients to create specialized instances:
 
@@ -153,7 +157,7 @@ export const scrapePage = step({
 
 ## Tracing
 
-All requests made with `@outputai/http` are automatically traced — no configuration needed. In your trace files, HTTP calls appear as children of the step that made them:
+All requests made with `@outputai/core/http` are automatically traced — no configuration needed. In your trace files, HTTP calls appear as children of the step that made them:
 
 ```json
 {
@@ -166,13 +170,21 @@ All requests made with `@outputai/http` are automatically traced — no configur
 
 See [Tracing](/operations/tracing) for details on the trace format.
 
+Each request also gets an `http:request:count` trace attribute, and `addRequestCost` adds an `http:request:cost` one. Their classes, `HTTPRequestCount` and `HTTPRequestCost`, are exported for matching attributes by type:
+
+```typescript
+import { HTTPRequestCost } from '@outputai/core/http';
+
+const isCost = attribute instanceof HTTPRequestCost;
+```
+
 ## Request Events
 
 Every call made through `outputFetch` or a client returned by `createKyClient` emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:
 
 ```typescript
 import { on } from '@outputai/core/hooks';
-import type { HttpRequestEvent } from '@outputai/http';
+import type { HttpRequestEvent } from '@outputai/core/http';
 
 on<HttpRequestEvent>( 'http:request', async ( { eventId, workflowDetails, payload } ) => {
   if (!workflowDetails || !payload) {
@@ -195,7 +207,7 @@ The handler receives an event envelope. Request-specific fields are available un
 | `activityInfo?` | Temporal [`activity.Info`](https://typescript.temporal.io/api/interfaces/activity.Info) when the request is made in an activity context. |
 | `workflowDetails?` | Output's serializable subset of Temporal [`workflow.WorkflowInfo`](https://typescript.temporal.io/api/interfaces/workflow.WorkflowInfo), when available. |
 | `outputActivityKind?` | Output activity kind when available. Possible values are `step`, `evaluator`, and `internal_step`. |
-| `payload.requestId` | UUID generated per request inside `@outputai/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
+| `payload.requestId` | UUID generated per request inside `@outputai/core/http`. Shared between the matching `http:request` and `cost:http:request` events for cross-event correlation. |
 | `payload.method` | HTTP method (uppercase). |
 | `payload.url` | Absolute request URL. |
 | `payload.status` | HTTP status code; `undefined` on network failure. |
@@ -209,7 +221,7 @@ The event fires for **every** call — success, non-2xx responses, and network f
 When you know the dollar cost of an HTTP request (for example from provider billing headers), you can attach it to the HTTP trace event with `addRequestCost`.
 
 ```typescript
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( { prefix: 'https://api.vendor.com' } );
 
@@ -236,7 +248,7 @@ It also emits a **`cost:http:request`** hook event through the same hooks system
 `outputFetch` returns non-2xx responses without throwing. Ky clients use Ky's configured error behavior and throw `ky.HTTPError` for non-2xx responses by default and `ky.TimeoutError` for timeouts:
 
 ```typescript
-import { createKyClient, ky } from '@outputai/http';
+import { createKyClient, ky } from '@outputai/core/http';
 
 const client = createKyClient( { prefix: 'https://api.example.com' } );
 
@@ -264,7 +276,7 @@ Since steps retry automatically, you generally just need to handle cases where r
 Requests use an `EnvHttpProxyAgent` by default, including standard HTTP proxy environment variables. You can provide an Undici dispatcher for one request:
 
 ```typescript
-import { outputFetch, undici } from '@outputai/http';
+import { outputFetch, undici } from '@outputai/core/http';
 
 const dispatcher = new undici.Agent( {
   headersTimeout: 60_000,
@@ -283,7 +295,7 @@ Set `dispatcher: undefined` explicitly to bypass the default dispatcher.
 The complete Ky and Undici namespaces are re-exported for convenience and to let callers use the same Undici realm as `outputFetch`:
 
 ```typescript
-import { ky, undici } from '@outputai/http';
+import { ky, undici } from '@outputai/core/http';
 
 const request = new undici.Request( 'https://api.example.com' );
 const isHttpError = ( error: unknown ) => error instanceof ky.HTTPError;

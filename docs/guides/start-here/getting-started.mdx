@@ -446,7 +446,7 @@ export const summarizeContent = step({
 
 ```typescript src/clients/jina.ts
 // src/clients/jina.ts
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 const client = createKyClient({
   prefix: 'https://r.jina.ai',
@@ -489,7 +489,7 @@ Summarize the following content:
 }
 ```
 
-Notice the **API client pattern**: the Jina client lives in `src/clients/jina.ts`, separate from the workflow. It wraps `@outputai/http` which gives you automatic tracing and retries. When you need to integrate with other APIs (Stripe, Slack, your own backend), create similar clients in `src/clients/`.
+Notice the **API client pattern**: the Jina client lives in `src/clients/jina.ts`, separate from the workflow. It wraps `@outputai/core/http` which gives you automatic tracing and retries. When you need to integrate with other APIs (Stripe, Slack, your own backend), create similar clients in `src/clients/`.
 
 Now run it:
 

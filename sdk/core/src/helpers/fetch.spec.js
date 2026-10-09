@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import { hydrateHeaders, serializeBodyAndInferContentType, serializeResponse } from './fetch.js';
+import { consumeBody, hydrateHeaders, serializeBodyAndInferContentType, serializeResponse } from './fetch.js';
 
 describe( 'hydrateHeaders', () => {
   afterEach( () => {
@@ -173,6 +173,79 @@ describe( 'serializeResponse', () => {
     const result = await serializeResponse( response, { includeBody: true } );
 
     expect( result.body ).toBe( Buffer.from( bytes ).toString( 'base64' ) );
+  } );
+} );
+
+describe( 'consumeBody', () => {
+  const bytes = Uint8Array.from( [ 0, 1, 2, 3 ] );
+  const base64 = Buffer.from( bytes ).toString( 'base64' );
+
+  it( 'parses JSON bodies', async () => {
+    const response = new Response( JSON.stringify( { ok: true } ), {
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    } );
+
+    await expect( consumeBody( response ) ).resolves.toEqual( { ok: true } );
+  } );
+
+  it( 'parses structured syntax JSON bodies', async () => {
+    const response = new Response( JSON.stringify( { ok: true } ), {
+      headers: { 'content-type': 'application/vnd.api+json' }
+    } );
+
+    await expect( consumeBody( response ) ).resolves.toEqual( { ok: true } );
+  } );
+
+  it( 'returns non-JSON and invalid JSON bodies as text', async () => {
+    const textResponse = new Response( 'plain text', {
+      headers: { 'content-type': 'text/plain' }
+    } );
+    const invalidJsonRequest = new Request( 'https://example.com', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{invalid'
+    } );
+
+    await expect( consumeBody( textResponse ) ).resolves.toBe( 'plain text' );
+    await expect( consumeBody( invalidJsonRequest ) ).resolves.toBe( '{invalid' );
+  } );
+
+  it( 'returns an empty string for an empty JSON body', async () => {
+    const response = new Response( '', {
+      headers: { 'content-type': 'application/json' }
+    } );
+
+    await expect( consumeBody( response ) ).resolves.toBe( '' );
+  } );
+
+  it.each( [
+    'text/html; charset=utf-8',
+    'application/xml',
+    'application/atom+xml; charset=utf-8',
+    'application/x-www-form-urlencoded',
+    'application/javascript'
+  ] )( 'returns %s bodies as text', async contentType => {
+    const response = new Response( 'a=1', { headers: { 'content-type': contentType } } );
+
+    await expect( consumeBody( response ) ).resolves.toBe( 'a=1' );
+  } );
+
+  it.each( [
+    'application/octet-stream',
+    'application/jsonx',
+    'application/xmlx',
+    'multipart/form-data; boundary=x',
+    'image/png'
+  ] )( 'returns %s bodies as base64', async contentType => {
+    const response = new Response( bytes, { headers: { 'content-type': contentType } } );
+
+    await expect( consumeBody( response ) ).resolves.toBe( base64 );
+  } );
+
+  it( 'returns base64 when the content-type header is missing', async () => {
+    const response = new Response( bytes );
+
+    await expect( consumeBody( response ) ).resolves.toBe( base64 );
   } );
 } );
 

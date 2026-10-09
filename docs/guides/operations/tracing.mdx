@@ -13,7 +13,7 @@ Each traced workflow execution produces a trace tree. The root is the workflow, 
 
 - **Steps and evaluators** — input, output (or error), start/end timestamps. A step that is retried appears once per attempt, as sibling nodes, each with its own input, output or error, timing, and children;
 - **LLM calls** - the loaded prompt (`name`, `fileDir`, `variables`, rendered config/messages), the result, raw token usage, and normalized usage/cost attributes. Text calls also include merged `sources`; image calls do not;
-- **HTTP calls** — method, URL, status code. Requests made with `@outputai/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
+- **HTTP calls** — method, URL, status code. Requests made with `@outputai/core/http` appear as `http` events; workflow `sendHttpRequest` calls appear as internal activities;
 - **Internal activities** — Output-managed activities such as trace destination lookup and workflow HTTP requests;
 - **Child workflows** — nested as their own trees with the same structure
 
@@ -62,7 +62,7 @@ OUTPUT_AWS_SECRET_ACCESS_KEY=...
 | `OUTPUT_AWS_ACCESS_KEY_ID` | Remote tracing | AWS access key |
 | `OUTPUT_AWS_SECRET_ACCESS_KEY` | Remote tracing | AWS secret key |
 | `OUTPUT_TRACE_HOST_PATH` | Docker setups | Host path where trace files are mounted. The worker writes inside the container; this tells the API and CLI what path to report so you can open files on the host |
-| `OUTPUT_TRACE_HTTP_VERBOSE` | HTTP client tracing | Set to `true` or `1` to include request/response headers and bodies for `@outputai/http` trace events. Headers are redacted by header name, but bodies are recorded as-is. |
+| `OUTPUT_TRACE_HTTP_VERBOSE` | HTTP client tracing | Set to `true` or `1` to include request/response headers and bodies for `@outputai/core/http` trace events. Headers are redacted by header name, but bodies are recorded as-is. |
 
 ### AWS Credential Permissions
 

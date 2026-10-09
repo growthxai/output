@@ -1,3 +1,4 @@
+/** Payload of the `http:request` event */
 export type HttpRequestEvent = {
   requestId: string;
   method: string;
@@ -7,6 +8,7 @@ export type HttpRequestEvent = {
   outcome: 'success' | 'error' | 'failure';
 };
 
+/** Payload of the `cost:http:request` event */
 export type HttpRequestCostEvent = {
   type: 'http:request:cost';
   requestId: string;
@@ -15,9 +17,10 @@ export type HttpRequestCostEvent = {
 };
 
 export { outputFetch } from './fetch/index.js';
+export { HTTPRequestCount } from './fetch/logger.js';
 export { createKyClient } from './ky/index.js';
 
-export { addRequestCost } from './cost.js';
+export { addRequestCost, HTTPRequestCost } from './cost.js';
 
 /** Re-export ky library for convenience. */
 export * as ky from 'ky';

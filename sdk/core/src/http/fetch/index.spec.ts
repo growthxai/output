@@ -37,7 +37,7 @@ vi.mock( './logger.js', () => ( {
   logError: loggerMock.logError,
   logFailure: loggerMock.logFailure
 } ) );
-vi.mock( './utils.js', () => ( {
+vi.mock( '../request_tag.js', () => ( {
   addRequestIdToResponse: utilsMock.addRequestIdToResponse
 } ) );
 vi.mock( './events.js', () => ( {

@@ -1,23 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { logRequest, logResponse, logError, logFailure } from './logger.js';
 import { emitSuccess, emitError, emitFailure } from './events.js';
-import { addRequestIdToResponse } from './utils.js';
+import { addRequestIdToResponse } from '../request_tag.js';
 import * as undici from 'undici';
 
 /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const customDispatcher = new undici.EnvHttpProxyAgent( { allowH2: false } );
 
-type NodeRequestInfo = string | URL | globalThis.Request;
-type NodeRequestInit = globalThis.RequestInit & Pick<undici.RequestInit, 'dispatcher'>;
-type OutputRequestInfo = NodeRequestInfo | undici.RequestInfo;
-type OutputRequestInit = NodeRequestInit | undici.RequestInit;
-
-type OutputFetch = {
-  ( input: NodeRequestInfo, init?: NodeRequestInit ): Promise<Response>;
-  ( input: undici.RequestInfo, init?: undici.RequestInit ): Promise<Response>;
-};
-
-const createUndiciRequest = ( input: OutputRequestInfo, init?: OutputRequestInit ): undici.Request => {
+const createUndiciRequest = ( input, init ) => {
   const isNodeRequest = input instanceof globalThis.Request;
   const hasNodeFormData = init?.body instanceof globalThis.FormData;
   const isUndiciRequest = input instanceof undici.Request;
@@ -28,31 +18,22 @@ const createUndiciRequest = ( input: OutputRequestInfo, init?: OutputRequestInit
   }
 
   if ( !isNodeRequest && !hasNodeFormData ) {
-    return new undici.Request( input as undici.RequestInfo, init as undici.RequestInit );
+    return new undici.Request( input, init );
   }
 
-  const request = new globalThis.Request( input as NodeRequestInfo, init as globalThis.RequestInit );
-  return new undici.Request( request.url, request as unknown as undici.RequestInit );
+  const request = new globalThis.Request( input, init );
+  return new undici.Request( request.url, request );
 };
 
 /**
  * A fetch compliant function, that wraps undici's fetch.
  *
- * Behaves the same as any fetch function except:
- * - Sets a request header called `x-request-trace-id` with a random UUID;
- * - Sends the request, response, error and/or failure to the Trace system;
- * - Emits a `http:request` event on every call (success, error, failure).
- *
- * @see {@link https://fetch.spec.whatwg.org/}
- * @param input - URL string, URL object or Request object (undici's or Node's)
- * @param init - Request options
- * @returns The HTTP response
+ * @param {RequestInfo} input - URL string, URL object or Request object (undici's or Node's)
+ * @param {RequestInit} [init] - Request options
+ * @returns {Promise<Response>} The HTTP response
  */
-export const outputFetch: OutputFetch = async (
-  input: OutputRequestInfo,
-  init?: OutputRequestInit
-): Promise<Response> => {
-  const { dispatcher: inputDispatcher, ...requestInit } = ( init ?? {} ) as undici.RequestInit;
+export const outputFetch = async ( input, init ) => {
+  const { dispatcher: inputDispatcher, ...requestInit } = init ?? {};
 
   // Creates a Request object with the many shapes RequestInfo can have
   const base = createUndiciRequest( input, requestInit );

@@ -43,7 +43,7 @@ Designing Output SDK workflow architecture and structure.
 
 Planning step functions that handle all I/O operations.
 
-- HTTP client integrations using `@outputai/http`
+- HTTP client integrations using `@outputai/core/http`
 - Credentials management using `@outputai/core/credentials`
 - LLM operations using `@outputai/llm`
 - Error handling with FatalError and ValidationError
@@ -172,7 +172,7 @@ Delegate to these specialized agents when appropriate:
 import { z } from '@outputai/core';
 
 // HTTP clients - NEVER use axios
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 // LLM operations - NEVER call providers directly
 import { generateText, aiSdk } from '@outputai/llm';
@@ -205,7 +205,7 @@ The workflow `fn` must be deterministic:
 ```
 src/
 ├── shared/                          # Shared code across workflows
-│   ├── clients/                     # API clients (using @outputai/http)
+│   ├── clients/                     # API clients (using @outputai/core/http)
 │   ├── utils/                       # Utility functions & helpers
 │   ├── services/                    # Business logic services
 │   ├── steps/                       # Shared steps (optional)

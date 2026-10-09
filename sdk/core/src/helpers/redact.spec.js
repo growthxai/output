@@ -29,38 +29,38 @@ describe( 'redactUrl', () => {
 
 describe( 'redactHeaders', () => {
   it( 'redacts sensitive header names', () => {
-    const result = redactHeaders( {
+    const result = redactHeaders( new Headers( {
       Authorization: 'Bearer token',
       'X-Api-Key': 'api-key',
       Cookie: 'session=id',
       'x-client-secret': 'secret'
-    } );
+    } ) );
 
     expect( result ).toEqual( {
-      Authorization: '[REDACTED]',
-      'X-Api-Key': '[REDACTED]',
-      Cookie: '[REDACTED]',
+      authorization: '[REDACTED]',
+      'x-api-key': '[REDACTED]',
+      cookie: '[REDACTED]',
       'x-client-secret': '[REDACTED]'
     } );
   } );
 
   it( 'preserves non-sensitive header names and ignored false positives', () => {
-    const result = redactHeaders( {
+    const result = redactHeaders( new Headers( {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'x-csrf-token': 'csrf-token',
       'public-key-pins': 'pin'
-    } );
+    } ) );
 
     expect( result ).toEqual( {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
+      accept: 'application/json',
+      'content-type': 'application/json',
       'x-csrf-token': 'csrf-token',
       'public-key-pins': 'pin'
     } );
   } );
 
   it( 'handles empty headers', () => {
-    expect( redactHeaders( {} ) ).toEqual( {} );
+    expect( redactHeaders( new Headers() ) ).toEqual( {} );
   } );
 } );
