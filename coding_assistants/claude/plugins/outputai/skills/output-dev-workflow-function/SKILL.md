@@ -281,10 +281,26 @@ fn: async input => {
 }
 ```
 
+### Child Workflows
+
+Invoke another workflow by calling it like a function. It runs as a child workflow and inherits the parent's trace, activity options and search attributes:
+
+```typescript
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+
+fn: async input => {
+  const company = await enrichCompanyWorkflow( { domain: input.domain } );
+  return company;
+}
+```
+
+Pass activity options as the second argument: `await enrichCompanyWorkflow( input, { activityOptions: { retry: { maximumAttempts: 1 } } } )`. The options object also accepts `detached` and `context`; see https://docs.output.ai/workflows/child-workflows.
+
 ## What is Allowed in Workflow fn
 
 ### Allowed (Deterministic Operations)
 - Calling step functions
+- Calling other workflows as functions (child workflows)
 - Pure data transformations
 - Conditional logic based on input
 - Array operations (map, filter, reduce)

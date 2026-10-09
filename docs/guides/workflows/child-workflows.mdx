@@ -40,6 +40,10 @@ export default workflow({
 
 The child workflow runs with its own retry boundaries — if `enrich_company` fails and retries, it doesn't affect the parent's execution history.
 
+<Note>
+Calling the workflow as a function is the supported way to run a child workflow. You can also start one with `executeChild` or `startChild` from `@temporalio/workflow`, but those children won't be included in the trace file and won't inherit the parent's search attributes.
+</Note>
+
 ## Invocation Patterns
 
 ```typescript

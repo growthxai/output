@@ -78,6 +78,7 @@ In practice this means:
   <Card title="Do" icon="check">
     **Do:**
     - Call steps and evaluators
+    - Call other workflows as functions
     - Use conditionals and loops
     - Import from allowed files
   </Card>
@@ -86,6 +87,7 @@ In practice this means:
     - Make API calls directly
     - Use `Date.now()` or `Math.random()`
     - Import component files from wrong locations
+    - Start child workflows with `executeChild` or `startChild` (they work, but won't appear in the trace file)
   </Card>
 </CardGroup>
 
@@ -106,6 +108,15 @@ Workflows can import from:
 **Non-component files (any name or organization):**
 - Type definitions, constants, helpers, utilities
 - API clients from `src/clients/`
+
+**Other workflows:**
+- Import another workflow's default export and call it like a function. It runs as a child workflow with its own retry boundaries. See [Child Workflows](/workflows/child-workflows).
+
+```typescript
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+
+const company = await enrichCompanyWorkflow({ domain: input.domain });
+```
 
 ## Project Structure
 

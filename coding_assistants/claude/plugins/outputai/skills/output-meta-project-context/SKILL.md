@@ -22,7 +22,7 @@ This separation enables automatic retries, resumption, and debugging.
 
 | Component | Purpose | Key Rule |
 |-----------|---------|----------|
-| **Workflow** | Orchestrates step execution | Must be deterministic (no I/O, no Date.now(), no Math.random()) |
+| **Workflow** | Orchestrates step execution | Must be deterministic (no I/O, no Date.now(), no Math.random()). Call other workflows as functions (`await otherWorkflow( input )`) to run them as child workflows; never use `executeChild` or `startChild` from `@temporalio/workflow` |
 | **Step** | Handles all I/O operations | Where HTTP, LLM, DB calls happen |
 | **Evaluator** | Quality assessment | Returns confidence-scored results for validation loops |
 | **Scenario** | Test input data | JSON files matching workflow's inputSchema |
@@ -71,6 +71,7 @@ src/
 **Allowed imports:**
 - Workflows/steps can import from `../../shared/clients/*.js` and `../../shared/utils/*.js`
 - Workflows/steps can import from local files (`./types.js`, `./utils.js`)
+- Workflows can import another workflow's default export (`../other_workflow/workflow.js`) and call it as a function (child workflow)
 
 **Forbidden:**
 - Importing from sibling workflow folders (`../other_workflow/steps.js`)
