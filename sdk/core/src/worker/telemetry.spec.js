@@ -4,8 +4,10 @@ const configMock = vi.hoisted( () => ( { workerTelemetryIntervalMs: 0 } ) );
 const logMock = vi.hoisted( () => ( { info: vi.fn(), warn: vi.fn() } ) );
 const createChildLoggerMock = vi.hoisted( () => vi.fn( () => logMock ) );
 const getHeapStatisticsMock = vi.hoisted( () => vi.fn( () => ( { heap_size_limit: 4_000 } ) ) );
+const totalmemMock = vi.hoisted( () => vi.fn( () => 10_000 ) );
 
 vi.mock( 'node:v8', () => ( { getHeapStatistics: getHeapStatisticsMock } ) );
+vi.mock( 'node:os', () => ( { totalmem: totalmemMock } ) );
 
 vi.mock( './configs.js', () => ( {
   get workerTelemetryIntervalMs() {
@@ -75,7 +77,7 @@ describe( 'worker/telemetry', () => {
       status: { runState: 'RUNNING' },
       memory: {
         availableMemory: 1_000,
-        constrainedMemory: 2_000,
+        memoryLimit: 2_000,
         memoryUsage: { rss: 1_200, heapUsed: 300 },
         nonMainHeap: 900,
         heapSizeLimit: 4_000
