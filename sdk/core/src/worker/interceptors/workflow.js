@@ -8,7 +8,6 @@ import { TraceInfo } from '#helpers/trace_info';
 import { FatalError, TransparentFatalError } from '#errors';
 import { serializeError } from '#helpers/error_serializer';
 import { enforceActivityOptions } from '#helpers/activity_options';
-import { inheritableSearchAttributes } from '#helpers/search_attributes';
 
 // these are a dynamic generated file with activity configs overwrites and workflow options
 import activityOptionsMap from '../temp/__activity_options.js';
@@ -35,31 +34,6 @@ class HeadersInjectionInterceptor {
     // Re-enforce framework options after component overrides
     input.options = enforceActivityOptions( input.options );
     return next( input );
-  }
-
-  /*
-    Child workflows started with a raw executeChild have no memo, so they get no traceInfo and are not traced.
-    Fill in the parent's trace context, activity options and search attributes, without overwriting what the caller set.
-    Memo is merged per key. Search attributes are all-or-nothing: if the caller sets searchAttributes or
-    typedSearchAttributes (even empty), nothing is inherited.
-  */
-  async startChildWorkflowExecution( input, next ) {
-    const { memo: parentMemo, searchAttributes: parentSearchAttributes } = workflowInfo();
-    const { traceInfo, activityOptions } = parentMemo ?? {};
-    const callerSetSearchAttributes = input.options?.searchAttributes ?? input.options?.typedSearchAttributes;
-    const searchAttributes = callerSetSearchAttributes ? undefined : inheritableSearchAttributes( parentSearchAttributes );
-    return next( {
-      ...input,
-      options: {
-        ...input.options,
-        memo: {
-          ...( traceInfo && { traceInfo } ),
-          ...( activityOptions && { activityOptions } ),
-          ...input.options?.memo
-        },
-        ...( searchAttributes && { searchAttributes } )
-      }
-    } );
   }
 };
 
