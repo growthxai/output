@@ -294,7 +294,7 @@ fn: async input => {
 }
 ```
 
-Pass activity options as the second argument: `await enrichCompanyWorkflow( input, { activityOptions: { retry: { maximumAttempts: 1 } } } )`. The options object also accepts `detached` and `context`; see `docs/guides/workflows/child-workflows.mdx`.
+Pass activity options as the second argument: `await enrichCompanyWorkflow( input, { activityOptions: { retry: { maximumAttempts: 1 } } } )`. The options object also accepts `detached` and `context`; see https://docs.output.ai/workflows/child-workflows.
 
 ## What is Allowed in Workflow fn
 
