@@ -170,6 +170,14 @@ All requests made with `@outputai/core/http` are automatically traced — no con
 
 See [Tracing](/operations/tracing) for details on the trace format.
 
+Each request also gets an `http:request:count` trace attribute, and `addRequestCost` adds an `http:request:cost` one. Their classes, `HTTPRequestCount` and `HTTPRequestCost`, are exported for matching attributes by type:
+
+```typescript
+import { HTTPRequestCost } from '@outputai/core/http';
+
+const isCost = attribute instanceof HTTPRequestCost;
+```
+
 ## Request Events
 
 Every call made through `outputFetch` or a client returned by `createKyClient` emits an **`http:request`** hook event — independent of whether you attach a cost. Subscribe to it with [`on`](/packages/core#hooks) for logging, alerting, or per-vendor metrics:

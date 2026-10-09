@@ -6,7 +6,7 @@
 Folded `@outputai/http` as a feature of `@outputai/core`, under the `@outputai/core/http` entry point. Usage is the same: replace `@outputai/http` imports with `@outputai/core/http`. The `@outputai/http` package is no longer published. Other changes are:
 
 - Added `ky` and `undici` as peer dependencies of `@outputai/core`, and removed `undici` from its regular dependencies.
-- Removed `Attribute.HTTPRequestCount` and `Attribute.HTTPRequestCost` from `@outputai/core/sdk/runtime`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
+- Moved `Attribute.HTTPRequestCount` and `Attribute.HTTPRequestCost` from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
 - Removed `@outputai/http` from `@outputai/output`.
 - Updated the CLI project templates and agent instructions to use `@outputai/core/http`.
 - Changed verbose HTTP tracing (`OUTPUT_TRACE_HTTP_VERBOSE`) to record request and response bodies with the same parsing as `sendHttpRequest()`, so multipart bodies are now stored as base64.

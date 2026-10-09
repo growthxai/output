@@ -12,7 +12,7 @@ Two smaller breaks come with it: `ky` and `undici` are now peer dependencies of 
 - `@outputai/http` is replaced by the `@outputai/core/http` subpath. `outputFetch`, `createKyClient`, `addRequestCost`, and the `ky` and `undici` re-exports are unchanged.
 - `@outputai/output` no longer depends on `@outputai/http`.
 - `ky` (`>=2 <3`) and `undici` (`>=8 <9`) are peer dependencies of `@outputai/core`.
-- `Tracing.Attribute.HTTPRequestCount` and `Tracing.Attribute.HTTPRequestCost` are removed from `@outputai/core/sdk/runtime`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
+- `Tracing.Attribute.HTTPRequestCount` and `Tracing.Attribute.HTTPRequestCost` moved from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
 
@@ -46,9 +46,9 @@ npm install ky@2 undici@8
 
 If your project already depends on `ky` or `undici`, make sure the versions fall in the supported ranges.
 
-### Replace the removed trace attributes
+### Update trace attribute imports
 
-Code that referenced `Tracing.Attribute.HTTPRequestCount` or `Tracing.Attribute.HTTPRequestCost` should match on the attribute type string instead:
+Code that referenced `Tracing.Attribute.HTTPRequestCount` or `Tracing.Attribute.HTTPRequestCost` should import them from `@outputai/core/http`:
 
 ```ts
 // Before
@@ -56,7 +56,8 @@ import { Tracing } from '@outputai/core/sdk/runtime';
 const isCost = attribute instanceof Tracing.Attribute.HTTPRequestCost;
 
 // After
-const isCost = attribute.type === 'http:request:cost';
+import { HTTPRequestCost } from '@outputai/core/http';
+const isCost = attribute instanceof HTTPRequestCost;
 ```
 
 To attach a cost to an HTTP request, keep using `addRequestCost()` from `@outputai/core/http`.
