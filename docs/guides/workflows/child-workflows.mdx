@@ -112,10 +112,6 @@ Activity options are merged from broad defaults to specific overrides:
 
 This lets a parent tune a child workflow branch for the current use case, while step-specific options still protect activities that need stricter behavior, such as activities that should not retry.
 
-### Raw `executeChild`
-
-A child started with `executeChild` from `@temporalio/workflow` is traced like one started through a workflow invocation. When the caller doesn't set them, the framework fills in the parent's trace context, activity options and search attributes. Values you pass in the child's `memo` are kept as given and the parent's trace context and activity options fill only the keys you left out, so `memo: {}` still inherits them. Search attributes are all-or-nothing: if you set `searchAttributes` or `typedSearchAttributes`, even empty, the parent's are not inherited. This applies to `startChild` as well.
-
 ## Lifecycle
 
 When you call a child workflow, you have three choices: wait for it, fire it off and forget about it, or start it without waiting but let it die if the parent dies. Here's the breakdown:

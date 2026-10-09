@@ -283,16 +283,18 @@ fn: async input => {
 
 ### Child Workflows
 
-Call another workflow like a function. It runs as a child workflow and inherits the parent's trace, activity options and search attributes:
+Invoke another workflow by calling it like a function. It runs as a child workflow and inherits the parent's trace, activity options and search attributes:
 
 ```typescript
+import enrichCompanyWorkflow from '../enrich_company/workflow.js';
+
 fn: async input => {
   const company = await enrichCompanyWorkflow( { domain: input.domain } );
   return company;
 }
 ```
 
-A child started with `executeChild` or `startChild` from `@temporalio/workflow` is also traced: the framework fills in the parent's trace context and activity options for the memo keys the caller left out, and the parent's search attributes unless the caller sets `searchAttributes` or `typedSearchAttributes` (even empty).
+Pass activity options as the second argument: `await enrichCompanyWorkflow( input, { activityOptions: { retry: { maximumAttempts: 1 } } } )`.
 
 ## What is Allowed in Workflow fn
 
