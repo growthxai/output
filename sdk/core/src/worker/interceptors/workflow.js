@@ -89,7 +89,6 @@ class WorkflowExecutionInterceptor {
         const unwrappedError = error instanceof TransparentFatalError ? error.cause : error;
         sinks.workflow.error( serializeError( unwrappedError ) );
         throw ApplicationFailure.fromError( unwrappedError, {
-          cause: unwrappedError,
           nonRetryable: true,
           details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
         } );

@@ -273,7 +273,7 @@ describe( 'workflow interceptors', () => {
             code: 'EWORKFLOW'
           }
         } ],
-        cause: err
+        cause: undefined
       } );
       expect( workflowErrorMock ).toHaveBeenCalledWith( expect.objectContaining( {
         name: type,
@@ -300,7 +300,7 @@ describe( 'workflow interceptors', () => {
         message: 'provider rejected request',
         type: 'TypeError',
         nonRetryable: true,
-        cause,
+        cause: undefined,
         details: [ {
           error: {
             name: 'TypeError',
