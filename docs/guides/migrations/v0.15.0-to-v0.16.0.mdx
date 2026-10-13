@@ -112,6 +112,8 @@ The `Worker isolates` record logs a warning instead of info in two cases:
 
 A project that only set `TEMPORAL_MAX_CACHED_WORKFLOWS` below `40` will now see the second warning, because task executions default to `40`. See [Memory and Isolates](/operations/worker-tuning#memory-and-isolates).
 
+A Dockerfile copied from an earlier version of the [Railway](/operations/deployment/railway) or [Render](/operations/deployment/render) guide sets `--max-old-space-size-percentage=80`, which triggers the first warning because the worker runs two isolates by default. Those guides now use `40`.
+
 ### Telemetry field rename
 
 If you enable `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` and parse the periodic `Worker` log, `memory.constrainedMemory` is now `memory.memoryLimit`.
@@ -127,4 +129,5 @@ Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`)
 - Import `HTTPRequestCount` and `HTTPRequestCost` from `@outputai/core/http`.
 - Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
 - Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.
+- Lower `--max-old-space-size-percentage` to `40` if your Dockerfile uses the earlier Railway or Render value of `80`.
 - Rename `memory.constrainedMemory` to `memory.memoryLimit` in anything that parses worker telemetry.
