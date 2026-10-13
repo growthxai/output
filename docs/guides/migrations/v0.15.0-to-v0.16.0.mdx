@@ -1,11 +1,13 @@
 ---
 title: "v0.15.0 → v0.16.0"
-description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http is folded into @outputai/core, ky and undici become peer dependencies, and sendHttpRequest() parses more response bodies as text."
+description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http is folded into @outputai/core, ky and undici become peer dependencies, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
 ---
 
 This guide covers the move of `@outputai/http` into `@outputai/core`. The package is no longer published: its API now lives at `@outputai/core/http`, with the same exports and behavior.
 
 Two smaller breaks come with it: `ky` and `undici` are now peer dependencies of `@outputai/core`, and `sendHttpRequest()` parses some response bodies differently.
+
+Separately, the worker no longer sets defaults for two workflow concurrency variables, and one telemetry field is renamed. See [Worker defaults and telemetry](#worker-defaults-and-telemetry).
 
 ## What changed
 
@@ -79,3 +81,50 @@ Remove any base64 decoding of those content types. If you relied on the error to
 ### Re-check trace file readers
 
 If you parse trace files recorded with `OUTPUT_TRACE_HTTP_VERBOSE` on, request and response bodies now follow the table above, and multipart request bodies are base64 strings.
+
+## Worker defaults and telemetry
+
+No code changes are needed, but the worker behaves differently if you never set its concurrency variables, and one telemetry field is renamed.
+
+### Workflow concurrency defaults
+
+The worker no longer sets defaults for these two variables. When they are unset, `@temporalio/worker` applies its own:
+
+| Variable | v0.15.0 | v0.16.0 |
+|----------|---------|---------|
+| `TEMPORAL_MAX_CACHED_WORKFLOWS` | `1000` | Sized from the isolate's heap limit |
+| `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` | `200` | `40` |
+
+The cache size is `(heap limit in MiB - 200) * 600 / 1024`, with a minimum of 10. With `--max-old-space-size=4096` that is about 2,400 cached workflows. The formula assumes roughly 600 cached workflows per GB of heap, so if your workflows hold large inputs, outputs, or step results, set `TEMPORAL_MAX_CACHED_WORKFLOWS` explicitly.
+
+If you relied on 200 concurrent workflow tasks, set `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=200`. Keep it at or below `TEMPORAL_MAX_CACHED_WORKFLOWS`.
+
+The resolved values are logged at startup in the `Worker isolates` record, as `maxCachedWorkflows` and `workflowTaskSlots`.
+
+### New startup warnings
+
+The `Worker isolates` record logs a warning instead of info in two cases:
+
+| Warning | Cause | Fix |
+|---------|-------|-----|
+| `Worker isolates may commit more heap than the host allows` | The heap limit times the isolate count exceeds the container's memory limit, or the machine's when there is no container. A `NODE_OPTIONS` heap cap applies to each isolate, and the worker runs one on its main thread plus one per workflow thread. | Lower the `NODE_OPTIONS` heap cap so the isolate count times the cap fits. |
+| `Worker runs more workflow tasks than it can cache, forcing replays` | `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` resolves above `TEMPORAL_MAX_CACHED_WORKFLOWS`. | Lower the task executions or raise the cache. |
+
+A project that only set `TEMPORAL_MAX_CACHED_WORKFLOWS` below `40` will now see the second warning, because task executions default to `40`. See [Memory and Isolates](/operations/worker-tuning#memory-and-isolates).
+
+### Telemetry field rename
+
+If you enable `OUTPUT_WORKER_TELEMETRY_INTERVAL_MS` and parse the periodic `Worker` log, `memory.constrainedMemory` is now `memory.memoryLimit`.
+
+The old field reported `process.constrainedMemory()` directly, which returns a sentinel near 2^64 when the process has no memory limit. `memoryLimit` reports the container's limit, or the machine's total memory when there is none.
+
+Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`) and `memory.heapSizeLimit`.
+
+## Checklist
+
+- Replace `@outputai/http` imports and mocks with `@outputai/core/http`, and remove the dependency.
+- Install `ky@2` and `undici@8` if your package manager does not install peer dependencies.
+- Import `HTTPRequestCount` and `HTTPRequestCost` from `@outputai/core/http`.
+- Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
+- Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.
+- Rename `memory.constrainedMemory` to `memory.memoryLimit` in anything that parses worker telemetry.

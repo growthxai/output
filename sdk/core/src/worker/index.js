@@ -1,5 +1,5 @@
 import { Worker, NativeConnection } from '@temporalio/worker';
-import * as configs from './configs.js';
+import { address, apiKey, namespace, taskQueue, grpcProxy, hookFlushTimeoutMs } from './configs.js';
 import { loadActivities } from './loader/activities.js';
 import { loadWorkflows } from './loader/workflows.js';
 import { loadHooks } from './loader/hooks.js';
@@ -24,28 +24,11 @@ import { setupTemporalLogger } from './temporal_logger.js';
 import { WorkerRunner } from './worker_runner.js';
 import { shutdownServices } from './shutdown.js';
 import { init as initCredentials } from '#credentials/init';
+import { buildWorkerOptions } from './worker_options.js';
 
 import './log_hooks.js';
 
 const log = createChildLogger( 'Worker' );
-
-const {
-  address,
-  apiKey,
-  namespace,
-  taskQueue,
-  grpcProxy,
-  maxConcurrentWorkflowTaskExecutions,
-  maxConcurrentActivityTaskExecutions,
-  maxCachedWorkflows,
-  maxConcurrentActivityTaskPolls,
-  maxConcurrentWorkflowTaskPolls,
-  workflowThreadPoolSize,
-  shutdownForceTime,
-  shutdownGraceTime,
-  hookFlushTimeoutMs,
-  workerTuner
-} = configs;
 
 const services = {
   connection: null,
@@ -114,36 +97,17 @@ const execute = async () => {
   await run( () => services.catalogPublisher.run() );
 
   log.info( 'Creating Temporal worker...' );
-  const worker = await run( () => {
-    if ( workerTuner ) {
-      log.info( 'Using worker tuner options', { ...workerTuner } );
-    }
-
-    return Worker.create( {
-      connection,
-      namespace,
-      taskQueue,
-      workflowsPath,
-      activities,
-      sinks,
-      interceptors: initInterceptors( { activities, workflows } ),
-      // tuner isn't compatible with concurrent task executions configs
-      ...( workerTuner ? {
-        tuner: workerTuner
-      } : {
-        ...( maxConcurrentWorkflowTaskExecutions !== undefined && { maxConcurrentWorkflowTaskExecutions } ),
-        maxConcurrentActivityTaskExecutions
-      } ),
-      ...( maxCachedWorkflows !== undefined && { maxCachedWorkflows } ),
-      maxConcurrentActivityTaskPolls,
-      maxConcurrentWorkflowTaskPolls,
-      bundlerOptions: { webpackConfigHook },
-      // Omitted when unset so @temporalio/worker applies its own default, which depends on reuseV8Context.
-      ...( workflowThreadPoolSize !== undefined && { workflowThreadPoolSize } ),
-      ...( shutdownForceTime !== undefined && { shutdownForceTime } ),
-      ...( shutdownGraceTime !== undefined && { shutdownGraceTime } )
-    } );
-  } );
+  const worker = await run( () => Worker.create( {
+    connection,
+    namespace,
+    taskQueue,
+    workflowsPath,
+    activities,
+    sinks,
+    interceptors: initInterceptors( { activities, workflows } ),
+    bundlerOptions: { webpackConfigHook },
+    ...buildWorkerOptions()
+  } ) );
 
   run( () => logIsolateSizing( { worker } ) );
 
