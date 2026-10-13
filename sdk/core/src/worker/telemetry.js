@@ -74,28 +74,26 @@ export const logIsolateSizing = ( { worker } ) => {
   const heapSizeLimit = getHeapStatistics().heap_size_limit;
   const memoryLimit = resolveMemoryLimit();
   const workflowTaskSlots = tuner?.workflowTaskSlotSupplier?.numSlots;
-  const info = {
+  const projectedCommittedHeap = isolateCount * heapSizeLimit;
+
+  log.info( 'Worker sizing', {
     workflowThreadPoolSize,
     reuseV8Context,
     isolateCount,
     heapSizeLimit,
-    projectedCommittedHeap: isolateCount * heapSizeLimit,
+    projectedCommittedHeap,
     memoryLimit,
     maxCachedWorkflows,
     workflowTaskSlots
-  };
+  } );
 
-  if ( info.projectedCommittedHeap > memoryLimit ) {
-    log.warn( 'Worker isolates may commit more heap than the host allows', info );
-    return;
+  if ( projectedCommittedHeap > memoryLimit ) {
+    log.warn( 'Worker isolates may commit more heap than the host allows', { isolateCount, heapSizeLimit, projectedCommittedHeap, memoryLimit } );
   }
 
   if ( workflowTaskSlots > maxCachedWorkflows ) {
-    log.warn( 'Worker runs more workflow tasks than it can cache, forcing replays', info );
-    return;
+    log.warn( 'Worker runs more workflow tasks than it can cache, forcing replays', { workflowTaskSlots, maxCachedWorkflows } );
   }
-
-  log.info( 'Worker isolates', info );
 };
 
 /**

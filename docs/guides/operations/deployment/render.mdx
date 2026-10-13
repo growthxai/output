@@ -414,7 +414,7 @@ Workers scale independently from the API. If workflows are queuing up in Tempora
 
 ### Out of memory errors
 
-1. Read the `Worker isolates` log at startup. It warns when the isolates could together commit more heap than the container allows
+1. Read the `Worker sizing` log at startup. It warns when the isolates could together commit more heap than the container allows
 2. If the container is being killed, lower the `NODE_OPTIONS` percentage or `TEMPORAL_MAX_CACHED_WORKFLOWS`
 3. If Node reports `ERR_WORKER_OUT_OF_MEMORY` while the container has memory to spare, the per-isolate cap is too low - raise the percentage
 4. Upgrade Render plan for more resources

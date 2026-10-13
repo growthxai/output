@@ -25,7 +25,7 @@ const envVarSchema = z.object( {
   /*
   Workflow tasks that may run at once. These are short state transitions, so this is rarely the
   throughput limit - activity concurrency above is. Left unset so @temporalio/worker applies its
-  own default of 40; the startup 'Worker isolates' log reports it as workflowTaskSlots.
+  own default of 40; the startup 'Worker sizing' log reports it as workflowTaskSlots.
   https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxconcurrentworkflowtaskexecutions
   */
   TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().optional() ),
@@ -33,7 +33,7 @@ const envVarSchema = z.object( {
   LRU cache for sticky workflow execution, holding each workflow's state until it completes or is
   evicted. Left unset so @temporalio/worker sizes it from the isolate's heap limit, which a flat
   value here cannot track. That formula assumes roughly 600 cached workflows per GB, so set this
-  where payloads are heavier - the startup 'Worker isolates' log reports what it resolved to.
+  where payloads are heavier - the startup 'Worker sizing' log reports what it resolved to.
   https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#maxcachedworkflows
   */
   TEMPORAL_MAX_CACHED_WORKFLOWS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().optional() ),
@@ -42,7 +42,7 @@ const envVarSchema = z.object( {
   TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS: z.preprocess( coalesceEmptyString, z.coerce.number().int().positive().default( 5 ) ),
   /*
   Threads running workflow sandboxes. Each is a V8 isolate and NODE_OPTIONS heap caps apply per
-  isolate, so this multiplies the heap the process can commit - the startup 'Worker isolates'
+  isolate, so this multiplies the heap the process can commit - the startup 'Worker sizing'
   log reports the total. Left unset so @temporalio/worker picks: 1 with reuseV8Context, 2 without.
   https://typescript.temporal.io/api/interfaces/worker.WorkerOptions#workflowthreadpoolsize
   */

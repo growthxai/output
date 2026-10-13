@@ -4,9 +4,9 @@
 
 Added worker memory sizing diagnostics and deferred the workflow concurrency defaults to `@temporalio/worker`.
 
-### Worker isolates startup log
+### Worker sizing startup log
 
-Added a `Worker isolates` record, logged once at startup with the thread pool size, `reuseV8Context`, the isolate count, the per-isolate heap limit, the heap all isolates could commit together, the host's memory limit, the resolved cache size, and the workflow task slot count.
+Added a `Worker sizing` record, logged once at startup with the thread pool size, `reuseV8Context`, the isolate count, the per-isolate heap limit, the heap all isolates could commit together, the host's memory limit, the resolved cache size, and the workflow task slot count.
 
 Warns when the projected heap exceeds the host's memory limit, and when there are more workflow task slots than cache entries, which causes tasks to evict each other's workflows and forces history replays.
 

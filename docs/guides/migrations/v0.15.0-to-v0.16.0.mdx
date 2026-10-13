@@ -99,11 +99,11 @@ The cache size is `(heap limit in MiB - 200) * 600 / 1024`, with a minimum of 10
 
 If you relied on 200 concurrent workflow tasks, set `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=200`. Keep it at or below `TEMPORAL_MAX_CACHED_WORKFLOWS`.
 
-The resolved values are logged at startup in the `Worker isolates` record, as `maxCachedWorkflows` and `workflowTaskSlots`.
+The resolved values are logged at startup in the `Worker sizing` record, as `maxCachedWorkflows` and `workflowTaskSlots`.
 
 ### New startup warnings
 
-The `Worker isolates` record logs a warning instead of info in two cases:
+After the `Worker sizing` record, the worker logs a warning in either or both of these cases, each with the values it compared:
 
 | Warning | Cause | Fix |
 |---------|-------|-----|

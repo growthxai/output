@@ -40,7 +40,7 @@ A worker runs one V8 isolate on its main thread and one more per workflow thread
 
 A `NODE_OPTIONS` heap cap applies to each isolate separately, not to the process as a whole. On a 4 GB container, `--max-old-space-size-percentage=85` lets every isolate grow to about 3.4 GB, so two isolates can commit well past what the container holds. Size the cap against the isolate count rather than the container.
 
-The worker logs a `Worker isolates` record at startup with the isolate count, the heap limit it resolved, the heap all isolates could commit together, and the container limit. It warns when that projection exceeds the container, and when there are more Workflow Task slots than cached Workflow Executions - in which case tasks evict each other and the worker replays history to recover.
+The worker logs a `Worker sizing` record at startup with the isolate count, the heap limit it resolved, the heap all isolates could commit together, and the container limit. It warns when that projection exceeds the container, and when there are more Workflow Task slots than cached Workflow Executions - in which case tasks evict each other and the worker replays history to recover.
 
 ## Worker Tuner
 

@@ -104,7 +104,7 @@ describe( 'worker/telemetry', () => {
       logIsolateSizing( { worker: createWorker() } );
 
       expect( logMock.warn ).not.toHaveBeenCalled();
-      expect( logMock.info ).toHaveBeenCalledWith( 'Worker isolates', {
+      expect( logMock.info ).toHaveBeenCalledWith( 'Worker sizing', {
         workflowThreadPoolSize: 1,
         reuseV8Context: true,
         isolateCount: 2,
@@ -121,11 +121,14 @@ describe( 'worker/telemetry', () => {
 
       logIsolateSizing( { worker: createWorker() } );
 
-      expect( logMock.info ).not.toHaveBeenCalled();
-      expect( logMock.warn ).toHaveBeenCalledWith(
-        'Worker isolates may commit more heap than the host allows',
-        expect.objectContaining( { projectedCommittedHeap: 8_000, memoryLimit: 2_000 } )
-      );
+      expect( logMock.info ).toHaveBeenCalledWith( 'Worker sizing', expect.any( Object ) );
+      expect( logMock.warn ).toHaveBeenCalledOnce();
+      expect( logMock.warn ).toHaveBeenCalledWith( 'Worker isolates may commit more heap than the host allows', {
+        isolateCount: 2,
+        heapSizeLimit: 4_000,
+        projectedCommittedHeap: 8_000,
+        memoryLimit: 2_000
+      } );
     } );
 
     it( 'falls back to the machine memory when constrainedMemory reports the unconstrained sentinel', async () => {
@@ -134,7 +137,7 @@ describe( 'worker/telemetry', () => {
 
       logIsolateSizing( { worker: createWorker() } );
 
-      expect( logMock.info ).toHaveBeenCalledWith( 'Worker isolates', expect.objectContaining( { memoryLimit: 10_000 } ) );
+      expect( logMock.info ).toHaveBeenCalledWith( 'Worker sizing', expect.objectContaining( { memoryLimit: 10_000 } ) );
     } );
 
     it( 'counts only the main isolate under debugMode', async () => {
@@ -145,7 +148,7 @@ describe( 'worker/telemetry', () => {
 
       expect( logMock.warn ).not.toHaveBeenCalled();
       expect( logMock.info ).toHaveBeenCalledWith(
-        'Worker isolates',
+        'Worker sizing',
         expect.objectContaining( { isolateCount: 1, projectedCommittedHeap: 4_000 } )
       );
     } );
@@ -156,11 +159,32 @@ describe( 'worker/telemetry', () => {
 
       logIsolateSizing( { worker: createWorker( { maxCachedWorkflows: 10 } ) } );
 
-      expect( logMock.info ).not.toHaveBeenCalled();
-      expect( logMock.warn ).toHaveBeenCalledWith(
-        'Worker runs more workflow tasks than it can cache, forcing replays',
-        expect.objectContaining( { maxCachedWorkflows: 10, workflowTaskSlots: 40 } )
-      );
+      expect( logMock.info ).toHaveBeenCalledWith( 'Worker sizing', expect.any( Object ) );
+      expect( logMock.warn ).toHaveBeenCalledOnce();
+      expect( logMock.warn ).toHaveBeenCalledWith( 'Worker runs more workflow tasks than it can cache, forcing replays', {
+        workflowTaskSlots: 40,
+        maxCachedWorkflows: 10
+      } );
+    } );
+
+    it( 'emits both warnings when the heap and the cache are both undersized', async () => {
+      const { logIsolateSizing } = await loadSetupTelemetry();
+
+      logIsolateSizing( { worker: createWorker( { maxCachedWorkflows: 10 } ) } );
+
+      expect( logMock.warn ).toHaveBeenCalledTimes( 2 );
+      expect( logMock.warn ).toHaveBeenCalledWith( 'Worker isolates may commit more heap than the host allows', expect.any( Object ) );
+      expect( logMock.warn ).toHaveBeenCalledWith( 'Worker runs more workflow tasks than it can cache, forcing replays', expect.any( Object ) );
+    } );
+
+    it( 'does not compare slots against the cache when a resource-based tuner sizes them at runtime', async () => {
+      constrainedMemoryMock.mockReturnValue( 9_000 );
+      const { logIsolateSizing } = await loadSetupTelemetry();
+
+      logIsolateSizing( { worker: createWorker( { maxCachedWorkflows: 10, tuner: { workflowTaskSlotSupplier: { type: 'resource-based' } } } ) } );
+
+      expect( logMock.warn ).not.toHaveBeenCalled();
+      expect( logMock.info ).toHaveBeenCalledWith( 'Worker sizing', expect.objectContaining( { workflowTaskSlots: undefined } ) );
     } );
   } );
 } );
