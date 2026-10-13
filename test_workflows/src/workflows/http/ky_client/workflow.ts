@@ -13,7 +13,6 @@ import {
   streamStep,
   successStatusStep,
   timeoutStep,
-  undiciFormDataStep,
   urlEncodedFormStep
 } from './steps.js';
 
@@ -28,7 +27,6 @@ export default workflow( {
     } ),
     urlEncodedForm: z.string(),
     nodeFormData: z.string(),
-    undiciFormData: z.string(),
     successStatus: z.number(),
     clientErrorStatus: z.number(),
     serverErrorStatus: z.number(),
@@ -45,7 +43,6 @@ export default workflow( {
     json: await jsonStep(),
     urlEncodedForm: await urlEncodedFormStep(),
     nodeFormData: await nodeFormDataStep(),
-    undiciFormData: await undiciFormDataStep(),
     successStatus: await successStatusStep(),
     clientErrorStatus: await clientErrorStatusStep(),
     serverErrorStatus: await serverErrorStatusStep(),

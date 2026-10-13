@@ -33,7 +33,7 @@ vi.mock( './events.js', () => ( {
   emitError: vi.fn(),
   emitFailure: vi.fn()
 } ) );
-vi.mock( './utils.js', () => ( {
+vi.mock( '../request_tag.js', () => ( {
   addRequestIdToResponse: vi.fn()
 } ) );
 

@@ -65,7 +65,7 @@ src/
 ## Code Reuse Rules
 
 **Shared directory** (`src/shared/`):
-- `shared/clients/` - API clients using `@outputai/http` for external services
+- `shared/clients/` - API clients using `@outputai/core/http` for external services
 - `shared/utils/` - Helper functions and utilities
 
 **Allowed imports:**
@@ -82,7 +82,7 @@ src/
 | Rule | Correct | Incorrect |
 |------|---------|-----------|
 | Zod import | `import { z } from '@outputai/core'` | `import { z } from 'zod'` |
-| HTTP client | `import { createKyClient } from '@outputai/http'` | `import axios from 'axios'` |
+| HTTP client | `import { createKyClient } from '@outputai/core/http'` | `import axios from 'axios'` |
 | HTTP bodies | Read with `.json()`/`.text()` or cancel unused non-HEAD bodies | Read only `response.url`/`status` and leave body open |
 | Cost tracking | `addRequestCost` in an `afterResponse` hook for paid APIs | Cost left untracked, or tracked only at call sites |
 | Credentials | `import { credentials } from '@outputai/core/credentials'` | `process.env.SECRET` |
@@ -149,7 +149,7 @@ src/
 | `output-error-try-catch` | Workflow try/catch patterns and typed step-error checks |
 | `output-error-missing-schemas` | Incomplete Zod schema exports |
 | `output-error-direct-io` | I/O operations in workflow files |
-| `output-error-http-client` | Using axios instead of @outputai/http |
+| `output-error-http-client` | Using axios instead of @outputai/core/http |
 
 #### Meta/Lifecycle
 | Skill | Purpose |
@@ -279,7 +279,7 @@ See `output-dev-workflow-function` for comprehensive patterns.
 ### Step Pattern
 ```typescript
 import { step, z } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 export const fetchData = step(
   { name: 'fetchData', inputSchema: z.string(), outputSchema: z.any() },
@@ -300,7 +300,7 @@ Clients live in `src/shared/clients/` and are shared across all workflows.
 ```typescript
 // src/shared/clients/example.ts
 import { FatalError, ValidationError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const API_KEY = credentials.require( 'example.api_key' );

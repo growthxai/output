@@ -8,7 +8,7 @@ allowed-tools: [Bash, Read]
 
 ## Overview
 
-This skill helps diagnose and fix issues caused by using axios, fetch, or other HTTP clients directly instead of Output SDK's `createKyClient` from `@outputai/http`. The Output SDK client provides tracing, automatic retries, and better error handling.
+This skill helps diagnose and fix issues caused by using axios, fetch, or other HTTP clients directly instead of Output SDK's `createKyClient` from `@outputai/core/http`. The Output SDK client provides tracing, automatic retries, and better error handling.
 
 ## When to Use This Skill
 
@@ -59,13 +59,13 @@ export const fetchData = step( {
 
 ## Solution
 
-Use `createKyClient` from `@outputai/http`:
+Use `createKyClient` from `@outputai/core/http`:
 
 ### Basic Usage
 
 ```typescript
 import { z, step } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 export const fetchData = step( {
   name: 'fetchData',
@@ -89,7 +89,7 @@ export const fetchData = step( {
 ### With Full Configuration
 
 ```typescript
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( {
   prefix: 'https://api.example.com',
@@ -202,7 +202,7 @@ export const createUser = step( {
 
 ```typescript
 import { z, step } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 export const createUser = step( {
@@ -243,7 +243,7 @@ export const createUser = step( {
 The Ky client provides structured error handling:
 
 ```typescript
-import { createKyClient, ky } from '@outputai/http';
+import { createKyClient, ky } from '@outputai/core/http';
 
 export const fetchData = step( {
   name: 'fetchData',
@@ -273,7 +273,7 @@ A client wraps a paid third-party API, but its calls never show up in the `API C
 
 ### Root Cause
 
-`npx output workflow cost` only knows about HTTP spend that was explicitly attached with `addRequestCost` from `@outputai/http`. Tracing a request is automatic; costing it is not — a client that never calls `addRequestCost` will trace correctly and cost nothing, which is expected for free/internal services but a bug for paid ones.
+`npx output workflow cost` only knows about HTTP spend that was explicitly attached with `addRequestCost` from `@outputai/core/http`. Tracing a request is automatic; costing it is not — a client that never calls `addRequestCost` will trace correctly and cost nothing, which is expected for free/internal services but a bug for paid ones.
 
 ### Solution
 
@@ -284,7 +284,7 @@ Attach cost inside an `afterResponse` hook on the client so every call is costed
 const client = createKyClient( { prefix: 'https://api.service.com' } );
 
 // CORRECT: cost attached automatically for every call
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( {
   prefix: 'https://api.service.com',

@@ -1,43 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Request, Response } from 'undici';
 
-vi.mock( '@outputai/core/sdk/runtime', () => {
-  class HTTPRequestCount {
-    static TYPE = 'http:request:count';
-
-    type = HTTPRequestCount.TYPE;
-
-    constructor( url, requestId ) {
-      this.url = url;
-      this.requestId = requestId;
-    }
-  }
-
-  return {
-    Tracing: {
-      addEventStart: vi.fn(),
-      addEventEnd: vi.fn(),
-      addEventError: vi.fn(),
-      addEventAttribute: vi.fn(),
-      Attribute: {
-        HTTPRequestCount
-      }
-    }
-  };
+vi.mock( '#tracing', async () => {
+  const { EventAction } = await import( '../../tracing/trace_consts.js' );
+  return { EventAction, addEventActionWithContext: vi.fn() };
 } );
 
-import { Tracing } from '@outputai/core/sdk/runtime';
+import { addEventActionWithContext, EventAction } from '#tracing';
 import { config } from '../config.js';
-import { logError, logFailure, logRequest, logResponse } from './logger.js';
+import { HTTPRequestCount, logError, logFailure, logRequest, logResponse } from './logger.js';
 
-const tracing = vi.mocked( Tracing, true );
+const send = vi.mocked( addEventActionWithContext );
 
 beforeEach( () => {
   config.logVerbose = false;
-  tracing.addEventStart.mockClear();
-  tracing.addEventEnd.mockClear();
-  tracing.addEventError.mockClear();
-  tracing.addEventAttribute.mockClear();
+  send.mockClear();
 } );
 
 describe( 'instrumented_fetch/logger', () => {
@@ -47,7 +24,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logRequest( { requestId: 'request-1', request } );
 
-      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.START, {
         id: 'request-1',
         kind: 'http',
         name: 'request',
@@ -56,13 +33,14 @@ describe( 'instrumented_fetch/logger', () => {
           url: 'https://example.com/users'
         }
       } );
-      expect( tracing.addEventAttribute ).toHaveBeenCalledWith( {
-        eventId: 'request-1',
-        attribute: expect.objectContaining( {
-          type: 'http:request:count',
-          url: 'https://example.com/users',
-          requestId: 'request-1'
-        } )
+      expect( send ).toHaveBeenCalledWith( EventAction.ADD_ATTR, {
+        id: 'request-1',
+        details: expect.any( HTTPRequestCount )
+      } );
+      expect( send.mock.calls[1][1].details ).toMatchObject( {
+        type: 'http:request:count',
+        url: 'https://example.com/users',
+        requestId: 'request-1'
       } );
     } );
 
@@ -80,7 +58,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logRequest( { requestId: 'request-verbose', request } );
 
-      expect( tracing.addEventStart ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.START, {
         id: 'request-verbose',
         kind: 'http',
         name: 'request',
@@ -108,7 +86,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logError( { requestId: 'request-error', response } );
 
-      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.ERROR, {
         id: 'request-error',
         details: {
           status: 503,
@@ -130,7 +108,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logError( { requestId: 'request-error', response } );
 
-      expect( tracing.addEventError ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.ERROR, {
         id: 'request-error',
         details: {
           status: 503,
@@ -155,7 +133,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logResponse( { requestId: 'request-response', response } );
 
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.END, {
         id: 'request-response',
         details: {
           status: 200,
@@ -177,7 +155,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       await logResponse( { requestId: 'request-response-verbose', response } );
 
-      expect( tracing.addEventEnd ).toHaveBeenCalledWith( {
+      expect( send ).toHaveBeenCalledWith( EventAction.END, {
         id: 'request-response-verbose',
         details: {
           status: 201,
@@ -198,7 +176,7 @@ describe( 'instrumented_fetch/logger', () => {
 
       logFailure( { requestId: 'request-failure', error } );
 
-      expect( tracing.addEventError ).toHaveBeenCalledWith( { id: 'request-failure', details: error } );
+      expect( send ).toHaveBeenCalledWith( EventAction.ERROR, { id: 'request-failure', details: error } );
     } );
   } );
 } );

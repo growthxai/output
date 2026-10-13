@@ -1,4 +1,4 @@
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 export interface JinaReaderResponse {
   code: number;

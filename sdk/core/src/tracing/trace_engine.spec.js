@@ -192,7 +192,7 @@ describe( 'tracing/trace_engine', () => {
     const { Attribute } = await import( './trace_attribute.js' );
     await init();
 
-    const attribute = new Attribute.HTTPRequestCount( 'https://example.test', 'req-1' );
+    const attribute = new Attribute.BaseAttribute( 'http:request:count' );
     addEventActionWithContext( EventAction.ADD_ATTR, { kind: 'http', name: 'request', id: 'req-1', details: attribute } );
 
     expect( localExecMock ).toHaveBeenCalledTimes( 1 );

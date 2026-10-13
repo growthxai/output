@@ -30,6 +30,10 @@
     "./credentials": {
       "types": "./dist/credentials/index.d.ts",
       "import": "./dist/credentials/index.js"
+    },
+    "./http": {
+      "types": "./src/http/index.d.ts",
+      "import": "./src/http/index.js"
     }
   },
   "files": [
@@ -67,15 +71,18 @@
     "json-stream-stringify": "3.1.7",
     "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
-    "undici": "catalog:",
     "winston": "catalog:"
   },
   "peerDependencies": {
-    "zod": ">=4.3 <5"
+    "zod": ">=4.3 <5",
+    "ky": ">=2 <3",
+    "undici": ">=8 <9"
   },
   "devDependencies": {
     "@types/js-yaml": "catalog:",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "ky": "catalog:",
+    "undici": "catalog:"
   },
   "license": "Apache-2.0",
   "publishConfig": {
@@ -87,6 +94,7 @@
     "#credentials/*": "./dist/credentials/*.js",
     "#errors": "./src/errors.js",
     "#logger": "./src/logger/index.js",
+    "#runtime_logger": "./src/interface/logger.js",
     "#hooks/*": "./src/hooks/*.js",
     "#helpers/*": "./src/helpers/*.js",
     "#tracing": "./src/tracing/internal_interface.js",

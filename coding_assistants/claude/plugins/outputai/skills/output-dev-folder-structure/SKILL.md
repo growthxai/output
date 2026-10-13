@@ -22,7 +22,7 @@ This skill documents the standard folder structure for Output SDK workflows. Fol
 ```
 src/
 ├── shared/                          # Shared code across workflows
-│   ├── clients/                     # API clients (using @outputai/http)
+│   ├── clients/                     # API clients (using @outputai/core/http)
 │   ├── utils/                       # Utility functions & helpers
 │   ├── services/                    # Business logic services
 │   ├── steps/                       # Shared steps (optional)

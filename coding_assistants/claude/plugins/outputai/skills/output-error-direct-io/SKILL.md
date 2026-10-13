@@ -89,7 +89,7 @@ export default workflow( {
 
 ```typescript
 import { z, step, workflow } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 // Create a step for the I/O operation
 export const fetchData = step( {

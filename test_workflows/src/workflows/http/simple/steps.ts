@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { addRequestCost, createKyClient } from '@outputai/http';
+import { addRequestCost, createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( {
   prefix: 'https://httpbin.io',

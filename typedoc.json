@@ -4,7 +4,7 @@
     "./sdk/core/src/index.d.ts",
     "./sdk/core/src/credentials/index.ts",
     "./sdk/evals/src/index.ts",
-    "./sdk/http/src/index.ts",
+    "./sdk/core/src/http/index.d.ts",
     "./sdk/core/src/sdk/runtime/index.d.ts",
     "./sdk/core/src/temporal/index.d.ts",
     "./sdk/core/src/sdk/helpers/index.d.ts",

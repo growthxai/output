@@ -112,9 +112,9 @@ fn: async input => {
 
 ### HTTP Client Usage
 
-Never use axios directly. Use `@outputai/http`:
+Never use axios directly. Use `@outputai/core/http`:
 ```typescript
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 const client = createKyClient( {
   prefix: 'https://api.example.com',
@@ -285,7 +285,7 @@ When reviewing evaluator implementations:
 **Agent**: Check that you're importing `z` from `@outputai/core`, not `zod`. Different `z` instances create incompatible schemas.
 
 **User**: "How do I make an HTTP request in my workflow?"
-**Agent**: Create a step that uses `@outputai/http`. Never make HTTP calls directly in the workflow function.
+**Agent**: Create a step that uses `@outputai/core/http`. Never make HTTP calls directly in the workflow function.
 
 ---
 *This agent specializes in Output SDK implementation best practices and code quality.*

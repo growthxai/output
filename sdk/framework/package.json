@@ -10,7 +10,6 @@
     "@outputai/cli": "workspace:",
     "@outputai/core": "workspace:",
     "@outputai/evals": "workspace:",
-    "@outputai/http": "workspace:",
     "@outputai/llm": "workspace:"
   },
   "license": "Apache-2.0",

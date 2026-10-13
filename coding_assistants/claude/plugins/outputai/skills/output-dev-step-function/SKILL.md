@@ -93,8 +93,8 @@ import { z } from 'zod';
 ### HTTP Client Import
 
 ```typescript
-// CORRECT - Use @outputai/http wrapper
-import { createKyClient } from '@outputai/http';
+// CORRECT - Use @outputai/core/http wrapper
+import { createKyClient } from '@outputai/core/http';
 
 // WRONG - Never use axios directly
 import axios from 'axios';
@@ -129,7 +129,7 @@ import { InputSchema, OutputSchema } from './types';
 
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { generateText, aiSdk } from '@outputai/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
@@ -194,7 +194,7 @@ fn: async input => {
 ### Creating an HTTP Client
 
 ```typescript
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { FatalError, ValidationError } from '@outputai/core';
 
 const RETRY_STATUS_CODES = [ 408, 429, 500, 502, 503, 504 ];
@@ -433,7 +433,7 @@ Based on a real workflow step:
 
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { generateText, aiSdk } from '@outputai/llm';
 
 import { GeminiImageService } from '../../shared/clients/gemini_client.js';
@@ -590,7 +590,7 @@ fn: async input => {
 ## Verification Checklist
 
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
-- [ ] `createKyClient` imported from `@outputai/http` (not axios)
+- [ ] `createKyClient` imported from `@outputai/core/http` (not axios)
 - [ ] `generateText` and `aiSdk` imported from `@outputai/llm` (not direct provider)
 - [ ] Structured output uses `aiSdk.Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
 - [ ] Schemas for `aiSdk.Output.object()` are defined in `types.ts` and imported, not inline

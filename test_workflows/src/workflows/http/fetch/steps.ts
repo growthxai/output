@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { outputFetch, undici } from '@outputai/http';
+import { outputFetch, undici } from '@outputai/core/http';
 
 const HTTPBIN = 'https://httpbin.io';
 

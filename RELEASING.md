@@ -11,7 +11,6 @@ This monorepo publishes the following packages to npm:
 | `@outputai/cli` | `sdk/cli` | CLI for project scaffolding and workflow management |
 | `@outputai/core` | `sdk/core` | Core framework (workflows, steps, parallel execution) |
 | `@outputai/llm` | `sdk/llm` | LLM integration (generateText, prompt loading) |
-| `@outputai/http` | `sdk/http` | HTTP client with tracing |
 | `@outputai/evals` | `sdk/evals` | Evaluation framework (LLM-as-judge) |
 | `@outputai/output` | `sdk/framework` | Umbrella package (re-exports all SDK packages) |
 | `output-api` | `api` | API server (private, Docker image only) |

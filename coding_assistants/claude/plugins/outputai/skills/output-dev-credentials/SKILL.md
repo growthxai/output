@@ -157,7 +157,7 @@ stripe:
 ### Before (old pattern)
 
 ```typescript
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 
 const API_KEY = process.env.SERVICE_API_KEY || '';
 
@@ -170,7 +170,7 @@ const client = createKyClient({
 ### After (credentials pattern)
 
 ```typescript
-import { createKyClient } from '@outputai/http';
+import { createKyClient } from '@outputai/core/http';
 import { credentials } from '@outputai/core/credentials';
 
 const apiKey = credentials.require('service.api_key');

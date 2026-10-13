@@ -59,7 +59,7 @@ Skills are the building blocks that power the commands and agents — 32 in tota
 - **Development** — Creates every file type in an Output project with correct patterns, imports, and conventions
 - **Workflow operations** — Run, start, check status, retrieve results, list workflows
 - **Monitoring and debugging** — Analyze traces, check service health, identify failure patterns
-- **Error diagnosis** — Six skills for the most common mistakes: wrong `zod` imports, non-determinism in workflows, try-catch swallowing retries, missing schemas, direct I/O in workflow functions, using `axios`/`fetch` instead of `@outputai/http`
+- **Error diagnosis** — Six skills for the most common mistakes: wrong `zod` imports, non-determinism in workflows, try-catch swallowing retries, missing schemas, direct I/O in workflow functions, using `axios`/`fetch` instead of `@outputai/core/http`
 - **Credentials** — Initialize encrypted stores, edit secrets, wire to environment variables
 
 ## What Gets Enforced
@@ -68,7 +68,7 @@ The plugin enforces Output's conventions so you don't accidentally create patter
 
 - Import `z` from `@outputai/core`, never from `zod` directly
 - All I/O goes in steps, never in workflow functions
-- Use `@outputai/http` for HTTP calls, not `axios` or `fetch`
+- Use `@outputai/core/http` for HTTP calls, not `axios` or `fetch`
 - Use `@outputai/llm` for LLM calls, not provider libraries directly
 - ES module imports always use `.js` extensions
 - Every step and workflow has input and output schemas
