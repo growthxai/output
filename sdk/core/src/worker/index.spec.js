@@ -3,6 +3,7 @@ import { BusEventType } from '#consts';
 
 const {
   bindGlobalFunctionsMock,
+  buildWorkerOptionsMock,
   catalogPublisherInstance,
   configValues,
   connectionMonitorInstance,
@@ -14,6 +15,7 @@ const {
   loadActivitiesMock,
   loadHooksMock,
   loadWorkflowsMock,
+  logIsolateSizingMock,
   mainEventBusMock,
   mockConnection,
   mockLog,
@@ -51,14 +53,6 @@ const {
     taskQueue: 'test-queue',
     catalogId: 'test-catalog',
     grpcProxy: undefined,
-    maxConcurrentWorkflowTaskExecutions: 200,
-    maxConcurrentActivityTaskExecutions: 40,
-    maxCachedWorkflows: 1000,
-    maxConcurrentActivityTaskPolls: 5,
-    maxConcurrentWorkflowTaskPolls: 5,
-    workerTuner: undefined,
-    shutdownForceTime: undefined,
-    shutdownGraceTime: undefined,
     hookFlushTimeoutMs: 5000
   };
 
@@ -121,6 +115,7 @@ const {
 
   return {
     bindGlobalFunctionsMock: vi.fn(),
+    buildWorkerOptionsMock: vi.fn().mockReturnValue( { maxConcurrentActivityTaskExecutions: 40 } ),
     catalogPublisherInstance,
     configValues,
     connectionMonitorInstance,
@@ -132,6 +127,7 @@ const {
     loadActivitiesMock: vi.fn().mockResolvedValue( { activities: {} } ),
     loadHooksMock: vi.fn().mockResolvedValue( undefined ),
     loadWorkflowsMock: vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } ),
+    logIsolateSizingMock: vi.fn(),
     mainEventBusMock: { emit: vi.fn(), on: vi.fn() },
     mockConnection: { close: vi.fn().mockResolvedValue( undefined ) },
     mockLog: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -169,7 +165,7 @@ vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
 vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
 vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
-vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock } ) );
+vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock, logIsolateSizing: logIsolateSizingMock } ) );
 vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );
 vi.mock( './temporal_logger.js', () => ( { setupTemporalLogger: setupTemporalLoggerMock } ) );
 vi.mock( './log_hooks.js', () => ( {} ) );
@@ -197,6 +193,7 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
   } )
 } ) );
 vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
+vi.mock( './worker_options.js', () => ( { buildWorkerOptions: buildWorkerOptionsMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
   NativeConnection: { connect: vi.fn().mockResolvedValue( mockConnection ) },
   Worker: { create: vi.fn().mockResolvedValue( mockWorker ) }
@@ -226,9 +223,6 @@ describe( 'worker/index', () => {
     resetPromises();
     configValues.apiKey = undefined;
     configValues.grpcProxy = undefined;
-    configValues.workerTuner = undefined;
-    configValues.shutdownForceTime = undefined;
-    configValues.shutdownGraceTime = undefined;
     workerRunnerInstance.running = false;
     workerRunnerInstance.options = null;
     connectionMonitorInstance.running = false;
@@ -291,15 +285,11 @@ describe( 'worker/index', () => {
         taskQueue: configValues.taskQueue,
         workflowsPath: '/fake/workflows/path.js',
         activities: {},
-        maxConcurrentWorkflowTaskExecutions: configValues.maxConcurrentWorkflowTaskExecutions,
-        maxConcurrentActivityTaskExecutions: configValues.maxConcurrentActivityTaskExecutions,
-        maxCachedWorkflows: configValues.maxCachedWorkflows,
-        maxConcurrentActivityTaskPolls: configValues.maxConcurrentActivityTaskPolls,
-        maxConcurrentWorkflowTaskPolls: configValues.maxConcurrentWorkflowTaskPolls
+        maxConcurrentActivityTaskExecutions: 40
       } ) );
-      expect( Worker.create.mock.calls[0][0] ).not.toHaveProperty( 'shutdownForceTime' );
-      expect( Worker.create.mock.calls[0][0] ).not.toHaveProperty( 'shutdownGraceTime' );
+      expect( buildWorkerOptionsMock ).toHaveBeenCalledOnce();
       expect( initInterceptorsMock ).toHaveBeenCalledWith( { activities: {}, workflows: [] } );
+      expect( logIsolateSizingMock ).toHaveBeenCalledWith( { worker: mockWorker } );
       expect( setupTelemetryMock ).toHaveBeenCalledWith( { worker: mockWorker } );
       expect( WorkerRunner ).toHaveBeenCalledWith( { worker: mockWorker, signal } );
     } );
@@ -312,18 +302,6 @@ describe( 'worker/index', () => {
       // The worker never exists unless its catalog matches its own source code.
       expect( catalogPublisherInstance.run.mock.invocationCallOrder[0] )
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
-    } );
-
-    it( 'passes worker tuner instead of incompatible execution concurrency options', async () => {
-      configValues.workerTuner = { tunerOptions: { targetMemoryUsage: 0.8, targetCpuUsage: 0.9 } };
-      const { Worker } = await import( '@temporalio/worker' );
-
-      await bootWorker();
-
-      const workerOptions = Worker.create.mock.calls[0][0];
-      expect( workerOptions ).toEqual( expect.objectContaining( { tuner: configValues.workerTuner } ) );
-      expect( workerOptions ).not.toHaveProperty( 'maxConcurrentWorkflowTaskExecutions' );
-      expect( workerOptions ).not.toHaveProperty( 'maxConcurrentActivityTaskExecutions' );
     } );
 
     it( 'enables TLS when an apiKey is set', async () => {
@@ -343,19 +321,6 @@ describe( 'worker/index', () => {
 
       expect( NativeConnection.connect ).toHaveBeenCalledWith( expect.objectContaining( {
         proxy: { type: 'http-connect', targetHost: 'proxy:1234' }
-      } ) );
-    } );
-
-    it( 'passes configured shutdown durations to the worker', async () => {
-      configValues.shutdownForceTime = '30s';
-      configValues.shutdownGraceTime = '10s';
-      const { Worker } = await import( '@temporalio/worker' );
-
-      await bootWorker();
-
-      expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
-        shutdownForceTime: '30s',
-        shutdownGraceTime: '10s'
       } ) );
     } );
 

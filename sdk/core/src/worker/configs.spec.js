@@ -10,6 +10,7 @@ const CONFIG_KEYS = [
   'TEMPORAL_MAX_CACHED_WORKFLOWS',
   'TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS',
   'TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS',
+  'TEMPORAL_WORKFLOW_THREAD_POOL_SIZE',
   'TEMPORAL_WORKER_TUNER',
   'OUTPUT_WORKER_TELEMETRY_INTERVAL_MS',
   'OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS',
@@ -62,10 +63,11 @@ describe( 'worker/configs', () => {
     expect( configs.address ).toBe( 'localhost:7233' );
     expect( configs.namespace ).toBe( 'default' );
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 40 );
-    expect( configs.maxConcurrentWorkflowTaskExecutions ).toBe( 200 );
-    expect( configs.maxCachedWorkflows ).toBe( 1000 );
+    expect( configs.maxConcurrentWorkflowTaskExecutions ).toBeUndefined();
+    expect( configs.maxCachedWorkflows ).toBeUndefined();
     expect( configs.maxConcurrentActivityTaskPolls ).toBe( 5 );
     expect( configs.maxConcurrentWorkflowTaskPolls ).toBe( 5 );
+    expect( configs.workflowThreadPoolSize ).toBeUndefined();
     expect( configs.workerTuner ).toBeUndefined();
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
@@ -82,6 +84,19 @@ describe( 'worker/configs', () => {
     const configs = await loadConfigs();
 
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 40 );
+  } );
+
+  it( 'leaves the values deferred to @temporalio/worker unset when they are empty strings', async () => {
+    setEnv( {
+      TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: '',
+      TEMPORAL_MAX_CACHED_WORKFLOWS: '',
+      TEMPORAL_WORKFLOW_THREAD_POOL_SIZE: ''
+    } );
+    const configs = await loadConfigs();
+
+    expect( configs.maxConcurrentWorkflowTaskExecutions ).toBeUndefined();
+    expect( configs.maxCachedWorkflows ).toBeUndefined();
+    expect( configs.workflowThreadPoolSize ).toBeUndefined();
   } );
 
   it( 'treats empty string for worker telemetry interval as default', async () => {
@@ -115,6 +130,7 @@ describe( 'worker/configs', () => {
       TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS: '10',
       TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS: '50',
       TEMPORAL_MAX_CACHED_WORKFLOWS: '500',
+      TEMPORAL_WORKFLOW_THREAD_POOL_SIZE: '2',
       OUTPUT_WORKER_TELEMETRY_INTERVAL_MS: '30000',
       OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS: '60000'
     } );
@@ -123,6 +139,7 @@ describe( 'worker/configs', () => {
     expect( configs.maxConcurrentActivityTaskExecutions ).toBe( 10 );
     expect( configs.maxConcurrentWorkflowTaskExecutions ).toBe( 50 );
     expect( configs.maxCachedWorkflows ).toBe( 500 );
+    expect( configs.workflowThreadPoolSize ).toBe( 2 );
     expect( configs.workerTelemetryIntervalMs ).toBe( 30000 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 60000 );
   } );

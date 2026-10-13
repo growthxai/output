@@ -121,14 +121,14 @@ USER appuser
 ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:$PATH"
 
-# V8 heap = 80% of container memory (leaves room for Temporal Rust runtime + OS)
-ENV NODE_OPTIONS="--max-old-space-size-percentage=80 --heapsnapshot-signal=SIGUSR2"
+# V8 heap per isolate = 40% of container memory (2 isolates by default, leaves room for Temporal Rust runtime + OS)
+ENV NODE_OPTIONS="--max-old-space-size-percentage=40 --heapsnapshot-signal=SIGUSR2"
 
 CMD ["output-worker"]
 ```
 
 <Tip>
-The `NODE_OPTIONS` setting allocates 80% of container memory to the V8 heap, leaving room for the Temporal Rust runtime and OS overhead. Adjust the percentage based on your Railway plan and workflow memory requirements.
+The `NODE_OPTIONS` setting caps the V8 heap at 40% of container memory. The cap applies to each V8 isolate rather than to the process as a whole, and a worker runs one isolate on its main thread plus one per workflow thread, two by default. At 40%, both fit in the container with room left for the Temporal Rust runtime and OS overhead. If you raise `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE`, lower the percentage so the isolate count times the percentage stays around 80. See [Memory and Isolates](/operations/worker-tuning#memory-and-isolates).
 </Tip>
 
 Commit the new `ops/` directory and push to GitHub before continuing:
@@ -267,7 +267,7 @@ For high-throughput workloads, you can tune how aggressively the worker pulls an
 
 ```bash
 TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS=150
-TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=600
+TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=50
 TEMPORAL_MAX_CACHED_WORKFLOWS=50
 TEMPORAL_MAX_CONCURRENT_ACTIVITY_TASK_POLLS=10
 TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_POLLS=10
@@ -322,9 +322,11 @@ Workers scale independently from the API. If workflows are queuing up in Tempora
 
 ### Out of memory errors
 
-1. Increase `NODE_OPTIONS` memory allocation
-2. Upgrade Railway plan for more resources
-3. Check for memory leaks in workflow code (large payloads, unbounded arrays)
+1. Read the `Worker sizing` log at startup. It warns when the isolates could together commit more heap than the container allows
+2. If the container is being killed, lower the `NODE_OPTIONS` percentage or `TEMPORAL_MAX_CACHED_WORKFLOWS`
+3. If Node reports `ERR_WORKER_OUT_OF_MEMORY` while the container has memory to spare, the per-isolate cap is too low - raise the percentage
+4. Upgrade Railway plan for more resources
+5. Check for memory leaks in workflow code (large payloads, unbounded arrays)
 
 ### Credentials not found
 
