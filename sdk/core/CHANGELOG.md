@@ -1,5 +1,48 @@
 # @outputai/core
 
+## 0.16.0
+
+### Minor Changes
+
+- e254388: Folded `@outputai/http` as a feature of `@outputai/core`, under the `@outputai/core/http` entry point. Usage is the same: replace `@outputai/http` imports with `@outputai/core/http`. The `@outputai/http` package is no longer published. Other changes are:
+
+  - Added `ky` and `undici` as peer dependencies of `@outputai/core`, and removed `undici` from its regular dependencies.
+  - Moved `Attribute.HTTPRequestCount` and `Attribute.HTTPRequestCost` from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
+  - Removed `@outputai/http` from `@outputai/output`.
+  - Updated the CLI project templates and agent instructions to use `@outputai/core/http`.
+  - Changed verbose HTTP tracing (`OUTPUT_TRACE_HTTP_VERBOSE`) to record request and response bodies with the same parsing as `sendHttpRequest()`, so multipart bodies are now stored as base64.
+
+  Changed `sendHttpRequest()` response body parsing when `responseOptions.includeBody` is `true`:
+
+  - Changed XML, form-urlencoded and JavaScript content types to be returned as text instead of base64.
+  - Changed empty or invalid JSON bodies to be returned as raw text instead of throwing.
+
+- fd6bb62: Added worker memory sizing diagnostics and deferred the workflow concurrency defaults to `@temporalio/worker`.
+
+  ### Worker sizing startup log
+
+  Added a `Worker sizing` record, logged once at startup with the thread pool size, `reuseV8Context`, the isolate count, the per-isolate heap limit, the heap all isolates could commit together, the host's memory limit, the resolved cache size, and the workflow task slot count.
+
+  Warns when the projected heap exceeds the host's memory limit, and when there are more workflow task slots than cache entries, which causes tasks to evict each other's workflows and forces history replays.
+
+  Accounts for `NODE_OPTIONS` heap caps applying per isolate rather than per process: a worker runs one V8 isolate on its main thread plus one per workflow thread, so the heap it can commit is a multiple of the cap.
+
+  ### Periodic telemetry
+
+  - Added `memory.nonMainHeap` (`rss - heapUsed`): resident memory outside the main isolate's live objects, including workflow thread heaps, Rust core allocations, and heap pages V8 has committed but not filled. Cached workflow memory is counted here.
+  - Added `memory.heapSizeLimit`, the per-isolate heap ceiling, to each sample.
+  - Renamed `memory.constrainedMemory` to `memory.memoryLimit` and changed what it reports. `process.constrainedMemory()` returns a sentinel near 2^64 rather than `0` when the process is unconstrained, so the old field was not usable outside a memory-capped container. `memoryLimit` falls back to the machine's total memory. Anything parsing the old field needs updating.
+
+  ### Environment variables
+
+  - Added `TEMPORAL_WORKFLOW_THREAD_POOL_SIZE`, the number of threads running workflow sandboxes, which sets the number of isolates. Unset by default.
+  - Removed the `TEMPORAL_MAX_CACHED_WORKFLOWS` default of `1000`. When unset, the cache is sized from the isolate's heap limit instead of a fixed value. That formula assumes roughly 600 cached workflows per GB, so deployments with heavier payloads should set it explicitly.
+  - Removed the `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` default of `200`. When unset, it falls back to the upstream default of `40`.
+
+### Patch Changes
+
+- 17f6c8d: Removed the duplicated cause from step and workflow failures. The `ApplicationFailure` cause is now the error's own `.cause` instead of the error itself, so its message and stack are no longer encoded twice. As a result, wherever a failure's cause chain is exposed, such as API error responses, traces and logs, it is now one redundant level shorter.
+
 ## 0.15.0
 
 ### Minor Changes
