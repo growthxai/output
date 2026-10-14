@@ -103,7 +103,6 @@ export class ActivityExecutionInterceptor {
       const nonRetryable = error instanceof FatalError || inheritsFromAnyNamedType( error, activityInfo.retryPolicy?.nonRetryableErrorTypes ?? [] );
       throw ApplicationFailure.fromError( unwrappedError, {
         nonRetryable,
-        cause: unwrappedError,
         details: [ { error: serializeError( unwrappedError, { dropKeys: [ 'stack' ] } ) } ]
       } );
     } finally {

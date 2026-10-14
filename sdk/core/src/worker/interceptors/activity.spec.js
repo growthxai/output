@@ -190,7 +190,7 @@ describe( 'ActivityExecutionInterceptor', () => {
           code: 'ESTEP'
         }
       } ],
-      cause: error,
+      cause: undefined,
       nonRetryable: false
     } );
     expect( mainEventBusEmitMock ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, {
@@ -201,6 +201,18 @@ describe( 'ActivityExecutionInterceptor', () => {
     } );
     expect( addEventErrorMock ).toHaveBeenCalledOnce();
     expect( addEventEndMock ).not.toHaveBeenCalled();
+  } );
+
+  it( 'inherits the cause of the step error as the failure cause', async () => {
+    const { ActivityExecutionInterceptor } = await import( './activity.js' );
+    const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
+    const cause = new TypeError( 'socket closed' );
+    const next = vi.fn().mockRejectedValue( new Error( 'step failed', { cause } ) );
+
+    const thrown = await interceptor.execute( makeInput(), next ).catch( e => e );
+
+    expect( thrown ).toMatchObject( { message: 'step failed', type: 'Error' } );
+    expect( thrown.cause ).toBe( cause );
   } );
 
   it( 'marks inherited configured error types as non-retryable', async () => {
@@ -216,12 +228,11 @@ describe( 'ActivityExecutionInterceptor', () => {
 
     expect( thrown ).toMatchObject( {
       type: 'SpecificValidationError',
-      nonRetryable: true,
-      cause: error
+      nonRetryable: true
     } );
   } );
 
-  it( 'uses a transparent error cause while remaining non-retryable without retry policy metadata', async () => {
+  it( 'builds the ApplicationFailure from the error wrapped by TransparentFatalError, non-retryable without retry policy metadata', async () => {
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const cause = new TypeError( 'provider rejected request' );
@@ -235,7 +246,7 @@ describe( 'ActivityExecutionInterceptor', () => {
       message: 'provider rejected request',
       type: 'TypeError',
       nonRetryable: true,
-      cause,
+      cause: undefined,
       details: [ {
         error: {
           name: 'TypeError',
