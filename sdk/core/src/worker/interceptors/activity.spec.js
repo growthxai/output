@@ -232,7 +232,7 @@ describe( 'ActivityExecutionInterceptor', () => {
     } );
   } );
 
-  it( 'uses a transparent error cause while remaining non-retryable without retry policy metadata', async () => {
+  it( 'builds the ApplicationFailure from the error wrapped by TransparentFatalError, non-retryable without retry policy metadata', async () => {
     const { ActivityExecutionInterceptor } = await import( './activity.js' );
     const interceptor = new ActivityExecutionInterceptor( { activities: makeActivities(), workflows: makeWorkflows() } );
     const cause = new TypeError( 'provider rejected request' );

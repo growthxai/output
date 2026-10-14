@@ -285,7 +285,20 @@ describe( 'workflow interceptors', () => {
       expect( workflowEndMock ).not.toHaveBeenCalled();
     } );
 
-    it( 'uses a transparent error cause for the sink and ApplicationFailure', async () => {
+    it( 'inherits the cause of the workflow error as the failure cause', async () => {
+      const { interceptors } = await import( './workflow.js' );
+      const { inbound } = interceptors();
+      const interceptor = inbound[0];
+      const cause = new TypeError( 'socket closed' );
+      const next = vi.fn().mockRejectedValue( new FatalError( 'workflow failed', { cause } ) );
+
+      const thrown = await interceptor.execute( { args: [ {} ] }, next ).catch( e => e );
+
+      expect( thrown ).toMatchObject( { message: 'workflow failed', type: 'FatalError', nonRetryable: true } );
+      expect( thrown.cause ).toBe( cause );
+    } );
+
+    it( 'builds the sink and ApplicationFailure from the error wrapped by TransparentFatalError', async () => {
       const { interceptors } = await import( './workflow.js' );
       const { inbound } = interceptors();
       const interceptor = inbound[0];
