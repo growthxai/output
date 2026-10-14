@@ -1,5 +1,7 @@
 # output-api
 
+## 0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
