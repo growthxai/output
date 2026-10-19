@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-10-12T06:30:20.775Z"
+    "createdAt": "2026-10-19T06:24:47.766Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -3327,6 +3327,14 @@
           "output": 3.75,
           "cache_read": 0.075,
           "input_audio": 0.75
+        }
+      },
+      "gemini-4-argon": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "input_audio": 2
         }
       },
       "gemini-embedding-001": {
