@@ -1,5 +1,16 @@
 # @outputai/llm
 
+## 0.16.0
+
+### Patch Changes
+
+- 33c355a: Reverted `undici` from 8.11.0 to 8.10.2. Version 8.11.0 made Node's built-in `fetch` negotiate HTTP/2 when `undici` is imported, which returned gzip response bodies undecoded (`content-encoding` null) and broke callers using plain `fetch`, such as AI SDK providers without a custom fetch.
+- Updated dependencies [17f6c8d]
+- Updated dependencies [33c355a]
+- Updated dependencies [e254388]
+- Updated dependencies [fd6bb62]
+  - @outputai/core@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

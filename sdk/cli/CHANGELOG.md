@@ -1,5 +1,38 @@
 # @outputai/cli
 
+## 0.16.0
+
+### Patch Changes
+
+- a0f66f2: ## Dependency updates
+
+  - `@modelcontextprotocol/sdk`: `1.31.0` -> `1.32.0`, reached through `@anthropic-ai/claude-agent-sdk`
+  - `hono`: `4.13.10` -> `4.13.11`, reached through `@modelcontextprotocol/sdk`
+  - `ip-address`: `10.7.2` -> `10.7.4`, reached through `@modelcontextprotocol/sdk`
+
+- 33c355a: Reverted `undici` from 8.11.0 to 8.10.2. Version 8.11.0 made Node's built-in `fetch` negotiate HTTP/2 when `undici` is imported, which returned gzip response bodies undecoded (`content-encoding` null) and broke callers using plain `fetch`, such as AI SDK providers without a custom fetch.
+- e254388: Folded `@outputai/http` as a feature of `@outputai/core`, under the `@outputai/core/http` entry point. Usage is the same: replace `@outputai/http` imports with `@outputai/core/http`. The `@outputai/http` package is no longer published. Other changes are:
+
+  - Added `ky` and `undici` as peer dependencies of `@outputai/core`, and removed `undici` from its regular dependencies.
+  - Moved `Attribute.HTTPRequestCount` and `Attribute.HTTPRequestCost` from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
+  - Removed `@outputai/http` from `@outputai/output`.
+  - Updated the CLI project templates and agent instructions to use `@outputai/core/http`.
+  - Changed verbose HTTP tracing (`OUTPUT_TRACE_HTTP_VERBOSE`) to record request and response bodies with the same parsing as `sendHttpRequest()`, so multipart bodies are now stored as base64.
+
+  Changed `sendHttpRequest()` response body parsing when `responseOptions.includeBody` is `true`:
+
+  - Changed XML, form-urlencoded and JavaScript content types to be returned as text instead of base64.
+  - Changed empty or invalid JSON bodies to be returned as raw text instead of throwing.
+
+- 4a437bf: Patching handlebars version from 4.7.9 to 4.7.10 to fix vulnerabilities.
+- Updated dependencies [17f6c8d]
+- Updated dependencies [33c355a]
+- Updated dependencies [e254388]
+- Updated dependencies [fd6bb62]
+  - @outputai/core@0.16.0
+  - @outputai/llm@0.16.0
+  - @outputai/evals@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
