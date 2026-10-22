@@ -1,5 +1,20 @@
 # @outputai/output
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies [17f6c8d]
+- Updated dependencies [a0f66f2]
+- Updated dependencies [33c355a]
+- Updated dependencies [e254388]
+- Updated dependencies [4a437bf]
+- Updated dependencies [fd6bb62]
+  - @outputai/core@0.16.0
+  - @outputai/cli@0.16.0
+  - @outputai/llm@0.16.0
+  - @outputai/evals@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes
