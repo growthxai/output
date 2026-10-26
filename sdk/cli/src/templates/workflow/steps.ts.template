@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 
 export const processText = step( {
   name: 'process_text',

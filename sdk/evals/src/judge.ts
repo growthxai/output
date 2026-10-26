@@ -6,7 +6,7 @@ import {
   z
 } from '@outputai/core';
 import { Path } from '@outputai/core/sdk/helpers';
-import { generateText, aiSdk, type PromptVariables } from '@outputai/llm';
+import { generateText, aiSdk, type PromptVariables } from '@outputai/core/llm';
 
 export type JudgeArgs = {
   prompt: string;

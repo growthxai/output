@@ -197,13 +197,13 @@ Shared steps can only be imported by workflows, not by other steps. This enforce
 
 ## Evaluators for Flow Control
 
-Evaluators are a special type of step that score LLM output. They use the same `@outputai/llm` module and follow the same import rules as regular steps. What makes them powerful is using the score to control what happens next — retry if quality is low, skip a step if confidence is high, or branch to a different path.
+Evaluators are a special type of step that score LLM output. They use the same `@outputai/core/llm` module and follow the same import rules as regular steps. What makes them powerful is using the score to control what happens next — retry if quality is low, skip a step if confidence is high, or branch to a different path.
 
 Here's an evaluator that judges the quality of an AI-generated company summary:
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { JudgeSummaryInput, JudgeSummaryOutput } from './types.js';
 
 export const judgeSummaryQuality = evaluator({

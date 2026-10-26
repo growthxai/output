@@ -27,7 +27,7 @@ This skill is about **project-wide hook registration** for cost data already emi
 // src/cost_hooks.ts
 import { on } from '@outputai/core/hooks';
 import type { HttpRequestCostEvent } from '@outputai/core/http';
-import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+import type { LLMGenerationMeteringEvent } from '@outputai/core/llm';
 
 on<HttpRequestCostEvent>('cost:http:request', async event => {
   // handle HTTP cost
@@ -58,8 +58,8 @@ If you'd rather skip the build step, a hook file can also be plain, uncompiled J
 
 | Event | Type import | When it fires | Prefer for |
 |-------|-------------|----------------|-------------|
-| `llm:generation:metering` | `LLMGenerationMeteringEvent` from `@outputai/llm` | After every LLM generation (text, image, Agent, streaming) that reports usage — including failed calls that got at least partial usage | New LLM cost integrations |
-| `cost:llm:request` | `LLMUsageEvent` from `@outputai/llm` | Legacy/compatible LLM cost event, same completion path | Existing handlers only — do not use for new work |
+| `llm:generation:metering` | `LLMGenerationMeteringEvent` from `@outputai/core/llm` | After every LLM generation (text, image, Agent, streaming) that reports usage — including failed calls that got at least partial usage | New LLM cost integrations |
+| `cost:llm:request` | `LLMUsageEvent` from `@outputai/core/llm` | Legacy/compatible LLM cost event, same completion path | Existing handlers only — do not use for new work |
 | `cost:http:request` | `HttpRequestCostEvent` from `@outputai/core/http` | Only when your code (or a client's `afterResponse` hook) calls `addRequestCost(response, total)` | Non-LLM paid API calls |
 
 Every event carries the same envelope: `eventId` (UUID v4, stable idempotency key), `eventDate` (ms epoch), `activityInfo` and `workflowDetails` (present when emitted from within a step/evaluator), `outputActivityKind`, and `payload` (the event-specific data described above).
@@ -73,7 +73,7 @@ Use this when spend needs to reach an external observability system over HTTP. F
 import { on } from '@outputai/core/hooks';
 import { credentials } from '@outputai/core/credentials';
 import type { HttpRequestCostEvent } from '@outputai/core/http';
-import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+import type { LLMGenerationMeteringEvent } from '@outputai/core/llm';
 
 // Use plain fetch here, not createKyClient/outputFetch. Handlers run inside
 // the emitting step's async context, so a traced client would add its own
@@ -169,7 +169,7 @@ Use this when spend just needs to land in your log platform as structured facets
 import { on } from '@outputai/core/hooks';
 import { Logger } from '@outputai/core';
 import type { HttpRequestCostEvent } from '@outputai/core/http';
-import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+import type { LLMGenerationMeteringEvent } from '@outputai/core/llm';
 
 const log = Logger.createLogger('CostObservability');
 

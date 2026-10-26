@@ -1,5 +1,5 @@
 import { evaluator, z, EvaluationVerdictResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 // TODO: Update the evaluator to assess your workflow's output quality
 export const evaluate{{WorkflowName}} = evaluator( {

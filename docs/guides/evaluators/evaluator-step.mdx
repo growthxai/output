@@ -53,7 +53,7 @@ For subjective quality — accuracy, tone, relevance — you need an LLM to eval
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -154,7 +154,7 @@ Pass/fail checks. Use these as quality gates — does this output meet the bar?
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { CheckFactualityInput } from './types.js';
 
@@ -203,7 +203,7 @@ Numeric scores for when you need more granularity than pass/fail. In most cases,
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { ScoreEmailInput } from './types.js';
 
@@ -252,7 +252,7 @@ Category assignments — classifying content into labels.
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { ClassifyIntentInput } from './types.js';
 
@@ -299,7 +299,7 @@ For more detailed evaluations, you can attach feedback (specific issues and sugg
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult, EvaluationNumberResult, EvaluationFeedback } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { ReviewProposalInput } from './types.js';
 
@@ -442,7 +442,7 @@ When multiple workflows need the same evaluator, put it in `src/shared/evaluator
 
 ```typescript src/shared/evaluators/check_factuality.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { CheckFactualityInput } from './types.js';
 

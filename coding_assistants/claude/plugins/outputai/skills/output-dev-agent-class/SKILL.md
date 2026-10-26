@@ -22,12 +22,12 @@ The `Agent` class uses an internal AI SDK `ToolLoopAgent` through composition wi
 ## Import Pattern
 
 ```typescript
-import { Agent, aiSdk } from '@outputai/llm';
-import type { MessageStore } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/core/llm';
+import type { MessageStore } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 ```
 
-`Agent` comes from `@outputai/llm`. Use `aiSdk.Output` for structured output. Import `z` from `@outputai/core` (never from `zod` directly). `MessageStore` is the type for a pluggable `getMessages` / `addMessages` store; implement it yourself.
+`Agent` comes from `@outputai/core/llm`. Use `aiSdk.Output` for structured output. Import `z` from `@outputai/core` (never from `zod` directly). `MessageStore` is the type for a pluggable `getMessages` / `addMessages` store; implement it yourself.
 
 ## Construction
 
@@ -143,8 +143,8 @@ Use `.describe()` on schema fields instead of `.min()/.max()` for number constra
 By default, Agent is stateless. Each `generate()` call starts fresh with only the initial prompt messages. Pass a `messageStore` to maintain history across calls:
 
 ```typescript
-import { Agent } from '@outputai/llm';
-import type { MessageStore } from '@outputai/llm';
+import { Agent } from '@outputai/core/llm';
+import type { MessageStore } from '@outputai/core/llm';
 
 const messages: Parameters<MessageStore['addMessages']>[0] = [];
 const messageStore: MessageStore = {
@@ -187,7 +187,7 @@ In workflow steps, construct a new Agent per invocation. Variables come from the
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { Agent, aiSdk } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/core/llm';
 
 const reviewSchema = z.object( {
   summary: z.string().describe( 'Brief assessment' ),
@@ -239,7 +239,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 ### generateText Example (for comparison)
 
 ```typescript
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 
 const { result } = await generateText( {
   prompt: 'generate_summary@v1',
@@ -252,7 +252,7 @@ const { result } = await generateText( {
 
 ## Verification Checklist
 
-- [ ] Import `Agent` from `@outputai/llm` (not from `ai` directly)
+- [ ] Import `Agent` from `@outputai/core/llm` (not from `ai` directly)
 - [ ] Import `z` from `@outputai/core` (never from `zod`)
 - [ ] Prompt file exists in `prompts/` folder
 - [ ] Variables match `{{ variable }}` placeholders in the prompt

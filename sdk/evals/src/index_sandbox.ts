@@ -15,11 +15,11 @@
  * the import stripping that collectTargetImports() already applied to the AST.
  *
  * This means webpack follows the full import chain: evaluators.js → @outputai/evals
- * → judge.js → @outputai/llm → node:zlib — which fails because Node.js built-ins
+ * → judge.js → @outputai/core/llm → node:zlib — which fails because Node.js built-ins
  * can't be bundled into Temporal's deterministic workflow bundle.
  *
  * This file provides an alternative entry point for @outputai/evals that excludes
- * the real judge functions (breaking the chain to @outputai/llm) and replaces them
+ * the real judge functions (breaking the chain to @outputai/core/llm) and replaces them
  * with no-op stubs. The stubs satisfy webpack's named-export resolution. Judge
  * functions are never called inside the workflow bundle — they execute as Temporal
  * activities at runtime where the real entry point (index.js) is used.
@@ -31,7 +31,7 @@
  * rewriting. This also requires injecting metadata stubs for the stripped evaluator
  * references, since evalWorkflow() calls ComponentMetadata.getName(def.evaluator) at
  * module init time and the identifiers would otherwise be undefined. Once the rewriter
- * properly strips the evaluator → judge → @outputai/llm chain, this file and the
+ * properly strips the evaluator → judge → @outputai/core/llm chain, this file and the
  * "output-workflow-bundle" export condition in package.json can be deleted.
  */
 export { evalWorkflow } from './eval_workflow.js';

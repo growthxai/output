@@ -166,8 +166,7 @@ evaluator({
 
 | Package | Description |
 |---------|-------------|
-| **[@outputai/core](sdk/core)** | Workflow, step, and evaluator primitives |
-| **[@outputai/llm](sdk/llm)** | Multi-provider LLM with prompt management |
+| **[@outputai/core](sdk/core)** | Workflow, step, and evaluator primitives, plus multi-provider LLM with prompt management |
 | **[@outputai/cli](sdk/cli)** | CLI for project init, dev environment, and workflow management |
 
 ## Example Workflows

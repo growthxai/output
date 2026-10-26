@@ -8,7 +8,7 @@
     "./sdk/core/src/sdk/runtime/index.d.ts",
     "./sdk/core/src/temporal/index.d.ts",
     "./sdk/core/src/sdk/helpers/index.d.ts",
-    "./sdk/llm/src/index.d.ts"
+    "./sdk/core/src/llm/index.d.ts"
   ],
   "entryPointStrategy": "resolve",
   "excludeExternals": true,

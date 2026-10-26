@@ -137,7 +137,7 @@ If the plan includes evaluator functions, implement them in `evaluators.ts` in t
 
 <implementation_checklist>
   - Import required dependencies (evaluator, z, result types from '@outputai/core')
-  - Import `generateText` and `aiSdk` from `@outputai/llm` if using LLM-powered evaluators
+  - Import `generateText` and `aiSdk` from `@outputai/core/llm` if using LLM-powered evaluators
   - Implement each evaluator with proper schema validation
   - Use appropriate result types (EvaluationBooleanResult, EvaluationNumberResult, EvaluationStringResult)
   - Include confidence scores (0.0-1.0)
@@ -187,7 +187,7 @@ If the plan includes LLM-based steps, create prompt templates in the `prompts/` 
 <llm_step_template>
 ```typescript
 import { step, z } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 
 export const llmStep = step( {
   name: 'llmStep',

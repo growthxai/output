@@ -19,7 +19,7 @@ Each of these is a concrete, testable failure mode. Build evaluators that check 
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { CheckHallucinationInput } from './types.js';
 
@@ -81,7 +81,7 @@ When you do need more granularity, use three categories instead of a numeric sca
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationStringResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { JudgeSummaryInput } from './types.js';
 
@@ -401,7 +401,7 @@ This gives you the best of both worlds — the LLM makes simple binary decisions
 
 ```typescript evaluators.ts
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { RubricInput } from './types.js';
 

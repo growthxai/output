@@ -1,19 +1,23 @@
 ---
 title: "v0.15.0 → v0.16.0"
-description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http is folded into @outputai/core, ky and undici become peer dependencies, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
+description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http and @outputai/llm are folded into @outputai/core, ky, undici and ai become peer dependencies, AI SDK providers become optional, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
 ---
 
-This guide covers the move of `@outputai/http` into `@outputai/core`. The package is no longer published: its API now lives at `@outputai/core/http`, with the same exports and behavior.
+This guide covers the move of `@outputai/http` and `@outputai/llm` into `@outputai/core`. Neither package is published anymore: their APIs now live at `@outputai/core/http` and `@outputai/core/llm`, with the same exports and behavior.
 
-Two smaller breaks come with it: `ky` and `undici` are now peer dependencies of `@outputai/core`, and `sendHttpRequest()` parses some response bodies differently.
+Smaller breaks come with them: `ky`, `undici` and `ai` are now peer dependencies of `@outputai/core`, the AI SDK provider packages are no longer installed for you, and `sendHttpRequest()` parses some response bodies differently.
 
 Separately, the worker no longer sets defaults for two workflow concurrency variables, and one telemetry field is renamed. See [Worker defaults and telemetry](#worker-defaults-and-telemetry).
 
 ## What changed
 
 - `@outputai/http` is replaced by the `@outputai/core/http` subpath. `outputFetch`, `createKyClient`, `addRequestCost`, and the `ky` and `undici` re-exports are unchanged.
-- `@outputai/output` no longer depends on `@outputai/http`.
-- `ky` (`>=2 <3`) and `undici` (`>=8 <9`) are peer dependencies of `@outputai/core`.
+- `@outputai/llm` is replaced by the `@outputai/core/llm` subpath. `generateText`, `generateTextWithStreaming`, `streamText`, `generateImage`, `Agent`, `loadPrompt`, `registerProvider`, `getProviderNames`, and the `aiSdk` re-export are unchanged.
+- `@outputai/output` no longer depends on `@outputai/http` or `@outputai/llm`.
+- `ky` (`>=2 <3`), `undici` (`>=8 <9`) and `ai` (`>=7 <8`) are peer dependencies of `@outputai/core`.
+- The built-in AI SDK provider packages are optional peer dependencies of `@outputai/core`, so they are no longer installed automatically. Using a provider whose package is missing throws a `FatalError` naming the package.
+- `getProviderNames()` lists only the built-in providers whose package is installed, plus registered ones.
+- The `llm:generation:metering` and `cost:llm:request` events and the LLM trace attributes are unchanged.
 - `Tracing.Attribute.HTTPRequestCount` and `Tracing.Attribute.HTTPRequestCost` moved from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
@@ -22,31 +26,56 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 
 ### Update imports
 
-Replace every import of `@outputai/http` with `@outputai/core/http`, including module mocks in tests:
+Replace every import of `@outputai/http` with `@outputai/core/http`, and every import of `@outputai/llm` with `@outputai/core/llm`, including module mocks in tests:
 
 ```ts
 // Before
 import { createKyClient, addRequestCost } from '@outputai/http';
+import { generateText, aiSdk } from '@outputai/llm';
 vi.mock( '@outputai/http', () => ( { outputFetch: vi.fn() } ) );
+vi.mock( '@outputai/llm' );
 
 // After
 import { createKyClient, addRequestCost } from '@outputai/core/http';
+import { generateText, aiSdk } from '@outputai/core/llm';
 vi.mock( '@outputai/core/http', () => ( { outputFetch: vi.fn() } ) );
+vi.mock( '@outputai/core/llm' );
 ```
 
-### Remove the dependency
+### Remove the dependencies
 
-Delete `@outputai/http` from `dependencies`, `devDependencies`, and `peerDependencies` in `package.json`. If your project depends on `@outputai/core` directly rather than through `@outputai/output`, bump it to `0.16.0`.
+Delete `@outputai/http` and `@outputai/llm` from `dependencies`, `devDependencies`, and `peerDependencies` in `package.json`. If your project depends on `@outputai/core` directly rather than through `@outputai/output`, bump it to `0.16.0`.
 
 ### Install the peer dependencies
 
-npm 7+ and pnpm install peer dependencies automatically. With other package managers, or if your install reports missing peers, add them yourself:
+npm 7+ and pnpm install required peer dependencies automatically. With other package managers, or if your install reports missing peers, add them yourself:
 
 ```bash
-npm install ky@2 undici@8
+npm install ky@2 undici@8 ai@7
 ```
 
-If your project already depends on `ky` or `undici`, make sure the versions fall in the supported ranges.
+If your project already depends on `ky`, `undici` or `ai`, make sure the versions fall in the supported ranges.
+
+### Install the AI SDK providers you use
+
+The provider packages are optional peers, so no package manager installs them for you. Add the ones your prompts reference in their `provider` field:
+
+| `provider` | Package |
+|------------|---------|
+| `amazon-bedrock` | `@ai-sdk/amazon-bedrock@5` |
+| `anthropic` | `@ai-sdk/anthropic@4` |
+| `azure` | `@ai-sdk/azure@4` |
+| `google-vertex` | `@ai-sdk/google-vertex@5` |
+| `openai` | `@ai-sdk/openai@4` |
+| `perplexity` | `@ai-sdk/perplexity@4` |
+
+For example, a project with Anthropic and OpenAI prompts:
+
+```bash
+npm install @ai-sdk/anthropic@4 @ai-sdk/openai@4
+```
+
+A prompt that uses a provider whose package is missing fails with `Provider "<name>" requires the "<package>" package, which is not installed`. Providers added with `registerProvider()` are not affected.
 
 ### Update trace attribute imports
 
@@ -125,7 +154,9 @@ Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`)
 ## Checklist
 
 - Replace `@outputai/http` imports and mocks with `@outputai/core/http`, and remove the dependency.
-- Install `ky@2` and `undici@8` if your package manager does not install peer dependencies.
+- Replace `@outputai/llm` imports and mocks with `@outputai/core/llm`, and remove the dependency.
+- Install `ky@2`, `undici@8` and `ai@7` if your package manager does not install peer dependencies.
+- Install the `@ai-sdk/*` provider packages your prompts use.
 - Import `HTTPRequestCount` and `HTTPRequestCost` from `@outputai/core/http`.
 - Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
 - Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.

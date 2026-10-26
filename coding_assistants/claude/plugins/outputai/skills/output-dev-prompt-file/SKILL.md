@@ -101,6 +101,8 @@ model: claude-sonnet-4-6
 
 All prompt files in a workflow should use the **same provider** unless the user explicitly requests otherwise. Mixing providers (e.g., some prompts using anthropic and others using openai) requires the user to have API keys for all providers, which causes runtime failures if they don't.
 
+Each provider also needs its AI SDK package in the project's `package.json`: `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google-vertex`, `@ai-sdk/amazon-bedrock`, `@ai-sdk/azure`, or `@ai-sdk/perplexity`. New projects ship with `@ai-sdk/anthropic` and `@ai-sdk/openai`. When a prompt uses a provider whose package is missing, install it; otherwise the call fails with `Provider "<name>" requires the "<package>" package, which is not installed`. Under `output dev`, the worker only picks up new packages after a restart: run `output dev down`, then `output dev`.
+
 When no existing prompts dictate a provider, default to `anthropic`. For the model itself, see [`output-dev-model-selection`](../output-dev-model-selection/SKILL.md) — it walks priority (reasoning/balance/speed/cost), provider lookup, and produces a current model ID.
 
 ### Optional Fields
@@ -365,7 +367,7 @@ Pre-format data in the step only when the exact rendered text is application log
 ### With generateText and aiSdk.Output.object()
 
 ```typescript
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 
 const { output } = await generateText( {
@@ -388,7 +390,7 @@ const { output } = await generateText( {
 ### With generateText
 
 ```typescript
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 
 const { result } = await generateText( {
   prompt: 'summarize@v1',
@@ -440,7 +442,7 @@ List `skills:` paths in this prompt's frontmatter. See `output-dev-skill-file` f
 Prompts work with both `generateText` and the `Agent` class. Use `Agent` for multi-step tool loops and stateful conversations. See `output-dev-agent-class` for the full guide.
 
 ```typescript
-import { Agent, aiSdk } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/core/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',

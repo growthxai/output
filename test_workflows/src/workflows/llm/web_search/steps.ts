@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { perplexitySearch } from '@perplexity-ai/ai-sdk';
 import { searchOutputSchema } from './types.js';
 

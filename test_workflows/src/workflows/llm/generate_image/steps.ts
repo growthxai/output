@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { step, z } from '@outputai/core';
-import { generateImage } from '@outputai/llm';
+import { generateImage } from '@outputai/core/llm';
 
 const moduleDir = dirname( fileURLToPath( import.meta.url ) );
 const workflowDir = moduleDir.includes( '/dist/workflows/' ) ?

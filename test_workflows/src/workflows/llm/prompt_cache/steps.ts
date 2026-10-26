@@ -1,5 +1,5 @@
 import { step } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { workflowInputSchema, workflowOutputSchema } from './types.js';
 
 const stablePrefix = 'cacheable context '.repeat( 5_000 );

@@ -1,5 +1,5 @@
 import { step } from '@outputai/core';
-import { generateTextWithStreaming } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/core/llm';
 import { workflowInputSchema, workflowOutputSchema } from './types.js';
 
 export const generateStreamedContent = step( {

@@ -130,7 +130,7 @@ Put every Zapier call inside a `step()` so it's traced and retried. Resolve the 
 
 ```ts steps.ts
 import { step, FatalError } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { zapier } from '../../clients/zapier.js';
 import {
   DraftAnnouncementInput,

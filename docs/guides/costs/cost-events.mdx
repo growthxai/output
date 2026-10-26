@@ -23,7 +23,7 @@ See [Error Hooks - Setup](/operations/error-hooks#setup) for the hook file regis
 
 ```typescript src/llm_metering_hooks.ts
 import { on } from '@outputai/core/hooks';
-import type { LLMGenerationMeteringEvent } from '@outputai/llm';
+import type { LLMGenerationMeteringEvent } from '@outputai/core/llm';
 
 on<LLMGenerationMeteringEvent>( 'llm:generation:metering', async ( {
   eventId,
@@ -187,7 +187,7 @@ Tool items are recorded independently from tokens and are excluded from the `inp
 
 ```typescript src/legacy_llm_cost_hooks.ts
 import { on } from '@outputai/core/hooks';
-import type { LLMUsageEvent } from '@outputai/llm';
+import type { LLMUsageEvent } from '@outputai/core/llm';
 
 on<LLMUsageEvent>( 'cost:llm:request', event => {
   if (!event.payload) {

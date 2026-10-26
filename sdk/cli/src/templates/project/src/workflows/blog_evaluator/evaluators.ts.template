@@ -1,6 +1,6 @@
 import { evaluator, EvaluationNumberResult } from '@outputai/core';
 import type { EvaluationResultArgs } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { blogContentSchema } from './types.js';
 import type { BlogContent } from './types.js';
 

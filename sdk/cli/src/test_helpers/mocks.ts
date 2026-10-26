@@ -18,7 +18,7 @@ export const mockClaudeAgentSDK: {
 };
 
 /**
- * Mock for @outputai/llm
+ * Mock for @outputai/core/llm
  */
 export const mockLLM: {
   generateText: Mock;

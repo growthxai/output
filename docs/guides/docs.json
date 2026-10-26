@@ -12,7 +12,8 @@
   "redirects": [
     { "source": "/packages/credentials", "destination": "/packages/core/credentials" },
     { "source": "/operations/credentials", "destination": "/packages/core/credentials" },
-    { "source": "/packages/http", "destination": "/packages/core/http" }
+    { "source": "/packages/http", "destination": "/packages/core/http" },
+    { "source": "/packages/llm", "destination": "/packages/core/llm" }
   ],
   "navigation": {
     "tabs": [
@@ -139,12 +140,12 @@
                 "pages": [
                   "packages/core",
                   "packages/core/credentials",
-                  "packages/core/http"
+                  "packages/core/http",
+                  "packages/core/llm"
                 ]
               },
               "packages/cli",
-              "packages/evals",
-              "packages/llm"
+              "packages/evals"
             ]
           },
           {

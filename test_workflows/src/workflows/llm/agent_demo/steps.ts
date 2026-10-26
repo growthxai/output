@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { Agent, aiSdk, generateText, type MessageStore } from '@outputai/llm';
+import { Agent, aiSdk, generateText, type MessageStore } from '@outputai/core/llm';
 import {
   reviewInputSchema,
   reviewOutputSchema,

@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateImage } from '@outputai/llm';
+import { generateImage } from '@outputai/core/llm';
 
 /**
  * Negative control for the metering work: image calls expose no lifecycle events, so a failure

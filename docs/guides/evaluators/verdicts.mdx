@@ -365,7 +365,7 @@ Wraps an LLM verdict into an `EvaluationVerdictResult`.
 
 ```typescript
 import { verify, Verdict } from '@outputai/evals';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 
 export const evaluateAccuracy = verify(
