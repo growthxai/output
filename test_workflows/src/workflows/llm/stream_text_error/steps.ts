@@ -1,5 +1,5 @@
 import { step } from '@outputai/core';
-import { streamText } from '@outputai/llm';
+import { streamText } from '@outputai/core/llm';
 import { workflowOutputSchema } from './types.js';
 
 const isMaskedError = ( error: Error ): boolean => {

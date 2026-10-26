@@ -84,6 +84,7 @@ Scan existing `*.prompt` files in the workflow (and its siblings under `src/work
 - **If the workflow (or sibling workflows) already use one provider, match it.** Mixing providers means the runtime needs API keys for each — operational footgun.
 - **If no existing prompts, default to `anthropic`.**
 - Only switch provider when the user explicitly asks, or when a feature you need (eg Gemini's `useSearchGrounding`, OpenAI's `maxToolCalls`) is provider-specific.
+- When the chosen provider's `@ai-sdk/*` package (eg `@ai-sdk/google-vertex`) is not in `package.json`, install it. New projects ship with `@ai-sdk/anthropic` and `@ai-sdk/openai`.
 
 ### Step 3 — Map provider name to snapshot key
 

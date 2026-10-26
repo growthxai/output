@@ -317,6 +317,18 @@ const client = createKyClient({ prefix: 'https://api.example.com' });
 
 It also exports `outputFetch`, a traced drop-in for `fetch`, and `addRequestCost` to attach a cost to a request. See [HTTP](/packages/core/http) for the full API.
 
+## LLM
+
+The `@outputai/core/llm` subpath calls LLMs from steps and evaluators using [prompt files](/prompts). Generations are recorded in the trace with their usage and cost, and emit `llm:generation:metering` events:
+
+```typescript
+import { generateText } from '@outputai/core/llm';
+
+const { result } = await generateText({ prompt: 'summarize@v1', variables: { content } });
+```
+
+It also exports `generateTextWithStreaming`, `streamText`, `generateImage`, and `Agent`. Install the `@ai-sdk/*` provider packages your prompts use. See [LLM](/packages/core/llm) for the full API.
+
 ## Temporal Access in the Worker
 
 The `@outputai/core/temporal` subpath gives worker-side code direct access to the Temporal layer, sharing the worker's live connection — no extra configuration, TLS, or credentials handling. Temporal Activities can additionally access the workflow execution that invoked them.
@@ -328,7 +340,7 @@ Get a handle pinned to the exact workflow run that invoked the current step. The
 ```typescript steps.ts
 import { step } from '@outputai/core';
 import { getCurrentWorkflowHandle } from '@outputai/core/temporal';
-import { generateTextWithStreaming } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/core/llm';
 
 export const draftWithProgress = step({
   name: 'draftWithProgress',

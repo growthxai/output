@@ -77,11 +77,11 @@ The rule is simple: if it talks to something external, it goes in a step.
 
 ## Calling an LLM
 
-Steps are where you make LLM calls using `@outputai/llm`. The prompt file handles the model configuration; the step handles the orchestration:
+Steps are where you make LLM calls using `@outputai/core/llm`. The prompt file handles the model configuration; the step handles the orchestration:
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { GenerateSummaryInput, GenerateSummaryOutput } from './types.js';
 
 export const generateSummary = step({

@@ -61,6 +61,8 @@ Use `maxOutputTokens` for new prompts. Deprecated `maxTokens` remains on the loa
 
 All prompt files in a workflow **must use the same provider** unless the user explicitly requests otherwise. Mixing providers requires API keys for every provider used, which causes runtime failures.
 
+Each provider also needs its `@ai-sdk/*` package (for example `@ai-sdk/anthropic`) in the project's `package.json`. New projects ship with `@ai-sdk/anthropic` and `@ai-sdk/openai`; install any other provider's package before using it. Under `output dev`, restart the stack (`output dev down`, then `output dev`) so the worker picks up the new package.
+
 When a workflow has no existing prompts, default to `anthropic`. Otherwise match what sibling prompts already use.
 
 ### Picking a model
@@ -512,7 +514,7 @@ See `output-dev-skill-file` for the full skill creation guide.
 Prompts work with both `generateText` (single-shot) and the `Agent` class (multi-step tool loops). Agent uses an internal AI SDK `ToolLoopAgent` through composition with Output prompt files and skills:
 
 ```typescript
-import { Agent, aiSdk } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/core/llm';
 
 const agent = new Agent( {
   prompt: 'writing_assistant@v1',

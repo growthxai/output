@@ -1,6 +1,5 @@
 ---
 "@outputai/core": patch
-"@outputai/llm": patch
 "@outputai/cli": patch
 ---
 

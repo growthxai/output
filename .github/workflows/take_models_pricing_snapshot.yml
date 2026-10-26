@@ -22,12 +22,12 @@ jobs:
           node-version: '24.15.0'
 
       - name: Take snapshot
-        run: npm run --prefix sdk/llm take-models-pricing-snapshot
+        run: npm run --prefix sdk/core take-models-pricing-snapshot
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.RELEASE_GH_TOKEN }}
           branch: chore/take-models-pricing-snapshot
-          title: 'chore(llm): update models pricing snapshot'
-          commit-message: 'chore(llm): update models pricing snapshot'
+          title: 'chore(core): update models pricing snapshot'
+          commit-message: 'chore(core): update models pricing snapshot'

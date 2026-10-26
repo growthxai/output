@@ -23,7 +23,7 @@ Verify the following conventions were followed:
 #### Import Conventions
 - [ ] All TypeScript/JavaScript imports use `.js` extension for ES modules
 - [ ] No direct axios usage - HttpClient wrapper used throughout
-- [ ] Proper import paths for Output SDK packages (@outputai/core, @outputai/llm, etc.)
+- [ ] Proper import paths for Output SDK packages (@outputai/core, @outputai/core/llm, etc.)
 
 #### Workflow Structure
 - [ ] Workflow exported in entrypoint.ts: `export * from './path/to/workflow.js';`

@@ -34,6 +34,10 @@
     "./http": {
       "types": "./src/http/index.d.ts",
       "import": "./src/http/index.js"
+    },
+    "./llm": {
+      "types": "./src/llm/index.d.ts",
+      "import": "./src/llm/index.js"
     }
   },
   "files": [
@@ -41,7 +45,8 @@
     "./dist",
     "./bin",
     "!**/*.spec.*",
-    "!src/credentials"
+    "!src/credentials",
+    "!src/llm/fixtures"
   ],
   "bin": {
     "output-worker": "./bin/worker.sh",
@@ -51,7 +56,8 @@
   },
   "scripts": {
     "worker": "node ./src/worker/index.js",
-    "build": "rm -rf ./dist && tsc && pnpm exec tsc -p ./tsconfig.typecheck.json"
+    "build": "rm -rf ./dist && tsc && pnpm exec tsc -p ./tsconfig.typecheck.json",
+    "take-models-pricing-snapshot": "node ./scripts/take_models_pricing_snapshot.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
@@ -66,9 +72,13 @@
     "@temporalio/common": "catalog:",
     "@temporalio/worker": "catalog:",
     "@temporalio/workflow": "catalog:",
+    "decimal.js": "10.6.0",
+    "entities": "8.1.0",
     "folder-hash": "4.1.3",
+    "gray-matter": "4.0.3",
     "js-yaml": "catalog:",
     "json-stream-stringify": "3.1.7",
+    "liquidjs": "10.29.0",
     "redis": "5.12.1",
     "stacktrace-parser": "0.1.11",
     "winston": "catalog:"
@@ -76,13 +86,35 @@
   "peerDependencies": {
     "zod": ">=4.3 <5",
     "ky": ">=2 <3",
-    "undici": ">=8 <9"
+    "undici": ">=8 <9",
+    "ai": ">=7 <8",
+    "@ai-sdk/amazon-bedrock": ">=5 <6",
+    "@ai-sdk/anthropic": ">=4 <5",
+    "@ai-sdk/azure": ">=4 <5",
+    "@ai-sdk/google-vertex": ">=5 <6",
+    "@ai-sdk/openai": ">=4 <5",
+    "@ai-sdk/perplexity": ">=4 <5"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/amazon-bedrock": { "optional": true },
+    "@ai-sdk/anthropic": { "optional": true },
+    "@ai-sdk/azure": { "optional": true },
+    "@ai-sdk/google-vertex": { "optional": true },
+    "@ai-sdk/openai": { "optional": true },
+    "@ai-sdk/perplexity": { "optional": true }
   },
   "devDependencies": {
     "@types/js-yaml": "catalog:",
     "zod": "catalog:",
     "ky": "catalog:",
-    "undici": "catalog:"
+    "undici": "catalog:",
+    "ai": "7.0.112",
+    "@ai-sdk/amazon-bedrock": "5.0.92",
+    "@ai-sdk/anthropic": "4.0.61",
+    "@ai-sdk/azure": "4.0.77",
+    "@ai-sdk/google-vertex": "5.0.91",
+    "@ai-sdk/openai": "4.0.73",
+    "@ai-sdk/perplexity": "4.0.49"
   },
   "license": "Apache-2.0",
   "publishConfig": {

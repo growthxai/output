@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { aiSdk, generateTextWithStreaming } from '@outputai/llm';
+import { aiSdk, generateTextWithStreaming } from '@outputai/core/llm';
 
 const impossibleOutputSchema = z.object( {
   answer: z.string().refine( () => false, 'This schema is intentionally impossible to satisfy.' )

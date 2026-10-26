@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { generatePlanName, writePlanFile, updateAgentTemplates } from './workflow_planner.js';
 import { initializeAgentConfig } from './coding_agents.js';
-import { generateText, GenerateTextResult } from '@outputai/llm';
+import { generateText, GenerateTextResult } from '@outputai/core/llm';
 import fs from 'node:fs/promises';
 
 vi.mock( './coding_agents.js' );
-vi.mock( '@outputai/llm' );
+vi.mock( '@outputai/core/llm' );
 vi.mock( 'node:fs/promises' );
 
 const mockGenerateTextResult = ( text: string ): GenerateTextResult => ( {

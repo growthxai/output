@@ -1,0 +1,276 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const SHIPPED_PROVIDERS = [
+  { name: 'amazon-bedrock', pkg: '@ai-sdk/amazon-bedrock', exportName: 'createAmazonBedrock' },
+  { name: 'anthropic', pkg: '@ai-sdk/anthropic', exportName: 'createAnthropic' },
+  { name: 'azure', pkg: '@ai-sdk/azure', exportName: 'createAzure' },
+  { name: 'google-vertex', pkg: '@ai-sdk/google-vertex', exportName: 'createVertex' },
+  { name: 'openai', pkg: '@ai-sdk/openai', exportName: 'createOpenAI' },
+  { name: 'perplexity', pkg: '@ai-sdk/perplexity', exportName: 'createPerplexity' }
+];
+
+const makeProviderModules = () => Object.fromEntries(
+  SHIPPED_PROVIDERS.map( ( { name, pkg, exportName } ) => [
+    pkg,
+    {
+      [exportName]: vi.fn( options => ( { name, options } ) )
+    }
+  ] )
+);
+
+const moduleNotFound = pkg => Object.assign( new Error( `Cannot find package '${pkg}' imported from /app/ai_provider.js` ), {
+  code: 'ERR_MODULE_NOT_FOUND'
+} );
+
+const undiciSpies = vi.hoisted( () => ( {
+  EnvHttpProxyAgent: vi.fn(),
+  fetch: vi.fn()
+} ) );
+
+const importWithMockedProviders = async ( {
+  modules = makeProviderModules(),
+  loadErrors = {},
+  resolveGoogleVertexAuthOptions = () => ( {} )
+} = {} ) => {
+  await vi.resetModules();
+
+  for ( const { pkg, exportName } of SHIPPED_PROVIDERS ) {
+    vi.doMock( pkg, () => ( {
+      get [exportName]() {
+        if ( loadErrors[pkg] ) {
+          throw loadErrors[pkg];
+        }
+        return modules[pkg][exportName];
+      }
+    } ) );
+  }
+
+  vi.doMock( './utils/google_vertex_auth.js', () => ( { resolveGoogleVertexAuthOptions } ) );
+
+  vi.doMock( 'undici', async importOriginal => {
+    const actual = await importOriginal();
+    undiciSpies.EnvHttpProxyAgent.mockImplementation( function EnvHttpProxyAgent( options ) {
+      return new actual.EnvHttpProxyAgent( options );
+    } );
+    undiciSpies.fetch.mockResolvedValue( new actual.Response( null, { status: 204 } ) );
+
+    return {
+      ...actual,
+      EnvHttpProxyAgent: undiciSpies.EnvHttpProxyAgent,
+      fetch: undiciSpies.fetch
+    };
+  } );
+
+  return {
+    modules,
+    ...( await import( './ai_provider.js' ) )
+  };
+};
+
+afterEach( () => {
+  for ( const { pkg } of SHIPPED_PROVIDERS ) {
+    vi.doUnmock( pkg );
+  }
+  vi.doUnmock( 'undici' );
+  vi.doUnmock( './utils/google_vertex_auth.js' );
+  undiciSpies.EnvHttpProxyAgent.mockReset();
+  undiciSpies.fetch.mockReset();
+  vi.resetModules();
+  vi.restoreAllMocks();
+} );
+
+describe( 'getProvider', () => {
+  it( 'does not initialize shipped providers on import', async () => {
+    const { modules } = await importWithMockedProviders();
+
+    for ( const { pkg, exportName } of SHIPPED_PROVIDERS ) {
+      expect( modules[pkg][exportName] ).not.toHaveBeenCalled();
+    }
+  } );
+
+  it( 'initializes each shipped provider with custom fetch when requested', async () => {
+    const { modules, getProvider } = await importWithMockedProviders();
+
+    for ( const { name, pkg, exportName } of SHIPPED_PROVIDERS ) {
+      const provider = getProvider( name );
+
+      expect( provider ).toMatchObject( { name, options: { fetch: expect.any( Function ) } } );
+      expect( modules[pkg][exportName] ).toHaveBeenCalledWith( { fetch: expect.any( Function ) } );
+    }
+
+    expect( undiciSpies.EnvHttpProxyAgent ).toHaveBeenCalledWith( {
+      headersTimeout: 15 * 60 * 1000,
+      bodyTimeout: 15 * 60 * 1000,
+      allowH2: false
+    } );
+  } );
+
+  it( 'initializes google-vertex with the resolved Google auth options', async () => {
+    const googleAuthOptions = { credentials: { client_email: 'robot@output-test.iam.gserviceaccount.com' } };
+    const { modules, getProvider } = await importWithMockedProviders( {
+      resolveGoogleVertexAuthOptions: () => ( { googleAuthOptions } )
+    } );
+
+    getProvider( 'google-vertex' );
+
+    expect( modules['@ai-sdk/google-vertex'].createVertex ).toHaveBeenCalledWith( {
+      fetch: expect.any( Function ),
+      googleAuthOptions
+    } );
+  } );
+
+  it( 'throws a friendly error when google-vertex credentials cannot be resolved', async () => {
+    const { getProvider } = await importWithMockedProviders( {
+      resolveGoogleVertexAuthOptions: () => {
+        throw new Error( 'Invalid GCP_CREDENTIALS_JSON: value is neither JSON nor base64 encoded JSON' );
+      }
+    } );
+
+    expect( () => getProvider( 'google-vertex' ) ).toThrow(
+      'Failed to initialize provider "google-vertex": Invalid GCP_CREDENTIALS_JSON: value is neither JSON nor base64 encoded JSON'
+    );
+  } );
+
+  it( 'passes the custom dispatcher through injected fetch', async () => {
+    const { getProvider } = await importWithMockedProviders();
+    const provider = getProvider( 'openai' );
+    const init = { method: 'POST', body: 'body' };
+
+    await provider.options.fetch( 'https://api.example.test', init );
+
+    expect( undiciSpies.fetch ).toHaveBeenCalledWith(
+      'https://api.example.test',
+      {
+        ...init,
+        dispatcher: undiciSpies.EnvHttpProxyAgent.mock.results[0].value
+      }
+    );
+  } );
+
+  it( 'allows injected fetch callers to override the dispatcher', async () => {
+    const { getProvider } = await importWithMockedProviders();
+    const provider = getProvider( 'openai' );
+    const dispatcher = { name: 'custom-dispatcher' };
+
+    await provider.options.fetch( 'https://api.example.test', { dispatcher } );
+
+    expect( undiciSpies.fetch ).toHaveBeenCalledWith(
+      'https://api.example.test',
+      { dispatcher }
+    );
+  } );
+
+  it( 'can import and initialize all installed shipped providers', async () => {
+    const { getProvider } = await import( './ai_provider.js' );
+
+    for ( const { name } of SHIPPED_PROVIDERS ) {
+      expect( getProvider( name ) ).toEqual( expect.any( Function ) );
+    }
+  } );
+
+  it( 'caches initialized providers', async () => {
+    const { modules, getProvider } = await importWithMockedProviders();
+
+    const first = getProvider( 'openai' );
+    const second = getProvider( 'openai' );
+
+    expect( second ).toBe( first );
+    expect( modules['@ai-sdk/openai'].createOpenAI ).toHaveBeenCalledTimes( 1 );
+  } );
+
+  it( 'uses registered providers before shipped providers', async () => {
+    const { modules, getProvider, registerProvider } = await importWithMockedProviders();
+    const customProvider = vi.fn( model => ( { provider: 'custom', model } ) );
+
+    registerProvider( 'openai', customProvider );
+
+    expect( getProvider( 'openai' ) ).toBe( customProvider );
+    expect( modules['@ai-sdk/openai'].createOpenAI ).not.toHaveBeenCalled();
+  } );
+
+  it( 'throws FatalError for unsupported providers', async () => {
+    const { getProvider } = await importWithMockedProviders();
+
+    expect( () => getProvider( 'not-real' ) ).toThrow( 'Unsupported provider "not-real"' );
+  } );
+
+  it( 'throws FatalError naming the package when a shipped provider package is not installed', async () => {
+    const { getProvider } = await importWithMockedProviders( { loadErrors: { '@ai-sdk/azure': moduleNotFound( '@ai-sdk/azure' ) } } );
+
+    expect( () => getProvider( 'azure' ) ).toThrow( 'Provider "azure" requires the "@ai-sdk/azure" package, which is not installed' );
+  } );
+
+  it( 'rethrows load errors other than the provider package being missing', async () => {
+    const loadErrors = { '@ai-sdk/amazon-bedrock': moduleNotFound( '@smithy/eventstream-codec' ) };
+
+    await expect( importWithMockedProviders( { loadErrors } ) ).rejects.toThrow( '@smithy/eventstream-codec' );
+  } );
+
+  it( 'throws a friendly error when provider initialization fails', async () => {
+    const modules = makeProviderModules();
+    modules['@ai-sdk/openai'].createOpenAI.mockImplementation( () => {
+      throw new Error( 'Missing OpenAI API key' );
+    } );
+    const { getProvider } = await importWithMockedProviders( { modules } );
+
+    expect( () => getProvider( 'openai' ) ).toThrow(
+      'Failed to initialize provider "openai": Missing OpenAI API key'
+    );
+  } );
+} );
+
+describe( 'registerProvider', () => {
+  it( 'registers custom providers', async () => {
+    const { getProvider, getProviderNames, registerProvider } = await importWithMockedProviders();
+    const customProvider = vi.fn();
+
+    registerProvider( 'custom', customProvider );
+
+    expect( getProvider( 'custom' ) ).toBe( customProvider );
+    expect( getProviderNames() ).toContain( 'custom' );
+  } );
+
+  it( 'validates provider registration arguments', async () => {
+    const { registerProvider } = await importWithMockedProviders();
+
+    expect( () => registerProvider( '', vi.fn() ) ).toThrow( 'Provider name must be a non-empty string' );
+    expect( () => registerProvider( 'custom', 'not-a-function' ) ).toThrow( 'expected function, received string' );
+  } );
+
+  it.each( [
+    [ 'vertex', 'google-vertex' ],
+    [ 'bedrock', 'amazon-bedrock' ]
+  ] )( 'rejects registering deprecated provider alias %s', async ( alias, canonical ) => {
+    const { registerProvider } = await importWithMockedProviders();
+
+    expect( () => registerProvider( alias, vi.fn() ) ).toThrow(
+      `Cannot register provider "${alias}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
+    );
+  } );
+} );
+
+describe( 'getProviderNames', () => {
+  it( 'returns shipped and registered provider names without duplicates', async () => {
+    const { getProviderNames, registerProvider } = await importWithMockedProviders();
+
+    registerProvider( 'custom', vi.fn() );
+    registerProvider( 'openai', vi.fn() );
+
+    expect( getProviderNames() ).toEqual( [
+      'amazon-bedrock',
+      'anthropic',
+      'azure',
+      'google-vertex',
+      'openai',
+      'perplexity',
+      'custom'
+    ] );
+  } );
+
+  it( 'omits shipped providers whose package is not installed', async () => {
+    const { getProviderNames } = await importWithMockedProviders( { loadErrors: { '@ai-sdk/azure': moduleNotFound( '@ai-sdk/azure' ) } } );
+
+    expect( getProviderNames() ).not.toContain( 'azure' );
+    expect( getProviderNames() ).toContain( 'openai' );
+  } );
+} );

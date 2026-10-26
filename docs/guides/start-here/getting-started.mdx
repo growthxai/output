@@ -276,7 +276,7 @@ export const fetchContent = step({
 ```typescript evaluators.ts
 // src/workflows/blog_evaluator/evaluators.ts
 import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import type { BlogContent } from './types.js';
 
 const blogContentSchema = z.object({
@@ -406,7 +406,7 @@ export default workflow({
 ```typescript steps.ts
 // src/workflows/summarize_url/steps.ts
 import { step, z } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { jinaClient } from '../../clients/jina.js';  // src/clients/jina.ts
 
 export const scrapeUrl = step({

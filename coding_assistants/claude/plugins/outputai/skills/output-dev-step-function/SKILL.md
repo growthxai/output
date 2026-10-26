@@ -105,8 +105,8 @@ import axios from 'axios';
 ### LLM Client Import
 
 ```typescript
-// CORRECT - Use @outputai/llm wrapper
-import { generateText, aiSdk } from '@outputai/llm';
+// CORRECT - Use @outputai/core/llm wrapper
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -130,7 +130,7 @@ import { InputSchema, OutputSchema } from './types';
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/core/http';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 import { StepInputSchema, StepOutputSchema } from './types.js';
 
@@ -288,7 +288,7 @@ The `variables` field accepts scalars, nested objects, and arrays. Use Liquid lo
 `generateText` arguments: `prompt`, `promptDir`, `variables`, `tools`, `output`, `toolChoice`, `stopWhen`, `abortSignal`.
 
 ```typescript
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import {
   AnalyzeContentInputSchema,
   AnalyzeContentOutputSchema,
@@ -319,7 +319,7 @@ export const analyzeContent = step( {
 ### Using generateText
 
 ```typescript
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { SummarizeInputSchema, SummarizeOutputSchema } from './types.js';
 
 export const generateSummary = step( {
@@ -345,7 +345,7 @@ export const generateSummary = step( {
 Prefer `generateTextWithStreaming()` in steps when the caller needs progress callbacks and a complete result:
 
 ```typescript
-import { generateTextWithStreaming } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/core/llm';
 
 const reportProgress = ( chunk: string ) => process.stdout.write( chunk );
 
@@ -434,7 +434,7 @@ Based on a real workflow step:
 ```typescript
 import { step, z, FatalError, ValidationError } from '@outputai/core';
 import { createKyClient } from '@outputai/core/http';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 import { GeminiImageService } from '../../shared/clients/gemini_client.js';
 import {
@@ -591,7 +591,7 @@ fn: async input => {
 
 - [ ] `step`, `z`, `FatalError`, `ValidationError` imported from `@outputai/core`
 - [ ] `createKyClient` imported from `@outputai/core/http` (not axios)
-- [ ] `generateText` and `aiSdk` imported from `@outputai/llm` (not direct provider)
+- [ ] `generateText` and `aiSdk` imported from `@outputai/core/llm` (not direct provider)
 - [ ] Structured output uses `aiSdk.Output.object()` with `.describe()` (not `.min()/.max()/.length()`) on number and array schemas
 - [ ] Schemas for `aiSdk.Output.object()` are defined in `types.ts` and imported, not inline
 - [ ] All imports use `.js` extension

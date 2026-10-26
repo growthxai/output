@@ -77,6 +77,7 @@ Clarify scope boundaries and technical considerations by asking numbered questio
     - Default to anthropic if the user has no preference
     - All prompt files in the workflow must use the same provider unless the user explicitly requests otherwise
     - Record the chosen provider so it flows through to prompt engineering (step 6) and implementation
+    - If the provider's `@ai-sdk/*` package is not in `package.json` (new projects ship `@ai-sdk/anthropic` and `@ai-sdk/openai`), include installing it in the plan
   </llm_provider>
 </clarification_areas>
 

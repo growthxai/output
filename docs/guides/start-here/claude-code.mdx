@@ -69,7 +69,7 @@ The plugin enforces Output's conventions so you don't accidentally create patter
 - Import `z` from `@outputai/core`, never from `zod` directly
 - All I/O goes in steps, never in workflow functions
 - Use `@outputai/core/http` for HTTP calls, not `axios` or `fetch`
-- Use `@outputai/llm` for LLM calls, not provider libraries directly
+- Use `@outputai/core/llm` for LLM calls, not provider libraries directly
 - ES module imports always use `.js` extensions
 - Every step and workflow has input and output schemas
 - Prompt templates use Liquid.js syntax, not Handlebars

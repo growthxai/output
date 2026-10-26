@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/llm';
+import type { LLMGenerationCost, LLMGenerationUsage, LLMUsageEvent } from '@outputai/core/llm';
 import type { TraceNode, HTTPCall, LLMUsageLine } from '#types/cost.js';
 
 const mockReadFileSync = vi.fn();

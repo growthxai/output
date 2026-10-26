@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { Agent, type MessageStore } from '@outputai/llm';
+import { Agent, type MessageStore } from '@outputai/core/llm';
 
 /** Fails only on write, so the model call succeeds and the failure happens after it */
 const brokenMessageStore = (): MessageStore => ( {

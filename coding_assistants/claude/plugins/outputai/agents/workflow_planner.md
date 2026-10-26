@@ -45,7 +45,7 @@ Planning step functions that handle all I/O operations.
 
 - HTTP client integrations using `@outputai/core/http`
 - Credentials management using `@outputai/core/credentials`
-- LLM operations using `@outputai/llm`
+- LLM operations using `@outputai/core/llm`
 - Error handling with FatalError and ValidationError
 - Retry strategies and timeout configurations
 
@@ -175,7 +175,7 @@ import { z } from '@outputai/core';
 import { createKyClient } from '@outputai/core/http';
 
 // LLM operations - NEVER call providers directly
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 // Error types
 import { FatalError, ValidationError } from '@outputai/core';

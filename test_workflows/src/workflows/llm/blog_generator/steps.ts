@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 const blogOutputSchema = z.object( {
   title: z.string(),

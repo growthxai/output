@@ -101,8 +101,8 @@ import { z } from 'zod';
 ### LLM Client Import (for LLM-powered evaluators)
 
 ```typescript
-// CORRECT - Use @outputai/llm wrapper
-import { generateText, aiSdk } from '@outputai/llm';
+// CORRECT - Use @outputai/core/llm wrapper
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 // WRONG - Never call LLM providers directly
 import OpenAI from 'openai';
@@ -354,7 +354,7 @@ export const evaluateSentiment = evaluator( {
 
 ```typescript
 import { evaluator, z, EvaluationNumberResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 export const evaluateSignalToNoise = evaluator( {
   name: 'evaluate_signal_to_noise',
@@ -389,7 +389,7 @@ export const evaluateSignalToNoise = evaluator( {
 
 ```typescript
 import { evaluator, z, EvaluationBooleanResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 export const evaluateFactualAccuracy = evaluator( {
   name: 'evaluate_factual_accuracy',
@@ -426,7 +426,7 @@ export const evaluateFactualAccuracy = evaluator( {
 
 ```typescript
 import { evaluator, z, EvaluationStringResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 export const evaluateContentCategory = evaluator( {
   name: 'evaluate_content_category',
@@ -541,7 +541,7 @@ Based on a real workflow evaluator file:
 
 ```typescript
 import { evaluator, z, EvaluationBooleanResult, EvaluationNumberResult } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 import { blogContentSchema } from './types.js';
 import type { BlogContent, QualityMetrics } from './types.js';
 
@@ -707,7 +707,7 @@ dimensions: [
 ## Verification Checklist
 
 - [ ] `evaluator`, `z`, result types imported from `@outputai/core`
-- [ ] `generateText` and `aiSdk` imported from `@outputai/llm` if using LLM (not direct provider)
+- [ ] `generateText` and `aiSdk` imported from `@outputai/core/llm` if using LLM (not direct provider)
 - [ ] LLM output schemas use `.describe()` instead of `.min()/.max()` on `z.number()`
 - [ ] All imports use `.js` extension
 - [ ] Named exports used for each evaluator

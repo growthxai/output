@@ -31,7 +31,7 @@ In workflow steps, prefer `generateTextWithStreaming()` or `Agent.generateWithSt
 ## generateTextWithStreaming()
 
 ```typescript
-import { generateTextWithStreaming } from '@outputai/llm';
+import { generateTextWithStreaming } from '@outputai/core/llm';
 
 const result = await generateTextWithStreaming( {
   prompt: 'draft@v1',
@@ -67,7 +67,7 @@ const result = await agent.generateWithStreaming( {
 AI SDK streaming delivers provider and transport failures through `onError`. Iterating `textStream` does not reliably throw the original error. When using `streamText()` in a workflow step, capture the error and throw it after consumption:
 
 ```typescript
-import { streamText } from '@outputai/llm';
+import { streamText } from '@outputai/core/llm';
 
 const captured: { error: unknown } = { error: null };
 const result = streamText( {

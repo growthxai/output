@@ -1,5 +1,5 @@
 import { initializeAgentConfig } from './coding_agents.js';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '#config.js';

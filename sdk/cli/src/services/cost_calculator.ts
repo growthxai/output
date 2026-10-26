@@ -6,7 +6,7 @@ import type {
   LLMGenerationCostItem,
   LLMGenerationUsage,
   LLMUsageEvent
-} from '@outputai/llm';
+} from '@outputai/core/llm';
 
 import type {
   TraceNode,
@@ -61,7 +61,7 @@ function priceLines( lines: LLMUsageLine[], pricing: ModelPricing ): number {
 }
 
 // Token counts for display. The producer's 'input' line excludes cached tokens
-// (sdk/llm emits input − cached), while AI SDK reports inputTokens as the
+// (core/llm emits input − cached), while AI SDK reports inputTokens as the
 // total — add cached back so the columns match what providers report.
 function eventTokenUsage( lines: LLMUsageLine[] ): TokenUsage {
   const sumOf = ( type: string ): number =>

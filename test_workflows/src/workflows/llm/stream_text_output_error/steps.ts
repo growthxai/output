@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { aiSdk, streamText } from '@outputai/llm';
+import { aiSdk, streamText } from '@outputai/core/llm';
 import { workflowOutputSchema } from './types.js';
 
 const impossibleOutputSchema = z.object( {

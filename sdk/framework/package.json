@@ -9,8 +9,7 @@
   "dependencies": {
     "@outputai/cli": "workspace:",
     "@outputai/core": "workspace:",
-    "@outputai/evals": "workspace:",
-    "@outputai/llm": "workspace:"
+    "@outputai/evals": "workspace:"
   },
   "license": "Apache-2.0",
   "publishConfig": {

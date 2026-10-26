@@ -22,8 +22,7 @@
     "build": "rm -rf ./dist && tsc"
   },
   "dependencies": {
-    "@outputai/core": "workspace:",
-    "@outputai/llm": "workspace:"
+    "@outputai/core": "workspace:"
   },
   "license": "Apache-2.0",
   "publishConfig": {

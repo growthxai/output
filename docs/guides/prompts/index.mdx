@@ -55,7 +55,7 @@ Output searches recursively from your workflow's directory to find the prompt fi
 `generateText`, `generateTextWithStreaming`, `streamText`, `generateImage`, and `new Agent()` also accept a loaded or custom `Prompt` object. This lets you load a prompt once or supply one from another source:
 
 ```typescript
-import { generateText, loadPrompt } from '@outputai/llm';
+import { generateText, loadPrompt } from '@outputai/core/llm';
 
 const prompt = loadPrompt('generate_summary@v1', {
   company_name: 'Acme Corp',
@@ -68,8 +68,8 @@ await generateText({ prompt });
 A custom object must match the normalized `Prompt` shape:
 
 ```typescript
-import { generateText } from '@outputai/llm';
-import type { Prompt } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
+import type { Prompt } from '@outputai/core/llm';
 
 const prompt: Prompt = {
   name: 'custom-summary',
@@ -133,6 +133,8 @@ The YAML frontmatter configures the LLM call.
 | `provider` | LLM provider | `anthropic`, `openai`, `azure`, `amazon-bedrock`, `google-vertex`, `perplexity` (legacy aliases: `bedrock`, `vertex`) |
 | `model` | Model identifier | `claude-sonnet-4-20250514`, `gpt-4o` |
 
+Each built-in provider needs its AI SDK package installed in your project, such as `@ai-sdk/anthropic` for `anthropic`. New projects ship with `@ai-sdk/anthropic` and `@ai-sdk/openai`. See [Providers](/packages/core/llm#providers) for the full list.
+
 ### Optional Fields
 
 | Field | Description | Example |
@@ -150,8 +152,8 @@ The YAML frontmatter configures the LLM call.
 | `skills` | Skill file or directory paths, relative to this prompt. YAML may be a string or array; after `loadPrompt` always `string[]` (`[]` if omitted). | `./skills`, `../shared/tone.md` |
 | `tools` | Provider-specific tools | Vertex `googleSearch`, OpenAI `webSearch` |
 | `providerOptions` | Provider-specific config | See below |
-| `messageOptions` | Named per-message `providerOptions` sets | See [Prompt Caching](/packages/llm#prompt-caching) |
-| `n`, `size`, `aspectRatio`, `maxImagesPerCall` | Image generation fields | See [Image Output](/packages/llm#image-output) |
+| `messageOptions` | Named per-message `providerOptions` sets | See [Prompt Caching](/packages/core/llm#prompt-caching) |
+| `n`, `size`, `aspectRatio`, `maxImagesPerCall` | Image generation fields | See [Image Output](/packages/core/llm#image-output) |
 
 `loadPrompt` retains `maxTokens` on `config` for backward compatibility. When `maxOutputTokens` is absent, it also copies the `maxTokens` value to `maxOutputTokens`. When both keys are set, `maxOutputTokens` takes precedence. Text generation APIs use `maxOutputTokens`.
 
@@ -360,7 +362,7 @@ Authored `<tool>` blocks are not supported. AI SDK tool results use structured m
 
 The only supported attribute on a role tag is `options`, a space-separated list of names from frontmatter `messageOptions`. At load, those sets are merged from left to right onto the message as `providerOptions`; later sets win when the same provider option is repeated.
 
-Give `options` an explicit quoted or unquoted value, such as `options="cached fast"` or `options=cached`. Bare `options` throws, while `options=""` is treated as absent. Every referenced name must exist in `messageOptions`, and any other role-tag attribute throws. See [Prompt Caching](/packages/llm#prompt-caching).
+Give `options` an explicit quoted or unquoted value, such as `options="cached fast"` or `options=cached`. Bare `options` throws, while `options=""` is treated as absent. Every referenced name must exist in `messageOptions`, and any other role-tag attribute throws. See [Prompt Caching](/packages/core/llm#prompt-caching).
 
 ## System vs User
 
@@ -380,7 +382,7 @@ This separation makes prompts easier to maintain. When you need to change the ta
 
 ## Using Prompts
 
-Call prompts from your steps using the generate functions from `@outputai/llm`.
+Call prompts from your steps using the generate functions from `@outputai/core/llm`.
 
 ### With generateText
 
@@ -388,7 +390,7 @@ For single-shot LLM calls, use `generateText`:
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { GenerateSummaryInput, GenerateSummaryOutput } from './types.js';
 
 export const generateSummary = step({
@@ -428,7 +430,7 @@ For multi-step tool loops and stateful conversations, use the `Agent` class:
 
 ```typescript steps.ts
 import { step } from '@outputai/core';
-import { Agent } from '@outputai/llm';
+import { Agent } from '@outputai/core/llm';
 import { ReviewContentInput, ReviewContentOutput } from './types.js';
 
 export const reviewContent = step({
@@ -451,6 +453,6 @@ export const reviewContent = step({
 });
 ```
 
-Use `generateText` for single-shot LLM calls. Use `Agent` when you need multi-step tool execution, conversation history, or a reusable agent instance. See the [Agents section](/packages/llm#agents) for the full API.
+Use `generateText` for single-shot LLM calls. Use `Agent` when you need multi-step tool execution, conversation history, or a reusable agent instance. See the [Agents section](/packages/core/llm#agents) for the full API.
 
 The `variables` object maps to the `{{ variable }}` placeholders in your prompt. For dynamic content like conditionals and loops, see [Templating](/prompts/templating).

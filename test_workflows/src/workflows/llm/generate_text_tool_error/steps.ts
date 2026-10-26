@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { aiSdk, generateText } from '@outputai/llm';
+import { aiSdk, generateText } from '@outputai/core/llm';
 
 /** Throws on execution, after the step that requested it already reported its usage */
 const lookupPrice = aiSdk.tool( {

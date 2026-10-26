@@ -23,7 +23,7 @@ Before proceeding with any workflow operation, verify:
 - **HTTP Client**: NEVER use axios directly - always use @outputai/core/http wrapper
 - **HTTP Bodies**: Consume non-HEAD response bodies with `.json()`/`.text()` or cancel unused bodies with
   `response.body?.cancel()`
-- **LLM Client**: NEVER use a direct llm call - always use @outputai/llm wrapper
+- **LLM Client**: NEVER use a direct llm call - always use @outputai/core/llm wrapper
 - **Worker Restarts**: `npx output dev` auto-restarts the worker on file changes; if the worker runs detached, restart it manually with `docker restart <project>-worker-1`
 
 ## Requirements Gathering Strategy

@@ -65,7 +65,7 @@ export default workflow({
 ```typescript
 // steps.ts - where I/O happens
 import { step, z } from '@outputai/core';
-import { generateText } from '@outputai/llm';
+import { generateText } from '@outputai/core/llm';
 import { outputFetch } from '@outputai/core/http';
 
 export const scrapeWebsite = step({

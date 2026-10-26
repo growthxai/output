@@ -1,5 +1,5 @@
 import { step, z } from '@outputai/core';
-import { generateText, aiSdk, loadPrompt } from '@outputai/llm';
+import { generateText, aiSdk, loadPrompt } from '@outputai/core/llm';
 
 export const explainTopic = step( {
   name: 'explainTopic',

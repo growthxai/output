@@ -74,7 +74,7 @@ Workflow-specific steps stay next to the workflow:
 
 ```typescript src/workflows/post_call_followup/steps.ts
 import { step, z } from '@outputai/core';
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 const followUpSchema = z.object({
   subject: z.string(),
@@ -156,8 +156,7 @@ Add `outputai.workflows.expose` to `package.json`:
     "build": "tsc"
   },
   "peerDependencies": {
-    "@outputai/core": ">=0.2.0",
-    "@outputai/llm": ">=0.2.0",
+    "@outputai/core": ">=0.16.0",
     "zod": "^4.3.0"
   },
   "outputai": {

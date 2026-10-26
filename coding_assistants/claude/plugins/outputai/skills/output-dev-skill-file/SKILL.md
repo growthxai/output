@@ -169,7 +169,7 @@ Content:
 
 ```typescript
 import { step, z } from '@outputai/core';
-import { Agent, aiSdk } from '@outputai/llm';
+import { Agent, aiSdk } from '@outputai/core/llm';
 
 export const reviewContent = step( {
   name: 'reviewContent',

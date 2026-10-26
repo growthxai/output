@@ -131,9 +131,9 @@ const result = await client.post( 'endpoint', { json: payload } ).json();
 
 ### LLM Integration
 
-Never call LLM APIs directly. Use `@outputai/llm`:
+Never call LLM APIs directly. Use `@outputai/core/llm`:
 ```typescript
-import { generateText, aiSdk } from '@outputai/llm';
+import { generateText, aiSdk } from '@outputai/core/llm';
 
 // Text generation
 const { result: text } = await generateText( {
