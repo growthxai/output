@@ -5,7 +5,7 @@ import {
   EvaluationVerdictResult,
   EvaluationNumberResult,
   EvaluationStringResult
-} from '@outputai/core';
+} from '#interface/evaluation_result';
 
 describe( 'Verdict', () => {
 

@@ -27,7 +27,7 @@ This separation enables automatic retries, resumption, and debugging.
 | **Evaluator** | Quality assessment | Returns confidence-scored results for validation loops |
 | **Scenario** | Test input data | JSON files matching workflow's inputSchema |
 | **Prompt** | LLM templates | Liquid.js templating with YAML frontmatter config |
-| **Eval Test** | Offline quality testing | Dataset-driven verification with `verify()` from `@outputai/evals` |
+| **Eval Test** | Offline quality testing | Dataset-driven verification with `verify()` from `@outputai/core/evals` |
 
 ## Project Structure
 
@@ -169,7 +169,7 @@ src/
 | `output-dev-llm-streaming` | Stream LLM progress with Temporal-safe error handling |
 | `output-dev-types-file` | Zod schema definitions |
 | `output-dev-evaluator-function` | Quality assessment functions |
-| `output-dev-eval-testing` | Offline eval tests with `@outputai/evals` |
+| `output-dev-eval-testing` | Offline eval tests with `@outputai/core/evals` |
 | `output-dev-prompt-file` | LLM prompt templates with Liquid.js |
 | `output-dev-model-selection` | Pick a current LLM model via the AI Gateway listing |
 | `output-dev-upgrade-prompt-models` | Bulk-upgrade `model:` fields across `.prompt` files |

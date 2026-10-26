@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { getEvalWorkflowName } from '@outputai/evals';
 import { resolveWorkflowDir } from '#utils/workflow_dir.js';
+import { getEvalWorkflowName } from '#utils/eval_naming.js';
 
 const EVAL_WORKFLOW_FILES = [ 'tests/evals/workflow.ts', 'tests/evals/workflow.js' ];
 

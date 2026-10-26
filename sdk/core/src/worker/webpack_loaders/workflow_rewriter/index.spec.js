@@ -109,6 +109,39 @@ export const helper = async value => SharedEval(value);`;
     rmSync( dir, { recursive: true, force: true } );
   } );
 
+  it( 'strips evaluator imports referenced only as values', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-values-' ) );
+    writeFileSync( join( dir, 'evaluators.js' ), 'export const EvalA = verify({ name: \'eval.a\' }, () => {});' );
+
+    const source = `
+import { evalWorkflow } from '@outputai/core/evals';
+import { EvalA } from './evaluators.js';
+
+export default evalWorkflow({ name: 'flow_eval', evals: [ { evaluator: EvalA } ] });`;
+
+    const { code } = await runLoader( source, join( dir, 'workflow.js' ) );
+
+    expect( code ).not.toMatch( /evaluators\.js/ );
+    expect( code ).toMatch( /from '@outputai\/core\/evals'/ );
+    expect( code ).toMatch( /evaluator: 'eval\.a'/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
+  it( 'strips activity imports that are never referenced', async () => {
+    const dir = mkdtempSync( join( tmpdir(), 'ast-loader-unused-' ) );
+    writeFileSync( join( dir, 'steps.js' ), 'export const StepA = step({ name: \'step.a\' });' );
+
+    const source = `
+import { StepA } from './steps.js';
+export default workflow({ name: 'flow.unused', fn: async () => 1 });`;
+
+    const { code } = await runLoader( source, join( dir, 'workflow.js' ) );
+
+    expect( code ).not.toMatch( /steps\.js/ );
+    expect( code ).toMatch( /export default workflow\(/ );
+    rmSync( dir, { recursive: true, force: true } );
+  } );
+
   it( 'resolves top-level const activity names', async () => {
     const dir = mkdtempSync( join( tmpdir(), 'ast-loader-const-' ) );
     writeFileSync( join( dir, 'steps.js' ), `

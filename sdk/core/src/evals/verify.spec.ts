@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { verify } from './verify.js';
-import { EvaluationBooleanResult, z } from '@outputai/core';
+import { z } from 'zod';
+import { EvaluationBooleanResult } from '#interface/evaluation_result';
 import { Verdict } from './verdict.js';
 import type { CheckContext } from './verify.js';
 

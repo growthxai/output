@@ -152,6 +152,57 @@ function helper( Symbol ) {
     expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
   } );
 
+  it( 'replaces value references with the activity name', () => {
+    const src = `
+const config = { evaluator: EvalA, all: [ EvalA, StepA ] };
+function helper() {
+  return register( StepA );
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [
+      { localName: 'StepA', activityName: 'step.a' },
+      { localName: 'EvalA', activityName: 'eval.a' }
+    ];
+
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
+    expect( rewrote ).toBe( true );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).toMatch( /evaluator: 'eval\.a'/ );
+    expect( code ).toMatch( /all: \['eval\.a', 'step\.a'\]/ );
+    expect( code ).toMatch( /register\('step\.a'\)/ );
+  } );
+
+  it( 'expands shorthand properties when replacing value references', () => {
+    const ast = parse( 'const config = { EvalA };', 'file.js' );
+    const activityImports = [ { localName: 'EvalA', activityName: 'eval.a' } ];
+
+    rewriteActivityCalls( { ast, activityImports } );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).toMatch( /\{\s*EvalA: 'eval\.a'\s*\}/ );
+  } );
+
+  it( 'leaves keys, member properties and shadowed names untouched', () => {
+    const src = `
+const config = { StepA: 1 };
+const value = config.StepA;
+function helper( StepA ) {
+  return [ StepA ];
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+
+    const rewrote = rewriteActivityCalls( { ast, activityImports } );
+    expect( rewrote ).toBe( false );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).not.toMatch( /step\.a/ );
+    expect( code ).toMatch( /\{\s*StepA: 1\s*\}/ );
+    expect( code ).toMatch( /config\.StepA/ );
+    expect( code ).toMatch( /return \[StepA\]/ );
+  } );
+
   it( 'throws when globalThis is shadowed at an activity call site', () => {
     const src = `
 function helper( globalThis ) {

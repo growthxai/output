@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { renderEvalOutput, computeExitCode } from './render.js';
-import type { EvalOutput } from './schemas.js';
+import { renderEvalOutput, computeExitCode } from './eval_render.js';
+import type { EvalOutput } from '@outputai/core/evals';
 
 const makeOutput = ( cases: EvalOutput['cases'], overrides?: Partial<EvalOutput['summary']> ): EvalOutput => {
   const passed = cases.filter( c => c.verdict === 'pass' ).length;

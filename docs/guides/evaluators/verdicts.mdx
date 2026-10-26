@@ -3,10 +3,10 @@ title: "Verdict Helpers"
 description: "Deterministic assertions, manual verdicts, and LLM result wrappers for workflow evaluators"
 ---
 
-The `Verdict` object from `@outputai/evals` provides helpers for returning evaluation results from your [workflow evaluators](/evaluators/workflow-evaluators). There are three categories: deterministic assertions for programmatic checks, manual verdicts for custom logic, and LLM result wrappers for judge output.
+The `Verdict` object from `@outputai/core/evals` provides helpers for returning evaluation results from your [workflow evaluators](/evaluators/workflow-evaluators). There are three categories: deterministic assertions for programmatic checks, manual verdicts for custom logic, and LLM result wrappers for judge output.
 
 ```typescript
-import { Verdict } from '@outputai/evals';
+import { Verdict } from '@outputai/core/evals';
 ```
 
 ## Deterministic Assertions
@@ -319,7 +319,7 @@ Verdict.fail( 'Multiple critical issues', [
 Manual verdicts are useful when your check logic doesn't map cleanly to a single assertion:
 
 ```typescript tests/evals/evaluators.ts
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const evaluateStructure = verify(
@@ -364,7 +364,7 @@ Verdict.fromJudge( { verdict, reasoning }: { verdict: 'pass' | 'partial' | 'fail
 Wraps an LLM verdict into an `EvaluationVerdictResult`.
 
 ```typescript
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { generateText, aiSdk } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 

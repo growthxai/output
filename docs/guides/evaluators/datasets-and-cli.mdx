@@ -12,7 +12,7 @@ Once you've written evaluators with `verify()` and `Verdict`, you need an eval w
 A minimal example with one evaluator:
 
 ```typescript tests/evals/workflow.ts
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import { evaluateSum } from './evaluators.js';
 
 export default evalWorkflow( {
@@ -30,7 +30,7 @@ export default evalWorkflow( {
 A more realistic example mixing deterministic checks and LLM judges:
 
 ```typescript tests/evals/workflow.ts
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import {
   lengthOfOutput,
   evaluateTopic,
@@ -146,7 +146,8 @@ Here's the complete setup for a blog generator workflow:
 **1. Write evaluators** — mix deterministic checks and LLM judges:
 
 ```typescript tests/evals/evaluators.ts
-import { verify, Verdict, judgeVerdict, judgeScore } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
+import { judgeVerdict, judgeScore } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 
 const blogInput = z.object( { topic: z.string() } );
@@ -191,7 +192,7 @@ export const evaluateQuality = verify(
 **2. Wire into an eval workflow:**
 
 ```typescript tests/evals/workflow.ts
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import { lengthOfOutput, evaluateTopic, evaluateQuality } from './evaluators.js';
 
 export default evalWorkflow( {
@@ -236,5 +237,5 @@ output workflow test blog_generator --cached
 - [Verdict Helpers](/evaluators/verdicts) — Complete reference for deterministic assertions and manual verdicts
 - [Datasets](/evaluators/datasets) — Defining test cases with inputs and ground truth
 - [LLM-as-a-Judge Best Practices](/evaluators/best-practices) — Writing effective judge prompts and choosing grading scales
-- [`@outputai/evals` API Reference](/packages/evals) — Complete package reference
+- [Evals reference](/packages/core/evals) — Complete module reference
 - [CLI Commands](/packages/cli#evaluation-commands) — Full CLI reference for eval and dataset commands

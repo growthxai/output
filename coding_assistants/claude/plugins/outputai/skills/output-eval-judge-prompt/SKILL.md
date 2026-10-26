@@ -150,7 +150,8 @@ After creating the `.prompt` file, wire it to an evaluator using `verify()` and 
 
 ```typescript
 // tests/evals/evaluators.ts
-import { verify, judgeVerdict } from '@outputai/evals';
+import { verify } from '@outputai/core/evals';
+import { judgeVerdict } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 import { blogInput, blogOutput } from './schemas.js';
 
@@ -176,7 +177,7 @@ Then add it to the eval workflow:
 
 ```typescript
 // tests/evals/workflow.ts
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import { checkTone } from './evaluators.js';
 
 export default evalWorkflow({

@@ -1,7 +1,7 @@
 /**
  * Tools to interact with filesystem paths
  *
- * @deprecated Internal helper with no public replacement, kept only for `@outputai/evals`. It will be removed when evals folds into `@outputai/core`.
+ * @deprecated Internal helper with no public replacement. It will be removed in a future release.
  */
 export declare const Path: {
   /**

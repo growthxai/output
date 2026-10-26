@@ -1,4 +1,5 @@
-import { verify, Verdict, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
+import { judgeVerdict, judgeScore, judgeLabel, judgeBoolean } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 
 const blogInput = z.object( { topic: z.string() } );
@@ -52,6 +53,18 @@ export const evaluateTone = verify(
   async ( { output } ) =>
     judgeLabel( {
       prompt: 'judge_tone@v1',
+      variables: {
+        blog_title: output.title,
+        blog_post: output.blog_post
+      }
+    } )
+);
+
+export const evaluateCallToAction = verify(
+  { name: 'evaluate_call_to_action', input: blogInput, output: blogOutput },
+  async ( { output } ) =>
+    judgeBoolean( {
+      prompt: 'judge_call_to_action@v1',
       variables: {
         blog_title: output.title,
         blog_post: output.blog_post

@@ -1,6 +1,6 @@
 ---
 name: output-dev-eval-testing
-description: Create offline evaluation tests for Output SDK workflows using @outputai/evals. Use when implementing test evaluators with verify(), creating dataset YAML files, building eval workflows, or running workflow tests via CLI.
+description: Create offline evaluation tests for Output SDK workflows using @outputai/core/evals. Use when implementing test evaluators with verify(), creating dataset YAML files, building eval workflows, or running workflow tests via CLI.
 allowed-tools: [Bash, Read, Write, Edit]
 ---
 
@@ -8,9 +8,9 @@ allowed-tools: [Bash, Read, Write, Edit]
 
 ## Overview
 
-The `@outputai/evals` package provides an offline evaluation framework for testing workflow quality using datasets and evaluators. This is **complementary** to the runtime `evaluator()` from `@outputai/core`:
+The `@outputai/core/evals` module provides an offline evaluation framework for testing workflow quality using datasets and evaluators. This is **complementary** to the runtime `evaluator()` from `@outputai/core`:
 
-| Aspect | Runtime Evaluators (`@outputai/core`) | Offline Eval Tests (`@outputai/evals`) |
+| Aspect | Runtime Evaluators (`@outputai/core`) | Offline Eval Tests (`@outputai/core/evals`) |
 |--------|----------------------------------------|------------------------------------------|
 | **When** | During workflow execution | After execution, at test time |
 | **Where** | `evaluators.ts` in workflow folder | `tests/evals/` in workflow folder |
@@ -23,7 +23,7 @@ Use offline eval testing when you want to validate workflow behavior against kno
 ## When to Use This Skill
 
 - Creating files in `tests/evals/` or `tests/datasets/`
-- Writing evaluators that use `verify()` from `@outputai/evals`
+- Writing evaluators that use `verify()` from `@outputai/core/evals`
 - Creating YAML dataset files for test cases
 - Building eval workflows with `evalWorkflow()`
 - Running `output workflow test` commands
@@ -51,11 +51,11 @@ src/workflows/{workflow_name}/
 
 ## Creating Evaluators with `verify()`
 
-Import `verify` and `Verdict` from `@outputai/evals` (not `@outputai/core`):
+Import `verify` and `Verdict` from `@outputai/core/evals` (not the `@outputai/core` root):
 
 ```typescript
 // tests/evals/evaluators.ts
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 ```
 
@@ -86,7 +86,7 @@ verify(options, checkFn)
 ### Basic Example
 
 ```typescript
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const evaluateSum = verify(
@@ -159,7 +159,8 @@ Before writing a judge prompt, identify the specific failure mode via error anal
 For subjective quality assessments, use judge functions with `.prompt` files:
 
 ```typescript
-import { verify, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
+import { verify } from '@outputai/core/evals';
+import { judgeVerdict, judgeScore, judgeLabel } from '@outputai/core/llm';
 
 // Returns pass/partial/fail verdict from an LLM
 export const evaluateTopic = verify(
@@ -236,7 +237,7 @@ The eval workflow wires evaluators together and defines how to interpret results
 
 ```typescript
 // tests/evals/workflow.ts
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import { evaluateSum } from './evaluators.js';
 
 export default evalWorkflow({
@@ -446,8 +447,8 @@ output workflow dataset list blog_generator
 
 ## Verification Checklist
 
-- [ ] Evaluators import `verify`, `Verdict` from `@outputai/evals` (not `@outputai/core`)
-- [ ] Eval workflow imports `evalWorkflow` from `@outputai/evals`
+- [ ] Evaluators import `verify`, `Verdict` from `@outputai/core/evals` (not the `@outputai/core` root), and judges from `@outputai/core/llm`
+- [ ] Eval workflow imports `evalWorkflow` from `@outputai/core/evals`
 - [ ] All imports use `.js` extension
 - [ ] Eval workflow name follows `{workflow_name}_eval` pattern
 - [ ] Dataset YAML files are in `tests/datasets/`

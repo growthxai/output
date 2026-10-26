@@ -1,7 +1,6 @@
 ---
 "@outputai/core": minor
 "@outputai/cli": patch
-"@outputai/evals": patch
 ---
 
 Folded `@outputai/llm` as a feature of `@outputai/core`, under the `@outputai/core/llm` entry point. Usage is the same: replace `@outputai/llm` imports with `@outputai/core/llm`. The `@outputai/llm` package is no longer published. Other changes are:

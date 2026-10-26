@@ -6,13 +6,10 @@ import { readAllDatasets, writeDataset } from '#services/datasets.js';
 import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
 import { diagnoseMissingEvalWorkflow } from '#utils/eval_diagnostics.js';
 import { handleApiError } from '#utils/error_handler.js';
-import {
-  getEvalWorkflowName,
-  renderEvalOutput,
-  computeExitCode,
-  EvalOutputSchema
-} from '@outputai/evals';
-import type { Dataset, EvalOutput } from '@outputai/evals';
+import { getEvalWorkflowName } from '#utils/eval_naming.js';
+import { renderEvalOutput, computeExitCode } from '#utils/eval_render.js';
+import { EvalOutputSchema } from '@outputai/core/evals';
+import type { Dataset, EvalOutput } from '@outputai/core/evals';
 
 export default class WorkflowTest extends Command {
   static override description = 'Run evaluations against a workflow using its datasets';

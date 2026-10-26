@@ -1,4 +1,4 @@
-import { evalWorkflow } from '@outputai/evals';
+import { evalWorkflow } from '@outputai/core/evals';
 import { evaluateSum } from './evaluators.js';
 
 export default evalWorkflow( {

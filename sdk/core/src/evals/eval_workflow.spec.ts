@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { INVOKE_ACTIVITY_SYMBOL, METADATA_ACCESS_SYMBOL } from '#consts';
 import { evalWorkflow } from './eval_workflow.js';
 
 type EvalWorkflowRunner = {
@@ -10,41 +11,27 @@ type EvalWorkflowRunner = {
   }>
 };
 
-const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
 const workflowMock = vi.hoisted( () => vi.fn( ( { fn }: { fn: unknown } ) => fn ) );
 const executeInParallelMock = vi.hoisted( () => vi.fn( async ( { jobs }: { jobs: Array<() => Promise<unknown>> } ) => {
   const results = await Promise.all( jobs.map( async job => ( { ok: true, result: await job() } ) ) );
   return results;
 } ) );
-const hasMock = vi.hoisted( () => vi.fn() );
-const getNameMock = vi.hoisted( () => vi.fn() );
 
-vi.mock( '@outputai/core', async importOriginal => {
-  const actual = await importOriginal<typeof import( '@outputai/core' )>();
-  return {
-    ...actual,
-    workflow: workflowMock,
-    executeInParallel: executeInParallelMock
-  };
-} );
+vi.mock( '#interface/workflow', () => ( { workflow: workflowMock } ) );
 
-vi.mock( '@outputai/core/sdk/helpers', () => ( {
-  ComponentMetadata: {
-    has: hasMock,
-    getName: getNameMock
-  }
-} ) );
+vi.mock( '#interface/workflow_utils', () => ( { executeInParallel: executeInParallelMock } ) );
+
+const createEvaluator = ( metadata?: { name?: string } ) =>
+  Object.assign( async () => ( { value: true, confidence: 1 } ), metadata ? { [METADATA_ACCESS_SYMBOL]: metadata } : {} );
 
 describe( 'evalWorkflow', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     delete ( globalThis as Record<symbol, unknown> )[INVOKE_ACTIVITY_SYMBOL];
-    hasMock.mockReturnValue( true );
-    getNameMock.mockReturnValue( 'quality_eval' );
   } );
 
-  it( 'resolves evaluator names with ComponentMetadata.getName', async () => {
-    const evaluator = async () => ( { value: true, confidence: 1, feedback: [], dimensions: [] } );
+  it( 'resolves evaluator names from the component metadata', async () => {
+    const evaluator = createEvaluator( { name: 'quality_eval' } );
     const workflowFn = evalWorkflow( {
       name: 'quality',
       evals: [ {
@@ -69,8 +56,6 @@ describe( 'evalWorkflow', () => {
       } ]
     } );
 
-    expect( hasMock ).toHaveBeenCalledWith( evaluator );
-    expect( getNameMock ).toHaveBeenCalledWith( evaluator );
     expect( invokeActivity ).toHaveBeenCalledWith( 'quality_eval', {
       input: { prompt: 'hello' },
       output: { answer: 'hello' },
@@ -83,9 +68,25 @@ describe( 'evalWorkflow', () => {
     } );
   } );
 
+  it( 'uses evaluator names replaced by the workflow rewriter', async () => {
+    const workflowFn = evalWorkflow( {
+      name: 'quality',
+      evals: [ {
+        evaluator: 'bundled_eval' as unknown as Function,
+        interpret: { type: 'boolean' }
+      } ]
+    } ) as EvalWorkflowRunner;
+    const invokeActivity = vi.fn().mockResolvedValue( { value: true, confidence: 1, feedback: [], dimensions: [] } );
+    ( globalThis as Record<symbol, unknown> )[INVOKE_ACTIVITY_SYMBOL] = invokeActivity;
+
+    const output = await workflowFn( { datasets: [ { name: 'case_1', input: {}, last_output: { output: {} } } ] } );
+
+    expect( invokeActivity ).toHaveBeenCalledWith( 'bundled_eval', expect.any( Object ) );
+    expect( output.cases[0].evaluators[0] ).toMatchObject( { name: 'bundled_eval', verdict: 'pass' } );
+  } );
+
   it( 'rejects non-component evaluators', () => {
-    const evaluator = async () => ( { value: true, confidence: 1 } );
-    hasMock.mockReturnValue( false );
+    const evaluator = createEvaluator();
 
     expect( () => evalWorkflow( {
       name: 'quality',
@@ -94,13 +95,10 @@ describe( 'evalWorkflow', () => {
         interpret: { type: 'boolean' }
       } ]
     } ) ).toThrow( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
-    expect( hasMock ).toHaveBeenCalledWith( evaluator );
-    expect( getNameMock ).not.toHaveBeenCalled();
   } );
 
   it( 'rejects component evaluators without a component name', () => {
-    const evaluator = async () => ( { value: true, confidence: 1 } );
-    getNameMock.mockReturnValue( undefined );
+    const evaluator = createEvaluator( {} );
 
     expect( () => evalWorkflow( {
       name: 'quality',
@@ -109,7 +107,5 @@ describe( 'evalWorkflow', () => {
         interpret: { type: 'boolean' }
       } ]
     } ) ).toThrow( 'Evaluator component doesn\'t have a name.' );
-    expect( hasMock ).toHaveBeenCalledWith( evaluator );
-    expect( getNameMock ).toHaveBeenCalledWith( evaluator );
   } );
 } );

@@ -327,7 +327,22 @@ import { generateText } from '@outputai/core/llm';
 const { result } = await generateText({ prompt: 'summarize@v1', variables: { content } });
 ```
 
-It also exports `generateTextWithStreaming`, `streamText`, `generateImage`, and `Agent`. Install the `@ai-sdk/*` provider packages your prompts use. See [LLM](/packages/core/llm) for the full API.
+It also exports `generateTextWithStreaming`, `streamText`, `generateImage`, `Agent`, and the `judge*` LLM judges for evaluators. Install the `@ai-sdk/*` provider packages your prompts use. See [LLM](/packages/core/llm) for the full API.
+
+## Evals
+
+The `@outputai/core/evals` subpath runs offline evaluations: an eval workflow feeds saved dataset cases through evaluators built with `verify()` and reports pass/partial/fail verdicts per case:
+
+```typescript
+import { verify, Verdict } from '@outputai/core/evals';
+
+export const evaluateSum = verify(
+  { name: 'evaluate_sum' },
+  ({ input, output }) => Verdict.equals(output.result, input.values.reduce((a, b) => a + b, 0))
+);
+```
+
+It also exports `evalWorkflow`, `VERDICT`, `CRITICALITY`, `DatasetSchema`, and `EvalOutputSchema`. Run eval workflows with `output workflow test`. See [Evals](/packages/core/evals) for the full guide.
 
 ## Temporal Access in the Worker
 

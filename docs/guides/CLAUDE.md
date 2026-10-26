@@ -38,13 +38,14 @@ Temporal replays workflow code on failures. If you make an API call directly in 
 
 ## 2. Package Architecture
 
-Output is a monorepo. The core packages for most documentation are below; read the source directly, as the READMEs are only an overview. Other published packages: `@outputai/cli`, `@outputai/evals`, `@outputai/output` (framework).
+Output is a monorepo. The core packages for most documentation are below; read the source directly, as the READMEs are only an overview. Other published packages: `@outputai/cli`, `@outputai/output` (framework).
 
 | Package | Purpose | Source Location |
 |---------|---------|-----------------|
 | `@outputai/core` | workflow(), step(), evaluator() primitives | `sdk/core/src/` |
 | `@outputai/core/http` | Traced HTTP client wrapper | `sdk/core/src/http/` |
-| `@outputai/core/llm` | generateText, aiSdk.Output.object, aiSdk.Output.array, aiSdk.Output.choice | `sdk/core/src/llm/` |
+| `@outputai/core/llm` | generateText, aiSdk.Output.object, aiSdk.Output.array, aiSdk.Output.choice, judge* | `sdk/core/src/llm/` |
+| `@outputai/core/evals` | evalWorkflow, verify, Verdict | `sdk/core/src/evals/` |
 
 **Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct framework patterns.
 

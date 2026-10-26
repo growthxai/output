@@ -1,5 +1,6 @@
-import { evaluator, z } from '@outputai/core';
-import type { EvaluationResult } from '@outputai/core';
+import { z } from 'zod';
+import { evaluator } from '#interface/evaluator';
+import type { EvaluationResult } from '#interface/evaluation_result';
 
 export type CheckContext<TInput = unknown, TOutput = unknown> = {
   input: TInput;
