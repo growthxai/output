@@ -24,3 +24,7 @@ agent-os/
 
 # Pnpm publish report
 pnpm-publish-summary.json
+
+TODO.md
+API_COOKBOOK.md
+CLI_COOKBOOK.md
