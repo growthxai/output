@@ -18,9 +18,10 @@ const makeProviderModules = () => Object.fromEntries(
   ] )
 );
 
-const moduleNotFound = pkg => Object.assign( new Error( `Cannot find package '${pkg}' imported from /app/ai_provider.js` ), {
-  code: 'ERR_MODULE_NOT_FOUND'
-} );
+const moduleNotFound = ( pkg, importer = '/app/ai_provider.js' ) => Object.assign(
+  new Error( `Cannot find package '${pkg}' imported from ${importer}` ),
+  { code: 'ERR_MODULE_NOT_FOUND' }
+);
 
 const undiciSpies = vi.hoisted( () => ( {
   EnvHttpProxyAgent: vi.fn(),
@@ -201,7 +202,8 @@ describe( 'getProvider', () => {
   } );
 
   it( 'rethrows load errors other than the provider package being missing', async () => {
-    const loadErrors = { '@ai-sdk/amazon-bedrock': moduleNotFound( '@smithy/eventstream-codec' ) };
+    const importer = '/app/node_modules/@ai-sdk/amazon-bedrock/dist/index.mjs';
+    const loadErrors = { '@ai-sdk/amazon-bedrock': moduleNotFound( '@smithy/eventstream-codec', importer ) };
 
     await expect( importWithMockedProviders( { loadErrors } ) ).rejects.toThrow( '@smithy/eventstream-codec' );
   } );

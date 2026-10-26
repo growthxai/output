@@ -50,7 +50,7 @@ const loadInitializer = async ( { pkg, load } ) => {
   try {
     return await load();
   } catch ( error ) {
-    if ( error?.code === 'ERR_MODULE_NOT_FOUND' && String( error.message ).includes( pkg ) ) {
+    if ( error?.code === 'ERR_MODULE_NOT_FOUND' && String( error.message ).includes( `'${pkg}'` ) ) {
       return null;
     }
     throw error;
