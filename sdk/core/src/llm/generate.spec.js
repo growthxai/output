@@ -198,6 +198,27 @@ describe( 'generate', () => {
       expect( result ).toBe( textResponse );
     } );
 
+    it( 'passes provider tool ids from the final AI SDK options to metering', async () => {
+      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+        ...textOptions,
+        tools: {
+          research: { type: 'provider', id: 'openai.web_search' }
+        }
+      } );
+      const { generateText } = await importSut();
+
+      await generateText( { prompt: 'test@v1' } );
+
+      expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
+        name: 'generateText',
+        prompt: loadedPrompt,
+        toolIdsByName: {
+          research: 'openai.web_search'
+        },
+        fn: expect.any( Function )
+      } );
+    } );
+
     it( 'uses a prompt object without loading a prompt file', async () => {
       validations.parseGenerateTextArgs.mockReturnValueOnce( { promptObject: loadedPrompt } );
       const { generateText } = await importSut();
@@ -386,6 +407,28 @@ describe( 'generate', () => {
       expect( wrapMocks.streamHooks.onEndHook ).toHaveBeenCalledWith( textResponse, onEnd );
       expect( onEnd ).toHaveBeenCalledWith( textResponse );
       expect( result ).toBe( streamResult );
+    } );
+
+    it( 'passes provider tool ids from stream options to metering', async () => {
+      optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+        ...textOptions,
+        tools: {
+          research: { type: 'provider', id: 'openai.web_search' }
+        }
+      } );
+      const { streamText } = await importSut();
+
+      streamText( { prompt: 'test@v1' } );
+
+      expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
+        name: 'streamText',
+        prompt: loadedPrompt,
+        toolIdsByName: {
+          research: 'openai.web_search'
+        },
+        abortSignal: undefined,
+        fn: expect.any( Function )
+      } );
     } );
 
     it( 'uses a prompt object without loading a prompt file', async () => {

@@ -308,6 +308,28 @@ describe( 'Agent', () => {
     } );
   } );
 
+  it( 'stores provider tool ids for generation metering', async () => {
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      ...textOptions,
+      tools: {
+        research: { type: 'provider', id: 'openai.web_search' }
+      }
+    } );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.generate();
+
+    expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
+      name: 'Agent.generate',
+      prompt: loadedPrompt,
+      toolIdsByName: {
+        research: 'openai.web_search'
+      },
+      fn: expect.any( Function )
+    } );
+  } );
+
   it( 'excludes authored assistant blocks from the initial generate messages', async () => {
     const { Agent } = await importSut();
     optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {

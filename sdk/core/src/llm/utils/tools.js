@@ -46,3 +46,17 @@ export const loadPromptTools = prompt => {
   }
   return loadedTools;
 };
+
+/**
+ * Maps configured tool names to their canonical provider tool ids.
+ *
+ * @param {object} [tools] - Final AI SDK tool map
+ * @returns {Record<string, string> | null} Provider tool ids keyed by configured name
+ */
+export const extractProviderToolIds = tools => {
+  const entries = Object.entries( tools ?? {} )
+    .filter( ( [ , tool ] ) => tool?.type === 'provider' && typeof tool.id === 'string' )
+    .map( ( [ name, tool ] ) => [ name, tool.id ] );
+
+  return entries.length > 0 ? Object.fromEntries( entries ) : null;
+};

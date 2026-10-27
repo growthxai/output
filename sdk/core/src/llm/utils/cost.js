@@ -2,6 +2,7 @@ import { fetchModelsPricing, Freshness } from './models_pricing.js';
 import { BaseAttribute } from '#trace_attribute';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 import { GroundingPpmMap } from './grounding.js';
+import { WebSearchPpmMap } from './web_search.js';
 import { Logger } from '#runtime_logger';
 import Decimal from 'decimal.js';
 
@@ -88,10 +89,11 @@ const resolveValue = values => {
   return { ppm: null, status: LLMGenerationCostItem.Status.MISSING };
 };
 
-const resolvePrice = ( { group, label, pricing } ) => {
+const resolvePrice = ( { providerId, group, label, pricing } ) => {
   // Tool charges are never token-priced: models.dev has no rate for them.
   if ( group === LLMGenerationUsageItem.Group.TOOLS ) {
-    return resolveValue( [ GroundingPpmMap.get( label ) ] );
+    const ppm = GroundingPpmMap.get( label ) ?? WebSearchPpmMap.get( `${providerId}/${label}` );
+    return resolveValue( [ ppm ] );
   }
   if ( !pricing ) {
     return resolveValue( [] );
@@ -135,7 +137,7 @@ export const calculateCosts = async usage => {
   }
 
   const items = usage.items.map( ( { group, label, amount } ) => {
-    const { ppm, status } = resolvePrice( { pricing, group, label } );
+    const { ppm, status } = resolvePrice( { providerId, pricing, group, label } );
     const total = exists( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
     return new LLMGenerationCostItem( group, label, amount, ppm, total, status );
   } );

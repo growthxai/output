@@ -1,0 +1,16 @@
+---
+provider: anthropic
+model: claude-haiku-4-5
+maxOutputTokens: 1024
+tools:
+  webSearch_20250305:
+    maxUses: 3
+---
+
+<system>
+Use web search to answer the question with current information and source citations.
+</system>
+
+<user>
+{{ query }}
+</user>

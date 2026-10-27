@@ -85,6 +85,21 @@ describe( 'Metering', () => {
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 
+  it( 'passes provider tool ids to usage parsing', async () => {
+    const toolIdsByName = { research: 'openai.web_search' };
+    const response = { usage: { inputTokens: 2, outputTokens: 1 }, steps: [ step( 2 ) ] };
+    const metering = new Metering( { traceId, prompt, toolIdsByName } );
+
+    await metering.bill( response );
+
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
+      prompt,
+      usage: response.usage,
+      steps: response.steps,
+      toolIdsByName
+    } );
+  } );
+
   it( 'prefers the response steps over the recorded ones', async () => {
     const responseSteps = [ step( 10 ), step( 20 ) ];
     const metering = new Metering( { traceId, prompt } );

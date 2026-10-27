@@ -266,6 +266,33 @@ describe( 'calculateCosts', () => {
     } );
   } );
 
+  it.each( [
+    { providerId: 'anthropic', modelId: 'claude-haiku-4-5' },
+    { providerId: 'openai', modelId: 'gpt-4.1-mini' }
+  ] )( 'prices $providerId web search requests from the local rate table', async ( { providerId, modelId } ) => {
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `${providerId}/${modelId}`, { input: 2, output: 10 } ]
+    ] ) ) );
+    const providerUsage = new LLMGenerationUsage( modelId, providerId, [
+      item( INPUT, null, 1_000_000 ),
+      item( OUTPUT, null, 500_000 ),
+      item( TOOLS, 'web_search', 3 )
+    ] );
+
+    const result = await calculateCosts( providerUsage );
+
+    expect( result ).toMatchObject( {
+      input: 2,
+      output: 5,
+      tools: 0.03,
+      total: 7.03,
+      status: LLMGenerationCost.Status.PRECISE
+    } );
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationCostItem( TOOLS, 'web_search', 3, 10_000, 0.03, LLMGenerationCostItem.Status.OK )
+    );
+  } );
+
   it( 'never prices a tools item at the input token rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 

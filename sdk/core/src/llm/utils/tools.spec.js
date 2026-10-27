@@ -10,7 +10,7 @@ vi.mock( 'ai', () => ( {
   tool: def => def
 } ) );
 
-import { buildLoadSkillTool, loadPromptTools } from './tools.js';
+import { buildLoadSkillTool, extractProviderToolIds, loadPromptTools } from './tools.js';
 
 const skills = [
   { name: 'writer', description: 'Writes copy', instructions: '# Writer\nDo it.' },
@@ -163,5 +163,24 @@ describe( 'loadPromptTools', () => {
         }
       }
     } ) ).toThrow( 'Provider "vertex" used by prompt "foo" does not support these tools: unknownTool.' );
+  } );
+} );
+
+describe( 'extractProviderToolIds', () => {
+  it( 'maps configured names to provider tool ids', () => {
+    expect( extractProviderToolIds( {
+      research: { type: 'provider', id: 'openai.web_search' },
+      image: { type: 'provider', id: 'openai.image_generation' },
+      local: { type: 'function', id: undefined }
+    } ) ).toEqual( {
+      research: 'openai.web_search',
+      image: 'openai.image_generation'
+    } );
+  } );
+
+  it( 'returns null when there are no provider tools', () => {
+    expect( extractProviderToolIds( {
+      local: { type: 'function' }
+    } ) ).toBeNull();
   } );
 } );
