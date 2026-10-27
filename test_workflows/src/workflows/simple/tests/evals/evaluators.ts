@@ -1,4 +1,4 @@
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const evaluateSum = verify(

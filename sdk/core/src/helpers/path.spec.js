@@ -29,12 +29,12 @@ describe( 'resolveInvocationDir', () => {
     expect( resolveInvocationDir() ).toBe( '/app/test_workflows/dist/workflows/llm/generate_text' );
   } );
 
-  it( 'skips core and evals frames when installed via NPM', () => {
+  it( 'skips core frames, including judges, when installed via NPM', () => {
     mockStack( `Error
     at resolveInvocationDir (file:///app/node_modules/@outputai/core/src/helpers/path.js:27:17)
     at loadPrompt (file:///app/node_modules/@outputai/core/src/llm/prompt/loader.js:38:64)
     at generateText (file:///app/node_modules/@outputai/core/src/llm/generate.js:51:18)
-    at judgeVerdict (file:///app/node_modules/@outputai/evals/dist/judge.js:12:28)
+    at judgeVerdict (file:///app/node_modules/@outputai/core/src/llm/judge.js:14:28)
     at fn (file:///app/dist/workflows/blog/evaluators.js:7:20)
     at wrapper (file:///app/node_modules/@outputai/core/src/interface/evaluator.js:14:26)` );
 

@@ -11,7 +11,14 @@ import type {
   StreamTextOnErrorCallback
 } from 'ai';
 import type { Output as AIOutputNamespace } from 'ai';
+import type { z } from 'zod';
 import type { Attribute } from '#trace_attribute';
+import type {
+  EvaluationBooleanResult,
+  EvaluationNumberResult,
+  EvaluationStringResult,
+  EvaluationVerdictResult
+} from '#interface/evaluation_result';
 
 type BaseAttribute = Attribute.BaseAttribute;
 
@@ -502,6 +509,52 @@ export function registerProvider(
  * @returns Array of provider name strings
  */
 export function getProviderNames(): string[];
+
+/**
+ * Arguments accepted by the LLM judge functions.
+ *
+ * The prompt file is resolved from the directory of the file calling the judge.
+ */
+export type JudgeArgs = {
+  /** Prompt filename (without `.prompt` extension). */
+  prompt: string;
+  /** Variables to interpolate into the prompt. */
+  variables?: PromptVariables;
+  /** Output schema replacing the default one. It must keep the judged field and `reasoning`. */
+  schema?: z.ZodType;
+};
+
+/**
+ * Ask an LLM judge for a verdict. The default schema is `{ verdict: 'pass' | 'partial' | 'fail', reasoning: string }`.
+ *
+ * @param args - Judge arguments. See {@link JudgeArgs}.
+ * @returns Verdict result with the judge reasoning.
+ */
+export function judgeVerdict( args: JudgeArgs ): Promise<EvaluationVerdictResult>;
+
+/**
+ * Ask an LLM judge for a numeric score. The default schema is `{ score: number, reasoning: string }`.
+ *
+ * @param args - Judge arguments. See {@link JudgeArgs}.
+ * @returns Number result with the judge reasoning.
+ */
+export function judgeScore( args: JudgeArgs ): Promise<EvaluationNumberResult>;
+
+/**
+ * Ask an LLM judge for a true or false answer. The default schema is `{ result: boolean, reasoning: string }`.
+ *
+ * @param args - Judge arguments. See {@link JudgeArgs}.
+ * @returns Boolean result with the judge reasoning.
+ */
+export function judgeBoolean( args: JudgeArgs ): Promise<EvaluationBooleanResult>;
+
+/**
+ * Ask an LLM judge for a label. The default schema is `{ label: string, reasoning: string }`.
+ *
+ * @param args - Judge arguments. See {@link JudgeArgs}.
+ * @returns String result with the judge reasoning.
+ */
+export function judgeLabel( args: JudgeArgs ): Promise<EvaluationStringResult>;
 
 /**
  * Use an LLM model to generate text.

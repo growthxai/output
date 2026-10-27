@@ -223,7 +223,7 @@ This is the sweet spot for deterministic testing in an LLM app — you're verify
 | Step calls the right API with the right params | Unit tests (mock the client) |
 | LLM output quality (accuracy, tone, relevance) | [Evaluators](/evaluators) (LLM-as-a-judge) |
 | End-to-end behavior across multiple LLM calls | [Tracing](/operations/tracing) + human review |
-| Regressions in LLM output over time | [Offline evals](/packages/evals) with saved datasets |
+| Regressions in LLM output over time | [Offline evals](/packages/core/evals) with saved datasets |
 
 The general rule: if the outcome is predictable, write a unit test. If it depends on LLM output, use evaluators and tracing instead.
 
@@ -231,7 +231,7 @@ The general rule: if the outcome is predictable, write a unit test. If it depend
 
 Unit tests verify deterministic logic. But how do you catch regressions in LLM output quality across a set of known inputs? That's what offline evaluation is for.
 
-The [`@outputai/evals`](/packages/evals) package lets you run your workflow against saved datasets and check output quality using typed evaluators — without modifying your workflow code. You define evaluators with `verify()`, write dataset YAML files with expected inputs and ground truth, and run them via the CLI:
+The [`@outputai/core/evals`](/packages/core/evals) module lets you run your workflow against saved datasets and check output quality using typed evaluators — without modifying your workflow code. You define evaluators with `verify()`, write dataset YAML files with expected inputs and ground truth, and run them via the CLI:
 
 ```bash
 # Run evaluations using cached output (no workflow re-execution)
@@ -243,4 +243,4 @@ output workflow test blog_generator --save
 
 Evaluators can be deterministic (checking length, format, required fields) or use LLM judges for subjective quality. Results are reported as pass/partial/fail per dataset case, with a summary showing the overall acceptable rate.
 
-See the [`@outputai/evals` package docs](/packages/evals) for the full guide on creating evaluators, writing datasets, and configuring eval workflows. See [CLI Evaluation Commands](/packages/cli#evaluation-commands) for the command reference.
+See the [Evals docs](/packages/core/evals) for the full guide on creating evaluators, writing datasets, and configuring eval workflows. See [CLI Evaluation Commands](/packages/cli#evaluation-commands) for the command reference.

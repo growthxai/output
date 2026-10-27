@@ -4,7 +4,7 @@ import {
   EvaluationNumberResult,
   EvaluationStringResult,
   EvaluationFeedback
-} from '@outputai/core';
+} from '#interface/evaluation_result';
 
 type FeedbackArg = ConstructorParameters<typeof EvaluationFeedback>[0];
 

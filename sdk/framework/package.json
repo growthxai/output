@@ -8,8 +8,7 @@
   },
   "dependencies": {
     "@outputai/cli": "workspace:",
-    "@outputai/core": "workspace:",
-    "@outputai/evals": "workspace:"
+    "@outputai/core": "workspace:"
   },
   "license": "Apache-2.0",
   "publishConfig": {

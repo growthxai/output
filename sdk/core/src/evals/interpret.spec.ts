@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { interpretResult } from './interpret.js';
-import type { EvaluationResult } from '@outputai/core';
+import type { EvaluationResult } from '#interface/evaluation_result';
 import type { InterpretConfig } from './schemas.js';
 
 const makeResult = ( value: unknown ): EvaluationResult => ( {

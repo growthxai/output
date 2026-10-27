@@ -1,5 +1,5 @@
-import { evalWorkflow } from '@outputai/evals';
-import { lengthOfOutput, evaluateTopic, evaluateQuality, evaluateContent, evaluateTone } from './evaluators.js';
+import { evalWorkflow } from '@outputai/core/evals';
+import { lengthOfOutput, evaluateTopic, evaluateQuality, evaluateContent, evaluateTone, evaluateCallToAction } from './evaluators.js';
 
 export default evalWorkflow( {
   name: 'blog_generator_eval',
@@ -28,6 +28,11 @@ export default evalWorkflow( {
       evaluator: evaluateTone,
       criticality: 'informational',
       interpret: { type: 'string', pass: [ 'professional', 'informative' ], partial: [ 'casual' ] }
+    },
+    {
+      evaluator: evaluateCallToAction,
+      criticality: 'informational',
+      interpret: { type: 'boolean' }
     }
   ]
 } );

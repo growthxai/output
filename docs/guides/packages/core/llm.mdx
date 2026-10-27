@@ -1015,6 +1015,22 @@ For instruction-mode prompts, `messages` is empty and `instructions` contains th
 
 `PromptMessage.role` is typed as `'system' | 'user' | 'assistant'`, matching the authored role blocks accepted in message mode.
 
+## LLM Judges
+
+`judgeVerdict`, `judgeScore`, `judgeBoolean`, and `judgeLabel` call `generateText` with a judge prompt and return an evaluation result, for use in [eval workflow evaluators](/packages/core/evals#llm-judge-functions):
+
+```typescript
+import { verify } from '@outputai/core/evals';
+import { judgeVerdict } from '@outputai/core/llm';
+
+export const evaluateTopic = verify(
+  { name: 'evaluate_topic' },
+  ({ output }) => judgeVerdict({ prompt: 'judge_topic@v1', variables: { blog_post: output.blog_post } })
+);
+```
+
+The prompt file is resolved from the directory of the file calling the judge. Each judge has a default output schema, and `schema` replaces it. See [LLM Judge Functions](/packages/core/evals#llm-judge-functions) for the schemas and returned result types.
+
 ## API Reference
 
 For complete TypeScript API documentation, see the [LLM Module API Reference](https://output-ai-reference-code-docs.onrender.com/modules/core_src_llm.html).

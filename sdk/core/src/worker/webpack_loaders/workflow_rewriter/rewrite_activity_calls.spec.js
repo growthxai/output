@@ -29,8 +29,7 @@ const obj = {
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
 
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).not.toMatch( /@outputai\/core\/invoker/ );
@@ -49,8 +48,7 @@ const obj = {
 };`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'EvalA', activityName: 'eval.a' } ];
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).toMatch( invokeActivityPattern( 'eval\\.a' ) );
     expect( code ).toMatch( /,\s*3\)/ );
@@ -59,8 +57,10 @@ const obj = {
   it( 'does nothing when no matching calls are present', () => {
     const src = [ 'const obj = { fn: function() { other(); } }' ].join( '\n' );
     const ast = parse( src, 'file.js' );
-    const rewrote = rewriteActivityCalls( { ast, activityImports: [] } );
-    expect( rewrote ).toBe( false );
+    rewriteActivityCalls( { ast, activityImports: [] } );
+
+    const { code } = generate( ast, { quotes: 'single' } );
+    expect( code ).toBe( 'const obj = {\n  fn: function () {\n    other();\n  }\n};' );
   } );
 
   it( 'rewrites imported activity calls in any function body', () => {
@@ -86,8 +86,7 @@ const obj = {
       { localName: 'EvalA', activityName: 'eval.a' }
     ];
 
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code } = generate( ast, { quotes: 'single' } );
 
@@ -109,8 +108,7 @@ function helper() {
 
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).toMatch( /StepA\(1\)/ );
@@ -127,8 +125,7 @@ function helper() {
 }`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).not.toMatch( /@outputai\/core\/invoker/ );
@@ -144,12 +141,60 @@ function helper( Symbol ) {
 }`;
     const ast = parse( src, 'file.js' );
     const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    expect( rewrote ).toBe( true );
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code } = generate( ast, { quotes: 'single' } );
     expect( code ).toMatch( /function helper\(Symbol\)/ );
     expect( code ).toMatch( invokeActivityPattern( 'step\\.a' ) );
+  } );
+
+  it( 'replaces value references with the activity name', () => {
+    const src = `
+const config = { evaluator: EvalA, all: [ EvalA, StepA ] };
+function helper() {
+  return register( StepA );
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [
+      { localName: 'StepA', activityName: 'step.a' },
+      { localName: 'EvalA', activityName: 'eval.a' }
+    ];
+
+    rewriteActivityCalls( { ast, activityImports } );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).toMatch( /evaluator: 'eval\.a'/ );
+    expect( code ).toMatch( /all: \['eval\.a', 'step\.a'\]/ );
+    expect( code ).toMatch( /register\('step\.a'\)/ );
+  } );
+
+  it( 'expands shorthand properties when replacing value references', () => {
+    const ast = parse( 'const config = { EvalA };', 'file.js' );
+    const activityImports = [ { localName: 'EvalA', activityName: 'eval.a' } ];
+
+    rewriteActivityCalls( { ast, activityImports } );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).toMatch( /\{\s*EvalA: 'eval\.a'\s*\}/ );
+  } );
+
+  it( 'leaves keys, member properties and shadowed names untouched', () => {
+    const src = `
+const config = { StepA: 1 };
+const value = config.StepA;
+function helper( StepA ) {
+  return [ StepA ];
+}`;
+    const ast = parse( src, 'file.js' );
+    const activityImports = [ { localName: 'StepA', activityName: 'step.a' } ];
+
+    rewriteActivityCalls( { ast, activityImports } );
+
+    const { code } = generate( ast, { quotes: 'single', jsescOption: { quotes: 'single' } } );
+    expect( code ).not.toMatch( /step\.a/ );
+    expect( code ).toMatch( /\{\s*StepA: 1\s*\}/ );
+    expect( code ).toMatch( /config\.StepA/ );
+    expect( code ).toMatch( /return \[StepA\]/ );
   } );
 
   it( 'throws when globalThis is shadowed at an activity call site', () => {

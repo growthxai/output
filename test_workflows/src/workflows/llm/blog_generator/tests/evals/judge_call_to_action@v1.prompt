@@ -1,0 +1,23 @@
+---
+provider: anthropic
+model: claude-haiku-4-5-20251001
+temperature: 0
+maxOutputTokens: 1000
+---
+
+<system>
+You are an evaluation judge. Assess whether a blog post ends with a clear call to action for the reader.
+
+Return a JSON object with:
+- result: true if the post invites the reader to take a concrete next step, false otherwise
+- reasoning: a brief explanation of your judgment
+</system>
+
+<user>
+Blog title: {{ blog_title }}
+
+Blog post:
+{{ blog_post }}
+
+Judge whether this blog post has a clear call to action.
+</user>

@@ -15,8 +15,8 @@ const evaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName>
 const sharedEvaluatorsNameCache = new Map(); // path -> Map<exported, evaluatorName> (shared)
 
 /**
- * Webpack loader that rewrites imported step/evaluator calls by reading
- * declared activity names and transforming function-body activity calls accordingly.
+ * Webpack loader that strips imported steps/evaluators by reading declared activity names,
+ * transforming function-body activity calls and replacing other references with the activity name.
  * Preserves sourcemaps.
  *
  * @param {string|Buffer} source - Module source code.
@@ -40,11 +40,7 @@ export default function stepImportRewriterAstLoader( source, inputMap ) {
       return callback( null, source, inputMap );
     }
 
-    const rewrote = rewriteActivityCalls( { ast, activityImports } );
-    // No edits performed
-    if ( !rewrote ) {
-      return callback( null, source, inputMap );
-    }
+    rewriteActivityCalls( { ast, activityImports } );
 
     const { code, map } = generate( ast, {
       sourceMaps: true,

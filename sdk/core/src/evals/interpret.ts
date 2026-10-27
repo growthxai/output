@@ -1,4 +1,4 @@
-import type { EvaluationResult } from '@outputai/core';
+import type { EvaluationResult } from '#interface/evaluation_result';
 import { VERDICT, VerdictSchema } from './schemas.js';
 import type { InterpretConfig, Verdict } from './schemas.js';
 

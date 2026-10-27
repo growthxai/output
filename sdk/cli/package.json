@@ -32,7 +32,6 @@
     "@oclif/core": "4.10.6",
     "@oclif/plugin-help": "6.2.45",
     "@outputai/core": "workspace:",
-    "@outputai/evals": "workspace:",
     "change-case": "5.4.4",
     "cli-progress": "3.12.0",
     "cli-table3": "0.6.5",

@@ -1,6 +1,8 @@
-import { workflow, executeInParallel, z } from '@outputai/core';
-import type { EvaluationResult } from '@outputai/core';
-import { ComponentMetadata } from '@outputai/core/sdk/helpers';
+import { z } from 'zod';
+import { workflow } from '#interface/workflow';
+import { executeInParallel } from '#interface/workflow_utils';
+import type { EvaluationResult } from '#interface/evaluation_result';
+import { INVOKE_ACTIVITY_SYMBOL, METADATA_ACCESS_SYMBOL } from '#consts';
 import { VERDICT, CRITICALITY, DatasetSchema, EvalOutputSchema } from './schemas.js';
 import { interpretResult } from './interpret.js';
 import { aggregateCaseVerdict } from './aggregate.js';
@@ -36,27 +38,33 @@ interface ResolvedEvalDef {
   interpret: InterpretConfig;
 }
 
+// Inside the workflow bundle, the rewriter replaces evaluator imports with their activity names.
+const resolveEvaluatorName = ( evaluator: Function | string ): string => {
+  if ( typeof evaluator === 'string' ) {
+    return evaluator;
+  }
+  const metadata = ( evaluator as Function & { [METADATA_ACCESS_SYMBOL]?: { name?: string } } )[METADATA_ACCESS_SYMBOL];
+  if ( !metadata ) {
+    throw new Error( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
+  }
+  if ( !metadata.name ) {
+    throw new Error( 'Evaluator component doesn\'t have a name.' );
+  }
+  return metadata.name;
+};
+
 export function evalWorkflow( { name, evals, fn, config = {} }: EvalWorkflowOptions ): unknown {
   const concurrency = config.concurrency ?? 10;
 
-  const evalDefs: ResolvedEvalDef[] = evals.map( def => {
-    if ( !ComponentMetadata.has( def.evaluator ) ) {
-      throw new Error( 'Evaluator passed to evalWorkflow was not created with evaluator().' );
-    }
-    const name = ComponentMetadata.getName( def.evaluator );
-    if ( !name ) {
-      throw new Error( 'Evaluator component doesn\'t have a name.' );
-    }
-    return {
-      name,
-      criticality: def.criticality ?? CRITICALITY.REQUIRED,
-      interpret: def.interpret
-    };
-  } );
+  const evalDefs: ResolvedEvalDef[] = evals.map( def => ( {
+    name: resolveEvaluatorName( def.evaluator ),
+    criticality: def.criticality ?? CRITICALITY.REQUIRED,
+    interpret: def.interpret
+  } ) );
 
   const defaultFn = async function ( this: unknown, input: EvalWorkflowInput ) {
     const invoke = ( globalThis as unknown as Record<symbol, ( name: string, input: unknown ) => Promise<unknown>> )[
-      Symbol.for( '@outputai/core:__invoke_activity' )
+      INVOKE_ACTIVITY_SYMBOL
     ];
 
     const jobs = input.datasets.map( ( dataset: Dataset ) => async () => {

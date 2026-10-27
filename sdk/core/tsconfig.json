@@ -14,6 +14,6 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true
   },
-  "include": ["src/credentials/**/*.ts"],
+  "include": ["src/credentials/**/*.ts", "src/evals/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/*.spec.ts", "src/**/*.integration.test.ts"]
 }

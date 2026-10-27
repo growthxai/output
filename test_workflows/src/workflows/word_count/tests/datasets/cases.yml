@@ -1,0 +1,34 @@
+correct_count:
+  input:
+    text: 'the quick brown fox'
+  last_output:
+    output:
+      words: 4
+    executionTimeMs: 100
+    date: '2026-10-26T00:00:00.000Z'
+off_by_one:
+  input:
+    text: 'jumps over the lazy dog'
+  last_output:
+    output:
+      words: 4
+    executionTimeMs: 100
+    date: '2026-10-26T00:00:00.000Z'
+wrong_count:
+  input:
+    text: 'hello world'
+  last_output:
+    output:
+      words: 7
+    executionTimeMs: 100
+    date: '2026-10-26T00:00:00.000Z'
+evaluator_error:
+  input:
+    text: 'this case crashes an evaluator'
+  last_output:
+    output:
+      words: 5
+    executionTimeMs: 100
+    date: '2026-10-26T00:00:00.000Z'
+  ground_truth:
+    crash: true

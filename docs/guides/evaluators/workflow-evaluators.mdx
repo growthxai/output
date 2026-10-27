@@ -17,7 +17,7 @@ These serve different purposes and live in different places:
 |---|---|---|
 | **Purpose** | Control workflow flow at runtime | Test quality across datasets |
 | **Runs** | Inside production workflows | Outside, via CLI |
-| **Created with** | `evaluator()` from `@outputai/core` | `verify()` from `@outputai/evals` |
+| **Created with** | `evaluator()` from `@outputai/core` | `verify()` from `@outputai/core/evals` |
 | **File location** | `src/workflows/<name>/evaluators.ts` | `src/workflows/<name>/tests/evals/evaluators.ts` |
 | **Affects output** | Yes — retry, branch, gate | No — reports results only |
 | **Uses** | Quality gates, self-correcting agents | Regression testing, prompt comparison, CI/CD |
@@ -71,7 +71,7 @@ When the eval source exists but isn't registered, `output workflow test` says so
 `verify()` creates a typed evaluator that receives the workflow's input, output, and optional ground truth from the dataset. It wraps `evaluator()` from `@outputai/core`, so it integrates with both the eval workflow and the Temporal worker.
 
 ```typescript tests/evals/evaluators.ts
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const evaluateSum = verify(
@@ -100,7 +100,7 @@ The `input` and `output` schemas are optional — they default to `z.any()` if o
 Evaluators can read expected values from the dataset's `ground_truth` field. This lets you define per-case expectations without hardcoding them:
 
 ```typescript tests/evals/evaluators.ts
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const lengthOfOutput = verify(
@@ -125,7 +125,7 @@ The `Verdict` object provides helpers for returning evaluation results. There ar
 - **LLM result wrappers** — `fromJudge()`, `score()`, `label()`. Wrap LLM output with `confidence: 0.9`.
 
 ```typescript tests/evals/evaluators.ts
-import { verify, Verdict } from '@outputai/evals';
+import { verify, Verdict } from '@outputai/core/evals';
 import { z } from '@outputai/core';
 
 export const evaluateContent = verify(
@@ -150,7 +150,7 @@ For the complete reference with signatures, examples, and edge cases for every V
 
 For subjective evaluation — "is this blog post on-topic?", "rate the quality" — use the judge functions. They load a `.prompt` file, call the LLM, and return a typed evaluation result.
 
-Four judge functions are available:
+Four judge functions are available from `@outputai/core/llm`:
 
 | Function | Returns | Use for |
 |----------|---------|---------|
@@ -160,7 +160,8 @@ Four judge functions are available:
 | `judgeLabel` | `string` | Classifications |
 
 ```typescript tests/evals/evaluators.ts
-import { verify, judgeVerdict, judgeScore, judgeLabel } from '@outputai/evals';
+import { verify } from '@outputai/core/evals';
+import { judgeVerdict, judgeScore, judgeLabel } from '@outputai/core/llm';
 import { z } from '@outputai/core';
 
 const blogInput = z.object( { topic: z.string() } );
@@ -266,4 +267,4 @@ If you're calling the LLM yourself instead of using the judge functions, the `Ve
 - [Datasets](/evaluators/datasets) — Defining test cases with inputs and ground truth
 - [Running Eval Workflows](/evaluators/datasets-and-cli) — Wire evaluators into an eval workflow and run from the CLI
 - [LLM-as-a-Judge Best Practices](/evaluators/best-practices) — Writing effective judge prompts and choosing grading scales
-- [`@outputai/evals` API Reference](/packages/evals) — Complete package reference
+- [Evals reference](/packages/core/evals) — Complete module reference

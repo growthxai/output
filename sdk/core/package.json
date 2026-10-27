@@ -38,6 +38,10 @@
     "./llm": {
       "types": "./src/llm/index.d.ts",
       "import": "./src/llm/index.js"
+    },
+    "./evals": {
+      "types": "./dist/evals/index.d.ts",
+      "import": "./dist/evals/index.js"
     }
   },
   "files": [
@@ -46,6 +50,7 @@
     "./bin",
     "!**/*.spec.*",
     "!src/credentials",
+    "!src/evals",
     "!src/llm/fixtures"
   ],
   "bin": {
@@ -129,6 +134,7 @@
     "#runtime_logger": "./src/interface/logger.js",
     "#hooks/*": "./src/hooks/*.js",
     "#helpers/*": "./src/helpers/*.js",
+    "#interface/*": "./src/interface/*.js",
     "#tracing": "./src/tracing/internal_interface.js",
     "#trace_attribute": "./src/tracing/trace_attribute.js",
     "#async_storage": "./src/async_storage.js",

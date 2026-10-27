@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getEvalWorkflowName, renderEvalOutput } from '@outputai/evals';
-import type { EvalOutput } from '@outputai/evals';
+import { getEvalWorkflowName } from '#utils/eval_naming.js';
+import { renderEvalOutput } from '#utils/eval_render.js';
+import type { EvalOutput } from '@outputai/core/evals';
 
 vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowRun: vi.fn()

@@ -76,7 +76,7 @@ Planning quality assessment and validation evaluators.
 - LLM-powered vs. rule-based evaluation
 - Multi-dimensional assessment with dimensions field
 - Feedback generation with EvaluationFeedback
-- Offline eval testing as a complementary approach (see `output-dev-eval-testing` skill for dataset-driven verification with `@outputai/evals`)
+- Offline eval testing as a complementary approach (see `output-dev-eval-testing` skill for dataset-driven verification with `@outputai/core/evals`)
 
 ## Common Skills
 

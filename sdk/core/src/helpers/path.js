@@ -7,9 +7,7 @@ const transformSeparators = path => path.replaceAll( '/', SEP );
 
 const defaultIgnorePaths = [
   '/@outputai/core/',
-  '/@outputai/evals/',
   '/sdk/core/',
-  '/sdk/evals/',
   'node:internal/',
   'evalmachine.',
   'webpack/bootstrap'

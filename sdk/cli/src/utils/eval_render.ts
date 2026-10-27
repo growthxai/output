@@ -1,5 +1,5 @@
-import { VERDICT, CRITICALITY } from './schemas.js';
-import type { EvalOutput, EvalCase, EvaluatorResult, Verdict } from './schemas.js';
+import { VERDICT, CRITICALITY } from '@outputai/core/evals';
+import type { EvalOutput, EvalCase, EvaluatorResult, VerdictType as Verdict } from '@outputai/core/evals';
 
 const COLORS = {
   reset: '\x1b[0m',

@@ -1,4 +1,4 @@
-import { z } from '@outputai/core';
+import { z } from 'zod';
 
 export const VERDICT = {
   PASS: 'pass',
@@ -12,10 +12,10 @@ export const CRITICALITY = {
 } as const;
 
 export const VerdictSchema = z.enum( [ VERDICT.PASS, VERDICT.PARTIAL, VERDICT.FAIL ] );
-export type Verdict = z.infer<typeof VerdictSchema>;
+export type Verdict = typeof VERDICT[keyof typeof VERDICT];
 
 export const CriticalitySchema = z.enum( [ CRITICALITY.REQUIRED, CRITICALITY.INFORMATIONAL ] );
-export type Criticality = z.infer<typeof CriticalitySchema>;
+export type Criticality = typeof CRITICALITY[keyof typeof CRITICALITY];
 
 export type InterpretConfig =
   { type: 'verdict' } |
