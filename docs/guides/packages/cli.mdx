@@ -187,7 +187,7 @@ Align the project's `package.json` with the current project template:
 output fix
 ```
 
-The command adds missing Output scripts, replaces outdated ones, removes deprecated ones, and drops `outputai.hookFiles` entries that point to `@outputai/credentials`. It prints the planned changes and asks for confirmation before writing.
+The command adds missing Output scripts, replaces outdated ones, removes deprecated ones, replaces an `@outputai/output` dependency with `@outputai/core` (dependency) and `@outputai/cli` (dev dependency) at the same version, and drops `outputai.hookFiles` entries that point to `@outputai/credentials`. It prints the planned changes and asks for confirmation before writing. If dependencies changed, reinstall afterwards.
 
 ## Workflow Commands
 

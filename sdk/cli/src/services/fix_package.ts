@@ -12,6 +12,15 @@ export const legacyScripts = [ 'dev' ] as const;
 /** Hook files from the @outputai/credentials package, which was folded into @outputai/core */
 const credentialsHookFilePattern = /@outputai[\\/]credentials([\\/]|$)/;
 
+/** The @outputai/output umbrella package is replaced by its parts: core at runtime, the CLI for development */
+const umbrellaPackage = '@outputai/output';
+const umbrellaReplacements = [
+  { name: '@outputai/core', section: 'dependencies' },
+  { name: '@outputai/cli', section: 'devDependencies' }
+] as const;
+const dependencySections = [ 'dependencies', 'devDependencies' ] as const;
+type DependencySection = typeof dependencySections[number];
+
 function getTemplatesPackageJsonPath(): string {
   const __filename = fileURLToPath( import.meta.url );
   const __dirname = path.dirname( __filename );
@@ -53,6 +62,37 @@ function removeCredentialsHookFiles( pkg: Record<string, unknown> ): string[] {
   return removed;
 }
 
+function getDependencySection( pkg: Record<string, unknown>, section: DependencySection ): Record<string, string> | null {
+  const deps = pkg[section];
+  return typeof deps === 'object' && deps !== null && !Array.isArray( deps ) ? deps as Record<string, string> : null;
+}
+
+function replaceUmbrellaPackage( pkg: Record<string, unknown> ): { dependenciesToRemove: DependencyChange[]; dependenciesToAdd: DependencyChange[] } {
+  const dependenciesToRemove: DependencyChange[] = [];
+  const dependenciesToAdd: DependencyChange[] = [];
+
+  const section = dependencySections.find( s => typeof getDependencySection( pkg, s )?.[umbrellaPackage] === 'string' );
+  if ( !section ) {
+    return { dependenciesToRemove, dependenciesToAdd };
+  }
+
+  const deps = getDependencySection( pkg, section ) as Record<string, string>;
+  const version = deps[umbrellaPackage];
+  delete deps[umbrellaPackage];
+  dependenciesToRemove.push( { section, name: umbrellaPackage, version } );
+
+  const isDeclared = ( name: string ): boolean => dependencySections.some( s => Object.hasOwn( getDependencySection( pkg, s ) ?? {}, name ) );
+  for ( const { name, section: target } of umbrellaReplacements ) {
+    if ( isDeclared( name ) ) {
+      continue;
+    }
+    pkg[target] = { ...getDependencySection( pkg, target ), [name]: version };
+    dependenciesToAdd.push( { section: target, name, version } );
+  }
+
+  return { dependenciesToRemove, dependenciesToAdd };
+}
+
 function parseTemplatePackageJson( processed: string ): { scripts?: Record<string, string> } {
   try {
     return JSON.parse( processed ) as { scripts?: Record<string, string> };
@@ -77,8 +117,15 @@ export interface ScriptToReplace {
   after: string;
 }
 
+export interface DependencyChange {
+  section: DependencySection;
+  name: string;
+  version: string;
+}
+
 /**
- * Plan for aligning `scripts` with the scaffold template and dropping stale hook files (reads only; no write until apply).
+ * Plan for aligning `scripts` with the scaffold template, replacing the `@outputai/output` umbrella package
+ * and dropping stale hook files (reads only; no write until apply).
  */
 export interface FixPlan {
   packageJsonPath: string;
@@ -87,6 +134,8 @@ export interface FixPlan {
   scriptsToRemove: ScriptToRemove[];
   scriptsToReplace: ScriptToReplace[];
   scriptsToAdd: ScriptToAdd[];
+  dependenciesToRemove: DependencyChange[];
+  dependenciesToAdd: DependencyChange[];
   hookFilesToRemove: string[];
 }
 
@@ -140,6 +189,7 @@ export function planFix( projectRoot: string ): FixPlan {
 
   pkg.scripts = scripts;
 
+  const { dependenciesToRemove, dependenciesToAdd } = replaceUmbrellaPackage( pkg );
   const hookFilesToRemove = removeCredentialsHookFiles( pkg );
 
   const packageJsonUpdatedContent = `${JSON.stringify( pkg, null, 2 )}\n`;
@@ -152,6 +202,8 @@ export function planFix( projectRoot: string ): FixPlan {
     scriptsToRemove,
     scriptsToReplace,
     scriptsToAdd,
+    dependenciesToRemove,
+    dependenciesToAdd,
     hookFilesToRemove
   };
 }

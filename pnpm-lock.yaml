@@ -348,15 +348,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.5
 
-  sdk/framework:
-    dependencies:
-      '@outputai/cli':
-        specifier: 'workspace:'
-        version: link:../cli
-      '@outputai/core':
-        specifier: 'workspace:'
-        version: link:../core
-
   test_workflows:
     dependencies:
       '@ai-sdk/anthropic':

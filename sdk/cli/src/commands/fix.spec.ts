@@ -21,6 +21,8 @@ const basePlan = (): FixPlan => ( {
   scriptsToRemove: [ { key: 'dev', value: 'old' } ],
   scriptsToAdd: [ { key: 'output:new', value: 'echo new' } ],
   scriptsToReplace: [ { key: 'output:dev', before: 'old dev', after: 'output dev' } ],
+  dependenciesToRemove: [],
+  dependenciesToAdd: [],
   hookFilesToRemove: []
 } );
 

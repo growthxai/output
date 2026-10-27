@@ -179,35 +179,6 @@ describe( 'resolveBareImportSpecifiersAsWorkflows', () => {
     } );
   } );
 
-  it( 'prefers the output workflow bundle export condition over the default entry', () => {
-    withTempProjectDir( dir => {
-      const importing = join( dir, 'workflow.js' );
-      writeFileSync( importing, 'export default workflow({ name: \'local\' });\n' );
-      writeNodeModulesPackage( dir, '@test/conditional', './node-entry.js', {
-        'node-entry.js': 'export const helper = () => 1;\n',
-        'bundle/workflow.js': 'export default workflow({ name: \'bundle.workflow\' });\n'
-      }, {
-        exports: {
-          '.': {
-            'output-workflow-bundle': './bundle/workflow.js',
-            default: './node-entry.js'
-          }
-        }
-      } );
-
-      const out = resolveBareImportSpecifiersAsWorkflows( {
-        fromAbsoluteFile: importing,
-        specifier: '@test/conditional',
-        specifiers: importSpecifiersFromSource( 'import BundleWorkflow from \'@test/conditional\'' ),
-        workflowNameCache: new Map()
-      } );
-      expect( out ).toEqual( {
-        type: 'all',
-        bindings: [ { localName: 'BundleWorkflow', workflowName: 'bundle.workflow' } ]
-      } );
-    } );
-  } );
-
   it( 'supports root conditional exports without an explicit dot key', () => {
     withTempProjectDir( dir => {
       const importing = join( dir, 'workflow.js' );
@@ -217,7 +188,7 @@ describe( 'resolveBareImportSpecifiersAsWorkflows', () => {
         'workflow.js': 'export default workflow({ name: \'root.conditional\' });\n'
       }, {
         exports: {
-          'output-workflow-bundle': './workflow.js',
+          import: './workflow.js',
           default: './node-entry.js'
         }
       } );
@@ -235,7 +206,7 @@ describe( 'resolveBareImportSpecifiersAsWorkflows', () => {
     } );
   } );
 
-  it( 'uses webpack export condition when workflow bundle condition is absent', () => {
+  it( 'prefers the webpack export condition over the default entry', () => {
     withTempProjectDir( dir => {
       const importing = join( dir, 'workflow.js' );
       writeFileSync( importing, 'export default workflow({ name: \'local\' });\n' );

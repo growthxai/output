@@ -12,7 +12,8 @@ const Ansi: Record<string, string> = {
 
 export default class Fix extends Command {
   static description =
-    'Fix Output scripts in the package.json (reset overwrites, add missing and remove deprecated) and remove stale hook files';
+    'Fix Output scripts in the package.json (reset overwrites, add missing and remove deprecated), ' +
+    'replace the @outputai/output package with @outputai/core and @outputai/cli, and remove stale hook files';
 
   static examples = [
     '<%= config.bin %> <%= command.id %>'
@@ -35,6 +36,13 @@ export default class Fix extends Command {
     if ( plan.scriptsToRemove.length > 0 ) {
       this.log( '\n  Scripts to remove:' );
       plan.scriptsToRemove.forEach( ( { key } ) => this.log( `    ${Ansi.RED}-${Ansi.RESET} "${key}"` ) );
+    }
+    if ( plan.dependenciesToRemove.length > 0 || plan.dependenciesToAdd.length > 0 ) {
+      this.log( '\n  Dependencies to replace:' );
+      plan.dependenciesToRemove.forEach( ( { section, name, version } ) =>
+        this.log( `    ${Ansi.RED}-${Ansi.RESET} "${name}": "${version}" (${section})` ) );
+      plan.dependenciesToAdd.forEach( ( { section, name, version } ) =>
+        this.log( `    ${Ansi.GREEN}+${Ansi.RESET} "${name}": "${version}" (${section})` ) );
     }
     if ( plan.hookFilesToRemove.length > 0 ) {
       this.log( '\n  Hook files to remove:' );
@@ -63,6 +71,9 @@ export default class Fix extends Command {
 
       applyFix( plan );
       this.log( 'Done, package.json is properly configured.' );
+      if ( plan.dependenciesToRemove.length > 0 ) {
+        this.log( 'Dependencies changed: run your package manager install to update node_modules and the lockfile.' );
+      }
     } catch ( error: unknown ) {
       // ExitPromptError means Ctrl+C
       if ( !( error instanceof Error ) || error.constructor.name !== 'ExitPromptError' ) {

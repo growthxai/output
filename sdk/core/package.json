@@ -15,14 +15,6 @@
       "types": "./src/hooks/index.d.ts",
       "import": "./src/hooks/index.js"
     },
-    "./sdk/helpers": {
-      "types": "./src/sdk/helpers/index.d.ts",
-      "import": "./src/sdk/helpers/index.js"
-    },
-    "./sdk/runtime": {
-      "types": "./src/sdk/runtime/index.d.ts",
-      "import": "./src/sdk/runtime/index.js"
-    },
     "./temporal": {
       "types": "./src/temporal/index.d.ts",
       "import": "./src/temporal/index.js"
