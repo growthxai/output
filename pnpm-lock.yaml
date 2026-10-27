@@ -40,14 +40,14 @@ catalogs:
       specifier: 7.8.5
       version: 7.8.5
     undici:
-      specifier: 8.10.2
-      version: 8.10.2
+      specifier: 8.12.2
+      version: 8.12.2
     winston:
       specifier: 3.19.0
       version: 3.19.0
     zod:
-      specifier: 4.6.5
-      version: 4.6.5
+      specifier: 4.6.6
+      version: 4.6.6
 
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': 0.96.0
@@ -148,7 +148,7 @@ importers:
         version: 3.19.0
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.6.6
     devDependencies:
       '@temporalio/proto':
         specifier: 'catalog:'
@@ -161,10 +161,10 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 4.0.61
-        version: 4.0.61(zod@4.6.5)
+        version: 4.0.61(zod@4.6.6)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.281
-        version: 0.3.281(@anthropic-ai/sdk@0.96.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(zod@4.6.5)
+        version: 0.3.281(@anthropic-ai/sdk@0.96.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(zod@4.6.6)
       '@hackylabs/deep-redact':
         specifier: 3.0.5
         version: 3.0.5
@@ -221,7 +221,7 @@ importers:
         version: 7.8.5
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.12.2
     devDependencies:
       '@types/cli-progress':
         specifier: 3.11.6
@@ -243,7 +243,7 @@ importers:
         version: 4.23.10(@types/node@24.10.15)
       orval:
         specifier: 8.37.0
-        version: 8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(typedoc-plugin-markdown@4.11.0(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))(typescript@5.9.3)(zod@4.6.5)
+        version: 8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(typedoc-plugin-markdown@4.11.0(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))(typescript@5.9.3)(zod@4.6.6)
 
   sdk/core:
     dependencies:
@@ -316,37 +316,37 @@ importers:
     devDependencies:
       '@ai-sdk/amazon-bedrock':
         specifier: 5.0.92
-        version: 5.0.92(zod@4.6.5)
+        version: 5.0.92(zod@4.6.6)
       '@ai-sdk/anthropic':
         specifier: 4.0.61
-        version: 4.0.61(zod@4.6.5)
+        version: 4.0.61(zod@4.6.6)
       '@ai-sdk/azure':
         specifier: 4.0.77
-        version: 4.0.77(zod@4.6.5)
+        version: 4.0.77(zod@4.6.6)
       '@ai-sdk/google-vertex':
         specifier: 5.0.91
-        version: 5.0.91(zod@4.6.5)
+        version: 5.0.91(zod@4.6.6)
       '@ai-sdk/openai':
         specifier: 4.0.73
-        version: 4.0.73(zod@4.6.5)
+        version: 4.0.73(zod@4.6.6)
       '@ai-sdk/perplexity':
         specifier: 4.0.49
-        version: 4.0.49(zod@4.6.5)
+        version: 4.0.49(zod@4.6.6)
       '@types/js-yaml':
         specifier: 'catalog:'
         version: 4.0.9
       ai:
         specifier: 7.0.112
-        version: 7.0.112(zod@4.6.5)
+        version: 7.0.112(zod@4.6.6)
       ky:
         specifier: 'catalog:'
         version: 2.0.2
       undici:
         specifier: 'catalog:'
-        version: 8.10.2
+        version: 8.12.2
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.6.6
 
   sdk/framework:
     dependencies:
@@ -361,10 +361,10 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 4.0.61
-        version: 4.0.61(zod@4.6.5)
+        version: 4.0.61(zod@4.6.6)
       '@ai-sdk/openai':
         specifier: 4.0.73
-        version: 4.0.73(zod@4.6.5)
+        version: 4.0.73(zod@4.6.6)
       '@growthxlabs/workflows_catalog':
         specifier: 0.0.14
         version: 0.0.14(@outputai/core@sdk+core)
@@ -373,7 +373,7 @@ importers:
         version: link:../sdk/core
       '@perplexity-ai/ai-sdk':
         specifier: 0.1.3
-        version: 0.1.3(ai@7.0.112(zod@4.6.5))(zod@4.6.5)
+        version: 0.1.3(ai@7.0.112(zod@4.6.6))(zod@4.6.6)
       '@temporalio/workflow':
         specifier: 'catalog:'
         version: 1.24.0
@@ -382,7 +382,7 @@ importers:
         version: 3.1.14
       zod:
         specifier: 'catalog:'
-        version: 4.6.5
+        version: 4.6.6
 
 packages:
 
@@ -4784,8 +4784,8 @@ packages:
     resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
     engines: {node: '>=20.18.1'}
 
-  undici@8.10.2:
-    resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
+  undici@8.12.2:
+    resolution: {integrity: sha512-XtuDWVdqTLr3NAxm2ly9/hU6kUsJOgGh1RASzMBbsw6aWCOaQzHdW+QQDfdERjfJ2V5vL5pRPa4RetO9UfivDg==}
     engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
@@ -5066,90 +5066,93 @@ packages:
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
+
 snapshots:
 
-  '@ai-sdk/amazon-bedrock@5.0.92(zod@4.6.5)':
+  '@ai-sdk/amazon-bedrock@5.0.92(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/anthropic': 4.0.61(zod@4.6.5)
-      '@ai-sdk/openai': 4.0.73(zod@4.6.5)
+      '@ai-sdk/anthropic': 4.0.61(zod@4.6.6)
+      '@ai-sdk/openai': 4.0.73(zod@4.6.6)
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
       '@smithy/eventstream-codec': 4.5.2
       '@smithy/util-utf8': 4.5.2
       aws4fetch: 1.0.20
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@ai-sdk/anthropic@4.0.61(zod@4.6.5)':
+  '@ai-sdk/anthropic@4.0.61(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/azure@4.0.77(zod@4.6.5)':
+  '@ai-sdk/azure@4.0.77(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/deepseek': 3.0.51(zod@4.6.5)
-      '@ai-sdk/openai': 4.0.73(zod@4.6.5)
+      '@ai-sdk/deepseek': 3.0.51(zod@4.6.6)
+      '@ai-sdk/openai': 4.0.73(zod@4.6.6)
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/deepseek@3.0.51(zod@4.6.5)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
-
-  '@ai-sdk/gateway@4.0.90(zod@4.6.5)':
+  '@ai-sdk/deepseek@3.0.51(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
+
+  '@ai-sdk/gateway@4.0.90(zod@4.6.6)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.18
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
       '@vercel/oidc': 3.2.0
-      zod: 4.6.5
+      zod: 4.6.6
 
-  '@ai-sdk/google-vertex@5.0.91(zod@4.6.5)':
+  '@ai-sdk/google-vertex@5.0.91(zod@4.6.6)':
     dependencies:
-      '@ai-sdk/anthropic': 4.0.61(zod@4.6.5)
-      '@ai-sdk/google': 4.0.78(zod@4.6.5)
-      '@ai-sdk/openai-compatible': 3.0.54(zod@4.6.5)
+      '@ai-sdk/anthropic': 4.0.61(zod@4.6.6)
+      '@ai-sdk/google': 4.0.78(zod@4.6.6)
+      '@ai-sdk/openai-compatible': 3.0.54(zod@4.6.6)
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
       google-auth-library: 10.9.1
-      zod: 4.6.5
+      zod: 4.6.6
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@4.0.78(zod@4.6.5)':
+  '@ai-sdk/google@4.0.78(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai-compatible@3.0.54(zod@4.6.5)':
+  '@ai-sdk/openai-compatible@3.0.54(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/openai@4.0.73(zod@4.6.5)':
+  '@ai-sdk/openai@4.0.73(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/perplexity@4.0.49(zod@4.6.5)':
+  '@ai-sdk/perplexity@4.0.49(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
-  '@ai-sdk/provider-utils@5.0.46(zod@4.6.5)':
+  '@ai-sdk/provider-utils@5.0.46(zod@4.6.6)':
     dependencies:
       '@ai-sdk/provider': 4.0.18
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
       undici: 7.29.1
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@ai-sdk/provider@4.0.18':
     dependencies:
@@ -5184,11 +5187,11 @@ snapshots:
   '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.281':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk@0.3.281(@anthropic-ai/sdk@0.96.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(zod@4.6.5)':
+  '@anthropic-ai/claude-agent-sdk@0.3.281(@anthropic-ai/sdk@0.96.0(zod@4.6.6))(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(zod@4.6.6)':
     dependencies:
-      '@anthropic-ai/sdk': 0.96.0(zod@4.6.5)
-      '@modelcontextprotocol/sdk': 1.32.0(zod@4.6.5)
-      zod: 4.6.5
+      '@anthropic-ai/sdk': 0.96.0(zod@4.6.6)
+      '@modelcontextprotocol/sdk': 1.32.0(zod@4.6.6)
+      zod: 4.6.6
     optionalDependencies:
       '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.281
       '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.281
@@ -5199,12 +5202,12 @@ snapshots:
       '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.281
       '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.281
 
-  '@anthropic-ai/sdk@0.96.0(zod@4.6.5)':
+  '@anthropic-ai/sdk@0.96.0(zod@4.6.6)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.1.1
     optionalDependencies:
-      zod: 4.6.5
+      zod: 4.6.6
 
   '@apidevtools/json-schema-ref-parser@14.0.1':
     dependencies:
@@ -6467,7 +6470,7 @@ snapshots:
       globby: 11.1.0
       read-yaml-file: 1.1.0
 
-  '@modelcontextprotocol/sdk@1.32.0(zod@4.6.5)':
+  '@modelcontextprotocol/sdk@1.32.0(zod@4.6.6)':
     dependencies:
       '@hono/node-server': 2.0.10(hono@4.13.11)
       ajv: 8.20.0
@@ -6484,8 +6487,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.6.5
-      zod-to-json-schema: 3.25.2(zod@4.6.5)
+      zod: 4.6.6
+      zod-to-json-schema: 3.25.2(zod@4.6.6)
     transitivePeerDependencies:
       - supports-color
 
@@ -6615,23 +6618,23 @@ snapshots:
     transitivePeerDependencies:
       - '@faker-js/faker'
 
-  '@orval/hono@8.37.0(typescript@5.9.3)(zod@4.6.5)':
+  '@orval/hono@8.37.0(typescript@5.9.3)(zod@4.6.6)':
     dependencies:
       '@orval/core': 8.37.0
-      '@orval/zod': 8.37.0(zod@4.6.5)
+      '@orval/zod': 8.37.0(zod@4.6.6)
     optionalDependencies:
       typescript: 5.9.3
     transitivePeerDependencies:
       - '@faker-js/faker'
       - zod
 
-  '@orval/mcp@8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(zod@4.6.5)':
+  '@orval/mcp@8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(zod@4.6.6)':
     dependencies:
       '@orval/core': 8.37.0
       '@orval/fetch': 8.37.0
-      '@orval/zod': 8.37.0(zod@4.6.5)
+      '@orval/zod': 8.37.0(zod@4.6.6)
     optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.32.0(zod@4.6.5)
+      '@modelcontextprotocol/sdk': 1.32.0(zod@4.6.6)
     transitivePeerDependencies:
       - '@faker-js/faker'
       - zod
@@ -6670,13 +6673,13 @@ snapshots:
     transitivePeerDependencies:
       - '@faker-js/faker'
 
-  '@orval/zod@8.37.0(zod@4.6.5)':
+  '@orval/zod@8.37.0(zod@4.6.6)':
     dependencies:
       '@orval/core': 8.37.0
       jsesc: 3.1.0
       remeda: 2.50.0
     optionalDependencies:
-      zod: 4.6.5
+      zod: 4.6.6
     transitivePeerDependencies:
       - '@faker-js/faker'
 
@@ -6686,10 +6689,10 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@perplexity-ai/ai-sdk@0.1.3(ai@7.0.112(zod@4.6.5))(zod@4.6.5)':
+  '@perplexity-ai/ai-sdk@0.1.3(ai@7.0.112(zod@4.6.6))(zod@4.6.6)':
     dependencies:
-      ai: 7.0.112(zod@4.6.5)
-      zod: 4.6.5
+      ai: 7.0.112(zod@4.6.6)
+      zod: 4.6.6
 
   '@pnpm/config.env-replace@1.1.0': {}
 
@@ -7371,12 +7374,12 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@7.0.112(zod@4.6.5):
+  ai@7.0.112(zod@4.6.6):
     dependencies:
-      '@ai-sdk/gateway': 4.0.90(zod@4.6.5)
+      '@ai-sdk/gateway': 4.0.90(zod@4.6.6)
       '@ai-sdk/provider': 4.0.18
-      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.5)
-      zod: 4.6.5
+      '@ai-sdk/provider-utils': 5.0.46(zod@4.6.6)
+      zod: 4.6.6
 
   ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
@@ -9063,7 +9066,7 @@ snapshots:
       type-check: 0.4.0
       word-wrap: 1.2.5
 
-  orval@8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(typedoc-plugin-markdown@4.11.0(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))(typescript@5.9.3)(zod@4.6.5):
+  orval@8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(typedoc-plugin-markdown@4.11.0(typedoc@0.28.20(typescript@5.9.3)))(typedoc@0.28.20(typescript@5.9.3))(typescript@5.9.3)(zod@4.6.6):
     dependencies:
       '@commander-js/extra-typings': 15.0.0(commander@15.0.0)
       '@orval/angular': 8.37.0
@@ -9071,14 +9074,14 @@ snapshots:
       '@orval/core': 8.37.0
       '@orval/effect': 8.37.0
       '@orval/fetch': 8.37.0
-      '@orval/hono': 8.37.0(typescript@5.9.3)(zod@4.6.5)
-      '@orval/mcp': 8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.5))(zod@4.6.5)
+      '@orval/hono': 8.37.0(typescript@5.9.3)(zod@4.6.6)
+      '@orval/mcp': 8.37.0(@modelcontextprotocol/sdk@1.32.0(zod@4.6.6))(zod@4.6.6)
       '@orval/mock': 8.37.0
       '@orval/pinia-colada': 8.37.0
       '@orval/query': 8.37.0
       '@orval/solid-start': 8.37.0
       '@orval/swr': 8.37.0
-      '@orval/zod': 8.37.0(zod@4.6.5)
+      '@orval/zod': 8.37.0(zod@4.6.6)
       '@scalar/json-magic': 0.13.5
       '@scalar/openapi-parser': 0.29.5
       '@scalar/openapi-types': 0.9.6
@@ -9793,7 +9796,7 @@ snapshots:
 
   undici@7.29.1: {}
 
-  undici@8.10.2: {}
+  undici@8.12.2: {}
 
   unicorn-magic@0.3.0: {}
 
@@ -10019,8 +10022,10 @@ snapshots:
 
   yoga-layout@3.2.1: {}
 
-  zod-to-json-schema@3.25.2(zod@4.6.5):
+  zod-to-json-schema@3.25.2(zod@4.6.6):
     dependencies:
-      zod: 4.6.5
+      zod: 4.6.6
 
   zod@4.6.5: {}
+
+  zod@4.6.6: {}
