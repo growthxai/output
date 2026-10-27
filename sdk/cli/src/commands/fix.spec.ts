@@ -21,6 +21,8 @@ const basePlan = (): FixPlan => ( {
   scriptsToRemove: [ { key: 'dev', value: 'old' } ],
   scriptsToAdd: [ { key: 'output:new', value: 'echo new' } ],
   scriptsToReplace: [ { key: 'output:dev', before: 'old dev', after: 'output dev' } ],
+  dependenciesToRemove: [],
+  dependenciesToAdd: [],
   hookFilesToRemove: []
 } );
 
@@ -88,6 +90,42 @@ describe( 'fix command', () => {
 
     expect( cmd.log ).toHaveBeenCalledWith( '\n  Hook files to remove:' );
     expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '"node_modules/@outputai/credentials/dist/hooks.js"' ) );
+  } );
+
+  it( 'should list dependencies to replace and hint to reinstall after applying', async () => {
+    vi.mocked( fixService.planFix ).mockReturnValue( {
+      ...basePlan(),
+      dependenciesToRemove: [ { section: 'dependencies', name: '@outputai/output', version: '^0.15.0' } ],
+      dependenciesToAdd: [
+        { section: 'dependencies', name: '@outputai/core', version: '^0.15.0' },
+        { section: 'devDependencies', name: '@outputai/cli', version: '^0.15.0' }
+      ]
+    } );
+    vi.mocked( confirm ).mockResolvedValue( true );
+    vi.mocked( fixService.applyFix ).mockImplementation( () => {} );
+
+    const cmd = createTestCommand();
+    await cmd.run();
+
+    expect( cmd.log ).toHaveBeenCalledWith( '\n  Dependencies to replace:' );
+    expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '"@outputai/output": "^0.15.0" (dependencies)' ) );
+    expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '"@outputai/core": "^0.15.0" (dependencies)' ) );
+    expect( cmd.log ).toHaveBeenCalledWith( expect.stringContaining( '"@outputai/cli": "^0.15.0" (devDependencies)' ) );
+    expect( cmd.log ).toHaveBeenCalledWith(
+      'Dependencies changed: run your package manager install to update node_modules and the lockfile.'
+    );
+  } );
+
+  it( 'should not hint to reinstall when dependencies did not change', async () => {
+    vi.mocked( fixService.planFix ).mockReturnValue( basePlan() );
+    vi.mocked( confirm ).mockResolvedValue( true );
+    vi.mocked( fixService.applyFix ).mockImplementation( () => {} );
+
+    const cmd = createTestCommand();
+    await cmd.run();
+
+    expect( cmd.log ).not.toHaveBeenCalledWith( '\n  Dependencies to replace:' );
+    expect( cmd.log ).not.toHaveBeenCalledWith( expect.stringContaining( 'Dependencies changed' ) );
   } );
 
   it( 'should not apply when user declines', async () => {

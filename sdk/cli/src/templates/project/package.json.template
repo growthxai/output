@@ -16,9 +16,10 @@
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.61",
     "@ai-sdk/openai": "4.0.73",
-    "@outputai/output": "{{frameworkVersion}}"
+    "@outputai/core": "{{frameworkVersion}}"
   },
   "devDependencies": {
+    "@outputai/cli": "{{frameworkVersion}}",
     "@types/node": "24.5.2",
     "nodemon": "3.1.14",
     "typescript": "5.9.3"

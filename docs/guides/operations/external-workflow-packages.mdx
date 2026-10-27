@@ -316,7 +316,7 @@ Namespace imports from workflow packages are also not supported. Import each wor
 
 ### Keep workflow package code workflow-safe
 
-Workflow code runs in Temporal's workflow runtime. Avoid importing Node-only APIs or non-deterministic code from workflow files. If a package needs a workflow-safe entry point, it can provide an `output-workflow-bundle` export condition so the worker bundle resolves the safe version.
+Workflow code runs in Temporal's workflow runtime. Avoid importing Node-only APIs or non-deterministic code from workflow files.
 
 ## Next steps
 

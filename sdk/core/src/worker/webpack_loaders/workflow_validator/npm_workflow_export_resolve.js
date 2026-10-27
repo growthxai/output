@@ -103,8 +103,7 @@ const findPackageJson = ( fromDir, packageName ) => {
 /**
  * Choose the best concrete file target from a package exports target.
  *
- * Prefers the workflow-specific webpack condition, then the same fallback conditions used by
- * `webpackConfigHook`.
+ * Uses the same conditions as `webpackConfigHook`.
  *
  * @param {string|Array|object|null|undefined} target - Value from package.json `exports`.
  * @returns {string|null} Relative file target, or null when no supported condition resolves.
@@ -126,7 +125,7 @@ const resolveConditionalExportTarget = target => {
     return null;
   }
 
-  for ( const condition of [ 'output-workflow-bundle', 'import', 'module', 'webpack', 'default' ] ) {
+  for ( const condition of [ 'import', 'module', 'webpack', 'default' ] ) {
     if ( condition in target ) {
       const resolved = resolveConditionalExportTarget( target[condition] );
       if ( resolved ) {
@@ -138,7 +137,7 @@ const resolveConditionalExportTarget = target => {
 };
 
 /**
- * Resolve a bare package specifier using the `output-workflow-bundle` export condition when present.
+ * Resolve a bare package specifier from its package.json `exports`.
  *
  * This keeps AST workflow import resolution aligned with webpack's configured condition order before
  * falling back to Node's `require.resolve`.
@@ -147,7 +146,7 @@ const resolveConditionalExportTarget = target => {
  * @param {string} specifier - Bare npm package specifier.
  * @returns {string|null} Absolute module path selected from package exports, or null when unsupported.
  */
-const resolveBareSpecifierWithOutputCondition = ( fromAbsoluteFile, specifier ) => {
+const resolveBareSpecifierWithExportConditions = ( fromAbsoluteFile, specifier ) => {
   const { packageName, subpath } = packagePartsFromSpecifier( specifier );
   const pkgJsonPath = findPackageJson( dirname( fromAbsoluteFile ), packageName );
   if ( !pkgJsonPath ) {
@@ -315,7 +314,7 @@ const moduleMayExportWorkflows = ( moduleAbsPath, visited = new Set() ) => {
  * @returns {string|null} Absolute path to the resolved entry file, or null on failure.
  */
 const resolveBareSpecifierToFirstModule = ( fromAbsoluteFile, specifier ) => {
-  const conditionalEntry = resolveBareSpecifierWithOutputCondition( fromAbsoluteFile, specifier );
+  const conditionalEntry = resolveBareSpecifierWithExportConditions( fromAbsoluteFile, specifier );
   if ( conditionalEntry ) {
     return conditionalEntry;
   }

@@ -1,9 +1,9 @@
 ---
 title: "v0.15.0 → v0.16.0"
-description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http, @outputai/llm and @outputai/evals are folded into @outputai/core, ky, undici and ai become peer dependencies, AI SDK providers become optional, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
+description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http, @outputai/llm and @outputai/evals are folded into @outputai/core, @outputai/output is replaced by @outputai/core and @outputai/cli, ky, undici and ai become peer dependencies, AI SDK providers become optional, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
 ---
 
-This guide covers the move of `@outputai/http`, `@outputai/llm` and `@outputai/evals` into `@outputai/core`. None of these packages is published anymore: their APIs now live at `@outputai/core/http`, `@outputai/core/llm` and `@outputai/core/evals`. The http and llm exports are unchanged; the evals LLM judges moved to `@outputai/core/llm`, and the evals internals are no longer exported.
+This guide covers the move of `@outputai/http`, `@outputai/llm` and `@outputai/evals` into `@outputai/core`. None of these packages is published anymore: their APIs now live at `@outputai/core/http`, `@outputai/core/llm` and `@outputai/core/evals`. The http and llm exports are unchanged; the evals LLM judges moved to `@outputai/core/llm`, and the evals internals are no longer exported. The `@outputai/output` umbrella package is not published anymore either: projects depend on `@outputai/core` and `@outputai/cli` directly.
 
 Smaller breaks come with them: `ky`, `undici` and `ai` are now peer dependencies of `@outputai/core`, the AI SDK provider packages are no longer installed for you, and `sendHttpRequest()` parses some response bodies differently.
 
@@ -17,12 +17,12 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 - `judgeVerdict`, `judgeScore`, `judgeBoolean`, `judgeLabel`, and the `JudgeArgs` type moved to `@outputai/core/llm`, with the same arguments and results.
 - `interpretResult`, `aggregateCaseVerdict`, `renderEvalOutput`, `computeExitCode`, `getEvalWorkflowName`, `isEvalWorkflow`, `getParentWorkflowName`, and the other Zod schemas of `@outputai/evals` (`VerdictSchema`, `CriticalitySchema`, `InterpretConfigSchema`, `EvaluatorResultSchema`, `EvalCaseSchema`, `LastOutputSchema`, `LastEvalSchema`) are no longer exported.
 - Steps and evaluators referenced as values in workflow files, rather than called, are replaced with their activity names in the workflow bundle. Previously their modules were bundled into the workflow sandbox when the file had no activity calls.
-- `@outputai/output` no longer depends on `@outputai/http`, `@outputai/llm` or `@outputai/evals`.
+- The `output-workflow-bundle` package export condition is no longer used when bundling workflows. Packages resolve through their `import`, `module`, `webpack` or `default` conditions.
+- `@outputai/output` is no longer published. New projects depend on `@outputai/core` and, as a dev dependency, `@outputai/cli`. `output fix` replaces an existing `@outputai/output` dependency with both.
 - `ky` (`>=2 <3`), `undici` (`>=8 <9`) and `ai` (`>=7 <8`) are peer dependencies of `@outputai/core`.
 - The built-in AI SDK provider packages are optional peer dependencies of `@outputai/core`, so they are no longer installed automatically. Using a provider whose package is missing throws a `FatalError` naming the package.
 - `getProviderNames()` lists only the built-in providers whose package is installed, plus registered ones.
 - The `llm:generation:metering` and `cost:llm:request` events and the LLM trace attributes are unchanged.
-- `Tracing.Attribute.HTTPRequestCount` and `Tracing.Attribute.HTTPRequestCost` moved from `@outputai/core/sdk/runtime` to `@outputai/core/http` as `HTTPRequestCount` and `HTTPRequestCost`. The `http:request:count` and `http:request:cost` trace attributes are unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
 
@@ -50,9 +50,30 @@ vi.mock( '@outputai/core/llm' );
 
 If you used one of the exports that were removed from `@outputai/evals`, copy its logic into your project. `output workflow test` still interprets, aggregates and renders eval results the same way.
 
+### Replace `@outputai/output`
+
+If your project depends on `@outputai/output`, replace it with `@outputai/core` in `dependencies` and `@outputai/cli` in `devDependencies`:
+
+```jsonc
+// Before
+"dependencies": {
+  "@outputai/output": "0.15.0"
+}
+
+// After
+"dependencies": {
+  "@outputai/core": "0.16.0"
+},
+"devDependencies": {
+  "@outputai/cli": "0.16.0"
+}
+```
+
+`npx @outputai/cli@0.16.0 fix` makes this change for you, keeping the version you had. Bump both packages to `0.16.0` afterwards.
+
 ### Remove the dependencies
 
-Delete `@outputai/http`, `@outputai/llm` and `@outputai/evals` from `dependencies`, `devDependencies`, and `peerDependencies` in `package.json`. If your project depends on `@outputai/core` directly rather than through `@outputai/output`, bump it to `0.16.0`.
+Delete `@outputai/http`, `@outputai/llm` and `@outputai/evals` from `dependencies`, `devDependencies`, and `peerDependencies` in `package.json`. Bump `@outputai/core` and `@outputai/cli` to `0.16.0`.
 
 ### Install the peer dependencies
 
@@ -84,22 +105,6 @@ npm install @ai-sdk/anthropic@4 @ai-sdk/openai@4
 ```
 
 A prompt that uses a provider whose package is missing fails with `Provider "<name>" requires the "<package>" package, which is not installed`. Providers added with `registerProvider()` are not affected.
-
-### Update trace attribute imports
-
-Code that referenced `Tracing.Attribute.HTTPRequestCount` or `Tracing.Attribute.HTTPRequestCost` should import them from `@outputai/core/http`:
-
-```ts
-// Before
-import { Tracing } from '@outputai/core/sdk/runtime';
-const isCost = attribute instanceof Tracing.Attribute.HTTPRequestCost;
-
-// After
-import { HTTPRequestCost } from '@outputai/core/http';
-const isCost = attribute instanceof HTTPRequestCost;
-```
-
-To attach a cost to an HTTP request, keep using `addRequestCost()` from `@outputai/core/http`.
 
 ### Re-check `sendHttpRequest()` response bodies
 
@@ -161,12 +166,12 @@ Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`)
 
 ## Checklist
 
+- Replace the `@outputai/output` dependency with `@outputai/core` and, as a dev dependency, `@outputai/cli`, both at `0.16.0`.
 - Replace `@outputai/http` imports and mocks with `@outputai/core/http`, and remove the dependency.
 - Replace `@outputai/llm` imports and mocks with `@outputai/core/llm`, and remove the dependency.
 - Replace `@outputai/evals` imports and mocks with `@outputai/core/evals`, import the judges from `@outputai/core/llm`, and remove the dependency.
 - Install `ky@2`, `undici@8` and `ai@7` if your package manager does not install peer dependencies.
 - Install the `@ai-sdk/*` provider packages your prompts use.
-- Import `HTTPRequestCount` and `HTTPRequestCost` from `@outputai/core/http`.
 - Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
 - Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.
 - Lower `--max-old-space-size-percentage` to `40` if your Dockerfile uses the earlier Railway or Render value of `80`.

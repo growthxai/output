@@ -238,7 +238,7 @@ describe( 'update command', () => {
       await cmd.run();
 
       expect( cmd.warn ).toHaveBeenCalledWith(
-        expect.stringContaining( 'package.json constrains' )
+        expect.stringContaining( 'package.json version range limits' )
       );
     } );
   } );

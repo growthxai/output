@@ -136,8 +136,8 @@ export default class Update extends Command {
 
         if ( isOutdated( newLocalVersion, latest ) ) {
           this.warn(
-            `Your package.json constrains @outputai/output which limits @outputai/cli to v${newLocalVersion}. ` +
-            'Update the @outputai/output version range in package.json to get the latest CLI.'
+            `Your package.json version range limits @outputai/cli to v${newLocalVersion}. ` +
+            'Update the range in package.json to get the latest CLI.'
           );
         }
       } else {

@@ -110,6 +110,63 @@ describe( 'fix package', () => {
     expect( JSON.parse( malformedPlan.packageJsonUpdatedContent ).outputai ).toEqual( malformed.outputai );
   } );
 
+  it( 'should replace @outputai/output in dependencies with core and a cli dev dependency at the same version', async () => {
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    const pkg = { name: 'my-proj', dependencies: { '@outputai/output': '^0.15.0', zod: '4.0.0' } };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
+
+    const plan = planFix( tmpDir );
+
+    expect( plan.dependenciesToRemove ).toEqual( [ { section: 'dependencies', name: '@outputai/output', version: '^0.15.0' } ] );
+    expect( plan.dependenciesToAdd ).toEqual( [
+      { section: 'dependencies', name: '@outputai/core', version: '^0.15.0' },
+      { section: 'devDependencies', name: '@outputai/cli', version: '^0.15.0' }
+    ] );
+
+    applyFix( plan );
+
+    const next = JSON.parse( await fs.readFile( path.join( tmpDir, 'package.json' ), 'utf-8' ) ) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+
+    expect( next.dependencies ).toEqual( { zod: '4.0.0', '@outputai/core': '^0.15.0' } );
+    expect( next.devDependencies ).toEqual( { '@outputai/cli': '^0.15.0' } );
+  } );
+
+  it( 'should replace @outputai/output in devDependencies and keep already declared replacements', async () => {
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    const pkg = {
+      name: 'my-proj',
+      dependencies: { '@outputai/core': '0.15.0' },
+      devDependencies: { '@outputai/output': '^0.15.0' }
+    };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
+
+    const plan = planFix( tmpDir );
+
+    expect( plan.dependenciesToRemove ).toEqual( [ { section: 'devDependencies', name: '@outputai/output', version: '^0.15.0' } ] );
+    expect( plan.dependenciesToAdd ).toEqual( [ { section: 'devDependencies', name: '@outputai/cli', version: '^0.15.0' } ] );
+
+    const next = JSON.parse( plan.packageJsonUpdatedContent );
+
+    expect( next.dependencies ).toEqual( { '@outputai/core': '0.15.0' } );
+    expect( next.devDependencies ).toEqual( { '@outputai/cli': '^0.15.0' } );
+  } );
+
+  it( 'should leave dependencies untouched when @outputai/output is not declared', async () => {
+    const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
+    const pkg = { name: 'my-proj', dependencies: { '@outputai/core': '0.15.0' }, devDependencies: { '@outputai/cli': '0.15.0' } };
+    await fs.writeFile( path.join( tmpDir, 'package.json' ), JSON.stringify( pkg, null, 2 ), 'utf-8' );
+
+    const plan = planFix( tmpDir );
+
+    expect( plan.dependenciesToRemove ).toEqual( [] );
+    expect( plan.dependenciesToAdd ).toEqual( [] );
+    expect( JSON.parse( plan.packageJsonUpdatedContent ).dependencies ).toEqual( pkg.dependencies );
+    expect( JSON.parse( plan.packageJsonUpdatedContent ).devDependencies ).toEqual( pkg.devDependencies );
+  } );
+
   it( 'should throw when package.json is missing', async () => {
     const tmpDir = await fs.mkdtemp( path.join( os.tmpdir(), 'fix-test-' ) );
     expect( () => planFix( tmpDir ) ).toThrow( /No package\.json found/ );

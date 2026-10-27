@@ -37,16 +37,8 @@ const excludeUnlessPackageExposeWorkflows = resource => {
 };
 
 export const webpackConfigHook = config => {
-  // Prefer the "output-workflow-bundle" export condition when resolving packages.
-  // Packages that transitively depend on Node.js built-ins (which can't exist in the
-  // Temporal workflow bundle) can provide an alternative entry point under this condition
-  // that excludes the offending code paths. Packages without this condition fall through
-  // to the standard "import" / "module" / "default" conditions as normal.
   config.resolve = config.resolve ?? {};
-  config.resolve.conditionNames = [
-    'output-workflow-bundle',
-    ...( config.resolve.conditionNames ?? [ 'import', 'module', 'webpack', 'default' ] )
-  ];
+  config.resolve.conditionNames = config.resolve.conditionNames ?? [ 'import', 'module', 'webpack', 'default' ];
 
   config.module = config.module ?? { };
   config.module.rules = config.module.rules ?? [];
