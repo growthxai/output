@@ -17,6 +17,7 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 - `judgeVerdict`, `judgeScore`, `judgeBoolean`, `judgeLabel`, and the `JudgeArgs` type moved to `@outputai/core/llm`, with the same arguments and results.
 - `interpretResult`, `aggregateCaseVerdict`, `renderEvalOutput`, `computeExitCode`, `getEvalWorkflowName`, `isEvalWorkflow`, `getParentWorkflowName`, and the other Zod schemas of `@outputai/evals` (`VerdictSchema`, `CriticalitySchema`, `InterpretConfigSchema`, `EvaluatorResultSchema`, `EvalCaseSchema`, `LastOutputSchema`, `LastEvalSchema`) are no longer exported.
 - Steps and evaluators referenced as values in workflow files, rather than called, are replaced with their activity names in the workflow bundle. Previously their modules were bundled into the workflow sandbox when the file had no activity calls.
+- The `output-workflow-bundle` package export condition is no longer used when bundling workflows. Packages resolve through their `import`, `module`, `webpack` or `default` conditions.
 - `@outputai/output` is no longer published. New projects depend on `@outputai/core` and, as a dev dependency, `@outputai/cli`. `output fix` replaces an existing `@outputai/output` dependency with both.
 - `ky` (`>=2 <3`), `undici` (`>=8 <9`) and `ai` (`>=7 <8`) are peer dependencies of `@outputai/core`.
 - The built-in AI SDK provider packages are optional peer dependencies of `@outputai/core`, so they are no longer installed automatically. Using a provider whose package is missing throws a `FatalError` naming the package.
