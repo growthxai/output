@@ -54,8 +54,6 @@ const createInvokeActivityCall = ( activityName, args ) =>
 
 // Rewrite valid function-body activity calls; top-level call validation belongs to the validator loader.
 const rewriteActivityCallsInFunctions = ( { ast, activityNames } ) => {
-  const state = { rewrote: false };
-
   traverse( ast, {
     CallExpression: path => {
       if ( !path.getFunctionParent() || !isIdentifierCallee( path ) ) {
@@ -70,11 +68,8 @@ const rewriteActivityCallsInFunctions = ( { ast, activityNames } ) => {
 
       assertGlobalThisIsSafe( path );
       path.replaceWith( createInvokeActivityCall( activityName, path.node.arguments ) );
-      state.rewrote = true;
     }
   } );
-
-  return state.rewrote;
 };
 
 // Calls belong to the call rewrite (function bodies) or the validator loader (top level).
@@ -82,8 +77,6 @@ const isCallee = path => path.parentPath.isCallExpression( { callee: path.node }
 
 // The activity import is stripped from the bundle, so non-call references become the activity name.
 const rewriteActivityReferences = ( { ast, activityNames } ) => {
-  const state = { rewrote: false };
-
   traverse( ast, {
     Identifier: path => {
       const { name } = path.node;
@@ -99,21 +92,17 @@ const rewriteActivityReferences = ( { ast, activityNames } ) => {
         path.parent.shorthand = false;
       }
       path.replaceWith( stringLiteral( activityName ) );
-      state.rewrote = true;
     }
   } );
-
-  return state.rewrote;
 };
 
 // Entry point: resolve collected component imports into dispatcher calls and activity names.
 export default function rewriteActivityCalls( { ast, activityImports } ) {
   const activityNames = buildActivityNameMap( activityImports );
   if ( activityNames.size === 0 ) {
-    return false;
+    return;
   }
 
-  const rewroteCalls = rewriteActivityCallsInFunctions( { ast, activityNames } );
-  const rewroteReferences = rewriteActivityReferences( { ast, activityNames } );
-  return rewroteCalls || rewroteReferences;
+  rewriteActivityCallsInFunctions( { ast, activityNames } );
+  rewriteActivityReferences( { ast, activityNames } );
 };
