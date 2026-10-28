@@ -267,14 +267,6 @@ describe( 'parseLLMUsage', () => {
     ] );
   } );
 
-  it( 'records a Gemini 2 grounded call as a single tools item', () => {
-    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b', 'c' ] );
-
-    expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 1 )
-    );
-  } );
-
   it( 'keeps grounding out of the token aggregates', () => {
     const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b', 'c' ] );
 
@@ -291,14 +283,6 @@ describe( 'parseLLMUsage', () => {
 
     expect( result.items.at( -1 ) ).toEqual(
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_query', 3 )
-    );
-  } );
-
-  it( 'charges Gemini 2 once per grounded step across a multi-step run', () => {
-    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b' ], [ 'c' ], [] );
-
-    expect( result.items.at( -1 ) ).toEqual(
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 2 )
     );
   } );
 
@@ -331,13 +315,13 @@ describe( 'parseLLMUsage', () => {
       steps: [
         {
           content: [
-            { type: 'tool-call', toolName: 'research', providerExecuted: true },
-            { type: 'tool-call', toolName: 'image', providerExecuted: true }
+            { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } },
+            { type: 'tool-result', toolName: 'image', output: { action: { type: 'search' } } }
           ]
         },
         {
           content: [
-            { type: 'tool-call', toolName: 'research', providerExecuted: true }
+            { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } }
           ]
         }
       ],
@@ -352,14 +336,14 @@ describe( 'parseLLMUsage', () => {
     );
   } );
 
-  it( 'keeps OpenAI standard and preview web searches separate', () => {
+  it( 'marks OpenAI web search usage ambiguous when both variants are configured', () => {
     const result = parseLLMUsage( {
       prompt: { config: { provider: 'openai', model: 'gpt-4.1-mini' } },
       usage: { inputTokens: 100, outputTokens: 50 },
       steps: [ {
         content: [
-          { type: 'tool-call', toolName: 'standard', providerExecuted: true },
-          { type: 'tool-call', toolName: 'preview', providerExecuted: true }
+          { type: 'tool-result', toolName: 'standard', output: { action: { type: 'search' } } },
+          { type: 'tool-result', toolName: 'standard', output: { action: { type: 'search' } } }
         ]
       } ],
       toolIdsByName: {
@@ -368,17 +352,16 @@ describe( 'parseLLMUsage', () => {
       }
     } );
 
-    expect( result.items.slice( -2 ) ).toEqual( [
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search', 1 ),
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search_preview', 1 )
-    ] );
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search_unknown', 2 )
+    );
   } );
 
   it( 'reports grounding for a response without token usage', () => {
     mocks.extractUsageFromSteps.mockReturnValue( {} );
 
     const result = parseLLMUsage( {
-      prompt,
+      prompt: { config: { provider: 'google-vertex', model: 'unknown-model' } },
       usage: {},
       steps: [ { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries: [ 'a' ] } } } } ]
     } );

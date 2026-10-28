@@ -161,8 +161,8 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | Field | Type | Description |
 |-------|------|-------------|
 | `group` | `"input" \| "output" \| "tools"` | Aggregate category. `tools` covers per-request charges such as Google Search grounding and provider-native web search. |
-| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), tool detail (`grounding_query`, `grounding_prompt`, `grounding` when the rate is unknown, `web_search`, or `web_search_preview`), or `null` for aggregate usage. |
-| `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query, grounded request, or web search count for `tools` items. |
+| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), tool detail (`grounding_query`, `grounding` when the rate is unknown, `web_search`, `web_search_preview`, or `web_search_unknown` when the OpenAI variant is ambiguous), or `null` for aggregate usage. |
+| `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query or web search count for `tools` items. |
 
 When the detailed counts do not reconcile with the aggregate count, Output keeps the aggregate input or output item instead of recording a misleading breakdown.
 
@@ -170,14 +170,14 @@ Tool items are recorded independently from tokens and are excluded from the `inp
 
 ### Normalized cost
 
-`LLMGenerationCost` contains one item for every normalized usage item. Cost is computed from per-million-token pricing fetched from the built-in pricing source and cached for 24 hours. Each item total is `(amount / 1_000_000) * ppm`. When that source is unreachable, rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
+`LLMGenerationCost` contains one item for every normalized usage item. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `input`, `output`, `tools`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `tools` holds charges such as grounding and provider-native web search, and `total` is the sum of `input`, `output`, and `tools`. |
 | `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
 | `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
-| `items[].ppm` | `number \| null` | Applied price per million tokens. |
+| `items[].ppm` | `number \| null` | Applied price per million units, such as tokens, requests, prompts, or queries. |
 | `items[].total` | `number \| null` | Calculated item cost. |
 | `items[].status` | `"ok" \| "fallback" \| "missing"` | Whether the exact rate, a regular input/output fallback, or no rate was available. |
 

@@ -1,6 +1,5 @@
 import Decimal from 'decimal.js';
 import { BaseAttribute } from '#trace_attribute';
-import { parseGroundingUsage } from './grounding.js';
 import { extractUsageFromSteps } from './usage_tools.js';
 import { parseWebSearchUsage } from './web_search.js';
 
@@ -136,20 +135,9 @@ export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [], too
     }
   }
 
-  // Grounding is billed per step, so aggregate across every step rather than only the final one.
-  // Per-query families (Gemini 3) return queries.length per step; per-prompt families (Gemini 2.x)
-  // return 1 per grounded step. Summing yields total queries and grounded-step count respectively.
+  // Provider web search is billed per step, so aggregate across every step rather than only the final one.
   if ( Array.isArray( steps ) ) {
-    const grounding = steps
-      .filter( step => step?.providerMetadata )
-      .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
-      .filter( Boolean );
-    if ( grounding.length > 0 ) {
-      const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
-      items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
-    }
-
-    const webSearch = steps.flatMap( step => parseWebSearchUsage( providerId, step, toolIdsByName ) );
+    const webSearch = steps.flatMap( step => parseWebSearchUsage( providerId, modelId, step, toolIdsByName ) );
     if ( webSearch.length > 0 ) {
       const totals = Map.groupBy( webSearch, item => item.label );
       for ( const [ label, values ] of totals ) {

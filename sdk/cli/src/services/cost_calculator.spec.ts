@@ -338,27 +338,27 @@ describe( 'findLLMCalls', () => {
     const items: LLMGenerationCost['items'] = [
       { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
       { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
-      { group: 'tools', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+      { group: 'tools', label: 'grounding_query', amount: 3, ppm: 14_000, total: 0.042, status: 'ok' }
     ];
     const calls = findLLMCalls( {
       kind: 'workflow',
-      children: [ llmCostNode( 'grounded', 'gemini-2.5-flash', items ) ]
+      children: [ llmCostNode( 'grounded', 'gemini-3.1-flash-lite', items ) ]
     } );
 
     expect( calls[0].incomplete ).toBe( false );
-    expect( calls[0].originalCost ).toBeCloseTo( 0.0372921, 8 );
-    // Grounding bills per request, so it must not inflate token usage.
+    expect( calls[0].originalCost ).toBeCloseTo( 0.0442921, 8 );
+    // Grounding bills per query, so it must not inflate token usage.
     expect( calls[0].usage ).toEqual( {
       inputTokens: 1032,
       cachedInputTokens: 0,
       outputTokens: 793,
       reasoningTokens: 0
     } );
-    expect( calls[0].lines.find( l => l.type === 'tools_grounding_prompt' ) ).toEqual( {
-      type: 'tools_grounding_prompt',
-      ppm: 35_000,
-      amount: 1,
-      total: 0.035
+    expect( calls[0].lines.find( l => l.type === 'tools_grounding_query' ) ).toEqual( {
+      type: 'tools_grounding_query',
+      ppm: 14_000,
+      amount: 3,
+      total: 0.042
     } );
   } );
 
@@ -366,19 +366,19 @@ describe( 'findLLMCalls', () => {
     const items: LLMGenerationCost['items'] = [
       { group: 'input', label: 'no_cache', amount: 1032, ppm: 0.3, total: 0.0003096, status: 'ok' },
       { group: 'output', label: 'text', amount: 793, ppm: 2.5, total: 0.0019825, status: 'ok' },
-      { group: 'tools', label: 'grounding_prompt', amount: 1, ppm: 35_000, total: 0.035, status: 'ok' }
+      { group: 'tools', label: 'grounding_query', amount: 3, ppm: 14_000, total: 0.042, status: 'ok' }
     ];
     const config = {
-      models: { 'gemini-2.5-flash': { provider: 'google-vertex', input: 0.3, output: 2.5 } },
+      models: { 'gemini-3.1-flash-lite': { provider: 'google-vertex', input: 0.3, output: 2.5 } },
       services: {}
     };
     const report = calculateCost(
-      { kind: 'workflow', name: 'w', children: [ llmCostNode( 'grounded', 'gemini-2.5-flash', items ) ] },
+      { kind: 'workflow', name: 'w', children: [ llmCostNode( 'grounded', 'gemini-3.1-flash-lite', items ) ] },
       config
     );
 
     // grounding has no costs.yml line rate, so it degrades to its as-charged total, not $0.
-    expect( report.llmAdjustedCost ).toBeCloseTo( 0.0372921, 8 );
+    expect( report.llmAdjustedCost ).toBeCloseTo( 0.0442921, 8 );
   } );
 
   it( 'flags an unrated grounding charge as incomplete instead of a silent $0', () => {

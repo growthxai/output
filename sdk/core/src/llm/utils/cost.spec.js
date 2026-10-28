@@ -19,7 +19,8 @@ const MODEL_ID = 'test-model';
 const PROVIDER_ID = 'test-provider';
 
 const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
-const usage = items => new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, items );
+const usageFor = ( providerId, modelId, items ) => new LLMGenerationUsage( modelId, providerId, items );
+const usage = items => usageFor( PROVIDER_ID, MODEL_ID, items );
 const table = ( models, freshness = Freshness.LIVE ) => ( { models, freshness } );
 const pricing = ( cost, freshness ) =>
   table( new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, { cost, reasoning: false } ] ] ), freshness );
@@ -230,9 +231,13 @@ describe( 'calculateCosts', () => {
   } );
 
   it( 'prices a Gemini 3 grounding query from the local rate table', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+    const providerId = 'google-vertex';
+    const modelId = 'gemini-3-pro';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
+    ] ) ) );
 
-    const result = await calculateCosts( usage( [
+    const result = await calculateCosts( usageFor( providerId, modelId, [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_query', 3 )
@@ -249,22 +254,6 @@ describe( 'calculateCosts', () => {
       new LLMGenerationCostItem( TOOLS, 'grounding_query', 3, 14_000, 0.042, LLMGenerationCostItem.Status.OK )
     );
     expect( Logger.warn ).not.toHaveBeenCalled();
-  } );
-
-  it( 'prices a Gemini 2 grounding prompt from the local rate table', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
-
-    const result = await calculateCosts( usage( [
-      item( INPUT, null, 1_000_000 ),
-      item( OUTPUT, null, 500_000 ),
-      item( TOOLS, 'grounding_prompt', 1 )
-    ] ) );
-
-    expect( result ).toMatchObject( {
-      tools: 0.035,
-      total: 7.035,
-      status: LLMGenerationCost.Status.PRECISE
-    } );
   } );
 
   it.each( [
@@ -326,7 +315,7 @@ describe( 'calculateCosts', () => {
   it( 'never prices a tools item at the input token rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
-    const result = await calculateCosts( usage( [
+    const result = await calculateCosts( usageFor( 'google-vertex', 'gemini-3-pro', [
       item( TOOLS, 'grounding_query', 2 )
     ] ) );
 

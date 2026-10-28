@@ -1,7 +1,6 @@
 import { fetchModelsPricing, Freshness } from './models_pricing.js';
 import { BaseAttribute } from '#trace_attribute';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
-import { GroundingPpmMap } from './grounding.js';
 import { resolveWebSearchPpm } from './web_search.js';
 import { Logger } from '#runtime_logger';
 import Decimal from 'decimal.js';
@@ -93,8 +92,7 @@ const resolvePrice = ( { providerId, group, label, modelPricing } ) => {
   const pricing = modelPricing?.cost;
   // Tool charges are never token-priced: models.dev has no rate for them.
   if ( group === LLMGenerationUsageItem.Group.TOOLS ) {
-    const ppm = GroundingPpmMap.get( label ) ?? resolveWebSearchPpm( providerId, label, modelPricing );
-    return resolveValue( [ ppm ] );
+    return resolveValue( [ resolveWebSearchPpm( providerId, label, modelPricing ) ] );
   }
   if ( !pricing ) {
     return resolveValue( [] );

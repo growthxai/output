@@ -127,7 +127,7 @@ const cases = [
       { group: INPUT, label: 'cache_read', amount: 0 },
       { group: OUTPUT, label: 'text', amount: 793 },
       { group: OUTPUT, label: 'reasoning', amount: 588 },
-      { group: TOOLS, label: 'grounding_prompt', amount: 1 }
+      { group: TOOLS, label: 'grounding', amount: 2 }
     ]
   },
   {
