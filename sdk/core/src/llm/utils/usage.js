@@ -149,12 +149,13 @@ export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [], too
       items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
     }
 
-    const webSearch = steps
-      .map( step => parseWebSearchUsage( providerId, step, toolIdsByName ) )
-      .filter( Boolean );
+    const webSearch = steps.flatMap( step => parseWebSearchUsage( providerId, step, toolIdsByName ) );
     if ( webSearch.length > 0 ) {
-      const amount = webSearch.reduce( ( sum, item ) => sum + item.amount, 0 );
-      items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, webSearch[0].label, amount ) );
+      const totals = Map.groupBy( webSearch, item => item.label );
+      for ( const [ label, values ] of totals ) {
+        const amount = values.reduce( ( sum, item ) => sum + item.amount, 0 );
+        items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, label, amount ) );
+      }
     }
   }
 

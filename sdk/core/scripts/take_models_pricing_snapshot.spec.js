@@ -26,10 +26,21 @@ describe( 'buildPricing', () => {
     vi.useRealTimers();
   } );
 
-  it( 'keeps only the cost branch of every model', () => {
+  it( 'keeps cost and normalized reasoning classification for every model', () => {
     const result = buildPricing( source() );
 
-    expect( result.openai ).toEqual( { models: { 'model-a': { cost } } } );
+    expect( result.openai ).toEqual( { models: { 'model-a': { cost, reasoning: false } } } );
+  } );
+
+  it( 'keeps reasoning-model classification for every provider', () => {
+    const reasoningModel = { id: 'o3', cost, reasoning: true };
+    const result = buildPricing( source( {
+      anthropic: provider( { 'claude-model': reasoningModel } ),
+      openai: provider( { o3: reasoningModel } )
+    } ) );
+
+    expect( result.openai.models.o3 ).toEqual( { cost, reasoning: true } );
+    expect( result.anthropic.models['claude-model'] ).toEqual( { cost, reasoning: true } );
   } );
 
   it( 'stamps the fetch time and keeps _meta first', () => {
@@ -105,7 +116,7 @@ describe( 'takeSnapshot', () => {
     expect( path ).toMatch( /models_pricing_snapshot\.json$/ );
     expect( encoding ).toBe( 'utf-8' );
     expect( content.endsWith( '\n' ) ).toBe( true );
-    expect( JSON.parse( content ).openai ).toEqual( { models: { 'model-a': { cost } } } );
+    expect( JSON.parse( content ).openai ).toEqual( { models: { 'model-a': { cost, reasoning: false } } } );
   } );
 
   it( 'throws and writes nothing on an HTTP error', async () => {

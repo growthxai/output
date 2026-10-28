@@ -44,9 +44,13 @@ const fallbackProviders = Object.entries( fallbackJson ).filter( ( [ key ] ) => 
 const fallbackEntries = fallbackProviders
   .flatMap( ( [ , provider ] ) => Object.values( provider.models ) )
   .filter( model => model.cost );
+const pricingRecord = model => ( {
+  cost: model.cost,
+  reasoning: model.reasoning === true
+} );
 
 /* A models.dev entry as served by the API: the stripped fallback keeps only the `cost` branch of this shape. */
-const fullTable = ( providerId, modelId, cost ) => ( {
+const fullTable = ( providerId, modelId, cost, reasoning = false ) => ( {
   [providerId]: {
     id: providerId,
     env: [ 'OPENAI_API_KEY' ],
@@ -60,7 +64,7 @@ const fullTable = ( providerId, modelId, cost ) => ( {
         description: 'Multimodal flagship model',
         family: 'gpt-4o',
         attachment: true,
-        reasoning: false,
+        reasoning,
         tool_call: true,
         structured_output: true,
         temperature: true,
@@ -96,9 +100,9 @@ describe( 'modelsPricing', () => {
     expect( freshness ).toBe( Freshness.LIVE );
     const firstModel = Object.values( fixture )[0];
     const firstModelId = Object.keys( firstModel.models )[0];
-    const cost = firstModel.models[firstModelId].cost;
+    const model = firstModel.models[firstModelId];
     expect( result.get( firstModelId ) ).toBeUndefined();
-    expect( result.get( `${firstModel.id}/${firstModelId}` ) ).toEqual( cost );
+    expect( result.get( `${firstModel.id}/${firstModelId}` ) ).toEqual( pricingRecord( model ) );
   } );
 
   it( 'includes main providers from fixture (openai, anthropic, google, nvidia, perplexity)', async () => {
@@ -109,10 +113,14 @@ describe( 'modelsPricing', () => {
     const openaiProvider = fixture.openai;
     const openaiModelId = Object.keys( openaiProvider.models )[0];
     expect( result.get( openaiModelId ) ).toBeUndefined();
-    expect( result.get( `openai/${openaiModelId}` ) ).toEqual( openaiProvider.models[openaiModelId].cost );
+    expect( result.get( `openai/${openaiModelId}` ) ).toEqual(
+      pricingRecord( openaiProvider.models[openaiModelId] )
+    );
 
     const anthropicModelId = Object.keys( fixture.anthropic.models )[0];
-    expect( result.get( `anthropic/${anthropicModelId}` ) ).toEqual( fixture.anthropic.models[anthropicModelId].cost );
+    expect( result.get( `anthropic/${anthropicModelId}` ) ).toEqual(
+      pricingRecord( fixture.anthropic.models[anthropicModelId] )
+    );
   } );
 
   it( 'keeps separate costs when the same model id exists under two providers', async () => {
@@ -122,8 +130,12 @@ describe( 'modelsPricing', () => {
     const sharedModelId = 'gpt-4o-2024-11-20';
 
     expect( result.get( sharedModelId ) ).toBeUndefined();
-    expect( result.get( `openai/${sharedModelId}` ) ).toEqual( fixture.openai.models[sharedModelId].cost );
-    expect( result.get( `azure/${sharedModelId}` ) ).toEqual( fixture.azure.models[sharedModelId].cost );
+    expect( result.get( `openai/${sharedModelId}` ) ).toEqual(
+      pricingRecord( fixture.openai.models[sharedModelId] )
+    );
+    expect( result.get( `azure/${sharedModelId}` ) ).toEqual(
+      pricingRecord( fixture.azure.models[sharedModelId] )
+    );
     expect( result.get( `openai/${sharedModelId}` ) ).not.toEqual( result.get( `azure/${sharedModelId}` ) );
   } );
 
@@ -162,7 +174,9 @@ describe( 'modelsPricing', () => {
     expect( result ).toBeInstanceOf( Map );
     expect( result.size ).toBe( fallbackEntries.length );
     expect( freshness ).toBe( Freshness.SNAPSHOT );
-    expect( result.get( 'openai/gpt-4o-2024-11-20' ) ).toEqual( fallbackJson.openai.models['gpt-4o-2024-11-20'].cost );
+    expect( result.get( 'openai/gpt-4o-2024-11-20' ) ).toEqual(
+      pricingRecord( fallbackJson.openai.models['gpt-4o-2024-11-20'] )
+    );
     expect( result.get( 'gpt-4o-2024-11-20' ) ).toBeUndefined();
   } );
 
@@ -180,7 +194,24 @@ describe( 'modelsPricing', () => {
     const fallback = await fetchModels();
 
     expect( remote.get( `${providerId}/${modelId}` ) ).toEqual( fallback.get( `${providerId}/${modelId}` ) );
-    expect( fallback.get( `${providerId}/${modelId}` ) ).toEqual( { input: 2.5, output: 10, cache_read: 1.25 } );
+    expect( fallback.get( `${providerId}/${modelId}` ) ).toEqual( {
+      cost: { input: 2.5, output: 10, cache_read: 1.25 },
+      reasoning: false
+    } );
+  } );
+
+  it( 'retains reasoning-model classification with model costs', async () => {
+    const providerId = 'openai';
+    const modelId = 'o3';
+    const cost = { input: 2, output: 8 };
+    stubFetch( okResponse( fullTable( providerId, modelId, cost, true ) ) );
+
+    const result = await fetchModels();
+
+    expect( result.get( `${providerId}/${modelId}` ) ).toEqual( {
+      cost,
+      reasoning: true
+    } );
   } );
 
   it( 'covers every provider in the fallback table', async () => {
@@ -190,7 +221,7 @@ describe( 'modelsPricing', () => {
 
     for ( const [ providerId, provider ] of fallbackProviders ) {
       const modelId = Object.keys( provider.models )[0];
-      expect( result.get( `${providerId}/${modelId}` ) ).toEqual( provider.models[modelId].cost );
+      expect( result.get( `${providerId}/${modelId}` ) ).toEqual( pricingRecord( provider.models[modelId] ) );
     }
     expect( [ ...result.keys() ].some( key => key.startsWith( '_meta' ) ) ).toBe( false );
   } );
@@ -268,7 +299,9 @@ describe( 'modelsPricing', () => {
 
       expect( fetchMock ).toHaveBeenCalledTimes( 2 );
       expect( freshness ).toBe( Freshness.LIVE );
-      expect( result.get( 'openai/gpt-4o-2024-11-20' ) ).toEqual( fixture.openai.models['gpt-4o-2024-11-20'].cost );
+      expect( result.get( 'openai/gpt-4o-2024-11-20' ) ).toEqual(
+        pricingRecord( fixture.openai.models['gpt-4o-2024-11-20'] )
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -300,7 +333,10 @@ describe( 'modelsPricing', () => {
 
     const result = await fetchModels();
 
-    expect( result.get( 'p1/withCost' ) ).toEqual( { input: 1, output: 2 } );
+    expect( result.get( 'p1/withCost' ) ).toEqual( {
+      cost: { input: 1, output: 2 },
+      reasoning: false
+    } );
     expect( result.get( 'withCost' ) ).toBeUndefined();
     expect( result.get( 'p1/noCost' ) ).toBeUndefined();
   } );

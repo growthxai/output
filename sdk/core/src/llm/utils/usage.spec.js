@@ -352,6 +352,28 @@ describe( 'parseLLMUsage', () => {
     );
   } );
 
+  it( 'keeps OpenAI standard and preview web searches separate', () => {
+    const result = parseLLMUsage( {
+      prompt: { config: { provider: 'openai', model: 'gpt-4.1-mini' } },
+      usage: { inputTokens: 100, outputTokens: 50 },
+      steps: [ {
+        content: [
+          { type: 'tool-call', toolName: 'standard', providerExecuted: true },
+          { type: 'tool-call', toolName: 'preview', providerExecuted: true }
+        ]
+      } ],
+      toolIdsByName: {
+        standard: 'openai.web_search',
+        preview: 'openai.web_search_preview'
+      }
+    } );
+
+    expect( result.items.slice( -2 ) ).toEqual( [
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search', 1 ),
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search_preview', 1 )
+    ] );
+  } );
+
   it( 'reports grounding for a response without token usage', () => {
     mocks.extractUsageFromSteps.mockReturnValue( {} );
 

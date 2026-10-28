@@ -2,7 +2,7 @@ import { fetchModelsPricing, Freshness } from './models_pricing.js';
 import { BaseAttribute } from '#trace_attribute';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 import { GroundingPpmMap } from './grounding.js';
-import { WebSearchPpmMap } from './web_search.js';
+import { resolveWebSearchPpm } from './web_search.js';
 import { Logger } from '#runtime_logger';
 import Decimal from 'decimal.js';
 
@@ -89,10 +89,11 @@ const resolveValue = values => {
   return { ppm: null, status: LLMGenerationCostItem.Status.MISSING };
 };
 
-const resolvePrice = ( { providerId, group, label, pricing } ) => {
+const resolvePrice = ( { providerId, group, label, modelPricing } ) => {
+  const pricing = modelPricing?.cost;
   // Tool charges are never token-priced: models.dev has no rate for them.
   if ( group === LLMGenerationUsageItem.Group.TOOLS ) {
-    const ppm = GroundingPpmMap.get( label ) ?? WebSearchPpmMap.get( `${providerId}/${label}` );
+    const ppm = GroundingPpmMap.get( label ) ?? resolveWebSearchPpm( providerId, label, modelPricing );
     return resolveValue( [ ppm ] );
   }
   if ( !pricing ) {
@@ -131,13 +132,13 @@ export const calculateCosts = async usage => {
 
   const { providerId, modelId } = usage;
 
-  const pricing = models.get( `${providerId}/${modelId}` );
-  if ( !pricing ) {
+  const modelPricing = models.get( `${providerId}/${modelId}` );
+  if ( !modelPricing ) {
     Logger.warn( 'Missing pricing reference for model', { namespace: 'LLM', modelId, providerId } );
   }
 
   const items = usage.items.map( ( { group, label, amount } ) => {
-    const { ppm, status } = resolvePrice( { providerId, pricing, group, label } );
+    const { ppm, status } = resolvePrice( { providerId, modelPricing, group, label } );
     const total = exists( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
     return new LLMGenerationCostItem( group, label, amount, ppm, total, status );
   } );

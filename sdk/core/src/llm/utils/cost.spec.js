@@ -21,7 +21,8 @@ const PROVIDER_ID = 'test-provider';
 const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
 const usage = items => new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, items );
 const table = ( models, freshness = Freshness.LIVE ) => ( { models, freshness } );
-const pricing = ( value, freshness ) => table( new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, value ] ] ), freshness );
+const pricing = ( cost, freshness ) =>
+  table( new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, { cost, reasoning: false } ] ] ), freshness );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
 describe( 'calculateCosts', () => {
@@ -271,7 +272,7 @@ describe( 'calculateCosts', () => {
     { providerId: 'openai', modelId: 'gpt-4.1-mini' }
   ] )( 'prices $providerId web search requests from the local rate table', async ( { providerId, modelId } ) => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map( [
-      [ `${providerId}/${modelId}`, { input: 2, output: 10 } ]
+      [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
     ] ) ) );
     const providerUsage = new LLMGenerationUsage( modelId, providerId, [
       item( INPUT, null, 1_000_000 ),
@@ -290,6 +291,35 @@ describe( 'calculateCosts', () => {
     } );
     expect( result.items.at( -1 ) ).toEqual(
       new LLMGenerationCostItem( TOOLS, 'web_search', 3, 10_000, 0.03, LLMGenerationCostItem.Status.OK )
+    );
+  } );
+
+  it.each( [
+    { name: 'reasoning', reasoning: true, ppm: 10_000, total: 0.03 },
+    { name: 'non-reasoning', reasoning: false, ppm: 25_000, total: 0.075 }
+  ] )( 'prices OpenAI preview search for a $name model', async ( { reasoning, ppm, total } ) => {
+    const modelId = 'gpt-model';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `openai/${modelId}`, {
+        cost: { input: 2, output: 10 },
+        reasoning
+      } ]
+    ] ) ) );
+    const providerUsage = new LLMGenerationUsage( modelId, 'openai', [
+      item( INPUT, null, 0 ),
+      item( OUTPUT, null, 0 ),
+      item( TOOLS, 'web_search_preview', 3 )
+    ] );
+
+    const result = await calculateCosts( providerUsage );
+
+    expect( result ).toMatchObject( {
+      tools: total,
+      total,
+      status: LLMGenerationCost.Status.PRECISE
+    } );
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationCostItem( TOOLS, 'web_search_preview', 3, ppm, total, LLMGenerationCostItem.Status.OK )
     );
   } );
 

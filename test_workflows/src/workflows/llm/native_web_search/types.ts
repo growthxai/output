@@ -10,5 +10,6 @@ export const searchResultSchema = z.object( {
 
 export const nativeWebSearchOutputSchema = z.object( {
   anthropic: searchResultSchema,
-  openai: searchResultSchema
+  openai: searchResultSchema,
+  openaiPreview: searchResultSchema
 } );

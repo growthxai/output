@@ -1,0 +1,16 @@
+---
+provider: openai
+model: gpt-4.1-mini
+maxOutputTokens: 1024
+tools:
+  webSearchPreview:
+    searchContextSize: low
+---
+
+<system>
+Use web search to answer the question with current information and source citations.
+</system>
+
+<user>
+{{ query }}
+</user>

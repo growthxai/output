@@ -2,7 +2,7 @@
 /**
  * - Takes a snapshot from the models.dev
  * - Removes providers other than those that the LLM natively supports
- * - Strip fields other then "cost"
+ * - Strip fields other than "cost" and reasoning-model classification
  * - Write to a file
  */
 
@@ -25,7 +25,7 @@ export const supportedProviders = [
 ];
 
 /**
- * Reduces a models.dev payload to $.<provider_id>.models.<model_id>.cost, in alphabetical order.
+ * Reduces a models.dev payload to model cost and reasoning-model classification, in alphabetical order.
  * @param {object} src Parsed models.dev payload.
  * @returns {object} Snapshot content, `_meta` first.
  * @throws {Error} When a supported provider is absent or has no priced models.
@@ -42,8 +42,13 @@ export const buildPricing = src => {
 
     const models = Object.entries( src[providerId].models ?? {} )
       .sort( ( [ a ], [ b ] ) => ( a < b ? -1 : 1 ) ) // alpha sort models
-      .reduce( ( o, [ modelId, { cost } ] ) =>
-        cost ? Object.assign( o, { [modelId]: { cost } } ) : o
+      .reduce( ( o, [ modelId, { cost, reasoning } ] ) =>
+        cost ? Object.assign( o, {
+          [modelId]: {
+            cost,
+            reasoning: reasoning === true
+          }
+        } ) : o
       , {} );
 
     if ( Object.keys( models ).length === 0 ) {

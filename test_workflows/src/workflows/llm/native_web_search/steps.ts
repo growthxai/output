@@ -53,3 +53,27 @@ export const searchWithOpenAI = step( {
     };
   }
 } );
+
+export const searchWithOpenAIPreview = step( {
+  name: 'searchWithOpenAIPreview',
+  description: 'Search the web with OpenAI preview web search',
+  inputSchema,
+  outputSchema: searchResultSchema,
+  fn: async ( { query } ) => {
+    const response = await generateText( {
+      prompt: 'openai_preview_search@v1',
+      variables: { query },
+      toolChoice: 'required'
+    } );
+
+    return {
+      answer: response.result,
+      sources: response.sources
+        .filter( source => source.sourceType === 'url' )
+        .map( source => ( {
+          url: source.url,
+          title: source.title ?? ''
+        } ) )
+    };
+  }
+} );

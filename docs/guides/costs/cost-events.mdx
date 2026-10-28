@@ -161,7 +161,7 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | Field | Type | Description |
 |-------|------|-------------|
 | `group` | `"input" \| "output" \| "tools"` | Aggregate category. `tools` covers per-request charges such as Google Search grounding and provider-native web search. |
-| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), tool detail (`grounding_query`, `grounding_prompt`, `grounding` when the rate is unknown, or `web_search`), or `null` for aggregate usage. |
+| `label` | `string \| null` | Input detail (`no_cache`, `cache_read`, `cache_write`), output detail (`text`, `reasoning`), tool detail (`grounding_query`, `grounding_prompt`, `grounding` when the rate is unknown, `web_search`, or `web_search_preview`), or `null` for aggregate usage. |
 | `amount` | `number` | Count for this dimension: a token count for `input`/`output` items, and a query, grounded request, or web search count for `tools` items. |
 
 When the detailed counts do not reconcile with the aggregate count, Output keeps the aggregate input or output item instead of recording a misleading breakdown.

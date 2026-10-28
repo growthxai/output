@@ -1,5 +1,5 @@
 import { workflow, z } from '@outputai/core';
-import { searchWithAnthropic, searchWithOpenAI } from './steps.js';
+import { searchWithAnthropic, searchWithOpenAI, searchWithOpenAIPreview } from './steps.js';
 import { nativeWebSearchOutputSchema } from './types.js';
 
 export default workflow( {
@@ -12,7 +12,8 @@ export default workflow( {
   fn: async ( { query } ) => {
     const anthropic = await searchWithAnthropic( { query } );
     const openai = await searchWithOpenAI( { query } );
+    const openaiPreview = await searchWithOpenAIPreview( { query } );
 
-    return { anthropic, openai };
+    return { anthropic, openai, openaiPreview };
   }
 } );

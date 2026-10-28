@@ -33,9 +33,12 @@ const parseData = data => {
       if ( providerId === '_meta' ) {
         continue;
       }
-      for ( const [ modelName, { cost } ] of Object.entries( provider.models ?? {} ) ) {
+      for ( const [ modelName, { cost, reasoning } ] of Object.entries( provider.models ?? {} ) ) {
         if ( cost ) { // some models don't have cost
-          map.set( `${providerId}/${modelName}`, cost );
+          map.set( `${providerId}/${modelName}`, {
+            cost,
+            reasoning: reasoning === true
+          } );
         }
       }
     }
