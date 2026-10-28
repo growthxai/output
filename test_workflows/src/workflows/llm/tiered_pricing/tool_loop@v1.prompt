@@ -1,0 +1,7 @@
+---
+provider: anthropic
+model: claude-haiku-5-5
+maxOutputTokens: 16
+---
+
+<user>Call the expand_context tool.</user>

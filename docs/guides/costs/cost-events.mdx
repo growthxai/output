@@ -170,7 +170,9 @@ Tool items are recorded independently from tokens and are excluded from the `inp
 
 ### Normalized cost
 
-`LLMGenerationCost` contains one item for every normalized usage item. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
+`LLMGenerationCost` contains priced items for the normalized usage. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
+
+For models priced by context size, Output selects the tier separately for every provider request. The request's complete input count, including cache reads and writes, determines the tier; output does not count toward the threshold. A tier applies only when input is greater than its threshold, and its rates price the entire request. Multi-step calls can therefore contain multiple cost items with the same `group` and `label` but different `ppm` and `tier` values.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -180,6 +182,7 @@ Tool items are recorded independently from tokens and are excluded from the `inp
 | `items[].ppm` | `number \| null` | Applied price per million units, such as tokens, requests, prompts, or queries. |
 | `items[].total` | `number \| null` | Calculated item cost. |
 | `items[].status` | `"ok" \| "fallback" \| "missing"` | Whether the exact rate, a regular input/output fallback, or no rate was available. |
+| `items[].tier` | `{ type: "context", size: number } \| undefined` | Context pricing tier applied to this item. Absent for base pricing and tool charges. |
 
 ## Legacy LLM request cost
 
@@ -211,7 +214,7 @@ on<LLMUsageEvent>( 'cost:llm:request', event => {
 }
 ```
 
-The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types only. It intentionally retains the old cache-write folding and reasoning fallback behavior, and its shape is frozen: per-request charges such as grounding and provider-native web search are never added as new `usage` line types, since existing consumers reduce or map over that array and a new type could break them. Tool costs are only available on the normalized `llm:generation:cost` attribute and `llm:generation:metering` event described above. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
+The legacy payload represents priced usage through the historical `input`, `input_cached`, `output`, and `reasoning` line types only. It intentionally retains the old cache-write folding and reasoning fallback behavior, and its shape is frozen: per-request charges such as grounding and provider-native web search are never added as new `usage` line types, since existing consumers reduce or map over that array and a new type could break them. A multi-step call that spans context-pricing tiers can contain the same historical line type more than once, once for each applied rate. Tool costs are only available on the normalized `llm:generation:cost` attribute and `llm:generation:metering` event described above. The `cost:llm:request` payload and `llm:usage` trace attribute are generated from the same object.
 
 Use `llm:generation:metering` for new integrations. It is more faithful to the provider response because usage is independent from pricing, cache writes and reasoning remain explicit, provider identity is included, and fallback or missing prices are represented rather than hidden.
 

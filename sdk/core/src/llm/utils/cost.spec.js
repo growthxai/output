@@ -123,6 +123,213 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
+  it.each( [
+    { input: 99, inputPpm: 2, outputPpm: 10, tier: undefined },
+    { input: 100, inputPpm: 2, outputPpm: 10, tier: undefined },
+    { input: 101, inputPpm: 4, outputPpm: 20, tier: { type: 'context', size: 100 } }
+  ] )( 'selects context pricing for $input input tokens', async ( { input, inputPpm, outputPpm, tier } ) => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        {
+          input: 4,
+          output: 20,
+          tier: { type: 'context', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, input ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        input,
+        inputPpm,
+        input / 1_000_000 * inputPpm,
+        LLMGenerationCostItem.Status.OK,
+        tier
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        10,
+        outputPpm,
+        10 / 1_000_000 * outputPpm,
+        LLMGenerationCostItem.Status.OK,
+        tier
+      )
+    ] );
+  } );
+
+  it( 'uses specialized tier rates and inherits omitted base rates', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      cache_read: 0.2,
+      cache_write: 2.5,
+      output: 10,
+      tiers: [
+        {
+          input: 4,
+          cache_read: 0.4,
+          output: 20,
+          tier: { type: 'context', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, 'cache_read', 60 ),
+      item( INPUT, 'cache_write', 41 ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
+    expect( result.items.map( value => ( { ppm: value.ppm, tier: value.tier } ) ) ).toEqual( [
+      { ppm: 0.4, tier: { type: 'context', size: 100 } },
+      { ppm: 2.5, tier: { type: 'context', size: 100 } },
+      { ppm: 20, tier: { type: 'context', size: 100 } }
+    ] );
+  } );
+
+  it( 'prices multi-step usage per request and merges equal tool rates', async () => {
+    const providerId = 'anthropic';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `${providerId}/${MODEL_ID}`, {
+        cost: {
+          input: 2,
+          output: 10,
+          tiers: [
+            {
+              input: 4,
+              output: 20,
+              tier: { type: 'context', size: 100 }
+            }
+          ]
+        },
+        reasoning: false
+      } ]
+    ] ) ) );
+    const baseUsage = usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 50 ),
+      item( OUTPUT, null, 10 ),
+      item( TOOLS, 'web_search', 1 )
+    ] );
+    const tierUsage = usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 20 ),
+      item( TOOLS, 'web_search', 1 )
+    ] );
+
+    const result = await calculateCosts( usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 ),
+      item( TOOLS, 'web_search', 2 )
+    ] ), [ baseUsage, tierUsage ] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 50, 2, 0.0001, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 10, 10, 0.0001, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( TOOLS, 'web_search', 2, 10_000, 0.02, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        101,
+        4,
+        0.000404,
+        LLMGenerationCostItem.Status.OK,
+        { type: 'context', size: 100 }
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        20,
+        20,
+        0.0004,
+        LLMGenerationCostItem.Status.OK,
+        { type: 'context', size: 100 }
+      )
+    ] );
+    expect( result.total ).toBe( 0.021004 );
+  } );
+
+  it( 'keeps aggregate costing for multi-step models without tiers', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      cache_read: 1,
+      output: 10
+    } ) );
+    const firstUsage = usage( [
+      item( INPUT, 'no_cache', 50 ),
+      item( OUTPUT, 'text', 10 )
+    ] );
+    const secondUsage = usage( [
+      item( INPUT, 'cache_read', 101 ),
+      item( OUTPUT, 'text', 20 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 )
+    ] ), [ firstUsage, secondUsage ] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 151, 2, 0.000302, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 30, 10, 0.0003, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
+  it( 'selects the highest applicable context tier', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 3, output: 4, tier: { type: 'context', size: 100 } },
+        { input: 5, output: 6, tier: { type: 'context', size: 200 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 201 ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.items.map( value => value.ppm ) ).toEqual( [ 5, 6 ] );
+    expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
+  } );
+
+  it( 'uses base rates and marks the cost imprecise for an unsupported tier', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        {
+          input: 4,
+          output: 20,
+          tier: { type: 'volume', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => value.ppm ) ).toEqual( [ 2, 10 ] );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.FALLBACK ) ).toBe( true );
+    expect( Logger.warn ).toHaveBeenCalledWith(
+      'Unsupported model pricing tier',
+      { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID }
+    );
+  } );
+
   it( 'falls back to aggregate prices for unpriced specialized items', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,

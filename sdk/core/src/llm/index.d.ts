@@ -394,7 +394,13 @@ export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'missing';
 export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
 export type LLMGenerationCostPricingFreshness = 'live' | 'cached' | 'stale' | 'snapshot';
 
-/** Cost calculated for one normalized LLM usage item. */
+/** Context-based pricing tier applied to a normalized cost item. */
+export interface LLMGenerationCostTier {
+  type: 'context';
+  size: number;
+}
+
+/** Cost calculated for one normalized LLM usage pricing segment. */
 export interface LLMGenerationCostItem {
   group: 'input' | 'output' | 'tools';
   label: string | null;
@@ -402,6 +408,7 @@ export interface LLMGenerationCostItem {
   ppm: number | null;
   total: number | null;
   status: LLMGenerationCostItemStatus;
+  tier?: LLMGenerationCostTier;
 }
 
 /** Normalized LLM generation cost trace attribute. */

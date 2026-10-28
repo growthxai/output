@@ -86,6 +86,52 @@ describe( 'Metering', () => {
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 
+  it( 'costs multi-step calls with usage parsed per request', async () => {
+    const firstStep = step( 2 );
+    const secondStep = step( 3 );
+    const firstUsage = { ...mockUsage, input: 2 };
+    const secondUsage = { ...mockUsage, input: 3 };
+    mocks.parseLLMUsage
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( firstUsage )
+      .mockReturnValueOnce( secondUsage );
+    const metering = new Metering( { traceId, prompt } );
+
+    await metering.bill( {
+      usage: { inputTokens: 5, outputTokens: 5 },
+      steps: [ firstStep, secondStep ]
+    } );
+
+    expect( mocks.parseLLMUsage ).toHaveBeenNthCalledWith( 2, {
+      prompt,
+      usage: firstStep.usage,
+      steps: [ firstStep ],
+      toolIdsByName: undefined
+    } );
+    expect( mocks.parseLLMUsage ).toHaveBeenNthCalledWith( 3, {
+      prompt,
+      usage: secondStep.usage,
+      steps: [ secondStep ],
+      toolIdsByName: undefined
+    } );
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ firstUsage, secondUsage ] );
+  } );
+
+  it( 'falls back to aggregate costing when a step usage cannot be parsed', async () => {
+    mocks.parseLLMUsage
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( null );
+    const metering = new Metering( { traceId, prompt } );
+
+    await metering.bill( {
+      usage: { inputTokens: 5, outputTokens: 5 },
+      steps: [ step( 2 ), step( 3 ) ]
+    } );
+
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+  } );
+
   it( 'passes provider tool ids to usage parsing', async () => {
     const toolIdsByName = { research: 'openai.web_search' };
     const response = { usage: { inputTokens: 2, outputTokens: 1 }, steps: [ step( 2 ) ] };

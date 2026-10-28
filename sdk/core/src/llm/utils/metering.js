@@ -26,14 +26,20 @@ export class Metering {
   };
 
   async #createAttributes( { usage, steps } ) {
-    this.#attributes.usage = parseLLMUsage( {
+    const parseUsage = ( usageArg, usageSteps ) => parseLLMUsage( {
       prompt: this.#prompt,
-      usage,
-      steps,
+      usage: usageArg,
+      steps: usageSteps,
       toolIdsByName: this.#toolIdsByName
     } );
+    this.#attributes.usage = parseUsage( usage, steps );
     if ( this.#attributes.usage ) {
-      this.#attributes.cost = await calculateCosts( this.#attributes.usage );
+      const requestUsages = steps.length > 1 ?
+        steps.map( step => parseUsage( step.usage, [ step ] ) ) :
+        [];
+      this.#attributes.cost = requestUsages.length > 0 && requestUsages.every( Boolean ) ?
+        await calculateCosts( this.#attributes.usage, requestUsages ) :
+        await calculateCosts( this.#attributes.usage );
       if ( this.#attributes.cost ) {
         // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
         this.#attributes.legacy = convertCostToLegacy( this.#attributes.cost );
