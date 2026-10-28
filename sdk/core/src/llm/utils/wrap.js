@@ -75,7 +75,7 @@ const inlineTryAsync = async fn => {
 export const wrapTextGeneration = async ( { name, prompt, toolIdsByName, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
-  const metering = new Metering( { traceId, prompt, ...( toolIdsByName && { toolIdsByName } ) } );
+  const metering = new Metering( { traceId, prompt, toolIdsByName } );
 
   const onStepEndHook = metering.recordStep;
 
@@ -193,7 +193,7 @@ const invokeCallback = async ( cb, args, cbName ) => {
  */
 export const wrapStream = ( { name, prompt, toolIdsByName, abortSignal, fn } ) => {
   const traceId = startTrace( { name, prompt } );
-  const metering = new Metering( { traceId, prompt, ...( toolIdsByName && { toolIdsByName } ) } );
+  const metering = new Metering( { traceId, prompt, toolIdsByName } );
 
   const handleAbort = () => {
     const error = abortSignal?.reason instanceof Error ? abortSignal.reason : new Error( 'Streaming aborted.', { cause: abortSignal?.reason } );

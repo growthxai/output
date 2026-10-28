@@ -79,7 +79,8 @@ describe( 'Metering', () => {
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
       usage: response.usage,
-      steps: response.steps
+      steps: response.steps,
+      toolIdsByName: undefined
     } );
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
@@ -129,7 +130,8 @@ describe( 'Metering', () => {
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
       usage: undefined,
-      steps: [ step( 5 ) ]
+      steps: [ step( 5 ) ],
+      toolIdsByName: undefined
     } );
   } );
 

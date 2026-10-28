@@ -20,6 +20,7 @@ describe( 'resolveWebSearchPpm', () => {
 
   it( 'prices Google grounding units per million', () => {
     expect( resolveWebSearchPpm( 'google-vertex', 'grounding_query' ) ).toBe( 14_000 );
+    expect( resolveWebSearchPpm( 'google-vertex', 'grounding_prompt' ) ).toBe( 35_000 );
   } );
 } );
 
@@ -61,6 +62,15 @@ describe( 'parseWebSearchUsage', () => {
     } ] );
   } );
 
+  it( 'charges Gemini 2 once per grounded prompt regardless of query count', () => {
+    const step = { providerMetadata: metadata( 'vertex', [ 'a', 'b', 'c' ] ) };
+
+    expect( parseWebSearchUsage( 'google-vertex', 'gemini-2.5-flash', step ) ).toEqual( [ {
+      label: 'grounding_prompt',
+      amount: 1
+    } ] );
+  } );
+
   it( 'reads the Google provider metadata key', () => {
     const step = { providerMetadata: metadata( 'google', [ 'a' ] ) };
 
@@ -81,8 +91,8 @@ describe( 'parseWebSearchUsage', () => {
 
   it( 'reads Google grounding from a Vertex response fixture', () => {
     expect( parseWebSearchUsage( 'google-vertex', 'gemini-2.5-flash', googleVertexText.finalStep ) ).toEqual( [ {
-      label: 'grounding',
-      amount: 2
+      label: 'grounding_prompt',
+      amount: 1
     } ] );
   } );
 

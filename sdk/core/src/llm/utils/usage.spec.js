@@ -267,6 +267,14 @@ describe( 'parseLLMUsage', () => {
     ] );
   } );
 
+  it( 'records a Gemini 2 grounded call as a single tools item', () => {
+    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b', 'c' ] );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 1 )
+    );
+  } );
+
   it( 'keeps grounding out of the token aggregates', () => {
     const result = grounded( 'gemini-3.1-flash-lite', [ 'a', 'b', 'c' ] );
 
@@ -283,6 +291,14 @@ describe( 'parseLLMUsage', () => {
 
     expect( result.items.at( -1 ) ).toEqual(
       new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_query', 3 )
+    );
+  } );
+
+  it( 'charges Gemini 2 once per grounded step across a multi-step run', () => {
+    const result = grounded( 'gemini-2.5-flash', [ 'a', 'b' ], [ 'c' ], [] );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'grounding_prompt', 2 )
     );
   } );
 

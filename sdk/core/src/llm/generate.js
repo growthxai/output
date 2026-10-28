@@ -17,7 +17,7 @@ export const generateText = async args => {
   return wrapTextGeneration( {
     name: 'generateText',
     prompt,
-    ...( toolIdsByName && { toolIdsByName } ),
+    toolIdsByName,
     fn: ( { onStepEndHook } ) => AI.generateText( {
       ...options,
       onStepEnd: onStepEndHook
@@ -35,7 +35,7 @@ export const streamText = args => {
   return wrapStream( {
     name: 'streamText',
     prompt,
-    ...( toolIdsByName && { toolIdsByName } ),
+    toolIdsByName,
     abortSignal: aiOptions.abortSignal,
     fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => AI.streamText( {
       ...options,
@@ -61,7 +61,7 @@ export const generateTextWithStreaming = async args => {
   return wrapTextGeneration( {
     name: 'generateTextWithStreaming',
     prompt,
-    ...( toolIdsByName && { toolIdsByName } ),
+    toolIdsByName,
     fn: async ( { onStepEndHook } ) => {
       const state = { response: null };
       const stream = AI.streamText( {

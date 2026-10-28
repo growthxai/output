@@ -54,7 +54,7 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generate',
       prompt: this.#prompt,
-      ...( this.#toolIdsByName && { toolIdsByName: this.#toolIdsByName } ),
+      toolIdsByName: this.#toolIdsByName,
       fn: async ( { onStepEndHook } ) => {
         const response = await this.#agent.generate( {
           messages: combinedMessages,
@@ -81,7 +81,7 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generateWithStreaming',
       prompt: this.#prompt,
-      ...( this.#toolIdsByName && { toolIdsByName: this.#toolIdsByName } ),
+      toolIdsByName: this.#toolIdsByName,
       fn: async ( { onStepEndHook } ) => {
         const state = { response: null };
         const stream = await this.#agent.stream( {
@@ -120,7 +120,7 @@ export class Agent {
     return wrapStream( {
       name: 'Agent.stream',
       prompt: this.#prompt,
-      ...( this.#toolIdsByName && { toolIdsByName: this.#toolIdsByName } ),
+      toolIdsByName: this.#toolIdsByName,
       abortSignal,
       fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => this.#agent.stream( {
         messages: combinedMessages,

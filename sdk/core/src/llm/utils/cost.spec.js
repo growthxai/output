@@ -256,6 +256,26 @@ describe( 'calculateCosts', () => {
     expect( Logger.warn ).not.toHaveBeenCalled();
   } );
 
+  it( 'prices a Gemini 2 grounding prompt from the local rate table', async () => {
+    const providerId = 'google-vertex';
+    const modelId = 'gemini-2.5-flash';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
+    ] ) ) );
+
+    const result = await calculateCosts( usageFor( providerId, modelId, [
+      item( INPUT, null, 1_000_000 ),
+      item( OUTPUT, null, 500_000 ),
+      item( TOOLS, 'grounding_prompt', 1 )
+    ] ) );
+
+    expect( result ).toMatchObject( {
+      tools: 0.035,
+      total: 7.035,
+      status: LLMGenerationCost.Status.PRECISE
+    } );
+  } );
+
   it.each( [
     { providerId: 'anthropic', modelId: 'claude-haiku-4-5' },
     { providerId: 'openai', modelId: 'gpt-4.1-mini' }

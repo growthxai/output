@@ -183,6 +183,7 @@ describe( 'generate', () => {
       expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
         name: 'generateText',
         prompt: loadedPrompt,
+        toolIdsByName: null,
         fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
@@ -278,6 +279,7 @@ describe( 'generate', () => {
       expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
         name: 'generateTextWithStreaming',
         prompt: loadedPrompt,
+        toolIdsByName: null,
         fn: expect.any( Function )
       } );
       expect( optionMocks.loadAiSdkTextOptions ).toHaveBeenCalledWith( {
@@ -385,6 +387,7 @@ describe( 'generate', () => {
       expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
         name: 'streamText',
         prompt: loadedPrompt,
+        toolIdsByName: null,
         abortSignal,
         fn: expect.any( Function )
       } );

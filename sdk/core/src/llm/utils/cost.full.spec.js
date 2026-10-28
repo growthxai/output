@@ -156,14 +156,15 @@ const cases = [
     modelId: 'gemini-2.5-flash',
     input: 0.0003096,
     output: 0.0034525,
-    total: 0.0037621,
-    status: LLMGenerationCost.Status.INCOMPLETE,
+    tools: 0.035,
+    total: 0.0387621,
+    status: LLMGenerationCost.Status.IMPRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
       [ OUTPUT, 'text', 793, 2.5, 0.0019825, OK ],
       [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, FALLBACK ],
-      [ TOOLS, 'grounding', 2, null, null, MISSING ]
+      [ TOOLS, 'grounding_prompt', 1, 35_000, 0.035, OK ]
     ]
   },
   {

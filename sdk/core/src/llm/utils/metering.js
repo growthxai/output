@@ -30,7 +30,7 @@ export class Metering {
       prompt: this.#prompt,
       usage,
       steps,
-      ...( this.#toolIdsByName && { toolIdsByName: this.#toolIdsByName } )
+      toolIdsByName: this.#toolIdsByName
     } );
     if ( this.#attributes.usage ) {
       this.#attributes.cost = await calculateCosts( this.#attributes.usage );

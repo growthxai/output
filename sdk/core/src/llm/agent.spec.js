@@ -299,6 +299,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
@@ -401,6 +402,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
@@ -462,6 +464,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
@@ -571,6 +574,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       abortSignal,
       fn: expect.any( Function )
     } );
