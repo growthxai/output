@@ -5,6 +5,7 @@ import { Role } from './consts.js';
 import { drainStream } from './utils/stream.js';
 import { loadPrompt } from './prompt/loader.js';
 import { loadSkills } from './utils/skills.js';
+import { extractProviderToolIds } from './utils/tools.js';
 import * as Validator from './validations.js';
 import { Logger } from '#runtime_logger';
 
@@ -13,6 +14,7 @@ export class Agent {
   #prompt;
   #initialMessages;
   #store;
+  #toolIdsByName;
 
   constructor( args ) {
     const { promptFile, promptObject, promptDir, variables, tools, output, stopWhen, messageStore } = Validator.parseAgentArgs( args );
@@ -32,6 +34,7 @@ export class Agent {
     // seed only <user> turns into each generate()/stream() call.
     this.#initialMessages = messages.filter( m => m.role === Role.USER );
     this.#store = messageStore ?? null;
+    this.#toolIdsByName = extractProviderToolIds( aiOptions.tools );
   }
 
   async #combineWithPreviousMessages( messages ) {
@@ -51,6 +54,7 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generate',
       prompt: this.#prompt,
+      toolIdsByName: this.#toolIdsByName,
       fn: async ( { onStepEndHook } ) => {
         const response = await this.#agent.generate( {
           messages: combinedMessages,
@@ -77,6 +81,7 @@ export class Agent {
     return wrapTextGeneration( {
       name: 'Agent.generateWithStreaming',
       prompt: this.#prompt,
+      toolIdsByName: this.#toolIdsByName,
       fn: async ( { onStepEndHook } ) => {
         const state = { response: null };
         const stream = await this.#agent.stream( {
@@ -115,6 +120,7 @@ export class Agent {
     return wrapStream( {
       name: 'Agent.stream',
       prompt: this.#prompt,
+      toolIdsByName: this.#toolIdsByName,
       abortSignal,
       fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => this.#agent.stream( {
         messages: combinedMessages,

@@ -1,11 +1,11 @@
 ---
 title: "v0.15.0 → v0.16.0"
-description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: @outputai/http, @outputai/llm and @outputai/evals are folded into @outputai/core, @outputai/output is replaced by @outputai/core and @outputai/cli, ky, undici and ai become peer dependencies, AI SDK providers become optional, sendHttpRequest() parses more response bodies as text, and the worker drops its workflow concurrency defaults."
+description: "Upgrading Output.ai projects from v0.15.0 to v0.16.0: package consolidation, new peer dependencies, provider-native web search costs, HTTP response parsing changes, and worker concurrency defaults."
 ---
 
 This guide covers the move of `@outputai/http`, `@outputai/llm` and `@outputai/evals` into `@outputai/core`. None of these packages is published anymore: their APIs now live at `@outputai/core/http`, `@outputai/core/llm` and `@outputai/core/evals`. The http and llm exports are unchanged; the evals LLM judges moved to `@outputai/core/llm`, and the evals internals are no longer exported. The `@outputai/output` umbrella package is not published anymore either: projects depend on `@outputai/core` and `@outputai/cli` directly.
 
-Smaller breaks come with them: `ky`, `undici` and `ai` are now peer dependencies of `@outputai/core`, the AI SDK provider packages are no longer installed for you, and `sendHttpRequest()` parses some response bodies differently.
+Smaller breaks come with them: `ky`, `undici` and `ai` are now peer dependencies of `@outputai/core`, the AI SDK provider packages are no longer installed for you, provider-native web search charges are included in normalized LLM costs, and `sendHttpRequest()` parses some response bodies differently.
 
 Separately, the worker no longer sets defaults for two workflow concurrency variables, and one telemetry field is renamed. See [Worker defaults and telemetry](#worker-defaults-and-telemetry).
 
@@ -22,7 +22,9 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 - `ky` (`>=2 <3`), `undici` (`>=8 <9`) and `ai` (`>=7 <8`) are peer dependencies of `@outputai/core`.
 - The built-in AI SDK provider packages are optional peer dependencies of `@outputai/core`, so they are no longer installed automatically. Using a provider whose package is missing throws a `FatalError` naming the package.
 - `getProviderNames()` lists only the built-in providers whose package is installed, plus registered ones.
-- The `llm:generation:metering` and `cost:llm:request` events and the LLM trace attributes are unchanged.
+- Normalized LLM metering records Anthropic and OpenAI native web searches as `tools` usage and includes their charges in `cost.tools` and `cost.total`.
+- Google Vertex grounding pricing now includes Gemini 4 per-query charges. Existing Gemini 2 prompt pricing and Gemini 3 query pricing remain supported.
+- The legacy `cost:llm:request` event and `llm:usage` trace attribute remain token-only and unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
 
@@ -106,6 +108,16 @@ npm install @ai-sdk/anthropic@4 @ai-sdk/openai@4
 
 A prompt that uses a provider whose package is missing fails with `Provider "<name>" requires the "<package>" package, which is not installed`. Providers added with `registerProvider()` are not affected.
 
+### Re-check normalized LLM metering
+
+If you consume the `llm:generation:metering` event or the `llm:generation:usage` and `llm:generation:cost` trace attributes, account for native web search tool items:
+
+- Anthropic searches use the `web_search` label.
+- OpenAI searches use `web_search` or `web_search_preview`. An ambiguous variant is retained as unpriced `web_search_unknown`.
+- Tool charges appear in `cost.tools` and are included in `cost.total`. Code that expects only token items or calculates token spend from `cost.total` must handle them separately.
+
+The legacy `cost:llm:request` event and `llm:usage` trace attribute still exclude tool charges.
+
 ### Re-check `sendHttpRequest()` response bodies
 
 This only affects calls with `responseOptions.includeBody: true`:
@@ -172,6 +184,7 @@ Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`)
 - Replace `@outputai/evals` imports and mocks with `@outputai/core/evals`, import the judges from `@outputai/core/llm`, and remove the dependency.
 - Install `ky@2`, `undici@8` and `ai@7` if your package manager does not install peer dependencies.
 - Install the `@ai-sdk/*` provider packages your prompts use.
+- Update normalized LLM metering consumers to handle native web search tool items and charges.
 - Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
 - Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.
 - Lower `--max-old-space-size-percentage` to `40` if your Dockerfile uses the earlier Railway or Render value of `80`.

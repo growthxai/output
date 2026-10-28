@@ -299,12 +299,35 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superGenerate ).toHaveBeenCalledWith( {
       messages: [ { role: 'user', content: 'Initial user message' } ],
       allowSystemInMessages: true,
       onStepEnd: wiringOptions.onStepEndHook
+    } );
+  } );
+
+  it( 'stores provider tool ids for generation metering', async () => {
+    optionMocks.loadAiSdkTextOptions.mockReturnValueOnce( {
+      ...textOptions,
+      tools: {
+        research: { type: 'provider', id: 'openai.web_search' }
+      }
+    } );
+    const { Agent } = await importSut();
+    const agent = new Agent( { prompt: 'test@v1' } );
+
+    await agent.generate();
+
+    expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
+      name: 'Agent.generate',
+      prompt: loadedPrompt,
+      toolIdsByName: {
+        research: 'openai.web_search'
+      },
+      fn: expect.any( Function )
     } );
   } );
 
@@ -379,6 +402,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generate',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( store.addMessages ).toHaveBeenCalledWith( [
@@ -440,6 +464,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapTextGeneration ).toHaveBeenCalledWith( {
       name: 'Agent.generateWithStreaming',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       fn: expect.any( Function )
     } );
     expect( aiMocks.superStream ).toHaveBeenCalledWith( {
@@ -549,6 +574,7 @@ describe( 'Agent', () => {
     expect( wrapMocks.wrapStream ).toHaveBeenCalledWith( {
       name: 'Agent.stream',
       prompt: loadedPrompt,
+      toolIdsByName: null,
       abortSignal,
       fn: expect.any( Function )
     } );

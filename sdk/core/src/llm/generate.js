@@ -4,18 +4,22 @@ import { wrapImageGeneration, wrapStream, wrapTextGeneration } from './utils/wra
 import { loadAiSdkTextOptions, loadAiSdkImageOptions } from './ai_sdk_options.js';
 import { drainStream } from './utils/stream.js';
 import { loadSkills } from './utils/skills.js';
+import { extractProviderToolIds } from './utils/tools.js';
 import * as Validator from './validations.js';
 
 export const generateText = async args => {
   const { promptFile, promptObject, variables, promptDir, ...aiOptions } = Validator.parseGenerateTextArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
+  const options = loadAiSdkTextOptions( { prompt, skills, ...aiOptions } );
+  const toolIdsByName = extractProviderToolIds( options.tools );
 
   return wrapTextGeneration( {
     name: 'generateText',
     prompt,
+    toolIdsByName,
     fn: ( { onStepEndHook } ) => AI.generateText( {
-      ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+      ...options,
       onStepEnd: onStepEndHook
     } )
   } );
@@ -25,13 +29,16 @@ export const streamText = args => {
   const { promptFile, promptObject, variables, promptDir, onEnd, onError, onChunk, ...aiOptions } = Validator.parseStreamTextArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
+  const options = loadAiSdkTextOptions( { prompt, skills, ...aiOptions } );
+  const toolIdsByName = extractProviderToolIds( options.tools );
 
   return wrapStream( {
     name: 'streamText',
     prompt,
+    toolIdsByName,
     abortSignal: aiOptions.abortSignal,
     fn: ( { onEndHook, onErrorHook, onStepEndHook, onAbortHook } ) => AI.streamText( {
-      ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+      ...options,
       ...( onChunk && { onChunk } ),
       onStepEnd: onStepEndHook,
       onAbort: onAbortHook,
@@ -48,14 +55,17 @@ export const generateTextWithStreaming = async args => {
   const { promptFile, promptObject, variables, promptDir, onChunk, ...aiOptions } = Validator.parseGenerateTextWithStreamingArgs( args );
   const prompt = promptObject ?? loadPrompt( promptFile, variables, promptDir );
   const skills = loadSkills( prompt );
+  const options = loadAiSdkTextOptions( { prompt, skills, ...aiOptions } );
+  const toolIdsByName = extractProviderToolIds( options.tools );
 
   return wrapTextGeneration( {
     name: 'generateTextWithStreaming',
     prompt,
+    toolIdsByName,
     fn: async ( { onStepEndHook } ) => {
       const state = { response: null };
       const stream = AI.streamText( {
-        ...loadAiSdkTextOptions( { prompt, skills, ...aiOptions } ),
+        ...options,
         ...( onChunk && { onChunk } ),
         onStepEnd: onStepEndHook,
         onEnd: res => {

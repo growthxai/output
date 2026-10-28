@@ -67,14 +67,15 @@ const inlineTryAsync = async fn => {
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
+ * @param {Record<string, string>} [args.toolIdsByName] - Provider tool ids keyed by configured name
  * @param {( wiring: { onStepEndHook: Function } ) => Promise<object>} args.fn - AI SDK call; wire
  *   `onStepEndHook` into the call `onStepEnd` and return the SDK response
  * @returns {Promise<object>} Proxied SDK response
  */
-export const wrapTextGeneration = async ( { name, prompt, fn } ) => {
+export const wrapTextGeneration = async ( { name, prompt, toolIdsByName, fn } ) => {
   const traceId = startTrace( { name, prompt } );
 
-  const metering = new Metering( { traceId, prompt } );
+  const metering = new Metering( { traceId, prompt, toolIdsByName } );
 
   const onStepEndHook = metering.recordStep;
 
@@ -183,15 +184,16 @@ const invokeCallback = async ( cb, args, cbName ) => {
  * @param {object} args
  * @param {string} args.name - Trace event name
  * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
+ * @param {Record<string, string>} [args.toolIdsByName] - Provider tool ids keyed by configured name
  * @param {AbortSignal} [args.abortSignal] - Optional signal used to trace stream cancellation
  * @param {( wiring: { onEndHook: Function, onErrorHook: Function, onStepEndHook: Function,
  *   onAbortHook: Function } ) => object | Promise<object>} args.fn - Wire the hooks into the call
  *   and return the SDK stream, or a Promise of that stream (`Agent.stream`)
  * @returns {object | Promise<object>} Value returned by `fn`; a rejected Promise is remapped
  */
-export const wrapStream = ( { name, prompt, abortSignal, fn } ) => {
+export const wrapStream = ( { name, prompt, toolIdsByName, abortSignal, fn } ) => {
   const traceId = startTrace( { name, prompt } );
-  const metering = new Metering( { traceId, prompt } );
+  const metering = new Metering( { traceId, prompt, toolIdsByName } );
 
   const handleAbort = () => {
     const error = abortSignal?.reason instanceof Error ? abortSignal.reason : new Error( 'Streaming aborted.', { cause: abortSignal?.reason } );

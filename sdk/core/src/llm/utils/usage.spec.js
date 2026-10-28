@@ -302,11 +302,82 @@ describe( 'parseLLMUsage', () => {
     );
   } );
 
+  it( 'sums Anthropic web searches across every step', () => {
+    const result = parseLLMUsage( {
+      prompt: { config: { provider: 'anthropic', model: 'claude-haiku-4-5' } },
+      usage: { inputTokens: 100, outputTokens: 50 },
+      steps: [ 2, 1, 0 ].map( webSearchRequests => ( {
+        providerMetadata: {
+          anthropic: {
+            usage: {
+              server_tool_use: {
+                web_search_requests: webSearchRequests
+              }
+            }
+          }
+        }
+      } ) )
+    } );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search', 3 )
+    );
+  } );
+
+  it( 'sums mapped OpenAI web search calls across every step', () => {
+    const result = parseLLMUsage( {
+      prompt: { config: { provider: 'openai', model: 'gpt-4.1-mini' } },
+      usage: { inputTokens: 100, outputTokens: 50 },
+      steps: [
+        {
+          content: [
+            { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } },
+            { type: 'tool-result', toolName: 'image', output: { action: { type: 'search' } } }
+          ]
+        },
+        {
+          content: [
+            { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } }
+          ]
+        }
+      ],
+      toolIdsByName: {
+        research: 'openai.web_search',
+        image: 'openai.image_generation'
+      }
+    } );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search', 2 )
+    );
+  } );
+
+  it( 'marks OpenAI web search usage ambiguous when both variants are configured', () => {
+    const result = parseLLMUsage( {
+      prompt: { config: { provider: 'openai', model: 'gpt-4.1-mini' } },
+      usage: { inputTokens: 100, outputTokens: 50 },
+      steps: [ {
+        content: [
+          { type: 'tool-result', toolName: 'standard', output: { action: { type: 'search' } } },
+          { type: 'tool-result', toolName: 'standard', output: { action: { type: 'search' } } }
+        ]
+      } ],
+      toolIdsByName: {
+        standard: 'openai.web_search',
+        preview: 'openai.web_search_preview'
+      }
+    } );
+
+    expect( result.items.at( -1 ) ).toEqual(
+      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, 'web_search_unknown', 2 )
+    );
+  } );
+
   it( 'reports grounding for a response without token usage', () => {
     mocks.extractUsageFromSteps.mockReturnValue( {} );
 
     const result = parseLLMUsage( {
-      prompt,
+      prompt: { config: { provider: 'google-vertex', model: 'unknown-model' } },
       usage: {},
       steps: [ { providerMetadata: { vertex: { groundingMetadata: { webSearchQueries: [ 'a' ] } } } } ]
     } );

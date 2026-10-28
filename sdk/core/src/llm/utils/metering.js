@@ -18,6 +18,7 @@ export class Metering {
   #billed = false;
   #prompt;
   #traceId;
+  #toolIdsByName;
   #attributes = {
     usage: null,
     cost: null,
@@ -25,7 +26,12 @@ export class Metering {
   };
 
   async #createAttributes( { usage, steps } ) {
-    this.#attributes.usage = parseLLMUsage( { prompt: this.#prompt, usage, steps } );
+    this.#attributes.usage = parseLLMUsage( {
+      prompt: this.#prompt,
+      usage,
+      steps,
+      toolIdsByName: this.#toolIdsByName
+    } );
     if ( this.#attributes.usage ) {
       this.#attributes.cost = await calculateCosts( this.#attributes.usage );
       if ( this.#attributes.cost ) {
@@ -60,10 +66,12 @@ export class Metering {
    * @param {object} args
    * @param {string} args.traceId - Trace event the usage and cost attributes are attached to
    * @param {object} args.prompt - Loaded prompt (`config.provider` / `config.model` used for cost)
+   * @param {Record<string, string>} [args.toolIdsByName] - Provider tool ids keyed by configured name
    */
-  constructor( { traceId, prompt } ) {
+  constructor( { traceId, prompt, toolIdsByName } ) {
     this.#traceId = traceId;
     this.#prompt = prompt;
+    this.#toolIdsByName = toolIdsByName;
   }
 
   /**

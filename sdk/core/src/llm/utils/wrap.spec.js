@@ -43,9 +43,10 @@ vi.mock( 'node:crypto', () => ( {
 /** Stands in for the real collector: records what the wrapper feeds it and exposes the billed cost */
 vi.mock( './metering.js', () => ( {
   Metering: class {
-    constructor( { traceId, prompt } ) {
+    constructor( { traceId, prompt, toolIdsByName } ) {
       this.traceId = traceId;
       this.prompt = prompt;
+      this.toolIdsByName = toolIdsByName;
       this.attributes = { usage: null, cost: null, legacy: null };
       this.recordStep = vi.fn();
       this.bill = vi.fn( async () => {
@@ -148,6 +149,19 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
 
       expect( metering().traceId ).toBe( 'generateText-9000000000-a1b2c3d4' );
       expect( metering().prompt ).toBe( prompt );
+    } );
+
+    it( 'passes provider tool ids to the collector', async () => {
+      const toolIdsByName = { research: 'openai.web_search' };
+
+      await wrapTextGeneration( {
+        name: 'generateText',
+        prompt,
+        toolIdsByName,
+        fn: meteredFn( textResponse() )
+      } );
+
+      expect( metering().toolIdsByName ).toBe( toolIdsByName );
     } );
 
     it( 'wires the step hook to the collector', async () => {
@@ -342,6 +356,19 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       } );
       expect( metering().traceId ).toBe( 'streamText-9000000000-a1b2c3d4' );
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
+    } );
+
+    it( 'passes provider tool ids to the stream collector', () => {
+      const toolIdsByName = { research: 'openai.web_search' };
+
+      wrapStream( {
+        name: 'streamText',
+        prompt,
+        toolIdsByName,
+        fn: () => ( {} )
+      } );
+
+      expect( metering().toolIdsByName ).toBe( toolIdsByName );
     } );
 
     it( 'records an abort signal reason on the llm trace', () => {

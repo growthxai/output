@@ -14,5 +14,6 @@ describe( 'models pricing snapshot', () => {
     const priced = Object.values( snapshot[providerId]?.models ?? {} ).filter( model => model.cost );
 
     expect( priced.length ).toBeGreaterThan( 0 );
+    expect( priced.every( model => typeof model.reasoning === 'boolean' ) ).toBe( true );
   } );
 } );

@@ -844,6 +844,8 @@ This is equivalent to calling the Vertex provider's `tools.googleSearch({ mode: 
 
 YAML tools are merged with code-level tools, so you can combine provider tools (from YAML) with custom tools (from code). Code-level tools take precedence if names conflict.
 
+Normalized metering records per-request charges for Gemini grounding and Anthropic or OpenAI native web search as `tools` usage, separately from token usage.
+
 For provider-specific tool options, see:
 - [Vertex AI Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/google-vertex#provider-instance-methods)
 - [OpenAI Tools](https://sdk.vercel.ai/docs/ai-sdk-providers/openai#provider-instance-methods)

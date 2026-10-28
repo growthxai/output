@@ -79,10 +79,26 @@ describe( 'Metering', () => {
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
       usage: response.usage,
-      steps: response.steps
+      steps: response.steps,
+      toolIdsByName: undefined
     } );
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
+  } );
+
+  it( 'passes provider tool ids to usage parsing', async () => {
+    const toolIdsByName = { research: 'openai.web_search' };
+    const response = { usage: { inputTokens: 2, outputTokens: 1 }, steps: [ step( 2 ) ] };
+    const metering = new Metering( { traceId, prompt, toolIdsByName } );
+
+    await metering.bill( response );
+
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
+      prompt,
+      usage: response.usage,
+      steps: response.steps,
+      toolIdsByName
+    } );
   } );
 
   it( 'prefers the response steps over the recorded ones', async () => {
@@ -114,7 +130,8 @@ describe( 'Metering', () => {
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
       usage: undefined,
-      steps: [ step( 5 ) ]
+      steps: [ step( 5 ) ],
+      toolIdsByName: undefined
     } );
   } );
 

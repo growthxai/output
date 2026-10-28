@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js';
 import { BaseAttribute } from '#trace_attribute';
-import { parseGroundingUsage } from './grounding.js';
 import { extractUsageFromSteps } from './usage_tools.js';
+import { parseWebSearchUsage } from './web_search.js';
 
 const exists = v => Number.isSafeInteger( v ) && v >= 0;
 
@@ -82,10 +82,11 @@ const resolveUsage = ( { usage, steps } ) => {
  * @param {object} args.prompt - Output prompt with model configuration
  * @param {object} [args.usage] - AI SDK response usage
  * @param {object} [args.steps] - AI SDK response steps
+ * @param {Record<string, string>} [args.toolIdsByName] - Provider tool ids keyed by configured name
  *
  * @returns {LLMGenerationUsage | null} LLM generation usage with input, output, total and detailed breakdown
  */
-export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [] } ) => {
+export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [], toolIdsByName = null } ) => {
   const usage = resolveUsage( { usage: usageArg, steps } );
   if ( !usage ) {
     return null;
@@ -134,17 +135,15 @@ export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [] } ) 
     }
   }
 
-  // Grounding is billed per step, so aggregate across every step rather than only the final one.
-  // Per-query families (Gemini 3) return queries.length per step; per-prompt families (Gemini 2.x)
-  // return 1 per grounded step. Summing yields total queries and grounded-step count respectively.
+  // Provider web search is billed per step, so aggregate across every step rather than only the final one.
   if ( Array.isArray( steps ) ) {
-    const grounding = steps
-      .filter( step => step?.providerMetadata )
-      .map( step => parseGroundingUsage( modelId, step.providerMetadata ) )
-      .filter( Boolean );
-    if ( grounding.length > 0 ) {
-      const amount = grounding.reduce( ( sum, g ) => sum + g.amount, 0 );
-      items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, grounding[0].label, amount ) );
+    const webSearch = steps.flatMap( step => parseWebSearchUsage( providerId, modelId, step, toolIdsByName ) );
+    if ( webSearch.length > 0 ) {
+      const totals = Map.groupBy( webSearch, item => item.label );
+      for ( const [ label, values ] of totals ) {
+        const amount = values.reduce( ( sum, item ) => sum + item.amount, 0 );
+        items.push( new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.TOOLS, label, amount ) );
+      }
     }
   }
 

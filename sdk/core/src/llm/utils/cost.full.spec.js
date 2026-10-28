@@ -32,7 +32,7 @@ const MISSING = LLMGenerationCostItem.Status.MISSING;
 
 const models = new Map(
   Object.values( pricingTable ).flatMap( provider => Object.entries( provider.models ?? {} ).flatMap( ( [ modelId, model ] ) => (
-    model.cost ? [ [ `${provider.id}/${modelId}`, model.cost ] ] : []
+    model.cost ? [ [ `${provider.id}/${modelId}`, { cost: model.cost, reasoning: model.reasoning === true } ] ] : []
   ) ) )
 );
 
