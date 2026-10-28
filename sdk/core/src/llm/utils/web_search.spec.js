@@ -96,13 +96,11 @@ describe( 'parseWebSearchUsage', () => {
     expect( parseWebSearchUsage( 'google-vertex', 'gemini-3-pro', { providerMetadata } ) ).toEqual( [] );
   } );
 
-  it( 'counts only mapped OpenAI provider-executed search calls', () => {
+  it( 'counts only mapped OpenAI search results', () => {
     const step = {
       content: [
-        { type: 'tool-call', toolName: 'research', providerExecuted: true },
         { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } },
-        { type: 'tool-result', toolName: 'image', output: { action: { type: 'search' } } },
-        { type: 'tool-call', toolName: 'research', providerExecuted: false }
+        { type: 'tool-result', toolName: 'image', output: { action: { type: 'search' } } }
       ]
     };
     const toolIdsByName = {
@@ -183,7 +181,7 @@ describe( 'parseWebSearchUsage', () => {
       providerId: 'openai',
       step: {
         content: [
-          { type: 'tool-call', toolName: 'research', providerExecuted: true }
+          { type: 'tool-result', toolName: 'research', output: { action: { type: 'search' } } }
         ]
       },
       toolIdsByName: {

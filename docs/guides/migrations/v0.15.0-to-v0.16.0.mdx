@@ -118,7 +118,7 @@ If you consume the `llm:generation:metering` event or the `llm:generation:usage`
 
 The legacy `cost:llm:request` event and `llm:usage` trace attribute still exclude tool charges.
 
-Gemini 2 grounding no longer has a local rate and produces an incomplete normalized cost. Upgrade prompts that require priced grounding to a supported Gemini 3 or 4 model before upgrading the SDK.
+Gemini 2 grounding no longer has a local rate and produces an incomplete normalized cost. Its usage changes from a `grounding_prompt` item counted once per grounded step to a `grounding` item whose amount is the number of reported web search queries. Upgrade prompts that require priced grounding to a supported Gemini 3 or 4 model before upgrading the SDK.
 
 ### Re-check `sendHttpRequest()` response bodies
 
