@@ -172,7 +172,7 @@ Tool items are recorded independently from tokens and are excluded from the `inp
 
 `LLMGenerationCost` contains priced items for the normalized usage. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
 
-For models priced by context size, Output selects the tier separately for every provider request. The request's complete input count, including cache reads and writes, determines the tier; output does not count toward the threshold. A tier applies only when input is greater than its threshold, and its rates price the entire request. Multi-step calls can therefore contain multiple cost items with the same `group` and `label` but different `ppm` and `tier` values.
+For models priced by context size, Output selects the tier separately for every provider request. The request's complete input count, including cache reads and writes, determines the tier; output does not count toward the threshold. A tier applies only when input is greater than its threshold, and its rates price the entire request. Multi-step calls can therefore contain multiple cost items with the same `group` and `label` but different `ppm` and `tier` values. When any step usage is incomplete, Output uses aggregate usage with base pricing and marks token items `uncertain`; this may understate the cost when an individual request crossed a higher-priced tier.
 
 | Field | Type | Description |
 |-------|------|-------------|
