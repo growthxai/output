@@ -548,7 +548,7 @@ The `cost` property is an `LLMGenerationCost`:
 }
 ```
 
-Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Missing prices produce `null` item costs and an `incomplete` aggregate status. `pricingFreshness` reports how current the rate table was (`live`, `cached`, `stale`, or `snapshot`).
+Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache or reasoning pricing falls back to the regular input or output rate and marks the item as `fallback`. Context-tiered token items include `tier: { type: "context", size: number }`; items whose applicable tier cannot be determined precisely are marked `uncertain`, making the aggregate cost `imprecise`. Missing prices produce `null` item costs and an `incomplete` aggregate status. `pricingFreshness` reports how current the rate table was (`live`, `cached`, `stale`, or `snapshot`).
 
 **Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `stream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 

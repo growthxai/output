@@ -117,6 +117,7 @@ If you consume the `llm:generation:metering` event or the `llm:generation:usage`
 - OpenAI searches use `web_search` or `web_search_preview`. An ambiguous variant is retained as unpriced `web_search_unknown`.
 - Tool charges appear in `cost.tools` and are included in `cost.total`. Code that expects only token items or calculates token spend from `cost.total` must handle them separately.
 - For context-tiered models, aggregate matching `items` instead of using `find()`: multi-step calls can contain the same `group` and `label` at different `ppm` and `tier` values.
+- `LLMGenerationCostItemStatus` now includes `uncertain` for items whose applicable tier cannot be determined precisely. Update exhaustive switches over this union.
 
 The legacy `cost:llm:request` event and `llm:usage` trace attribute still exclude tool charges.
 

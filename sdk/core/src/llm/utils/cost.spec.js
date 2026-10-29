@@ -42,7 +42,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toBeNull();
     expect( Logger.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing', { namespace: 'LLM' } );
@@ -57,7 +57,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toBeInstanceOf( LLMGenerationCost );
     expect( serialize( result ) ).toEqual( {
@@ -106,7 +106,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, 'cache_write', 100_000 ),
       item( OUTPUT, 'text', 200_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2.9,
@@ -261,6 +261,39 @@ describe( 'calculateCosts', () => {
     expect( result.total ).toBe( 0.021004 );
   } );
 
+  it( 'marks aggregate tier pricing uncertain when multi-step usage is incomplete', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+    const completeUsage = usage( [
+      item( INPUT, null, 50 ),
+      item( OUTPUT, null, 10 )
+    ] );
+    const incompleteUsage = usage( [
+      item( INPUT, null, 101 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 )
+    ] ), [ completeUsage, incompleteUsage ] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => ( {
+      amount: value.amount,
+      ppm: value.ppm,
+      status: value.status,
+      tier: value.tier
+    } ) ) ).toEqual( [
+      { amount: 151, ppm: 4, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: { type: 'context', size: 100 } },
+      { amount: 30, ppm: 20, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: { type: 'context', size: 100 } }
+    ] );
+  } );
+
   it( 'keeps aggregate costing for multi-step models without tiers', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
@@ -359,7 +392,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, 'cache_read', 400_000 ),
       item( INPUT, 'cache_write', 100_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 1,
@@ -382,7 +415,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0.0002,
@@ -402,7 +435,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: null,
@@ -425,7 +458,7 @@ describe( 'calculateCosts', () => {
 
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0.0002,
@@ -445,7 +478,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0,
@@ -467,7 +500,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_query', 3 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -493,7 +526,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_prompt', 1 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       tools: 0.035,
@@ -515,7 +548,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage );
+    const result = await calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -546,7 +579,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search_preview', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage );
+    const result = await calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       tools: total,
@@ -558,12 +591,34 @@ describe( 'calculateCosts', () => {
     );
   } );
 
+  it( 'leaves OpenAI preview search unpriced when model metadata is missing', async () => {
+    const modelId = 'unknown-model';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
+
+    const result = await calculateCosts( usageFor( 'openai', modelId, [
+      item( TOOLS, 'web_search_preview', 3 )
+    ] ), [] );
+
+    expect( result ).toMatchObject( {
+      tools: null,
+      total: null,
+      status: LLMGenerationCost.Status.INCOMPLETE
+    } );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( TOOLS, 'web_search_preview', 3, null, null, LLMGenerationCostItem.Status.MISSING )
+    ] );
+    expect( Logger.warn ).toHaveBeenCalledWith(
+      'Tool call with no rate for model',
+      { namespace: 'LLM', modelId, providerId: 'openai', type: 'web_search_preview' }
+    );
+  } );
+
   it( 'never prices a tools item at the input token rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
     const result = await calculateCosts( usageFor( 'google-vertex', 'gemini-3-pro', [
       item( TOOLS, 'grounding_query', 2 )
-    ] ) );
+    ] ), [] );
 
     expect( result.items ).toEqual( [
       new LLMGenerationCostItem( TOOLS, 'grounding_query', 2, 14_000, 0.028, LLMGenerationCostItem.Status.OK )
@@ -577,7 +632,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding', 2 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -601,7 +656,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.tools ).toBeNull();
     expect( result.total ).toBe( 7 );
@@ -613,7 +668,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.CACHED );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
@@ -625,7 +680,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.STALE );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
@@ -637,7 +692,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.SNAPSHOT );
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
@@ -651,7 +706,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
   } );
@@ -666,7 +721,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1 ),
       item( INPUT, null, 2 ),
       item( OUTPUT, null, 3 )
-    ] ) );
+    ] ), [] );
 
     expect( result.input ).toBe( 0.0000003 );
     expect( result.output ).toBe( 0.0000006 );

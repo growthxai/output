@@ -118,7 +118,7 @@ const resolveValue = values => {
 };
 
 // Resolves the applicable token or provider-tool rate for one usage item.
-const resolvePrice = ( { providerId, group, label, pricing, isReasoning = false } ) => {
+const resolvePrice = ( { providerId, group, label, pricing, isReasoning } ) => {
   // Tool charges are never token-priced: models.dev has no rate for them.
   if ( group === LLMGenerationUsageItem.Group.TOOLS ) {
     return resolveValue( [ resolveWebSearchPpm( providerId, label, isReasoning ) ] );

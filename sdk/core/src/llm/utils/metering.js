@@ -40,7 +40,8 @@ export class Metering {
 
       if ( this.#attributes.cost ) {
         // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-        const legacyCost = await calculateLegacyCosts( this.#attributes.usage );
+        const hasTieredItems = this.#attributes.cost.items.some( item => item.tier );
+        const legacyCost = hasTieredItems ? await calculateLegacyCosts( this.#attributes.usage ) : this.#attributes.cost;
         this.#attributes.legacy = convertCostToLegacy( legacyCost );
       }
     }
