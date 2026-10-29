@@ -178,31 +178,37 @@ const calculateStandardUsage = ( usage, modelPricing ) => {
   return calculateCostItems( { usage, pricing, isReasoning } );
 };
 
-// Prices the tiered usage
+/* Prices the tiered usage:
+- Multi-step + any incomplete step: base pricing, uncertain.
+- Known request + no tier + no unsupported tiers: base, precise.
+- Known request + no tier + unsupported tiers: base, uncertain.
+- Known request + tier + no unsupported tiers: tier, precise.
+- Known request + tier + unsupported tiers: tier, uncertain.
+*/
 const calculateTieredUsage = ( totalUsage, stepsUsage, modelPricing ) => {
-  const shouldUseStepsUsage = stepsUsage.length > 1;
-  const stepsUsageIsComplete = stepsUsage.every( u => u?.status === LLMGenerationUsage.Status.COMPLETE );
+  const { cost: pricing, reasoning: isReasoning } = modelPricing;
 
-  const usages = stepsUsageIsComplete && shouldUseStepsUsage ? stepsUsage : [ totalUsage ];
-  const isReasoning = modelPricing.reasoning;
+  const isMultiStep = stepsUsage.length > 1;
+  const hasIncompleteSteps = stepsUsage.some( u => u?.status !== LLMGenerationUsage.Status.COMPLETE );
 
-  return usages.flatMap( usage => {
-    const { cost: pricing } = modelPricing;
+  // incomplete multi-steps fallback to calculate total usage with NO tiers, since token counts are unreliable
+  if ( isMultiStep && hasIncompleteSteps ) {
+    return calculateCostItems( { usage: totalUsage, pricing, isReasoning, uncertain: true } );
+  }
 
+  return ( isMultiStep ? stepsUsage : [ totalUsage ] ).flatMap( usage => {
     // output usage can't have tier billing
     if ( !isValidNumber( usage.input ) ) {
       return calculateCostItems( { usage, pricing, isReasoning } );
     }
 
     const pricingTier = resolvePricingTier( modelPricing, usage.input );
-    // if no tier could be resolved, use base pricing
-    if ( !pricingTier.tier && !pricingTier.hasUnsupported ) {
-      return calculateCostItems( { usage, pricing, isReasoning } );
-    }
 
-    // detect whether the tier calculation was imprecise either because it should have used individual steps but used total usage, or if the tier cost has unsupported elements
-    const uncertain = ( !stepsUsageIsComplete && shouldUseStepsUsage ) || pricingTier.hasUnsupported;
-    return calculateCostItems( { usage, pricing: pricingTier.tier ?? pricing, isReasoning, uncertain } );
+    // if there is a matching tier used, otherwise use base pricing
+    const finalPricing = pricingTier.tier ?? pricing;
+
+    // it will be uncertain if unsupported tiers exists
+    return calculateCostItems( { usage, pricing: finalPricing, isReasoning, uncertain: pricingTier.hasUnsupported } );
   } );
 };
 

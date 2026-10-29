@@ -87,26 +87,9 @@ describe( 'Metering', () => {
       toolIdsByName: undefined
     } );
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage ] );
-    expect( mocks.calculateLegacyCosts ).not.toHaveBeenCalled();
-    expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockCost );
-    expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
-  } );
-
-  it( 'recalculates legacy pricing when normalized cost uses a tier', async () => {
-    const tieredCost = {
-      ...mockCost,
-      items: [ { tier: { type: 'context', size: 100 } } ]
-    };
-    mocks.calculateCosts.mockResolvedValue( tieredCost );
-    const metering = new Metering( { traceId, prompt } );
-
-    await metering.bill( {
-      usage: { inputTokens: 2, outputTokens: 1 },
-      steps: [ step( 2 ) ]
-    } );
-
     expect( mocks.calculateLegacyCosts ).toHaveBeenCalledWith( mockUsage );
     expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockLegacyPricingCost );
+    expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 
   it( 'costs multi-step calls with usage parsed per request', async () => {

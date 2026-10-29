@@ -177,7 +177,7 @@ For models priced by context size, Output selects the tier separately for every 
 | Field | Type | Description |
 |-------|------|-------------|
 | `input`, `output`, `tools`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `tools` holds charges such as grounding and provider-native web search, and `total` is the sum of `input`, `output`, and `tools`. |
-| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
+| `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback or uncertain rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
 | `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
 | `items[].ppm` | `number \| null` | Applied price per million units, such as tokens, requests, prompts, or queries. |
 | `items[].total` | `number \| null` | Calculated item cost. |

@@ -261,7 +261,7 @@ describe( 'calculateCosts', () => {
     expect( result.total ).toBe( 0.021004 );
   } );
 
-  it( 'marks aggregate tier pricing uncertain when multi-step usage is incomplete', async () => {
+  it( 'uses uncertain base pricing when multi-step usage is incomplete', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
       output: 10,
@@ -289,8 +289,36 @@ describe( 'calculateCosts', () => {
       status: value.status,
       tier: value.tier
     } ) ) ).toEqual( [
-      { amount: 151, ppm: 4, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: { type: 'context', size: 100 } },
-      { amount: 30, ppm: 20, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: { type: 'context', size: 100 } }
+      { amount: 151, ppm: 2, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: undefined },
+      { amount: 30, ppm: 10, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: undefined }
+    ] );
+  } );
+
+  it( 'keeps incomplete multi-step pricing uncertain below the tier threshold', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+    const completeUsage = usage( [
+      item( INPUT, null, 40 ),
+      item( OUTPUT, null, 10 )
+    ] );
+    const incompleteUsage = usage( [
+      item( INPUT, null, 40 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 80 ),
+      item( OUTPUT, null, 20 )
+    ] ), [ completeUsage, incompleteUsage ] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 80, 2, 0.00016, LLMGenerationCostItem.Status.UNCERTAIN ),
+      new LLMGenerationCostItem( OUTPUT, null, 20, 10, 0.0002, LLMGenerationCostItem.Status.UNCERTAIN )
     ] );
   } );
 
@@ -339,6 +367,25 @@ describe( 'calculateCosts', () => {
     expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
   } );
 
+  it( 'uses base pricing when tiered usage has no input', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 3, output: 4, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( OUTPUT, null, 10, 2, 0.00002, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
   it( 'preserves aggregate base pricing for legacy conversion', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 1,
@@ -380,6 +427,44 @@ describe( 'calculateCosts', () => {
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
     expect( result.items.map( value => value.ppm ) ).toEqual( [ 2, 10 ] );
     expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.UNCERTAIN ) ).toBe( true );
+  } );
+
+  it( 'marks a matched context tier uncertain when unsupported tiers are also present', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } },
+        { input: 6, output: 30, tier: { type: 'volume', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        101,
+        4,
+        0.000404,
+        LLMGenerationCostItem.Status.UNCERTAIN,
+        { type: 'context', size: 100 }
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        10,
+        20,
+        0.0002,
+        LLMGenerationCostItem.Status.UNCERTAIN,
+        { type: 'context', size: 100 }
+      )
+    ] );
   } );
 
   it( 'falls back to aggregate prices for unpriced specialized items', async () => {
