@@ -24,6 +24,7 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 - `getProviderNames()` lists only the built-in providers whose package is installed, plus registered ones.
 - Normalized LLM metering records Anthropic and OpenAI native web searches as `tools` usage and includes their charges in `cost.tools` and `cost.total`.
 - Google Vertex grounding pricing now includes Gemini 4 per-query charges. Existing Gemini 2 prompt pricing and Gemini 3 query pricing remain supported.
+- Context-tiered LLM models are priced separately for each provider request. Normalized cost items can repeat a `group` and `label` with different rates and tiers.
 - The legacy `cost:llm:request` event and `llm:usage` trace attribute remain token-only and unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
@@ -115,6 +116,8 @@ If you consume the `llm:generation:metering` event or the `llm:generation:usage`
 - Anthropic searches use the `web_search` label.
 - OpenAI searches use `web_search` or `web_search_preview`. An ambiguous variant is retained as unpriced `web_search_unknown`.
 - Tool charges appear in `cost.tools` and are included in `cost.total`. Code that expects only token items or calculates token spend from `cost.total` must handle them separately.
+- For context-tiered models, aggregate matching `items` instead of using `find()`: multi-step calls can contain the same `group` and `label` at different `ppm` and `tier` values.
+- `LLMGenerationCostItemStatus` now includes `uncertain` for items whose applicable tier cannot be determined precisely. Update exhaustive switches over this union.
 
 The legacy `cost:llm:request` event and `llm:usage` trace attribute still exclude tool charges.
 

@@ -8,7 +8,7 @@ vi.mock( './models_pricing.js', async importOriginal => ( {
 } ) );
 
 import { Logger } from '#runtime_logger';
-import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts, calculateLegacyCosts } from './cost.js';
 import { Freshness } from './models_pricing.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 
@@ -42,7 +42,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toBeNull();
     expect( Logger.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing', { namespace: 'LLM' } );
@@ -57,7 +57,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toBeInstanceOf( LLMGenerationCost );
     expect( serialize( result ) ).toEqual( {
@@ -106,7 +106,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, 'cache_write', 100_000 ),
       item( OUTPUT, 'text', 200_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2.9,
@@ -123,6 +123,350 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
+  it.each( [
+    { input: 99, inputPpm: 2, outputPpm: 10, tier: undefined },
+    { input: 100, inputPpm: 2, outputPpm: 10, tier: undefined },
+    { input: 101, inputPpm: 4, outputPpm: 20, tier: { type: 'context', size: 100 } }
+  ] )( 'selects context pricing for $input input tokens', async ( { input, inputPpm, outputPpm, tier } ) => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        {
+          input: 4,
+          output: 20,
+          tier: { type: 'context', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, input ),
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        input,
+        inputPpm,
+        input / 1_000_000 * inputPpm,
+        LLMGenerationCostItem.Status.OK,
+        tier
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        10,
+        outputPpm,
+        10 / 1_000_000 * outputPpm,
+        LLMGenerationCostItem.Status.OK,
+        tier
+      )
+    ] );
+  } );
+
+  it( 'uses specialized tier rates and falls back within the selected tier', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      cache_read: 0.2,
+      cache_write: 2.5,
+      output: 10,
+      reasoning: 15,
+      tiers: [
+        {
+          input: 4,
+          cache_read: 0.4,
+          output: 20,
+          tier: { type: 'context', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, 'cache_read', 60 ),
+      item( INPUT, 'cache_write', 41 ),
+      item( OUTPUT, null, 10 ),
+      item( OUTPUT, 'reasoning', 5 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => ( { ppm: value.ppm, status: value.status, tier: value.tier } ) ) ).toEqual( [
+      { ppm: 0.4, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
+      { ppm: 4, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } },
+      { ppm: 20, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
+      { ppm: 20, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } }
+    ] );
+  } );
+
+  it( 'prices multi-step usage per request and merges equal tool rates', async () => {
+    const providerId = 'anthropic';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+      [ `${providerId}/${MODEL_ID}`, {
+        cost: {
+          input: 2,
+          output: 10,
+          tiers: [
+            {
+              input: 4,
+              output: 20,
+              tier: { type: 'context', size: 100 }
+            }
+          ]
+        },
+        reasoning: false
+      } ]
+    ] ) ) );
+    const baseUsage = usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 50 ),
+      item( OUTPUT, null, 10 ),
+      item( TOOLS, 'web_search', 1 )
+    ] );
+    const tierUsage = usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 20 ),
+      item( TOOLS, 'web_search', 1 )
+    ] );
+
+    const result = await calculateCosts( usageFor( providerId, MODEL_ID, [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 ),
+      item( TOOLS, 'web_search', 2 )
+    ] ), [ baseUsage, tierUsage ] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 50, 2, 0.0001, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 10, 10, 0.0001, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( TOOLS, 'web_search', 2, 10_000, 0.02, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        101,
+        4,
+        0.000404,
+        LLMGenerationCostItem.Status.OK,
+        { type: 'context', size: 100 }
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        20,
+        20,
+        0.0004,
+        LLMGenerationCostItem.Status.OK,
+        { type: 'context', size: 100 }
+      )
+    ] );
+    expect( result.total ).toBe( 0.021004 );
+  } );
+
+  it( 'uses uncertain base pricing when multi-step usage is incomplete', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+    const completeUsage = usage( [
+      item( INPUT, null, 50 ),
+      item( OUTPUT, null, 10 )
+    ] );
+    const incompleteUsage = usage( [
+      item( INPUT, null, 101 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 )
+    ] ), [ completeUsage, incompleteUsage ] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => ( {
+      amount: value.amount,
+      ppm: value.ppm,
+      status: value.status,
+      tier: value.tier
+    } ) ) ).toEqual( [
+      { amount: 151, ppm: 2, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: undefined },
+      { amount: 30, ppm: 10, status: LLMGenerationCostItem.Status.UNCERTAIN, tier: undefined }
+    ] );
+  } );
+
+  it( 'keeps incomplete multi-step pricing uncertain below the tier threshold', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+    const completeUsage = usage( [
+      item( INPUT, null, 40 ),
+      item( OUTPUT, null, 10 )
+    ] );
+    const incompleteUsage = usage( [
+      item( INPUT, null, 40 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 80 ),
+      item( OUTPUT, null, 20 )
+    ] ), [ completeUsage, incompleteUsage ] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 80, 2, 0.00016, LLMGenerationCostItem.Status.UNCERTAIN ),
+      new LLMGenerationCostItem( OUTPUT, null, 20, 10, 0.0002, LLMGenerationCostItem.Status.UNCERTAIN )
+    ] );
+  } );
+
+  it( 'keeps aggregate costing for multi-step models without tiers', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      cache_read: 1,
+      output: 10
+    } ) );
+    const firstUsage = usage( [
+      item( INPUT, 'no_cache', 50 ),
+      item( OUTPUT, 'text', 10 )
+    ] );
+    const secondUsage = usage( [
+      item( INPUT, 'cache_read', 101 ),
+      item( OUTPUT, 'text', 20 )
+    ] );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 151 ),
+      item( OUTPUT, null, 30 )
+    ] ), [ firstUsage, secondUsage ] );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 151, 2, 0.000302, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 30, 10, 0.0003, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
+  it( 'selects the highest applicable context tier', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 3, output: 4, tier: { type: 'context', size: 100 } },
+        { input: 5, output: 6, tier: { type: 'context', size: 200 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 201 ),
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.items.map( value => value.ppm ) ).toEqual( [ 5, 6 ] );
+    expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
+  } );
+
+  it( 'uses base pricing when tiered usage has no input', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 3, output: 4, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( OUTPUT, null, 10, 2, 0.00002, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
+  it( 'preserves aggregate base pricing for legacy conversion', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 5, output: 6, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateLegacyCosts( usage( [
+      item( INPUT, null, 201 ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 201, 1, 0.000201, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 10, 2, 0.00002, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
+  it( 'uses base rates and marks the cost imprecise for an unsupported tier', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        {
+          input: 4,
+          output: 20,
+          tier: { type: 'volume', size: 100 }
+        }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => value.ppm ) ).toEqual( [ 2, 10 ] );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.UNCERTAIN ) ).toBe( true );
+  } );
+
+  it( 'marks a matched context tier uncertain when unsupported tiers are also present', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10,
+      tiers: [
+        { input: 4, output: 20, tier: { type: 'context', size: 100 } },
+        { input: 6, output: 30, tier: { type: 'volume', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 101 ),
+      item( OUTPUT, null, 10 )
+    ] ), [] );
+
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem(
+        INPUT,
+        null,
+        101,
+        4,
+        0.000404,
+        LLMGenerationCostItem.Status.UNCERTAIN,
+        { type: 'context', size: 100 }
+      ),
+      new LLMGenerationCostItem(
+        OUTPUT,
+        null,
+        10,
+        20,
+        0.0002,
+        LLMGenerationCostItem.Status.UNCERTAIN,
+        { type: 'context', size: 100 }
+      )
+    ] );
+  } );
+
   it( 'falls back to aggregate prices for unpriced specialized items', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
@@ -133,7 +477,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, 'cache_read', 400_000 ),
       item( INPUT, 'cache_write', 100_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 1,
@@ -156,7 +500,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0.0002,
@@ -176,7 +520,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: null,
@@ -199,7 +543,7 @@ describe( 'calculateCosts', () => {
 
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0.0002,
@@ -219,7 +563,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 0,
@@ -241,7 +585,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_query', 3 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -267,7 +611,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_prompt', 1 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       tools: 0.035,
@@ -289,7 +633,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage );
+    const result = await calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -320,7 +664,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search_preview', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage );
+    const result = await calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       tools: total,
@@ -332,12 +676,34 @@ describe( 'calculateCosts', () => {
     );
   } );
 
+  it( 'leaves OpenAI preview search unpriced when model metadata is missing', async () => {
+    const modelId = 'unknown-model';
+    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
+
+    const result = await calculateCosts( usageFor( 'openai', modelId, [
+      item( TOOLS, 'web_search_preview', 3 )
+    ] ), [] );
+
+    expect( result ).toMatchObject( {
+      tools: null,
+      total: null,
+      status: LLMGenerationCost.Status.INCOMPLETE
+    } );
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( TOOLS, 'web_search_preview', 3, null, null, LLMGenerationCostItem.Status.MISSING )
+    ] );
+    expect( Logger.warn ).toHaveBeenCalledWith(
+      'Tool call with no rate for model',
+      { namespace: 'LLM', modelId, providerId: 'openai', type: 'web_search_preview' }
+    );
+  } );
+
   it( 'never prices a tools item at the input token rate', async () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
 
     const result = await calculateCosts( usageFor( 'google-vertex', 'gemini-3-pro', [
       item( TOOLS, 'grounding_query', 2 )
-    ] ) );
+    ] ), [] );
 
     expect( result.items ).toEqual( [
       new LLMGenerationCostItem( TOOLS, 'grounding_query', 2, 14_000, 0.028, LLMGenerationCostItem.Status.OK )
@@ -351,7 +717,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding', 2 )
-    ] ) );
+    ] ), [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -375,7 +741,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.tools ).toBeNull();
     expect( result.total ).toBe( 7 );
@@ -387,7 +753,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.CACHED );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
@@ -399,7 +765,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.STALE );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
@@ -411,7 +777,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
-    ] ) );
+    ] ), [] );
 
     expect( result.pricingFreshness ).toBe( Freshness.SNAPSHOT );
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
@@ -425,7 +791,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
-    ] ) );
+    ] ), [] );
 
     expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
   } );
@@ -440,7 +806,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 1 ),
       item( INPUT, null, 2 ),
       item( OUTPUT, null, 3 )
-    ] ) );
+    ] ), [] );
 
     expect( result.input ).toBe( 0.0000003 );
     expect( result.output ).toBe( 0.0000006 );
@@ -463,6 +829,12 @@ describe( 'LLMGenerationCost', () => {
       expected: LLMGenerationCost.Status.IMPRECISE
     },
     {
+      name: 'imprecise from uncertain pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.UNCERTAIN,
+      expected: LLMGenerationCost.Status.IMPRECISE
+    },
+    {
       name: 'incomplete from missing pricing',
       usageStatus: LLMGenerationUsage.Status.COMPLETE,
       itemStatus: LLMGenerationCostItem.Status.MISSING,
@@ -472,6 +844,12 @@ describe( 'LLMGenerationCost', () => {
       name: 'incomplete from usage',
       usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
+      expected: LLMGenerationCost.Status.INCOMPLETE
+    },
+    {
+      name: 'incomplete over uncertain pricing',
+      usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.UNCERTAIN,
       expected: LLMGenerationCost.Status.INCOMPLETE
     },
     {

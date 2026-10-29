@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted( () => ( {
   parseLLMUsage: vi.fn(),
   calculateCosts: vi.fn(),
+  calculateLegacyCosts: vi.fn(),
   convertCostToLegacy: vi.fn(),
   logger: { error: vi.fn() }
 } ) );
@@ -16,7 +17,8 @@ vi.mock( './usage.js', () => ( {
 } ) );
 
 vi.mock( './cost.js', () => ( {
-  calculateCosts: mocks.calculateCosts
+  calculateCosts: mocks.calculateCosts,
+  calculateLegacyCosts: mocks.calculateLegacyCosts
 } ) );
 
 vi.mock( './legacy_cost_attribute.js', () => ( {
@@ -55,6 +57,7 @@ const mockUsage = {
 };
 
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
+const mockLegacyPricingCost = { type: 'llm:generation:cost', total: 0.0005, items: [] };
 const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 
 const step = tokens => ( { usage: { inputTokens: tokens, outputTokens: tokens } } );
@@ -67,6 +70,7 @@ describe( 'Metering', () => {
     vi.clearAllMocks();
     mocks.parseLLMUsage.mockReturnValue( mockUsage );
     mocks.calculateCosts.mockResolvedValue( mockCost );
+    mocks.calculateLegacyCosts.mockResolvedValue( mockLegacyPricingCost );
     mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
   } );
 
@@ -82,8 +86,56 @@ describe( 'Metering', () => {
       steps: response.steps,
       toolIdsByName: undefined
     } );
-    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage ] );
+    expect( mocks.calculateLegacyCosts ).toHaveBeenCalledWith( mockUsage );
+    expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockLegacyPricingCost );
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
+  } );
+
+  it( 'costs multi-step calls with usage parsed per request', async () => {
+    const firstStep = step( 2 );
+    const secondStep = step( 3 );
+    const firstUsage = { ...mockUsage, input: 2 };
+    const secondUsage = { ...mockUsage, input: 3 };
+    mocks.parseLLMUsage
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( firstUsage )
+      .mockReturnValueOnce( secondUsage );
+    const metering = new Metering( { traceId, prompt } );
+
+    await metering.bill( {
+      usage: { inputTokens: 5, outputTokens: 5 },
+      steps: [ firstStep, secondStep ]
+    } );
+
+    expect( mocks.parseLLMUsage ).toHaveBeenNthCalledWith( 2, {
+      prompt,
+      usage: firstStep.usage,
+      steps: [ firstStep ],
+      toolIdsByName: undefined
+    } );
+    expect( mocks.parseLLMUsage ).toHaveBeenNthCalledWith( 3, {
+      prompt,
+      usage: secondStep.usage,
+      steps: [ secondStep ],
+      toolIdsByName: undefined
+    } );
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ firstUsage, secondUsage ] );
+  } );
+
+  it( 'passes unparsed step usage to costing', async () => {
+    mocks.parseLLMUsage
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( mockUsage )
+      .mockReturnValueOnce( null );
+    const metering = new Metering( { traceId, prompt } );
+
+    await metering.bill( {
+      usage: { inputTokens: 5, outputTokens: 5 },
+      steps: [ step( 2 ), step( 3 ) ]
+    } );
+
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage, null ] );
   } );
 
   it( 'passes provider tool ids to usage parsing', async () => {
@@ -192,7 +244,7 @@ describe( 'Metering', () => {
     metering.recordStep( step( 99 ) );
     await metering.bill( { usage: { inputTokens: 99 }, steps: [ step( 99 ) ] } );
 
-    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 1 );
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: [ step( 1 ) ] } ) );
   } );
 
@@ -205,7 +257,7 @@ describe( 'Metering', () => {
 
     await metering.bill( { usage: { inputTokens: 2 }, steps: [ step( 2 ) ] } );
 
-    expect( mocks.parseLLMUsage ).toHaveBeenCalledOnce();
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( metering.attributes.cost ).toBe( mockCost );
   } );
 

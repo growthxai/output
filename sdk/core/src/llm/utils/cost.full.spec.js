@@ -256,7 +256,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       usage: fixture.usage,
       steps: fixture.steps
     } );
-    const result = await calculateCosts( usage );
+    const result = await calculateCosts( usage, [] );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {
       type: LLMGenerationCost.TYPE,

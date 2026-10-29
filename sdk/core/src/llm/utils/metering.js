@@ -1,5 +1,5 @@
 import { parseLLMUsage } from './usage.js';
-import { calculateCosts } from './cost.js';
+import { calculateCosts, calculateLegacyCosts } from './cost.js';
 import { stepEventBus } from '#bus';
 import { addEventActionWithContext, EventAction } from '#tracing';
 import { Logger } from '#runtime_logger';
@@ -26,17 +26,22 @@ export class Metering {
   };
 
   async #createAttributes( { usage, steps } ) {
-    this.#attributes.usage = parseLLMUsage( {
+    const totalUsage = parseLLMUsage( { prompt: this.#prompt, usage, steps, toolIdsByName: this.#toolIdsByName } );
+    const stepsUsage = steps.map( step => parseLLMUsage( {
       prompt: this.#prompt,
-      usage,
-      steps,
+      usage: step.usage,
+      steps: [ step ],
       toolIdsByName: this.#toolIdsByName
-    } );
+    } ) );
+
+    this.#attributes.usage = totalUsage;
     if ( this.#attributes.usage ) {
-      this.#attributes.cost = await calculateCosts( this.#attributes.usage );
+      this.#attributes.cost = await calculateCosts( this.#attributes.usage, stepsUsage );
+
       if ( this.#attributes.cost ) {
         // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-        this.#attributes.legacy = convertCostToLegacy( this.#attributes.cost );
+        const legacyCost = await calculateLegacyCosts( this.#attributes.usage );
+        this.#attributes.legacy = convertCostToLegacy( legacyCost );
       }
     }
   }

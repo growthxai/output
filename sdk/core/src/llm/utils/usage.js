@@ -3,9 +3,9 @@ import { BaseAttribute } from '#trace_attribute';
 import { extractUsageFromSteps } from './usage_tools.js';
 import { parseWebSearchUsage } from './web_search.js';
 
-const exists = v => Number.isSafeInteger( v ) && v >= 0;
+const isValidTokenCount = v => Number.isSafeInteger( v ) && v >= 0;
 
-const safeSum = ( ...values ) => values.filter( exists ).reduce( ( t, v ) => t + v, 0 );
+const safeSum = ( ...values ) => values.filter( isValidTokenCount ).reduce( ( t, v ) => t + v, 0 );
 
 export class LLMGenerationUsageItem {
   static Group = { INPUT: 'input', OUTPUT: 'output', TOOLS: 'tools' };
@@ -51,10 +51,10 @@ export class LLMGenerationUsage extends BaseAttribute {
       this.output = outputItems.reduce( ( s, p ) => s.add( p.amount ), Decimal( 0 ) ).toNumber();
     }
 
-    if ( exists( this.input ) || exists( this.output ) ) {
+    if ( isValidTokenCount( this.input ) || isValidTokenCount( this.output ) ) {
       this.total = ( this.input ?? 0 ) + ( this.output ?? 0 );
     }
-    this.status = LLMGenerationUsage.Status[exists( this.input ) && exists( this.output ) ? 'COMPLETE' : 'INCOMPLETE'];
+    this.status = LLMGenerationUsage.Status[isValidTokenCount( this.input ) && isValidTokenCount( this.output ) ? 'COMPLETE' : 'INCOMPLETE'];
   }
 }
 
@@ -65,7 +65,7 @@ export class LLMGenerationUsage extends BaseAttribute {
  * every token count undefined, and the steps are then the only record of what was already spent.
  */
 const resolveUsage = ( { usage, steps } ) => {
-  if ( usage && ( exists( usage.inputTokens ) || exists( usage.outputTokens ) ) ) {
+  if ( usage && ( isValidTokenCount( usage.inputTokens ) || isValidTokenCount( usage.outputTokens ) ) ) {
     return usage;
   }
   return Array.isArray( steps ) && steps.length > 0 ? extractUsageFromSteps( steps ) : null;
@@ -98,19 +98,19 @@ export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [], too
 
   const items = [];
 
-  if ( exists( inputTokens ) ) {
+  if ( isValidTokenCount( inputTokens ) ) {
     // the sum of the components must be equal to the tokens
     const useDetails = inputTokens > 0 && safeSum( noCacheTokens, cacheReadTokens, cacheWriteTokens ) === inputTokens;
     const group = LLMGenerationUsageItem.Group.INPUT;
 
     if ( useDetails ) {
-      if ( exists( noCacheTokens ) ) {
+      if ( isValidTokenCount( noCacheTokens ) ) {
         items.push( new LLMGenerationUsageItem( group, 'no_cache', noCacheTokens ) );
       }
-      if ( exists( cacheReadTokens ) ) {
+      if ( isValidTokenCount( cacheReadTokens ) ) {
         items.push( new LLMGenerationUsageItem( group, 'cache_read', cacheReadTokens ) );
       }
-      if ( exists( cacheWriteTokens ) ) {
+      if ( isValidTokenCount( cacheWriteTokens ) ) {
         items.push( new LLMGenerationUsageItem( group, 'cache_write', cacheWriteTokens ) );
       }
     } else {
@@ -118,16 +118,16 @@ export const parseLLMUsage = ( { prompt, usage: usageArg = null, steps = [], too
     }
   }
 
-  if ( exists( outputTokens ) ) {
+  if ( isValidTokenCount( outputTokens ) ) {
     // the sum of the components must be equal to the tokens
     const useDetails = outputTokens > 0 && safeSum( textTokens, reasoningTokens ) === outputTokens;
     const group = LLMGenerationUsageItem.Group.OUTPUT;
 
     if ( useDetails ) {
-      if ( exists( textTokens ) ) {
+      if ( isValidTokenCount( textTokens ) ) {
         items.push( new LLMGenerationUsageItem( group, 'text', textTokens ) );
       }
-      if ( exists( reasoningTokens ) ) {
+      if ( isValidTokenCount( reasoningTokens ) ) {
         items.push( new LLMGenerationUsageItem( group, 'reasoning', reasoningTokens ) );
       }
     } else {
