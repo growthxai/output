@@ -13,8 +13,8 @@ describe( 'resolveWebSearchPpm', () => {
   } );
 
   it( 'prices preview search by OpenAI model type', () => {
-    expect( resolveWebSearchPpm( 'openai', 'web_search_preview', { cost: {}, reasoning: true } ) ).toBe( 10_000 );
-    expect( resolveWebSearchPpm( 'openai', 'web_search_preview', { cost: {}, reasoning: false } ) ).toBe( 25_000 );
+    expect( resolveWebSearchPpm( 'openai', 'web_search_preview', true ) ).toBe( 10_000 );
+    expect( resolveWebSearchPpm( 'openai', 'web_search_preview', false ) ).toBe( 25_000 );
     expect( resolveWebSearchPpm( 'openai', 'web_search_preview' ) ).toBeNull();
   } );
 

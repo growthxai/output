@@ -82,7 +82,7 @@ describe( 'Metering', () => {
       steps: response.steps,
       toolIdsByName: undefined
     } );
-    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage ] );
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 
@@ -117,7 +117,7 @@ describe( 'Metering', () => {
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ firstUsage, secondUsage ] );
   } );
 
-  it( 'falls back to aggregate costing when a step usage cannot be parsed', async () => {
+  it( 'passes unparsed step usage to costing', async () => {
     mocks.parseLLMUsage
       .mockReturnValueOnce( mockUsage )
       .mockReturnValueOnce( mockUsage )
@@ -129,7 +129,7 @@ describe( 'Metering', () => {
       steps: [ step( 2 ), step( 3 ) ]
     } );
 
-    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage );
+    expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage, null ] );
   } );
 
   it( 'passes provider tool ids to usage parsing', async () => {
@@ -238,7 +238,7 @@ describe( 'Metering', () => {
     metering.recordStep( step( 99 ) );
     await metering.bill( { usage: { inputTokens: 99 }, steps: [ step( 99 ) ] } );
 
-    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 1 );
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: [ step( 1 ) ] } ) );
   } );
 
@@ -251,7 +251,7 @@ describe( 'Metering', () => {
 
     await metering.bill( { usage: { inputTokens: 2 }, steps: [ step( 2 ) ] } );
 
-    expect( mocks.parseLLMUsage ).toHaveBeenCalledOnce();
+    expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( metering.attributes.cost ).toBe( mockCost );
   } );
 

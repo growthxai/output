@@ -143,7 +143,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, input ),
       item( OUTPUT, null, 10 )
-    ] ) );
+    ] ), [] );
 
     expect( result.items ).toEqual( [
       new LLMGenerationCostItem(
@@ -187,7 +187,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, 'cache_read', 60 ),
       item( INPUT, 'cache_write', 41 ),
       item( OUTPUT, null, 10 )
-    ] ) );
+    ] ), [] );
 
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
     expect( result.items.map( value => ( { ppm: value.ppm, tier: value.tier } ) ) ).toEqual( [
@@ -297,7 +297,7 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 201 ),
       item( OUTPUT, null, 10 )
-    ] ) );
+    ] ), [] );
 
     expect( result.items.map( value => value.ppm ) ).toEqual( [ 5, 6 ] );
     expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
@@ -319,15 +319,11 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, null, 101 ),
       item( OUTPUT, null, 10 )
-    ] ) );
+    ] ), [] );
 
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
     expect( result.items.map( value => value.ppm ) ).toEqual( [ 2, 10 ] );
     expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.FALLBACK ) ).toBe( true );
-    expect( Logger.warn ).toHaveBeenCalledWith(
-      'Unsupported model pricing tier',
-      { namespace: 'LLM', modelId: MODEL_ID, providerId: PROVIDER_ID }
-    );
   } );
 
   it( 'falls back to aggregate prices for unpriced specialized items', async () => {

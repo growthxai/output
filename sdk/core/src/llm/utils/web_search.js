@@ -120,10 +120,10 @@ export const parseWebSearchUsage = ( providerId, modelId, step, toolIdsByName ) 
  *
  * @param {string} providerId
  * @param {string} label
- * @param {{ cost: object, reasoning: boolean }} [modelPricing] - Model pricing record from models.dev
+ * @param {boolean} isReasoning - Whether the used model had reasoning support
  * @returns {number | null} Price per million requests, queries, or prompts
  */
-export const resolveWebSearchPpm = ( providerId, label, modelPricing ) => {
+export const resolveWebSearchPpm = ( providerId, label, isReasoning ) => {
   if ( providerId === 'google-vertex' ) {
     if ( label === Label.GROUNDING_QUERY ) {
       return Price.GOOGLE_GROUNDING_QUERY;
@@ -138,10 +138,10 @@ export const resolveWebSearchPpm = ( providerId, label, modelPricing ) => {
     if ( label === Label.WEB_SEARCH ) {
       return Price.OPENAI_WEB_SEARCH;
     }
-    if ( label === Label.WEB_SEARCH_PREVIEW && modelPricing?.reasoning === false ) {
+    if ( label === Label.WEB_SEARCH_PREVIEW && isReasoning === false ) {
       return Price.OPENAI_WEB_SEARCH_PREVIEW;
     }
-    if ( label === Label.WEB_SEARCH_PREVIEW && modelPricing?.reasoning === true ) {
+    if ( label === Label.WEB_SEARCH_PREVIEW && isReasoning === true ) {
       return Price.OPENAI_WEB_SEARCH_PREVIEW_REASONING;
     }
     return null;
