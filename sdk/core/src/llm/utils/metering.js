@@ -1,5 +1,5 @@
 import { parseLLMUsage } from './usage.js';
-import { calculateCosts } from './cost.js';
+import { calculateCosts, calculateLegacyCosts } from './cost.js';
 import { stepEventBus } from '#bus';
 import { addEventActionWithContext, EventAction } from '#tracing';
 import { Logger } from '#runtime_logger';
@@ -40,7 +40,8 @@ export class Metering {
 
       if ( this.#attributes.cost ) {
         // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-        this.#attributes.legacy = convertCostToLegacy( this.#attributes.cost );
+        const legacyCost = await calculateLegacyCosts( this.#attributes.usage );
+        this.#attributes.legacy = convertCostToLegacy( legacyCost );
       }
     }
   }

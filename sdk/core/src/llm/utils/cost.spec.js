@@ -8,7 +8,7 @@ vi.mock( './models_pricing.js', async importOriginal => ( {
 } ) );
 
 import { Logger } from '#runtime_logger';
-import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts, calculateLegacyCosts } from './cost.js';
 import { Freshness } from './models_pricing.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
 
@@ -167,12 +167,13 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'uses specialized tier rates and inherits omitted base rates', async () => {
+  it( 'uses specialized tier rates and falls back within the selected tier', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
       cache_read: 0.2,
       cache_write: 2.5,
       output: 10,
+      reasoning: 15,
       tiers: [
         {
           input: 4,
@@ -186,14 +187,16 @@ describe( 'calculateCosts', () => {
     const result = await calculateCosts( usage( [
       item( INPUT, 'cache_read', 60 ),
       item( INPUT, 'cache_write', 41 ),
-      item( OUTPUT, null, 10 )
+      item( OUTPUT, null, 10 ),
+      item( OUTPUT, 'reasoning', 5 )
     ] ), [] );
 
-    expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
-    expect( result.items.map( value => ( { ppm: value.ppm, tier: value.tier } ) ) ).toEqual( [
-      { ppm: 0.4, tier: { type: 'context', size: 100 } },
-      { ppm: 2.5, tier: { type: 'context', size: 100 } },
-      { ppm: 20, tier: { type: 'context', size: 100 } }
+    expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
+    expect( result.items.map( value => ( { ppm: value.ppm, status: value.status, tier: value.tier } ) ) ).toEqual( [
+      { ppm: 0.4, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
+      { ppm: 4, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } },
+      { ppm: 20, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
+      { ppm: 20, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } }
     ] );
   } );
 
@@ -303,6 +306,26 @@ describe( 'calculateCosts', () => {
     expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
   } );
 
+  it( 'preserves aggregate base pricing for legacy conversion', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 1,
+      output: 2,
+      tiers: [
+        { input: 5, output: 6, tier: { type: 'context', size: 100 } }
+      ]
+    } ) );
+
+    const result = await calculateLegacyCosts( usage( [
+      item( INPUT, null, 201 ),
+      item( OUTPUT, null, 10 )
+    ] ) );
+
+    expect( result.items ).toEqual( [
+      new LLMGenerationCostItem( INPUT, null, 201, 1, 0.000201, LLMGenerationCostItem.Status.OK ),
+      new LLMGenerationCostItem( OUTPUT, null, 10, 2, 0.00002, LLMGenerationCostItem.Status.OK )
+    ] );
+  } );
+
   it( 'uses base rates and marks the cost imprecise for an unsupported tier', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
@@ -323,7 +346,7 @@ describe( 'calculateCosts', () => {
 
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
     expect( result.items.map( value => value.ppm ) ).toEqual( [ 2, 10 ] );
-    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.FALLBACK ) ).toBe( true );
+    expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.UNCERTAIN ) ).toBe( true );
   } );
 
   it( 'falls back to aggregate prices for unpriced specialized items', async () => {
@@ -666,6 +689,12 @@ describe( 'LLMGenerationCost', () => {
       expected: LLMGenerationCost.Status.IMPRECISE
     },
     {
+      name: 'imprecise from uncertain pricing',
+      usageStatus: LLMGenerationUsage.Status.COMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.UNCERTAIN,
+      expected: LLMGenerationCost.Status.IMPRECISE
+    },
+    {
       name: 'incomplete from missing pricing',
       usageStatus: LLMGenerationUsage.Status.COMPLETE,
       itemStatus: LLMGenerationCostItem.Status.MISSING,
@@ -675,6 +704,12 @@ describe( 'LLMGenerationCost', () => {
       name: 'incomplete from usage',
       usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
+      expected: LLMGenerationCost.Status.INCOMPLETE
+    },
+    {
+      name: 'incomplete over uncertain pricing',
+      usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
+      itemStatus: LLMGenerationCostItem.Status.UNCERTAIN,
       expected: LLMGenerationCost.Status.INCOMPLETE
     },
     {

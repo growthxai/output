@@ -9,14 +9,13 @@ const OK = 'ok';
 const FALLBACK = 'fallback';
 const MISSING = 'missing';
 
-const item = ( group, label, amount, ppm, total, status = OK, tier = undefined ) => ( {
+const item = ( group, label, amount, ppm, total, status = OK ) => ( {
   group,
   label,
   amount,
   ppm,
   total,
-  status,
-  tier
+  status
 } );
 
 const cost = items => ( { modelId: MODEL_ID, items } );
@@ -59,28 +58,6 @@ describe( 'convertCostToLegacy', () => {
       ],
       total: 0.0007,
       tokensUsed: 150
-    } );
-  } );
-
-  it( 'preserves base and tier rates as separate legacy items', () => {
-    const tier = { type: 'context', size: 100 };
-
-    expect( convertCostToLegacy( cost( [
-      item( INPUT, null, 50, 2, 0.0001 ),
-      item( OUTPUT, null, 10, 10, 0.0001 ),
-      item( INPUT, null, 101, 4, 0.000404, OK, tier ),
-      item( OUTPUT, null, 20, 20, 0.0004, OK, tier )
-    ] ) ) ).toEqual( {
-      type: 'llm:usage',
-      modelId: MODEL_ID,
-      usage: [
-        { type: 'input', ppm: 2, amount: 50, total: 0.0001 },
-        { type: 'output', ppm: 10, amount: 10, total: 0.0001 },
-        { type: 'input', ppm: 4, amount: 101, total: 0.000404 },
-        { type: 'output', ppm: 20, amount: 20, total: 0.0004 }
-      ],
-      total: 0.001004,
-      tokensUsed: 181
     } );
   } );
 

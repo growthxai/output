@@ -390,7 +390,7 @@ export interface LLMUsageEvent {
   readonly tokensUsed: number;
 }
 
-export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'missing';
+export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'uncertain' | 'missing';
 export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
 export type LLMGenerationCostPricingFreshness = 'live' | 'cached' | 'stale' | 'snapshot';
 

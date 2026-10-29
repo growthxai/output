@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mocks = vi.hoisted( () => ( {
   parseLLMUsage: vi.fn(),
   calculateCosts: vi.fn(),
+  calculateLegacyCosts: vi.fn(),
   convertCostToLegacy: vi.fn(),
   logger: { error: vi.fn() }
 } ) );
@@ -16,7 +17,8 @@ vi.mock( './usage.js', () => ( {
 } ) );
 
 vi.mock( './cost.js', () => ( {
-  calculateCosts: mocks.calculateCosts
+  calculateCosts: mocks.calculateCosts,
+  calculateLegacyCosts: mocks.calculateLegacyCosts
 } ) );
 
 vi.mock( './legacy_cost_attribute.js', () => ( {
@@ -55,6 +57,7 @@ const mockUsage = {
 };
 
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
+const mockLegacyPricingCost = { type: 'llm:generation:cost', total: 0.0005, items: [] };
 const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 
 const step = tokens => ( { usage: { inputTokens: tokens, outputTokens: tokens } } );
@@ -67,6 +70,7 @@ describe( 'Metering', () => {
     vi.clearAllMocks();
     mocks.parseLLMUsage.mockReturnValue( mockUsage );
     mocks.calculateCosts.mockResolvedValue( mockCost );
+    mocks.calculateLegacyCosts.mockResolvedValue( mockLegacyPricingCost );
     mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
   } );
 
@@ -83,6 +87,8 @@ describe( 'Metering', () => {
       toolIdsByName: undefined
     } );
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage ] );
+    expect( mocks.calculateLegacyCosts ).toHaveBeenCalledWith( mockUsage );
+    expect( mocks.convertCostToLegacy ).toHaveBeenCalledWith( mockLegacyPricingCost );
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 

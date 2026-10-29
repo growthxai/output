@@ -8,11 +8,13 @@ import { wrapStream, wrapTextGeneration } from './wrap.js';
 
 const mocks = vi.hoisted( () => ( {
   calculateCosts: vi.fn(),
+  calculateLegacyCosts: vi.fn(),
   convertCostToLegacy: vi.fn()
 } ) );
 
 vi.mock( './cost.js', () => ( {
-  calculateCosts: mocks.calculateCosts
+  calculateCosts: mocks.calculateCosts,
+  calculateLegacyCosts: mocks.calculateLegacyCosts
 } ) );
 
 vi.mock( './legacy_cost_attribute.js', () => ( {
@@ -95,6 +97,7 @@ describe( 'wrap against the real ai sdk', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mocks.calculateCosts.mockResolvedValue( mockCost );
+    mocks.calculateLegacyCosts.mockResolvedValue( mockCost );
     mocks.convertCostToLegacy.mockReturnValue( null );
     vi.spyOn( stepEventBus, 'emit' ).mockImplementation( () => {} );
   } );

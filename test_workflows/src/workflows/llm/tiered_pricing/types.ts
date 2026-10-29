@@ -11,7 +11,7 @@ const costItemSchema = z.object( {
   amount: z.number().nonnegative(),
   ppm: z.number().nullable(),
   total: z.number().nullable(),
-  status: z.enum( [ 'ok', 'fallback', 'missing' ] ),
+  status: z.enum( [ 'ok', 'fallback', 'uncertain', 'missing' ] ),
   tier: pricingTierSchema.optional()
 } );
 

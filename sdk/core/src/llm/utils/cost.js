@@ -12,6 +12,7 @@ export class LLMGenerationCostItem {
   static Status = Object.freeze( {
     OK: 'ok',
     FALLBACK: 'fallback',
+    UNCERTAIN: 'uncertain',
     MISSING: 'missing'
   } );
 
@@ -78,18 +79,21 @@ export class LLMGenerationCost extends BaseAttribute {
 
     this.pricingFreshness = pricingFreshness;
 
-    const meaningfulItems = items.filter( v => v.amount > 0 );
+    const meaningfulItems = this.items.filter( v => v.amount > 0 );
+    const hasMissingItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING );
+    const hasFallbackItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK );
+    const hasUncertainItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.UNCERTAIN );
 
-    if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING ) || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
+    if ( hasMissingItems || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
       this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK ) || pricingFreshness === Freshness.SNAPSHOT ) {
+    } else if ( hasFallbackItems || pricingFreshness === Freshness.SNAPSHOT || hasUncertainItems ) {
       this.status = LLMGenerationCost.Status.IMPRECISE;
     } else {
       this.status = LLMGenerationCost.Status.PRECISE;
     }
 
     const sumGroup = group => {
-      const groupItems = items.filter( p => p.group === group && isValidNumber( p.total ) );
+      const groupItems = this.items.filter( p => p.group === group && isValidNumber( p.total ) );
       return groupItems.length > 0 ? groupItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber() : null;
     };
     this.input = sumGroup( LLMGenerationUsageItem.Group.INPUT );
@@ -152,16 +156,16 @@ const resolvePricingTier = ( modelPricing, input ) => {
 };
 
 // Calculates the price of each usage item
-const calculateCostItems = ( { usage, pricing, isReasoning, downgrade } ) => {
+const calculateCostItems = ( { usage, pricing, isReasoning, uncertain } ) => {
   const { providerId } = usage;
   return usage.items.map( ( { group, label, amount } ) => {
     const { ppm, status } = resolvePrice( { providerId, isReasoning, group, label, pricing } );
     const total = isValidNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
 
     const isTool = group === LLMGenerationUsageItem.Group.TOOLS;
-    const isPriceOk = status === LLMGenerationCostItem.Status.OK;
+    const isCostOk = status === LLMGenerationCostItem.Status.OK;
 
-    const finalStatus = downgrade && !isTool && isPriceOk ? LLMGenerationCostItem.Status.FALLBACK : status;
+    const finalStatus = !isTool && isCostOk && uncertain ? LLMGenerationCostItem.Status.UNCERTAIN : status;
 
     const tier = !isTool && pricing?.tier?.type ? pricing.tier : null;
     return new LLMGenerationCostItem( group, label, amount, ppm, total, finalStatus, tier );
@@ -197,8 +201,8 @@ const calculateTieredUsage = ( totalUsage, stepsUsage, modelPricing ) => {
     }
 
     // detect whether the tier calculation was imprecise either because it should have used individual steps but used total usage, or if the tier cost has unsupported elements
-    const downgrade = ( !stepsUsageIsComplete && shouldUseStepsUsage ) || pricingTier.hasUnsupported;
-    return calculateCostItems( { usage, pricing: { ...pricing, ...pricingTier.tier ?? {} }, isReasoning, downgrade } );
+    const uncertain = ( !stepsUsageIsComplete && shouldUseStepsUsage ) || pricingTier.hasUnsupported;
+    return calculateCostItems( { usage, pricing: pricingTier.tier ?? pricing, isReasoning, uncertain } );
   } );
 };
 
@@ -233,6 +237,25 @@ export const calculateCosts = async ( usage, stepsUsage ) => {
   if ( unrated ) {
     Logger.warn( 'Tool call with no rate for model', { namespace: 'LLM', modelId, providerId, type: unrated.label } );
   }
+
+  return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );
+};
+
+/**
+ * Calculates a cost using the legacy aggregate pricing behavior.
+ *
+ * @param {LLMGenerationUsage} usage - Normalized aggregate LLM generation usage
+ * @returns {Promise<LLMGenerationCost | null>} Cost compatible with the legacy conversion
+ */
+export const calculateLegacyCosts = async usage => {
+  const { models, freshness: pricingFreshness } = await fetchModelsPricing();
+  if ( !models ) {
+    return null;
+  }
+
+  const { providerId, modelId } = usage;
+  const modelPricing = models.get( `${providerId}/${modelId}` );
+  const items = calculateStandardUsage( usage, modelPricing );
 
   return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );
 };

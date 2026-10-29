@@ -1,7 +1,7 @@
 import { BaseAttribute } from '#trace_attribute';
 import Decimal from 'decimal.js';
 
-const isValidNumber = v => Number.isFinite( v ) && v >= 0;
+const exists = v => Number.isFinite( v );
 
 /** Legacy priced usage attribute retained for trace compatibility. */
 export class LLMUsageLegacy extends BaseAttribute {
@@ -35,44 +35,39 @@ export const convertCostToLegacy = cost => {
   }
 
   const usage = [];
-  const itemGroups = Map.groupBy(
-    cost.items.filter( ( { group } ) => group !== 'tools' ),
-    item => JSON.stringify( item.tier ?? null )
-  );
 
-  for ( const items of itemGroups.values() ) {
-    const inputItem = items.find( ( { group, label, total } ) => group === 'input' && !label && isValidNumber( total ) );
-    const noCacheItem = items.find( ( { label, total } ) => label === 'no_cache' && isValidNumber( total ) );
-    const cacheReadItem = items.find( ( { label } ) => label === 'cache_read' ); // even when it doesn't have total
-    const cacheWriteItem = items.find( ( { label, total } ) => label === 'cache_write' && isValidNumber( total ) );
-    const outputItem = items.find( ( { group, label, total } ) => group === 'output' && !label && isValidNumber( total ) );
-    const textItem = items.find( ( { label, total } ) => label === 'text' && isValidNumber( total ) );
-    const reasoningItem = items.find( ( { label, total } ) => label === 'reasoning' && isValidNumber( total ) );
+  // items
+  const inputItem = cost.items.find( ( { group, label, total } ) => group === 'input' && !label && exists( total ) );
+  const noCacheItem = cost.items.find( ( { label, total } ) => label === 'no_cache' && exists( total ) );
+  const cacheReadItem = cost.items.find( ( { label } ) => label === 'cache_read' ); // even when it doesn't have total
+  const cacheWriteItem = cost.items.find( ( { label, total } ) => label === 'cache_write' && exists( total ) );
+  const outputItem = cost.items.find( ( { group, label, total } ) => group === 'output' && !label && exists( total ) );
+  const textItem = cost.items.find( ( { label, total } ) => label === 'text' && exists( total ) );
+  const reasoningItem = cost.items.find( ( { label, total } ) => label === 'reasoning' && exists( total ) );
 
-    if ( inputItem ) {
-      usage.push( { type: 'input', ppm: inputItem.ppm, amount: inputItem.amount } );
-    } else {
-      if ( noCacheItem || cacheWriteItem ) {
-        const totalInput = ( noCacheItem?.amount ?? 0 ) + ( cacheWriteItem?.amount ?? 0 );
-        const ppm = noCacheItem?.ppm ?? cacheWriteItem?.ppm;
-        usage.push( { type: 'input', ppm, amount: totalInput } );
-      }
-
-      if ( cacheReadItem ) {
-        const ppm = [ 'fallback', 'missing' ].includes( cacheReadItem.status ) ? 0 : cacheReadItem.ppm;
-        usage.push( { type: 'input_cached', ppm, amount: cacheReadItem.amount } );
-      }
+  if ( inputItem ) {
+    usage.push( { type: 'input', ppm: inputItem.ppm, amount: inputItem.amount } );
+  } else {
+    if ( noCacheItem || cacheWriteItem ) {
+      const totalInput = ( noCacheItem?.amount ?? 0 ) + ( cacheWriteItem?.amount ?? 0 );
+      const ppm = noCacheItem?.ppm ?? cacheWriteItem?.ppm;
+      usage.push( { type: 'input', ppm, amount: totalInput } );
     }
 
-    if ( outputItem ) {
-      usage.push( { type: 'output', ppm: outputItem.ppm, amount: outputItem.amount } );
-    } else {
-      if ( textItem ) {
-        usage.push( { type: 'output', ppm: textItem.ppm, amount: textItem.amount } );
-      }
-      if ( reasoningItem ) {
-        usage.push( { type: 'reasoning', ppm: reasoningItem.ppm, amount: reasoningItem.amount } );
-      }
+    if ( cacheReadItem ) {
+      const ppm = [ 'fallback', 'missing' ].includes( cacheReadItem.status ) ? 0 : cacheReadItem.ppm;
+      usage.push( { type: 'input_cached', ppm, amount: cacheReadItem.amount } );
+    }
+  }
+
+  if ( outputItem ) {
+    usage.push( { type: 'output', ppm: outputItem.ppm, amount: outputItem.amount } );
+  } else {
+    if ( textItem ) {
+      usage.push( { type: 'output', ppm: textItem.ppm, amount: textItem.amount } );
+    }
+    if ( reasoningItem ) {
+      usage.push( { type: 'reasoning', ppm: reasoningItem.ppm, amount: reasoningItem.amount } );
     }
   }
 
