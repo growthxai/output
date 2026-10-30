@@ -17,6 +17,7 @@ Dependency updates:
 - `undici`: `8.10.2` -> `8.12.3`
 - `zod`: `4.6.5` -> `4.6.6`
 
-Peer dependency range:
+Peer dependency ranges:
 
 - `undici` min supported peer dependency version for `@outputai/core` is now `8.12.2`.
+- `zod` min supported peer dependency version for `@outputai/core` is now `4.6.6`.
