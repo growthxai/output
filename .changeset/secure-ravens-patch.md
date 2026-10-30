@@ -14,7 +14,7 @@ Dependency updates:
 - `ip-address`: `10.7.2` -> `10.7.4`, reached through `@modelcontextprotocol/sdk`
 - `qs`: `6.16.0` -> `6.16.1`, reached through `express` and `body-parser`
 - `undici`: `7.29.1` -> `7.30.1`, reached through `@ai-sdk/provider-utils`
-- `undici`: `8.10.2` -> `8.12.3`
+- `undici`: `8.11.0` -> `8.12.3`, fixing Node's built-in `fetch` returning gzip response bodies undecoded after Undici is imported
 - `zod`: `4.6.5` -> `4.6.6`
 
 Peer dependency ranges:
