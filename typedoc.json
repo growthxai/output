@@ -11,16 +11,9 @@
   "entryPointStrategy": "resolve",
   "excludeExternals": true,
   "intentionallyNotExported": [
-    "@outputai/core/src/evals/verify.ts:CheckFn",
-    "@outputai/core/src/evals/verify.ts:VerifyOptions",
     "@outputai/core/src/interface/types.d.ts:AnyZodSchema",
     "@outputai/core/src/interface/types.d.ts:DeepPartial",
-    "@outputai/core/src/llm/index.d.ts:AnyAiOutput",
     "@outputai/core/src/llm/index.d.ts:DefaultRuntimeContext",
-    "@outputai/core/src/llm/index.d.ts:GenerateImageInputs",
-    "@outputai/core/src/llm/index.d.ts:PromptCallOptions",
-    "@outputai/core/src/llm/index.d.ts:StopWhen",
-    "@outputai/core/src/llm/index.d.ts:TextCallOptions",
     "@outputai/core/src/llm/index.d.ts:WithoutToolSchemaBrands"
   ],
   "skipErrorChecking": true,

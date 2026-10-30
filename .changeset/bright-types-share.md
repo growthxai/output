@@ -1,5 +1,5 @@
 ---
-"@outputai/core": patch
+"@outputai/core": minor
 ---
 
-Added `OutputFetch`, `TemporalActivityOptions`, `GlobalContext` and `WorkflowContext` exports from their public entry points.
+Added public type exports for HTTP fetch, Temporal activity options, credential provider contexts, LLM call options and eval verification.

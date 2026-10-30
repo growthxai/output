@@ -193,7 +193,8 @@ export type Prompt = {
   instructions: string | null;
 };
 
-type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
+/** Any AI SDK structured output specification. */
+export type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
 type DefaultRuntimeContext = Record<string, unknown>;
 type CompatibleToolSchemaKey = 'inputSchema' | 'outputSchema' | 'contextSchema';
 type WithoutToolSchemaBrands<T> = T extends unknown ? {
@@ -211,7 +212,8 @@ export type CompatibleTool = WithoutToolSchemaBrands<ToolSet[string]>;
 /** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
 export type CompatibleToolSet = Record<string, CompatibleTool>;
 
-type PromptFileCallOptions = {
+/** Options for an LLM call using a prompt file. */
+export type PromptFileCallOptions = {
   /** Prompt file name (e.g. 'summary@v1') */
   prompt: string;
   /** Variables to interpolate into the prompt file */
@@ -220,7 +222,8 @@ type PromptFileCallOptions = {
   promptDir?: string;
 };
 
-type PromptObjectCallOptions = {
+/** Options for an LLM call using a loaded or custom prompt. */
+export type PromptObjectCallOptions = {
   /** Loaded or custom prompt object. */
   prompt: Prompt;
   /** Prompt objects are already rendered and cannot receive interpolation variables. */
@@ -229,13 +232,16 @@ type PromptObjectCallOptions = {
   promptDir?: never;
 };
 
-type PromptCallOptions = PromptFileCallOptions | PromptObjectCallOptions;
+/** Prompt file or loaded prompt options accepted by LLM calls. */
+export type PromptCallOptions = PromptFileCallOptions | PromptObjectCallOptions;
 
-type StopWhen<Tools extends ToolSet = ToolSet> =
+/** Stop conditions accepted by text generation calls. */
+export type StopWhen<Tools extends ToolSet = ToolSet> =
   StopCondition<NoInfer<Tools>, DefaultRuntimeContext> |
   Array<StopCondition<NoInfer<Tools>, DefaultRuntimeContext>>;
 
-type TextCallOptions<
+/** Shared options accepted by text generation calls. */
+export type TextCallOptions<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
 > = PromptCallOptions & {
@@ -290,7 +296,8 @@ export type GenerateImageInput =
     mediaType?: string;
   };
 
-type GenerateImageInputs =
+/** Image and mask inputs accepted by image generation calls. */
+export type GenerateImageInputs =
   | {
     /** Runtime image inputs for image-to-image generation */
     images: GenerateImageInput[];

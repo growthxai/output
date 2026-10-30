@@ -11,4 +11,4 @@ export {
   resolveWorkflowKeyPath,
   resolveWorkflowKeyEnvVar
 } from './paths.js';
-export type { CredentialsProvider, GlobalContext, WorkflowContext } from './types.js';
+export type { CredentialsGlobalContext, CredentialsProvider, CredentialsWorkflowContext } from './types.js';
