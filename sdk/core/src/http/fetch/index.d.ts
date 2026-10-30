@@ -1,10 +1,8 @@
 import type * as undici from 'undici';
 
-type NodeRequestInfo = string | URL | globalThis.Request;
-type NodeRequestInit = globalThis.RequestInit & Pick<undici.RequestInit, 'dispatcher'>;
-
-type OutputFetch = {
-  ( input: NodeRequestInfo, init?: NodeRequestInit ): Promise<Response>;
+/** Fetch function supporting Node and Undici request types. */
+export type OutputFetch = {
+  ( input: string | URL | globalThis.Request, init?: globalThis.RequestInit & Pick<undici.RequestInit, 'dispatcher'> ): Promise<Response>;
   ( input: undici.RequestInfo, init?: undici.RequestInit ): Promise<Response>;
 };
 
