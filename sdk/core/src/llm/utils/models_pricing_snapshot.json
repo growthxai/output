@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-10-19T06:24:47.766Z"
+    "createdAt": "2026-10-30T10:59:23.371Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -321,6 +321,15 @@
           "input": 2.2,
           "output": 11,
           "cache_read": 0.22,
+          "cache_write": 2.75
+        },
+        "reasoning": true
+      },
+      "au.anthropic.claude-sonnet-5-5": {
+        "cost": {
+          "input": 2.2,
+          "output": 11,
+          "cache_read": 0.11,
           "cache_write": 2.75
         },
         "reasoning": true
@@ -886,6 +895,33 @@
             "output": 15,
             "cache_read": 0.2,
             "cache_write": 5
+          }
+        },
+        "reasoning": true
+      },
+      "global.openai.gpt-6.1-terra": {
+        "cost": {
+          "input": 1,
+          "output": 5,
+          "cache_read": 0.05,
+          "cache_write": 1.25,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 7.5,
+              "cache_read": 0.1,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2,
+            "output": 7.5,
+            "cache_read": 0.1,
+            "cache_write": 2.5
           }
         },
         "reasoning": true
@@ -1506,6 +1542,33 @@
         },
         "reasoning": true
       },
+      "openai.gpt-6.1-terra": {
+        "cost": {
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.055,
+          "cache_write": 1.375,
+          "tiers": [
+            {
+              "input": 2.2,
+              "output": 8.25,
+              "cache_read": 0.11,
+              "cache_write": 2.75,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2.2,
+            "output": 8.25,
+            "cache_read": 0.11,
+            "cache_write": 2.75
+          }
+        },
+        "reasoning": true
+      },
       "openai.gpt-oss-120b": {
         "cost": {
           "input": 0.15,
@@ -2059,6 +2122,33 @@
         },
         "reasoning": true
       },
+      "us.openai.gpt-6.1-terra": {
+        "cost": {
+          "input": 1.1,
+          "output": 5.5,
+          "cache_read": 0.055,
+          "cache_write": 1.375,
+          "tiers": [
+            {
+              "input": 2.2,
+              "output": 8.25,
+              "cache_read": 0.11,
+              "cache_write": 2.75,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2.2,
+            "output": 8.25,
+            "cache_read": 0.11,
+            "cache_write": 2.75
+          }
+        },
+        "reasoning": true
+      },
       "us.writer.palmyra-x4-v1:0": {
         "cost": {
           "input": 2.5,
@@ -2379,15 +2469,6 @@
         },
         "reasoning": true
       },
-      "claude-opus-4-1": {
-        "cost": {
-          "input": 15,
-          "output": 75,
-          "cache_read": 1.5,
-          "cache_write": 18.75
-        },
-        "reasoning": true
-      },
       "claude-opus-4-5": {
         "cost": {
           "input": 5,
@@ -2557,13 +2638,6 @@
         },
         "reasoning": false
       },
-      "deepseek-r1": {
-        "cost": {
-          "input": 1.35,
-          "output": 5.4
-        },
-        "reasoning": true
-      },
       "deepseek-v3.2": {
         "cost": {
           "input": 0.58,
@@ -2589,6 +2663,14 @@
         "cost": {
           "input": 1.74,
           "output": 3.48
+        },
+        "reasoning": true
+      },
+      "deepseek-v4.1-flash": {
+        "cost": {
+          "input": 0.3,
+          "output": 1.2,
+          "cache_read": 0.006
         },
         "reasoning": true
       },
@@ -2671,7 +2753,7 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.13
+          "cache_read": 0.125
         },
         "reasoning": true
       },
@@ -2679,7 +2761,7 @@
         "cost": {
           "input": 1.25,
           "output": 10,
-          "cache_read": 0.13
+          "cache_read": 0.125
         },
         "reasoning": true
       },
@@ -2687,7 +2769,7 @@
         "cost": {
           "input": 0.25,
           "output": 2,
-          "cache_read": 0.03
+          "cache_read": 0.025
         },
         "reasoning": true
       },
@@ -2695,7 +2777,7 @@
         "cost": {
           "input": 0.05,
           "output": 0.4,
-          "cache_read": 0.01
+          "cache_read": 0.005
         },
         "reasoning": true
       },
@@ -2742,7 +2824,7 @@
         "cost": {
           "input": 1.75,
           "output": 14,
-          "cache_read": 0.125
+          "cache_read": 0.175
         },
         "reasoning": true
       },
@@ -2878,14 +2960,14 @@
         "cost": {
           "input": 4,
           "output": 20,
-          "cache_read": 0.5,
-          "cache_write": 6.25,
+          "cache_read": 0.4,
+          "cache_write": 5,
           "tiers": [
             {
-              "input": 10,
-              "output": 45,
-              "cache_read": 1,
-              "cache_write": 12.5,
+              "input": 8,
+              "output": 30,
+              "cache_read": 0.8,
+              "cache_write": 10,
               "tier": {
                 "type": "context",
                 "size": 272000
@@ -2893,10 +2975,10 @@
             }
           ],
           "context_over_200k": {
-            "input": 10,
-            "output": 45,
-            "cache_read": 1,
-            "cache_write": 12.5
+            "input": 8,
+            "output": 30,
+            "cache_read": 0.8,
+            "cache_write": 10
           }
         },
         "reasoning": true
@@ -3032,6 +3114,33 @@
             "output": 15,
             "cache_read": 0.2,
             "cache_write": 5
+          }
+        },
+        "reasoning": true
+      },
+      "gpt-6.1-terra": {
+        "cost": {
+          "input": 1,
+          "output": 5,
+          "cache_read": 0.05,
+          "cache_write": 1.25,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 7.5,
+              "cache_read": 0.1,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2,
+            "output": 7.5,
+            "cache_read": 0.1,
+            "cache_write": 2.5
           }
         },
         "reasoning": true
@@ -4071,28 +4180,12 @@
         },
         "reasoning": true
       },
-      "gpt-5.2-chat-latest": {
-        "cost": {
-          "input": 1.75,
-          "output": 14,
-          "cache_read": 0.175
-        },
-        "reasoning": false
-      },
       "gpt-5.2-pro": {
         "cost": {
           "input": 21,
           "output": 168
         },
         "reasoning": true
-      },
-      "gpt-5.3-chat-latest": {
-        "cost": {
-          "input": 1.75,
-          "output": 14,
-          "cache_read": 0.175
-        },
-        "reasoning": false
       },
       "gpt-5.3-codex": {
         "cost": {
@@ -4428,6 +4521,33 @@
             "output": 15,
             "cache_read": 0.2,
             "cache_write": 5
+          }
+        },
+        "reasoning": true
+      },
+      "gpt-6.1-terra": {
+        "cost": {
+          "input": 1,
+          "output": 5,
+          "cache_read": 0.05,
+          "cache_write": 1.25,
+          "tiers": [
+            {
+              "input": 2,
+              "output": 7.5,
+              "cache_read": 0.1,
+              "cache_write": 2.5,
+              "tier": {
+                "type": "context",
+                "size": 272000
+              }
+            }
+          ],
+          "context_over_200k": {
+            "input": 2,
+            "output": 7.5,
+            "cache_read": 0.1,
+            "cache_write": 2.5
           }
         },
         "reasoning": true
