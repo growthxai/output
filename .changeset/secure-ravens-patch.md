@@ -16,3 +16,7 @@ Dependency updates:
 - `undici`: `7.29.1` -> `7.30.1`, reached through `@ai-sdk/provider-utils`
 - `undici`: `8.10.2` -> `8.12.3`
 - `zod`: `4.6.5` -> `4.6.6`
+
+Peer dependency range:
+
+- `undici` min supported peer dependency version for `@outputai/core` is now `8.12.2`.

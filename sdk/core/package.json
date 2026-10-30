@@ -83,7 +83,7 @@
   "peerDependencies": {
     "zod": ">=4.3 <5",
     "ky": ">=2 <3",
-    "undici": ">=8 <9",
+    "undici": ">=8.12.2 <9",
     "ai": ">=7 <8",
     "@ai-sdk/amazon-bedrock": ">=5 <6",
     "@ai-sdk/anthropic": ">=4 <5",
