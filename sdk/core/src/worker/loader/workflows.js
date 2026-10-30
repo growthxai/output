@@ -26,6 +26,9 @@ const createWorkflowsEntrypoint = workflows => {
   const lazyExports = [ ...workflows, ...aliasExports ].map( ( { name, path } ) => `\
 async function _${name}( ...args ) {
   const { default: workflow } = await import( /* webpackMode: "eager" */ '${path}' );
+  if ( typeof workflow !== 'function' ) {
+    throw new TypeError( 'Workflow "${name}" must be exported as default.' );
+  }
   return workflow( ...args );
 }
 export { _${name} as ${name} };` );

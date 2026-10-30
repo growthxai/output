@@ -268,6 +268,7 @@ describe( 'loadWorkflows', () => {
 
     const [ contents ] = writeFileInTempDirMock.mock.calls.find( ( [ , name ] ) => name === '__workflows_entrypoint.js' );
     expect( contents ).toContain( 'await import( /* webpackMode: "eager" */ \'/abs/wf.js\' )' );
+    expect( contents ).toContain( 'Workflow "W" must be exported as default.' );
     expect( contents ).toContain( 'return workflow( ...args );' );
     expect( contents ).not.toContain( 'export { default as W }' );
   } );
