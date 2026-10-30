@@ -23,12 +23,12 @@ const createWorkflowsEntrypoint = workflows => {
   // keeps each module loaded during an activation in that workflow's own cache. A lazy export loads
   // only the invoked workflow; eager mode keeps it in the same bundle. Workflow type resolution is by
   // export name, and the metadata the framework reads is read in Node, never from the bundle.
-  const lazyExports = [ ...workflows, ...aliasExports ].map( ( { name, path }, index ) => `\
-async function __workflow_${index}( ...args ) {
+  const lazyExports = [ ...workflows, ...aliasExports ].map( ( { name, path } ) => `\
+async function _${name}( ...args ) {
   const { default: workflow } = await import( /* webpackMode: "eager" */ '${path}' );
   return workflow( ...args );
 }
-export { __workflow_${index} as ${name} };` );
+export { _${name} as ${name} };` );
 
   // The catalog stays static: it is the framework's own workflow, small, and always loaded.
   const content = [ ...lazyExports, `export { default as ${catalog.name} } from '${catalog.path}';` ].join( EOL );

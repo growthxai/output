@@ -251,9 +251,10 @@ describe( 'loadWorkflows', () => {
       calledFilename === '__workflows_entrypoint.js'
     );
     expect( filename ).toBe( '__workflows_entrypoint.js' );
-    expect( contents ).toContain( 'export { __workflow_0 as W };' );
-    expect( contents ).toContain( 'export { __workflow_1 as W_old };' );
-    expect( contents ).toContain( 'export { __workflow_2 as W_legacy };' );
+    expect( contents ).toContain( 'async function _W( ...args )' );
+    expect( contents ).toContain( 'export { _W as W };' );
+    expect( contents ).toContain( 'export { _W_old as W_old };' );
+    expect( contents ).toContain( 'export { _W_legacy as W_legacy };' );
     expect( contents ).toContain( 'export { default as catalog }' );
   } );
 
