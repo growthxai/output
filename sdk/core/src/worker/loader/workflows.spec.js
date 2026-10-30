@@ -251,10 +251,26 @@ describe( 'loadWorkflows', () => {
       calledFilename === '__workflows_entrypoint.js'
     );
     expect( filename ).toBe( '__workflows_entrypoint.js' );
-    expect( contents ).toContain( 'export { default as W } from \'/abs/wf.js\';' );
-    expect( contents ).toContain( 'export { default as W_old } from \'/abs/wf.js\';' );
-    expect( contents ).toContain( 'export { default as W_legacy } from \'/abs/wf.js\';' );
+    expect( contents ).toContain( 'async function _W( ...args )' );
+    expect( contents ).toContain( 'export { _W as W };' );
+    expect( contents ).toContain( 'export { _W_old as W_old };' );
+    expect( contents ).toContain( 'export { _W_legacy as W_legacy };' );
     expect( contents ).toContain( 'export { default as catalog }' );
+  } );
+
+  it( 'loads each workflow lazily in the same bundle and keeps it out of a static re-export', async () => {
+    const { loadWorkflows } = await import( './workflows.js' );
+    importComponentsMock.mockImplementationOnce( async function *() {
+      yield { metadata: { name: 'W' }, path: '/abs/wf.js' };
+    } );
+
+    await loadWorkflows( '/root' );
+
+    const [ contents ] = writeFileInTempDirMock.mock.calls.find( ( [ , name ] ) => name === '__workflows_entrypoint.js' );
+    expect( contents ).toContain( 'await import( /* webpackMode: "eager" */ \'/abs/wf.js\' )' );
+    expect( contents ).toContain( 'Workflow "W" must be exported as default.' );
+    expect( contents ).toContain( 'return workflow( ...args );' );
+    expect( contents ).not.toContain( 'export { default as W }' );
   } );
 
   it( 'writes trace options for workflow names, aliases, and the catalog workflow', async () => {

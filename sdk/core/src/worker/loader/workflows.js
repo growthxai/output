@@ -19,8 +19,22 @@ const createWorkflowsEntrypoint = workflows => {
     aliases.map( alias => ( { name: alias, path } ) )
   );
 
-  const content = [ ...workflows, ...aliasExports, catalog ]
-    .map( ( { name, path } ) => `export { default as ${name} } from '${path}';` ).join( EOL );
+  // A static re-export makes every cached workflow evaluate the whole catalog: Temporal's reusable VM
+  // keeps each module loaded during an activation in that workflow's own cache. A lazy export loads
+  // only the invoked workflow; eager mode keeps it in the same bundle. Workflow type resolution is by
+  // export name, and the metadata the framework reads is read in Node, never from the bundle.
+  const lazyExports = [ ...workflows, ...aliasExports ].map( ( { name, path } ) => `\
+async function _${name}( ...args ) {
+  const { default: workflow } = await import( /* webpackMode: "eager" */ '${path}' );
+  if ( typeof workflow !== 'function' ) {
+    throw new TypeError( 'Workflow "${name}" must be exported as default.' );
+  }
+  return workflow( ...args );
+}
+export { _${name} as ${name} };` );
+
+  // The catalog stays static: it is the framework's own workflow, small, and always loaded.
+  const content = [ ...lazyExports, `export { default as ${catalog.name} } from '${catalog.path}';` ].join( EOL );
 
   return writeFileInTempDir( content, WORKFLOWS_INDEX_FILENAME );
 };
