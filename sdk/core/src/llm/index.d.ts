@@ -195,11 +195,6 @@ export type Prompt = {
 
 /** Any AI SDK structured output specification. */
 export type AnyAiOutput = AIOutputNamespace.Output<unknown, unknown, unknown>;
-type DefaultRuntimeContext = Record<string, unknown>;
-type CompatibleToolSchemaKey = 'inputSchema' | 'outputSchema' | 'contextSchema';
-type WithoutToolSchemaBrands<T> = T extends unknown ? {
-  [K in keyof T]: K extends CompatibleToolSchemaKey ? unknown : T[K];
-} : never;
 
 /**
  * Structurally-compatible AI SDK 7 tool shape.
@@ -207,7 +202,11 @@ type WithoutToolSchemaBrands<T> = T extends unknown ? {
  * This derives from AI SDK's `ToolSet` and widens only schema fields so tools from packages
  * resolved with a different Zod peer instance remain assignable.
  */
-export type CompatibleTool = WithoutToolSchemaBrands<ToolSet[string]>;
+export type CompatibleTool = ToolSet[string] extends infer Tool ?
+  Tool extends unknown ? {
+    [K in keyof Tool]: K extends 'inputSchema' | 'outputSchema' | 'contextSchema' ? unknown : Tool[K];
+  } : never :
+  never;
 
 /** AI SDK tools accepted by Output APIs without requiring one exact Zod peer instance. */
 export type CompatibleToolSet = Record<string, CompatibleTool>;
@@ -237,8 +236,8 @@ export type PromptCallOptions = PromptFileCallOptions | PromptObjectCallOptions;
 
 /** Stop conditions accepted by text generation calls. */
 export type StopWhen<Tools extends ToolSet = ToolSet> =
-  StopCondition<NoInfer<Tools>, DefaultRuntimeContext> |
-  Array<StopCondition<NoInfer<Tools>, DefaultRuntimeContext>>;
+  StopCondition<NoInfer<Tools>, Record<string, unknown>> |
+  Array<StopCondition<NoInfer<Tools>, Record<string, unknown>>>;
 
 /** Shared options accepted by text generation calls. */
 export type TextCallOptions<
@@ -353,7 +352,7 @@ export type OutputAgentStreamParameters = OutputAgentGenerateWithStreamingParame
  * `ai` does not export a named `Source` type.
  */
 export type ExtractedSource =
-  AIGenerateTextResult<ToolSet, DefaultRuntimeContext, AnyAiOutput>['sources'][number];
+  AIGenerateTextResult<ToolSet, Record<string, unknown>, AnyAiOutput>['sources'][number];
 
 export type LLMGenerationUsageStatus = 'complete' | 'incomplete';
 
@@ -444,7 +443,7 @@ export interface LLMGenerationMeteringEvent {
  * `onEnd` payload plus `result`, `cost`, and merged `sources`.
  */
 export type WrappedStreamTextOnEndEvent<Tools extends ToolSet = ToolSet> =
-  Parameters<GenerateTextOnEndCallback<Tools, DefaultRuntimeContext>>[0] & {
+  Parameters<GenerateTextOnEndCallback<Tools, Record<string, unknown>>>[0] & {
     result: string;
     cost: LLMGenerationCost | null;
     sources: ExtractedSource[];
@@ -462,7 +461,7 @@ export type WrappedStreamTextOnEndCallback<Tools extends ToolSet = ToolSet> = (
 export type GenerateTextResult<
   Tools extends ToolSet = ToolSet,
   OutputSpec extends AnyAiOutput = AnyAiOutput
-> = AIGenerateTextResult<Tools, DefaultRuntimeContext, OutputSpec> & {
+> = AIGenerateTextResult<Tools, Record<string, unknown>, OutputSpec> & {
   /** Unified field name alias for 'text' */
   result: string;
   /** Calculated cost for the LLM call; `null` when pricing data is not available */
@@ -624,7 +623,7 @@ export function streamText<
   OutputSpec extends AnyAiOutput = AnyAiOutput
 >(
   args: StreamTextParameters<Tools, OutputSpec>
-): AIStreamTextResult<Tools, DefaultRuntimeContext, OutputSpec>;
+): AIStreamTextResult<Tools, Record<string, unknown>, OutputSpec>;
 
 /**
  * Use an image model to generate images from a prompt filename or object.
@@ -693,6 +692,6 @@ export declare class Agent<
    * `onEnd` receives {@link WrappedStreamTextOnEndEvent} (`result`, `cost`, `sources`), matching {@link streamText}.
    */
   stream( options?: OutputAgentStreamParameters ): Promise<
-    AIStreamTextResult<ToolSet, DefaultRuntimeContext, OutputSpec>
+    AIStreamTextResult<ToolSet, Record<string, unknown>, OutputSpec>
   >;
 }

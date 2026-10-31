@@ -9,7 +9,8 @@ export type CheckContext<TInput = unknown, TOutput = unknown> = {
 };
 
 /** Evaluation function accepted by {@link verify}. */
-export type CheckFn<TInput, TOutput> = ( ctx: CheckContext<TInput, TOutput> ) => EvaluationResult | Promise<EvaluationResult>;
+export type CheckFn<TInput = unknown, TOutput = unknown> =
+  ( ctx: CheckContext<TInput, TOutput> ) => EvaluationResult | Promise<EvaluationResult>;
 
 /** Options accepted by {@link verify}. */
 export type VerifyOptions<I extends z.ZodType = z.ZodType<unknown>, O extends z.ZodType = z.ZodType<unknown>> = {

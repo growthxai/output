@@ -10,12 +10,6 @@
   ],
   "entryPointStrategy": "resolve",
   "excludeExternals": true,
-  "intentionallyNotExported": [
-    "@outputai/core/src/interface/types.d.ts:AnyZodSchema",
-    "@outputai/core/src/interface/types.d.ts:DeepPartial",
-    "@outputai/core/src/llm/index.d.ts:DefaultRuntimeContext",
-    "@outputai/core/src/llm/index.d.ts:WithoutToolSchemaBrands"
-  ],
   "skipErrorChecking": true,
   "disableSources": true,
   "outputs": [
