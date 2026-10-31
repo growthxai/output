@@ -1,6 +1,6 @@
 {
   "name": "@outputai/core",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "The core module of the output framework",
   "type": "module",
   "engines": {
@@ -93,12 +93,24 @@
     "@ai-sdk/perplexity": ">=4 <5"
   },
   "peerDependenciesMeta": {
-    "@ai-sdk/amazon-bedrock": { "optional": true },
-    "@ai-sdk/anthropic": { "optional": true },
-    "@ai-sdk/azure": { "optional": true },
-    "@ai-sdk/google-vertex": { "optional": true },
-    "@ai-sdk/openai": { "optional": true },
-    "@ai-sdk/perplexity": { "optional": true }
+    "@ai-sdk/amazon-bedrock": {
+      "optional": true
+    },
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
+      "optional": true
+    },
+    "@ai-sdk/google-vertex": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@ai-sdk/perplexity": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/js-yaml": "catalog:",

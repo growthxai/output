@@ -1,5 +1,76 @@
 # @outputai/cli
 
+## 0.16.0
+
+### Patch Changes
+
+- 2156c4b: Folded `@outputai/llm` as a feature of `@outputai/core`, under the `@outputai/core/llm` entry point. Usage is the same: replace `@outputai/llm` imports with `@outputai/core/llm`. The `@outputai/llm` package is no longer published. Other changes are:
+
+  - Added `ai` as a peer dependency of `@outputai/core`, and the built-in AI SDK providers (`@ai-sdk/amazon-bedrock`, `@ai-sdk/anthropic`, `@ai-sdk/azure`, `@ai-sdk/google-vertex`, `@ai-sdk/openai` and `@ai-sdk/perplexity`) as optional peer dependencies. Install the providers your prompts use; using a provider whose package is not installed throws a `FatalError` naming the package to install.
+  - Changed `getProviderNames()` to list only the built-in providers whose package is installed, plus registered ones.
+  - Updated the CLI project templates and agent instructions to use `@outputai/core/llm`, and added `@ai-sdk/anthropic` and `@ai-sdk/openai` to the project template.
+    The `llm:generation:metering` and `cost:llm:request` events and the LLM trace attributes are unchanged.
+
+- 69acd83: Stopped publishing the `@outputai/output` umbrella package. Projects depend on `@outputai/core` and, as a dev dependency, `@outputai/cli` instead. Other changes are:
+
+  - Changed the project template to depend on `@outputai/core` and `@outputai/cli` instead of `@outputai/output`.
+  - Changed `output fix` to replace an `@outputai/output` dependency with `@outputai/core` in `dependencies` and `@outputai/cli` in `devDependencies`, at the same version.
+  - Changed the `output update` warning about a version range that holds back the CLI so it no longer refers to `@outputai/output`.
+  - Removed the internal `@outputai/core/sdk/helpers` and `@outputai/core/sdk/runtime` entry points.
+  - Removed support for the `output-workflow-bundle` package export condition when bundling workflows.
+
+- e254388: Folded `@outputai/http` as a feature of `@outputai/core`, under the `@outputai/core/http` entry point. Usage is the same: replace `@outputai/http` imports with `@outputai/core/http`. The `@outputai/http` package is no longer published. Other changes are:
+
+  - Added `ky` and `undici` as peer dependencies of `@outputai/core`, and removed `undici` from its regular dependencies.
+  - Added `HTTPRequestCount` and `HTTPRequestCost` to `@outputai/core/http`.
+  - Updated the CLI project templates and agent instructions to use `@outputai/core/http`.
+  - Changed verbose HTTP tracing (`OUTPUT_TRACE_HTTP_VERBOSE`) to record request and response bodies with the same parsing as `sendHttpRequest()`, so multipart bodies are now stored as base64.
+
+  Changed `sendHttpRequest()` response body parsing when `responseOptions.includeBody` is `true`:
+
+  - Changed XML, form-urlencoded and JavaScript content types to be returned as text instead of base64.
+  - Changed empty or invalid JSON bodies to be returned as raw text instead of throwing.
+
+- eaacecf: Dependency updates:
+
+  - `@hono/node-server`: `2.0.10` -> `2.1.3`, reached through `@modelcontextprotocol/sdk`
+  - `@modelcontextprotocol/sdk`: `1.31.0` -> `1.32.0`, reached through `@anthropic-ai/claude-agent-sdk`
+  - `body-parser`: `2.3.0` -> `2.4.0`, reached through `express`
+  - `fast-uri`: `3.1.8` -> `3.1.9`, reached through `ajv`
+  - `hono`: `4.13.10` -> `4.13.11`, reached through `@modelcontextprotocol/sdk`
+  - `ip-address`: `10.7.2` -> `10.7.4`, reached through `@modelcontextprotocol/sdk`
+  - `qs`: `6.16.0` -> `6.16.1`, reached through `express` and `body-parser`
+  - `undici`: `7.29.1` -> `7.30.1`, reached through `@ai-sdk/provider-utils`
+  - `undici`: `8.11.0` -> `8.12.3`, fixing Node's built-in `fetch` returning gzip response bodies undecoded after Undici is imported
+  - `zod`: `4.6.5` -> `4.6.6`
+
+  Peer dependency ranges:
+
+  - `undici` min supported peer dependency version for `@outputai/core` is now `8.12.2`.
+  - `zod` min supported peer dependency version for `@outputai/core` is now `4.6.6`.
+
+- 4a437bf: Patching handlebars version from 4.7.9 to 4.7.10 to fix vulnerabilities.
+- 5db73d3: Folded `@outputai/evals` as a feature of `@outputai/core`, under the `@outputai/core/evals` entry point. Replace `@outputai/evals` imports with `@outputai/core/evals`, except for the LLM judges, which moved to `@outputai/core/llm`. The `@outputai/evals` package is no longer published. Other changes are:
+
+  - Moved `judgeVerdict`, `judgeScore`, `judgeBoolean`, `judgeLabel` and the `JudgeArgs` type to `@outputai/core/llm`. Their arguments and results are unchanged.
+  - Removed `interpretResult`, `aggregateCaseVerdict`, `renderEvalOutput`, `computeExitCode`, `getEvalWorkflowName`, `isEvalWorkflow` and `getParentWorkflowName` from the public API. They were used internally by the eval workflow and the CLI.
+  - Removed the internal Zod schemas from the public API. `DatasetSchema` and `EvalOutputSchema` are still exported, along with the `VERDICT` and `CRITICALITY` values and the eval types.
+  - Changed the workflow bundler to replace steps and evaluators that are referenced as values in workflow files, rather than called, with their activity names, and to strip their imports. Previously their modules were bundled into the workflow sandbox when the file had no activity calls.
+  - Removed `@outputai/evals` from `@outputai/cli`.
+
+- Updated dependencies [2156c4b]
+- Updated dependencies [17f6c8d]
+- Updated dependencies [91027b1]
+- Updated dependencies [c2756ea]
+- Updated dependencies [755b932]
+- Updated dependencies [606278c]
+- Updated dependencies [69acd83]
+- Updated dependencies [e254388]
+- Updated dependencies [eaacecf]
+- Updated dependencies [5db73d3]
+- Updated dependencies [fd6bb62]
+  - @outputai/core@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
