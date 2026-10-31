@@ -8,9 +8,12 @@ export type CheckContext<TInput = unknown, TOutput = unknown> = {
   context: { ground_truth: Record<string, unknown> };
 };
 
-type CheckFn<TInput, TOutput> = ( ctx: CheckContext<TInput, TOutput> ) => EvaluationResult | Promise<EvaluationResult>;
+/** Evaluation function accepted by {@link verify}. */
+export type CheckFn<TInput = unknown, TOutput = unknown> =
+  ( ctx: CheckContext<TInput, TOutput> ) => EvaluationResult | Promise<EvaluationResult>;
 
-type VerifyOptions<I extends z.ZodType = z.ZodType<unknown>, O extends z.ZodType = z.ZodType<unknown>> = {
+/** Options accepted by {@link verify}. */
+export type VerifyOptions<I extends z.ZodType = z.ZodType<unknown>, O extends z.ZodType = z.ZodType<unknown>> = {
   name: string;
   input?: I;
   output?: O;

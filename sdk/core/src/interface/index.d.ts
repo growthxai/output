@@ -8,3 +8,4 @@ export * from './evaluator.js';
 export * from './workflow.js';
 export * from './evaluation_result.js';
 export * from './logger.js';
+export type { AnyZodSchema, DeepPartial, TemporalActivityOptions } from './types.js';

@@ -1,14 +1,14 @@
-export interface GlobalContext {
+export interface CredentialsGlobalContext {
   environment: string | undefined;
 }
 
-export interface WorkflowContext {
+export interface CredentialsWorkflowContext {
   workflowName: string;
   workflowDir: string | undefined;
   environment?: string | undefined;
 }
 
 export interface CredentialsProvider {
-  loadGlobal( context: GlobalContext ): Record<string, unknown>;
-  loadForWorkflow( context: WorkflowContext ): Record<string, unknown> | null;
+  loadGlobal( context: CredentialsGlobalContext ): Record<string, unknown>;
+  loadForWorkflow( context: CredentialsWorkflowContext ): Record<string, unknown> | null;
 }

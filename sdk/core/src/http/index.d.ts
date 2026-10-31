@@ -17,6 +17,7 @@ export type HttpRequestCostEvent = {
 };
 
 export { outputFetch } from './fetch/index.js';
+export type { OutputFetch } from './fetch/index.js';
 export { HTTPRequestCount } from './fetch/logger.js';
 export { createKyClient } from './ky/index.js';
 
