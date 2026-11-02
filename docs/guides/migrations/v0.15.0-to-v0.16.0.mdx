@@ -28,6 +28,7 @@ Separately, the worker no longer sets defaults for two workflow concurrency vari
 - The legacy `cost:llm:request` event and `llm:usage` trace attribute remain token-only and unchanged.
 - `sendHttpRequest()` returns XML, form-urlencoded, and JavaScript response bodies as text instead of base64, and returns empty or invalid JSON bodies as raw text instead of throwing.
 - With `OUTPUT_TRACE_HTTP_VERBOSE` on, HTTP request and response bodies in trace files are parsed the same way as `sendHttpRequest()`. Multipart bodies are stored as base64.
+- Step and workflow failures no longer duplicate the error as their own `ApplicationFailure` cause. API responses, traces and logs expose one fewer level in the cause chain.
 
 ## Migration steps
 
@@ -189,6 +190,7 @@ Two fields were added to the same block: `memory.nonMainHeap` (`rss - heapUsed`)
 - Install the `@ai-sdk/*` provider packages your prompts use.
 - Update normalized LLM metering consumers to handle native web search tool items and charges.
 - Remove base64 decoding of XML, form-urlencoded, and JavaScript response bodies from `sendHttpRequest()`.
+- Update API response, trace and log consumers that read the previous duplicated failure cause level.
 - Set `TEMPORAL_MAX_CACHED_WORKFLOWS` and `TEMPORAL_MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS` explicitly if you relied on the old defaults or your workflows hold large state.
 - Lower `--max-old-space-size-percentage` to `40` if your Dockerfile uses the earlier Railway or Render value of `80`.
 - Rename `memory.constrainedMemory` to `memory.memoryLimit` in anything that parses worker telemetry.
