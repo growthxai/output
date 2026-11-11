@@ -108,6 +108,7 @@
               "operations/external-workflow-packages",
               "operations/testing",
               "operations/worker-tuning",
+              "operations/worker-shutdown",
               "operations/tracing"
             ]
           },
@@ -177,7 +178,8 @@
                   "migrations/v0.12.0-to-v0.13.0",
                   "migrations/v0.13.0-to-v0.14.0",
                   "migrations/v0.14.0-to-v0.15.0",
-                  "migrations/v0.15.0-to-v0.16.0"
+                  "migrations/v0.15.0-to-v0.16.0",
+                  "migrations/v0.16.0-to-v0.17.0"
                 ]
               }
             ]

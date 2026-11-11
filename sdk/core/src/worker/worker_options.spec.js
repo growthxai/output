@@ -13,8 +13,8 @@ const defaultConfigs = {
   maxConcurrentActivityTaskPolls: 5,
   maxConcurrentWorkflowTaskPolls: 5,
   workflowThreadPoolSize: undefined,
-  shutdownForceTime: undefined,
-  shutdownGraceTime: undefined,
+  shutdownForceTimeMs: 20_000,
+  shutdownGraceTimeMs: 15_000,
   workerTuner: undefined
 };
 
@@ -38,7 +38,9 @@ describe( 'worker/worker_options', () => {
     expect( buildWorkerOptions() ).toStrictEqual( {
       maxConcurrentActivityTaskExecutions: 40,
       maxConcurrentActivityTaskPolls: 5,
-      maxConcurrentWorkflowTaskPolls: 5
+      maxConcurrentWorkflowTaskPolls: 5,
+      shutdownForceTime: 20_000,
+      shutdownGraceTime: 15_000
     } );
   } );
 
@@ -47,8 +49,8 @@ describe( 'worker/worker_options', () => {
       maxConcurrentWorkflowTaskExecutions: 200,
       maxCachedWorkflows: 1000,
       workflowThreadPoolSize: 2,
-      shutdownForceTime: '30s',
-      shutdownGraceTime: '10s'
+      shutdownForceTimeMs: 30_000,
+      shutdownGraceTimeMs: 10_000
     } );
 
     expect( buildWorkerOptions() ).toStrictEqual( {
@@ -58,8 +60,8 @@ describe( 'worker/worker_options', () => {
       maxConcurrentActivityTaskPolls: 5,
       maxConcurrentWorkflowTaskPolls: 5,
       workflowThreadPoolSize: 2,
-      shutdownForceTime: '30s',
-      shutdownGraceTime: '10s'
+      shutdownForceTime: 30_000,
+      shutdownGraceTime: 10_000
     } );
   } );
 
@@ -90,7 +92,9 @@ describe( 'worker/worker_options', () => {
         maxCachedWorkflows: 1000,
         maxConcurrentActivityTaskPolls: 5,
         maxConcurrentWorkflowTaskPolls: 5,
-        workflowThreadPoolSize: 2
+        workflowThreadPoolSize: 2,
+        shutdownForceTime: 20_000,
+        shutdownGraceTime: 15_000
       } );
     } );
 

@@ -53,7 +53,9 @@ const {
     taskQueue: 'test-queue',
     catalogId: 'test-catalog',
     grpcProxy: undefined,
-    hookFlushTimeoutMs: 5000
+    hookFlushTimeoutMs: 5000,
+    shutdownForceTimeMs: 20_000,
+    shutdownGraceTimeMs: 15_000
   };
 
   /**
@@ -141,7 +143,7 @@ const {
     } ),
     setupTelemetryMock: vi.fn(),
     setupTemporalLoggerMock: vi.fn(),
-    shutdownServicesMock: vi.fn().mockResolvedValue( [] ),
+    shutdownServicesMock: vi.fn().mockResolvedValue( undefined ),
     workerRunnerInstance
   };
 } );
@@ -223,6 +225,8 @@ describe( 'worker/index', () => {
     resetPromises();
     configValues.apiKey = undefined;
     configValues.grpcProxy = undefined;
+    configValues.shutdownForceTimeMs = 20_000;
+    configValues.shutdownGraceTimeMs = 15_000;
     workerRunnerInstance.running = false;
     workerRunnerInstance.options = null;
     connectionMonitorInstance.running = false;
@@ -304,6 +308,30 @@ describe( 'worker/index', () => {
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
     } );
 
+    it.each( [
+      [ 'equal to', 15_000, 15_000 ],
+      [ 'smaller than', 10_000, 15_000 ]
+    ] )( 'warns when the shutdown force time is %s the grace time', async ( _, force, grace ) => {
+      configValues.shutdownForceTimeMs = force;
+      configValues.shutdownGraceTimeMs = grace;
+
+      await bootWorker();
+
+      expect( mockLog.warn ).toHaveBeenCalledWith(
+        expect.stringContaining( 'force time is not bigger than its grace time' ),
+        { shutdownForceTimeMs: force, shutdownGraceTimeMs: grace }
+      );
+    } );
+
+    it( 'does not warn about the shutdown times when the force time is bigger than the grace time', async () => {
+      await bootWorker();
+
+      expect( mockLog.warn ).not.toHaveBeenCalledWith(
+        expect.stringContaining( 'force time is not bigger' ),
+        expect.anything()
+      );
+    } );
+
     it( 'enables TLS when an apiKey is set', async () => {
       configValues.apiKey = 'secret';
       const { NativeConnection } = await import( '@temporalio/worker' );
@@ -356,18 +384,12 @@ describe( 'worker/index', () => {
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
       expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.anything() );
-      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0 } );
-      expect( process.exit ).toHaveBeenCalledWith( 0 );
-    } );
-
-    it( 'still exits cleanly when a service other than the worker failed to stop', async () => {
-      await bootWorker();
-      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'connection', error: new Error( 'close failed' ) } ] );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Shutting down', {
+        shutdownForceTimeMs: 20_000,
+        shutdownGraceTimeMs: 15_000,
+        hookFlushTimeoutMs: 5000
+      } );
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0, shutdownDurationMs: expect.any( Number ) } );
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
@@ -420,15 +442,6 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
-    it( 'exits with a failure when the worker never finished draining', async () => {
-      await bootWorker();
-      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'worker', error: new Error( 'drain failed' ) } ] );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( process.exit ).toHaveBeenCalledWith( 1 );
-    } );
     it( 'reports a lost connection and shuts down', async () => {
       const error = new Error( 'connection lost' );
       await bootWorker();

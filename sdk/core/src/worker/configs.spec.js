@@ -17,7 +17,8 @@ const CONFIG_KEYS = [
   'OUTPUT_ACTIVITY_HEARTBEAT_ENABLED',
   'TEMPORAL_SHUTDOWN_FORCE_TIME',
   'TEMPORAL_SHUTDOWN_GRACE_TIME',
-  'OUTPUT_HOOK_FLUSH_TIMEOUT_MS'
+  'OUTPUT_HOOK_FLUSH_TIMEOUT_MS',
+  'OUTPUT_TEMPORAL_LOG_LEVEL'
 ];
 
 const setEnv = ( overrides = {} ) => {
@@ -72,8 +73,9 @@ describe( 'worker/configs', () => {
     expect( configs.workerTelemetryIntervalMs ).toBe( 0 );
     expect( configs.activityHeartbeatIntervalMs ).toBe( 2 * 60 * 1000 );
     expect( configs.activityHeartbeatEnabled ).toBe( true );
-    expect( configs.shutdownForceTime ).toBe( '20s' );
-    expect( configs.shutdownGraceTime ).toBe( '15s' );
+    expect( configs.shutdownForceTimeMs ).toBe( 20_000 );
+    expect( configs.shutdownGraceTimeMs ).toBe( 15_000 );
+    expect( configs.temporalLogLevel ).toBe( 'INFO' );
     expect( configs.hookFlushTimeoutMs ).toBe( 5000 );
     expect( configs.taskQueue ).toBe( 'test-catalog' );
     expect( configs.catalogId ).toBe( 'test-catalog' );
@@ -151,8 +153,34 @@ describe( 'worker/configs', () => {
     } );
     const configs = await loadConfigs();
 
-    expect( configs.shutdownForceTime ).toBe( '15000' );
-    expect( configs.shutdownGraceTime ).toBe( '15s' );
+    expect( configs.shutdownForceTimeMs ).toBe( 15000 );
+    expect( configs.shutdownGraceTimeMs ).toBe( 15_000 );
+  } );
+
+  it.each( [
+    [ '0', 0 ],
+    [ '250ms', 250 ],
+    [ '90s', 90_000 ],
+    [ '2m', 120_000 ],
+    [ '1h', 3_600_000 ],
+    [ '1d', 86_400_000 ],
+    [ '1.5s', 1_500 ],
+    [ '15 s', 15_000 ],
+    [ '15S', 15_000 ],
+    [ '2M', 120_000 ]
+  ] )( 'converts the Temporal shutdown duration "%s" to %i ms', async ( value, expectedMs ) => {
+    setEnv( { TEMPORAL_SHUTDOWN_FORCE_TIME: value, TEMPORAL_SHUTDOWN_GRACE_TIME: value } );
+    const configs = await loadConfigs();
+
+    expect( configs.shutdownForceTimeMs ).toBe( expectedMs );
+    expect( configs.shutdownGraceTimeMs ).toBe( expectedMs );
+  } );
+
+  it.each( [ '1.5', '-5s', '5w', '5 minutes', 's' ] )( 'throws when the Temporal shutdown duration is "%s"', async value => {
+    setEnv( { TEMPORAL_SHUTDOWN_GRACE_TIME: value } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'falls back to the defaults when Temporal shutdown durations are empty', async () => {
@@ -163,9 +191,30 @@ describe( 'worker/configs', () => {
     } );
     const configs = await loadConfigs();
 
-    expect( configs.shutdownForceTime ).toBe( '20s' );
-    expect( configs.shutdownGraceTime ).toBe( '15s' );
+    expect( configs.shutdownForceTimeMs ).toBe( 20_000 );
+    expect( configs.shutdownGraceTimeMs ).toBe( 15_000 );
     expect( configs.hookFlushTimeoutMs ).toBe( 5000 );
+  } );
+
+  it( 'parses the Temporal log level case-insensitively', async () => {
+    setEnv( { OUTPUT_TEMPORAL_LOG_LEVEL: 'debug' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporalLogLevel ).toBe( 'DEBUG' );
+  } );
+
+  it( 'falls back to the default Temporal log level when it is empty', async () => {
+    setEnv( { OUTPUT_TEMPORAL_LOG_LEVEL: '' } );
+    const configs = await loadConfigs();
+
+    expect( configs.temporalLogLevel ).toBe( 'INFO' );
+  } );
+
+  it( 'throws when the Temporal log level is invalid', async () => {
+    setEnv( { OUTPUT_TEMPORAL_LOG_LEVEL: 'verbose' } );
+    vi.resetModules();
+
+    await expect( import( './configs.js' ) ).rejects.toThrow();
   } );
 
   it( 'throws when Temporal shutdown durations are invalid', async () => {

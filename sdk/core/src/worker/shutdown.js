@@ -5,49 +5,43 @@ const log = createChildLogger( 'Worker Shutdown' );
 
 /**
  * Gracefully shuts every running service down, in order.
- * A service that fails to stop never interrupts the sequence, it is reported back instead.
- * @returns {Promise<Array<{ service: string, error: Error }>>} one entry per service that failed to stop
+ * A service that fails to stop never interrupts the sequence
  */
 export const shutdownServices = async ( { workerRunner, connectionMonitor, catalogPublisher, connection } ) => {
   const shutdownJobs = [
     {
-      service: 'worker',
       label: 'Stopping Worker',
       isActive: () => workerRunner?.running,
       stop: () => workerRunner.stop()
     },
     {
-      service: 'connection_monitor',
       label: 'Stopping Connection Monitor',
       isActive: () => connectionMonitor?.running,
       stop: () => connectionMonitor.stop()
     },
     {
-      service: 'catalog_publisher',
       label: 'Interrupting Catalog Publisher',
       isActive: () => catalogPublisher?.running,
       stop: () => catalogPublisher.interrupt()
     },
     {
-      service: 'connection',
       label: 'Closing Connection',
       isActive: () => connection,
       stop: () => connection.close()
     }
   ];
 
-  const failures = [];
-  for ( const { service, label, isActive, stop } of shutdownJobs ) {
+  for ( const { label, isActive, stop } of shutdownJobs ) {
     if ( isActive() ) {
+      const shutdownStartedAt = Date.now();
       log.info( `${label}...` );
       // a try covers a service that throws instead of rejecting, which a catch on the promise would miss
       try {
         await stop();
+        log.info( `${label} complete`, { shutdownDurationMs: Date.now() - shutdownStartedAt } );
       } catch ( error ) {
-        failures.push( { service, error } );
-        log.warn( `${label} error`, { error: serializeError( error ) } );
+        log.warn( `${label} failed`, { error: serializeError( error ), shutdownDurationMs: Date.now() - shutdownStartedAt } );
       }
     }
   }
-  return failures;
 };

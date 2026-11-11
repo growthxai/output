@@ -74,14 +74,16 @@ Publishing the catalog gates step 5. If the worker cannot publish a catalog matc
 
 `SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, closes its Temporal connection, then awaits pending hook callbacks for up to `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`. A second signal forces an immediate exit.
 
-Those three values are a single budget, and it has to fit inside the window your platform allows between `SIGTERM` and `SIGKILL`. The worst case is `TEMPORAL_SHUTDOWN_FORCE_TIME` plus `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`, since the drain runs to its bound and then the flush runs to its own. The defaults total 25 seconds against the 30 seconds most platforms allow, leaving 5 seconds of margin. Raise the platform window before raising any of them - on Render that is `maxShutdownDelaySeconds`, on Kubernetes `terminationGracePeriodSeconds` - or the platform terminates the process mid-flush and the hook data is lost.
+Those three values are a single budget, and it has to fit inside the window your platform allows between `SIGTERM` and `SIGKILL`. The worst case is `TEMPORAL_SHUTDOWN_FORCE_TIME` plus `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`, since the drain runs to its bound and then the flush runs to its own. The defaults total 25 seconds against the 30 seconds Render and Kubernetes allow by default, leaving 5 seconds of margin. Raise the platform window before raising any of them - on Render that is `maxShutdownDelaySeconds`, on Kubernetes `terminationGracePeriodSeconds` - or the platform terminates the process mid-flush and the hook data is lost.
 
-Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains. That drain is capped at 60 seconds: a worker still shutting down when the cap expires force quits. The cap is fixed, independent of `TEMPORAL_SHUTDOWN_FORCE_TIME`, and applies only to this path - a shutdown started by a signal is bounded by a second signal or by your platform instead.
+Uncaught exceptions and unhandled rejections take the same path, so in-flight work still drains. That drain is capped at 60 seconds: a worker still shutting down when the cap expires force quits. The cap is fixed, independent of `TEMPORAL_SHUTDOWN_FORCE_TIME`, and applies only to this path - a shutdown started by a signal is bounded by `TEMPORAL_SHUTDOWN_FORCE_TIME`, a second signal, or your platform's kill window.
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown and the worker drained inside `TEMPORAL_SHUTDOWN_FORCE_TIME`. A service other than the worker failing to stop is logged as a warning and does not change the code |
-| `1` | Startup failed, the worker failed to stop for any reason - including in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME` - the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
+| `0` | A signal requested the shutdown. This includes in-flight work that did not finish before `TEMPORAL_SHUTDOWN_FORCE_TIME`, which is abandoned and logged as a warning. A service failing to stop never changes the code |
+| `1` | Startup failed, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit |
+
+See [Worker Shutdown](/operations/worker-shutdown) for sizing these values and reading the shutdown logs.
 
 ### File Discovery
 
@@ -542,7 +544,7 @@ OUTPUT_LOG_LEVEL=debug
 
 When unset, development defaults to `debug` and production defaults to `info`.
 
-Use `OUTPUT_TEMPORAL_LOG_LEVEL` for Temporal SDK / Core runtime logs. It takes Temporal levels (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), not Winston levels. Default: `INFO`.
+Use `OUTPUT_TEMPORAL_LOG_LEVEL` for Temporal SDK / Core runtime logs. It takes Temporal levels (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), not Winston levels, in any letter case. Any other value fails worker startup. Default: `INFO`.
 
 ### Metadata
 
