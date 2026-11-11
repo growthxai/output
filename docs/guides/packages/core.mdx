@@ -49,7 +49,7 @@ import {
 | `EvaluationFeedback` | Structured feedback (issue + suggestion + priority) |
 | `sendHttpRequest` | Send HTTP requests from within workflows |
 | `sendPostRequestAndAwaitWebhook` | Send a POST and pause until a webhook responds |
-| `Logger` | Structured logger that works from both workflows and steps |
+| `Logger` | Structured logger that works from workflows, steps, and hook callbacks |
 | `FatalError` | Non-retryable error — stops immediately |
 | `TransparentFatalError` | Non-retryable wrapper that surfaces its original error |
 | `ValidationError` | Schema validation failure — stops immediately |
@@ -481,9 +481,9 @@ The worker sends [Activity Heartbeats](https://docs.temporal.io/develop/typescri
 
 ## Logging
 
-`@outputai/core` exports a `Logger` object that you can call from both workflows and steps. Use the same shape as the internal worker logger: a string message plus an optional metadata object.
+`@outputai/core` exports a `Logger` object that you can call from workflows, steps, and hook callbacks. Use the same shape as the internal worker logger: a string message plus an optional metadata object.
 
-Under the hood, Output routes all logs into the worker's Winston logger. Workflow logs cross the Temporal sandbox through workflow sinks, while step logs use an activity-scoped bridge. Both paths end up in the same worker log hooks, so the output format, namespaces, and log level filtering stay consistent with the rest of the runtime.
+Under the hood, Output routes all logs into the worker's Winston logger. Workflow logs cross the Temporal sandbox through workflow sinks, while step logs use an activity-scoped bridge. Logs from hook callbacks run outside both, so they go straight to the worker. All paths end up in the same worker log hooks, so the output format, namespaces, and log level filtering stay consistent with the rest of the runtime.
 
 ```typescript workflow.ts
 import { workflow, Logger, z } from '@outputai/core';
@@ -578,7 +578,7 @@ If you need to include a value with one of those meanings, use a domain-specific
 
 ### Namespace
 
-Logs from within workflows have the "Workflow" namespace, while those from activity context have "Activity".
+Logs from within workflows have the "Workflow" namespace, while those from activity context have "Activity". Logs from hook callbacks, which run outside any workflow or activity, have the "Worker" namespace.
 
 Namespace is a discrete field in the JSON output in production, and a prefix for the string message in development.
 

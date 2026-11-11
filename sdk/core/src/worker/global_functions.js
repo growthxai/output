@@ -7,7 +7,7 @@ import { assignImmutableProperty } from '#helpers/object';
  * Sets global functions on globalThis
  */
 export const bindGlobalFunctions = () => {
-  /** Defines the activity logger function, accessible in activity context via logger interface */
+  /** Defines the worker logger function, accessible from activity and worker (host) context via logger interface */
   assignImmutableProperty( globalThis, WORKER_LOGGER_SYMBOL, ( { level, message, metadata } ) => {
     const context = asyncLocalStorage.getStore();
     if ( context ) { // means we are in an activity

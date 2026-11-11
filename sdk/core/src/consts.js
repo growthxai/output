@@ -7,7 +7,7 @@ export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 
 export const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
 export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );
-export const WORKER_LOGGER_SYMBOL = Symbol.for( '__worker_logger' );
+export const WORKER_LOGGER_SYMBOL = Symbol.for( '@outputai/core:__worker_logger' );
 
 export const ComponentType = {
   EVALUATOR: 'evaluator',

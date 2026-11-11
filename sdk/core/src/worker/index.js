@@ -52,6 +52,9 @@ const execute = async () => {
   log.info( 'Setting up Temporal Logger...' );
   run( setupTemporalLogger );
 
+  log.info( 'Binding globals...' );
+  run( bindGlobalFunctions );
+
   log.info( 'Loading config...', { callerDir } );
   await run( () => loadHooks( callerDir ) );
 
@@ -72,9 +75,6 @@ const execute = async () => {
 
   log.info( 'Computing catalog source code hash...' );
   const catalogHash = await run( () => hashSourceCode( callerDir ) );
-
-  log.info( 'Binding globals...' );
-  run( bindGlobalFunctions );
 
   log.info( 'Connecting Temporal...' );
   const proxy = grpcProxy ? { type: 'http-connect', targetHost: grpcProxy } : undefined;
