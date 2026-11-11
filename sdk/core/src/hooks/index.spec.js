@@ -83,7 +83,7 @@ describe( 'hooks/index', () => {
 
       expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.ACTIVITY_ERROR, expect.any( Function ) );
       expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKFLOW_ERROR, expect.any( Function ) );
-      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.any( Function ) );
+      expect( mainEventBusMock.on ).toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.any( Function ) );
     } );
 
     it( 'invokes handler with activity-shaped payload, forwarding bus fields', async () => {
@@ -141,7 +141,7 @@ describe( 'hooks/index', () => {
       onError( handler );
 
       const error = new Error( 'rt' );
-      await mainOnHandlers[BusEventType.RUNTIME_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
+      await mainOnHandlers[BusEventType.WORKER_ERROR]( { eventId: 'evt-rt-1', eventDate, error } );
 
       expect( handler ).toHaveBeenCalledWith( { eventId: 'evt-rt-1', eventDate, source: 'runtime', error } );
       expect( logErrorMock ).toHaveBeenCalledWith( 'onError hook error', {

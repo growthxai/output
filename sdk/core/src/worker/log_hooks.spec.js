@@ -17,8 +17,17 @@ const createLoggerMock = vi.hoisted( () => () => ( {
 } ) );
 const activityLogMock = vi.hoisted( () => createLoggerMock() );
 const workflowLogMock = vi.hoisted( () => createLoggerMock() );
+const workerLogMock = vi.hoisted( () => createLoggerMock() );
 const createChildLoggerMock = vi.hoisted( () =>
-  vi.fn( name => ( name === 'Activity' ? activityLogMock : workflowLogMock ) )
+  vi.fn( name => {
+    if ( name === 'Activity' ) {
+      return activityLogMock;
+    }
+    if ( name === 'Worker' ) {
+      return workerLogMock;
+    }
+    return workflowLogMock;
+  } )
 );
 
 const onHandlers = vi.hoisted( () => ( {} ) );
@@ -178,6 +187,19 @@ describe( 'log_hooks', () => {
         workflowType: 'myWorkflow',
         runId: 'run-1'
       } );
+    } );
+  } );
+
+  describe( 'worker events', () => {
+    it( 'WORKER_LOG logs dynamic levels with metadata', () => {
+      onHandlers[BusEventType.WORKER_LOG]( {
+        level: 'warn',
+        message: 'hook detail',
+        metadata: { custom: 'value' }
+      } );
+
+      expect( workerLogMock.warn ).toHaveBeenCalledTimes( 1 );
+      expect( workerLogMock.warn ).toHaveBeenCalledWith( 'hook detail', { custom: 'value' } );
     } );
   } );
 

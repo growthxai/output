@@ -5,6 +5,7 @@ import { serializeError } from '#helpers/error_serializer';
 
 const activityLog = createChildLogger( 'Activity' );
 const workflowLog = createChildLogger( 'Workflow' );
+const workerLog = createChildLogger( 'Worker' );
 
 /**
  * Intercepts internal bus events for activity and workflow lifecycle and log them
@@ -55,6 +56,13 @@ mainEventBus.on( BusEventType.ACTIVITY_LOG, ( { level, message, metadata, activi
     ...serializedActivityFields( activityInfo )
   } )
 );
+
+/*
+╔═══════════════╗
+║ Worker events ║
+╚═══════════════╝
+*/
+mainEventBus.on( BusEventType.WORKER_LOG, ( { level, message, metadata } ) => workerLog[level]( message, metadata ) );
 
 /*
 ╔═════════════════╗

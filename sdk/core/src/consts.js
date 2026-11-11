@@ -1,13 +1,13 @@
 export const ACTIVITY_GET_TRACE_DESTINATIONS = '__internal#getTraceDestinations';
 export const ACTIVITY_OPTIONS_FILENAME = '__activity_options.js';
 export const ACTIVITY_SEND_HTTP_REQUEST = '__internal#sendHttpRequest';
-export const ACTIVITY_LOGGER_SYMBOL = Symbol.for( '__activity_logger' );
-export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );
 export const WORKFLOW_CATALOG = '$catalog';
 export const WORKFLOW_OPTIONS_FILENAME = '__workflow_options.js';
 export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 
 export const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
+export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );
+export const WORKER_LOGGER_SYMBOL = Symbol.for( '__worker_logger' );
 
 export const ComponentType = {
   EVALUATOR: 'evaluator',
@@ -33,7 +33,8 @@ export const BusEventType = {
   ACTIVITY_LOG: 'activity:log',
   ACTIVITY_START: 'activity:start',
 
-  RUNTIME_ERROR: 'runtime_error'
+  WORKER_ERROR: 'worker:error',
+  WORKER_LOG: 'worker:log'
 };
 
 export const WorkflowSpecialOutput = {

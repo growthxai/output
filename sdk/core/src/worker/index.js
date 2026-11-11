@@ -139,7 +139,7 @@ execute()
     const hasError = signal.aborted && !( signal.reason instanceof KillSignError );
     if ( hasError ) {
       log.error( 'Worker error', { error: serializeError( signal.reason ) } );
-      mainEventBus.emit( BusEventType.RUNTIME_ERROR, { error: signal.reason } );
+      mainEventBus.emit( BusEventType.WORKER_ERROR, { error: signal.reason } );
     }
 
     log.info( 'Flushing hook callbacks...' );

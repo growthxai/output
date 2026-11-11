@@ -29,7 +29,7 @@ const onError = cb => {
     callHookCb( cb, { source: 'activity', ...payload }, 'onError' ) );
   mainEventBus.on( BusEventType.WORKFLOW_ERROR, async payload =>
     callHookCb( cb, { source: 'workflow', ...payload }, 'onError' ) );
-  mainEventBus.on( BusEventType.RUNTIME_ERROR, async payload =>
+  mainEventBus.on( BusEventType.WORKER_ERROR, async payload =>
     callHookCb( cb, { source: 'runtime', ...payload }, 'onError' ) );
 };
 

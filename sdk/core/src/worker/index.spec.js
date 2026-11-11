@@ -355,7 +355,7 @@ describe( 'worker/index', () => {
         connection: mockConnection
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
-      expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, expect.anything() );
+      expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.anything() );
       expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0 } );
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
@@ -416,7 +416,7 @@ describe( 'worker/index', () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { name: 'UncaughtError', message: 'uncaughtException' } )
       } );
-      expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, { error: fault } );
+      expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKER_ERROR, { error: fault } );
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
@@ -441,7 +441,7 @@ describe( 'worker/index', () => {
       expect( mockLog.error ).toHaveBeenCalledWith( 'Worker error', {
         error: expect.objectContaining( { message: 'connection lost' } )
       } );
-      expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.RUNTIME_ERROR, { error } );
+      expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKER_ERROR, { error } );
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
