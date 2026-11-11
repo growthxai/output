@@ -1,8 +1,14 @@
 import { DefaultLogger, makeTelemetryFilterString, Runtime } from '@temporalio/worker';
 import { createChildLogger } from '#logger';
+import { serializeError } from '#helpers/error_serializer';
 
 const log = createChildLogger( 'Temporal' );
 const OMITTED_MESSAGES = [ 'Activity failed', 'Workflow failed' ];
+
+/** Serializes Error values in the meta, otherwise they would be logged as an empty object */
+const serializeMetaErrors = meta => meta && Object.fromEntries(
+  Object.entries( meta ).map( ( [ key, value ] ) => [ key, value instanceof Error ? serializeError( value ) : value ] )
+);
 
 const temporalLevelToInternalLevelMap = {
   TRACE: 'debug',
@@ -21,7 +27,7 @@ export const setupTemporalLogger = () => {
       if ( OMITTED_MESSAGES.includes( entry.message ) ) {
         return;
       }
-      log.log( temporalLevelToInternalLevelMap[entry.level], entry.message, entry.meta );
+      log.log( temporalLevelToInternalLevelMap[entry.level], entry.message, serializeMetaErrors( entry.meta ) );
     } ),
     telemetryOptions: {
       logging: {

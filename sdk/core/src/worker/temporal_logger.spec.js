@@ -21,6 +21,9 @@ vi.mock( '@temporalio/worker', () => ( {
   Runtime: { install: runtimeInstallMock }
 } ) );
 vi.mock( '#logger', () => ( { createChildLogger: () => logMock } ) );
+vi.mock( '#helpers/error_serializer', () => ( {
+  serializeError: error => ( { name: error.name, message: error.message } )
+} ) );
 
 import { setupTemporalLogger } from './temporal_logger.js';
 
@@ -77,6 +80,27 @@ describe( 'setupTemporalLogger', () => {
 
     expect( defaultLoggerMock ).toHaveBeenCalledWith( 'DEBUG', expect.any( Function ) );
     expect( makeTelemetryFilterStringMock ).toHaveBeenCalledWith( { core: 'DEBUG', other: 'DEBUG' } );
+  } );
+
+  it( 'serializes Error values in the meta and keeps other values as they are', () => {
+    setupTemporalLogger();
+    const [ entryCallback ] = defaultLoggerMock.mock.calls[0].slice( 1 );
+
+    entryCallback( { level: 'ERROR', message: 'Worker failed', meta: { error: new TypeError( 'boom' ), taskQueue: 'default' } } );
+
+    expect( logMock.log ).toHaveBeenCalledWith( 'error', 'Worker failed', {
+      error: { name: 'TypeError', message: 'boom' },
+      taskQueue: 'default'
+    } );
+  } );
+
+  it( 'logs entries without meta', () => {
+    setupTemporalLogger();
+    const [ entryCallback ] = defaultLoggerMock.mock.calls[0].slice( 1 );
+
+    entryCallback( { level: 'INFO', message: 'No meta' } );
+
+    expect( logMock.log ).toHaveBeenCalledWith( 'info', 'No meta', undefined );
   } );
 
   it.each( [ 'Activity failed', 'Workflow failed' ] )( 'omits redundant "%s" events', message => {
