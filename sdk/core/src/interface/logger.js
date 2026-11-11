@@ -1,6 +1,6 @@
 import { inWorkflowContext } from '@temporalio/workflow';
 import { proxySinks } from '@temporalio/workflow';
-import { ACTIVITY_LOGGER_SYMBOL } from '#consts';
+import { WORKER_LOGGER_SYMBOL } from '#consts';
 import { isPlainObject } from '#helpers/object';
 
 const reservedMetadataFields = new Set( [
@@ -52,9 +52,9 @@ const log = ( level, namespace, message, metadata ) => {
   // When inside workflow, use sinks to send logs out
   if ( inWorkflowContext() ) {
     sinks.workflow.log( { level, ...sanitized } );
-  // When inside activities, use the global function to ship logs
-  } else if ( typeof globalThis[ACTIVITY_LOGGER_SYMBOL] === 'function' ) {
-    globalThis[ACTIVITY_LOGGER_SYMBOL]( { level, ...sanitized } );
+  // When on a worker (activity or host), use the global function to ship logs
+  } else if ( typeof globalThis[WORKER_LOGGER_SYMBOL] === 'function' ) {
+    globalThis[WORKER_LOGGER_SYMBOL]( { level, ...sanitized } );
   // This fallback is used on unit tests
   } else {
     console[levelToConsole[level]]( sanitized.message, sanitized.metadata );

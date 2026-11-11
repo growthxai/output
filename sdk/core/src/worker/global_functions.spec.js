@@ -1,12 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
 const {
-  ACTIVITY_LOGGER_SYMBOL,
+  WORKER_LOGGER_SYMBOL,
   BusEventType
 } = vi.hoisted( () => ( {
-  ACTIVITY_LOGGER_SYMBOL: Symbol( 'activity_logger' ),
+  WORKER_LOGGER_SYMBOL: Symbol( 'worker_logger' ),
   BusEventType: {
-    ACTIVITY_LOG: 'activity:log'
+    ACTIVITY_LOG: 'activity:log',
+    WORKER_LOG: 'worker:log'
   }
 } ) );
 
@@ -17,25 +18,32 @@ const activityInfoMock = vi.hoisted( () => vi.fn( () => ( {
   activityId: 'act-1',
   activityType: 'myStep'
 } ) ) );
+const asyncLocalStorageMock = vi.hoisted( () => ( {
+  getStore: vi.fn()
+} ) );
 
-vi.mock( '#consts', () => ( { ACTIVITY_LOGGER_SYMBOL, BusEventType } ) );
+vi.mock( '#consts', () => ( { WORKER_LOGGER_SYMBOL, BusEventType } ) );
 vi.mock( '#bus', () => ( { mainEventBus: mainEventBusMock } ) );
 vi.mock( '@temporalio/activity', () => ( {
-  activityInfo: activityInfoMock
+  activityInfo: activityInfoMock,
+  asyncLocalStorage: asyncLocalStorageMock
 } ) );
 
 describe( 'worker/global_functions', () => {
-  beforeEach( () => {
-    vi.clearAllMocks();
-    delete globalThis[ACTIVITY_LOGGER_SYMBOL];
+  beforeAll( async () => {
+    const { bindGlobalFunctions } = await import( './global_functions.js' );
+    bindGlobalFunctions();
   } );
 
-  it( 'binds activity logger global function that emits activity log events with metadata', async () => {
-    const { bindGlobalFunctions } = await import( './global_functions.js' );
-    const metadata = { requestId: 'req-1' };
+  beforeEach( () => {
+    vi.clearAllMocks();
+  } );
 
-    bindGlobalFunctions();
-    globalThis[ACTIVITY_LOGGER_SYMBOL]( {
+  it( 'emits ACTIVITY_LOG with activityInfo when an activity context exists', () => {
+    const metadata = { requestId: 'req-1' };
+    asyncLocalStorageMock.getStore.mockReturnValue( {} );
+
+    globalThis[WORKER_LOGGER_SYMBOL]( {
       level: 'debug',
       message: 'activity detail',
       metadata
@@ -50,6 +58,24 @@ describe( 'worker/global_functions', () => {
         activityId: 'act-1',
         activityType: 'myStep'
       }
+    } );
+  } );
+
+  it( 'emits WORKER_LOG without activityInfo when no activity context exists', () => {
+    const metadata = { requestId: 'req-2' };
+    asyncLocalStorageMock.getStore.mockReturnValue( undefined );
+
+    globalThis[WORKER_LOGGER_SYMBOL]( {
+      level: 'warn',
+      message: 'hook detail',
+      metadata
+    } );
+
+    expect( activityInfoMock ).not.toHaveBeenCalled();
+    expect( mainEventBusMock.emit ).toHaveBeenCalledWith( BusEventType.WORKER_LOG, {
+      level: 'warn',
+      message: 'hook detail',
+      metadata
     } );
   } );
 } );

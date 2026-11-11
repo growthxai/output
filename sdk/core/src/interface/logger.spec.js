@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ACTIVITY_LOGGER_SYMBOL } from '#consts';
+import { WORKER_LOGGER_SYMBOL } from '#consts';
 
 const workflowLogMock = vi.fn();
 const proxySinksMock = vi.fn( () => ( {
@@ -40,11 +40,11 @@ describe( 'interface/logger', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     inWorkflowContextMock.mockReturnValue( false );
-    delete globalThis[ACTIVITY_LOGGER_SYMBOL];
+    delete globalThis[WORKER_LOGGER_SYMBOL];
   } );
 
   afterEach( () => {
-    delete globalThis[ACTIVITY_LOGGER_SYMBOL];
+    delete globalThis[WORKER_LOGGER_SYMBOL];
     vi.restoreAllMocks();
   } );
 
@@ -90,17 +90,17 @@ describe( 'interface/logger', () => {
     } );
   } );
 
-  it( 'logs every level through the activity global logger when it is set outside workflow context', async () => {
+  it( 'logs every level through the worker logger when it is set outside workflow context', async () => {
     const logger = await loadLogger();
-    const activityLoggerMock = vi.fn();
-    globalThis[ACTIVITY_LOGGER_SYMBOL] = activityLoggerMock;
+    const workerLoggerMock = vi.fn();
+    globalThis[WORKER_LOGGER_SYMBOL] = workerLoggerMock;
 
     logLevels.forEach( level => {
       logger[level]( `${level} message`, { requestId: level } );
     } );
 
     logLevels.forEach( ( level, index ) => {
-      expect( activityLoggerMock ).toHaveBeenNthCalledWith( index + 1, {
+      expect( workerLoggerMock ).toHaveBeenNthCalledWith( index + 1, {
         level,
         message: `${level} message`,
         metadata: { requestId: level }
@@ -109,7 +109,7 @@ describe( 'interface/logger', () => {
     expect( workflowLogMock ).not.toHaveBeenCalled();
   } );
 
-  it( 'logs every level to its native console method when no workflow or activity logger is available', async () => {
+  it( 'logs every level to its native console method when no workflow or worker logger is available', async () => {
     const logger = await loadLogger();
     const consoleMocks = Object.fromEntries(
       [ 'debug', 'error', 'info', 'log', 'warn' ].map( method => [
