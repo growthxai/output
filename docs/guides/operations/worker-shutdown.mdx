@@ -95,7 +95,7 @@ Workflow code is not affected. A workflow task the worker abandons times out and
 
 | Exit code | Meaning |
 |-----------|---------|
-| `0` | A signal requested the shutdown. This holds even when work was abandoned at force time, because the bound working is the expected outcome of a deploy, not a failure. |
+| `0` | A signal requested the shutdown. This holds even when work was abandoned at force time, because a drain that is cut off at force time is the expected outcome of a deploy, not a failure. |
 | `1` | Startup failed, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit. |
 
 A service failing to stop is logged as a warning and never changes the exit code. If you alert on non-zero worker exits, a deploy no longer triggers one just because steps were still running.

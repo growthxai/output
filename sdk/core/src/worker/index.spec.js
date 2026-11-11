@@ -402,6 +402,18 @@ describe( 'worker/index', () => {
       expect( mockLog.info ).not.toHaveBeenCalledWith( 'Worker terminated' );
     } );
 
+    it( 'exits successfully when the worker run rejects after a kill signal', async () => {
+      await bootWorker();
+
+      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
+      promises.workerRunner.reject( new Error( 'Worker still in use' ) );
+      await waitForExit();
+
+      expect( mockLog.error ).not.toHaveBeenCalledWith( 'Worker error', expect.anything() );
+      expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.anything() );
+      expect( process.exit ).toHaveBeenCalledWith( 0 );
+    } );
+
     it( 'reports a terminated worker when the run ends without an abort', async () => {
       await bootWorker();
 
