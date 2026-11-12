@@ -53,7 +53,9 @@ const {
     taskQueue: 'test-queue',
     catalogId: 'test-catalog',
     grpcProxy: undefined,
-    hookFlushTimeoutMs: 5000
+    hookFlushTimeoutMs: 5000,
+    shutdownForceTimeMs: 20_000,
+    shutdownGraceTimeMs: 15_000
   };
 
   /**
@@ -141,7 +143,7 @@ const {
     } ),
     setupTelemetryMock: vi.fn(),
     setupTemporalLoggerMock: vi.fn(),
-    shutdownServicesMock: vi.fn().mockResolvedValue( [] ),
+    shutdownServicesMock: vi.fn().mockResolvedValue( undefined ),
     workerRunnerInstance
   };
 } );
@@ -356,18 +358,12 @@ describe( 'worker/index', () => {
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
       expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.anything() );
-      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0 } );
-      expect( process.exit ).toHaveBeenCalledWith( 0 );
-    } );
-
-    it( 'still exits cleanly when a service other than the worker failed to stop', async () => {
-      await bootWorker();
-      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'connection', error: new Error( 'close failed' ) } ] );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( mockLog.error ).not.toHaveBeenCalled();
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Shutting down', {
+        shutdownForceTimeMs: 20_000,
+        shutdownGraceTimeMs: 15_000,
+        hookFlushTimeoutMs: 5000
+      } );
+      expect( mockLog.info ).toHaveBeenCalledWith( 'Bye', { exitCode: 0, shutdownDurationMs: expect.any( Number ) } );
       expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
@@ -378,6 +374,18 @@ describe( 'worker/index', () => {
       await waitForExit();
 
       expect( mockLog.info ).not.toHaveBeenCalledWith( 'Worker terminated' );
+    } );
+
+    it( 'exits successfully when the worker run rejects after a kill signal', async () => {
+      await bootWorker();
+
+      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
+      promises.workerRunner.reject( new Error( 'Worker still in use' ) );
+      await waitForExit();
+
+      expect( mockLog.error ).not.toHaveBeenCalledWith( 'Worker error', expect.anything() );
+      expect( mainEventBusMock.emit ).not.toHaveBeenCalledWith( BusEventType.WORKER_ERROR, expect.anything() );
+      expect( process.exit ).toHaveBeenCalledWith( 0 );
     } );
 
     it( 'reports a terminated worker when the run ends without an abort', async () => {
@@ -420,15 +428,6 @@ describe( 'worker/index', () => {
       expect( process.exit ).toHaveBeenCalledWith( 1 );
     } );
 
-    it( 'exits with a failure when the worker never finished draining', async () => {
-      await bootWorker();
-      shutdownServicesMock.mockResolvedValueOnce( [ { service: 'worker', error: new Error( 'drain failed' ) } ] );
-
-      interruption.controller.abort( new interruption.KillSignError( 'SIGTERM' ) );
-      await waitForExit();
-
-      expect( process.exit ).toHaveBeenCalledWith( 1 );
-    } );
     it( 'reports a lost connection and shuts down', async () => {
       const error = new Error( 'connection lost' );
       await bootWorker();

@@ -1,5 +1,14 @@
 import { Worker, NativeConnection } from '@temporalio/worker';
-import { address, apiKey, namespace, taskQueue, grpcProxy, hookFlushTimeoutMs } from './configs.js';
+import {
+  address,
+  apiKey,
+  namespace,
+  taskQueue,
+  grpcProxy,
+  hookFlushTimeoutMs,
+  shutdownForceTimeMs,
+  shutdownGraceTimeMs
+} from './configs.js';
 import { loadActivities } from './loader/activities.js';
 import { loadWorkflows } from './loader/workflows.js';
 import { loadHooks } from './loader/hooks.js';
@@ -134,7 +143,14 @@ const execute = async () => {
 execute()
   .catch( async error => abortController.abort( error ) )
   .finally( async () => {
-    const shutdownFailures = await shutdownServices( services );
+    log.info( 'Shutting down', {
+      shutdownForceTimeMs,
+      shutdownGraceTimeMs,
+      hookFlushTimeoutMs
+    } );
+
+    const shutdownStartedAt = Date.now();
+    await shutdownServices( services );
 
     const hasError = signal.aborted && !( signal.reason instanceof KillSignError );
     if ( hasError ) {
@@ -145,10 +161,12 @@ execute()
     log.info( 'Flushing hook callbacks...' );
     await flushPendingHooks( hookFlushTimeoutMs );
 
-    const workerFailedToStop = shutdownFailures.some( v => v.service === 'worker' );
-    const exitCode = workerFailedToStop || hasError ? 1 : 0;
     setTimeout( () => {
-      log.info( 'Bye', { exitCode } );
+      const exitCode = hasError ? 1 : 0;
+      log.info( 'Bye', {
+        exitCode,
+        shutdownDurationMs: Date.now() - shutdownStartedAt
+      } );
       process.exit( exitCode );
     } );
   } );

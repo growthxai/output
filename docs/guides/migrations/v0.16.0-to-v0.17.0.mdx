@@ -1,0 +1,88 @@
+---
+title: "v0.16.0 → v0.17.0"
+description: "Upgrading Output.ai projects from v0.16.0 to v0.17.0: worker exit code on a forced shutdown, shutdown and Temporal log changes, and OUTPUT_TEMPORAL_LOG_LEVEL validation in @outputai/core."
+---
+
+This guide covers behavior changes in the `@outputai/core` worker shutdown. Nothing in your code needs to change, but a deploy that lands on steps still running now exits `0` instead of `1`, several shutdown log lines changed, and `OUTPUT_TEMPORAL_LOG_LEVEL` rejects invalid values.
+
+If you alert on worker exit codes or match worker log lines, read [Exit code on a forced shutdown](#exit-code-on-a-forced-shutdown) and [Shutdown logs](#shutdown-logs).
+
+## What changed
+
+- A signal shutdown that abandons in-flight work at `TEMPORAL_SHUTDOWN_FORCE_TIME` exits `0` instead of `1`.
+- A service that fails to stop is logged as a warning and never changes the exit code. This was already true for every service except the worker.
+- The `... error` warning of a failed service stop is now `... failed`, and carries the time the stop took in `shutdownDurationMs`.
+- Every successful service stop logs `... complete` with `shutdownDurationMs`.
+- The worker logs `Shutting down` with its shutdown budget as soon as shutdown starts, and `Bye` carries `shutdownDurationMs`.
+- Temporal's `Worker failed` entry for an expired force time is logged as a warning, not an error.
+- Temporal log entries that carry an error now show its `name`, `message` and `stack` instead of `{}`.
+- The worker warns at startup when `TEMPORAL_SHUTDOWN_FORCE_TIME` is not bigger than `TEMPORAL_SHUTDOWN_GRACE_TIME`.
+- `OUTPUT_TEMPORAL_LOG_LEVEL` is validated when the worker starts.
+
+## Exit code on a forced shutdown
+
+When a signal starts the shutdown and a step is still running at `TEMPORAL_SHUTDOWN_FORCE_TIME`, the worker abandons it and exits. v0.16.0 exited `1` for that, so a routine deploy looked like a crash. v0.17.0 exits `0`.
+
+| Scenario | v0.16.0 | v0.17.0 |
+| --- | --- | --- |
+| A signal arrives and the drain finishes in time | Exits `0` | Unchanged |
+| A signal arrives and a step outlives `TEMPORAL_SHUTDOWN_FORCE_TIME` | Logs a `Stopping Worker error` warning and an error-level `Worker failed`. Exits `1` | Logs a `Worker failed` warning and a `Stopping Worker failed` warning. Exits `0` |
+| A service other than the worker fails to stop | Warns `... error`. Exit code unaffected | Warns `... failed`. Exit code unaffected |
+| Startup fails, the Temporal connection is lost, an uncaught error ends the process, or a second signal forces an exit | Exits `1` | Unchanged |
+
+The abandoned step is not lost. Temporal notices its worker is gone when the step's heartbeat times out, and retries it. See [Worker Shutdown](/operations/worker-shutdown#what-happens-to-work-that-does-not-finish).
+
+If you alert on a non-zero worker exit, those alerts no longer fire for a deploy that abandoned work. To tell that case apart, match the logs below. A worker that fails for any other reason while draining is not covered by the exit code. Temporal logs it as an error-level `Worker failed`, so alert on that line.
+
+## Shutdown logs
+
+| Log line | v0.16.0 | v0.17.0 |
+| --- | --- | --- |
+| `Stopping Worker error`, `Stopping Connection Monitor error`, `Interrupting Catalog Publisher error`, `Closing Connection error` (warn) | Carries `error` | Renamed to `... failed`. Carries `error` and `shutdownDurationMs` |
+| After each successful stop | Nothing | `... complete` with `shutdownDurationMs` |
+| Start of shutdown | Nothing | `Shutting down` with `shutdownForceTimeMs`, `shutdownGraceTimeMs` and `hookFlushTimeoutMs` |
+| `Bye` | `{ exitCode }` | `{ exitCode, shutdownDurationMs }` |
+| `Worker failed` after a forced stop | Error level, `error: {}` | Warn level, with the serialized `GracefulShutdownPeriodExpiredError` |
+
+An abandoned drain now reads like this in the logs:
+
+```text
+[warn] Temporal: Worker failed { error: { name: "GracefulShutdownPeriodExpiredError", ... } }
+[warn] Worker Shutdown: Stopping Worker failed { error: { name: "IllegalStateError", message: "Worker still in use: ...", ... }, shutdownDurationMs: 20004 }
+[info] Worker: Bye { exitCode: 0, shutdownDurationMs: 20190 }
+```
+
+The sample uses the development format, `[level] namespace: message { fields }`. Production logs are JSON with the same fields.
+
+Update log-based alerts and dashboards:
+- A matcher on the text `Stopping Worker error` (or another `... error` stop line) must use `... failed`.
+- A matcher on an error-level `Worker failed` stops matching a forced drain. If you baselined it as noise, remove it.
+- Anything that parses a Temporal log's `error` field now receives an object with `name`, `message` and `stack` instead of `{}`.
+
+`Shutting down` is logged before the drain starts, so the budget is in the log even if the platform kills the process mid-drain. `shutdownDurationMs` on `Bye` is the whole shutdown, hook flush included. Compare it with your platform's shutdown window. See [Reading the Shutdown Logs](/operations/worker-shutdown#reading-the-shutdown-logs).
+
+A force time that is not bigger than the grace time now logs `Temporal shutdown force time is not bigger than its grace time, so activities have no window to react to cancellation`, with both values. Raise `TEMPORAL_SHUTDOWN_FORCE_TIME` above `TEMPORAL_SHUTDOWN_GRACE_TIME`.
+
+## `OUTPUT_TEMPORAL_LOG_LEVEL` is validated
+
+The variable takes `TRACE`, `DEBUG`, `INFO`, `WARN` or `ERROR`, in any letter case, and defaults to `INFO` when unset or empty. Any other value, such as `verbose` or a Winston level like `silly`, now fails worker startup with a message naming the allowed values.
+
+```bash
+# Before: not checked by Output
+OUTPUT_TEMPORAL_LOG_LEVEL=verbose
+
+# After
+OUTPUT_TEMPORAL_LOG_LEVEL=DEBUG
+```
+
+At `ERROR`, the `Worker failed` warning of a forced shutdown is not logged, since it is no longer an error.
+
+## Checklist
+
+- Bump `@outputai/core` and `@outputai/cli` to `0.17.0`.
+- Remove or adjust alerts that treat a non-zero worker exit on a deploy as a failure. A forced drain exits `0`.
+- Change log matchers from `Stopping Worker error` (and the other `... error` stop lines) to `... failed`.
+- Remove an error-level `Worker failed` entry from your noise baseline. A forced drain logs it as a warning.
+- Update consumers of Temporal log entries that read an empty `error` object.
+- Check that `OUTPUT_TEMPORAL_LOG_LEVEL`, if set, is one of `TRACE`, `DEBUG`, `INFO`, `WARN` or `ERROR`.
+- If your deploys abandon work often, size `TEMPORAL_SHUTDOWN_GRACE_TIME`, `TEMPORAL_SHUTDOWN_FORCE_TIME` and your platform's shutdown window together. See [Worker Shutdown](/operations/worker-shutdown).

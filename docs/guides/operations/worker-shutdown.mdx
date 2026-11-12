@@ -1,0 +1,144 @@
+---
+title: "Worker Shutdown"
+description: "How an Output worker stops on a deploy, how to size the shutdown settings against your platform, and how to read the shutdown logs"
+---
+
+After this page you can size the worker's shutdown settings against your platform's kill window, and tell from the logs whether a deploy drained cleanly or abandoned work.
+
+Every deploy sends your worker `SIGTERM`. The worker stops taking new work, gives in-flight steps time to finish, then exits. Three settings control that sequence, and together they have to fit inside the time your platform allows before it sends `SIGKILL`.
+
+## What Happens on SIGTERM
+
+`SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown. With the defaults, counted from the signal:
+
+| Time | What happens |
+|------|--------------|
+| `0s` | The worker stops polling and starts draining. In-flight steps keep running. |
+| `15s` (`TEMPORAL_SHUTDOWN_GRACE_TIME`) | Steps still running are asked to cancel. The worker keeps waiting for them. |
+| `20s` (`TEMPORAL_SHUTDOWN_FORCE_TIME`) | The worker gives up draining and abandons whatever is still running. |
+| after the drain | The worker closes its Temporal connection, then awaits pending hook callbacks for up to `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` (`5s`), and exits. |
+
+Grace and force are both measured from the moment shutdown starts. They run in parallel and are not added together. Grace is when cancellation is requested, and force is the cap on how long the drain can take.
+
+A second signal more than a second after the first exits immediately and abandons the drain.
+
+## The Settings
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `TEMPORAL_SHUTDOWN_GRACE_TIME` | `15s` | Time steps get to finish on their own before they are asked to cancel. |
+| `TEMPORAL_SHUTDOWN_FORCE_TIME` | `20s` | Time before the worker stops waiting and abandons running work. Keep it above the grace time, otherwise cancellation has no window to take effect. |
+| `OUTPUT_HOOK_FLUSH_TIMEOUT_MS` | `5000` | Time to await pending hook callbacks once the drain is over. |
+
+The time variables accept milliseconds or duration strings such as `90s`. An empty value falls back to the default. The worker warns at startup when force time is not bigger than grace time. For the underlying options see Temporal's [`WorkerOptions`](https://typescript.temporal.io/api/interfaces/worker.WorkerOptions).
+
+## Sizing Against Your Platform
+
+The worst case is the drain running to its bound, then the flush running to its own:
+
+```text
+TEMPORAL_SHUTDOWN_FORCE_TIME + OUTPUT_HOOK_FLUSH_TIMEOUT_MS  <  platform window
+```
+
+The defaults total 25 seconds against the 30 seconds Render and Kubernetes allow by default. A clean shutdown usually finishes well before that, so the bound only matters when work is still running.
+
+If your slowest step takes 90 seconds, give it that long to finish and raise the platform window with it. Raise the window first, because values above it never take effect: the platform terminates the process before they expire.
+
+```bash .env
+TEMPORAL_SHUTDOWN_GRACE_TIME=90s
+TEMPORAL_SHUTDOWN_FORCE_TIME=120s
+```
+
+The worst case is now 125 seconds, so allow 150:
+
+<CodeGroup>
+
+```yaml render.yaml
+services:
+  - type: worker
+    name: research-worker
+    runtime: docker
+    maxShutdownDelaySeconds: 150
+```
+
+```yaml deployment.yaml
+spec:
+  template:
+    spec:
+      terminationGracePeriodSeconds: 150
+```
+
+</CodeGroup>
+
+See Render's [Blueprint spec](https://render.com/docs/blueprint-spec) for `maxShutdownDelaySeconds` and [Deploys](https://render.com/docs/deploys) for the deploy lifecycle. On Kubernetes, `terminationGracePeriodSeconds` is described in [Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/).
+
+<Note>
+Uncaught exceptions and unhandled rejections start the same drain, but it is capped at 60 seconds regardless of `TEMPORAL_SHUTDOWN_FORCE_TIME`. Raising the settings only extends shutdowns started by a signal.
+</Note>
+
+## What Happens to Work That Does Not Finish
+
+When grace expires, Temporal sends a cancellation request to every step still running. That is all it does: Output does not pass the cancellation signal to your step's HTTP or LLM calls, so a step stops only when its own code observes it. See Temporal's [cancellation guide](https://docs.temporal.io/develop/typescript/cancellation) and the activity [`Context`](https://typescript.temporal.io/api/classes/activity.Context).
+
+- **A step that honors cancellation** ends its attempt as failed, and Temporal retries it on another worker right away.
+- **A step that ignores it** keeps running until force time. The worker then abandons it and exits.
+
+Temporal only learns that an abandoned step died when its heartbeat times out. By default steps heartbeat every 2 minutes (`OUTPUT_ACTIVITY_HEARTBEAT_INTERVAL_MS`) against a `heartbeatTimeout` of 5 minutes, so the retry starts within about 5 minutes of the deploy, on a worker that is still up. A step whose options set a longer `heartbeatTimeout` waits that long instead. `OUTPUT_ACTIVITY_HEARTBEAT_ENABLED=false` only stops the worker from sending heartbeats. The step's `heartbeatTimeout` still applies, so it does not delay the retry. See Temporal's [activity failure detection](https://docs.temporal.io/encyclopedia/detecting-activity-failures) and [retry policies](https://docs.temporal.io/encyclopedia/retry-policies).
+
+<Warning>
+An abandoned step is retried from the start, so its side effects can run twice. Make steps that write to external systems idempotent.
+</Warning>
+
+Workflow code is not affected. A workflow task the worker abandons times out and Temporal reschedules it on another worker, which replays the workflow from its history. See Temporal's [workflow task timeout](https://docs.temporal.io/encyclopedia/detecting-workflow-failures#workflow-task-timeout).
+
+## Exit Codes
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | A signal requested the shutdown. This holds even when work was abandoned at force time, because a drain that is cut off at force time is the expected outcome of a deploy, not a failure. |
+| `1` | Startup failed, the Temporal connection was lost, an uncaught error ended the process, or a second signal forced an immediate exit. |
+
+A service failing to stop is logged as a warning and never changes the exit code. If you alert on non-zero worker exits, a deploy no longer triggers one just because steps were still running.
+
+The exit code does not report a worker that failed for another reason while draining. Temporal logs that as an error-level `Worker failed`, and only the expired force timer is demoted to a warning. Alert on that log line, not on the exit code.
+
+## Reading the Shutdown Logs
+
+The worker logs its budget when shutdown starts, so the numbers are in the log even if the platform kills the process before it exits:
+
+```text
+[info] Worker: Shutting down { shutdownForceTimeMs: 20000, shutdownGraceTimeMs: 15000, hookFlushTimeoutMs: 5000 }
+[info] Worker Shutdown: Stopping Worker...
+[info] Worker Shutdown: Stopping Worker complete { shutdownDurationMs: 3120 }
+[info] Worker: Flushing hook callbacks...
+[info] Worker: Bye { exitCode: 0, shutdownDurationMs: 3340 }
+```
+
+The samples use the development format, `[level] namespace: message { fields }`. Production logs are JSON with the same level, namespace, message and fields.
+
+The `Bye` line is the last one, and its `shutdownDurationMs` is the time the whole shutdown took, hook flush included. Compare it with `maxShutdownDelaySeconds` or `terminationGracePeriodSeconds` to see how much margin you have.
+
+When work was abandoned at force time you see this instead:
+
+```text
+[warn] Temporal: Worker failed { error: { name: "GracefulShutdownPeriodExpiredError", ... } }
+[warn] Worker Shutdown: Stopping Worker failed { error: { name: "IllegalStateError", message: "Worker still in use: ...", ... }, shutdownDurationMs: 20004 }
+[info] Worker: Bye { exitCode: 0, shutdownDurationMs: 20190 }
+```
+
+`Worker failed` is Temporal reporting that the force timer expired. Output logs it as a warning, since an expired force timer is an expected outcome of a deploy. `IllegalStateError: Worker still in use` follows from it: the abandoned steps still hold native calls, so Temporal cannot finish closing the worker. A `shutdownDurationMs` near `shutdownForceTimeMs` on `Stopping Worker failed` confirms the drain hit its bound.
+
+`OUTPUT_TEMPORAL_LOG_LEVEL` controls these Temporal logs. At `ERROR` the `Worker failed` warning is not logged, because it is no longer an error.
+
+If this happens on most deploys, your steps run longer than the window. Raise grace and force together with the platform window as shown above, or make long steps observe cancellation so they end at grace instead of at force.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="cloud-arrow-up" href="/operations/deployment">
+    Deploy workers to Render, Railway, or your own platform.
+  </Card>
+  <Card title="Worker Tuning" icon="gauge" href="/operations/worker-tuning">
+    Concurrency, polling, and memory settings for the worker.
+  </Card>
+</CardGroup>

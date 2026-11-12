@@ -10,8 +10,8 @@ const {
   maxConcurrentActivityTaskPolls,
   maxConcurrentWorkflowTaskPolls,
   workflowThreadPoolSize,
-  shutdownForceTime,
-  shutdownGraceTime,
+  shutdownForceTimeMs,
+  shutdownGraceTimeMs,
   workerTuner
 } = configs;
 
@@ -37,7 +37,7 @@ export const buildWorkerOptions = () => {
     maxConcurrentWorkflowTaskPolls,
     // Omitted when unset so @temporalio/worker applies its own default, which depends on reuseV8Context.
     ...( workflowThreadPoolSize !== undefined && { workflowThreadPoolSize } ),
-    ...( shutdownForceTime !== undefined && { shutdownForceTime } ),
-    ...( shutdownGraceTime !== undefined && { shutdownGraceTime } )
+    shutdownForceTime: shutdownForceTimeMs,
+    shutdownGraceTime: shutdownGraceTimeMs
   };
 };
