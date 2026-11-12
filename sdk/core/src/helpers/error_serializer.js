@@ -50,8 +50,29 @@ const Marker = {
   TruncatedString: '... [:v more characters omitted]'
 };
 
-export const truncateString = ( v, max = MAX_STRING_LEN ) =>
-  v.length <= max ? v : ( v.slice( 0, max ) + Marker.TruncatedString.replace( ':v', v.length - max ) );
+/** Whether the code unit is the first half of a character that takes two code units, such as an emoji (a high surrogate) */
+const isHighSurrogateChar = code => code >= 0xD800 && code <= 0xDBFF;
+
+/** Whether the code unit is the second half of a character that takes two code units (a low surrogate) */
+const isLowSurrogateChar = code => code >= 0xDC00 && code <= 0xDFFF;
+
+/**
+ * Truncates a string to `max` code units and appends how many were omitted.
+ * The cut never splits a character in two. The content is otherwise kept as it is.
+ *
+ * @param {string} v
+ * @param {number} [max]
+ * @returns {string}
+ */
+export const truncateString = ( v, max = MAX_STRING_LEN ) => {
+  if ( v.length <= max ) {
+    return v;
+  }
+  // A cut between the two halves of a character would keep only the first half, so that half is dropped too
+  const splitsCharacter = isHighSurrogateChar( v.charCodeAt( max - 1 ) ) && isLowSurrogateChar( v.charCodeAt( max ) );
+  const keepLength = max - ( splitsCharacter ? 1 : 0 );
+  return v.slice( 0, keepLength ) + Marker.TruncatedString.replace( ':v', v.length - keepLength );
+};
 
 export const truncateArray = ( v, max = MAX_ARRAY_SIZE ) =>
   v.length <= max ? v : v.slice( 0, max ).concat( Marker.TruncatedArray.replace( ':v', v.length - max ) );
@@ -138,7 +159,7 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     }
 
     if ( target instanceof RegExp ) {
-      return target.toString();
+      return truncateString( target.toString() );
     }
 
     if ( typeof target === 'bigint' ) {
@@ -150,13 +171,13 @@ const serializeValue = ( target, options, state = { depth: 0, seen: new GlobalCo
     }
 
     if ( typeof target === 'function' ) {
-      return `[Function: ${target.name || '(anonymous)'}]`;
+      return `[Function: ${truncateString( String( target.name || '(anonymous)' ) )}]`;
     }
 
     // Buffers, typed arrays, and raw ArrayBuffers
     if ( ArrayBuffer.isView( target ) || target instanceof ArrayBuffer ) {
       const sizeKey = target instanceof ArrayBuffer || target instanceof DataView ? 'byteLength' : 'length';
-      return `${target.constructor.name}(${target[sizeKey]})`;
+      return `${truncateString( String( target.constructor.name ) )}(${target[sizeKey]})`;
     }
 
     if ( typeof target === 'string' ) {
