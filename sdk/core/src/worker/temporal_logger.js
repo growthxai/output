@@ -7,7 +7,7 @@ const log = createChildLogger( 'Temporal' );
 const OMITTED_MESSAGES = [ 'Activity failed', 'Workflow failed' ];
 
 /** Whether the entry reports the shutdown force time expiring, an expected outcome of a deploy that is logged as a warning, not an error */
-const isForcedShutdownEntry = ( { meta } ) => meta?.error?.constructor?.name === GracefulShutdownPeriodExpiredError.name;
+const isForcedShutdownEntry = ( { meta } ) => meta?.error instanceof GracefulShutdownPeriodExpiredError;
 
 /** Serializes Error values in the meta, otherwise they would be logged as an empty object */
 const serializeMetaErrors = meta => meta && Object.fromEntries(

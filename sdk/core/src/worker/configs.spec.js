@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const logMock = vi.hoisted( () => ( { warn: vi.fn() } ) );
+vi.mock( '#logger', () => ( { createChildLogger: () => logMock } ) );
+
 const CONFIG_KEYS = [
   'OUTPUT_CATALOG_ID',
   'TEMPORAL_ADDRESS',
@@ -40,7 +43,10 @@ async function loadConfigs() {
 }
 
 describe( 'worker/configs', () => {
-  beforeEach( () => clearEnv() );
+  beforeEach( () => {
+    clearEnv();
+    logMock.warn.mockClear();
+  } );
   afterEach( () => clearEnv() );
 
   it( 'throws when OUTPUT_CATALOG_ID is missing', async () => {
@@ -194,6 +200,29 @@ describe( 'worker/configs', () => {
     expect( configs.shutdownForceTimeMs ).toBe( 20_000 );
     expect( configs.shutdownGraceTimeMs ).toBe( 15_000 );
     expect( configs.hookFlushTimeoutMs ).toBe( 5000 );
+  } );
+
+  it.each( [
+    [ 'equal to', '15s', '15s', 15_000, 15_000 ],
+    [ 'smaller than', '10s', '15s', 10_000, 15_000 ]
+  ] )( 'warns when the shutdown force time is %s the grace time', async ( _, force, grace, forceMs, graceMs ) => {
+    setEnv( { TEMPORAL_SHUTDOWN_FORCE_TIME: force, TEMPORAL_SHUTDOWN_GRACE_TIME: grace } );
+    await loadConfigs();
+
+    expect( logMock.warn ).toHaveBeenCalledOnce();
+    expect( logMock.warn ).toHaveBeenCalledWith(
+      expect.stringContaining( 'force time is not bigger than its grace time' ),
+      { shutdownForceTimeMs: forceMs, shutdownGraceTimeMs: graceMs }
+    );
+  } );
+
+  it( 'does not warn about the shutdown times by default or when the force time is bigger than the grace time', async () => {
+    setEnv();
+    await loadConfigs();
+    setEnv( { TEMPORAL_SHUTDOWN_FORCE_TIME: '30s', TEMPORAL_SHUTDOWN_GRACE_TIME: '10s' } );
+    await loadConfigs();
+
+    expect( logMock.warn ).not.toHaveBeenCalled();
   } );
 
   it( 'parses the Temporal log level case-insensitively', async () => {

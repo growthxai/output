@@ -1,6 +1,9 @@
 import * as z from 'zod';
 import { isStringboolTrue } from '#helpers/string';
+import { createChildLogger } from '#logger';
 import { workerTunerEnvSchema } from './configs_tuner_schema.js';
+
+const log = createChildLogger( 'Worker' );
 
 class InvalidEnvVarsErrors extends Error { }
 
@@ -91,6 +94,13 @@ const envVarSchema = z.object( {
 const { data: envVars, error } = envVarSchema.safeParse( process.env );
 if ( error ) {
   throw new InvalidEnvVarsErrors( z.prettifyError( error ) );
+}
+
+if ( envVars.TEMPORAL_SHUTDOWN_FORCE_TIME <= envVars.TEMPORAL_SHUTDOWN_GRACE_TIME ) {
+  log.warn( 'Temporal shutdown force time is not bigger than its grace time, so activities have no window to react to cancellation', {
+    shutdownForceTimeMs: envVars.TEMPORAL_SHUTDOWN_FORCE_TIME,
+    shutdownGraceTimeMs: envVars.TEMPORAL_SHUTDOWN_GRACE_TIME
+  } );
 }
 
 export const address = envVars.TEMPORAL_ADDRESS;

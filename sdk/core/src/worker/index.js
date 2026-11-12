@@ -118,13 +118,6 @@ const execute = async () => {
     ...buildWorkerOptions()
   } ) );
 
-  if ( shutdownForceTimeMs <= shutdownGraceTimeMs ) {
-    log.warn( 'Temporal shutdown force time is not bigger than its grace time, so activities have no window to react to cancellation', {
-      shutdownForceTimeMs,
-      shutdownGraceTimeMs
-    } );
-  }
-
   run( () => logIsolateSizing( { worker } ) );
 
   log.info( 'Setting up telemetry...' );

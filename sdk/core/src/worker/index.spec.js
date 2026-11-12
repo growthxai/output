@@ -225,8 +225,6 @@ describe( 'worker/index', () => {
     resetPromises();
     configValues.apiKey = undefined;
     configValues.grpcProxy = undefined;
-    configValues.shutdownForceTimeMs = 20_000;
-    configValues.shutdownGraceTimeMs = 15_000;
     workerRunnerInstance.running = false;
     workerRunnerInstance.options = null;
     connectionMonitorInstance.running = false;
@@ -306,30 +304,6 @@ describe( 'worker/index', () => {
       // The worker never exists unless its catalog matches its own source code.
       expect( catalogPublisherInstance.run.mock.invocationCallOrder[0] )
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
-    } );
-
-    it.each( [
-      [ 'equal to', 15_000, 15_000 ],
-      [ 'smaller than', 10_000, 15_000 ]
-    ] )( 'warns when the shutdown force time is %s the grace time', async ( _, force, grace ) => {
-      configValues.shutdownForceTimeMs = force;
-      configValues.shutdownGraceTimeMs = grace;
-
-      await bootWorker();
-
-      expect( mockLog.warn ).toHaveBeenCalledWith(
-        expect.stringContaining( 'force time is not bigger than its grace time' ),
-        { shutdownForceTimeMs: force, shutdownGraceTimeMs: grace }
-      );
-    } );
-
-    it( 'does not warn about the shutdown times when the force time is bigger than the grace time', async () => {
-      await bootWorker();
-
-      expect( mockLog.warn ).not.toHaveBeenCalledWith(
-        expect.stringContaining( 'force time is not bigger' ),
-        expect.anything()
-      );
     } );
 
     it( 'enables TLS when an apiKey is set', async () => {

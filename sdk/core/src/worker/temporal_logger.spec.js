@@ -177,6 +177,29 @@ describe( 'setupTemporalLogger', () => {
       } );
     } );
 
+    it( 'does not demote an unrelated error that only shares the class name', () => {
+      class GracefulShutdownPeriodExpiredLookalike extends Error {}
+      Object.defineProperty( GracefulShutdownPeriodExpiredLookalike, 'name', { value: GracefulShutdownPeriodExpiredError.name } );
+      setupTemporalLogger();
+      const [ entryCallback ] = defaultLoggerMock.mock.calls[0].slice( 1 );
+
+      entryCallback( { level: 'ERROR', message: 'Worker failed', meta: { error: new GracefulShutdownPeriodExpiredLookalike( 'other' ) } } );
+
+      expect( logMock.log ).toHaveBeenCalledWith( 'error', 'Worker failed', expect.any( Object ) );
+    } );
+
+    it( 'demotes the error from another copy of the Temporal SDK, which carries the same marker but not the same class', () => {
+      const error = Object.assign( new Error( 'Timed out waiting for activities to finish' ), {
+        [Symbol.for( '__temporal_isGracefulShutdownPeriodExpiredError' )]: true
+      } );
+      setupTemporalLogger();
+      const [ entryCallback ] = defaultLoggerMock.mock.calls[0].slice( 1 );
+
+      entryCallback( { level: 'ERROR', message: 'Worker failed', meta: { error } } );
+
+      expect( logMock.log ).toHaveBeenCalledWith( 'warn', 'Worker failed', expect.any( Object ) );
+    } );
+
     it( 'does not treat a meta without an error as a forced shutdown', () => {
       configsMock.temporalLogLevel = 'ERROR';
       setupTemporalLogger();
