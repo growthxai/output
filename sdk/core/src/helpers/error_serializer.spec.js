@@ -20,6 +20,50 @@ describe( 'error serializer helpers', () => {
       expect( truncateString( 'exact', 5 ) ).toBe( 'exact' );
       expect( truncateString( 'longer', 5 ) ).toBe( 'longe... [1 more characters omitted]' );
     } );
+
+    describe( 'with characters made of two code units', () => {
+      const emoji = '\ud83d\ude00';
+
+      it( 'drops a character the cut would split and counts it as omitted', () => {
+        expect( truncateString( `abcd${emoji}x`, 5 ) ).toBe( 'abcd... [3 more characters omitted]' );
+      } );
+
+      it( 'keeps a character that ends exactly at the cut', () => {
+        expect( truncateString( `ab${emoji}cd`, 4 ) ).toBe( `ab${emoji}... [2 more characters omitted]` );
+      } );
+
+      it( 'does not drop anything extra when the cut falls right before a character', () => {
+        expect( truncateString( `abcd${emoji}x`, 4 ) ).toBe( 'abcd... [3 more characters omitted]' );
+      } );
+
+      it( 'can drop the only kept character', () => {
+        expect( truncateString( `${emoji}x`, 1 ) ).toBe( '... [3 more characters omitted]' );
+      } );
+
+      it( 'leaves no lone surrogate when a character straddles the default limit', () => {
+        const result = truncateString( `${'a'.repeat( 16_383 )}${emoji}tail` );
+
+        expect( result ).toBe( `${'a'.repeat( 16_383 )}... [6 more characters omitted]` );
+        expect( result.isWellFormed() ).toBe( true );
+      } );
+    } );
+
+    describe( 'with lone surrogates already in the input', () => {
+      it( 'leaves them as they are in values within the limit', () => {
+        expect( truncateString( 'x\ud83dy', 10 ) ).toBe( 'x\ud83dy' );
+        expect( truncateString( 'x\ude00y', 10 ) ).toBe( 'x\ude00y' );
+      } );
+
+      it( 'leaves them as they are in the kept part of a truncated value', () => {
+        expect( truncateString( `a\ud83db${'c'.repeat( 10 )}`, 5 ) ).toBe( 'a\ud83dbcc... [8 more characters omitted]' );
+        expect( truncateString( 'abc\ude00xyz', 4 ) ).toBe( 'abc\ude00... [3 more characters omitted]' );
+      } );
+
+      it( 'keeps a lone high surrogate at the cut when no low surrogate follows it', () => {
+        expect( truncateString( 'abc\ud83dxyz', 4 ) ).toBe( 'abc\ud83d... [3 more characters omitted]' );
+        expect( truncateString( 'ab\ud83d\ud83d\ude00', 3 ) ).toBe( 'ab\ud83d... [2 more characters omitted]' );
+      } );
+    } );
   } );
 
   describe( 'truncateArray', () => {
@@ -314,6 +358,41 @@ describe( 'serializeError', () => {
       longValue: `${'v'.repeat( 16_384 )}... [1 more characters omitted]`,
       [`${sharedKeyPrefix}... [1 more characters omitted]`]: 'first'
     } );
+  } );
+
+  it( 'keeps characters made of two code units intact', () => {
+    expect( serializeError( { ['key\ud83d\ude00']: 'value\ud83d\ude00' } ) ).toEqual( { 'key\ud83d\ude00': 'value\ud83d\ude00' } );
+  } );
+
+  it( 'does not alter lone surrogates already in the input', () => {
+    expect( serializeError( { ['key\ud83d']: 'value\ude00' } ) ).toEqual( { 'key\ud83d': 'value\ude00' } );
+  } );
+
+  it( 'does not split a character when truncating a value or a property name', () => {
+    const emoji = '\ud83d\ude00';
+    const longKey = `${'k'.repeat( 255 )}${emoji}`;
+
+    expect( serializeError( { v: `${'v'.repeat( 16_383 )}${emoji}` } ).v ).toBe( `${'v'.repeat( 16_383 )}... [2 more characters omitted]` );
+    expect( Object.keys( serializeError( { [longKey]: 1 } ) ) ).toEqual( [ `${'k'.repeat( 255 )}... [2 more characters omitted]` ] );
+  } );
+
+  it( 'serializes function and view names that are not strings', () => {
+    const numbered = Object.defineProperty( () => undefined, 'name', { value: 42 } );
+    const nulled = Object.defineProperty( () => undefined, 'name', { value: null } );
+    const view = Object.defineProperty( new Uint8Array( 3 ), 'constructor', { value: { name: 7 } } );
+
+    expect( serializeError( numbered ) ).toBe( '[Function: 42]' );
+    expect( serializeError( nulled ) ).toBe( '[Function: (anonymous)]' );
+    expect( serializeError( view ) ).toBe( '7(3)' );
+  } );
+
+  it( 'truncates RegExp sources, function names, and view names like other strings', () => {
+    const named = Object.defineProperty( () => undefined, 'name', { value: 'n'.repeat( 16_385 ) } );
+    const view = Object.defineProperty( new Uint8Array( 3 ), 'constructor', { value: { name: 'v'.repeat( 16_385 ) } } );
+
+    expect( serializeError( new RegExp( 'r'.repeat( 16_385 ) ) ) ).toBe( `/${'r'.repeat( 16_383 )}... [3 more characters omitted]` );
+    expect( serializeError( named ) ).toBe( `[Function: ${'n'.repeat( 16_384 )}... [1 more characters omitted]]` );
+    expect( serializeError( view ) ).toBe( `${'v'.repeat( 16_384 )}... [1 more characters omitted](3)` );
   } );
 
   it( 'limits arrays, maps, and sets while recursively serializing their values', () => {
