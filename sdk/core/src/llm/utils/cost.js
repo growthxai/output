@@ -1,8 +1,8 @@
 import { fetchModelsPricing } from './models_pricing.js';
-import { LLMGenerationUsage, LLMGenerationUsageItem } from './models/llm_generation_usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 import { resolveWebSearchPpm } from './web_search.js';
 import { Logger } from '#runtime_logger';
-import { LLMGenerationCost, LLMGenerationCostItem } from './models/llm_generation_cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
 import Decimal from 'decimal.js';
 import { isNonNegativeNumber } from '#helpers/number';
 

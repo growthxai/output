@@ -11,7 +11,7 @@ import openaiText from '../fixtures/text_response_v7_openai.js';
 import perplexityStream from '../fixtures/stream_response_v7_perplexity.js';
 import perplexityText from '../fixtures/text_response_v7_perplexity.js';
 import { parseLLMUsage } from './usage.js';
-import { LLMGenerationUsage, LLMGenerationUsageItem } from './models/llm_generation_usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;

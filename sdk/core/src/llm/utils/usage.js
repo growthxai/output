@@ -1,6 +1,6 @@
 import { extractUsageFromSteps } from './usage_tools.js';
 import { parseWebSearchUsage } from './web_search.js';
-import { LLMGenerationUsage, LLMGenerationUsageItem } from './models/llm_generation_usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 import { isNonNegativeInteger, safeSum } from '#helpers/number';
 
 /**

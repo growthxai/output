@@ -43,8 +43,7 @@ export class LLMGenerationCost extends LLMGeneration {
     IMPRECISE: 'imprecise',
     INCOMPLETE: 'incomplete'
   } );
-  providerId;
-  modelId;
+
   input = null;
   output = null;
   tools = null;
@@ -55,8 +54,6 @@ export class LLMGenerationCost extends LLMGeneration {
 
   constructor( modelId, providerId, promptName, requestDetails, items, usageStatus, pricingFreshness ) {
     super( LLMGenerationCost.TYPE, modelId, providerId, promptName, requestDetails );
-    this.modelId = modelId;
-    this.providerId = providerId;
 
     // group items with the same key, summing amount
     this.items = Map.groupBy( items, e => e.key )

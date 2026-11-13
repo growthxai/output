@@ -20,10 +20,10 @@ vi.mock( './models_pricing.js', async importOriginal => ( {
 } ) );
 
 import { calculateCosts } from './cost.js';
-import { LLMGenerationCost, LLMGenerationCostItem } from './models/llm_generation_cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
 import { Freshness } from './models_pricing.js';
 import { parseLLMUsage } from './usage.js';
-import { LLMGenerationUsageItem } from './models/llm_generation_usage.js';
+import { LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;

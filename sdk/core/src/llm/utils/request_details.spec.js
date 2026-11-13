@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseRequestDetails } from './request_details.js';
-import { LLMRequestDetails } from './models/llm_generation.js';
+import { LLMRequestDetails } from './attributes/llm_generation.js';
 
 describe( 'parseRequestDetails', () => {
   it( 'returns the request ids, the request count and the duration', () => {

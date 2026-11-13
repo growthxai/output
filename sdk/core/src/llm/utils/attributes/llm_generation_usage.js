@@ -24,8 +24,6 @@ export class LLMGenerationUsage extends LLMGeneration {
     INCOMPLETE: 'incomplete'
   } );
 
-  providerId;
-  modelId;
   status = LLMGenerationUsage.Status.INCOMPLETE;
   input = null;
   output = null;
@@ -33,10 +31,8 @@ export class LLMGenerationUsage extends LLMGeneration {
   items = [];
 
   constructor( modelId, providerId, promptName, requestDetails, items ) {
-
     super( LLMGenerationUsage.TYPE, modelId, providerId, promptName, requestDetails );
-    this.providerId = providerId;
-    this.modelId = modelId;
+
     this.items = items;
     const inputItems = items.filter( p => p.group === LLMGenerationUsageItem.Group.INPUT );
     if ( inputItems.length > 0 ) {
