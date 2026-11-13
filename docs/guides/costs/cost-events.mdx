@@ -202,7 +202,7 @@ For models priced by context size, Output selects the tier separately for every 
 | `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
 | `items[].ppm` | `number \| null` | Applied price per million units, such as tokens, requests, prompts, or queries. |
 | `items[].total` | `number \| null` | Calculated item cost. |
-| `items[].status` | `"ok" \| "fallback" \| "uncertain" \| "missing"` | Whether the exact rate, a regular input/output fallback, an uncertain context tier, or no rate was available. |
+| `items[].status` | `"ok" \| "fallback" \| "uncertain" \| "missing"` | Whether the exact rate (reasoning with no separate rate uses the output rate), an input-rate fallback for cache usage, an uncertain context tier, or no rate was available. |
 | `items[].tier` | `{ type: "context", size: number } \| undefined` | Context pricing tier applied to this item. Absent for base pricing and tool charges. |
 
 ## Legacy LLM request cost

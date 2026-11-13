@@ -53,7 +53,7 @@ const cases = [
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
       [ INPUT, 'cache_write', 0, 0.4, 0, FALLBACK ],
       [ OUTPUT, 'text', 396, 1.6, 0.0006336, OK ],
-      [ OUTPUT, 'reasoning', 0, 1.6, 0, FALLBACK ]
+      [ OUTPUT, 'reasoning', 0, 1.6, 0, OK ]
     ]
   },
   {
@@ -70,7 +70,7 @@ const cases = [
       [ INPUT, 'cache_read', 0, 0.1, 0, OK ],
       [ INPUT, 'cache_write', 0, 0.4, 0, FALLBACK ],
       [ OUTPUT, 'text', 386, 1.6, 0.0006176, OK ],
-      [ OUTPUT, 'reasoning', 0, 1.6, 0, FALLBACK ]
+      [ OUTPUT, 'reasoning', 0, 1.6, 0, OK ]
     ]
   },
   {
@@ -160,12 +160,12 @@ const cases = [
     output: 0.0034525,
     tools: 0.035,
     total: 0.0387621,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
       [ OUTPUT, 'text', 793, 2.5, 0.0019825, OK ],
-      [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, FALLBACK ],
+      [ OUTPUT, 'reasoning', 588, 2.5, 0.00147, OK ],
       [ TOOLS, 'grounding_prompt', 1, 35_000, 0.035, OK ]
     ]
   },
@@ -177,12 +177,12 @@ const cases = [
     input: 0.0003096,
     output: 0.0033675,
     total: 0.0036771,
-    status: LLMGenerationCost.Status.IMPRECISE,
+    status: LLMGenerationCost.Status.PRECISE,
     items: [
       [ INPUT, 'no_cache', 1032, 0.3, 0.0003096, OK ],
       [ INPUT, 'cache_read', 0, 0.03, 0, OK ],
       [ OUTPUT, 'text', 858, 2.5, 0.002145, OK ],
-      [ OUTPUT, 'reasoning', 489, 2.5, 0.0012225, FALLBACK ]
+      [ OUTPUT, 'reasoning', 489, 2.5, 0.0012225, OK ]
     ]
   },
   {
@@ -211,7 +211,7 @@ const cases = [
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 437, 1, 0.000437, OK ],
-      [ OUTPUT, 'reasoning', 0, 1, 0, FALLBACK ]
+      [ OUTPUT, 'reasoning', 0, 1, 0, OK ]
     ]
   },
   {
@@ -226,7 +226,7 @@ const cases = [
     items: [
       [ INPUT, 'no_cache', 1025, 1, 0.001025, OK ],
       [ OUTPUT, 'text', 448, 1, 0.000448, OK ],
-      [ OUTPUT, 'reasoning', 0, 1, 0, FALLBACK ]
+      [ OUTPUT, 'reasoning', 0, 1, 0, OK ]
     ]
   }
 ];

@@ -28,11 +28,9 @@ const resolvePrice = ( { providerId, group, label, pricing, isReasoning } ) => {
     return resolveValue( [] );
   }
   if ( group === LLMGenerationUsageItem.Group.OUTPUT ) {
-    const values = [ pricing.output ];
-    if ( label === 'reasoning' ) {
-      values.unshift( pricing.reasoning );
-    }
-    return resolveValue( values );
+    // Reasoning is billed as output unless the catalog lists a separate rate, so using the output rate is not a fallback
+    const rate = label === 'reasoning' && isNonNegativeNumber( pricing.reasoning ) ? pricing.reasoning : pricing.output;
+    return resolveValue( [ rate ] );
   }
 
   const values = [ pricing.input ];
