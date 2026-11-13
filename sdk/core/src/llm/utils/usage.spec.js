@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { BaseAttribute } from '#trace_attribute';
-import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
+import { parseLLMUsage } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
 const mocks = vi.hoisted( () => ( {
   extractUsageFromSteps: vi.fn()
@@ -32,59 +32,6 @@ const grounded = ( model, ...steps ) => parseLLMUsage( {
 } );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
-describe( 'LLMGenerationUsage', () => {
-  it( 'aggregates usage items and produces serializable data', () => {
-    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'no_cache', 70 ),
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, 'cache_read', 30 ),
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, 'text', 40 ),
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.OUTPUT, 'reasoning', 10 )
-    ] );
-
-    expect( usage ).toBeInstanceOf( BaseAttribute );
-    expect( serialize( usage ) ).toEqual( {
-      type: LLMGenerationUsage.TYPE,
-      providerId: 'test-provider',
-      modelId: 'test-model',
-      status: LLMGenerationUsage.Status.COMPLETE,
-      input: 100,
-      output: 50,
-      total: 150,
-      items: [
-        { group: LLMGenerationUsageItem.Group.INPUT, label: 'no_cache', amount: 70 },
-        { group: LLMGenerationUsageItem.Group.INPUT, label: 'cache_read', amount: 30 },
-        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'text', amount: 40 },
-        { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
-      ]
-    } );
-  } );
-
-  it( 'keeps missing groups null and marks usage incomplete', () => {
-    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [
-      new LLMGenerationUsageItem( LLMGenerationUsageItem.Group.INPUT, null, 25 )
-    ] );
-
-    expect( usage ).toMatchObject( {
-      status: LLMGenerationUsage.Status.INCOMPLETE,
-      input: 25,
-      output: null,
-      total: 25
-    } );
-  } );
-
-  it( 'represents empty items as incomplete usage without totals', () => {
-    const usage = new LLMGenerationUsage( 'test-model', 'test-provider', [] );
-
-    expect( usage ).toMatchObject( {
-      status: LLMGenerationUsage.Status.INCOMPLETE,
-      input: null,
-      output: null,
-      total: null,
-      items: []
-    } );
-  } );
-} );
-
 describe( 'parseLLMUsage', () => {
   beforeEach( () => {
     mocks.extractUsageFromSteps.mockReset();
@@ -110,6 +57,7 @@ describe( 'parseLLMUsage', () => {
       type: LLMGenerationUsage.TYPE,
       providerId: 'test-provider',
       modelId: 'test-model',
+      requestDetails: null,
       status: LLMGenerationUsage.Status.COMPLETE,
       input: 100,
       output: 50,
@@ -122,6 +70,17 @@ describe( 'parseLLMUsage', () => {
         { group: LLMGenerationUsageItem.Group.OUTPUT, label: 'reasoning', amount: 10 }
       ]
     } );
+  } );
+
+  it( 'carries the prompt name and the request details of the call', () => {
+    const requestDetails = { ids: [ 'req-id' ], count: 1, duration: 10 };
+    const result = parseLLMUsage( {
+      prompt: { name: 'writer@v1', ...prompt },
+      usage: { inputTokens: 1, outputTokens: 1 },
+      requestDetails
+    } );
+
+    expect( result ).toMatchObject( { promptName: 'writer@v1', requestDetails } );
   } );
 
   it( 'uses sparse breakdowns when their reported values match the aggregates', () => {

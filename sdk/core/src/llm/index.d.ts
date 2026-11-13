@@ -363,11 +363,25 @@ export interface LLMGenerationUsageItem {
   amount: number;
 }
 
+/** Provider requests behind one LLM generation. */
+export interface LLMRequestDetails {
+  /** Provider request ID of every request that exposed one, in request order. Empty when the provider exposes none. */
+  ids: string[];
+  /** Number of provider requests, one per step. Can be greater than `ids.length`. */
+  count: number;
+  /** Milliseconds from the start of the call until billing starts, rounded up. */
+  duration: number;
+}
+
 /** Normalized LLM token usage trace attribute. */
 export interface LLMGenerationUsage extends BaseAttribute {
   type: 'llm:generation:usage';
   providerId: string;
   modelId: string;
+  /** Name of the prompt that made the call. Absent on usage recorded before this field existed. */
+  promptName?: string;
+  /** Absent on usage recorded before this field existed. */
+  requestDetails?: LLMRequestDetails;
   input: number | null;
   output: number | null;
   total: number | null;
@@ -422,6 +436,10 @@ export interface LLMGenerationCost extends BaseAttribute {
   type: 'llm:generation:cost';
   providerId: string;
   modelId: string;
+  /** Name of the prompt that made the call. Absent on costs recorded before this field existed. */
+  promptName?: string;
+  /** Absent on costs recorded before this field existed. */
+  requestDetails?: LLMRequestDetails;
   input: number | null;
   output: number | null;
   tools: number | null;

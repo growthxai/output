@@ -527,7 +527,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost; `null` when usage cannot be normalized |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, `promptName`, `requestDetails`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost; `null` when usage cannot be normalized |
 
 The `cost` property is an `LLMGenerationCost`:
 
@@ -536,6 +536,8 @@ The `cost` property is an `LLMGenerationCost`:
   "type": "llm:generation:cost",
   "providerId": "openai",
   "modelId": "gpt-4o",
+  "promptName": "summarize@v1",
+  "requestDetails": { "ids": ["req_8e1cf3899f254171855c866214eb5620"], "count": 1, "duration": 1240 },
   "status": "precise",
   "pricingFreshness": "cached",
   "input": 0.001085,
@@ -944,6 +946,8 @@ For direct streams, metering events fire when the stream finishes. Observe them 
 ### Normalized generation metering
 
 `llm:generation:metering` is emitted whenever raw AI SDK usage can be normalized. Its payload contains `usage: LLMGenerationUsage` and `cost: LLMGenerationCost | null`. Missing model or dimension prices produce an incomplete `LLMGenerationCost`.
+
+Both carry the `promptName` of the call and its `requestDetails`: the provider request IDs, the request count and the duration in milliseconds. See [Request details](/costs/cost-events#request-details).
 
 ```typescript
 import { on } from '@outputai/core/hooks';

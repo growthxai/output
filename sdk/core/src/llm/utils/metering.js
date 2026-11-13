@@ -4,6 +4,7 @@ import { stepEventBus } from '#bus';
 import { addEventActionWithContext, EventAction } from '#tracing';
 import { Logger } from '#runtime_logger';
 import { convertCostToLegacy } from './legacy_cost_attribute.js';
+import { parseRequestDetails } from './request_details.js';
 
 /**
  * Collects the usage of a single LLM call and bills it once.
@@ -16,6 +17,7 @@ import { convertCostToLegacy } from './legacy_cost_attribute.js';
 export class Metering {
   #recordedSteps = [];
   #billed = false;
+  #startedAt;
   #prompt;
   #traceId;
   #toolIdsByName;
@@ -25,14 +27,14 @@ export class Metering {
     legacy: null
   };
 
-  async #createAttributes( { usage, steps } ) {
-    const totalUsage = parseLLMUsage( { prompt: this.#prompt, usage, steps, toolIdsByName: this.#toolIdsByName } );
-    const stepsUsage = steps.map( step => parseLLMUsage( {
+  async #createAttributes( { usage, steps, requestDetails } ) {
+    const baseUsageArgs = {
       prompt: this.#prompt,
-      usage: step.usage,
-      steps: [ step ],
       toolIdsByName: this.#toolIdsByName
-    } ) );
+    };
+    // Only the call-level usage carries the request details; the per-step usages feed the tiered cost items only
+    const totalUsage = parseLLMUsage( { ...baseUsageArgs, usage, steps, requestDetails } );
+    const stepsUsage = steps.map( step => parseLLMUsage( { ...baseUsageArgs, usage: step.usage, steps: [ step ] } ) );
 
     this.#attributes.usage = totalUsage;
     if ( this.#attributes.usage ) {
@@ -77,6 +79,7 @@ export class Metering {
     this.#traceId = traceId;
     this.#prompt = prompt;
     this.#toolIdsByName = toolIdsByName;
+    this.#startedAt = performance.now();
   }
 
   /**
@@ -108,6 +111,7 @@ export class Metering {
     }
 
     try {
+      const duration = Math.ceil( performance.now() - this.#startedAt );
       const responseSteps = response?.steps;
       const steps = Array.isArray( responseSteps ) && responseSteps.length > 0 ? responseSteps : this.#recordedSteps;
       const usage = response?.usage;
@@ -116,9 +120,14 @@ export class Metering {
         return;
       }
 
+      const requestsHeaders = steps.length > 0 ?
+        steps.map( step => step?.response?.headers ) :
+        ( response?.responses ?? [] ).map( r => r?.headers );
+      const requestDetails = parseRequestDetails( { requestsHeaders, duration } );
+
       this.#billed = true;
 
-      await this.#createAttributes( { usage, steps } );
+      await this.#createAttributes( { usage, steps, requestDetails } );
       this.#attachAttributes();
       this.#emitEvents();
 

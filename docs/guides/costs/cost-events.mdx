@@ -43,6 +43,8 @@ on<LLMGenerationMeteringEvent>( 'llm:generation:metering', async ( {
     activityId: activityInfo.activityId,
     providerId: payload.usage.providerId,
     modelId: payload.usage.modelId,
+    promptName: payload.usage.promptName,
+    durationMs: payload.usage.requestDetails?.duration,
     tokens: payload.usage.total,
     cost: payload.cost?.total
   } );
@@ -105,6 +107,8 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "type": "llm:generation:usage",
       "providerId": "openai",
       "modelId": "gpt-4o",
+      "promptName": "summarize@v1",
+      "requestDetails": { "ids": ["req_8e1cf3899f254171855c866214eb5620"], "count": 1, "duration": 1240 },
       "status": "complete",
       "input": 217,
       "output": 9,
@@ -118,6 +122,8 @@ The handler receives the standard event envelope. `payload.usage` is always pres
       "type": "llm:generation:cost",
       "providerId": "openai",
       "modelId": "gpt-4o",
+      "promptName": "summarize@v1",
+      "requestDetails": { "ids": ["req_8e1cf3899f254171855c866214eb5620"], "count": 1, "duration": 1240 },
       "status": "precise",
       "pricingFreshness": "cached",
       "input": 0.001085,
@@ -152,6 +158,8 @@ The handler receives the standard event envelope. `payload.usage` is always pres
 | `type` | `"llm:generation:usage"` | Trace attribute type. |
 | `providerId` | `string` | Provider identifier from the loaded prompt. |
 | `modelId` | `string` | Model identifier from the loaded prompt. |
+| `promptName` | `string \| undefined` | Name of the prompt that made the call, such as `summarize@v1`. Use it to group usage by prompt. Always present on events; absent only on usage recorded in traces before this field existed. |
+| `requestDetails` | `LLMRequestDetails \| undefined` | Provider request IDs, request count and duration of the call. See [Request details](#request-details). Always present on events; absent only on usage recorded in traces before this field existed. |
 | `input` | `number \| null` | Total reported input usage. |
 | `output` | `number \| null` | Total reported output usage. |
 | `total` | `number \| null` | Sum of available input and output usage. |
@@ -168,6 +176,18 @@ When the detailed counts do not reconcile with the aggregate count, Output keeps
 
 Tool items are recorded independently from tokens and are excluded from the `input`, `output`, and `total` token aggregates above.
 
+### Request details
+
+`payload.usage.requestDetails` and `payload.cost.requestDetails` hold the same values, so a consumer that reads only one of them can still correlate the call.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ids` | `string[]` | Provider request ID of every request that exposed one, in request order. A multi-step call keeps all of them. Output reads the `request-id` response header, then `x-request-id`. A provider that exposes neither, such as Google Vertex, gives an empty array, and no replacement ID is generated. |
+| `count` | `number` | Number of provider requests, one per step. It is greater than `ids.length` when some requests exposed no ID. |
+| `duration` | `number` | Milliseconds, rounded up, from the start of the call until billing starts. For a stream, that is until the stream ends. |
+
+The IDs match the ones in the provider's own logs and support tools. Requests that the AI SDK retries internally after a failure are not included, because only the attempt that succeeded returns a response. A call that throws before any step completes reports nothing, because no usage exists yet.
+
 ### Normalized cost
 
 `LLMGenerationCost` contains priced items for the normalized usage. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
@@ -176,6 +196,7 @@ For models priced by context size, Output selects the tier separately for every 
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `promptName`, `requestDetails` | `string`, `LLMRequestDetails` | Same values as on the usage, with the same absence on older traces. |
 | `input`, `output`, `tools`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `tools` holds charges such as grounding and provider-native web search, and `total` is the sum of `input`, `output`, and `tools`. |
 | `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback or uncertain rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
 | `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |

@@ -142,6 +142,8 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
           "type": "llm:generation:usage",
           "providerId": "anthropic",
           "modelId": "claude-sonnet-4-20250514",
+          "promptName": "generate_summary@v1",
+          "requestDetails": { "ids": ["req_011CgzuBM7cVrch6VjNcepAx"], "count": 1, "duration": 5939 },
           "status": "complete",
           "input": 38,
           "output": 204,
@@ -155,6 +157,8 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
           "type": "llm:generation:cost",
           "providerId": "anthropic",
           "modelId": "claude-sonnet-4-20250514",
+          "promptName": "generate_summary@v1",
+          "requestDetails": { "ids": ["req_011CgzuBM7cVrch6VjNcepAx"], "count": 1, "duration": 5939 },
           "status": "precise",
           "pricingFreshness": "cached",
           "input": 0.000114,
@@ -182,7 +186,7 @@ This is the most common trace shape you'll see. The step has the LLM call as a c
 }
 ```
 
-The deprecated `llm:usage` attribute remains on priced LLM traces for compatibility. New trace readers should use `llm:generation:usage` and `llm:generation:cost`, which preserve normalized usage and detailed pricing separately.
+The deprecated `llm:usage` attribute remains on priced LLM traces for compatibility. New trace readers should use `llm:generation:usage` and `llm:generation:cost`, which preserve normalized usage and detailed pricing separately. Both also record the `promptName` and the `requestDetails` of the call: provider request IDs, request count, and duration in milliseconds. See [Request details](/costs/cost-events#request-details).
 
 ### Failed Step
 

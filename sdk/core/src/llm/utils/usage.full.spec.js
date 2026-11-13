@@ -10,7 +10,8 @@ import openaiStream from '../fixtures/stream_response_v7_openai.js';
 import openaiText from '../fixtures/text_response_v7_openai.js';
 import perplexityStream from '../fixtures/stream_response_v7_perplexity.js';
 import perplexityText from '../fixtures/text_response_v7_perplexity.js';
-import { LLMGenerationUsage, LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
+import { parseLLMUsage } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
@@ -193,21 +194,26 @@ describe( 'parseLLMUsage with AI SDK response fixtures', () => {
     output,
     items
   } ) => {
+    const requestDetails = { ids: [ 'req-id' ], count: 1, duration: 10 };
     const result = parseLLMUsage( {
       prompt: {
+        name: 'writer@v1',
         config: {
           provider: providerId,
           model: modelId
         }
       },
       usage: fixture.usage,
-      steps: fixture.steps
+      steps: fixture.steps,
+      requestDetails
     } );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {
       type: LLMGenerationUsage.TYPE,
       providerId,
       modelId,
+      promptName: 'writer@v1',
+      requestDetails,
       status: LLMGenerationUsage.Status.COMPLETE,
       input,
       output,

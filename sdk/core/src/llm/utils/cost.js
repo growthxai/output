@@ -1,117 +1,18 @@
-import { fetchModelsPricing, Freshness } from './models_pricing.js';
-import { BaseAttribute } from '#trace_attribute';
-import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
+import { fetchModelsPricing } from './models_pricing.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 import { resolveWebSearchPpm } from './web_search.js';
 import { Logger } from '#runtime_logger';
+import { LLMGenerationCost, LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
 import Decimal from 'decimal.js';
-
-// Checks whether a pricing value can be used in cost calculations.
-const isValidNumber = v => Number.isFinite( v ) && v >= 0;
-
-export class LLMGenerationCostItem {
-  static Status = Object.freeze( {
-    OK: 'ok',
-    FALLBACK: 'fallback',
-    UNCERTAIN: 'uncertain',
-    MISSING: 'missing'
-  } );
-
-  group;
-  label;
-  amount;
-  ppm;
-  total;
-  status;
-
-  constructor( group, label, amount, ppm, total, status, tier = undefined ) {
-    this.group = group;
-    this.label = label;
-    this.amount = amount;
-    this.ppm = ppm;
-    this.total = total;
-    this.status = status;
-    if ( tier ) {
-      this.tier = { type: tier.type, size: tier.size };
-    }
-  }
-
-  get key() {
-    return JSON.stringify( [ this.group, this.label, this.ppm, this.status, this.tier?.type, this.tier?.size ] );
-  }
-}
-
-export class LLMGenerationCost extends BaseAttribute {
-  static TYPE = 'llm:generation:cost';
-  static Status = Object.freeze( {
-    PRECISE: 'precise',
-    IMPRECISE: 'imprecise',
-    INCOMPLETE: 'incomplete'
-  } );
-  providerId;
-  modelId;
-  input = null;
-  output = null;
-  tools = null;
-  total = null;
-  status = LLMGenerationCost.Status.INCOMPLETE;
-  pricingFreshness = null;
-  items = [];
-
-  constructor( modelId, providerId, items, usageStatus, pricingFreshness ) {
-    super( LLMGenerationCost.TYPE );
-    this.modelId = modelId;
-    this.providerId = providerId;
-
-    // group items with the same key, summing amount
-    this.items = Map.groupBy( items, e => e.key )
-      .values()
-      .toArray()
-      .map( items => {
-        if ( items.length === 1 ) {
-          return items[0];
-        }
-
-        const { group, label, ppm, status, tier } = items[0];
-        const amount = items.reduce( ( sum, item ) => sum + item.amount, 0 );
-        const total = isValidNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
-        return new LLMGenerationCostItem( group, label, amount, ppm, total, status, tier );
-      } );
-
-    this.pricingFreshness = pricingFreshness;
-
-    const meaningfulItems = this.items.filter( v => v.amount > 0 );
-    const hasMissingItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING );
-    const hasFallbackItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK );
-    const hasUncertainItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.UNCERTAIN );
-
-    if ( hasMissingItems || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
-      this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( hasFallbackItems || pricingFreshness === Freshness.SNAPSHOT || hasUncertainItems ) {
-      this.status = LLMGenerationCost.Status.IMPRECISE;
-    } else {
-      this.status = LLMGenerationCost.Status.PRECISE;
-    }
-
-    const sumGroup = group => {
-      const groupItems = this.items.filter( p => p.group === group && isValidNumber( p.total ) );
-      return groupItems.length > 0 ? groupItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber() : null;
-    };
-    this.input = sumGroup( LLMGenerationUsageItem.Group.INPUT );
-    this.output = sumGroup( LLMGenerationUsageItem.Group.OUTPUT );
-    this.tools = sumGroup( LLMGenerationUsageItem.Group.TOOLS );
-    if ( isValidNumber( this.input ) || isValidNumber( this.output ) || isValidNumber( this.tools ) ) {
-      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.tools ?? 0 ).toNumber();
-    }
-  }
-}
+import { isNonNegativeNumber } from '#helpers/number';
 
 // Selects the exact rate, then the first available fallback rate.
 const resolveValue = values => {
-  if ( isValidNumber( values[0] ) ) {
+  if ( isNonNegativeNumber( values[0] ) ) {
     return { ppm: values[0], status: LLMGenerationCostItem.Status.OK };
   }
-  const fallback = values.slice( 1 ).find( isValidNumber );
-  if ( isValidNumber( fallback ) ) {
+  const fallback = values.slice( 1 ).find( isNonNegativeNumber );
+  if ( isNonNegativeNumber( fallback ) ) {
     return { ppm: fallback, status: LLMGenerationCostItem.Status.FALLBACK };
   }
   return { ppm: null, status: LLMGenerationCostItem.Status.MISSING };
@@ -146,7 +47,7 @@ const resolvePrice = ( { providerId, group, label, pricing, isReasoning } ) => {
 // Finds the highest context threshold crossed by this request's input.
 const resolvePricingTier = ( modelPricing, input ) => {
   // DESC sort by size
-  const supportedTiers = modelPricing.cost.tiers.filter( t => t?.tier?.type === 'context' && isValidNumber( t.tier.size ) );
+  const supportedTiers = modelPricing.cost.tiers.filter( t => t?.tier?.type === 'context' && isNonNegativeNumber( t.tier.size ) );
   const hasUnsupported = supportedTiers.length !== modelPricing.cost.tiers.length;
 
   const sortedTiers = supportedTiers.toSorted( ( t1, t2 ) => t2.tier.size - t1.tier.size );
@@ -160,7 +61,7 @@ const calculateCostItems = ( { usage, pricing, isReasoning, uncertain } ) => {
   const { providerId } = usage;
   return usage.items.map( ( { group, label, amount } ) => {
     const { ppm, status } = resolvePrice( { providerId, isReasoning, group, label, pricing } );
-    const total = isValidNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
+    const total = isNonNegativeNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
 
     const isTool = group === LLMGenerationUsageItem.Group.TOOLS;
     const isCostOk = status === LLMGenerationCostItem.Status.OK;
@@ -198,7 +99,7 @@ const calculateTieredUsage = ( totalUsage, stepsUsage, modelPricing ) => {
 
   return ( isMultiStep ? stepsUsage : [ totalUsage ] ).flatMap( usage => {
     // output usage can't have tier billing
-    if ( !isValidNumber( usage.input ) ) {
+    if ( !isNonNegativeNumber( usage.input ) ) {
       return calculateCostItems( { usage, pricing, isReasoning } );
     }
 
@@ -244,7 +145,7 @@ export const calculateCosts = async ( usage, stepsUsage ) => {
     Logger.warn( 'Tool call with no rate for model', { namespace: 'LLM', modelId, providerId, type: unrated.label } );
   }
 
-  return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );
+  return new LLMGenerationCost( modelId, providerId, usage.promptName, usage.requestDetails, items, usage.status, pricingFreshness );
 };
 
 /**
@@ -263,5 +164,5 @@ export const calculateLegacyCosts = async usage => {
   const modelPricing = models.get( `${providerId}/${modelId}` );
   const items = calculateStandardUsage( usage, modelPricing );
 
-  return new LLMGenerationCost( modelId, providerId, items, usage.status, pricingFreshness );
+  return new LLMGenerationCost( modelId, providerId, null, null, items, usage.status, pricingFreshness );
 };
