@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Parser } from '@oclif/core';
 import { CLIError } from '@oclif/core/errors';
+import { ux } from '@oclif/core/ux';
 
 vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowStart: vi.fn()
@@ -489,6 +490,20 @@ describe( 'workflow start command', () => {
         const usageError = new CLIError( 'Cannot combine --monitor with --json.', { exit: 2 } );
 
         await expect( cmd.catch( usageError ) ).rejects.toBe( usageError );
+        expect( cmd.error ).not.toHaveBeenCalled();
+      } );
+
+      it( 'writes oclif errors as JSON to stderr with their own exit code under --json', async () => {
+        const { cmd } = await createCommand();
+        vi.spyOn( cmd, 'jsonEnabled' ).mockReturnValue( true );
+        const stderr = vi.spyOn( ux, 'stderr' ).mockImplementation( () => {} );
+        const usageError = new CLIError( 'Cannot combine --monitor with --json.', { exit: 2 } );
+
+        await expect( cmd.catch( usageError ) ).rejects.toMatchObject( { oclif: { exit: 2 } } );
+
+        expect( JSON.parse( String( stderr.mock.calls[0][0] ) ) ).toEqual(
+          { error: { message: 'Cannot combine --monitor with --json.' } }
+        );
         expect( cmd.error ).not.toHaveBeenCalled();
       } );
     } );

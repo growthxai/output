@@ -6,7 +6,7 @@ import {
   getWorkflowIdRunsRidInput,
   type WorkflowInputResponse
 } from '#api/generated/api.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowInput extends Command {
   static override description = 'Get the original input a workflow run was started with';
@@ -89,7 +89,7 @@ export default class WorkflowInput extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID.'
     } );
   }

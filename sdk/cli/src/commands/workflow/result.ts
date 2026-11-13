@@ -1,7 +1,7 @@
 import { Args, Command } from '@oclif/core';
 import { getWorkflowIdResult, type WorkflowResultResponse } from '#api/generated/api.js';
 import { formatWorkflowResult, isErrorStatus } from '#utils/format_workflow_result.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowResult extends Command {
   static override description = 'Get workflow execution result';
@@ -43,7 +43,7 @@ export default class WorkflowResult extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID.'
     } );
   }

@@ -1,6 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { commandStreamIo, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
-import { handleCommandError } from '#utils/error_handler.js';
+import { createErrorFn, handleCommandError } from '#utils/error_handler.js';
 import { monitorStreamFlags } from '#utils/monitor_flags.js';
 
 const OUTPUT_FORMAT = { JSON: 'json', TEXT: 'text' } as const;
@@ -66,7 +66,7 @@ export default class WorkflowMonitor extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleCommandError( error, ( ...args ) => this.error( ...args ), {
+    return handleCommandError( error, createErrorFn( this ), {
       ...monitorErrorOverrides( error ),
       // Owned by this command rather than the shared overrides: here the id is the
       // argument the user typed, so pointing at it is actionable advice.

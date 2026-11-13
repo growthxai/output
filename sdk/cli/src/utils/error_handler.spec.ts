@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi } from 'vitest';
-import { CLIError } from '@oclif/core/errors';
-import { handleApiError, handleCommandError } from './error_handler.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { CLIError, ExitError } from '@oclif/core/errors';
+import { ux } from '@oclif/core/ux';
+import { createErrorFn, handleApiError, handleCommandError } from './error_handler.js';
 
 const errorFn = () => vi.fn( ( message: string ) => {
   throw new Error( message );
@@ -69,20 +70,28 @@ describe( 'handleApiError()', () => {
     const fn = errorFn();
 
     expect( () => handleApiError( apiError( 500 ), fn ) ).toThrow();
-    expect( fn ).toHaveBeenCalledWith( expect.any( String ), { exit: 1 } );
+    expect( fn ).toHaveBeenCalledWith( expect.any( String ), { exit: 1, status: 500, code: undefined } );
+  } );
+
+  it( 'passes the HTTP status and the error code along for structured output', () => {
+    const fn = errorFn();
+    const error = Object.assign( new Error( 'fetch failed' ), { cause: { code: 'ECONNREFUSED' } } );
+
+    expect( () => handleApiError( error, fn ) ).toThrow();
+    expect( fn ).toHaveBeenCalledWith( expect.any( String ), { exit: 1, status: undefined, code: 'ECONNREFUSED' } );
   } );
 } );
 
 describe( 'handleCommandError()', () => {
-  it( 'rethrows an oclif error untouched so its exit code and formatting survive', () => {
+  it( 'hands an oclif error to errorFn with its own exit code and the original error', () => {
     const fn = errorFn();
     // `workflow start --monitor` raises exit 2 (bad flag combination) and exit 3
     // (started but unmonitorable); flattening those to exit 1 would let a CI job
     // retrying on a failed workflow re-submit one that is already running.
     const cliError = new CLIError( 'Cannot combine --monitor with --json', { exit: 2 } );
 
-    expect( () => handleCommandError( cliError, fn ) ).toThrow( cliError );
-    expect( fn ).not.toHaveBeenCalled();
+    expect( () => handleCommandError( cliError, fn ) ).toThrow();
+    expect( fn ).toHaveBeenCalledWith( 'Cannot combine --monitor with --json', { exit: 2, original: cliError } );
   } );
 
   it( 'maps anything that came back from the API the same way handleApiError does', () => {
@@ -93,5 +102,58 @@ describe( 'handleCommandError()', () => {
       fn,
       { 404: 'Workflow not found. Check the workflow name.' }
     ) ).toThrow( 'Workflow not found. Check the workflow name.' );
+  } );
+} );
+
+describe( 'createErrorFn()', () => {
+  afterEach( () => {
+    vi.restoreAllMocks();
+  } );
+
+  const command = ( isJson: boolean ) => ( {
+    jsonEnabled: () => isJson,
+    error: vi.fn( ( message: string ) => {
+      throw new Error( message );
+    } )
+  } ) as any;
+
+  const printedJson = ( stderr: ReturnType<typeof vi.spyOn> ) => JSON.parse( String( stderr.mock.calls[0][0] ) );
+
+  it( 'fails through command.error() with the exit code in text mode', () => {
+    const cmd = command( false );
+
+    expect( () => createErrorFn( cmd )( 'Workflow not found.', { exit: 1, status: 404 } ) ).toThrow( 'Workflow not found.' );
+    expect( cmd.error ).toHaveBeenCalledWith( 'Workflow not found.', { exit: 1 } );
+  } );
+
+  it( 'rethrows the original oclif error in text mode', () => {
+    const cmd = command( false );
+    const original = new CLIError( 'bad flags', { exit: 2 } );
+
+    expect( () => createErrorFn( cmd )( original.message, { exit: 2, original } ) ).toThrow( original );
+    expect( cmd.error ).not.toHaveBeenCalled();
+  } );
+
+  it( 'writes the error as JSON to stderr, leaves stdout alone and exits without printing in json mode', () => {
+    const stderr = vi.spyOn( ux, 'stderr' ).mockImplementation( () => {} );
+    const stdout = vi.spyOn( ux, 'stdout' ).mockImplementation( () => {} );
+    const cmd = command( true );
+
+    const fail = createErrorFn( cmd );
+
+    expect( () => fail( 'Workflow not found.', { exit: 1, status: 404, code: undefined } ) ).toThrow( ExitError );
+    expect( printedJson( stderr ) ).toEqual( { error: { message: 'Workflow not found.', status: 404 } } );
+    expect( stdout ).not.toHaveBeenCalled();
+    expect( cmd.error ).not.toHaveBeenCalled();
+  } );
+
+  it( 'keeps the exit code of an oclif error in json mode and includes the error code', () => {
+    const stderr = vi.spyOn( ux, 'stderr' ).mockImplementation( () => {} );
+    const original = new CLIError( 'Cannot combine --monitor with --json', { exit: 2 } );
+
+    expect( () => createErrorFn( command( true ) )( original.message, { exit: 2, code: 'ECONNREFUSED', original } ) ).toThrow(
+      expect.objectContaining( { oclif: { exit: 2 } } )
+    );
+    expect( printedJson( stderr ) ).toEqual( { error: { message: 'Cannot combine --monitor with --json', code: 'ECONNREFUSED' } } );
   } );
 } );

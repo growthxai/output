@@ -15,7 +15,7 @@ import { getTrace } from '#services/trace_reader.js';
 import { extractDatasetFromTrace } from '#utils/trace_extractor.js';
 import { resolveScenarioPath, getScenarioNotFoundMessage } from '#utils/scenario_resolver.js';
 import { parseInputFlag } from '#utils/input_parser.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class DatasetGenerate extends Command {
   static override description = 'Generate a dataset for a workflow from a scenario, trace file, or recent runs';
@@ -269,7 +269,7 @@ export default class DatasetGenerate extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow name.',
       500: 'Workflow execution failed.'
     } );

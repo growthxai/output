@@ -2,7 +2,7 @@ import { Args, Command, Flags } from '@oclif/core';
 import Table from 'cli-table3';
 import { fetchWorkflowRuns, type WorkflowRun } from '#services/workflow_runs.js';
 import { formatDate, formatDurationFromTimestamps } from '#utils/date_formatter.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 const OUTPUT_FORMAT = {
   TABLE: 'table',
@@ -125,7 +125,7 @@ export default class WorkflowRunsList extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       400: 'Invalid parameters provided.',
       503: 'Workflow service temporarily unavailable.'
     } );

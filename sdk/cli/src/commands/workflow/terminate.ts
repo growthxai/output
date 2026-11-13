@@ -1,6 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowIdTerminate } from '#api/generated/api.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowTerminate extends Command {
   static override description = 'Terminate a workflow execution (force stop)';
@@ -42,7 +42,7 @@ export default class WorkflowTerminate extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID.'
     } );
   }

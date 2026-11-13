@@ -2,7 +2,7 @@ import { Args, Command, Flags } from '@oclif/core';
 import { fetchWorkflowHistory } from '#services/workflow_history.js';
 import buildSpanLabels from '#utils/span_labels.js';
 import renderWaterfall, { formatDurationLabel } from '#utils/waterfall.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 import { shouldColorize } from '#utils/color.js';
 
 const DEFAULT_WIDTH = 80;
@@ -106,7 +106,7 @@ export default class WorkflowHistory extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID.'
     } );
   }

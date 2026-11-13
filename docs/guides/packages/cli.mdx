@@ -492,6 +492,27 @@ Use `--json` with `output workflow run` or `output workflow result` to print the
 | `trace` | Trace metadata for the run, or `null` when unavailable. |
 | `error` | Serialized error object on failure, otherwise `null`. It includes `name` and `message` and may contain `activityType`, `cause`, and other diagnostic properties. |
 
+#### JSON error format
+
+When a command run with `--json` fails, it writes a JSON error to **stderr** and leaves stdout empty, so a script can read results from stdout and failures from stderr without mixing them. This applies to `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `debug`, `input`, `test`, and `dataset list`.
+
+```json
+{
+  "error": {
+    "message": "Workflow not found. Check the workflow ID.",
+    "status": 404
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `message` | Human-readable description of the failure. Always present. |
+| `status` | HTTP status returned by the API. Present only when the API responded. |
+| `code` | System error code, such as a network error code. Present only when the failure has one. |
+
+The exit code tells you what kind of failure it was, and is the same as in text mode: `1` for API and network failures, and `2` for usage errors such as invalid flag combinations on `workflow start`. Without `--json`, errors are printed as plain text, as before.
+
 ### output workflow stop
 
 Stop a running workflow gracefully:

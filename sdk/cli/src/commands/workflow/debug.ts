@@ -1,7 +1,7 @@
 import { Args, Command } from '@oclif/core';
 import { displayDebugTree } from '#utils/trace_formatter.js';
 import { getTrace } from '#services/trace_reader.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowDebug extends Command {
   static override description = 'Get and display workflow execution trace for debugging';
@@ -46,7 +46,7 @@ export default class WorkflowDebug extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found or trace not available. Check the workflow ID.'
     } );
   }

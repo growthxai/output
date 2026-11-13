@@ -1,7 +1,7 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowStart, type PostWorkflowStart200 } from '#api/generated/api.js';
 import { commandStreamIo, monitorErrorOverrides, streamWorkflowUpdates } from '#services/monitor_stream.js';
-import { handleApiError, handleCommandError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError, handleCommandError } from '#utils/error_handler.js';
 import { isErrorStatus } from '#utils/format_workflow_result.js';
 import { gatedMonitorStreamFlags, MONITOR_DEFAULTS } from '#utils/monitor_flags.js';
 import { resolveInput } from '#utils/resolve_input.js';
@@ -197,7 +197,7 @@ export default class WorkflowStart extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleCommandError( error, ( ...args ) => this.error( ...args ), {
+    return handleCommandError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow name.'
     } );
   }

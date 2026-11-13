@@ -5,7 +5,7 @@ import type { WorkflowResultResponse } from '#api/generated/api.js';
 import { readAllDatasets, writeDataset } from '#services/datasets.js';
 import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
 import { diagnoseMissingEvalWorkflow } from '#utils/eval_diagnostics.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 import { getEvalWorkflowName } from '#utils/eval_naming.js';
 import { renderEvalOutput, computeExitCode } from '#utils/eval_render.js';
 import { EvalOutputSchema } from '@outputai/core/evals';
@@ -209,7 +209,7 @@ export default class WorkflowTest extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow or eval workflow not found. Check the workflow name.',
       500: 'Workflow execution failed.'
     } );
