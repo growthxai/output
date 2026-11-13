@@ -225,7 +225,7 @@ describe( 'calculateCosts', () => {
       { ppm: 0.4, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
       { ppm: 4, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } },
       { ppm: 20, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } },
-      { ppm: 20, status: LLMGenerationCostItem.Status.FALLBACK, tier: { type: 'context', size: 100 } }
+      { ppm: 20, status: LLMGenerationCostItem.Status.OK, tier: { type: 'context', size: 100 } }
     ] );
   } );
 
@@ -517,8 +517,27 @@ describe( 'calculateCosts', () => {
     expect( result.items.map( value => value.status ) ).toEqual( [
       LLMGenerationCostItem.Status.FALLBACK,
       LLMGenerationCostItem.Status.FALLBACK,
-      LLMGenerationCostItem.Status.FALLBACK
+      LLMGenerationCostItem.Status.OK
     ] );
+  } );
+
+  it( 'prices reasoning at the output rate without marking it imprecise when the model has no reasoning rate', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( {
+      input: 2,
+      output: 10
+    } ) );
+
+    const result = await calculateCosts( usage( [
+      item( INPUT, null, 100_000 ),
+      item( OUTPUT, 'text', 50_000 ),
+      item( OUTPUT, 'reasoning', 50_000 )
+    ] ), [] );
+
+    expect( result ).toMatchObject( { output: 1, status: LLMGenerationCost.Status.PRECISE } );
+    expect( result.items.find( value => value.label === 'reasoning' ) ).toMatchObject( {
+      ppm: 10,
+      status: LLMGenerationCostItem.Status.OK
+    } );
   } );
 
   it( 'marks cost incomplete while preserving totals for priced items', async () => {
