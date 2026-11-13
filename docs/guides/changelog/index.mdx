@@ -9,6 +9,40 @@ Releases with breaking changes link to a matching section on the [Migrations](/m
 
 {/* AUTO-GENERATED:START — do not edit by hand. Run ./ops/regenerate_docs.sh */}
 
+<Update label="v0.17.0" description="2026-11-13 - minor release">
+
+See the [v0.16.0 - v0.17.0 migration guide](/migrations/v0.16.0-to-v0.17.0).
+
+### `@outputai/core`
+
+Fixed Temporal worker logs showing `error: {}` by serializing `Error` values in Temporal log metadata, so failures like `Worker failed` now log their message and stack.
+
+Fixed `Logger` throwing `Activity context not initialized` when called on a worker outside an activity, such as from lifecycle hooks (`onWorkflowEnd`, `onWorkflowError`). These logs are now emitted without activity fields instead of being lost.
+
+Fixed LLM cost status for calls with reasoning tokens. A reasoning item with no separate reasoning rate in the pricing catalog is now priced at the output rate with item status `ok`, instead of `fallback`, so these calls (Anthropic, OpenAI and Gemini thinking models) are `precise` rather than `imprecise`. Cache read and cache write items without their own rate still fall back to the input rate and still mark the cost `imprecise`.
+
+Changed the worker to exit `0` when a signal shutdown abandons in-flight work at `TEMPORAL_SHUTDOWN_FORCE_TIME`, instead of `1`. A service failing to stop is logged as a `... failed` warning and no longer affects the exit code, so a routine deploy no longer reports a failure.
+
+Changed Temporal's `Worker failed` log for an expired shutdown force time from an error to a warning. It is dropped when `OUTPUT_TEMPORAL_LOG_LEVEL` is `ERROR`.
+
+Changed `OUTPUT_TEMPORAL_LOG_LEVEL` to be validated at startup. It stays case-insensitive, and an invalid value now fails the worker.
+
+Added shutdown logs: `Shutting down` with the grace, force and hook flush times, a duration on every service stop, and `shutdownDurationMs` on `Bye`. Added a startup warning when the force time is not bigger than the grace time.
+
+Added `promptName` and `requestDetails` to `LLMGenerationUsage` and `LLMGenerationCost`, so both the `llm:generation:metering` event and the `llm:generation:usage` and `llm:generation:cost` trace attributes carry them for text, streaming, Agent, and image calls. Use `promptName` to group usage and cost by prompt.
+
+`requestDetails` (new `LLMRequestDetails` type) holds `ids`, the provider request ID of every request in request order, read from the `request-id` response header and then `x-request-id`, and empty when the provider exposes neither; `count`, the number of provider requests; and `duration`, the milliseconds, rounded up, from the start of the call until billing starts. The legacy `cost:llm:request` event and `llm:usage` attribute are unchanged.
+
+Fixed the error serializer splitting an emoji in two when it truncated a long string, which left an unpaired UTF-16 surrogate in the serialized error. A string the serializer cuts now ends before the whole character. Content that is not cut is not changed.
+
+Changed the serialized RegExp sources, function names and buffer type names to go through the same truncation as other strings. They had no length limit before, so a very long one is now cut at 16,384 characters and ends with the `... [N more characters omitted]` marker.
+
+### `@outputai/cli`
+
+Fixed `--json` errors on the `output workflow` commands. `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `debug`, `input`, `test` and `dataset list` used to print a plain-text error and leave nothing structured for scripts to read. They now write `{ "error": { "message", "status", "code" } }` to stderr, with `status` and `code` present only when known, leave stdout empty, and keep their exit codes (1 for API and network failures, 2 and 3 for the usage and monitoring errors of `start`). Text mode is unchanged.
+
+</Update>
+
 <Update label="v0.16.0" description="2026-11-02 - minor release">
 
 See the [v0.15.0 - v0.16.0 migration guide](/migrations/v0.15.0-to-v0.16.0).
