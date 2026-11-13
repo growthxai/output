@@ -1,5 +1,18 @@
 # @outputai/cli
 
+## 0.17.0
+
+### Patch Changes
+
+- b04d8e2: Fixed `--json` errors on the `output workflow` commands. `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `debug`, `input`, `test` and `dataset list` used to print a plain-text error and leave nothing structured for scripts to read. They now write `{ "error": { "message", "status", "code" } }` to stderr, with `status` and `code` present only when known, leave stdout empty, and keep their exit codes (1 for API and network failures, 2 and 3 for the usage and monitoring errors of `start`). Text mode is unchanged.
+- Updated dependencies [a116929]
+- Updated dependencies [a7e9891]
+- Updated dependencies [54f6ba3]
+- Updated dependencies [a116929]
+- Updated dependencies [219890f]
+- Updated dependencies [25ff32e]
+  - @outputai/core@0.17.0
+
 ## 0.16.0
 
 ### Patch Changes
