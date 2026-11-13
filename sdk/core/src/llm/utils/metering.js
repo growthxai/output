@@ -121,8 +121,8 @@ export class Metering {
       }
 
       const requestsHeaders = steps.length > 0 ?
-        steps.map( step => step.response?.headers ) :
-        ( response?.responses ?? [] ).map( r => r.headers );
+        steps.map( step => step?.response?.headers ) :
+        ( response?.responses ?? [] ).map( r => r?.headers );
       const requestDetails = parseRequestDetails( { requestsHeaders, duration } );
 
       this.#billed = true;
