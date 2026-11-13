@@ -8,9 +8,10 @@ vi.mock( './models_pricing.js', async importOriginal => ( {
 } ) );
 
 import { Logger } from '#runtime_logger';
-import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts, calculateLegacyCosts } from './cost.js';
+import { calculateCosts, calculateLegacyCosts } from './cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem } from './models/llm_generation_cost.js';
 import { Freshness } from './models_pricing.js';
-import { LLMGenerationUsage, LLMGenerationUsageItem } from './usage.js';
+import { LLMGenerationUsage, LLMGenerationUsageItem } from './models/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
@@ -19,7 +20,7 @@ const MODEL_ID = 'test-model';
 const PROVIDER_ID = 'test-provider';
 
 const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
-const usageFor = ( providerId, modelId, items ) => new LLMGenerationUsage( modelId, providerId, items );
+const usageFor = ( providerId, modelId, items ) => new LLMGenerationUsage( modelId, providerId, null, null, items );
 const usage = items => usageFor( PROVIDER_ID, MODEL_ID, items );
 const table = ( models, freshness = Freshness.LIVE ) => ( { models, freshness } );
 const pricing = ( cost, freshness ) =>
@@ -48,6 +49,32 @@ describe( 'calculateCosts', () => {
     expect( Logger.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing', { namespace: 'LLM' } );
   } );
 
+  it( 'carries the prompt name and the request details of the usage', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+    const requestDetails = { ids: [ 'req-1' ], count: 1, duration: 10 };
+    const usageWithDetails = new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, 'writer@v1', requestDetails, [
+      item( INPUT, null, 100 ),
+      item( OUTPUT, null, 50 )
+    ] );
+
+    const result = await calculateCosts( usageWithDetails, [] );
+
+    expect( result ).toMatchObject( { promptName: 'writer@v1', requestDetails } );
+  } );
+
+  it( 'leaves the prompt name and the request details out of the legacy cost', async () => {
+    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+    const requestDetails = { ids: [ 'req-1' ], count: 1, duration: 10 };
+    const usageWithDetails = new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, 'writer@v1', requestDetails, [
+      item( INPUT, null, 100 ),
+      item( OUTPUT, null, 50 )
+    ] );
+
+    const result = await calculateLegacyCosts( usageWithDetails );
+
+    expect( result ).toMatchObject( { promptName: null, requestDetails: null } );
+  } );
+
   it( 'calculates precise aggregate input and output costs', async () => {
     mockFetchModelsPricing.mockResolvedValue( pricing( {
       input: 2,
@@ -64,6 +91,8 @@ describe( 'calculateCosts', () => {
       type: LLMGenerationCost.TYPE,
       providerId: PROVIDER_ID,
       modelId: MODEL_ID,
+      promptName: null,
+      requestDetails: null,
       input: 2,
       output: 5,
       tools: null,
@@ -627,7 +656,7 @@ describe( 'calculateCosts', () => {
     mockFetchModelsPricing.mockResolvedValue( table( new Map( [
       [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
     ] ) ) );
-    const providerUsage = new LLMGenerationUsage( modelId, providerId, [
+    const providerUsage = new LLMGenerationUsage( modelId, providerId, null, null, [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'web_search', 3 )
@@ -658,7 +687,7 @@ describe( 'calculateCosts', () => {
         reasoning
       } ]
     ] ) ) );
-    const providerUsage = new LLMGenerationUsage( modelId, 'openai', [
+    const providerUsage = new LLMGenerationUsage( modelId, 'openai', null, null, [
       item( INPUT, null, 0 ),
       item( OUTPUT, null, 0 ),
       item( TOOLS, 'web_search_preview', 3 )
@@ -902,7 +931,7 @@ describe( 'LLMGenerationCost', () => {
       expected: LLMGenerationCost.Status.INCOMPLETE
     }
   ] )( 'sets $name status', ( { usageStatus, itemStatus, amount = 100, pricingFreshness, expected } ) => {
-    const cost = new LLMGenerationCost( MODEL_ID, PROVIDER_ID, [
+    const cost = new LLMGenerationCost( MODEL_ID, PROVIDER_ID, null, null, [
       new LLMGenerationCostItem( INPUT, null, amount, 2, 0.0002, itemStatus )
     ], usageStatus, pricingFreshness );
 

@@ -62,6 +62,9 @@ const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], to
 
 const step = tokens => ( { usage: { inputTokens: tokens, outputTokens: tokens } } );
 
+const stepWithHeaders = ( tokens, headers ) => ( { ...step( tokens ), response: { headers } } );
+const requestDetailsOf = ( ids, count ) => ( { ids, count, duration: expect.any( Number ) } );
+
 const attributesOf = calls => calls.map( ( [ , { details } ] ) => details );
 const eventNames = calls => calls.map( ( [ name ] ) => name );
 
@@ -84,7 +87,8 @@ describe( 'Metering', () => {
       prompt,
       usage: response.usage,
       steps: response.steps,
-      toolIdsByName: undefined
+      toolIdsByName: undefined,
+      requestDetails: requestDetailsOf( [], 1 )
     } );
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage ] );
     expect( mocks.calculateLegacyCosts ).toHaveBeenCalledWith( mockUsage );
@@ -149,7 +153,8 @@ describe( 'Metering', () => {
       prompt,
       usage: response.usage,
       steps: response.steps,
-      toolIdsByName
+      toolIdsByName,
+      requestDetails: requestDetailsOf( [], 1 )
     } );
   } );
 
@@ -183,7 +188,118 @@ describe( 'Metering', () => {
       prompt,
       usage: undefined,
       steps: [ step( 5 ) ],
-      toolIdsByName: undefined
+      toolIdsByName: undefined,
+      requestDetails: requestDetailsOf( [], 1 )
+    } );
+  } );
+
+  describe( 'request details', () => {
+    const requestDetailsPassed = () => mocks.parseLLMUsage.mock.calls[0][0].requestDetails;
+
+    it( 'reads one request id per step from the response headers, in step order', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( {
+        usage: { inputTokens: 5 },
+        steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ), stepWithHeaders( 3, { 'x-request-id': 'req-2' } ) ]
+      } );
+
+      expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1', 'req-2' ], 2 ) );
+    } );
+
+    it( 'prefers request-id over x-request-id', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( {
+        usage: { inputTokens: 2 },
+        steps: [ stepWithHeaders( 2, { 'request-id': 'req-1', 'x-request-id': 'req-x' } ) ]
+      } );
+
+      expect( requestDetailsPassed().ids ).toEqual( [ 'req-1' ] );
+    } );
+
+    it( 'counts steps without headers and generates no id for them', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( {
+        usage: { inputTokens: 7 },
+        steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ), step( 3 ), stepWithHeaders( 2, {} ) ]
+      } );
+
+      expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1' ], 3 ) );
+    } );
+
+    it( 'reads the ids of the recorded steps when billed without a response', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      metering.recordStep( stepWithHeaders( 2, { 'request-id': 'req-1' } ) );
+      metering.recordStep( stepWithHeaders( 3, { 'request-id': 'req-2' } ) );
+      await metering.bill();
+
+      expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1', 'req-2' ], 2 ) );
+    } );
+
+    it( 'reads the ids of image responses, which have no steps', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( { usage: { inputTokens: 2 }, responses: [ { headers: { 'x-request-id': 'req-img' } } ] } );
+
+      expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-img' ], 1 ) );
+    } );
+
+    it( 'reports no requests for a response with neither steps nor responses', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( { usage: { inputTokens: 2 } } );
+
+      expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [], 0 ) );
+    } );
+
+    it( 'measures the duration from construction until billing starts', async () => {
+      const now = vi.spyOn( performance, 'now' );
+      now.mockReturnValueOnce( 1000 ).mockReturnValueOnce( 1250 );
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      now.mockRestore();
+
+      expect( requestDetailsPassed().duration ).toBe( 250 );
+    } );
+
+    it.each( [
+      [ 'rounds up, not to the nearest', 1000, 1250.4, 251 ],
+      [ 'never reports zero for a call that took time', 1000, 1000.0001, 1 ],
+      [ 'keeps a whole number of milliseconds as is', 1000, 1250, 250 ]
+    ] )( '%s', async ( _, start, end, expected ) => {
+      const now = vi.spyOn( performance, 'now' );
+      now.mockReturnValueOnce( start ).mockReturnValueOnce( end );
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      now.mockRestore();
+
+      expect( requestDetailsPassed().duration ).toBe( expected );
+    } );
+
+    it( 'keeps the duration of the billing call, not of a retried empty one', async () => {
+      const now = vi.spyOn( performance, 'now' );
+      now.mockReturnValueOnce( 0 ).mockReturnValueOnce( 100 ).mockReturnValueOnce( 400 );
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill();
+      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      now.mockRestore();
+
+      expect( requestDetailsPassed().duration ).toBe( 400 );
+    } );
+
+    it( 'does not give the per-step usages the request details of the call', async () => {
+      const metering = new Metering( { traceId, prompt } );
+
+      await metering.bill( { usage: { inputTokens: 2 }, steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ) ] } );
+
+      expect( mocks.parseLLMUsage.mock.calls[0][0] ).toHaveProperty( 'requestDetails' );
+      expect( mocks.parseLLMUsage.mock.calls[1][0] ).not.toHaveProperty( 'requestDetails' );
     } );
   } );
 

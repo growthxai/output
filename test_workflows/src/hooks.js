@@ -12,7 +12,7 @@
 
 // const colorize = message => `\x1b[45;30m[HOOK]\x1b[0;35;1m ${message}\x1b[0m`;
 
-// // custom + sub modules
+// custom + sub modules
 // on( 'http:request', async payload => console.log( colorize( 'on(http:request)' ), payload ) );
 // on( 'llm:generation:metering', event => console.log( colorize( 'on(llm:generation:metering)' ), {
 //   cost: event.payload.cost,

@@ -152,6 +152,9 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
       kind: 'llm',
       providerId: event.payload.usage.providerId,
       modelId: event.payload.usage.modelId,
+      promptName: event.payload.usage.promptName,
+      requestIds: event.payload.usage.requestDetails?.ids ?? [],
+      durationMs: event.payload.usage.requestDetails?.duration,
       totalUsd: event.payload.cost?.total ?? null
     });
   } catch (error) {
@@ -205,6 +208,9 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
     workflowId: event.workflowDetails.workflowId,
     providerId: event.payload.usage.providerId,
     modelId: event.payload.usage.modelId,
+    promptName: event.payload.usage.promptName,
+    requestIds: event.payload.usage.requestDetails?.ids ?? [],
+    durationMs: event.payload.usage.requestDetails?.duration,
     totalUsd: event.payload.cost?.total ?? null
   });
 });
@@ -217,6 +223,7 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', async event => {
 - **Redact before logging or sending URLs.** Some third-party APIs embed API keys or tokens in query strings. Strip the query string (and any path segments you know carry secrets) before it leaves the process.
 - **Use `eventId` as an idempotency key** when forwarding to a system that might receive the same event more than once (e.g. retried delivery).
 - **Expect one event per attempt.** A step or evaluator that retries emits one cost event per attempt — that's correct, since each attempt is a real billed call.
+- **Group by prompt and correlate with the provider using `requestDetails`.** `payload.usage` and `payload.cost` both carry `promptName` and `requestDetails` (`ids`, `count`, `duration` in milliseconds). `ids` holds the provider request IDs in request order and is empty when the provider exposes none (for example Google Vertex), so do not assume `ids.length === count`. Both fields are optional in the types because traces recorded before they existed lack them; events always carry them.
 - **Prefer `llm:generation:metering` over `cost:llm:request`** for new integrations; the legacy event's shape is frozen and misses newer cost types (e.g. tool/grounding charges).
 
 ## Verification Checklist

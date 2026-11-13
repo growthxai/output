@@ -19,9 +19,11 @@ vi.mock( './models_pricing.js', async importOriginal => ( {
   fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
 } ) );
 
-import { LLMGenerationCost, LLMGenerationCostItem, calculateCosts } from './cost.js';
+import { calculateCosts } from './cost.js';
+import { LLMGenerationCost, LLMGenerationCostItem } from './models/llm_generation_cost.js';
 import { Freshness } from './models_pricing.js';
-import { LLMGenerationUsageItem, parseLLMUsage } from './usage.js';
+import { parseLLMUsage } from './usage.js';
+import { LLMGenerationUsageItem } from './models/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const OUTPUT = LLMGenerationUsageItem.Group.OUTPUT;
@@ -246,15 +248,18 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
     status,
     items
   } ) => {
+    const requestDetails = { ids: [ 'req-id' ], count: 1, duration: 10 };
     const usage = parseLLMUsage( {
       prompt: {
+        name: 'writer@v1',
         config: {
           provider: providerId,
           model: modelId
         }
       },
       usage: fixture.usage,
-      steps: fixture.steps
+      steps: fixture.steps,
+      requestDetails
     } );
     const result = await calculateCosts( usage, [] );
 
@@ -262,6 +267,8 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       type: LLMGenerationCost.TYPE,
       providerId,
       modelId,
+      promptName: 'writer@v1',
+      requestDetails,
       input,
       output,
       tools,
