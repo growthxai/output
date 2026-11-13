@@ -1,6 +1,7 @@
 import { Args, Command, Flags } from '@oclif/core';
 import Table from 'cli-table3';
 import { listDatasets } from '#services/datasets.js';
+import { createErrorFn, handleCommandError } from '#utils/error_handler.js';
 import type { DatasetInfo } from '#services/datasets.js';
 
 const OutputFormat = {
@@ -101,5 +102,9 @@ export default class DatasetList extends Command {
     this.log( `\nFound ${datasets.length} dataset(s) for "${args.workflowName}"` );
 
     return datasets;
+  }
+
+  async catch( error: Error ): Promise<void> {
+    return handleCommandError( error, createErrorFn( this ) );
   }
 }

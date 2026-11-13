@@ -1,6 +1,6 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowIdReset, type ResetWorkflowResponse } from '#api/generated/api.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowReset extends Command {
   static override description = 'Reset a workflow to re-run from after a specific step';
@@ -55,7 +55,7 @@ export default class WorkflowReset extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow or step not found. Check the workflow ID and step name.',
       409: 'Step has not completed yet. Cannot reset to an incomplete step.'
     } );
