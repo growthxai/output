@@ -3,7 +3,7 @@ import Table from 'cli-table3';
 import { type Workflow } from '#api/generated/api.js';
 import { fetchWorkflowCatalog } from '#api/workflow_catalog.js';
 import { parseWorkflowDefinition, formatParameters } from '#api/parser.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 import { listScenariosForWorkflow } from '#utils/scenario_resolver.js';
 
 const OUTPUT_FORMAT = {
@@ -183,7 +183,7 @@ export default class WorkflowList extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Catalog not found.'
     } );
   }

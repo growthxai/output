@@ -1,7 +1,7 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { postWorkflowRun, type WorkflowResultResponse } from '#api/generated/api.js';
 import { formatWorkflowResult, isErrorStatus } from '#utils/format_workflow_result.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 import { resolveInput } from '#utils/resolve_input.js';
 import { parseSearchAttributesFlag } from '#utils/search_attributes_flag.js';
 import { getRetryDelayFromResponse } from '#utils/header_utils.js';
@@ -129,7 +129,7 @@ export default class WorkflowRun extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow name.',
       500: 'Workflow execution failed.',
       503: 'Workflow service temporarily unavailable.'

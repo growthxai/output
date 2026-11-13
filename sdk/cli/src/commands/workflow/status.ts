@@ -1,6 +1,6 @@
 import { Args, Command } from '@oclif/core';
 import { getWorkflowIdStatus, WorkflowStatusResponse } from '#api/generated/api.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 
 function formatStatusText( result: WorkflowStatusResponse ): string {
@@ -61,7 +61,7 @@ export default class WorkflowStatus extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID.'
     } );
   }

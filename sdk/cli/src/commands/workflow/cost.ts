@@ -6,7 +6,7 @@ import { getTrace } from '#services/trace_reader.js';
 import type { TraceNode, CostReport } from '#types/cost.js';
 import { formatCostReport } from '#utils/cost_formatter.js';
 import { getErrorCode } from '#utils/error_utils.js';
-import { handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class WorkflowCost extends Command {
   static override description = 'Calculate the cost of a workflow execution';
@@ -70,7 +70,7 @@ export default class WorkflowCost extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, ( ...args ) => this.error( ...args ), {
+    return handleApiError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow ID and try again.'
     } );
   }
