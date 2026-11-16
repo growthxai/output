@@ -8,7 +8,12 @@ vi.mock( '@aws-sdk/client-s3', () => ( {
   S3Client: vi.fn().mockImplementation( function () {
     return { send: mockSend };
   } ),
-  GetObjectCommand: vi.fn()
+  GetObjectCommand: vi.fn(),
+  HeadObjectCommand: vi.fn()
+} ) );
+
+vi.mock( '@aws-sdk/s3-request-presigner', () => ( {
+  getSignedUrl: vi.fn()
 } ) );
 
 vi.mock( '#configs', () => ( {
@@ -118,7 +123,7 @@ describe( 's3_client', () => {
       try {
         await fetchTraceFromS3( validS3Url );
       } catch ( err ) {
-        expect( err.message ).toBe( 'S3 GetObject failure' );
+        expect( err.message ).toBe( 'S3 HeadObject failure' );
         expect( err.url ).toBe( validS3Url );
         expect( err.cause ).toBe( s3Error );
       }

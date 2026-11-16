@@ -149,7 +149,7 @@ To target a specific run, use `GET /workflow/:id/runs/:rid/history/stream`. Pass
 
 ## Debugging
 
-`GET /workflow/:id/trace-log` returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format.
+`GET /workflow/:id/trace-log` returns the full execution trace for a completed workflow. See [Tracing](/operations/tracing) for the trace format. Remote traces over 256 MB are not returned: the API responds `413` with a signed `downloadUrl` instead, see [Errors](/api/errors).
 
 <Note>
 For remote traces, the API server needs AWS credentials (`OUTPUT_AWS_ACCESS_KEY_ID`, `OUTPUT_AWS_SECRET_ACCESS_KEY`, `OUTPUT_AWS_REGION`).

@@ -158,6 +158,36 @@ app.use( ( req, res, next ) => {
  *           type: string
  *           description: Workflow ID when the error is tied to a specific execution (e.g. timeout)
  *           nullable: true
+ *     TraceFileTooLargeResponse:
+ *       type: object
+ *       description: The trace file is bigger than the API serves inline. Download it directly with `downloadUrl`.
+ *       required:
+ *         - error
+ *         - message
+ *         - size
+ *         - maxSize
+ *         - downloadUrl
+ *         - expiresAt
+ *       properties:
+ *         error:
+ *           type: string
+ *           enum: [TraceFileTooLargeError]
+ *         message:
+ *           type: string
+ *           description: Human-readable error message
+ *         size:
+ *           type: integer
+ *           description: Trace file size in bytes
+ *         maxSize:
+ *           type: integer
+ *           description: Maximum trace file size served inline, in bytes
+ *         downloadUrl:
+ *           type: string
+ *           description: Signed S3 URL to download the trace file directly. Treat it as a secret, it grants read access until it expires.
+ *         expiresAt:
+ *           type: string
+ *           format: date-time
+ *           description: When `downloadUrl` stops working
  *     ValidationErrorResponse:
  *       type: object
  *       description: Request body validation failure (Zod)
@@ -529,6 +559,21 @@ app.use( ( req, res, next ) => {
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/ErrorResponse'
+ *     PayloadTooLarge:
+ *       description: The trace file is bigger than the API serves inline. The body carries a signed `downloadUrl`.
+ *       headers:
+ *         X-Trace-Size:
+ *           description: Trace file size in bytes
+ *           schema:
+ *             type: integer
+ *         X-Trace-Max-Size:
+ *           description: Maximum trace file size served inline, in bytes
+ *           schema:
+ *             type: integer
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TraceFileTooLargeResponse'
  *     RequestTimeout:
  *       description: Synchronous execution timed out before workflow completed
  *       content:
@@ -1160,7 +1205,7 @@ app.get( '/workflow/:id/runs/:rid/input', inputHandler );
  * /workflow/{id}/trace-log:
  *   get:
  *     summary: Get workflow trace log data (latest run)
- *     description: Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
+ *     description: Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline, unless it is over 256 MB, in which case it responds 413 with a signed `downloadUrl` and `X-Trace-Size` and `X-Trace-Max-Size` headers. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1179,6 +1224,8 @@ app.get( '/workflow/:id/runs/:rid/input', inputHandler );
  *                 - $ref: '#/components/schemas/TraceLogLocalResponse'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       413:
+ *         $ref: '#/components/responses/PayloadTooLarge'
  *       424:
  *         $ref: '#/components/responses/FailedDependency'
  *       500:
@@ -1187,7 +1234,7 @@ app.get( '/workflow/:id/runs/:rid/input', inputHandler );
  * /workflow/{id}/runs/{rid}/trace-log:
  *   get:
  *     summary: Get workflow trace log data for a specific run
- *     description: Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
+ *     description: Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline, unless it is over 256 MB, in which case it responds 413 with a signed `downloadUrl` and `X-Trace-Size` and `X-Trace-Max-Size` headers. If trace is local only, returns the local path.
  *     parameters:
  *      - in: path
  *        name: id
@@ -1214,6 +1261,8 @@ app.get( '/workflow/:id/runs/:rid/input', inputHandler );
  *         $ref: '#/components/responses/BadRequest'
  *       404:
  *         $ref: '#/components/responses/NotFound'
+ *       413:
+ *         $ref: '#/components/responses/PayloadTooLarge'
  *       424:
  *         $ref: '#/components/responses/FailedDependency'
  *       500:

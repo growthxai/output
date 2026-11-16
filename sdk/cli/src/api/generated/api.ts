@@ -21,6 +21,30 @@ export interface ErrorResponse {
   workflowId?: string | null;
 }
 
+export type TraceFileTooLargeResponseError = typeof TraceFileTooLargeResponseError[keyof typeof TraceFileTooLargeResponseError];
+
+
+export const TraceFileTooLargeResponseError = {
+  TraceFileTooLargeError: 'TraceFileTooLargeError',
+} as const;
+
+/**
+ * The trace file is bigger than the API serves inline. Download it directly with `downloadUrl`.
+ */
+export interface TraceFileTooLargeResponse {
+  error: TraceFileTooLargeResponseError;
+  /** Human-readable error message */
+  message: string;
+  /** Trace file size in bytes */
+  size: number;
+  /** Maximum trace file size served inline, in bytes */
+  maxSize: number;
+  /** Signed S3 URL to download the trace file directly. Treat it as a secret, it grants read access until it expires. */
+  downloadUrl: string;
+  /** When `downloadUrl` stops working */
+  expiresAt: string;
+}
+
 export type ValidationErrorResponseError = typeof ValidationErrorResponseError[keyof typeof ValidationErrorResponseError];
 
 
@@ -410,6 +434,11 @@ export type BadRequestResponse = ValidationErrorResponse | ErrorResponse;
  * Workflow execution, workflow type, or catalog not found
  */
 export type NotFoundResponse = ErrorResponse;
+
+/**
+ * The trace file is bigger than the API serves inline. The body carries a signed `downloadUrl`.
+ */
+export type PayloadTooLargeResponse = TraceFileTooLargeResponse;
 
 /**
  * Synchronous execution timed out before workflow completed
@@ -1670,6 +1699,11 @@ export type getWorkflowIdTraceLogResponse404 = {
   status: 404
 }
 
+export type getWorkflowIdTraceLogResponse413 = {
+  data: PayloadTooLargeResponse
+  status: 413
+}
+
 export type getWorkflowIdTraceLogResponse424 = {
   data: FailedDependencyResponse
   status: 424
@@ -1683,7 +1717,7 @@ export type getWorkflowIdTraceLogResponse500 = {
 export type getWorkflowIdTraceLogResponseSuccess = (getWorkflowIdTraceLogResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdTraceLogResponseError = (getWorkflowIdTraceLogResponse404 | getWorkflowIdTraceLogResponse424 | getWorkflowIdTraceLogResponse500) & {
+export type getWorkflowIdTraceLogResponseError = (getWorkflowIdTraceLogResponse404 | getWorkflowIdTraceLogResponse413 | getWorkflowIdTraceLogResponse424 | getWorkflowIdTraceLogResponse500) & {
   headers: Headers;
 };
 
@@ -1698,7 +1732,7 @@ export const getGetWorkflowIdTraceLogUrl = (id: string,) => {
 }
 
 /**
- * Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
+ * Returns trace data for the latest run of the given workflow. If trace is stored remotely (S3), fetches and returns the data inline, unless it is over 256 MB, in which case it responds 413 with a signed `downloadUrl` and `X-Trace-Size` and `X-Trace-Max-Size` headers. If trace is local only, returns the local path. To pin a specific run, use `/workflow/{id}/runs/{rid}/trace-log`.
  * @summary Get workflow trace log data (latest run)
  */
 export const getWorkflowIdTraceLog = async (id: string, options?: Parameters<typeof customFetchInstance>[1]): Promise<getWorkflowIdTraceLogResponse> => {
@@ -1729,6 +1763,11 @@ export type getWorkflowIdRunsRidTraceLogResponse404 = {
   status: 404
 }
 
+export type getWorkflowIdRunsRidTraceLogResponse413 = {
+  data: PayloadTooLargeResponse
+  status: 413
+}
+
 export type getWorkflowIdRunsRidTraceLogResponse424 = {
   data: FailedDependencyResponse
   status: 424
@@ -1742,7 +1781,7 @@ export type getWorkflowIdRunsRidTraceLogResponse500 = {
 export type getWorkflowIdRunsRidTraceLogResponseSuccess = (getWorkflowIdRunsRidTraceLogResponse200) & {
   headers: Headers;
 };
-export type getWorkflowIdRunsRidTraceLogResponseError = (getWorkflowIdRunsRidTraceLogResponse400 | getWorkflowIdRunsRidTraceLogResponse404 | getWorkflowIdRunsRidTraceLogResponse424 | getWorkflowIdRunsRidTraceLogResponse500) & {
+export type getWorkflowIdRunsRidTraceLogResponseError = (getWorkflowIdRunsRidTraceLogResponse400 | getWorkflowIdRunsRidTraceLogResponse404 | getWorkflowIdRunsRidTraceLogResponse413 | getWorkflowIdRunsRidTraceLogResponse424 | getWorkflowIdRunsRidTraceLogResponse500) & {
   headers: Headers;
 };
 
@@ -1758,7 +1797,7 @@ export const getGetWorkflowIdRunsRidTraceLogUrl = (id: string,
 }
 
 /**
- * Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline. If trace is local only, returns the local path.
+ * Returns trace data for a pinned workflow run. If trace is stored remotely (S3), fetches and returns the data inline, unless it is over 256 MB, in which case it responds 413 with a signed `downloadUrl` and `X-Trace-Size` and `X-Trace-Max-Size` headers. If trace is local only, returns the local path.
  * @summary Get workflow trace log data for a specific run
  */
 export const getWorkflowIdRunsRidTraceLog = async (id: string,

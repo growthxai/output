@@ -589,6 +589,10 @@ output workflow debug wf-12345 --format json
 Use `--format json` to get the full untruncated trace. The text format truncates long values for readability, but the JSON format preserves everything.
 </Tip>
 
+<Note>
+Remote traces over 256 MB are not loaded. The command stops with `Trace file is too big for this feature. Max size 256 MB, file size <size>`.
+</Note>
+
 ### output workflow cost
 
 Calculate the estimated dollar cost of a workflow execution from its trace. Covers LLM token costs and API service costs. See [Cost Estimation](/costs) for details on pricing configuration and the `config/costs.yml` override file.
@@ -609,6 +613,10 @@ output workflow cost <workflowId> [tracePath]
 |------|---------|-------------|
 | `--format, -f` | text | Output format: json, text |
 | `--verbose` | false | Show per-call breakdown with token counts and individual step costs |
+
+<Note>
+When the trace is fetched from the API, remote traces over 256 MB are not loaded. The command stops with `Trace file is too big for this feature. Max size 256 MB, file size <size>`.
+</Note>
 
 ```bash
 # Cost from latest trace
@@ -712,6 +720,8 @@ output workflow dataset generate <workflowName> [scenario]
 | `--download, -d` | false | Generate datasets from recent workflow runs, fetched via the Output API. Exclusive with `--trace` |
 | `--limit, -l` | 5 | Maximum number of recent runs to fetch |
 | `--catalog, -c` | `OUTPUT_CATALOG_ID` | Catalog to scope runs to (used with `--download`) |
+
+With `--download`, a run whose remote trace is over 256 MB is skipped with a warning: `Trace file is too big for this feature. Max size 256 MB, file size <size>`.
 
 ```bash
 # Generate from a scenario

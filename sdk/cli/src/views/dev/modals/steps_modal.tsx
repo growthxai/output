@@ -104,7 +104,7 @@ const StepDetail: React.FC<{
 
 export const StepsModal: React.FC<{ run: WorkflowRun; height: number }> = ( { run, height } ) => {
   const ui = useUiState();
-  const { steps, loading } = useRunDetail( run.workflowId, run.runId, run.status );
+  const { steps, loading, traceError } = useRunDetail( run.workflowId, run.runId, run.status );
 
   const { selectedIndex: clamped, selectPrevious, selectNext } = useListSelection( steps.length );
   const selectedStep: RunStep | undefined = steps[clamped];
@@ -148,7 +148,7 @@ export const StepsModal: React.FC<{ run: WorkflowRun; height: number }> = ( { ru
     }
     if ( steps.length === 0 ) {
       return (
-        <Text dimColor>No steps recorded for this run.</Text>
+        <Text dimColor>{traceError ?? 'No steps recorded for this run.'}</Text>
       );
     }
     return <StepDetail step={selectedStep} activeTab={activeTab} rows={rows} />;

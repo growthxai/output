@@ -26,14 +26,15 @@ const levelForStatus = status => {
 };
 
 /**
- * For status 413 with an error, returns request size (bytes and MB) and the configured limit.
+ * For a 413 caused by a rejected request body, returns request size (bytes and MB) and the configured limit.
  * @param {number} status - HTTP status code
  * @param {Error|null} error - Response error (may have .limit)
  * @param {string|undefined} contentLength - Request Content-Length header
  * @returns {{ requestSizeBytes?: string, requestSizeMB?: string, limit?: unknown }}
  */
 const getPayloadSizeFields = ( status, error, contentLength ) => {
-  if ( status !== 413 || !error ) {
+  // Only a rejected request body carries a `limit`. A 413 raised on the response side, such as an oversized trace, has none.
+  if ( status !== 413 || !error || error.limit === undefined ) {
     return {};
   }
   const sizeBytes = contentLength ? parseInt( contentLength, 10 ) : NaN;

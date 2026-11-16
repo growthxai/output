@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
     "@temporalio/client": "catalog:",
     "express": "5.2.1",
     "nanoid": "5.1.16",

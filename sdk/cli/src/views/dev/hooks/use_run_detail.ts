@@ -11,6 +11,7 @@ import type { TraceData, DebugNode } from '#types/trace.js';
 import { normalizeWorkflowStatus } from '#utils/normalize_workflow_status.js';
 import { isTerminalStatus } from '#utils/format_workflow_result.js';
 import { createBoundedCache } from '#views/dev/utils/bounded_cache.js';
+import { buildTraceTooLargeMessage } from '#services/trace_reader.js';
 
 export interface RunStep {
   index: number;
@@ -26,6 +27,8 @@ export interface RunStep {
 export interface RunDetail {
   result: WorkflowResultResponse | null;
   trace: TraceData | null;
+  /** Why the trace is missing, when the API refused to serve it (for example, it is too big). */
+  traceError: string | null;
   steps: RunStep[];
   loading: boolean;
 }
@@ -33,6 +36,7 @@ export interface RunDetail {
 const EMPTY_DETAIL: RunDetail = {
   result: null,
   trace: null,
+  traceError: null,
   steps: [],
   loading: false
 };
@@ -111,14 +115,15 @@ const readTraceLog = async (
 // failed, cancelled) don't have a fully-formed result or trace available at
 // any given moment, and that's expected — the caller falls back to
 // EMPTY_DETAIL and the UI renders whatever's there. Swallow everything.
-const fetchTrace = async ( workflowId: string, runId: string | undefined ): Promise<TraceData | null> => {
+const fetchTrace = async ( workflowId: string, runId: string | undefined ): Promise<{ trace: TraceData | null; traceError: string | null }> => {
   try {
     const response = runId ?
       await getWorkflowIdRunsRidTraceLog( workflowId, runId ) :
       await getWorkflowIdTraceLog( workflowId );
-    return await readTraceLog( response.data as Parameters<typeof readTraceLog>[0] );
-  } catch {
-    return null;
+    return { trace: await readTraceLog( response.data as Parameters<typeof readTraceLog>[0] ), traceError: null };
+  } catch ( error ) {
+    // A trace the API refuses to serve because of its size is the one failure worth telling the user about.
+    return { trace: null, traceError: buildTraceTooLargeMessage( error ) };
   }
 };
 
@@ -172,13 +177,14 @@ export const useRunDetail = (
     void Promise.all( [
       fetchResult( workflowId, runId ),
       fetchTrace( workflowId, runId )
-    ] ).then( ( [ result, trace ] ) => {
+    ] ).then( ( [ result, { trace, traceError } ] ) => {
       if ( fetchIdRef.current !== id ) {
         return;
       }
       const next: RunDetail = {
         result,
         trace,
+        traceError,
         steps: extractSteps( trace ),
         loading: false
       };

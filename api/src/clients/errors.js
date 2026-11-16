@@ -88,6 +88,25 @@ export class TraceFileParseError extends TraceFileError {}
 /** Thrown when a trace file URL is not a valid. */
 export class InvalidTraceFileUrl extends TraceFileError {}
 
+/** Thrown when a trace file is bigger than the API serves inline. Carries a time-limited download URL. */
+export class TraceFileTooLargeError extends TraceFileError {
+  /**
+   * @param {object} args
+   * @param {string} args.url - Trace file url
+   * @param {number} args.size - Trace file size in bytes
+   * @param {number} args.maxSize - Maximum size served inline, in bytes
+   * @param {string} args.downloadUrl - Signed URL to download the trace file directly
+   * @param {string} args.expiresAt - ISO date when the signed URL stops working
+   */
+  constructor( { url, size, maxSize, downloadUrl, expiresAt } ) {
+    super( `Trace file is too large to be served inline (${size} bytes, maximum ${maxSize} bytes).`, url );
+    this.size = size;
+    this.maxSize = maxSize;
+    this.downloadUrl = downloadUrl;
+    this.expiresAt = expiresAt;
+  }
+}
+
 /** Thrown when a step name is not found in workflow history. */
 export class StepNotFoundError extends Error {
   constructor( stepName ) {
