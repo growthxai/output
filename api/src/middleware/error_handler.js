@@ -138,7 +138,8 @@ export default function errorHandler( error, req, res, next ) {
   if ( error instanceof TraceFileTooLargeError ) {
     res.set( {
       'X-Trace-Size': String( error.size ),
-      'X-Trace-Max-Size': String( error.maxSize )
+      'X-Trace-Max-Size': String( error.maxSize ),
+      'Access-Control-Expose-Headers': 'X-Trace-Size, X-Trace-Max-Size'
     } );
     Object.assign( response, {
       size: error.size,

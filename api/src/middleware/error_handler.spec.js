@@ -7,6 +7,7 @@ import { ServiceError } from '@temporalio/client';
 import {
   CatalogNotAvailableError,
   InvalidPageTokenError,
+  TraceFileTooLargeError,
   UnsupportedWorkflowError,
   WorkflowNotFoundError
 } from '../clients/errors.js';
@@ -334,4 +335,41 @@ describe( 'error_handler', () => {
     } );
   } );
 
+  describe( 'TraceFileTooLargeError', () => {
+    const buildError = () => new TraceFileTooLargeError( {
+      url: 'https://bucket.s3.amazonaws.com/trace.json',
+      size: 587158372,
+      maxSize: 268435456,
+      downloadUrl: 'https://bucket.s3.amazonaws.com/trace.json?X-Amz-Signature=abc',
+      expiresAt: '2026-11-16T12:15:00.000Z'
+    } );
+
+    it( 'responds 413 with the sizes and the signed download URL in the body', async () => {
+      const { httpRes } = await sendError( buildError() );
+
+      expect( httpRes.status ).toBe( 413 );
+      expect( httpRes.body ).toEqual( {
+        error: 'TraceFileTooLargeError',
+        message: 'Trace file is too large to be served inline (587158372 bytes, maximum 268435456 bytes).',
+        size: 587158372,
+        maxSize: 268435456,
+        downloadUrl: 'https://bucket.s3.amazonaws.com/trace.json?X-Amz-Signature=abc',
+        expiresAt: '2026-11-16T12:15:00.000Z'
+      } );
+    } );
+
+    it( 'sets the size headers and exposes them to browsers', async () => {
+      const { httpRes } = await sendError( buildError() );
+
+      expect( httpRes.headers['x-trace-size'] ).toBe( '587158372' );
+      expect( httpRes.headers['x-trace-max-size'] ).toBe( '268435456' );
+      expect( httpRes.headers['access-control-expose-headers'] ).toBe( 'X-Trace-Size, X-Trace-Max-Size' );
+    } );
+
+    it( 'does not send the download URL as a Location header', async () => {
+      const { httpRes } = await sendError( buildError() );
+
+      expect( httpRes.headers.location ).toBeUndefined();
+    } );
+  } );
 } );
