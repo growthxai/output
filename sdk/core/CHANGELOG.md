@@ -1,5 +1,30 @@
 # @outputai/core
 
+## 0.17.0
+
+### Minor Changes
+
+- a116929: Changed the worker to exit `0` when a signal shutdown abandons in-flight work at `TEMPORAL_SHUTDOWN_FORCE_TIME`, instead of `1`. A service failing to stop is logged as a `... failed` warning and no longer affects the exit code, so a routine deploy no longer reports a failure.
+
+  Changed Temporal's `Worker failed` log for an expired shutdown force time from an error to a warning. It is dropped when `OUTPUT_TEMPORAL_LOG_LEVEL` is `ERROR`.
+
+  Changed `OUTPUT_TEMPORAL_LOG_LEVEL` to be validated at startup. It stays case-insensitive, and an invalid value now fails the worker.
+
+  Added shutdown logs: `Shutting down` with the grace, force and hook flush times, a duration on every service stop, and `shutdownDurationMs` on `Bye`. Added a startup warning when the force time is not bigger than the grace time.
+
+- 219890f: Added `promptName` and `requestDetails` to `LLMGenerationUsage` and `LLMGenerationCost`, so both the `llm:generation:metering` event and the `llm:generation:usage` and `llm:generation:cost` trace attributes carry them for text, streaming, Agent, and image calls. Use `promptName` to group usage and cost by prompt.
+
+  `requestDetails` (new `LLMRequestDetails` type) holds `ids`, the provider request ID of every request in request order, read from the `request-id` response header and then `x-request-id`, and empty when the provider exposes neither; `count`, the number of provider requests; and `duration`, the milliseconds, rounded up, from the start of the call until billing starts. The legacy `cost:llm:request` event and `llm:usage` attribute are unchanged.
+
+### Patch Changes
+
+- a116929: Fixed Temporal worker logs showing `error: {}` by serializing `Error` values in Temporal log metadata, so failures like `Worker failed` now log their message and stack.
+- a7e9891: Fixed `Logger` throwing `Activity context not initialized` when called on a worker outside an activity, such as from lifecycle hooks (`onWorkflowEnd`, `onWorkflowError`). These logs are now emitted without activity fields instead of being lost.
+- 54f6ba3: Fixed LLM cost status for calls with reasoning tokens. A reasoning item with no separate reasoning rate in the pricing catalog is now priced at the output rate with item status `ok`, instead of `fallback`, so these calls (Anthropic, OpenAI and Gemini thinking models) are `precise` rather than `imprecise`. Cache read and cache write items without their own rate still fall back to the input rate and still mark the cost `imprecise`.
+- 25ff32e: Fixed the error serializer splitting an emoji in two when it truncated a long string, which left an unpaired UTF-16 surrogate in the serialized error. A string the serializer cuts now ends before the whole character. Content that is not cut is not changed.
+
+  Changed the serialized RegExp sources, function names and buffer type names to go through the same truncation as other strings. They had no length limit before, so a very long one is now cut at 16,384 characters and ends with the `... [N more characters omitted]` marker.
+
 ## 0.16.0
 
 ### Minor Changes

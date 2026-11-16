@@ -1,5 +1,22 @@
 # @outputai/cli
 
+## 0.17.0
+
+### Minor Changes
+
+- 54cf419: Added a 256 MB limit to the trace log endpoints, with a signed download URL for bigger files. `GET /workflow/:id/trace-log` and `GET /workflow/:id/runs/:rid/trace-log` check the S3 object size first and never read a trace over 256 MB. They answer `413` with a time-limited `downloadUrl` and `expiresAt` in the body, and `size` and `maxSize` in the body and in the `X-Trace-Size` and `X-Trace-Max-Size` headers. This replaces the `Cannot create a string longer than 0x1fffffe8 characters` failure on very large remote traces. `workflow cost`, `workflow debug`, `workflow dataset generate` and the dev UI steps view now report `Trace file is too big for this feature. Max size 256 MB, file size ...` for these traces.
+
+### Patch Changes
+
+- b04d8e2: Fixed `--json` errors on the `output workflow` commands. `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `debug`, `input`, `test` and `dataset list` used to print a plain-text error and leave nothing structured for scripts to read. They now write `{ "error": { "message", "status", "code" } }` to stderr, with `status` and `code` present only when known, leave stdout empty, and keep their exit codes (1 for API and network failures, 2 and 3 for the usage and monitoring errors of `start`). Text mode is unchanged.
+- Updated dependencies [a116929]
+- Updated dependencies [a7e9891]
+- Updated dependencies [54f6ba3]
+- Updated dependencies [a116929]
+- Updated dependencies [219890f]
+- Updated dependencies [25ff32e]
+  - @outputai/core@0.17.0
+
 ## 0.16.0
 
 ### Patch Changes
