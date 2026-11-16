@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-11-09T06:16:59.736Z"
+    "createdAt": "2026-11-16T06:17:46.494Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -55,6 +55,15 @@
           "output": 50,
           "cache_read": 0.25,
           "cache_write": 12.5
+        },
+        "reasoning": true
+      },
+      "anthropic.claude-fable-5-2": {
+        "cost": {
+          "input": 8,
+          "output": 40,
+          "cache_read": 0.2,
+          "cache_write": 10
         },
         "reasoning": true
       },
@@ -572,6 +581,15 @@
         },
         "reasoning": true
       },
+      "global.anthropic.claude-fable-5-2": {
+        "cost": {
+          "input": 8,
+          "output": 40,
+          "cache_read": 0.2,
+          "cache_write": 10
+        },
+        "reasoning": true
+      },
       "global.anthropic.claude-haiku-4-5-20251001-v1:0": {
         "cost": {
           "input": 1,
@@ -707,6 +725,15 @@
           "output": 15,
           "cache_read": 0.3,
           "cache_write": 3.75
+        },
+        "reasoning": true
+      },
+      "global.moonshotai.kimi-k3.1": {
+        "cost": {
+          "input": 4,
+          "output": 20,
+          "cache_read": 0.2,
+          "cache_write": 5
         },
         "reasoning": true
       },
@@ -1737,6 +1764,15 @@
         },
         "reasoning": true
       },
+      "us.anthropic.claude-fable-5-2": {
+        "cost": {
+          "input": 8.8,
+          "output": 44,
+          "cache_read": 0.22,
+          "cache_write": 11
+        },
+        "reasoning": true
+      },
       "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
         "cost": {
           "input": 1.1,
@@ -1930,6 +1966,15 @@
           "output": 16.5,
           "cache_read": 0.33,
           "cache_write": 4.125
+        },
+        "reasoning": true
+      },
+      "us.moonshotai.kimi-k3.1": {
+        "cost": {
+          "input": 4.4,
+          "output": 22,
+          "cache_read": 0.22,
+          "cache_write": 5.5
         },
         "reasoning": true
       },
@@ -2261,6 +2306,15 @@
         },
         "reasoning": true
       },
+      "claude-fable-5-2": {
+        "cost": {
+          "input": 8,
+          "output": 40,
+          "cache_read": 0.2,
+          "cache_write": 10
+        },
+        "reasoning": true
+      },
       "claude-haiku-4-5": {
         "cost": {
           "input": 1,
@@ -2427,6 +2481,15 @@
           "output": 50,
           "cache_read": 0.25,
           "cache_write": 12.5
+        },
+        "reasoning": true
+      },
+      "claude-fable-5-2": {
+        "cost": {
+          "input": 8,
+          "output": 40,
+          "cache_read": 0.2,
+          "cache_write": 10
         },
         "reasoning": true
       },
@@ -3153,42 +3216,10 @@
         },
         "reasoning": true
       },
-      "gpt-image-1": {
-        "cost": {
-          "input": 5,
-          "output": 40,
-          "cache_read": 1.25
-        },
-        "reasoning": false
-      },
       "gpt-image-1.5": {
         "cost": {
           "input": 5,
-          "output": 32,
-          "cache_read": 1.25
-        },
-        "reasoning": false
-      },
-      "gpt-image-2": {
-        "cost": {
-          "input": 5,
-          "output": 30,
-          "cache_read": 1.25
-        },
-        "reasoning": false
-      },
-      "gpt-image-2.5-flare": {
-        "cost": {
-          "input": 5,
-          "output": 30,
-          "cache_read": 1.25
-        },
-        "reasoning": false
-      },
-      "gpt-image-2.5-sunburst": {
-        "cost": {
-          "input": 5,
-          "output": 30,
+          "output": 10,
           "cache_read": 1.25
         },
         "reasoning": false
@@ -3411,6 +3442,15 @@
         },
         "reasoning": true
       },
+      "claude-fable-5-2@default": {
+        "cost": {
+          "input": 8,
+          "output": 40,
+          "cache_read": 0.2,
+          "cache_write": 10
+        },
+        "reasoning": true
+      },
       "claude-fable-5@default": {
         "cost": {
           "input": 10,
@@ -3602,7 +3642,7 @@
       "gemini-2.5-flash-image": {
         "cost": {
           "input": 0.3,
-          "output": 30
+          "output": 2.5
         },
         "reasoning": false
       },
@@ -3665,7 +3705,7 @@
       "gemini-3-pro-image": {
         "cost": {
           "input": 2,
-          "output": 120,
+          "output": 12,
           "cache_read": 0.2
         },
         "reasoning": true
@@ -3673,7 +3713,7 @@
       "gemini-3.1-flash-image": {
         "cost": {
           "input": 0.5,
-          "output": 60,
+          "output": 3,
           "cache_read": 0.05
         },
         "reasoning": true
@@ -3690,7 +3730,7 @@
       "gemini-3.1-flash-lite-image": {
         "cost": {
           "input": 0.25,
-          "output": 30,
+          "output": 1.5,
           "cache_read": 0.025
         },
         "reasoning": true
@@ -3796,6 +3836,24 @@
         },
         "reasoning": true
       },
+      "gemini-4-carbon": {
+        "cost": {
+          "input": 2,
+          "output": 10,
+          "cache_read": 0.1,
+          "input_audio": 2
+        },
+        "reasoning": true
+      },
+      "gemini-4-hydrogen": {
+        "cost": {
+          "input": 1.5,
+          "output": 7.5,
+          "cache_read": 0.075,
+          "input_audio": 1.5
+        },
+        "reasoning": true
+      },
       "gemini-embedding-001": {
         "cost": {
           "input": 0.15,
@@ -3806,7 +3864,7 @@
       "gemini-nano-banana-2.1": {
         "cost": {
           "input": 1.5,
-          "output": 30,
+          "output": 7.5,
           "cache_read": 0.15
         },
         "reasoning": true
@@ -3952,23 +4010,7 @@
         "cost": {
           "input": 1.25,
           "output": 2.5,
-          "cache_read": 0.2,
-          "tiers": [
-            {
-              "input": 2.5,
-              "output": 5,
-              "cache_read": 0.4,
-              "tier": {
-                "type": "context",
-                "size": 200000
-              }
-            }
-          ],
-          "context_over_200k": {
-            "input": 2.5,
-            "output": 5,
-            "cache_read": 0.4
-          }
+          "cache_read": 0.2
         },
         "reasoning": true
       },
@@ -4048,6 +4090,14 @@
   },
   "openai": {
     "models": {
+      "chatgpt-image-latest": {
+        "cost": {
+          "input": 5,
+          "output": 10,
+          "cache_read": 1.25
+        },
+        "reasoning": false
+      },
       "gpt-3.5-turbo": {
         "cost": {
           "input": 0.5,
@@ -4588,10 +4638,10 @@
         },
         "reasoning": true
       },
-      "gpt-image-2": {
+      "gpt-image-1.5": {
         "cost": {
           "input": 5,
-          "output": 30,
+          "output": 10,
           "cache_read": 1.25
         },
         "reasoning": false
