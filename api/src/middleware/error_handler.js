@@ -7,6 +7,7 @@ import {
   InvalidPageTokenError,
   StepNotCompletedError,
   StepNotFoundError,
+  TraceFileTooLargeError,
   TraceNotAvailableError,
   UnsupportedWorkflowError,
   WorkflowExecutionTimedOutError,
@@ -32,6 +33,7 @@ const NAMED_ERROR_STATUSES = {
   [WorkflowNotFoundError.name]: 404,
   [StepNotFoundError.name]: 404,
   [TraceNotAvailableError.name]: 404,
+  [TraceFileTooLargeError.name]: 413,
   [WorkflowExecutionTimedOutError.name]: 408,
   [StepNotCompletedError.name]: 409,
   [UnsupportedWorkflowError.name]: 424,
@@ -128,6 +130,22 @@ export default function errorHandler( error, req, res, next ) {
   if ( status === 503 && error.retryAfter ) {
     res.set( {
       'Retry-After': error.retryAfter
+    } );
+  }
+
+  // The signed URL goes in the body: a `Location` header would read as a redirect and HTTP clients
+  // would follow it. The sizes also go in headers so callers can read them without parsing the body.
+  if ( error instanceof TraceFileTooLargeError ) {
+    res.set( {
+      'X-Trace-Size': String( error.size ),
+      'X-Trace-Max-Size': String( error.maxSize ),
+      'Access-Control-Expose-Headers': 'X-Trace-Size, X-Trace-Max-Size'
+    } );
+    Object.assign( response, {
+      size: error.size,
+      maxSize: error.maxSize,
+      downloadUrl: error.downloadUrl,
+      expiresAt: error.expiresAt
     } );
   }
 

@@ -1,11 +1,11 @@
 ---
 title: "v0.16.0 → v0.17.0"
-description: "Upgrading Output.ai projects from v0.16.0 to v0.17.0: worker exit code on a forced shutdown, shutdown and Temporal log changes, and OUTPUT_TEMPORAL_LOG_LEVEL validation in @outputai/core."
+description: "Upgrading Output.ai projects from v0.16.0 to v0.17.0: worker exit code on a forced shutdown, shutdown and Temporal log changes, OUTPUT_TEMPORAL_LOG_LEVEL validation in @outputai/core, and the 256 MB limit on trace files served by the API."
 ---
 
-This guide covers behavior changes in the `@outputai/core` worker shutdown. Nothing in your code needs to change, but a deploy that lands on steps still running now exits `0` instead of `1`, several shutdown log lines changed, and `OUTPUT_TEMPORAL_LOG_LEVEL` rejects invalid values.
+This guide covers behavior changes in the `@outputai/core` worker shutdown and in how the API serves trace files. Nothing in your code needs to change, but a deploy that lands on steps still running now exits `0` instead of `1`, several shutdown log lines changed, `OUTPUT_TEMPORAL_LOG_LEVEL` rejects invalid values, and the trace endpoints answer `413` for trace files over 256 MB.
 
-If you alert on worker exit codes or match worker log lines, read [Exit code on a forced shutdown](#exit-code-on-a-forced-shutdown) and [Shutdown logs](#shutdown-logs).
+If you alert on worker exit codes or match worker log lines, read [Exit code on a forced shutdown](#exit-code-on-a-forced-shutdown) and [Shutdown logs](#shutdown-logs). If you call the trace endpoints or run `output workflow debug`, `output workflow cost` or `output workflow dataset generate --download` against production traces, read [Trace files over 256 MB](#trace-files-over-256-mb).
 
 ## What changed
 
@@ -18,6 +18,8 @@ If you alert on worker exit codes or match worker log lines, read [Exit code on 
 - Temporal log entries that carry an error now show its `name`, `message` and `stack` instead of `{}`.
 - The worker warns at startup when `TEMPORAL_SHUTDOWN_FORCE_TIME` is not bigger than `TEMPORAL_SHUTDOWN_GRACE_TIME`.
 - `OUTPUT_TEMPORAL_LOG_LEVEL` is validated when the worker starts.
+- `GET /workflow/{id}/trace-log` and `GET /workflow/{id}/runs/{rid}/trace-log` answer `413` instead of the trace for remote trace files over 256 MB. The response carries a signed `downloadUrl`.
+- The CLI shows `Trace file is too big for this feature` for those traces.
 
 ## Exit code on a forced shutdown
 
@@ -77,6 +79,45 @@ OUTPUT_TEMPORAL_LOG_LEVEL=DEBUG
 
 At `ERROR`, the `Worker failed` warning of a forced shutdown is not logged, since it is no longer an error.
 
+## Trace files over 256 MB
+
+The API reads a remote trace into memory to return it. Node cannot hold a string of more than about 512 MB, so the largest traces already failed with a `500`, and any trace close to that size could exhaust the API's memory. v0.17.0 sets a hard 256 MB limit. The API checks the object size with a `HEAD` request first. Over the limit, it does not read the file and answers `413` instead.
+
+| Trace file size | v0.16.0 | v0.17.0 |
+| --- | --- | --- |
+| Up to 256 MB | `200` with the trace | Unchanged |
+| Over 256 MB, up to about 512 MB | `200` with the trace, if the API had the memory | `413` |
+| Over about 512 MB | `500` | `413` |
+
+The `413` body has the sizes in bytes and a signed S3 URL. The same sizes are in the `X-Trace-Size` and `X-Trace-Max-Size` response headers. The URL is not sent as a `Location` header, so HTTP clients do not follow it.
+
+```json
+{
+  "error": "TraceFileTooLargeError",
+  "message": "Trace file is too large to be served inline (587158372 bytes, maximum 268435456 bytes).",
+  "size": 587158372,
+  "maxSize": 268435456,
+  "downloadUrl": "https://<bucket>.s3.<region>.amazonaws.com/<key>?X-Amz-Algorithm=...",
+  "expiresAt": "2026-11-16T16:36:59.919Z"
+}
+```
+
+The URL expires after 15 minutes. Download the trace from it directly, with no extra credentials. The API signs it with the AWS credentials it already uses to read traces, so no new permission is needed.
+
+The CLI does not download the file. These commands stop with the same message when the trace is over the limit:
+
+```text
+Trace file is too big for this feature. Max size 256 MB, file size 560 MB
+```
+
+- `output workflow debug` and `output workflow cost` exit with that error.
+- `output workflow dataset generate --download` skips the run with a warning, and fails only if every run was skipped.
+- The steps modal of `output dev` shows the message in place of the steps.
+
+If your client treats any `4xx` as a permanent failure, nothing changes for it. If it retries on `413`, make it stop. Retrying returns the same answer.
+
+The new `@aws-sdk/s3-request-presigner` dependency is part of `output-api`. Self-hosted API images need no other change.
+
 ## Checklist
 
 - Bump `@outputai/core` and `@outputai/cli` to `0.17.0`.
@@ -85,4 +126,5 @@ At `ERROR`, the `Worker failed` warning of a forced shutdown is not logged, sinc
 - Remove an error-level `Worker failed` entry from your noise baseline. A forced drain logs it as a warning.
 - Update consumers of Temporal log entries that read an empty `error` object.
 - Check that `OUTPUT_TEMPORAL_LOG_LEVEL`, if set, is one of `TRACE`, `DEBUG`, `INFO`, `WARN` or `ERROR`.
+- If you call the trace endpoints, handle `413` and read `downloadUrl` when you need the full file. Trace files between 256 MB and about 512 MB no longer return `200`.
 - If your deploys abandon work often, size `TEMPORAL_SHUTDOWN_GRACE_TIME`, `TEMPORAL_SHUTDOWN_FORCE_TIME` and your platform's shutdown window together. See [Worker Shutdown](/operations/worker-shutdown).

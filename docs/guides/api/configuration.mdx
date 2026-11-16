@@ -58,6 +58,8 @@ The API only reads traces — the worker is what uploads them (see [Tracing](/op
 }
 ```
 
+The signed `downloadUrl` returned with a `413` for traces over 256 MB is signed with these same credentials and needs no extra permission. The API reads the object size with a `HEAD` request, which `s3:GetObject` covers.
+
 <Warning>
 If these read permissions are missing, trace fetches fail with a generic download error. A misconfigured bucket policy — granting the worker write access but not granting the API identity `s3:GetObject` / `s3:ListBucket` — is the most common cause of `output workflow debug` and `dataset generate --download` failing against production runs.
 </Warning>

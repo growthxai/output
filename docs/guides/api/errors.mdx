@@ -19,6 +19,7 @@ Workflow execution failures are different from API request errors. `POST /workfl
 | 400 | ValidationError | Invalid request body or query. |
 | 404 | WorkflowNotFoundError | Workflow execution ID, workflow type, or catalog not found. |
 | 408 | WorkflowExecutionTimedOutError | Synchronous run timed out before the workflow completed. |
+| 413 | TraceFileTooLargeError | Remote trace is over 256 MB; the response carries a signed download URL. |
 | 424 | WorkflowNotCompletedError | Result or trace requested but the workflow is still running. |
 | 503 | CatalogNotAvailableError | Catalog workflow unavailable; retry after a short delay. |
 | 500 | (varies) | Server or Temporal connection error. |
@@ -30,6 +31,19 @@ A 400 is also returned when Temporal rejects a request's `searchAttributes`: the
 **404 WorkflowNotFoundError** — The given workflow execution ID does not exist, the workflow type is not in the catalog for the task queue, or the catalog workflow itself was not found.
 
 **408 WorkflowExecutionTimedOutError** — Returned only by `POST /workflow/run` when the workflow did not complete within the request timeout (or the configured max waiting time).
+
+**413 TraceFileTooLargeError** — Returned by `GET /workflow/:id/trace-log` and `GET /workflow/:id/runs/:rid/trace-log` when a remote trace is bigger than 256 MB. The API never reads such a file. The body carries `size` and `maxSize` (bytes), a `downloadUrl` that expires at `expiresAt` (15 minutes), and the same sizes are in the `X-Trace-Size` and `X-Trace-Max-Size` headers. The URL grants read access to the trace, which contains prompts and outputs, so treat it as a secret. The CLI does not download these files: `workflow cost`, `workflow debug` and `workflow dataset generate` report `Trace file is too big for this feature` with both sizes.
+
+```json
+{
+  "error": "TraceFileTooLargeError",
+  "message": "Trace file is too large to be served inline (587158372 bytes, maximum 268435456 bytes).",
+  "size": 587158372,
+  "maxSize": 268435456,
+  "downloadUrl": "https://bucket.s3.us-west-1.amazonaws.com/...",
+  "expiresAt": "2026-11-16T14:30:00.000Z"
+}
+```
 
 **424 WorkflowNotCompletedError** — Returned by `GET /workflow/:id/result` and `GET /workflow/:id/trace-log` when the workflow is still running and has no final result or trace yet.
 

@@ -290,3 +290,5 @@ You can access traces in three ways:
 - **Via CLI** — See [output workflow debug](/packages/cli#output-workflow-debug)
 
 The CLI never reads S3 itself. `output workflow debug`, `output workflow cost`, and `output workflow dataset generate --download` all fetch traces through the API's trace-log endpoint, and the API reads remote traces from S3. The API's AWS credentials therefore need `s3:GetObject` and `s3:ListBucket` on the trace bucket — see [API Configuration](/api/configuration#aws-credential-permissions).
+
+The API serves remote traces up to 256 MB. A bigger trace gets a `413` with a short-lived signed download URL, and the CLI commands above report that the trace file is too big for the feature instead of loading it.

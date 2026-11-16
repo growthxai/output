@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { TraceFileDownloadError, TraceFileParseError, InvalidTraceFileUrl } from './errors.js';
+import { TraceFileDownloadError, TraceFileParseError, TraceFileTooLargeError, InvalidTraceFileUrl } from './errors.js';
 import { fetchTraceFromS3 } from './s3_client.js';
 
 const mockSend = vi.fn();
@@ -8,7 +8,12 @@ vi.mock( '@aws-sdk/client-s3', () => ( {
   S3Client: vi.fn().mockImplementation( function () {
     return { send: mockSend };
   } ),
-  GetObjectCommand: vi.fn()
+  GetObjectCommand: vi.fn(),
+  HeadObjectCommand: vi.fn()
+} ) );
+
+vi.mock( '@aws-sdk/s3-request-presigner', () => ( {
+  getSignedUrl: vi.fn()
 } ) );
 
 vi.mock( '#configs', () => ( {
@@ -16,6 +21,8 @@ vi.mock( '#configs', () => ( {
 } ) );
 
 import { aws as awsConfig } from '#configs';
+import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 describe( 's3_client', () => {
   beforeEach( () => {
@@ -118,7 +125,7 @@ describe( 's3_client', () => {
       try {
         await fetchTraceFromS3( validS3Url );
       } catch ( err ) {
-        expect( err.message ).toBe( 'S3 GetObject failure' );
+        expect( err.message ).toBe( 'S3 HeadObject failure' );
         expect( err.url ).toBe( validS3Url );
         expect( err.cause ).toBe( s3Error );
       }
@@ -142,6 +149,76 @@ describe( 's3_client', () => {
         expect( err.url ).toBe( validS3Url );
         expect( err.cause ).toBeDefined();
       }
+    } );
+
+    describe( 'size limit', () => {
+      const maxSize = 256 * 1024 * 1024;
+
+      beforeEach( () => {
+        vi.useFakeTimers( { toFake: [ 'Date' ] } );
+        vi.setSystemTime( new Date( '2026-11-16T12:00:00.000Z' ) );
+      } );
+
+      afterEach( () => {
+        vi.useRealTimers();
+      } );
+
+      it( 'throws TraceFileTooLargeError with a signed URL when the file is over the limit', async () => {
+        mockSend.mockResolvedValue( { ContentLength: maxSize + 1 } );
+        getSignedUrl.mockResolvedValue( 'https://signed.example.com/trace.json?X-Amz-Signature=abc' );
+
+        const error = await fetchTraceFromS3( validS3Url ).catch( e => e );
+
+        expect( error ).toBeInstanceOf( TraceFileTooLargeError );
+        expect( error ).toMatchObject( {
+          url: validS3Url,
+          size: maxSize + 1,
+          maxSize,
+          downloadUrl: 'https://signed.example.com/trace.json?X-Amz-Signature=abc',
+          expiresAt: '2026-11-16T12:15:00.000Z'
+        } );
+      } );
+
+      it( 'signs a GetObject for the same bucket and key, valid for 15 minutes', async () => {
+        mockSend.mockResolvedValue( { ContentLength: maxSize + 1 } );
+        getSignedUrl.mockResolvedValue( 'https://signed.example.com' );
+
+        await fetchTraceFromS3( validS3Url ).catch( () => {} );
+
+        expect( GetObjectCommand ).toHaveBeenCalledWith( { Bucket: 'my-bucket', Key: 'path/trace.json' } );
+        expect( getSignedUrl ).toHaveBeenCalledWith( expect.anything(), expect.anything(), { expiresIn: 900 } );
+      } );
+
+      it( 'does not send GetObject when the file is over the limit', async () => {
+        mockSend.mockResolvedValue( { ContentLength: maxSize + 1 } );
+        getSignedUrl.mockResolvedValue( 'https://signed.example.com' );
+
+        await fetchTraceFromS3( validS3Url ).catch( () => {} );
+
+        expect( mockSend ).toHaveBeenCalledTimes( 1 );
+        expect( HeadObjectCommand ).toHaveBeenCalledWith( { Bucket: 'my-bucket', Key: 'path/trace.json' } );
+      } );
+
+      it( 'reads the file when its size is exactly the limit', async () => {
+        mockSend
+          .mockResolvedValueOnce( { ContentLength: maxSize } )
+          .mockResolvedValueOnce( { Body: { transformToString: () => Promise.resolve( '{"ok":true}' ) } } );
+
+        await expect( fetchTraceFromS3( validS3Url ) ).resolves.toEqual( { ok: true } );
+        expect( getSignedUrl ).not.toHaveBeenCalled();
+      } );
+
+      it( 'throws TraceFileDownloadError when signing fails', async () => {
+        const signError = new Error( 'no credentials' );
+        mockSend.mockResolvedValue( { ContentLength: maxSize + 1 } );
+        getSignedUrl.mockRejectedValue( signError );
+
+        const error = await fetchTraceFromS3( validS3Url ).catch( e => e );
+
+        expect( error ).toBeInstanceOf( TraceFileDownloadError );
+        expect( error.message ).toBe( 'S3 presign failure' );
+        expect( error.cause ).toBe( signError );
+      } );
     } );
 
     it( 'passes URL through to TraceFileParseError on parse failure', async () => {
