@@ -12,7 +12,7 @@ print() {
 
 print "Tagging version on Git" "Run"
 
-version=$(node -p "require('./sdk/core/package.json').version")
+version=$(node -p "require('./projects/core/package.json').version")
 tag="v${version}"
 
 print "SDK version: ${version}"

@@ -3,7 +3,7 @@ import { defineConfig } from 'orval';
 export default defineConfig( {
   outputapi: {
     input: {
-      target: '../../api/openapi.json'
+      target: '../api/openapi.json'
     },
     output: {
       mode: 'single',

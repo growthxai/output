@@ -1,12 +1,12 @@
 {
   "entryPoints": [
-    "./sdk/core/src/hooks/index.d.ts",
-    "./sdk/core/src/index.d.ts",
-    "./sdk/core/src/credentials/index.ts",
-    "./sdk/core/src/evals/index.ts",
-    "./sdk/core/src/http/index.d.ts",
-    "./sdk/core/src/temporal/index.d.ts",
-    "./sdk/core/src/llm/index.d.ts"
+    "./projects/core/src/hooks/index.d.ts",
+    "./projects/core/src/index.d.ts",
+    "./projects/core/src/credentials/index.ts",
+    "./projects/core/src/evals/index.ts",
+    "./projects/core/src/http/index.d.ts",
+    "./projects/core/src/temporal/index.d.ts",
+    "./projects/core/src/llm/index.d.ts"
   ],
   "entryPointStrategy": "resolve",
   "excludeExternals": true,

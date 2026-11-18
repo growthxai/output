@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { webpackConfigHook } from './bundler_options.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
-const TEMP_BASE = join( process.cwd(), 'sdk/core/temp_test_bundler_options' );
+const TEMP_BASE = join( process.cwd(), 'projects/core/temp_test_bundler_options' );
 
 afterEach( () => {
   rmSync( TEMP_BASE, { recursive: true, force: true } );

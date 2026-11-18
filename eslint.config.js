@@ -106,7 +106,7 @@ export default [
       '**/node_modules/**',
       '**/temp/**',
       'coding_assistants/**',
-      'sdk/cli/orval.config.ts'
+      'projects/cli/orval.config.ts'
     ]
   },
 
@@ -189,9 +189,9 @@ export default [
     }
   },
 
-  // Keep sdk/core TS specs linted without requiring a tsconfig for test-only files
+  // Keep projects/core TS specs linted without requiring a tsconfig for test-only files
   {
-    files: [ 'sdk/core/**/*.spec.ts', 'sdk/core/**/*.integration.test.ts' ],
+    files: [ 'projects/core/**/*.spec.ts', 'projects/core/**/*.integration.test.ts' ],
     languageOptions: {
       parserOptions: {
         project: false

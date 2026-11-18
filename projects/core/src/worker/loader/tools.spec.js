@@ -33,7 +33,7 @@ import {
   packageExposesWorkflows
 } from './tools.js';
 
-const TEMP_BASE = join( process.cwd(), 'sdk/core/temp_test_modules' );
+const TEMP_BASE = join( process.cwd(), 'projects/core/temp_test_modules' );
 
 beforeEach( () => {
   vi.clearAllMocks();

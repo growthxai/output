@@ -8,9 +8,9 @@ This monorepo publishes the following packages to npm:
 
 | Package | Path | Description |
 |---------|------|-------------|
-| `@outputai/cli` | `sdk/cli` | CLI for project scaffolding and workflow management |
-| `@outputai/core` | `sdk/core` | Core framework (workflows, steps, parallel execution) |
-| `output-api` | `api` | API server (private, Docker image only) |
+| `@outputai/cli` | `projects/cli` | CLI for project scaffolding and workflow management |
+| `@outputai/core` | `projects/core` | Core framework (workflows, steps, parallel execution) |
+| `output-api` | `projects/api` | API server (private, Docker image only) |
 
 All `@outputai/*` packages and `output-api` are in a **fixed version group** — they always share the same version number and are bumped together. This is configured in `.changeset/config.json`.
 
