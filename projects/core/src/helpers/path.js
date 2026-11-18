@@ -7,16 +7,18 @@ const transformSeparators = path => path.replaceAll( '/', SEP );
 
 const defaultIgnorePaths = [
   '/@outputai/core/',
-  '/projects/core/',
   'node:internal/',
   'evalmachine.',
   'webpack/bootstrap'
 ];
 
+const ownFileSuffix = `helpers${SEP}path.js`;
+
 /**
  * Return the first immediate directory of the file invoking the code that called this function.
  *
- * Excludes `@outputai/core`, node, other internal paths, and any additional ignore paths.
+ * Excludes `@outputai/core` (located via this file's own frame, so it works from any install or monorepo path),
+ * node, other internal paths, and any additional ignore paths.
  *
  * @param {string[]} [additionalIgnorePaths]
  * @returns {string}
@@ -26,7 +28,11 @@ export const resolveInvocationDir = ( additionalIgnorePaths = [] ) => {
   const lines = stackTraceParser.parse( stack );
   const ignorePaths = [ ...additionalIgnorePaths, ...defaultIgnorePaths ].map( transformSeparators );
 
-  const frame = lines.find( l => !ignorePaths.some( p => l.file.includes( p ) ) );
+  const ownFile = lines[0]?.file ?? '';
+  const coreSrcDir = ownFile.endsWith( ownFileSuffix ) ? ownFile.slice( 0, -ownFileSuffix.length ) : null;
+  const isIgnored = file => ( coreSrcDir && file.startsWith( coreSrcDir ) ) || ignorePaths.some( p => file.includes( p ) );
+
+  const frame = lines.find( l => !isIgnored( l.file ) );
   if ( !frame ) {
     throw new Error( `Invocation dir resolution via stack trace failed. Stack: ${stack}` );
   }
