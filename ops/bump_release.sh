@@ -12,7 +12,7 @@ print() {
 
 print "Bumping Release" "Run"
 
-from_version=$(node -p "require('./sdk/core/package.json').version")
+from_version=$(node -p "require('./projects/core/package.json').version")
 to_version=$(./ops/get_bump.sh)
 
 print "Building releases.json entry (v${from_version} -> v${to_version})"
@@ -25,7 +25,7 @@ print "Regenerating docs from releases.json"
 ./ops/regenerate_docs.sh
 
 print "Set CLI SDK Version"
-version=$(node -p "require('./sdk/core/package.json').version");
+version=$(node -p "require('./projects/core/package.json').version");
 pnpm run --silent --filter @outputai/cli set-sdk-version $version
 
 print "Packages bumped" "OK"

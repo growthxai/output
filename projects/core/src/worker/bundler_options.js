@@ -7,7 +7,7 @@ import {
 } from './loader/tools.js';
 
 const __dirname = dirname( fileURLToPath( import.meta.url ) );
-const workerDir = __dirname; // sdk/core/src/worker
+const workerDir = __dirname; // projects/core/src/worker
 const interfaceDir = join( __dirname, '..', 'interface' );
 const packagesWithWorkflowsMap = new Map();
 

@@ -11,15 +11,15 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Copy API package.json for workspace detection
-COPY ./api/package.json ./api/
+COPY ./projects/api/package.json ./projects/api/
 
 # Install only API workspace dependencies
 RUN pnpm install --frozen-lockfile --filter output-api
 
 # Copy the rest of the API code
-COPY ./api ./api
+COPY ./projects/api ./projects/api
 
-WORKDIR /app/api
+WORKDIR /app/projects/api
 
 ENV NODE_ENV=production
 

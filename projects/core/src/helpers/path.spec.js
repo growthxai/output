@@ -19,11 +19,11 @@ describe( 'resolveInvocationDir', () => {
 
   it( 'skips core llm frames and returns the step dir in the monorepo', () => {
     mockStack( `Error
-    at resolveInvocationDir (file:///app/sdk/core/src/helpers/path.js:27:17)
-    at loadPrompt (file:///app/sdk/core/src/llm/prompt/loader.js:38:64)
-    at generateText (file:///app/sdk/core/src/llm/generate.js:51:18)
+    at resolveInvocationDir (file:///app/projects/core/src/helpers/path.js:27:17)
+    at loadPrompt (file:///app/projects/core/src/llm/prompt/loader.js:38:64)
+    at generateText (file:///app/projects/core/src/llm/generate.js:51:18)
     at fn (file:///app/test_workflows/dist/workflows/llm/generate_text/steps.ts:9:28)
-    at wrapper (file:///app/sdk/core/src/interface/step.js:12:26)
+    at wrapper (file:///app/projects/core/src/interface/step.js:12:26)
     at executeNextHandler (/app/node_modules/@temporalio/worker/lib/activity.js:99:54)` );
 
     expect( resolveInvocationDir() ).toBe( '/app/test_workflows/dist/workflows/llm/generate_text' );
@@ -43,7 +43,7 @@ describe( 'resolveInvocationDir', () => {
 
   it( 'skips additional ignore paths', () => {
     mockStack( `Error
-    at resolveInvocationDir (file:///app/sdk/core/src/helpers/path.js:27:17)
+    at resolveInvocationDir (file:///app/projects/core/src/helpers/path.js:27:17)
     at helper (file:///app/dist/shared/prompt_helper.js:3:10)
     at fn (file:///app/dist/workflows/simple/steps.js:8:21)` );
 
@@ -52,8 +52,8 @@ describe( 'resolveInvocationDir', () => {
 
   it( 'throws when every frame is ignored', () => {
     mockStack( `Error
-    at resolveInvocationDir (file:///app/sdk/core/src/helpers/path.js:27:17)
-    at loadPrompt (file:///app/sdk/core/src/llm/prompt/loader.js:38:64)
+    at resolveInvocationDir (file:///app/projects/core/src/helpers/path.js:27:17)
+    at loadPrompt (file:///app/projects/core/src/llm/prompt/loader.js:38:64)
     at ModuleJob.run (node:internal/modules/esm/module_job:365:25)` );
 
     expect( () => resolveInvocationDir() ).toThrow( 'Invocation dir resolution via stack trace failed' );

@@ -18,7 +18,7 @@ Work in this order. Do not emit structured output until step 4.
 
 1. **Draft** — Walk **Review categories** once. Provisional verdict, findings, and category scorecard.
 2. **Temporal lens** (when triggered) — In-process only (no subagent). Focus only on **Temporal TypeScript SDK** correctness, alignment, and wiring. No separate Temporal category; fold into normal findings.
-   - **Trigger** if the PR touches `sdk/core/**`, `api/**`, or `@temporalio/*` dependency adds/version changes (manifest/lockfile).
+   - **Trigger** if the PR touches `projects/core/**`, `projects/api/**`, or `@temporalio/*` dependency adds/version changes (manifest/lockfile).
    - **Review:** workflow determinism / sandbox; activity boundaries; retries; heartbeats; cancellation; signals/queries/updates; payloads; replay / patching / versioning; client/worker lifecycle; APIs match the SDK version in use; workers, clients, task queues, interceptors, sinks, schedules coherent with the SDK model.
    - When unsure, check Temporal TS SDK docs or upstream for the version this PR uses — do not guess.
    - Skipping this step when triggered = incomplete review.
@@ -40,13 +40,13 @@ Work in this order. Do not emit structured output until step 4.
 
 **Public-facing code** (docs candidates):
 
-- `sdk/*` — published `@outputai/*` packages
-- `api/` — public HTTP API (`output-api`, Docker image)
+- `projects/*` — published `@outputai/*` packages
+- `projects/api/` — public HTTP API (`output-api`, Docker image)
 - `coding_assistants/claude/plugins/outputai/` — published Claude Code plugin; its skills and agents describe SDK APIs and must stay in sync with them like `docs/guides/`
 
 Docs live under `docs/guides/` (Mintlify), including `migrations/` and `docs/guides/openapi.json` when the HTTP contract changes.
 
-Skip for docs review: `sdk/*/README.md` (stubs); generated `docs/reference/` HTML (unless this PR changes that pipeline). `test_workflows/` and CI/ops-only scripts are rarely docs candidates.
+Skip for docs review: `projects/*/README.md` (stubs); generated `docs/reference/` HTML (unless this PR changes that pipeline). `test_workflows/` and CI/ops-only scripts are rarely docs candidates.
 
 ## Review categories
 
@@ -75,7 +75,7 @@ Does the changed code do the right thing?
 
 ### Documentation
 
-Judge by **effect of the diff**, not path alone. `sdk/*` / `api/` changes do not automatically need docs if external behavior is unchanged. When docs are in scope (`docs/guides/**`, the Claude Code plugin, OpenAPI when relevant):
+Judge by **effect of the diff**, not path alone. `projects/*` changes do not automatically need docs if external behavior is unchanged. When docs are in scope (`docs/guides/**`, the Claude Code plugin, OpenAPI when relevant):
 
 - Sync with what public code actually exposes after this PR
 - Completeness for new/changed user-facing capability
@@ -92,7 +92,7 @@ Skip: behavior-neutral refactors, internal wiring, pure test/CI, drive-by unrela
 - **Main / user-affecting dependency** — bump that can break or force retest of **user** code → changeset **required** as a **version notice** (ships X at Y); not an upstream changelog
 - **Internal / maintenance** — transitive pins, audit lockfile churn, unused dep removal, internal-only wiring → changeset **not** required
 
-Exempt: docs-only, CI/ops-only, test-only (`test_workflows`), non-released paths. Do not waive `api/` because it ships as Docker when **user-facing** behavior changes.
+Exempt: docs-only, CI/ops-only, test-only (`test_workflows`), non-released paths. Do not waive `projects/api/` because it ships as Docker when **user-facing** behavior changes.
 
 ### Tests
 
@@ -101,7 +101,7 @@ Qualitative coverage of new/changed behavior. **Missing tests default to Nice-to
 - **Unit** (`*.spec.js` / `*.spec.ts`, no `integration` in the name) — target file only; mock dependencies; assert wiring, not collaborator/library re-tests
 - **Integration** (filename contains `integration`) — cross-module OK
 - Gaps / duplicates → usually Nice-to-have; **pointless tests** (tautologies, assert-the-mock) → **Must-fix**
-- Colocate under `sdk/*` / `api/` when that is the pattern. Skip pure docs/changeset/CI PRs.
+- Colocate under `projects/*` when that is the pattern. Skip pure docs/changeset/CI PRs.
 
 ### Security
 

@@ -58,7 +58,7 @@ npm run dev:up -- --detached
 
 # Run the simple workflow using the CLI since everything is up
 print "Executing test workflow..."
-OUT=$(npx --prefix=sdk/cli output workflow run e2e_test --input '{}' --json) || {
+OUT=$(npx --prefix=projects/cli output workflow run e2e_test --input '{}' --json) || {
   if [ -n "${OUT:-}" ]; then
     printf '%s\n' "$OUT"
   fi

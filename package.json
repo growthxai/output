@@ -14,10 +14,10 @@
     "test:integration": "vitest run --config vitest.integration.config.js",
     "test:e2e": "./ops/test_e2e.sh",
     "test:all": "npm test && npm run test:integration npm run test:e2e",
-    "build:packages": "pnpm -r run build && cp ./api/openapi.json ./docs/guides/openapi.json",
+    "build:packages": "pnpm -r run build && cp ./projects/api/openapi.json ./docs/guides/openapi.json",
     "build:api:dev": "docker build -f ops/api.Dockerfile -t outputai/api:dev .",
     "dev": "npm run build:packages && npm run build:api:dev && npm run dev:up",
-    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npx --prefix=sdk/cli output dev --image-pull-policy missing",
+    "dev:up": "OUTPUT_API_VERSION=dev OUTPUT_WORKFLOWS_DIR=test_workflows npx --prefix=projects/cli output dev --image-pull-policy missing",
     "docs:generate": "typedoc",
     "docs:validate": "typedoc --emit none"
   },

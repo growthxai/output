@@ -39,7 +39,7 @@ if [[ "$dry_run" == true ]]; then printf "\e[0;90mUsing --dry-run, skipping actu
 if [[ -z "$DOCKERHUB_USERNAME" || -z "$DOCKERHUB_TOKEN" ]]; then ./alert.sh "error" "Missing env vars" "DOCKERHUB_USERNAME and DOCKERHUB_TOKEN"; exit 1; fi
 
 image_name=$DOCKERHUB_USERNAME/api
-version=$(cat ../api/package.json | grep \"version\" | cut -d'"' -f 4)
+version=$(cat ../projects/api/package.json | grep \"version\" | cut -d'"' -f 4)
 platforms="linux/amd64,linux/arm64"
 
 print "API Image tag: $version"

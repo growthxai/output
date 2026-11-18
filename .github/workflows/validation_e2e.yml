@@ -5,8 +5,7 @@ on:
     branches: [main]
     paths:
       - 'test_workflows/**'
-      - 'api/**'
-      - 'sdk/**'
+      - 'projects/**'
 
 jobs:
   test:

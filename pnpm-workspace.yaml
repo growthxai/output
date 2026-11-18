@@ -1,6 +1,5 @@
 packages:
-  - api
-  - sdk/*
+  - projects/*
   - test_workflows
 
 auditLevel: low

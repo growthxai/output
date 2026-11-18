@@ -42,16 +42,16 @@ Output is a monorepo. The core packages for most documentation are below; read t
 
 | Package | Purpose | Source Location |
 |---------|---------|-----------------|
-| `@outputai/core` | workflow(), step(), evaluator() primitives | `sdk/core/src/` |
-| `@outputai/core/http` | Traced HTTP client wrapper | `sdk/core/src/http/` |
-| `@outputai/core/llm` | generateText, aiSdk.Output.object, aiSdk.Output.array, aiSdk.Output.choice, judge* | `sdk/core/src/llm/` |
-| `@outputai/core/evals` | evalWorkflow, verify, Verdict | `sdk/core/src/evals/` |
+| `@outputai/core` | workflow(), step(), evaluator() primitives | `projects/core/src/` |
+| `@outputai/core/http` | Traced HTTP client wrapper | `projects/core/src/http/` |
+| `@outputai/core/llm` | generateText, aiSdk.Output.object, aiSdk.Output.array, aiSdk.Output.choice, judge* | `projects/core/src/llm/` |
+| `@outputai/core/evals` | evalWorkflow, verify, Verdict | `projects/core/src/evals/` |
 
 **Working examples**: `test_workflows/src/` contains tested workflows demonstrating correct framework patterns.
 
 **Local preview**: run `./run.sh docs:mint` from the repo root to serve these docs at `http://localhost/`.
 
-**Generated file**: `openapi.json` in this directory is copied from `api/openapi.json` by the root `pnpm build:packages` script — don't hand-edit it.
+**Generated file**: `openapi.json` in this directory is copied from `projects/api/openapi.json` by the root `pnpm build:packages` script — don't hand-edit it.
 
 ---
 
@@ -278,7 +278,7 @@ When creating new documentation or making major revisions to existing files in t
 - Write down what each persona needs from this documentation
 
 ### Step 3: Source Code Research
-- Read the actual source code in `sdk/*/src/` to collect accurate, current information
+- Read the actual source code in `projects/*/src/` to collect accurate, current information
 - Review working examples in `test_workflows/src/`
 - Extract real function signatures, types, and behavior
 - Never document from memory or assumptions—always verify against code
