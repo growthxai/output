@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Parser } from '@oclif/core';
 
 vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowRun: vi.fn()
@@ -68,16 +69,31 @@ describe( 'workflow dataset generate command', () => {
       const DatasetGenerate = ( await import( './generate.js' ) ).default;
       expect( DatasetGenerate.flags ).toHaveProperty( 'workflow-id' );
       expect( DatasetGenerate.flags ).toHaveProperty( 'run-id' );
-      expect( DatasetGenerate.flags['run-id'].char ).toBe( 'r' );
       expect( DatasetGenerate.flags ).toHaveProperty( 'profile' );
       expect( DatasetGenerate.flags ).toHaveProperty( 'address' );
       expect( DatasetGenerate.flags ).toHaveProperty( 'namespace' );
     } );
 
-    it( 'cannot combine --workflow-id with --input, and --run-id needs --workflow-id', async () => {
-      const DatasetGenerate = ( await import( './generate.js' ) ).default;
-      expect( DatasetGenerate.flags['workflow-id'].exclusive ).toEqual( [ 'input' ] );
-      expect( DatasetGenerate.flags['run-id'].dependsOn ).toEqual( [ 'workflow-id' ] );
+    // Parser.parse needs no oclif Config, so what oclif does with the flag relations can be pinned directly
+    describe( 'flag parsing', () => {
+      const parse = async ( argv: string[] ) => {
+        const DatasetGenerate = ( await import( './generate.js' ) ).default;
+        return Parser.parse( argv, { flags: DatasetGenerate.flags, args: DatasetGenerate.args } );
+      };
+
+      it( 'accepts --workflow-id alone, and with -r and --name', async () => {
+        await expect( parse( [ 'my_workflow', '--workflow-id', 'wf-1' ] ) ).resolves.toMatchObject( { flags: { 'workflow-id': 'wf-1' } } );
+        await expect( parse( [ 'my_workflow', '--workflow-id', 'wf-1', '-r', 'run-1', '--name', 'case' ] ) )
+          .resolves.toMatchObject( { flags: { 'workflow-id': 'wf-1', 'run-id': 'run-1', name: 'case' } } );
+      } );
+
+      it( 'rejects --run-id without --workflow-id', async () => {
+        await expect( parse( [ 'my_workflow', '--run-id', 'run-1' ] ) ).rejects.toThrow( /--workflow-id/ );
+      } );
+
+      it( 'rejects --workflow-id together with --input', async () => {
+        await expect( parse( [ 'my_workflow', '--workflow-id', 'wf-1', '--input', '{}' ] ) ).rejects.toThrow( /--input/ );
+      } );
     } );
   } );
 

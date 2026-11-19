@@ -34,7 +34,12 @@ const fetchRunInput = async ( client: Client, workflowId: string, runId: string 
     execution: { workflowId, runId },
     maximumPageSize: 1
   } ) );
-  const payload = response.history?.events?.[0]?.workflowExecutionStartedEventAttributes?.input?.payloads?.[0];
+  const started = response.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
+  if ( !started ) {
+    throw new Error( `${formatRunLabel( workflowId, runId )} has no start event in its history.` );
+  }
+
+  const payload = started.input?.payloads?.[0];
   // No payload, or a payload that encodes "nothing", means the workflow started without input
   const input = payload ? defaultPayloadConverter.fromPayload( payload as Payload ) : undefined;
   return input === undefined ? {} : input;

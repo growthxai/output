@@ -12,7 +12,7 @@ import { collectWorkflowRunData, type WorkflowRunData } from '#services/workflow
 import { temporalFlags, type TemporalFlags } from '#utils/temporal_flags.js';
 import { resolveScenarioPath, getScenarioNotFoundMessage } from '#utils/scenario_resolver.js';
 import { parseInputFlag } from '#utils/input_parser.js';
-import { createErrorFn, handleApiError } from '#utils/error_handler.js';
+import { createErrorFn, handleCommandError } from '#utils/error_handler.js';
 
 export default class DatasetGenerate extends Command {
   static override description = 'Generate a dataset case for a workflow from a scenario, an input, or a completed run read from Temporal';
@@ -205,7 +205,7 @@ export default class DatasetGenerate extends Command {
   }
 
   async catch( error: Error ): Promise<void> {
-    return handleApiError( error, createErrorFn( this ), {
+    return handleCommandError( error, createErrorFn( this ), {
       404: 'Workflow not found. Check the workflow name.',
       500: 'Workflow execution failed.'
     } );

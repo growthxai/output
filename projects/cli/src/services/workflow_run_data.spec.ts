@@ -159,10 +159,11 @@ describe( 'collectWorkflowRunData', () => {
     await expect( collectWorkflowRunData( client, options ) ).resolves.toMatchObject( { input: {} } );
   } );
 
-  it( 'uses an empty input when the history has no events', async () => {
-    const { client } = buildClient( { events: [] } );
+  it( 'fails when the history has no start event', async () => {
+    const { client, handle } = buildClient( { events: [] } );
 
-    await expect( collectWorkflowRunData( client, options ) ).resolves.toMatchObject( { input: {} } );
+    await expect( collectWorkflowRunData( client, options ) ).rejects.toThrow( 'Workflow wf-1 (run run-1) has no start event in its history.' );
+    expect( handle.result ).not.toHaveBeenCalled();
   } );
 
   it.each( [

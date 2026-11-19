@@ -270,8 +270,31 @@ describe( 'writeDataset', () => {
   } );
 } );
 
+describe( 'writeDataset when the case already exists', () => {
+  it( 'replaces input and last_output and keeps ground_truth and the other fields', async () => {
+    const filePath = join( ctx.tmpDir, 'cases.yml' );
+    await writeYaml( filePath, {
+      my_case: {
+        input: { q: 'old' },
+        ground_truth: { expected: 42 },
+        last_output: { output: { result: 1 }, executionTimeMs: 100, date: '2026-01-01T00:00:00.000Z' }
+      }
+    } );
+
+    await writeDataset( buildDataset( 'my_case', { q: 'new' }, { result: 2 } ), filePath );
+
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, {
+      input: unknown; ground_truth: unknown; last_output: { output: unknown };
+    }>;
+    expect( raw.my_case.input ).toEqual( { q: 'new' } );
+    expect( raw.my_case.ground_truth ).toEqual( { expected: 42 } );
+    expect( raw.my_case.last_output.output ).toEqual( { result: 2 } );
+    expect( raw.my_case.last_output ).not.toHaveProperty( 'executionTimeMs' );
+  } );
+} );
+
 // ---------------------------------------------------------------------------
-// listDatasets
+// buildDataset
 // ---------------------------------------------------------------------------
 
 describe( 'buildDataset', () => {
@@ -300,28 +323,9 @@ describe( 'buildDataset', () => {
   } );
 } );
 
-describe( 'writeDataset when the case already exists', () => {
-  it( 'replaces input and last_output and keeps ground_truth and the other fields', async () => {
-    const filePath = join( ctx.tmpDir, 'cases.yml' );
-    await writeYaml( filePath, {
-      my_case: {
-        input: { q: 'old' },
-        ground_truth: { expected: 42 },
-        last_output: { output: { result: 1 }, executionTimeMs: 100, date: '2026-01-01T00:00:00.000Z' }
-      }
-    } );
-
-    await writeDataset( buildDataset( 'my_case', { q: 'new' }, { result: 2 } ), filePath );
-
-    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, {
-      input: unknown; ground_truth: unknown; last_output: { output: unknown };
-    }>;
-    expect( raw.my_case.input ).toEqual( { q: 'new' } );
-    expect( raw.my_case.ground_truth ).toEqual( { expected: 42 } );
-    expect( raw.my_case.last_output.output ).toEqual( { result: 2 } );
-    expect( raw.my_case.last_output ).not.toHaveProperty( 'executionTimeMs' );
-  } );
-} );
+// ---------------------------------------------------------------------------
+// listDatasets
+// ---------------------------------------------------------------------------
 
 describe( 'listDatasets', () => {
   it( 'returns one DatasetInfo per case across all files', async () => {
