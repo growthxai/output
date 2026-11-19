@@ -190,7 +190,7 @@ describe( 'workflow dataset generate command', () => {
         'run-id': 'run-1',
         profile: 'prod'
       } );
-      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', input: { a: 1 }, output: { ok: true } } );
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', inputRunId: 'run-1', input: { a: 1 }, output: { ok: true } } );
 
       await cmd.run();
 
@@ -201,9 +201,30 @@ describe( 'workflow dataset generate command', () => {
       expect( close ).toHaveBeenCalledTimes( 1 );
     } );
 
+    it( 'says so when the run is a continuation and the input was read from the first run', async () => {
+      const { cmd, collectWorkflowRunData, buildDataset } = await createWorkflowIdCommand();
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-3', inputRunId: 'run-1', input: { a: 1 }, output: null } );
+
+      await cmd.run();
+
+      expect( cmd.log ).toHaveBeenCalledWith(
+        'Run run-3 is a continuation (continue-as-new) of workflow "wf-1". Using the input of its first run: run-1.'
+      );
+      expect( buildDataset ).toHaveBeenCalledWith( 'wf-1', { a: 1 }, null );
+    } );
+
+    it( 'does not mention a continuation for a run that did not continue', async () => {
+      const { cmd, collectWorkflowRunData } = await createWorkflowIdCommand();
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', inputRunId: 'run-1', input: {}, output: null } );
+
+      await cmd.run();
+
+      expect( cmd.log ).not.toHaveBeenCalledWith( expect.stringContaining( 'continuation' ) );
+    } );
+
     it( 'uses --name over the workflow id', async () => {
       const { cmd, collectWorkflowRunData, buildDataset } = await createWorkflowIdCommand( { name: 'edge_case' } );
-      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', input: {}, output: null } );
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', inputRunId: 'run-1', input: {}, output: null } );
 
       await cmd.run();
 
@@ -212,7 +233,7 @@ describe( 'workflow dataset generate command', () => {
 
     it( 'sanitizes path separators in the workflow id used for the filename', async () => {
       const { cmd, collectWorkflowRunData, writeDataset } = await createWorkflowIdCommand( { 'workflow-id': '../../escape' } );
-      collectWorkflowRunData.mockResolvedValue( { workflowId: '../../escape', runId: 'run-1', input: {}, output: null } );
+      collectWorkflowRunData.mockResolvedValue( { workflowId: '../../escape', runId: 'run-1', inputRunId: 'run-1', input: {}, output: null } );
 
       await cmd.run();
 
@@ -254,7 +275,7 @@ describe( 'workflow dataset generate command', () => {
     it( 'does not touch the API or the trace', async () => {
       const { postWorkflowRun } = await import( '#api/generated/api.js' );
       const { cmd, collectWorkflowRunData } = await createWorkflowIdCommand();
-      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', input: {}, output: null } );
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', inputRunId: 'run-1', input: {}, output: null } );
 
       await cmd.run();
 

@@ -178,7 +178,7 @@ output workflow runs list <workflowName> --limit 10
 output workflow dataset generate <workflowName> --workflow-id <workflowId>
 ```
 
-The run must be a completed run of `<workflowName>`. A running, failed or continued-as-new run, a run of another workflow and a run that Temporal no longer holds all stop the command with a message and write nothing. A run that continued as new is not completed, so pass the run id of the last run. The case name defaults to the workflow id. Generating a case again with the same name replaces its `input` and `last_output` and keeps its other fields, such as `ground_truth`, as the other modes do.
+The run must be a completed run of `<workflowName>`. A running, failed or continued-as-new run, a run of another workflow and a run that Temporal no longer holds all stop the command with a message and write nothing. A run that continued as new is not completed, so omit `--run-id` or pass the run id of the last run. When the run is a continuation of earlier runs, the case takes the input of the first run of the chain, because a continuation run only holds the continuation arguments, and the result of the run read. The command prints the run ids it used, and fails if the first run can no longer be read. The case name defaults to the workflow id. Generating a case again with the same name replaces its `input` and `last_output` and keeps its other fields, such as `ground_truth`, as the other modes do.
 
 ## Checklist
 

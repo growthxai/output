@@ -142,6 +142,11 @@ export default class DatasetGenerate extends Command {
     this.log( `Reading workflow "${workflowId}" from Temporal...` );
 
     const data = await this.readWorkflowRun( workflowName, workflowId, runId, temporal );
+    if ( data.inputRunId !== data.runId ) {
+      this.log(
+        `Run ${data.runId} is a continuation (continue-as-new) of workflow "${workflowId}". Using the input of its first run: ${data.inputRunId}.`
+      );
+    }
 
     const datasetName = nameOverride ?? workflowId;
     const dataset = buildDataset( datasetName, data.input, data.output );

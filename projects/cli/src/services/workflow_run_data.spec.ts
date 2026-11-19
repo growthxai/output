@@ -9,9 +9,9 @@ const encodeJson = ( value: unknown ) => ( {
 
 const nullPayload = { metadata: { encoding: Buffer.from( 'binary/null' ) } };
 
-const startedEvent = ( payloads?: unknown[] ) => ( {
+const startedEvent = ( payloads?: unknown[], firstExecutionRunId?: string ) => ( {
   eventId: 1,
-  workflowExecutionStartedEventAttributes: payloads ? { input: { payloads } } : {}
+  workflowExecutionStartedEventAttributes: { ...( payloads ? { input: { payloads } } : {} ), firstExecutionRunId }
 } );
 
 interface ClientOptions {
@@ -20,6 +20,8 @@ interface ClientOptions {
   runId?: string;
   describe?: () => Promise<unknown>;
   events?: unknown[];
+  /** Events per run id, for specs that read more than one run. A run not listed fails like a deleted run */
+  eventsByRun?: Record<string, unknown[]>;
   result?: unknown;
 }
 
@@ -33,6 +35,7 @@ const buildClient = ( clientOptions: ClientOptions = {} ) => {
     status = 'COMPLETED',
     runId = 'run-1',
     describe,
+    eventsByRun,
     events = [ startedEvent( [ encodeJson( { values: [ 1, 2, 3 ] } ) ] ) ]
   } = clientOptions;
   // An explicit undefined result must stay undefined, so a default cannot be used here
@@ -42,7 +45,16 @@ const buildClient = ( clientOptions: ClientOptions = {} ) => {
     result: vi.fn( async () => result )
   };
   const getHandle = vi.fn( () => handle );
-  const getWorkflowExecutionHistory = vi.fn( async () => ( { history: { events } } ) );
+  const getWorkflowExecutionHistory = vi.fn( async ( request: { execution: { runId: string } } ) => {
+    if ( !eventsByRun ) {
+      return { history: { events } };
+    }
+    const runEvents = eventsByRun[request.execution.runId];
+    if ( !runEvents ) {
+      throw new Error( `5 NOT_FOUND: workflow execution not found (${request.execution.runId})` );
+    }
+    return { history: { events: runEvents } };
+  } );
   const withDeadline = vi.fn( async ( _deadline: number, fn: () => Promise<unknown> ) => fn() );
   const client = {
     options: { namespace: 'default' },
@@ -62,6 +74,7 @@ describe( 'collectWorkflowRunData', () => {
     await expect( collectWorkflowRunData( client, options ) ).resolves.toEqual( {
       workflowId: 'wf-1',
       runId: 'run-1',
+      inputRunId: 'run-1',
       input: { values: [ 1, 2, 3 ] },
       output: { total: 6 }
     } );
@@ -105,7 +118,7 @@ describe( 'collectWorkflowRunData', () => {
     const { client, getWorkflowExecutionHistory, handle } = buildClient( { type: 'other' } );
 
     await expect( collectWorkflowRunData( client, options ) ).rejects.toThrow(
-      'Workflow wf-1 (run run-1) is a "other" workflow, not "simple".'
+      'Workflow wf-1 (run run-1) is a "other" workflow, not "simple". Use "other" as the workflow name; aliases are not accepted.'
     );
     expect( getWorkflowExecutionHistory ).not.toHaveBeenCalled();
     expect( handle.result ).not.toHaveBeenCalled();
@@ -127,11 +140,12 @@ describe( 'collectWorkflowRunData', () => {
     expect( handle.result ).not.toHaveBeenCalled();
   } );
 
-  it( 'tells the user to pass the last run id for a run that continued as new', async () => {
+  it( 'tells the user which run to use for a run that continued as new', async () => {
     const { client } = buildClient( { status: 'CONTINUED_AS_NEW' } );
 
     await expect( collectWorkflowRunData( client, options ) ).rejects.toThrow(
-      'Workflow wf-1 (run run-1) is continued as new. Only completed runs can be turned into a dataset case. Pass the run id of the last run.'
+      'Workflow wf-1 (run run-1) is continued as new. Only completed runs can be turned into a dataset case. ' +
+      'Omit the run id or pass the run id of the last run.'
     );
   } );
 
@@ -151,6 +165,58 @@ describe( 'collectWorkflowRunData', () => {
     const { client } = buildClient( { describe: rejectWith( failure ) } );
 
     await expect( collectWorkflowRunData( client, options ) ).rejects.toBe( failure );
+  } );
+
+  describe( 'a run that continued as new from earlier runs', () => {
+    const chain = {
+      'run-3': [ startedEvent( [ encodeJson( { value: 2 } ) ], 'run-1' ) ],
+      'run-1': [ startedEvent( [ encodeJson( { value: 0 } ) ], 'run-1' ) ]
+    };
+
+    it( 'reads the input of the first run and the result of the described run', async () => {
+      const { client, handle } = buildClient( { runId: 'run-3', eventsByRun: chain, result: { result: 3 } } );
+
+      await expect( collectWorkflowRunData( client, options ) ).resolves.toEqual( {
+        workflowId: 'wf-1',
+        runId: 'run-3',
+        inputRunId: 'run-1',
+        input: { value: 0 },
+        output: { result: 3 }
+      } );
+      expect( handle.result ).toHaveBeenCalledTimes( 1 );
+    } );
+
+    it( 'does the same when the last run id is given', async () => {
+      const { client } = buildClient( { runId: 'run-3', eventsByRun: chain } );
+
+      await expect( collectWorkflowRunData( client, { ...options, runId: 'run-3' } ) ).resolves.toMatchObject( {
+        runId: 'run-3', inputRunId: 'run-1', input: { value: 0 }
+      } );
+    } );
+
+    it( 'fails when the first run can no longer be read, and does not fall back to the continuation input', async () => {
+      const { client, handle } = buildClient( { runId: 'run-3', eventsByRun: { 'run-3': chain['run-3'] } } );
+
+      await expect( collectWorkflowRunData( client, options ) ).rejects.toThrow(
+        'Workflow wf-1 (run run-3) continued from run run-1, which could not be read, so its original input is unknown. ' +
+        '5 NOT_FOUND: workflow execution not found (run-1)'
+      );
+      expect( handle.result ).not.toHaveBeenCalled();
+    } );
+
+    it( 'fails when the first run has no start event', async () => {
+      const { client } = buildClient( { runId: 'run-3', eventsByRun: { 'run-3': chain['run-3'], 'run-1': [] } } );
+
+      await expect( collectWorkflowRunData( client, options ) ).rejects.toThrow( 'Workflow wf-1 (run run-1) has no start event in its history.' );
+    } );
+
+    it( 'does not read another run for a run that is its own first run', async () => {
+      const { client, getWorkflowExecutionHistory } = buildClient( { runId: 'run-1', eventsByRun: chain } );
+
+      await collectWorkflowRunData( client, options );
+
+      expect( getWorkflowExecutionHistory ).toHaveBeenCalledTimes( 1 );
+    } );
   } );
 
   it( 'uses an empty input for a run that started without input', async () => {
