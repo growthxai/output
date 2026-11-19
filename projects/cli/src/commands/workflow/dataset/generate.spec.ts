@@ -292,6 +292,16 @@ describe( 'workflow dataset generate command', () => {
       expect( collectWorkflowRunData ).not.toHaveBeenCalled();
     } );
 
+    it( 'trims the --workflow-id before reading Temporal and naming the case', async () => {
+      const { cmd, collectWorkflowRunData, buildDataset } = await createWorkflowIdCommand( { 'workflow-id': ' wf-1 ' } );
+      collectWorkflowRunData.mockResolvedValue( { workflowId: 'wf-1', runId: 'run-1', inputRunId: 'run-1', input: {}, output: null } );
+
+      await cmd.run();
+
+      expect( collectWorkflowRunData ).toHaveBeenCalledWith( expect.anything(), expect.objectContaining( { workflowId: 'wf-1' } ) );
+      expect( buildDataset ).toHaveBeenCalledWith( 'wf-1', {}, null );
+    } );
+
     it( 'rejects a scenario argument', async () => {
       const { cmd, collectWorkflowRunData } = await createWorkflowIdCommand( {}, 'basic' );
 

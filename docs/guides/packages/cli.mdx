@@ -880,7 +880,13 @@ output workflow dataset generate <workflowName> --workflow-id <workflowId> [--ru
 | `--address` | `localhost:7233` | Temporal server address (with `--workflow-id`) |
 | `--namespace` | `default` | Temporal namespace (with `--workflow-id`) |
 
-With `--workflow-id`, the command reads the run's start input and its result from Temporal and writes them as a case. It connects the same way as [`workflow debug`](#output-workflow-debug), so it works on local and remote Temporal. Values are not truncated, and secrets are redacted as in the other modes. The run must be a completed run of `<workflowName>`, given by its own name and not by an alias: a run of another workflow, a run that is still running or failed, a run that is missing or an unreachable Temporal stops the command with a message and writes nothing. A run that continued as new is not completed, so omit `--run-id` or pass the run id of the last run. When the run is a continuation of earlier runs, the case takes the input of the first run of the chain, because a continuation run only holds the continuation arguments, and the result of the run read. The command prints the run ids it used, and fails if the first run can no longer be read. A run that started without input is saved with an empty input, and a run that returned nothing is saved with a `null` output. If the dataset file already has a case with that name, its `input` and `last_output` are replaced and its other fields (such as `ground_truth`) are kept. The file goes to the workflow's `tests/datasets` directory. The folder is looked up as `src/workflows/<workflowName>` or `workflows/<workflowName>` under the current directory (or under `OUTPUT_WORKFLOWS_DIR`), and for a nested workflow through the API's workflow catalog. If neither finds it, for example for a nested workflow when the API is not reachable, the case is written to a new `src/workflows/<workflowName>/tests/datasets` folder.
+With `--workflow-id`, the command reads the run's start input and its result from Temporal and writes them as a case. It connects like [`workflow debug`](#output-workflow-debug), so it works on local and remote Temporal. Values are not truncated, and secrets are redacted as in the other modes.
+
+The run must be a completed run of `<workflowName>`, given by its own name and not by an alias. A run of another workflow, a run that is not completed, a missing run and an unreachable Temporal stop the command with a message and write nothing. A run that continued as new is not completed, so omit `--run-id` or pass the id of the last run. For a continuation, the case takes the input of the first run of the chain (a continuation only holds the continuation arguments) and the result of the run read. The command prints both run ids, and fails if the first run can no longer be read.
+
+The case is named after the workflow id unless `--name` is given. A run that started without input is saved with an empty input, and a run that returned nothing with a `null` output. If the dataset file already has a case with that name, its `input` and `last_output` are replaced and its other fields (such as `ground_truth`) are kept.
+
+The file goes to the workflow's `tests/datasets` directory. The folder is `src/workflows/<workflowName>` or `workflows/<workflowName>` under the current directory (or `OUTPUT_WORKFLOWS_DIR`), or, for a nested workflow, the one the API's workflow catalog reports. If neither is found, for example for a nested workflow when the API is not reachable, a new `src/workflows/<workflowName>/tests/datasets` folder is created.
 
 ```bash
 # Generate from a scenario
@@ -1006,15 +1012,15 @@ OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_CLI_ENV` | `.env` | Path to custom env file (relative or absolute) |
-| `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands (`workflow debug` talks to Temporal directly instead) |
+| `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands (`workflow debug` talks to Temporal directly instead; `workflow dataset generate --workflow-id` reads the run from Temporal and uses the API only to find a nested workflow's folder) |
 | `OUTPUT_API_AUTH_TOKEN` | — | API auth token for requests (required in production) |
-| `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` | `localhost:7233`, `default`, — | Temporal connection for commands that read Temporal directly (`workflow debug`). Override the profile; the `--address` and `--namespace` flags override these |
-| `TEMPORAL_PROFILE`, `TEMPORAL_CONFIG_FILE` | `default`, `temporal.toml` in the user config directory | Profile and file the Temporal connection is read from. See [`workflow debug`](#output-workflow-debug) |
+| `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` | `localhost:7233`, `default`, — | Temporal connection for commands that read Temporal directly (`workflow debug`, `workflow dataset generate --workflow-id`). Override the profile; the `--address` and `--namespace` flags override these |
+| `TEMPORAL_PROFILE`, `TEMPORAL_CONFIG_FILE` | `default`, `temporal.toml` in the user config directory | Profile and file the Temporal connection is read from, by the same commands. See [`workflow debug`](#output-workflow-debug) |
 | `OUTPUT_DEBUG` | — | Set to `true` to enable CLI debug mode |
 | `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` — isolates containers, networks, and volumes |
 | `OUTPUT_API_HOST_PORT` | `3001` | Host port for the Output API server |
 | `OUTPUT_TEMPORAL_UI_HOST_PORT` | `8080` | Host port for the Temporal UI |
-| `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side. `workflow debug` uses it for its default address |
+| `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side. `workflow debug` and `workflow dataset generate --workflow-id` use it for their default address |
 | `OUTPUT_API_VERSION` | Installed CLI version | API Docker image tag. Set to `dev` for local builds |
 | `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |

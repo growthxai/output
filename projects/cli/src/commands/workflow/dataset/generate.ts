@@ -68,13 +68,14 @@ export default class DatasetGenerate extends Command {
     const { args, flags } = await this.parse( DatasetGenerate );
 
     if ( flags['workflow-id'] !== undefined ) {
-      if ( !flags['workflow-id'].trim() ) {
+      const workflowId = flags['workflow-id'].trim();
+      if ( !workflowId ) {
         this.error( '--workflow-id cannot be empty.', { exit: 1 } );
       }
       if ( args.scenario ) {
         this.error( 'Cannot use both scenario argument and --workflow-id flag. Choose one.', { exit: 1 } );
       }
-      await this.generateFromWorkflowRun( args.workflowName, flags['workflow-id'], flags['run-id'], flags.name, flags );
+      await this.generateFromWorkflowRun( args.workflowName, workflowId, flags['run-id'], flags.name, flags );
       return;
     }
 
