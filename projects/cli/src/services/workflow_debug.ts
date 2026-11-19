@@ -254,8 +254,8 @@ const formatWarning = {
     `${formatWorkflowLabel( entry )} ${entry.workflowId} (run ${entry.runId}) could not be described: ${formatReason( error )}.`,
     'Its status and pending lists may be missing or out of date.'
   ].join( ' ' ),
-  partial: ( { workflowId, runId }: WorkflowEntry, limit: string ) => [
-    `Workflow ${workflowId} (run ${runId}) was read only in part:`,
+  partial: ( entry: WorkflowEntry, limit: string ) => [
+    `${formatWorkflowLabel( entry )} ${entry.workflowId} (run ${entry.runId}) was read only in part:`,
     `the limit of ${limit} for the whole tree was reached. Its entry has the events read so far.`
   ].join( ' ' )
 };
