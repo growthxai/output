@@ -106,7 +106,7 @@ src/
 | Agent | Purpose |
 |-------|---------|
 | `workflow-planner` | Designs workflow architecture, creates implementation blueprints |
-| `workflow-debugger` | Analyzes workflow execution traces, identifies issues |
+| `workflow-debugger` | Analyzes workflow run history, identifies issues |
 | `workflow-quality` | Reviews code quality, validates implementations |
 | `workflow-prompt-writer` | Creates and optimizes LLM prompt templates |
 | `workflow-context-fetcher` | Gathers documentation and existing patterns |
@@ -214,8 +214,8 @@ npx output workflow status <id>              # Check async status
 npx output workflow result <id>              # Get async result
 
 # Debug
-npx output workflow debug <id>               # Debug failed workflow
-npx output workflow debug <id> --json # Machine-readable output
+npx output workflow debug <id>               # Read a run's Temporal history (JSON per workflow, pipe to jq)
+npx output workflow debug <id> --run-id <runId> # A specific run
 
 # Rerun from a step (replays up to <stepName>, re-executes everything after)
 npx output workflow reset <id> --step <stepName>
@@ -436,6 +436,6 @@ See `output-dev-prompt-file` for comprehensive patterns.
 
 ### Debugging Workflow Failures
 1. Get the workflow ID from error output
-2. Run `npx output workflow debug <id> --json`
-3. Look for: failed step name, error message, input that caused failure
+2. Run `npx output workflow debug <id>` (JSON: `workflows[].events[]`, check `complete`)
+3. Look for: failed step name (`activityType.name` on the scheduled event), error message (`failure.message`), input that caused failure
 4. Check if issue is determinism, schema validation, or external API

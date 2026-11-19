@@ -201,7 +201,7 @@ Only works for COMPLETED workflows. For FAILED workflows, use debug.
 ### Debug If Failed
 
 ```bash
-npx output workflow debug <workflowId> --json
+npx output workflow debug <workflowId>
 ```
 
 ### Stop If Needed

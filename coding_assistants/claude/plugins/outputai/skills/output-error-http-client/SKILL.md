@@ -338,7 +338,7 @@ grep -rn "got\|node-fetch\|request\|superagent" src/
 After migrating to createKyClient:
 
 1. **Run the workflow**: `npx output workflow run <name> --input '<input>'`
-2. **Check the trace**: `npx output workflow debug <id> --json`
+2. **Check the run history**: `npx output workflow debug <id>`
 3. **Verify tracing**: HTTP requests should appear in the step trace
 4. **Test retries**: Simulate failures to verify retry behavior
 

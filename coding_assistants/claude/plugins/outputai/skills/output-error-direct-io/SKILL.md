@@ -231,7 +231,7 @@ Workflow functions should NOT contain:
 After moving I/O to steps:
 
 1. **Run the workflow**: `npx output workflow run <name> --input '<input>'`
-2. **Check the trace**: `npx output workflow debug <id> --json`
+2. **Check the run history**: `npx output workflow debug <id>`
 3. **Verify steps appear**: Look for your I/O steps in the trace
 4. **Confirm no errors**: No determinism warnings or hangs
 

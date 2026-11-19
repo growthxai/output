@@ -53,8 +53,8 @@ The API service does **not** need Redis configuration. Only the worker streams t
 3. Check that traces appear:
 
 ```bash
-# Via the CLI
-npx output workflow debug <workflow-id>
+# Via the CLI (reads the trace through the API)
+npx output workflow cost <workflow-id>
 
 # Via S3 (if configured)
 aws s3 ls s3://<your-bucket>/traces/

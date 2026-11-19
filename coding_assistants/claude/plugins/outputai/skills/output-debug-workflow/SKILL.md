@@ -110,19 +110,20 @@ Look for:
 
 ### Step 3: Debug Specific Workflow
 
-Retrieve and analyze the execution trace for the identified workflow. The `output-workflow-trace` skill provides analysis techniques.
+Read and analyze the Temporal history of the identified workflow. The `output-workflow-trace` skill provides analysis techniques.
 
 <debug_commands>
 ```bash
-# Display execution trace (text format)
+# One JSON document: an entry per workflow (the run, then its children) with its Temporal history events
 npx output workflow debug <workflowId>
 
-# Display full untruncated trace (JSON format) - recommended for detailed analysis
-npx output workflow debug <workflowId> --json
+# A specific run, or another Temporal
+npx output workflow debug <workflowId> --run-id <runId>
+npx output workflow debug <workflowId> --profile <name>
 ```
 </debug_commands>
 
-**Tip**: Use `--json` for complete trace data without truncation.
+**Tip**: The output is always JSON, so pipe it to `jq`. Check `complete` first (`false` means part of the tree was not read, see `warnings`). Long values are truncated with a marker; the full payload is in the Temporal UI.
 
 <analysis_checklist>
 1. Identify which step failed
@@ -145,7 +146,7 @@ For visual workflow inspection, open the Temporal Web UI at **http://localhost:8
 
 ### Step 4: Suggest Fixes
 
-Based on the trace analysis, identify the error pattern and suggest targeted fixes. Claude will invoke the relevant error skill based on symptoms.
+Based on the history analysis, identify the error pattern and suggest targeted fixes. Claude will invoke the relevant error skill based on symptoms.
 
 <error_matching>
 

@@ -60,7 +60,7 @@ Use JSON format for programmatic analysis or when you need full details.
 |--------|---------|--------|
 | RUNNING | Workflow is currently executing | Wait or monitor |
 | COMPLETED | Workflow finished successfully | No action needed |
-| FAILED | Workflow encountered an error | Debug with trace |
+| FAILED | Workflow encountered an error | Debug with `workflow debug` |
 | TERMINATED | Workflow was manually stopped | Review if expected |
 | TIMED_OUT | Workflow exceeded time limit | Check for long operations |
 
@@ -94,7 +94,7 @@ npx output workflow runs list my-workflow --limit 5
 
 # Note the workflow ID from the output (e.g., "abc123xyz")
 # Then debug it
-npx output workflow debug abc123xyz --json
+npx output workflow debug abc123xyz
 ```
 
 **Scenario**: Review recent activity for a specific workflow
@@ -130,13 +130,13 @@ npx output workflow runs list --limit 50 --json | jq 'group_by(.status) | map({s
 ### Next Steps After Finding a Failed Run
 
 1. Copy the workflow ID from the run
-2. Get the execution trace: `npx output workflow debug <workflowId> --json`
-3. Analyze the trace to identify the failure
+2. Read the run's history: `npx output workflow debug <workflowId>`
+3. Analyze the history to identify the failure
 4. Apply the appropriate fix based on the error pattern
 
 ## Related Commands
 
-- `npx output workflow debug <id>` - Analyze execution trace
+- `npx output workflow debug <id>` - Read the run's Temporal history
 - `npx output workflow status <id>` - Check current status
 - `npx output workflow result <id>` - Get execution result
 - `npx output workflow list` - List available workflows

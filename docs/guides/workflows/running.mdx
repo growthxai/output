@@ -137,35 +137,41 @@ Use `--format json` for the full structured response including status, output, e
 
 ## Debugging Execution
 
-When something goes wrong — or you just want to understand what happened — use `output workflow debug` to see the execution trace:
+When something goes wrong — or you just want to understand what happened — use `output workflow debug` to read what Temporal recorded for the run:
 
 ```bash
 output workflow debug lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab
 ```
 
-This prints a tree showing every step that ran, what it received, what it returned, and how long it took:
+This prints one JSON document with an entry for each workflow (the run, then every child workflow), each with its Temporal history events in order. Inputs and results are decoded to plain JSON, and long values are truncated. A failed run looks like this:
 
-```
-Trace Log:
-──────────────────────────────────────────────────────────────────────────────
-┌─ [lead_enrichment] completed
-│  ├─ [lookup_company] [END] 150ms
-│  │  ├─ input: {"companyDomain":"acme.com"}
-│  │  └─ output: {"name":"Acme Corp","domain":"acme.com",...}
-│  └─ [generate_summary] [END] 1200ms
-│     ├─ input: {"name":"Acme Corp","domain":"acme.com",...}
-│     └─ output: "Enterprise software company focused on..."
-──────────────────────────────────────────────────────────────────────────────
+```json
+{
+"complete":true,
+"warnings":[],
+"temporal":{"address":"localhost:7233","namespace":"default"},
+"workflows":[
+{"workflowId":"lead_enrichment-a1b2c3d4-...","runId":"...","workflowType":"lead_enrichment","status":"WORKFLOW_EXECUTION_STATUS_FAILED","pendingActivities":[],"pendingChildren":[],
+"events":[
+{"eventId":"13","eventType":"EVENT_TYPE_ACTIVITY_TASK_SCHEDULED","activityTaskScheduledEventAttributes":{"activityType":{"name":"lead_enrichment#lookup_company"},"input":{"payloads":[{"companyDomain":"acme.com"}]}},...},
+{"eventId":"15","eventType":"EVENT_TYPE_ACTIVITY_TASK_FAILED","activityTaskFailedEventAttributes":{"failure":{"message":"Request failed with status 503","source":"TypeScriptSDK","stackTrace":"Error: Request failed with status 503\n    at ...","applicationFailureInfo":{"type":"Error"}},"scheduledEventId":"13","startedEventId":"14","retryState":"RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED"},...},
+{"eventId":"19","eventType":"EVENT_TYPE_WORKFLOW_EXECUTION_FAILED","workflowExecutionFailedEventAttributes":{"failure":{"message":"Activity task failed","cause":{"message":"Request failed with status 503",...}}},...}
+]}
+]
+}
 ```
 
-The text format truncates long values for readability. Use `--format json` to get the full untruncated trace — this is especially useful when you need to see complete LLM inputs and outputs:
+Filter with `jq` to get to the point:
 
 ```bash
-output workflow debug lead_enrichment-a1b2c3d4-5678-90ab-cdef-1234567890ab --format json
+# Only the failures
+output workflow debug lead_enrichment-a1b2c3d4 | jq -c '.workflows[].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_FAILED")'
 ```
 
+The command reads Temporal directly, so it works the same locally and in production. Use `--profile`, `--address` and `--namespace` to point it at another Temporal, and `--run-id` to read a run other than the latest. `complete` is `false` when part of the run could not be read, and `warnings` says which. See the [CLI reference](/packages/cli#output-workflow-debug) for the output format and the truncation limits.
+
 <Tip>
-Traces are also saved as JSON files in your project's `logs/runs/` directory. You can open these directly, share them with teammates, or feed them to Claude Code for analysis.
+For the timing and cost of every step and LLM call, read the trace instead: it is saved as a JSON file in your project's `logs/runs/` directory (and in S3 when configured). Open it directly, share it with teammates, or feed it to Claude Code for analysis. `output workflow cost` reads the same trace.
 </Tip>
 
 ## Stopping Workflows
@@ -197,7 +203,7 @@ output workflow reset lead_enrichment-a1b2c3d4 \
   --reason "Retry with updated blog-post prompt"
 ```
 
-Find valid step names with `output workflow debug <workflowId> --format json`. The step itself is not re-executed; only the steps after it.
+Find valid step names with `output workflow debug <workflowId>` (they are the part after `#` in each activity name, see the [CLI reference](/packages/cli#output-workflow-reset)). The step itself is not re-executed; only the steps after it.
 
 ## Quick Reference
 
@@ -207,7 +213,7 @@ Find valid step names with `output workflow debug <workflowId> --format json`. T
 | Start without waiting | `output workflow start <name> [scenario]` |
 | Check if still running | `output workflow status <workflowId>` |
 | Get the final output | `output workflow result <workflowId>` |
-| See the execution trace | `output workflow debug <workflowId>` |
+| Read the run's Temporal history | `output workflow debug <workflowId>` |
 | Stop gracefully | `output workflow stop <workflowId>` |
 | Force stop | `output workflow terminate <workflowId>` |
 | Rerun from after a step | `output workflow reset <workflowId> --step <stepName>` |

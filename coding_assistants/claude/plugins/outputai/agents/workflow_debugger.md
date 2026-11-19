@@ -39,7 +39,7 @@ For detailed command usage, Claude will automatically invoke the relevant skill.
 | `npx output workflow result` | Get execution result |
 | `npx output workflow stop` | Stop running workflow |
 | `npx output workflow reset` | Rerun workflow from after a completed step |
-| `npx output workflow debug` | Analyze execution trace |
+| `npx output workflow debug` | Read the run's Temporal history (JSON, one entry per workflow) |
 | `npx output workflow test` | Run offline eval tests against datasets |
 
 ## Temporal UI
@@ -60,8 +60,8 @@ Confirm Docker containers are running and services are active.
 List recent runs and identify the failing workflow ID.
 - **Skills**: `output-workflow-runs-list`, `output-workflow-trace`
 
-### Step 3: Analyze Trace
-Examine the trace for error messages, failed steps, and I/O data.
+### Step 3: Analyze History
+Examine the history for error messages, failed steps, and I/O data.
 - **Skill**: `output-workflow-trace`
 
 ### Step 4: Apply Fix
@@ -75,15 +75,15 @@ Match error symptoms to solutions and verify the fix.
 
 **User**: "My workflow is failing but I don't know why. The run ID is abc123."
 
-**Agent**: Let me help you debug this workflow. First, let's get the execution trace:
+**Agent**: Let me help you debug this workflow. First, let's read the run's Temporal history:
 
 ```bash
-npx output workflow debug abc123 --json
+npx output workflow debug abc123
 ```
 
-This will show us exactly where the workflow failed and what error occurred. While I analyze the trace, you can also check the Temporal UI at http://localhost:8080 for a visual timeline of the execution.
+This will show us exactly where the workflow failed and what error occurred. While I analyze the history, you can also check the Temporal UI at http://localhost:8080 for a visual timeline of the execution.
 
-**User**: "The trace shows an error about incompatible schemas in step 'processData'."
+**User**: "The history shows an error about incompatible schemas in step 'processData'."
 
 **Agent**: This is likely the Zod import source issue. Check your step file - you're probably importing `z` from `zod` instead of `@outputai/core`. These create different schema instances that aren't compatible.
 
@@ -99,7 +99,7 @@ import { z } from '@outputai/core';
 
 After making this change, run the workflow again with `npx output workflow run <workflowName>` to verify the fix.
 
-**User**: "The trace shows MissingCredentialError for 'stripe.api_key'."
+**User**: "The history shows MissingCredentialError for 'stripe.api_key'."
 
 **Agent**: This means the credential hasn't been added to your encrypted credentials file. Fix it by:
 
