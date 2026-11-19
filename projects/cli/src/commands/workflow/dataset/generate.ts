@@ -7,7 +7,7 @@ import {
   buildDataset,
   datasetFilePath
 } from '#services/datasets.js';
-import { createTemporalClient } from '#services/temporal_client.js';
+import { createTemporalClient, formatTemporalError } from '#services/temporal_client.js';
 import { collectWorkflowRunData, type WorkflowRunData } from '#services/workflow_run_data.js';
 import { temporalFlags, type TemporalFlags } from '#utils/temporal_flags.js';
 import { resolveScenarioPath, getScenarioNotFoundMessage } from '#utils/scenario_resolver.js';
@@ -170,7 +170,7 @@ export default class DatasetGenerate extends Command {
       const { client, close } = await createTemporalClient( temporal );
       return await collectWorkflowRunData( client, { workflowName, workflowId, runId } ).finally( close );
     } catch ( error ) {
-      return this.error( error instanceof Error ? error.message : String( error ), { exit: 1 } );
+      return this.error( formatTemporalError( error ), { exit: 1 } );
     }
   }
 

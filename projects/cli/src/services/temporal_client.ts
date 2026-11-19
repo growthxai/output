@@ -1,4 +1,4 @@
-import { Client, Connection } from '@temporalio/client';
+import { Client, Connection, WorkflowNotFoundError } from '@temporalio/client';
 import { loadClientConfigProfile, toClientOptions } from '@temporalio/envconfig';
 import { config } from '#config.js';
 import type { TemporalFlags } from '#utils/temporal_flags.js';
@@ -94,3 +94,17 @@ export const callTemporal = async <T>( client: Client, call: () => Promise<T> ):
     throw error;
   }
 };
+
+/**
+ * Builds the message a command prints for a failed Temporal read. A workflow or run that is not found says what to check.
+ * Anything else is reported as it is.
+ *
+ * @param error - The failure
+ * @returns The message for stderr
+ */
+export function formatTemporalError( error: unknown ): string {
+  if ( error instanceof WorkflowNotFoundError ) {
+    return `${error.message.charAt( 0 ).toUpperCase()}${error.message.slice( 1 )}. Check the workflow id, the run id and the namespace.`;
+  }
+  return error instanceof Error ? error.message : String( error );
+}

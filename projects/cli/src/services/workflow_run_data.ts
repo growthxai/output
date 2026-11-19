@@ -1,4 +1,4 @@
-import { WorkflowNotFoundError, type Client } from '@temporalio/client';
+import type { Client } from '@temporalio/client';
 import { defaultPayloadConverter, type Payload } from '@temporalio/common';
 import { callTemporal } from '#services/temporal_client.js';
 
@@ -25,10 +25,6 @@ const isRecord = ( value: unknown ): value is Record<string, unknown> => typeof 
 const formatStatus = ( name: string ): string => name.toLowerCase().replaceAll( '_', ' ' );
 
 const formatRunLabel = ( workflowId: string, runId: string ): string => `Workflow ${workflowId} (run ${runId})`;
-
-const buildNotFoundMessage = ( error: WorkflowNotFoundError ): string => {
-  return `${error.message.charAt( 0 ).toUpperCase()}${error.message.slice( 1 )}. Check the workflow id, the run id and the namespace.`;
-};
 
 interface StartedAttributes {
   firstExecutionRunId?: string | null;
@@ -86,10 +82,7 @@ export async function collectWorkflowRunData(
   client: Client,
   { workflowName, workflowId, runId }: WorkflowRunDataOptions
 ): Promise<WorkflowRunData> {
-  const description = await callTemporal( client, () => client.workflow.getHandle( workflowId, runId ).describe() )
-    .catch( ( error: unknown ) => {
-      throw error instanceof WorkflowNotFoundError ? new Error( buildNotFoundMessage( error ) ) : error;
-    } );
+  const description = await callTemporal( client, () => client.workflow.getHandle( workflowId, runId ).describe() );
   const label = formatRunLabel( workflowId, description.runId );
 
   if ( description.type !== workflowName ) {

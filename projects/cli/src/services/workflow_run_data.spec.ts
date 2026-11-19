@@ -149,15 +149,11 @@ describe( 'collectWorkflowRunData', () => {
     );
   } );
 
-  it( 'turns a missing workflow or run into a message that says what to check', async () => {
+  it( 'rethrows a missing workflow or run untouched, for the command to explain', async () => {
     const missing = new WorkflowNotFoundError( 'workflow not found for ID: wf-1', 'wf-1', undefined );
     const { client } = buildClient( { describe: rejectWith( missing ) } );
 
-    const failure = await collectWorkflowRunData( client, options ).catch( ( error: Error ) => error );
-
-    expect( failure ).toBeInstanceOf( Error );
-    expect( ( failure as Error ).message ).toBe( 'Workflow not found for ID: wf-1. Check the workflow id, the run id and the namespace.' );
-    expect( failure ).not.toBeInstanceOf( WorkflowNotFoundError );
+    await expect( collectWorkflowRunData( client, options ) ).rejects.toBe( missing );
   } );
 
   it( 'rethrows other describe failures untouched', async () => {

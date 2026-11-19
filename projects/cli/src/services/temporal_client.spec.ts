@@ -2,12 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Connection } from '@temporalio/client';
+import { Connection, WorkflowNotFoundError } from '@temporalio/client';
 import { config } from '#config.js';
 import type { Client } from '@temporalio/client';
-import { buildConnectionConfig, callTemporal, createTemporalClient } from './temporal_client.js';
+import { buildConnectionConfig, callTemporal, createTemporalClient, formatTemporalError } from './temporal_client.js';
 
-vi.mock( '@temporalio/client', () => ( {
+vi.mock( '@temporalio/client', async importOriginal => ( {
+  WorkflowNotFoundError: ( await importOriginal<typeof import( '@temporalio/client' )>() ).WorkflowNotFoundError,
   Connection: { connect: vi.fn() },
   Client: class {
     options: unknown;
@@ -149,6 +150,22 @@ describe( 'temporal client', () => {
       } );
 
       await expect( callTemporal( client, async () => 'done' ) ).rejects.toBe( failure );
+    } );
+  } );
+
+  describe( 'formatTemporalError', () => {
+    it( 'says what to check for a workflow or run that is not found', () => {
+      const missing = new WorkflowNotFoundError( 'workflow not found for ID: wf-1', 'wf-1', undefined );
+
+      expect( formatTemporalError( missing ) ).toBe( 'Workflow not found for ID: wf-1. Check the workflow id, the run id and the namespace.' );
+    } );
+
+    it( 'reports any other error by its message', () => {
+      expect( formatTemporalError( new Error( 'Temporal did not answer within 30s' ) ) ).toBe( 'Temporal did not answer within 30s' );
+    } );
+
+    it( 'reports a value that is not an error as text', () => {
+      expect( formatTemporalError( 'boom' ) ).toBe( 'boom' );
     } );
   } );
 } );

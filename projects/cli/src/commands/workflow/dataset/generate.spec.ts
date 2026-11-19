@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Parser } from '@oclif/core';
+import { WorkflowNotFoundError } from '@temporalio/client';
 
 vi.mock( '#api/generated/api.js', () => ( {
   postWorkflowRun: vi.fn()
 } ) );
 
-vi.mock( '#services/temporal_client.js', () => ( {
+vi.mock( '#services/temporal_client.js', async importOriginal => ( {
+  ...await importOriginal<typeof import( '#services/temporal_client.js' )>(),
   createTemporalClient: vi.fn()
 } ) );
 
@@ -300,6 +302,19 @@ describe( 'workflow dataset generate command', () => {
 
       expect( collectWorkflowRunData ).toHaveBeenCalledWith( expect.anything(), expect.objectContaining( { workflowId: 'wf-1' } ) );
       expect( buildDataset ).toHaveBeenCalledWith( 'wf-1', {}, null );
+    } );
+
+    it( 'explains a workflow or run that is not found', async () => {
+      const { cmd, collectWorkflowRunData, writeDataset } = await createWorkflowIdCommand();
+      collectWorkflowRunData.mockRejectedValue( new WorkflowNotFoundError( 'workflow not found for ID: wf-1', 'wf-1', undefined ) );
+
+      await expect( cmd.run() ).rejects.toThrow( 'error called' );
+
+      expect( cmd.error ).toHaveBeenCalledWith(
+        'Workflow not found for ID: wf-1. Check the workflow id, the run id and the namespace.',
+        { exit: 1 }
+      );
+      expect( writeDataset ).not.toHaveBeenCalled();
     } );
 
     it( 'rejects a scenario argument', async () => {
