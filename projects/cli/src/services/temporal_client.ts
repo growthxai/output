@@ -5,6 +5,8 @@ import type { TemporalFlags } from '#utils/temporal_flags.js';
 
 const DEFAULT_NAMESPACE = 'default';
 const CONNECT_TIMEOUT = '5s';
+const CALL_TIMEOUT_MS = 30_000;
+const GRPC_DEADLINE_EXCEEDED = 4;
 
 export interface TemporalConnectionConfig {
   address: string;
@@ -74,3 +76,21 @@ export async function createTemporalClient( flags: TemporalFlags = {} ): Promise
     close: () => connection.close()
   };
 }
+
+/**
+ * Runs one Temporal call under a deadline, so an unresponsive server cannot hang the command.
+ *
+ * @param client - The Temporal client the call goes through
+ * @param call - The call to run; every request it makes shares the deadline
+ * @returns What the call returns
+ */
+export const callTemporal = async <T>( client: Client, call: () => Promise<T> ): Promise<T> => {
+  try {
+    return await client.connection.withDeadline( Date.now() + CALL_TIMEOUT_MS, call );
+  } catch ( error ) {
+    if ( ( error as { code?: number } )?.code === GRPC_DEADLINE_EXCEEDED ) {
+      throw new Error( `Temporal did not answer within ${CALL_TIMEOUT_MS / 1000}s`, { cause: error } );
+    }
+    throw error;
+  }
+};

@@ -37,7 +37,6 @@ input:
 last_output:
   output:
     result: 15
-  executionTimeMs: 100
   date: '2026-02-13T00:00:00.000Z'
 ```
 
@@ -66,7 +65,6 @@ last_output:
     title: "Stripe: The Modern Payment Processing Platform"
     blog_post: |
       Stripe has revolutionized online payment processing...
-  executionTimeMs: 5000
   date: '2026-02-16T00:00:00.000Z'
 ```
 
@@ -115,20 +113,17 @@ output workflow dataset list blog_generator
 
 ### Generating Datasets
 
-You can generate datasets from scenario files, trace files, or production traces:
+You can generate datasets from scenario files, inline input, or completed runs read from Temporal:
 
 ```bash
 # Generate a dataset from a scenario file
 output workflow dataset generate blog_generator my_scenario --name new_case
 
-# Generate from a trace file
-output workflow dataset generate blog_generator --trace path/to/trace.json
-
-# Generate datasets from the most recent runs (traces fetched via the API)
-output workflow dataset generate blog_generator --download --limit 10
+# Generate from a completed run
+output workflow dataset generate blog_generator --workflow-id <workflowId>
 ```
 
-Generating datasets from traces is useful when you want to test against real production inputs. The `--download` flag asks the Output API for the most recent runs of the workflow and turns each one's trace into a dataset YAML file with the input and output already filled in. The API reads the traces from S3, so the CLI needs no AWS credentials — only a reachable API. See [API Configuration](/api/configuration#aws-credential-permissions) for the S3 read permissions the API requires.
+Generating a dataset from a run is useful when you want to test against real production inputs. `--workflow-id` reads the run's start input and its result from Temporal and writes a dataset YAML file with the input and output already filled in. Use `--profile`, `--address` and `--namespace` to point at another Temporal. The run must be a completed run of the workflow. Use `output workflow runs list` to find workflow ids. See [`output workflow dataset generate`](/packages/cli#output-workflow-dataset-generate) for the details.
 
 ## What's Next
 

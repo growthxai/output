@@ -1,6 +1,7 @@
 import { WorkflowNotFoundError, type Client } from '@temporalio/client';
 import { defaultPayloadConverter } from '@temporalio/common';
 import { historyToJSON, JSONToPayload, type JSONPayload } from '@temporalio/common/lib/proto-utils.js';
+import { callTemporal } from '#services/temporal_client.js';
 import { truncateStack, truncateValue } from '#utils/payload_truncator.js';
 
 const PAGE_SIZE = 1000;
@@ -8,8 +9,6 @@ const DEFAULT_PAGE_BUDGET = 1000;
 const DEFAULT_EVENT_BUDGET = 100_000;
 const DEFAULT_CONCURRENCY = 5;
 const GRPC_NOT_FOUND = 5;
-const GRPC_DEADLINE_EXCEEDED = 4;
-const CALL_TIMEOUT_MS = 30_000;
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -132,18 +131,6 @@ const buildTimeKey = ( time: Json | undefined ): bigint => ( BigInt( String( tim
 const toJson = ( message: unknown ): Json => ( message as { toJSON?: () => Json } )?.toJSON?.() ?? {};
 
 const isNotFound = ( error: unknown ): boolean => error instanceof WorkflowNotFoundError || ( error as { code?: number } )?.code === GRPC_NOT_FOUND;
-
-/** Runs one Temporal call under a deadline, so an unresponsive server cannot hang the command */
-const callTemporal = async <T>( client: Client, call: () => Promise<T> ): Promise<T> => {
-  try {
-    return await client.connection.withDeadline( Date.now() + CALL_TIMEOUT_MS, call );
-  } catch ( error ) {
-    if ( ( error as { code?: number } )?.code === GRPC_DEADLINE_EXCEEDED ) {
-      throw new Error( `Temporal did not answer within ${CALL_TIMEOUT_MS / 1000}s`, { cause: error } );
-    }
-    throw error;
-  }
-};
 
 const fetchWorkflowMeta = async ( client: Client, workflowId: string, runId?: string ): Promise<WorkflowMeta> => {
   const description = await callTemporal( client, () => client.workflow.getHandle( workflowId, runId ).describe() );

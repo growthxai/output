@@ -145,7 +145,6 @@ export default class WorkflowTest extends Command {
     for ( const dataset of datasets ) {
       this.log( `  Running "${dataset.name}"...` );
 
-      const startMs = Date.now();
       const response = await postWorkflowRun( {
         workflowName,
         input: dataset.input,
@@ -153,7 +152,6 @@ export default class WorkflowTest extends Command {
       }, {
         config: { timeout: 600000 }
       } );
-      const executionTimeMs = Date.now() - startMs;
 
       if ( !response?.data ) {
         this.error( `Workflow execution failed for dataset "${dataset.name}"`, { exit: 1 } );
@@ -163,7 +161,6 @@ export default class WorkflowTest extends Command {
         ...dataset,
         last_output: {
           output: ( response.data as WorkflowResultResponse ).output,
-          executionTimeMs,
           date: new Date().toISOString()
         }
       };

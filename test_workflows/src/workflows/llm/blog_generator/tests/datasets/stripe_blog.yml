@@ -32,7 +32,6 @@ stripe_blog:
 
         Stripe continues to expand beyond payments into areas like business incorporation (Stripe Atlas), corporate cards (Stripe Issuing), and even climate initiatives (Stripe Climate). As the digital economy grows, Stripe remains at the forefront of making financial infrastructure accessible to businesses worldwide.
       word_count: 350
-    executionTimeMs: 5000
     date: '2026-02-16T00:00:00.000Z'
   ground_truth:
     notes: "Known good case"

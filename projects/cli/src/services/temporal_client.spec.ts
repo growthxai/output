@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from '@temporalio/client';
 import { config } from '#config.js';
-import { buildConnectionConfig, createTemporalClient } from './temporal_client.js';
+import type { Client } from '@temporalio/client';
+import { buildConnectionConfig, callTemporal, createTemporalClient } from './temporal_client.js';
 
 vi.mock( '@temporalio/client', () => ( {
   Connection: { connect: vi.fn() },
@@ -112,6 +113,42 @@ describe( 'temporal client', () => {
       const failure = await createTemporalClient( { address: 'nope.example:7233' } ).catch( ( error: Error ) => error );
 
       expect( failure ).toMatchObject( { message: 'Cannot connect to Temporal at nope.example:7233: connection refused', cause } );
+    } );
+  } );
+
+  describe( 'callTemporal', () => {
+    const buildClient = ( withDeadline: ( deadline: number, call: () => Promise<unknown> ) => Promise<unknown> ) => (
+      { connection: { withDeadline: vi.fn( withDeadline ) } } as unknown as Client
+    );
+
+    it( 'runs the call under a deadline in the future and returns its result', async () => {
+      const client = buildClient( ( _deadline, call ) => call() );
+
+      await expect( callTemporal( client, async () => 'done' ) ).resolves.toBe( 'done' );
+
+      const deadline = vi.mocked( client.connection.withDeadline ).mock.calls[0][0] as number;
+      expect( deadline ).toBeGreaterThan( Date.now() );
+      expect( deadline ).toBeLessThanOrEqual( Date.now() + 30_000 );
+    } );
+
+    it( 'says Temporal did not answer when the deadline passes, and keeps the cause', async () => {
+      const cause = Object.assign( new Error( '4 DEADLINE_EXCEEDED: Deadline exceeded' ), { code: 4 } );
+      const client = buildClient( async () => {
+        throw cause;
+      } );
+
+      const failure = await callTemporal( client, async () => 'done' ).catch( ( error: Error ) => error );
+
+      expect( failure ).toMatchObject( { message: 'Temporal did not answer within 30s', cause } );
+    } );
+
+    it( 'rethrows any other failure untouched', async () => {
+      const failure = Object.assign( new Error( 'permission denied' ), { code: 7 } );
+      const client = buildClient( async () => {
+        throw failure;
+      } );
+
+      await expect( callTemporal( client, async () => 'done' ) ).rejects.toBe( failure );
     } );
   } );
 } );

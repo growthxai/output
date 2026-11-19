@@ -32,7 +32,7 @@ A 400 is also returned when Temporal rejects a request's `searchAttributes`: the
 
 **408 WorkflowExecutionTimedOutError** — Returned only by `POST /workflow/run` when the workflow did not complete within the request timeout (or the configured max waiting time).
 
-**413 TraceFileTooLargeError** — Returned by `GET /workflow/:id/trace-log` and `GET /workflow/:id/runs/:rid/trace-log` when a remote trace is bigger than 256 MB. The API never reads such a file. The body carries `size` and `maxSize` (bytes), a `downloadUrl` that expires at `expiresAt` (15 minutes), and the same sizes are in the `X-Trace-Size` and `X-Trace-Max-Size` headers. The URL grants read access to the trace, which contains prompts and outputs, so treat it as a secret. The CLI does not download these files: `workflow cost` and `workflow dataset generate` report `Trace file is too big for this feature` with both sizes. `workflow debug` reads Temporal, not the trace, so it is not affected.
+**413 TraceFileTooLargeError** — Returned by `GET /workflow/:id/trace-log` and `GET /workflow/:id/runs/:rid/trace-log` when a remote trace is bigger than 256 MB. The API never reads such a file. The body carries `size` and `maxSize` (bytes), a `downloadUrl` that expires at `expiresAt` (15 minutes), and the same sizes are in the `X-Trace-Size` and `X-Trace-Max-Size` headers. The URL grants read access to the trace, which contains prompts and outputs, so treat it as a secret. The CLI does not download these files: `workflow cost` reports `Trace file is too big for this feature` with both sizes. `workflow debug` and `workflow dataset generate --workflow-id` read Temporal, not the trace, so they are not affected.
 
 ```json
 {

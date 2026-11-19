@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { Args, Command, Flags, ux } from '@oclif/core';
 import { postWorkflowRun } from '#api/generated/api.js';
 import type { WorkflowResultResponse } from '#api/generated/api.js';
@@ -6,24 +5,23 @@ import {
   writeDataset,
   resolveDefaultDatasetsDir,
   buildDataset,
-  getExecutionTime,
-  extractDatasetName,
   datasetFilePath
 } from '#services/datasets.js';
-import { fetchWorkflowRuns } from '#services/workflow_runs.js';
-import { getTrace } from '#services/trace_reader.js';
-import { extractDatasetFromTrace } from '#utils/trace_extractor.js';
+import { createTemporalClient } from '#services/temporal_client.js';
+import { collectWorkflowRunData, type WorkflowRunData } from '#services/workflow_run_data.js';
+import { temporalFlags, type TemporalFlags } from '#utils/temporal_flags.js';
 import { resolveScenarioPath, getScenarioNotFoundMessage } from '#utils/scenario_resolver.js';
 import { parseInputFlag } from '#utils/input_parser.js';
 import { createErrorFn, handleApiError } from '#utils/error_handler.js';
 
 export default class DatasetGenerate extends Command {
-  static override description = 'Generate a dataset for a workflow from a scenario, trace file, or recent runs';
+  static override description = 'Generate a dataset case for a workflow from a scenario, an input, or a completed run read from Temporal';
 
   static override examples = [
     '<%= config.bin %> <%= command.id %> simple basic_input',
-    '<%= config.bin %> <%= command.id %> simple --trace logs/runs/simple/trace.json --name edge_case',
-    '<%= config.bin %> <%= command.id %> simple --download --limit 5'
+    '<%= config.bin %> <%= command.id %> simple --input \'{"values":[1,2,3]}\' --name edge_case',
+    '<%= config.bin %> <%= command.id %> simple --workflow-id wf-12345 --name edge_case',
+    '<%= config.bin %> <%= command.id %> simple --workflow-id wf-12345 --run-id 11111111-2222-4333-8444-555555555555 --profile prod'
   ];
 
   static override args = {
@@ -46,46 +44,37 @@ export default class DatasetGenerate extends Command {
       description: 'Catalog name for workflow execution (defaults to OUTPUT_CATALOG_ID)',
       env: 'OUTPUT_CATALOG_ID'
     } ),
-    trace: Flags.string( {
-      char: 't',
-      description: 'Path to a local trace file to extract dataset from',
-      exclusive: [ 'download' ]
-    } ),
     name: Flags.string( {
       char: 'n',
-      description: 'Dataset name (defaults to scenario name or trace filename)'
-    } ),
-    download: Flags.boolean( {
-      char: 'd',
-      description: 'Generate datasets from recent workflow runs fetched via the Output API',
-      default: false,
-      exclusive: [ 'trace' ]
-    } ),
-    limit: Flags.integer( {
-      char: 'l',
-      description: 'Maximum number of recent runs to fetch',
-      default: 5
+      description: 'Dataset name (defaults to the scenario name, or the workflow id with --workflow-id)'
     } ),
     input: Flags.string( {
       char: 'i',
       description: 'Workflow input as JSON string or file path (overrides scenario)'
-    } )
+    } ),
+    'workflow-id': Flags.string( {
+      description: 'Workflow id of a completed run to read from Temporal (not the workflow type)',
+      exclusive: [ 'input' ]
+    } ),
+    'run-id': Flags.string( {
+      char: 'r',
+      description: 'Run to read (defaults to the latest run of the workflow id)',
+      dependsOn: [ 'workflow-id' ]
+    } ),
+    ...temporalFlags
   };
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse( DatasetGenerate );
 
-    if ( flags.download ) {
-      await this.generateFromRuns( args.workflowName, flags.limit, flags.catalog );
-      return;
-    }
-
-    if ( flags.trace ) {
-      await this.generateFromTrace(
-        args.workflowName,
-        flags.trace,
-        flags.name
-      );
+    if ( flags['workflow-id'] !== undefined ) {
+      if ( !flags['workflow-id'].trim() ) {
+        this.error( '--workflow-id cannot be empty.', { exit: 1 } );
+      }
+      if ( args.scenario ) {
+        this.error( 'Cannot use both scenario argument and --workflow-id flag. Choose one.', { exit: 1 } );
+      }
+      await this.generateFromWorkflowRun( args.workflowName, flags['workflow-id'], flags['run-id'], flags.name, flags );
       return;
     }
 
@@ -128,14 +117,12 @@ export default class DatasetGenerate extends Command {
       this.error( 'API returned invalid response', { exit: 1 } );
     }
 
-    const { workflowId, output } = response.data as WorkflowResultResponse;
-    const executionTimeMs = await getExecutionTime( workflowId );
+    const { output } = response.data as WorkflowResultResponse;
 
     const dataset = buildDataset(
       datasetName,
       resolvedInput as Record<string, unknown>,
-      output,
-      executionTimeMs
+      output
     );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
@@ -145,25 +132,19 @@ export default class DatasetGenerate extends Command {
     this.log( `Dataset saved: ${filePath}` );
   }
 
-  private async generateFromTrace(
+  private async generateFromWorkflowRun(
     workflowName: string,
-    tracePath: string,
-    nameOverride: string | undefined
+    workflowId: string,
+    runId: string | undefined,
+    nameOverride: string | undefined,
+    temporal: TemporalFlags
   ): Promise<void> {
-    this.log( `Reading trace: ${tracePath}` );
+    this.log( `Reading workflow "${workflowId}" from Temporal...` );
 
-    const content = await readFile( tracePath, 'utf-8' );
-    const traceData = JSON.parse( content );
-    const extracted = extractDatasetFromTrace( traceData );
+    const data = await this.readWorkflowRun( workflowName, workflowId, runId, temporal );
 
-    const datasetName = nameOverride ?? extractDatasetName( tracePath );
-
-    const dataset = buildDataset(
-      datasetName,
-      extracted.input,
-      extracted.output,
-      extracted.executionTimeMs
-    );
+    const datasetName = nameOverride ?? workflowId;
+    const dataset = buildDataset( datasetName, data.input, data.output );
 
     const dir = await resolveDefaultDatasetsDir( workflowName );
     const filePath = datasetFilePath( dir, datasetName );
@@ -172,63 +153,18 @@ export default class DatasetGenerate extends Command {
     this.log( `Dataset saved: ${filePath}` );
   }
 
-  private async generateFromRuns(
+  /** Reads the run from Temporal and reports any failure by its message alone, as `workflow debug` does */
+  private async readWorkflowRun(
     workflowName: string,
-    limit: number,
-    catalog: string | undefined
-  ): Promise<void> {
-    this.log( `Fetching recent runs for "${workflowName}"...` );
-
-    const { runs, skipped } = await fetchWorkflowRuns( { workflowType: workflowName, catalog, limit } );
-    if ( runs.length === 0 ) {
-      if ( skipped > 0 ) {
-        this.error( `Found ${skipped} run(s) but none had a workflow ID.`, { exit: 1 } );
-      }
-      this.log( 'No recent runs found.' );
-      return;
-    }
-
-    if ( skipped > 0 ) {
-      this.warn( `Skipping ${skipped} run(s) with no workflow ID.` );
-    }
-
-    // The trace-log endpoint always targets a workflow's latest run, so distinct
-    // runIds sharing one workflowId (continue-as-new, reset) collapse to one dataset.
-    const workflowIds = [ ...new Set( runs.map( run => run.workflowId ) ) ];
-
-    this.log( `Found ${workflowIds.length} run(s). Fetching traces...` );
-
-    const dir = await resolveDefaultDatasetsDir( workflowName );
-
-    const generated = ( await Promise.all( workflowIds.map( id => this.generateFromRun( id, dir ) ) ) )
-      .filter( Boolean ).length;
-    this.log( `\nGenerated ${generated} dataset(s)` );
-
-    if ( generated === 0 ) {
-      this.error( `Failed to generate any datasets from ${workflowIds.length} run(s).`, { exit: 1 } );
-    }
-  }
-
-  private async generateFromRun( workflowId: string, dir: string ): Promise<boolean> {
+    workflowId: string,
+    runId: string | undefined,
+    temporal: TemporalFlags
+  ): Promise<WorkflowRunData> {
     try {
-      const { data: traceData } = await getTrace( workflowId );
-      const extracted = extractDatasetFromTrace( traceData );
-
-      const dataset = buildDataset(
-        workflowId,
-        extracted.input,
-        extracted.output,
-        extracted.executionTimeMs
-      );
-
-      const filePath = datasetFilePath( dir, workflowId );
-      await writeDataset( dataset, filePath );
-      this.log( `  Saved: ${filePath}` );
-      return true;
+      const { client, close } = await createTemporalClient( temporal );
+      return await collectWorkflowRunData( client, { workflowName, workflowId, runId } ).finally( close );
     } catch ( error ) {
-      const message = error instanceof Error ? error.message : String( error );
-      this.warn( `  Skipped ${workflowId}: ${message}` );
-      return false;
+      return this.error( error instanceof Error ? error.message : String( error ), { exit: 1 } );
     }
   }
 

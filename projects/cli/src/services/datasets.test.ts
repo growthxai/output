@@ -3,7 +3,9 @@ import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
-import { readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir, datasetFilePath } from './datasets.js';
+import {
+  readDatasetFile, readAllDatasets, writeDataset, listDatasets, resolveDefaultDatasetsDir, datasetFilePath, buildDataset
+} from './datasets.js';
 import * as catalog from '#api/workflow_catalog.js';
 
 vi.mock( '#api/workflow_catalog.js', () => ( {
@@ -98,7 +100,7 @@ describe( 'readDatasetFile', () => {
     const [ dataset ] = await readDatasetFile( filePath );
 
     expect( dataset.last_output?.output ).toEqual( { result: 42 } );
-    expect( dataset.last_output?.executionTimeMs ).toBe( 100 );
+    expect( dataset.last_output ).toEqual( { output: { result: 42 }, date: '2026-01-01T00:00:00.000Z' } );
   } );
 } );
 
@@ -231,7 +233,7 @@ describe( 'writeDataset', () => {
     } );
 
     await writeDataset(
-      { name: 'my_case', input: { q: 'hello' }, last_output: { output: { result: 42 }, executionTimeMs: 50, date: '2026-01-01T00:00:00.000Z' } },
+      { name: 'my_case', input: { q: 'hello' }, last_output: { output: { result: 42 }, date: '2026-01-01T00:00:00.000Z' } },
       filePath
     );
     await writeDataset(
@@ -271,6 +273,55 @@ describe( 'writeDataset', () => {
 // ---------------------------------------------------------------------------
 // listDatasets
 // ---------------------------------------------------------------------------
+
+describe( 'buildDataset', () => {
+  it( 'builds a case with the input and a last_output of only the output and the date', () => {
+    const dataset = buildDataset( 'my_case', { q: 'hello' }, { result: 42 } );
+
+    expect( dataset ).toEqual( {
+      name: 'my_case',
+      input: { q: 'hello' },
+      last_output: { output: { result: 42 }, date: expect.any( String ) }
+    } );
+    expect( dataset.last_output ).not.toHaveProperty( 'executionTimeMs' );
+  } );
+
+  it( 'redacts secrets in the input and the output', () => {
+    const dataset = buildDataset( 'my_case', { apiKey: 'abc', q: 'hello' }, { auth_token: 'abc', answer: 'ok' } );
+
+    expect( dataset.input.apiKey ).not.toBe( 'abc' );
+    expect( dataset.input.q ).toBe( 'hello' );
+    expect( ( dataset.last_output?.output as Record<string, unknown> ).auth_token ).not.toBe( 'abc' );
+    expect( ( dataset.last_output?.output as Record<string, unknown> ).answer ).toBe( 'ok' );
+  } );
+
+  it( 'keeps a null output', () => {
+    expect( buildDataset( 'my_case', {}, null ).last_output?.output ).toBeNull();
+  } );
+} );
+
+describe( 'writeDataset when the case already exists', () => {
+  it( 'replaces input and last_output and keeps ground_truth and the other fields', async () => {
+    const filePath = join( ctx.tmpDir, 'cases.yml' );
+    await writeYaml( filePath, {
+      my_case: {
+        input: { q: 'old' },
+        ground_truth: { expected: 42 },
+        last_output: { output: { result: 1 }, executionTimeMs: 100, date: '2026-01-01T00:00:00.000Z' }
+      }
+    } );
+
+    await writeDataset( buildDataset( 'my_case', { q: 'new' }, { result: 2 } ), filePath );
+
+    const raw = parseYaml( await readFile( filePath, 'utf-8' ) ) as Record<string, {
+      input: unknown; ground_truth: unknown; last_output: { output: unknown };
+    }>;
+    expect( raw.my_case.input ).toEqual( { q: 'new' } );
+    expect( raw.my_case.ground_truth ).toEqual( { expected: 42 } );
+    expect( raw.my_case.last_output.output ).toEqual( { result: 2 } );
+    expect( raw.my_case.last_output ).not.toHaveProperty( 'executionTimeMs' );
+  } );
+} );
 
 describe( 'listDatasets', () => {
   it( 'returns one DatasetInfo per case across all files', async () => {
