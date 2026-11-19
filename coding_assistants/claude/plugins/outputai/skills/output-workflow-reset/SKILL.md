@@ -44,13 +44,13 @@ The `workflowId` argument is required. The step name is the step function name a
 
 ### Finding the Step Name
 
-Step names come from the workflow's execution trace:
+Step names come from the run's Temporal history. A step is an activity named `<workflowName>#<stepName>`, and the `--step` value is the part after the `#`:
 
 ```bash
-npx output workflow debug <workflowId> --json
+npx output workflow debug <workflowId> | jq -r '.workflows[0].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED") | .activityTaskScheduledEventAttributes.activityType.name'
 ```
 
-Look for step entries with `status: "completed"`. The step name is the one you pass to `--step`.
+Only steps with an `EVENT_TYPE_ACTIVITY_TASK_COMPLETED` event (its `scheduledEventId` matches the scheduled event's `eventId`) can be reset to.
 
 ### What the Command Returns
 
@@ -74,7 +74,7 @@ Use the new `runId` (via the pinned `workflow runs list`) to inspect the new exe
 ```bash
 # The workflow failed at `generateBlogPost`, but `consolidateCompetitors`
 # (the step before it) completed successfully.
-npx output workflow debug lead_enrichment-a1b2c3d4 --json
+npx output workflow debug lead_enrichment-a1b2c3d4
 # ... confirms consolidateCompetitors completed
 
 # Edit src/workflows/lead_enrichment/prompts/generate_blog_post@v1.prompt

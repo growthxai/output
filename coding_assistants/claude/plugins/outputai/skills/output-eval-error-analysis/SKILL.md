@@ -29,8 +29,9 @@ List recent workflow executions and pull their traces:
 # List recent runs for a workflow
 npx output workflow runs list <workflowName>
 
-# Pull a specific trace as JSON
-npx output workflow debug <workflowId> --json
+# Quick look at one run's Temporal history (JSON). Payloads are truncated, so use
+# the trace file in logs/runs/ or `dataset generate --download` below when you need full data
+npx output workflow debug <workflowId>
 ```
 
 ### From production (bulk download)

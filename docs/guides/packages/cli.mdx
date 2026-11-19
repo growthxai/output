@@ -40,7 +40,7 @@ npx output workflow run lead_enrichment acme
 | `output workflow stop` | Stop a workflow gracefully |
 | `output workflow terminate` | Force-stop a workflow |
 | `output workflow reset` | Rerun a workflow from after a completed step |
-| `output workflow debug` | Show the execution trace |
+| `output workflow debug` | Read a run's Temporal history, children included, as JSON grouped by workflow |
 | `output workflow cost` | Calculate execution cost from a trace |
 | `output workflow test` | Run evaluations against a workflow |
 | `output workflow dataset list` | List datasets for a workflow |
@@ -494,7 +494,7 @@ Use `--json` with `output workflow run` or `output workflow result` to print the
 
 #### JSON error format
 
-When a command run with `--json` fails, it writes a JSON error to **stderr** and leaves stdout empty, so a script can read results from stdout and failures from stderr without mixing them. This applies to `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `debug`, `input`, `test`, and `dataset list`.
+When a command run with `--json` fails, it writes a JSON error to **stderr** and leaves stdout empty, so a script can read results from stdout and failures from stderr without mixing them. This applies to `run`, `start`, `status`, `result`, `list`, `runs list`, `cost`, `input`, `test`, and `dataset list`. `debug` always prints JSON on stdout and reports failures as plain text on stderr with a non-zero exit code.
 
 ```json
 {
@@ -565,32 +565,188 @@ output workflow reset lead_enrichment-a1b2c3d4 --step consolidateCompetitors --r
 The command prints the original `workflowId` and a new `runId` for the fresh execution. Use `output workflow status <workflowId>` and `output workflow result <workflowId>` to track it.
 
 <Tip>
-Find valid step names with `output workflow debug <workflowId> --format json` — the step name you pass to `--step` is the one shown on completed step entries.
+Find valid step names with `output workflow debug <workflowId>`. A step is an activity named `<workflowName>#<stepName>`, and the `--step` value is the part after the `#`. To list them: `output workflow debug <workflowId> | jq -r '.workflows[0].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED") | .activityTaskScheduledEventAttributes.activityType.name'`.
 </Tip>
 
 ### output workflow debug
 
-Show the execution trace for a workflow — what steps ran, what they received and returned, and where failures happened. See [Tracing](/operations/tracing) for details on trace format.
+Read one workflow run from Temporal and print its history, for debugging. The output is one JSON document with an entry for every workflow: the one you asked for, then each child workflow it started. Every entry holds that workflow's own Temporal history events. The command talks to Temporal directly, so it needs no API, no trace files and no S3, and it behaves the same in development and production.
 
 ```bash
 output workflow debug <workflowId>
-output workflow debug wf-12345 --format json
+output workflow debug wf-12345 --run-id 11111111-2222-4333-8444-555555555555
+output workflow debug wf-12345 --profile prod
+output workflow debug wf-12345 --address temporal.internal:7233 --namespace staging
 ```
 
 <ParamField path="workflowId" type="string" required>
-  The workflow execution ID
+  The workflow execution ID (the id printed by `workflow start`, not the workflow name)
 </ParamField>
+
+<Note>
+  Generated workflow ids can start with `-`, and the CLI then reads the id as a flag (`Nonexistent flag: -Ab...`). Quoting does not help, because the shell removes the quotes. Put `--` before the id: `output workflow debug --address localhost:7233 -- -Ab...`. The same applies to every command that takes a workflow id.
+</Note>
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--format, -f` | text | Output format: json, text |
+| `--run-id`, `-r` | latest run | Run to start from. Every reset, retry or continue-as-new has its own run id. The runs that continue from it are read too; the entry always states the run that was read. |
+| `--profile` | `default` | Temporal profile to read from `temporal.toml` |
+| `--address` | `localhost:7233` | Temporal server address. The default follows `OUTPUT_TEMPORAL_HOST_PORT`, so it matches the port `output dev` publishes |
+| `--namespace` | `default` | Temporal namespace |
 
-<Tip>
-Use `--format json` to get the full untruncated trace. The text format truncates long values for readability, but the JSON format preserves everything.
-</Tip>
+The output is always JSON. `--json` is accepted and does nothing, so scripts that pass it keep working.
+
+#### Connecting to Temporal
+
+Connection settings follow Temporal's standard client configuration, the same one the `temporal` CLI uses, so one profile file can point `workflow debug` at any backend. Highest priority first:
+
+1. The `--address` and `--namespace` flags
+2. Environment variables: `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` and the other `TEMPORAL_*` variables Temporal defines for TLS
+3. The profile chosen with `--profile` (or `TEMPORAL_PROFILE`, then `default`) in `temporal.toml`
+4. The defaults: `localhost:` plus the dev stack's Temporal port (`OUTPUT_TEMPORAL_HOST_PORT`, `7233` unless overridden), and the namespace `default`
+
+`temporal.toml` lives in `temporalio/` under your user config directory (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows). Set `TEMPORAL_CONFIG_FILE` to use another path.
+
+```toml
+[profile.default]
+address = "localhost:7233"
+namespace = "default"
+
+[profile.prod]
+address = "my-namespace.a2b3c.tmprl.cloud:7233"
+namespace = "my-namespace.a2b3c"
+api_key = "..."
+```
+
+An explicit `--profile` that does not exist is an error. API keys and TLS material come only from the profile or the environment, never from a flag.
+
+<Warning>
+The profile's credentials stay attached when you override the address. `--profile prod --address other:7233` sends the `prod` API key to `other:7233`, and so does `TEMPORAL_ADDRESS`. Override the address only with hosts you trust.
+</Warning>
+
+#### Output
+
+The output is compact JSON on a single line, with a summary first and then the workflows. Pipe it to `jq .` to read it indented, or to `jq -c '.workflows[].events[]'` to get one event per line. It is shown split over several lines below:
+
+```json
+{
+"complete":true,
+"warnings":[],
+"temporal":{"address":"localhost:7233","namespace":"default"},
+"workflows":[
+{"workflowId":"Ra-DSZCo4qbKQIyTXL6AN","runId":"01a1f420-38e7-7df8-b667-ef005eca9993","workflowType":"nested_parallel_children","status":"WORKFLOW_EXECUTION_STATUS_COMPLETED","pendingActivities":[],"pendingChildren":[],
+"events":[
+{"eventId":"1","eventTime":"2026-11-19T14:05:14.855915962Z","eventType":"EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",...},
+...
+]},
+{"workflowId":"Ra-DSZCo4qbKQIyTXL6AN-B_eQB5h2dPvZwr4kpzbvbc","runId":"...","workflowType":"nested_parallel_children_child","status":"WORKFLOW_EXECUTION_STATUS_COMPLETED","parent":{"workflowId":"Ra-DSZCo4qbKQIyTXL6AN","runId":"01a1f420-38e7-7df8-b667-ef005eca9993"},"pendingActivities":[],"pendingChildren":[],
+"events":[
+...
+]}
+]
+}
+```
+
+At the top:
+
+- `complete` is `true` when everything was read. Scripts should check this and nothing else.
+- `warnings` is a list of sentences about what could not be read (see below). It is empty when `complete` is `true`. The wording can change, so do not parse it.
+- `temporal` is the address and namespace that were used.
+
+Each entry in `workflows` has:
+
+- `workflowId`, `runId` and `workflowType`.
+- `status`, Temporal's name for it: `WORKFLOW_EXECUTION_STATUS_RUNNING`, `..._COMPLETED`, `..._FAILED`, `..._CANCELED`, `..._TERMINATED`, `..._CONTINUED_AS_NEW` or `..._TIMED_OUT`. It is `null` for a workflow that was not read.
+- `parent` (`workflowId` and `runId`), on child workflows only.
+- `pendingActivities` is what shows a stuck run: each entry has the activity, its state, its attempt number and the last failure. `pendingChildren` lists the child workflows Temporal reports as open when it describes the workflow, each as `{ workflowId, runId, workflowType }`. On a closed parent that list can be out of date, so take a child's status from its own entry. `status` and both pending lists are read after the events, so they are never older than the events. A running workflow shows `WORKFLOW_EXECUTION_STATUS_RUNNING` with no closing event, which is how you debug it live. If a workflow finishes while it is being read, a warning says its events stop before the end, and running the command again gives the full history.
+- `events`, the history, last in the entry.
+
+The first entry is the workflow you asked for. Children follow in the order their parent reports them started, and every child, however deep, is in the same flat list. A workflow that uses `continueAsNew` has one entry per run, all with the same `workflowId` (and the same `parent`, for a child) and different `runId`s. Entries are ordered by when they started, so a run follows the run that continued into it. Runs of the workflow you asked for have no `parent`.
+
+For a step that failed once and is waiting to retry, `pendingActivities` looks like this:
+
+```json
+"pendingActivities":[{"activityId":"2","activityType":"error_step#thrower","state":"PENDING_ACTIVITY_STATE_SCHEDULED","attempt":2,"lastFailure":{"message":"Foo","source":"TypeScriptSDK","stackTrace":"Error: Foo\n    at fn (...)","applicationFailureInfo":{"type":"Error"}}}]
+```
+
+Events are exactly what Temporal's own JSON renders (the same shape the Temporal UI exports), and the command adds nothing to them: `EVENT_TYPE_*` names, string ids, ISO timestamps, durations like `"30s"`, and attributes under `<eventName>EventAttributes`.
+
+```json
+{"eventId":"13","eventTime":"2026-11-19T13:17:33.285380763Z","eventType":"EVENT_TYPE_ACTIVITY_TASK_SCHEDULED","taskId":"34603040","activityTaskScheduledEventAttributes":{"activityId":"2","activityType":{"name":"simple#sumValues"},"taskQueue":{"name":"main","kind":"TASK_QUEUE_KIND_NORMAL"},"header":{...},"input":{"payloads":[{"values":[1,2,3]}]},"startToCloseTimeout":"1200s"}},
+{"eventId":"15","eventTime":"2026-11-19T13:17:33.292884513Z","eventType":"EVENT_TYPE_ACTIVITY_TASK_COMPLETED","taskId":"34603048","activityTaskCompletedEventAttributes":{"result":{"payloads":[6]},"scheduledEventId":"13","startedEventId":"14"}},
+```
+
+- Payloads (inputs, results, failure details, memo) are decoded from Temporal's base64 form into plain JSON and truncated, see below.
+- Event ids restart in every workflow, so an event is identified by its workflow entry plus `eventId`.
+- Related events point at each other through ids such as `scheduledEventId` and `startedEventId`. The command does not pair them or compute durations, statuses or attempts.
+- Steps are activities named `<workflowName>#<stepName>`. Activities named `__internal#...` belong to the framework.
+- A parent's `EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_*` events mark where each child started and ended, and they name the child. The child's own entry holds the child's events.
+- A step that throws shows its error as `failure` (`message`, `source`, `stackTrace`, `applicationFailureInfo.type` and `details`) on `EVENT_TYPE_ACTIVITY_TASK_FAILED`. The workflow then ends with `EVENT_TYPE_WORKFLOW_EXECUTION_FAILED`, whose `failure.cause` chain holds the same error. With a child workflow, the child's own failed event is followed by the parent's `EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_FAILED` with the cause nested one level deeper.
+- Every run that continues as new ends with `EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW` and its `newExecutionRunId`. The next run is read automatically and gets its own entry, so the chain from the run you start at is in the output, and the page limit below applies to all of it. Without `--run-id` you start at the latest run, so there is no chain after it; pass the first run's id to read the whole chain.
+- Payloads that cannot be decoded, for example when you use an encryption codec, print as `[Undecodable Payload: <encoding>]`.
+
+The output works with `jq`:
+
+```bash
+# Is everything here, and what is missing?
+output workflow debug wf-12345 | jq '.complete, .warnings'
+
+# Failures, with the workflow they happened in
+output workflow debug wf-12345 | jq -c '.workflows[] | .workflowId as $w | .events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_FAILED") | {workflowId: $w} + .'
+
+# Child workflows and their status
+output workflow debug wf-12345 | jq -c '.workflows[] | select(.parent) | {workflowId, status, parent: .parent.workflowId}'
+
+# The steps that ran, per workflow
+output workflow debug wf-12345 | jq -r '.workflows[] | .workflowId as $w | .events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED") | "\($w) \(.activityTaskScheduledEventAttributes.activityType.name)"'
+```
+
+Events are grouped by workflow and not merged, so the output has no single timeline. When you need to see what the parent and its children did at the same moment, build one:
+
+```bash
+output workflow debug wf-12345 | jq '[.workflows[] | .workflowId as $w | .events[] | . + {_workflowId: $w}] | sort_by(.eventTime | sub("Z$"; "") | [ .[0:19], ((.[20:] // "") + "000000000")[0:9] ])'
+```
+
+#### Truncation
+
+Long values are cut so a large LLM response does not bury the failure. The limits always apply, there is no flag to lift them, and full payloads stay in Temporal:
+
+| Value | Limit | Marker |
+|-------|-------|--------|
+| Strings over 1,024 characters | first 1,000 and last 24 characters | `<head>... [N more characters omitted] ...<tail>` |
+| Arrays | first 20 items | `... [N more items omitted]` |
+| Objects | first 50 keys | `[Maximum Object Properties Reached]` |
+| Nesting | 10 levels | `[Maximum Depth Reached]` |
+| Values in one payload | 1,000 | `[Serialization Limit Reached]` |
+
+Error stacks keep their first 10 lines. Error messages are never cut. Nothing is redacted: the output contains what your workflow handled.
+
+#### Long histories and missing children
+
+The run and its children are read to the end. Reading stops after 100,000 events or 1,000 pages (of 1,000 events) across the whole tree, whichever comes first. A single Temporal history never exceeds about 51,200 events. When it stops early, or when a child's history is gone (Temporal deletes closed histories after the namespace retention period), the output still succeeds. `complete` is `false` and `warnings` says what is missing, naming each workflow:
+
+```json
+"complete":false,
+"warnings":[
+"Child workflow Ra-DSZ...-B_eQB (run 01a1f420-...) was not read: the limit of 100000 events for the whole tree was reached. Its entry has no events.",
+"Child workflow Ra-DSZ...-C3kp5 (run 01a1f420-...) is no longer in Temporal: closed histories are deleted after the namespace retention period. Its entry has no events."
+],
+```
+
+A child workflow or later run whose history cannot be read for another reason, such as a permission or network error, is reported the same way, with the error message in the warning:
+
+```json
+"Child workflow Ra-DSZ...-D9qlx (run 01a1f420-...) could not be read: 7 PERMISSION_DENIED: ... Its entry has no events."
+```
+
+A workflow that was not read (its history is gone, it could not be read, or the limit was reached first) still has an entry, with `events` empty, `status` set to `null` and empty `pendingActivities` and `pendingChildren`. When the limit is reached in the middle of a workflow's history, its entry keeps the events read so far and a warning says it was read only in part. If a workflow's status and pending lists cannot be read, its events are kept and a warning says they may be missing or out of date.
+
+#### Errors and exit codes
+
+Standard behavior: stdout carries only data, errors go to stderr, and a failure exits non-zero with nothing on stdout. That covers a workflow or run that is not found, a Temporal server that cannot be reached or does not answer within 30 seconds, a missing profile and a bad namespace, and failing to read the first page of the workflow you asked for. Failures on children and later runs are warnings instead. A partial result (`complete` is `false`) exits `0`.
 
 <Note>
-Remote traces over 256 MB are not loaded. The command stops with `Trace file is too big for this feature. Max size 256 MB, file size <size>`.
+Temporal's history records an activity's start only for the attempt that ran last. Earlier attempts do not have their own events. The last retry shows up as `attempt` and `lastFailure` on `EVENT_TYPE_ACTIVITY_TASK_STARTED` (the failure of the attempt before it), and on `pendingActivities` while the step is still retrying.
 </Note>
 
 ### output workflow cost
@@ -847,13 +1003,15 @@ OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OUTPUT_CLI_ENV` | `.env` | Path to custom env file (relative or absolute) |
-| `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands |
+| `OUTPUT_API_URL` | `http://localhost:3001` | Output API server URL used by workflow commands (`workflow debug` talks to Temporal directly instead) |
 | `OUTPUT_API_AUTH_TOKEN` | — | API auth token for requests (required in production) |
+| `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` | `localhost:7233`, `default`, — | Temporal connection for commands that read Temporal directly (`workflow debug`). Override the profile; the `--address` and `--namespace` flags override these |
+| `TEMPORAL_PROFILE`, `TEMPORAL_CONFIG_FILE` | `default`, `temporal.toml` in the user config directory | Profile and file the Temporal connection is read from. See [`workflow debug`](#output-workflow-debug) |
 | `OUTPUT_DEBUG` | — | Set to `true` to enable CLI debug mode |
 | `DOCKER_SERVICE_NAME` | `output-sdk` | Docker Compose project name for `output dev` — isolates containers, networks, and volumes |
 | `OUTPUT_API_HOST_PORT` | `3001` | Host port for the Output API server |
 | `OUTPUT_TEMPORAL_UI_HOST_PORT` | `8080` | Host port for the Temporal UI |
-| `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side |
+| `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side. `workflow debug` uses it for its default address |
 | `OUTPUT_API_VERSION` | Installed CLI version | API Docker image tag. Set to `dev` for local builds |
 | `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |

@@ -24,7 +24,7 @@ npx output dev
 # Run example workflow in a new terminal:
 npx output workflow run blog_evaluator paulgraham_hwh
 
-# Inspect the execution trace:
+# Inspect what Temporal recorded for the run:
 npx output workflow debug <workflow-id>
 ```
 
@@ -173,30 +173,30 @@ This is one way to monitor executions. Every step recorded, every retry visible,
 
 Output traces **every operation** - not just LLM calls, but HTTP requests, step executions, and timing data. This happens automatically with zero configuration.
 
-The quickest way to inspect a run is `output workflow debug` with the workflow ID from the previous step:
+To see what Temporal recorded for a run, use `output workflow debug` with the workflow ID from the previous step:
 
 ```bash
 npx output workflow debug <workflow-id>
 ```
 
-This prints a tree showing every step that ran, what it received, what it returned, and how long it took:
+This prints one JSON document with an entry for each workflow (the run, then every child workflow), each with its Temporal history events in order, with decoded inputs and results (long values are truncated):
 
+```json
+{
+"complete":true,
+"warnings":[],
+"temporal":{"address":"localhost:7233","namespace":"default"},
+"workflows":[
+{"workflowId":"...","runId":"...","workflowType":"blog_evaluator","status":"WORKFLOW_EXECUTION_STATUS_COMPLETED","pendingActivities":[],"pendingChildren":[],
+"events":[
+{"eventId":"5","eventType":"EVENT_TYPE_ACTIVITY_TASK_SCHEDULED","activityTaskScheduledEventAttributes":{"activityType":{"name":"blog_evaluator#fetch_blog_content"},"input":{"payloads":[{"url":"https://paulgraham.com/hwh.html"}]}},...},
+{"eventId":"8","eventType":"EVENT_TYPE_ACTIVITY_TASK_COMPLETED","activityTaskCompletedEventAttributes":{"result":{"payloads":[{"title":"How to Work Hard","tokenCount":3241}]}},...}
+]}
+]
+}
 ```
-Trace Log:
-──────────────────────────────────────────────────────────────────────────────
-┌─ [blog_evaluator] completed
-│  ├─ [fetch_blog_content] [END] 430ms
-│  │  ├─ input: {"url":"https://paulgraham.com/hwh.html"}
-│  │  └─ output: {"title":"How to Work Hard","content":"...","tokenCount":3241}
-│  └─ [evaluate_signal_to_noise] [END] 890ms
-│     ├─ input: {"title":"How to Work Hard","content":"..."}
-│     └─ output: {"score":82}
-──────────────────────────────────────────────────────────────────────────────
-```
 
-Use `--format json` to get the full untruncated trace, including complete LLM inputs and outputs.
-
-Traces are also saved as JSON files in your project's `logs/runs/` directory — you can open them directly or share them with teammates:
+Pipe it to `jq` to filter, for example `| jq -c '.workflows[].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_FAILED")'` for failures only. The full trace, with every HTTP request, LLM call and timing, is saved as a JSON file in your project's `logs/runs/` directory — you can open it directly or share it with teammates:
 
 ```bash
 ls logs/runs/blog_evaluator/

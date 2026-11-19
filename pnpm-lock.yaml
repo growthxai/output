@@ -21,6 +21,9 @@ catalogs:
     '@temporalio/common':
       specifier: 1.24.0
       version: 1.24.0
+    '@temporalio/envconfig':
+      specifier: 1.24.0
+      version: 1.24.0
     '@temporalio/proto':
       specifier: 1.24.0
       version: 1.24.0
@@ -188,6 +191,15 @@ importers:
       '@outputai/core':
         specifier: 'workspace:'
         version: link:../core
+      '@temporalio/client':
+        specifier: 'catalog:'
+        version: 1.24.0
+      '@temporalio/common':
+        specifier: 'catalog:'
+        version: 1.24.0
+      '@temporalio/envconfig':
+        specifier: 'catalog:'
+        version: 1.24.0
       change-case:
         specifier: 5.4.4
         version: 5.4.4
@@ -366,7 +378,7 @@ importers:
         version: 4.0.73(zod@4.6.6)
       '@growthxlabs/workflows_catalog':
         specifier: 0.0.14
-        version: 0.0.14(@outputai/core@sdk+core)
+        version: 0.0.14(@outputai/core@projects+core)
       '@outputai/core':
         specifier: workspace:^
         version: link:../projects/core
@@ -2121,6 +2133,10 @@ packages:
 
   '@temporalio/core-bridge@1.24.0':
     resolution: {integrity: sha512-6kzPB8RsHcPU6HDNUSDBFC0JG2UFrV3ThmPmJkeEafKh2DFrKARM8IzxgKeE5MzvdIXYmONFM0UmHg+TZ0/qrQ==}
+    engines: {node: '>= 20.3.0'}
+
+  '@temporalio/envconfig@1.24.0':
+    resolution: {integrity: sha512-/96VUbnezQioGPwB+IH+awr0HAWWn81iD8mX1i1ydhN21Hi8P+FoxU2V5teKkKGDJowx1Ke+DB6MqcdWptGsXQ==}
     engines: {node: '>= 20.3.0'}
 
   '@temporalio/nexus@1.24.0':
@@ -4478,6 +4494,10 @@ packages:
     resolution: {integrity: sha512-SO/3iYL5S3W57LLEniscOGPZgOqZUPCx6d3dB+52B80yJ0XstzsC/eV8gnA4tM3MHDrKz+OCFSLNjswdSC+/bA==}
     engines: {node: '>=22'}
 
+  smol-toml@1.9.1:
+    resolution: {integrity: sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==}
+    engines: {node: '>= 18'}
+
   snake-case@3.0.4:
     resolution: {integrity: sha512-LAOh4z89bGQvl9pFfNF8V146i7o7/CqFPbqzYgP+yYzDIDeS9HaNFtXABamRW+AQzEVODcvE79ljJ+8a9YSdMg==}
 
@@ -5932,7 +5952,7 @@ snapshots:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@growthxlabs/workflows_catalog@0.0.14(@outputai/core@sdk+core)':
+  '@growthxlabs/workflows_catalog@0.0.14(@outputai/core@projects+core)':
     dependencies:
       '@outputai/core': link:projects/core
 
@@ -7018,6 +7038,11 @@ snapshots:
     dependencies:
       '@grpc/grpc-js': 1.14.5
       '@temporalio/common': 1.24.0
+
+  '@temporalio/envconfig@1.24.0':
+    dependencies:
+      '@temporalio/common': 1.24.0
+      smol-toml: 1.9.1
 
   '@temporalio/nexus@1.24.0':
     dependencies:
@@ -9472,6 +9497,8 @@ snapshots:
     dependencies:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
+
+  smol-toml@1.9.1: {}
 
   snake-case@3.0.4:
     dependencies:

@@ -1,0 +1,163 @@
+---
+title: "v0.17.0 → v0.18.0"
+description: "Upgrading Output.ai projects from v0.17.0 to v0.18.0: output workflow debug reads Temporal directly and prints JSON grouped by workflow instead of the trace tree."
+---
+
+This guide covers one breaking change in `@outputai/cli`: `output workflow debug` now reads the run from Temporal instead of the API's trace log, and its output is completely different. Nothing in your workflow code changes. If you only run the command by hand, you only need to point it at your Temporal. If a script, a CI job or an agent skill parses its output, update the parser.
+
+## What changed
+
+v0.17.0 and earlier asked the API for the trace of a run (`GET /workflow/:id/trace-log`) and printed it as a text tree, or as the trace JSON with `--json`. That path needed the API to be reachable and, in production, to hold the AWS credentials for the trace bucket. It failed with `Missing AWS keys to authenticate` when both trace destinations were on and the API had no keys.
+
+v0.18.0 reads the run's history from Temporal. No API, no trace files, no S3, and the same behavior in development and production.
+
+- Standard output is one JSON document with an entry for every workflow: the run, then each child workflow. Every entry holds that workflow's Temporal history events, oldest first.
+- Child workflows are always included, as their own entries.
+- `--json` is accepted and ignored. The output is always JSON, and it is never the trace JSON.
+- Long payload values are always truncated. Before, `--json` printed the full trace.
+- New flags: `--run-id`, `--profile`, `--address` and `--namespace`.
+- Errors go to stderr with a non-zero exit code and nothing on stdout.
+- The `Fetching debug information...` and `Trace source: ...` lines are gone.
+- The 256 MB trace limit from v0.17.0 no longer applies to this command.
+
+## Connect to Temporal
+
+The CLI used to need only the API. `workflow debug` now connects to Temporal from the machine that runs it, so that machine must reach your Temporal. Locally nothing changes: `output dev` publishes Temporal on `localhost:7233`, and the command uses it by default. If you override `OUTPUT_TEMPORAL_HOST_PORT`, the default follows it.
+
+For a remote Temporal, use a profile in `temporal.toml`, the file the `temporal` CLI uses. It lives in `temporalio/` under your user config directory (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows).
+
+```toml
+[profile.prod]
+address = "my-namespace.a2b3c.tmprl.cloud:7233"
+namespace = "my-namespace.a2b3c"
+api_key = "..."
+```
+
+```bash
+output workflow debug <workflowId> --profile prod
+```
+
+You can also use environment variables (`TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY`, `TEMPORAL_PROFILE`) or the `--address` and `--namespace` flags. Highest priority first: flags, environment variables, the profile, then the defaults. The API key and TLS material have no flag, so they never end up in shell history.
+
+`OUTPUT_API_URL` and `OUTPUT_API_AUTH_TOKEN` are not used by this command anymore.
+
+## Output
+
+The document is compact JSON on a single line (shown split over several lines here). It starts with `complete`, `warnings` and `temporal`, then lists the workflows. Pipe it to `jq .` to indent it. `pendingActivities` on an entry is what shows a stuck run.
+
+```json
+{
+"complete":true,
+"warnings":[],
+"temporal":{"address":"localhost:7233","namespace":"default"},
+"workflows":[
+{"workflowId":"nOXL42IobjV_wS0bqZGpF","runId":"01a1f3f4-8ea6-72ec-b3f2-fb139fccf4e2","workflowType":"simple","status":"WORKFLOW_EXECUTION_STATUS_COMPLETED","pendingActivities":[],"pendingChildren":[],
+"events":[
+{"eventId":"13","eventTime":"2026-11-19T13:17:33.285380763Z","eventType":"EVENT_TYPE_ACTIVITY_TASK_SCHEDULED","taskId":"34603040","activityTaskScheduledEventAttributes":{"activityId":"2","activityType":{"name":"simple#sumValues"},"taskQueue":{"name":"main","kind":"TASK_QUEUE_KIND_NORMAL"},"header":{...},"input":{"payloads":[{"values":[1,2,3]}]},"startToCloseTimeout":"1200s"}},
+{"eventId":"15","eventTime":"2026-11-19T13:17:33.292884513Z","eventType":"EVENT_TYPE_ACTIVITY_TASK_COMPLETED","taskId":"34603048","activityTaskCompletedEventAttributes":{"result":{"payloads":[6]},"scheduledEventId":"13","startedEventId":"14"}},
+...
+]}
+]
+}
+```
+
+`complete` is `true` when everything was read, and scripts should check only that. `warnings` is a list of sentences about what is missing, empty when `complete` is `true`. Do not parse its wording.
+
+Each entry has `workflowId`, `runId`, `workflowType`, `status` (Temporal's `WORKFLOW_EXECUTION_STATUS_*`, `null` when the workflow was not read), `parent` (children only), `pendingActivities`, `pendingChildren` and `events`. Events are Temporal's default JSON form (the one the Temporal UI exports), with payloads decoded to plain JSON, and nothing is added to them.
+
+A failed step and its workflow, from a real run, look like this (stack traces and ids shortened):
+
+```json
+{"eventId":"15","eventType":"EVENT_TYPE_ACTIVITY_TASK_FAILED","activityTaskFailedEventAttributes":{"failure":{"message":"Foo","source":"TypeScriptSDK","stackTrace":"Error: Foo\n    at fn (...)","applicationFailureInfo":{"type":"Error","details":{"payloads":[{"error":{"message":"Foo","name":"Error"}}]}}},"scheduledEventId":"13","startedEventId":"14","retryState":"RETRY_STATE_MAXIMUM_ATTEMPTS_REACHED"}},
+{"eventId":"19","eventType":"EVENT_TYPE_WORKFLOW_EXECUTION_FAILED","workflowExecutionFailedEventAttributes":{"failure":{"message":"Activity task failed","cause":{"message":"Foo",...}}}}
+```
+
+Event ids restart in every workflow, so identify an event by its entry plus `eventId`. Related events point at each other through `scheduledEventId` and `startedEventId`. The command does not pair events or compute durations, statuses or attempts.
+
+### Where the old fields went
+
+| Before (trace tree) | Now |
+| --- | --- |
+| Step name | `activityType.name` on the `EVENT_TYPE_ACTIVITY_TASK_SCHEDULED` event. It is `<workflowName>#<stepName>`. Activities named `__internal#...` belong to the framework |
+| Step input | `input.payloads` on the scheduled event |
+| Step output | `result.payloads` on the `EVENT_TYPE_ACTIVITY_TASK_COMPLETED` event |
+| Step error | `failure` on the `EVENT_TYPE_ACTIVITY_TASK_FAILED` event |
+| Step duration | The difference between the `eventTime` of the scheduled (or started) and completed events |
+| Workflow status | `status` on the workflow's entry, as `WORKFLOW_EXECUTION_STATUS_*` |
+| Workflow input and result | The first (`WorkflowExecutionStarted`) and last (`WorkflowExecutionCompleted`) events |
+| Child workflows | Their own entries in `workflows`, each with a `parent` |
+
+### What Temporal does not have
+
+Temporal records the workflow's history, not the trace. These are only in the trace file (`logs/runs/` in development, S3 in production) and are not in the new output:
+
+- Individual LLM and HTTP calls inside a step, with their models, tokens, status codes and timings
+- Cost. Use `output workflow cost <workflowId>`, which still reads the trace through the API
+- Every failed attempt of a retried activity. Temporal keeps only the last one: `attempt` and `lastFailure` (the failure before it) on `EVENT_TYPE_ACTIVITY_TASK_STARTED`, and on `pendingActivities` while the step is still retrying
+
+## Truncation
+
+Large payloads are cut so a long LLM response does not bury the failure. The limits always apply, there is no flag to lift them, and the full payload stays in Temporal (UI at `http://localhost:8080` in development).
+
+| Value | Limit | Marker |
+| --- | --- | --- |
+| Strings over 1,024 characters | first 1,000 and last 24 characters | `<head>... [N more characters omitted] ...<tail>` |
+| Arrays | first 20 items | `... [N more items omitted]` |
+| Objects | first 50 keys | `[Maximum Object Properties Reached]` |
+| Nesting | 10 levels | `[Maximum Depth Reached]` |
+| Values in one payload | 1,000 | `[Serialization Limit Reached]` |
+
+Error stacks keep their first 10 lines, and error messages are never cut. A payload that cannot be decoded, for example an encrypted one, prints as `[Undecodable Payload: <encoding>]`. Nothing is redacted. If you have an encryption codec, the codec endpoint of a profile is not used yet.
+
+## Long histories and missing children
+
+The run and its children are read to the end. Reading stops after 100,000 events or 1,000 pages (of 1,000 events) across the whole tree, whichever comes first. When it stops early, or when a child's history is already gone (Temporal deletes closed histories after the namespace retention period), the command still succeeds. `complete` is `false` and `warnings` says what is missing:
+
+```json
+"complete":false,
+"warnings":[
+"Child workflow child-1 (run 01a1f3f4-...) was not read: the limit of 100000 events for the whole tree was reached. Its entry has no events.",
+"Child workflow child-2 (run 01a1f3f4-...) is no longer in Temporal: closed histories are deleted after the namespace retention period. Its entry has no events."
+],
+```
+
+A child or later run that cannot be read for another reason, such as a permission or network error, is reported the same way, with the error message in the warning. A workflow that was not read (its history is gone, it could not be read, or the limit was reached first) keeps its entry with `events` empty, `status` `null` and empty pending lists. A workflow cut off in the middle of its history keeps the events read so far, and a warning says it was read only in part. `status` and the pending lists are read after the events, so they are never older than the events; a workflow that finishes while it is being read gets a warning that its events stop before the end.
+
+## Exit codes and errors
+
+A workflow or run that is not found, a Temporal that cannot be reached or does not answer within 30 seconds, a missing `--profile` or a bad namespace exits `1` with the message on stderr and an empty stdout. This holds with `--json` too. A partial result (`complete` is `false`) exits `0`. Scripts that read stdout no longer have to skip the progress lines the old command printed.
+
+`--run-id` reads a run other than the latest. Each reset, retry or continue-as-new has its own run id, and every entry states the run that was read. The runs that continue from it (and those of child workflows) are read too, one entry per run with the same `workflowId`.
+
+## Update scripts and agents
+
+```bash
+# Before: failed nodes from the trace JSON
+output workflow debug <workflowId> --json | jq '.. | objects | select(.status? == "failed")'
+
+# After: failure events, one per line (`-c` prints each result compactly)
+output workflow debug <workflowId> | jq -c '.workflows[].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_FAILED")'
+
+# Before: the input of a step
+output workflow debug <workflowId> --json | jq '.. | objects | select(.name? == "processData") | .input'
+
+# After: the input of a step, from its scheduled event
+output workflow debug <workflowId> | jq '.workflows[].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED" and (.activityTaskScheduledEventAttributes.activityType.name | endswith("#processData"))) | .activityTaskScheduledEventAttributes.input'
+```
+
+`output workflow reset --step` still takes the step name. List the names from the scheduled events:
+
+```bash
+output workflow debug <workflowId> | jq -r '.workflows[0].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED") | .activityTaskScheduledEventAttributes.activityType.name'
+```
+
+The Output Claude plugin skills describe the new output. Run `output update --agents` to get them.
+
+## Checklist
+
+- Bump `@outputai/core` and `@outputai/cli` to `0.18.0`.
+- Make sure the machine that runs `output workflow debug` reaches your Temporal. For a remote Temporal, add a profile to `temporal.toml` or set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE` and `TEMPORAL_API_KEY`.
+- Update scripts, CI jobs and agent skills that parse the old text tree or the trace JSON from `--json`. Read `complete`, loop over `workflows[].events[]`, and read steps from `EVENT_TYPE_ACTIVITY_TASK_*` events.
+- Use `workflow cost`, or the trace file, when you need LLM and HTTP call detail, cost or full payloads. `workflow debug` truncates and does not carry them.
+- Handle the exit code and stderr: a failure no longer prints anything to stdout.
+- Pass `--run-id` when you need a run that is not the latest.

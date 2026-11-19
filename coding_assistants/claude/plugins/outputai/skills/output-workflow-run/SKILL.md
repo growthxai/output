@@ -205,13 +205,13 @@ npx output workflow run get-users --input src/get_users/scenarios/active.json | 
 
 ### Getting More Details on Failures
 
-When a workflow fails, the output includes the workflow ID. Use it to get the full trace:
+When a workflow fails, the output includes the workflow ID. Use it to read the run's history:
 
 ```bash
 npx output workflow run my-workflow --input src/my_workflow/scenarios/test.json
 # Output: Workflow failed. ID: abc123xyz
 
-npx output workflow debug abc123xyz --json
+npx output workflow debug abc123xyz
 ```
 
 ## Input Schema Tips

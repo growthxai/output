@@ -1,6 +1,6 @@
 ---
 name: output-workflow-trace
-description: Analyze Output SDK workflow execution traces. Use when debugging a specific workflow, examining step failures, analyzing input/output data, understanding execution flow, or when you have a workflow ID to investigate.
+description: Analyze an Output SDK workflow run from its Temporal history (`workflow debug`). Use when debugging a specific workflow, examining step failures, analyzing input/output data, understanding execution flow, or when you have a workflow ID to investigate.
 allowed-tools: [Bash, Read]
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: [Bash, Read]
 
 ## Overview
 
-This skill provides guidance on retrieving and analyzing workflow execution traces using the Output CLI. Traces show the complete execution history including step inputs, outputs, errors, and timing information.
+This skill provides guidance on reading and analyzing a workflow run's Temporal history using the Output CLI. `workflow debug` reads Temporal directly and prints one JSON document with an entry per workflow (the run, then its child workflows), each with its history events, including step inputs, results, failures and timestamps. Long values are truncated.
 
 ## When to Use This Skill
 
@@ -21,30 +21,50 @@ This skill provides guidance on retrieving and analyzing workflow execution trac
 
 ## Instructions
 
-### Step 1: Retrieve the Execution Trace
+### Step 1: Read the Run's History
 
-**Basic trace (text format, may be truncated):**
 ```bash
 npx output workflow debug <workflowId>
 ```
 
-**Full trace (JSON format, recommended for detailed analysis):**
-```bash
-npx output workflow debug <workflowId> --json
+The output is one compact JSON document on a single line of stdout, always, so pipe it to `jq` (`jq .` to indent it) instead of reading the raw line. A failure (workflow not found, Temporal unreachable) exits non-zero with the message on stderr and nothing on stdout. Its shape:
+
+```
+{ "complete": true, "warnings": [], "temporal": {...},
+  "workflows": [
+    { "workflowId", "runId", "workflowType", "status", "pendingActivities", "pendingChildren", "events": [ ...raw Temporal events... ] },
+    { ...a child workflow: same fields plus "parent": { "workflowId", "runId" } }
+  ] }
 ```
 
-**Tip**: Always use `--json` when you need complete trace data. The text format truncates long values which can hide important debugging information.
+- `complete` is `false` when part of the tree could not be read. Check it first, then read `warnings` (plain sentences naming the workflow and run). A workflow that was not read still has an entry, with `events: []`.
+- `workflows[0]` is the run you asked for. Children follow, in the order the parent started them. A workflow that continued as new has one entry per run (same `workflowId` and `parent`, different `runId`; the root's runs have no `parent`), and each run but the last ends with `EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW`.
+- Events are Temporal's own events with nothing added. Event ids restart in every workflow, so identify an event by its entry plus `eventId`.
+- Read a specific run (reset, retry, continue-as-new): `--run-id <runId>`. Without it the latest run is read, and the entry says which run that was. The runs that continue from it are read too, so to see a whole continue-as-new chain pass its first run id.
+- Another Temporal: `--profile <name>` (from `temporal.toml`), or `--address` and `--namespace`.
+- `--json` is accepted and ignored.
+- A workflow id that starts with `-` is read as a flag. Put flags first and `--` before the id: `npx output workflow debug --profile prod -- -Ab...`.
 
-### Step 2: Analyze the Trace
+**Tip**: Large values are always truncated (strings over 1,024 characters keep the first 1,000 and last 24, arrays keep 20 items). A marker such as `... [N more characters omitted]` says what was cut. The full payload is in the Temporal UI.
 
-Follow this checklist when examining a trace:
+### Step 2: Analyze the History
 
-1. **Identify the failed step**: Look for steps with error status or failure indicators
-2. **Examine error messages**: Find the exact error message and stack trace
-3. **Check step inputs**: Verify the data passed to the failing step was correct
-4. **Check step outputs**: Look at outputs from preceding steps
-5. **Review retry attempts**: Note how many retries occurred and their outcomes
-6. **Check timing**: Look for unusual delays that might indicate timeouts
+Follow this checklist:
+
+1. **Check `complete` and `warnings`**, then read each entry's `status` and `pendingActivities` (a stuck run shows its activity, `attempt` and `lastFailure` here)
+2. **Find the failure**: filter on `EVENT_TYPE_ACTIVITY_TASK_FAILED`, `EVENT_TYPE_ACTIVITY_TASK_TIMED_OUT` and `EVENT_TYPE_WORKFLOW_EXECUTION_FAILED`
+3. **Examine the error**: `failure.message`, `failure.applicationFailureInfo.type`, `failure.stackTrace` (first 10 lines) and `failure.cause`
+4. **Find the step**: follow `scheduledEventId` from the failure back to the `EVENT_TYPE_ACTIVITY_TASK_SCHEDULED` event, whose `activityType.name` is `<workflowName>#<stepName>` and whose `input` is what the step received
+5. **Check earlier results**: `EVENT_TYPE_ACTIVITY_TASK_COMPLETED` events carry the `result`
+6. **Check timing**: compare `eventTime` between the scheduled, started and completed events
+
+A child workflow is its own entry in `workflows`, with a `parent` pointing at the workflow that started it. Events are grouped by workflow, not merged. To see what a parent and its children did at the same moment, build one timeline (each event tagged with `_workflowId`):
+
+```bash
+npx output workflow debug <workflowId> | jq '[.workflows[] | .workflowId as $w | .events[] | . + {_workflowId: $w}] | sort_by(.eventTime | sub("Z$"; "") | [ .[0:19], ((.[20:] // "") + "000000000")[0:9] ])'
+```
+
+The sort key pads the fractional seconds because Temporal drops trailing zeros, so a plain string sort can misorder events.
 
 ### Step 3: Use the Temporal UI for Visual Analysis
 
@@ -70,25 +90,28 @@ Open **http://localhost:8080** in your browser for a visual workflow inspection:
 | "workflow must be deterministic" | Direct I/O in workflow function |
 | "ECONNREFUSED" or timeout | Services not running or network issues |
 
-### Step Status Values
+### Event Types
 
-- **COMPLETED**: Step finished successfully
-- **FAILED**: Step threw an error (may retry)
-- **RETRYING**: Step is being retried after a failure
-- **TIMED_OUT**: Step exceeded its timeout
-- **CANCELLED**: Workflow was stopped before step completed
+- `EVENT_TYPE_ACTIVITY_TASK_SCHEDULED`: a step was scheduled (`activityType.name`, `input`)
+- `EVENT_TYPE_ACTIVITY_TASK_COMPLETED`: a step finished (`result`)
+- `EVENT_TYPE_ACTIVITY_TASK_FAILED`: a step failed after its retries (`failure`, `retryState`)
+- `EVENT_TYPE_ACTIVITY_TASK_TIMED_OUT`: a step exceeded a timeout
+- `EVENT_TYPE_WORKFLOW_EXECUTION_FAILED` / `_TIMED_OUT` / `_CANCELED` / `_TERMINATED`: how the run ended
+- `EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED`: a child started (it names the child, whose events are in its own entry)
 
-### Key Trace Fields
+Activities named `__internal#...` belong to the framework, not your code. Temporal records only the last attempt of an activity: earlier failed retries have no events. On a retried step, `EVENT_TYPE_ACTIVITY_TASK_STARTED` carries `attempt` and `lastFailure` (the failure before it), and `pendingActivities[].attempt` and `lastFailure` on the workflow's entry show the same for a step still retrying.
 
-When examining JSON traces, focus on these fields:
+### Key Fields
 
-- `steps[].name`: Step identifier
-- `steps[].status`: Execution result
-- `steps[].input`: Data passed to the step
-- `steps[].output`: Data returned from the step
-- `steps[].error`: Error details if failed
-- `steps[].attempts`: Number of execution attempts
-- `steps[].duration`: How long the step took
+Each event holds its data under `<eventName>EventAttributes`, for example `activityTaskFailedEventAttributes`:
+
+- `activityType.name`, `input.payloads[]` (on the scheduled event)
+- `result.payloads[]` (on the completed event)
+- `failure.message`, `failure.applicationFailureInfo.type`, `failure.stackTrace`, `failure.cause` (on failure events)
+- `scheduledEventId`, `startedEventId`: link an event to the events before it
+- `eventId`, `eventTime`, `eventType` on every event
+
+Payloads are decoded to plain JSON. A payload that cannot be decoded (for example an encrypted one) prints as `[Undecodable Payload: <encoding>]`.
 
 ## Examples
 
@@ -98,31 +121,32 @@ When examining JSON traces, focus on these fields:
 # Get the workflow ID from runs list
 npx output workflow runs list --limit 5 --json
 
-# Get detailed trace
-npx output workflow debug abc123xyz --json
-
-# Look for the failing step in the output
-# Example output structure:
-# {
-#   "workflowId": "abc123xyz",
-#   "status": "FAILED",
-#   "steps": [
-#     { "name": "fetchData", "status": "COMPLETED", ... },
-#     { "name": "processData", "status": "FAILED", "error": "..." }
-#   ]
-# }
+# Failures, with their message
+npx output workflow debug abc123xyz | jq -c '.workflows[] | .workflowId as $w | .events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_FAILED") | { workflowId: $w, eventId, scheduledEventId: .activityTaskFailedEventAttributes.scheduledEventId, message: .activityTaskFailedEventAttributes.failure.message }'
 ```
 
-**Scenario**: Investigate retry behavior
+**Scenario**: List the steps that ran
 
 ```bash
-npx output workflow debug abc123xyz --json | jq '.steps[] | select(.attempts > 1)'
+npx output workflow debug abc123xyz | jq -r '.workflows[] | .workflowId as $w | .events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED") | "\($w) \(.activityTaskScheduledEventAttributes.activityType.name)"'
 ```
 
-**Scenario**: Check inputs to a specific step
+**Scenario**: Check the input to a specific step
 
 ```bash
-npx output workflow debug abc123xyz --json | jq '.steps[] | select(.name == "processData") | .input'
+npx output workflow debug abc123xyz | jq '.workflows[].events[] | select(.eventType == "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED" and (.activityTaskScheduledEventAttributes.activityType.name | endswith("#processData"))) | .activityTaskScheduledEventAttributes.input'
+```
+
+**Scenario**: See why a run is stuck
+
+```bash
+npx output workflow debug abc123xyz | jq -c '.workflows[] | { workflowId, status, pendingActivities, pendingChildren }'
+```
+
+**Scenario**: Is the output complete?
+
+```bash
+npx output workflow debug abc123xyz | jq '{ complete, warnings }'
 ```
 
 ## Next Steps After Analysis
@@ -131,4 +155,4 @@ npx output workflow debug abc123xyz --json | jq '.steps[] | select(.name == "pro
 2. Consult the `workflow-quality` subagent for best practices
 3. Make code fixes based on identified issues
 4. Re-run the workflow: `npx output workflow run <workflowName> --input '<input>'`
-5. Verify the fix with a new trace
+5. Verify the fix by reading the new run with `npx output workflow debug`

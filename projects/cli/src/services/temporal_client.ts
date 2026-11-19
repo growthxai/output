@@ -1,0 +1,76 @@
+import { Client, Connection } from '@temporalio/client';
+import { loadClientConfigProfile, toClientOptions } from '@temporalio/envconfig';
+import { config } from '#config.js';
+import type { TemporalFlags } from '#utils/temporal_flags.js';
+
+const DEFAULT_NAMESPACE = 'default';
+const CONNECT_TIMEOUT = '5s';
+
+export interface TemporalConnectionConfig {
+  address: string;
+  namespace: string;
+  connectionOptions: {
+    address: string;
+    tls?: unknown;
+    apiKey?: string;
+    metadata?: Record<string, string>;
+  };
+}
+
+export interface TemporalClientHandle {
+  client: Client;
+  address: string;
+  namespace: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * Resolves where to connect. Precedence, highest first: flags, TEMPORAL_* env vars, the temporal.toml profile,
+ * then the dev stack's Temporal port on localhost (OUTPUT_TEMPORAL_HOST_PORT, 7233 by default) and the default namespace. The profile and env layers are read by `@temporalio/envconfig`; an explicit
+ * `--profile` that does not exist throws.
+ *
+ * @param flags - Shared Temporal flags
+ * @returns The effective address and namespace, and the options to open the connection with
+ */
+export function buildConnectionConfig( flags: TemporalFlags = {} ): TemporalConnectionConfig {
+  const profile = loadClientConfigProfile( flags.profile ? { profile: flags.profile } : {} );
+  const { connectionOptions, namespace } = toClientOptions( {
+    ...profile,
+    ...( flags.address ? { address: flags.address } : {} ),
+    ...( flags.namespace ? { namespace: flags.namespace } : {} )
+  } );
+  const address = connectionOptions.address ?? `localhost:${config.ports.temporal}`;
+
+  return {
+    address,
+    namespace: namespace ?? DEFAULT_NAMESPACE,
+    connectionOptions: {
+      address,
+      tls: connectionOptions.tls,
+      apiKey: connectionOptions.apiKey,
+      metadata: connectionOptions.metadata as Record<string, string> | undefined
+    }
+  };
+}
+
+/**
+ * Opens a Temporal client from the shared flags. Callers must call `close()` when done.
+ *
+ * @param flags - Shared Temporal flags
+ * @returns The client, the address and namespace it uses, and a close function
+ */
+export async function createTemporalClient( flags: TemporalFlags = {} ): Promise<TemporalClientHandle> {
+  const { address, namespace, connectionOptions } = buildConnectionConfig( flags );
+
+  const connection = await Connection.connect( { ...connectionOptions, connectTimeout: CONNECT_TIMEOUT } as Parameters<typeof Connection.connect>[0] )
+    .catch( ( error: unknown ) => {
+      throw new Error( `Cannot connect to Temporal at ${address}: ${error instanceof Error ? error.message : String( error )}`, { cause: error } );
+    } );
+
+  return {
+    client: new Client( { connection, namespace } ),
+    address,
+    namespace,
+    close: () => connection.close()
+  };
+}
