@@ -266,6 +266,8 @@ Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBu
 `generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and set concrete provider options in prompt front matter (`size`, `n`, `aspectRatio`, `seed`, `providerOptions`).
 </Note>
 
+Image calls have no AI SDK step list. Catalog pricing still uses aggregate `usage`. With [`extractStepCost`](#provider-reported-cost) registered, metering reads top-level `response.providerMetadata` (there is no `finalStep` on image responses).
+
 Common image options can live in prompt front matter:
 
 | Option | Description |
@@ -527,7 +529,7 @@ Start with `generateText`. Move to `Agent` when you need conversation state or a
 | `warnings` | Any warnings from the provider |
 | `toolCalls` | Tool calls made by the model (when using tools) |
 | `sources` | Merged tool + provider sources (`sourceType: 'url'` or `'document'`). Always an array. |
-| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, `promptName`, `requestDetails`, aggregate totals, and priced items). A model or provider missing from the rate table yields an incomplete cost; `null` when usage cannot be normalized |
+| `cost` | Normalized `LLMGenerationCost` (`providerId`, `modelId`, `promptName`, `requestDetails`, aggregate totals, and priced items). Catalog pricing when models.dev has rates; provider-reported when `extractStepCost` is registered. A model or provider missing from the rate table (without that function) yields an incomplete cost; `null` when usage cannot be normalized |
 
 The `cost` property is an `LLMGenerationCost`:
 
@@ -539,6 +541,7 @@ The `cost` property is an `LLMGenerationCost`:
   "promptName": "summarize@v1",
   "requestDetails": { "ids": ["req_8e1cf3899f254171855c866214eb5620"], "count": 1, "duration": 1240 },
   "status": "precise",
+  "pricingSource": "models.dev",
   "pricingFreshness": "cached",
   "input": 0.001085,
   "output": 0.000135,
@@ -550,7 +553,7 @@ The `cost` property is an `LLMGenerationCost`:
 }
 ```
 
-Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache pricing falls back to the regular input rate and marks the item as `fallback`. Reasoning tokens use the model's reasoning rate when one is listed, otherwise the output rate; either way the item is marked `ok`, since providers bill reasoning as output unless they list a separate rate. Context-tiered token items include `tier: { type: "context", size: number }`. A tier is priced on its own: a rate it does not list follows the same rules and is never taken from the base pricing, so a tier without a reasoning rate prices reasoning at the tier's output rate. Items whose applicable tier cannot be determined precisely are marked `uncertain`, making the aggregate cost `imprecise`. Incomplete multi-step usage is priced at base rates and may understate the cost when an individual request crossed a higher-priced tier. Missing prices produce `null` item costs and an `incomplete` aggregate status. `pricingFreshness` reports how current the rate table was (`cached`, `stale`, or `snapshot`).
+Detailed cost items are used when the provider breakdown reconciles with the aggregate token count. Missing cache pricing falls back to the regular input rate and marks the item as `fallback`. Reasoning tokens use the model's reasoning rate when one is listed, otherwise the output rate; either way the item is marked `ok`, since providers bill reasoning as output unless they list a separate rate. Context-tiered token items include `tier: { type: "context", size: number }`. A tier is priced on its own: a rate it does not list follows the same rules and is never taken from the base pricing, so a tier without a reasoning rate prices reasoning at the tier's output rate. Items whose applicable tier cannot be determined precisely are marked `uncertain`, making the aggregate cost `imprecise`. Incomplete multi-step usage is priced at base rates and may understate the cost when an individual request crossed a higher-priced tier. Missing prices produce `null` item costs and an `incomplete` aggregate status. `pricingSource` is `models.dev` for catalog pricing, or `provider` when the call was billed from a registered `extractStepCost` function. `pricingFreshness` reports how current the rate table was (`cached`, `stale`, or `snapshot`) for catalog costs, and is `null` for provider-reported costs.
 
 **Direct streaming response shape.** `streamText` and `Agent.stream()` return a different result type. Stream iterables (`textStream`, `stream`) provide real-time chunks, while scalar properties (`text`, `usage`, `finishReason`, etc.) are promises that resolve when the stream completes:
 
@@ -751,9 +754,53 @@ model: claude-haiku-4-5
 
 Built-in providers use Output's default fetch configuration, including longer Undici response timeouts for LLM calls that take time before returning headers or body chunks. Custom registered providers are used exactly as you register them; they do not automatically receive that custom fetch. If your custom provider also needs longer network timeouts, configure its provider instance directly.
 
-LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic pricing.
+#### Provider-reported cost
 
-Billing never fetches the catalog on the call path. The Temporal worker runs a background retriever that refreshes [models.dev](https://models.dev) every six hours (or every five minutes after a failure) and keeps the result in a process cache with a 24-hour TTL. Cost calculation reads that cache synchronously: `cached` while the TTL holds, `stale` after it expires until the next successful refresh, and `snapshot` when this process has not received a successful refresh yet (for example right after worker start). Because the snapshot is point-in-time and can lag the live catalog by an unbounded amount, a cost priced from it is reported as `imprecise`; a merely stale cache is not, since those rates were accurate when they were fetched. Custom registered providers are not in the snapshot and get unavailable totals as described above. The bundled snapshot is refreshed in package releases, so upgrading to a newer `@outputai/core` picks up a more recent table.
+Some gateways put the dollar amount they actually charged on each generation into the AI SDK step's `providerMetadata` (for example OpenRouter under `providerMetadata.openrouter.usage.cost`). Catalog rates cannot match that: the same model can be routed to different hosts at different prices. For those providers, pass an `extractStepCost` function as the third argument to `registerProvider`. The function receives that step's `providerMetadata` (or `undefined` when the step has none) and returns the dollar amount for the step as a finite non-negative number, or `null` when the charge is missing. `0` is a valid free step; negative and non-numeric values are treated as missing.
+
+At bill time, for every LLM call whose prompt `provider` matches the registered name, metering walks the call's steps (the response `steps` array, or the steps recorded before a failure) and calls your function once per step. When there are no steps - for example `generateImage` - it falls back to `response.finalStep`, then to top-level `response.providerMetadata` as a single synthetic step. It keeps the non-negative amounts, sums them into `cost.total`, and never looks up models.dev for that provider. The legacy `cost:llm:request` event and `llm:usage` trace attribute are not emitted. If your function throws, Output catches it, logs a warning that names `extractStepCost()` and the provider, treats that step as missing, and continues; the LLM call itself is not failed. Re-registering the same name without `extractStepCost` clears the function and returns that provider to catalog pricing.
+
+```typescript
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { registerProvider } from '@outputai/core/llm';
+
+registerProvider(
+  'openrouter',
+  createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY }),
+  {
+    extractStepCost: ( providerMetadata ) => {
+      const cost = providerMetadata?.openrouter?.usage?.cost;
+      return typeof cost === 'number' ? cost : null;
+    }
+  }
+);
+```
+
+The resulting `LLMGenerationCost` has `pricingSource: "provider"`, `pricingFreshness: null`, empty `items`, and null `input` / `output` / `tools` - there is no per-token breakdown. `status` is `precise` when every step returned a non-negative number (including `0`); otherwise `incomplete`, with `total` set to the sum of any valid amounts or `null` when none were valid:
+
+```json
+{
+  "type": "llm:generation:cost",
+  "providerId": "openrouter",
+  "modelId": "deepseek/deepseek-v4.1-flash",
+  "promptName": "summarize@v1",
+  "requestDetails": { "ids": ["gen-abc"], "count": 2, "duration": 1840 },
+  "status": "precise",
+  "pricingSource": "provider",
+  "pricingFreshness": null,
+  "input": null,
+  "output": null,
+  "tools": null,
+  "total": 0.03,
+  "items": []
+}
+```
+
+#### Catalog pricing (models.dev)
+
+Without an `extractStepCost` function, LLM cost estimation looks up rates by `provider` + `model` in the [models.dev](https://models.dev) catalog. Built-in provider names match that catalog. A custom `registerProvider` name (such as `vertex-anthropic` above) will not match, so `response.cost` is an incomplete `LLMGenerationCost` with unavailable totals and a missing-pricing warning is logged - register under a models.dev provider id if you need automatic catalog pricing, or supply `extractStepCost` if the gateway reports the charge.
+
+Billing never fetches the catalog on the call path. The Temporal worker runs a background retriever that refreshes [models.dev](https://models.dev) every six hours (or every five minutes after a failure) and keeps the result in a process cache with a 24-hour TTL. Cost calculation reads that cache synchronously: `cached` while the TTL holds, `stale` after it expires until the next successful refresh, and `snapshot` when this process has not received a successful refresh yet (for example right after worker start). Because the snapshot is point-in-time and can lag the live catalog by an unbounded amount, a cost priced from it is reported as `imprecise`; a merely stale cache is not, since those rates were accurate when they were fetched. Custom registered providers without an `extractStepCost` function are not in the snapshot and get unavailable totals as described above. The bundled snapshot is refreshed in package releases, so upgrading to a newer `@outputai/core` picks up a more recent table.
 
 ## Prompt Caching
 
@@ -909,6 +956,8 @@ const { result, toolCalls } = await generateText({
 | `mask` | no | Inpainting mask; requires `images` |
 | `abortSignal` | no | Cancel the request |
 
+`response.cost` follows the same catalog vs [provider-reported](#provider-reported-cost) rules as text calls. Image responses expose cost metadata on top-level `providerMetadata` only.
+
 ### Agent
 
 Constructor options are set on `new Agent(...)`. `generate()`, `generateWithStreaming()`, and `stream()` take an optional args object (or omit it). `messages` defaults to `[]`.
@@ -964,7 +1013,7 @@ on<LLMGenerationMeteringEvent>('llm:generation:metering', event => {
 
 ### Legacy LLM request cost
 
-`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload, so existing hooks do not need a structural migration. The same payload remains attached to priced LLM traces as the deprecated `attributes["llm:usage"]` attribute, preserving existing trace readers.
+`cost:llm:request` remains available with its legacy `LLMUsageEvent` payload when the call was priced from models.dev, so existing hooks do not need a structural migration. The same payload remains attached to those traces as the deprecated `attributes["llm:usage"]` attribute. Providers registered with `extractStepCost` skip both the event and the attribute - only `llm:generation:metering` carries the provider-reported total.
 
 ```typescript
 import { on } from '@outputai/core/hooks';

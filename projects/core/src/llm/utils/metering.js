@@ -1,5 +1,7 @@
 import { parseLLMUsage } from './usage.js';
 import { calculateCosts, calculateLegacyCosts } from './cost.js';
+import { calculateProviderCosts } from './provider_cost.js';
+import { getStepCostExtractorForProvider } from '../ai_provider.js';
 import { stepEventBus } from '#bus';
 import { addEventActionWithContext, EventAction } from '#tracing';
 import { Logger } from '#runtime_logger';
@@ -27,24 +29,39 @@ export class Metering {
     legacy: null
   };
 
-  #createAttributes( { usage, steps, requestDetails } ) {
+  #createAttributes( { usage, steps, requestDetails, response } ) {
     const baseUsageArgs = {
       prompt: this.#prompt,
       toolIdsByName: this.#toolIdsByName
     };
     // Only the call-level usage carries the request details; the per-step usages feed the tiered cost items only
     const totalUsage = parseLLMUsage( { ...baseUsageArgs, usage, steps, requestDetails } );
-    const stepsUsage = steps.map( step => parseLLMUsage( { ...baseUsageArgs, usage: step.usage, steps: [ step ] } ) );
 
     this.#attributes.usage = totalUsage;
-    if ( this.#attributes.usage ) {
-      this.#attributes.cost = calculateCosts( this.#attributes.usage, stepsUsage );
+    if ( !this.#attributes.usage ) {
+      return;
+    }
 
-      if ( this.#attributes.cost ) {
-        // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-        const legacyCost = calculateLegacyCosts( this.#attributes.usage );
-        this.#attributes.legacy = convertCostToLegacy( legacyCost );
-      }
+    const extractStepCost = getStepCostExtractorForProvider( this.#prompt?.config?.provider );
+    if ( extractStepCost ) {
+      // Provider-reported path: never models.dev, and legacy cost is unsupported
+      this.#attributes.cost = calculateProviderCosts( {
+        usage: this.#attributes.usage,
+        steps,
+        response,
+        extractor: extractStepCost
+      } );
+      return;
+    }
+
+    const stepsUsage = steps.map( step => parseLLMUsage( { ...baseUsageArgs, usage: step.usage, steps: [ step ] } ) );
+
+    this.#attributes.cost = calculateCosts( this.#attributes.usage, stepsUsage );
+
+    if ( this.#attributes.cost ) {
+      // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
+      const legacyCost = calculateLegacyCosts( this.#attributes.usage );
+      this.#attributes.legacy = convertCostToLegacy( legacyCost );
     }
   }
 
@@ -127,7 +144,7 @@ export class Metering {
 
       this.#billed = true;
 
-      this.#createAttributes( { usage, steps, requestDetails } );
+      this.#createAttributes( { usage, steps, requestDetails, response } );
       this.#attachAttributes();
       this.#emitEvents();
 

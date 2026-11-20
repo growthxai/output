@@ -66,7 +66,10 @@ const providerInitializers = Object.fromEntries(
 /** Providers already initialized due usage */
 const initializedProviders = {};
 
-/** Providers registered by the user */
+/**
+ * Providers registered by the user.
+ * @type {Record<string, { providerFn: Function, extractStepCost: Function|null }>}
+ */
 const registeredProviders = {};
 
 /**
@@ -76,19 +79,31 @@ const registeredProviders = {};
 export const getProviderNames = () =>
   new Set( Object.keys( providerInitializers ).concat( Object.keys( registeredProviders ) ) ).values().toArray();
 
+/**
+ * Returns the step cost extractor registered for a provider, if any.
+ * @param {string} name
+ * @returns {((providerMetadata: object|undefined) => number|null)|null}
+ */
+export const getStepCostExtractorForProvider = name => registeredProviders[name]?.extractStepCost ?? null;
+
 const registerProviderSchema = z.object( {
   name: z.string().min( 1, 'Provider name must be a non-empty string' ),
-  providerFn: z.function()
+  providerFn: z.function(),
+  extractStepCost: z.function().optional()
 } );
 
 /**
  * Register or override an AI SDK provider factory by name.
  * @param {string} name - Provider name used in prompt frontmatter
  * @param {Function} providerFn - Factory function that receives a model id
+ * @param {object} [options]
+ * @param {(providerMetadata: object|undefined) => number|null} [options.extractStepCost] -
+ *   when set, metering bills from this extractor only and never from models.dev;
+ *   with no steps, falls back to `finalStep` then top-level response `providerMetadata`
  * @returns {void}
  */
-export const registerProvider = ( name, providerFn ) => {
-  const result = registerProviderSchema.safeParse( { name, providerFn } );
+export const registerProvider = ( name, providerFn, options = {} ) => {
+  const result = registerProviderSchema.safeParse( { name, providerFn, ...options } );
   if ( !result.success ) {
     throw new ValidationError( `Invalid provider registration: ${z.prettifyError( result.error )}` );
   }
@@ -98,7 +113,10 @@ export const registerProvider = ( name, providerFn ) => {
       `Cannot register provider "${name}": that name is a deprecated alias for "${canonical}". Register "${canonical}" instead.`
     );
   }
-  registeredProviders[name] = providerFn;
+  registeredProviders[name] = {
+    providerFn,
+    extractStepCost: typeof options.extractStepCost === 'function' ? options.extractStepCost : null
+  };
 };
 
 /**
@@ -111,7 +129,7 @@ export const registerProvider = ( name, providerFn ) => {
  * @returns {object} provider
  */
 export const getProvider = name => {
-  const provider = registeredProviders[name] ?? initializedProviders[name];
+  const provider = registeredProviders[name]?.providerFn ?? initializedProviders[name];
 
   if ( provider ) {
     return provider;

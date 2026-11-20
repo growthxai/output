@@ -413,6 +413,7 @@ export interface LLMUsageEvent {
 export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'uncertain' | 'missing';
 export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
 export type LLMGenerationCostPricingFreshness = 'cached' | 'stale' | 'snapshot';
+export type LLMGenerationCostPricingSource = 'models.dev' | 'provider';
 
 /** Context-based pricing tier applied to a normalized cost item. */
 export interface LLMGenerationCostTier {
@@ -445,8 +446,10 @@ export interface LLMGenerationCost extends BaseAttribute {
   tools: number | null;
   total: number | null;
   status: LLMGenerationCostStatus;
-  /** How current the rate table was. Absent on costs recorded before this field existed. */
+  /** How current the models.dev rate table was. Null when `pricingSource` is `provider`. */
   pricingFreshness?: LLMGenerationCostPricingFreshness | null;
+  /** Where `total` came from. Absent on costs recorded before this field existed. */
+  pricingSource?: LLMGenerationCostPricingSource;
   items: LLMGenerationCostItem[];
 }
 
@@ -515,23 +518,42 @@ export function loadPrompt(
   promptDir?: string
 ): Prompt;
 
+/** Options for {@link registerProvider}. */
+export type RegisterProviderOptions = {
+  /**
+   * Function called once per AI SDK step at bill time. Receives that step's `providerMetadata`
+   * (or `undefined`) and returns the dollar amount charged for the step, or `null` when missing.
+   * With no steps, metering falls back to `finalStep`, then top-level response `providerMetadata`.
+   * When set, metering bills only from this function and never from models.dev; legacy
+   * `cost:llm:request` is not emitted.
+   */
+  extractStepCost?: ( providerMetadata: Record<string, any> | undefined ) => number | null; // eslint-disable-line @typescript-eslint/no-explicit-any
+};
+
 /**
  * Register a custom LLM provider for use in prompt files.
  *
  * @param name - Provider name (used in prompt config `provider` field)
  * @param providerFn - Factory function that creates a model from a model name string
+ * @param options - Optional `extractStepCost` function and other registration options
  *
  * @example
  * ```ts
- * import { createDeepSeek } from '@ai-sdk/deepseek';
+ * import { createOpenRouter } from '@openrouter/ai-sdk-provider';
  * import { registerProvider } from '@outputai/core/llm';
  *
- * registerProvider('deepseek', createDeepSeek({ apiKey: '...' }));
+ * registerProvider('openrouter', createOpenRouter({ apiKey: '...' }), {
+ *   extractStepCost: ( providerMetadata ) => {
+ *     const cost = providerMetadata?.openrouter?.usage?.cost;
+ *     return typeof cost === 'number' ? cost : null;
+ *   }
+ * });
  * ```
  */
 export function registerProvider(
   name: string,
-  providerFn: ( modelName: string ) => unknown
+  providerFn: ( modelName: string ) => unknown,
+  options?: RegisterProviderOptions
 ): void;
 
 /**

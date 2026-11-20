@@ -274,6 +274,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       total,
       status,
       pricingFreshness: CacheFreshness.CACHED,
+      pricingSource: 'models.dev',
       items: items.map( ( [ group, label, amount, ppm, itemTotal, itemStatus ] ) => ( {
         group,
         label,

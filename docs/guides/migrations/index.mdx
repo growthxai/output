@@ -67,6 +67,6 @@ It reads the `@outputai/*` version in your `package.json`, finds the matching gu
     Worker exit code on a forced shutdown, shutdown and Temporal log changes, `OUTPUT_TEMPORAL_LOG_LEVEL` validation, and the 256 MB limit on trace files served by the API.
   </Card>
   <Card title="v0.17.0 → v0.18.0" href="/migrations/v0.17.0-to-v0.18.0">
-    `output workflow debug` and `dataset generate` read Temporal instead of traces. LLM costs drop `pricingFreshness: "live"` for a worker background cache. Worker shutdown service logs use `elapsedMs`.
+    `output workflow debug` and `dataset generate` read Temporal instead of traces. LLM costs drop `pricingFreshness: "live"` for a worker background cache, and `registerProvider` can bill from a provider-reported cost.
   </Card>
 </CardGroup>

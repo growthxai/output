@@ -86,6 +86,7 @@ describe( 'calculateCosts', () => {
       total: 7,
       status: LLMGenerationCost.Status.PRECISE,
       pricingFreshness: CacheFreshness.CACHED,
+      pricingSource: 'models.dev',
       items: [
         {
           group: INPUT,
