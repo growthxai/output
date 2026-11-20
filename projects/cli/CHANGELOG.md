@@ -1,5 +1,48 @@
 # @outputai/cli
 
+## 0.18.0
+
+### Minor Changes
+
+- db2d5a9: Added `--workflow-id` to `workflow dataset generate`: it reads the start input and the result of a completed run from Temporal and saves them as a dataset case, so a real run can become a test case without reading traces or going through the API for the run data. It works on local and remote Temporal. The case is named after the workflow id unless `--name` is given. If the file already has a case with that name, its `input` and `last_output` are replaced and its other fields, such as `ground_truth`, are kept, as in the other modes. A run that started without input is saved with an empty input, and a run that returned nothing is saved with a `null` output. A run that continued as new from earlier runs is saved with the input of the first run of the chain and the result of the run read, and the command prints the run ids it used. It fails if the first run can no longer be read.
+
+  Added `--run-id` (`-r`) to read a run other than the latest one of the workflow id. It needs `--workflow-id`.
+
+  Added `--profile`, `--address` and `--namespace` to choose the Temporal backend, with the same precedence as `workflow debug`: the flags, then the `TEMPORAL_*` environment variables, then the profile in `temporal.toml`, then the local dev defaults.
+
+  Added checks before anything is written. The run must be a completed run of the workflow named in the command, and its input must be an object. A run of another workflow type, a run that is running, failed, canceled, terminated or continued as new into a later run, a missing run, an unreachable Temporal and an input that is not an object each fail with a clear message on stderr and a non-zero exit, and no file is created. Input and result are read in full, and secrets are redacted as in the other modes.
+
+  Added a 30 second deadline on every Temporal call, shared with `workflow debug`, so an unresponsive server fails the command with `Temporal did not answer within 30s` instead of hanging.
+
+  Changed the scenario and `--input` modes of `workflow dataset generate` to stop reading the trace. They save only the output and the date, so they work when tracing is off.
+
+  Removed `--trace`, `--download` and `--limit` from `workflow dataset generate`. This is breaking: passing them is now an error. Use `--workflow-id` instead, one command per run (`workflow runs list` prints the workflow ids). The old modes read local trace files and the API's trace log.
+
+  Removed `executionTimeMs` from the datasets the CLI writes, including the output of `workflow test`. Nothing read it. Dataset files that still contain it load without error, and the key disappears the next time the CLI rewrites the file.
+
+- 89b0819: Changed `workflow debug` to read the run from Temporal directly instead of from the API `trace-log` endpoint. It no longer needs the API, trace files or S3, and behaves the same in development and production. The output is new, so this is breaking. Standard output is one JSON document: `complete`, `warnings`, `temporal` (address and namespace) and `workflows`, a flat list with one entry per workflow. The first entry is the run you asked for, followed by its child workflows, found by the run id in `ChildWorkflowExecutionStarted` and ordered by the time the parent started them. Each entry has `workflowId`, `runId`, `workflowType`, `status`, `parent` (children only), `pendingActivities`, `pendingChildren` and `events`, with `events` last. The document is compact JSON on a single line; use `jq` to indent it. Events keep Temporal's default JSON form (`EVENT_TYPE_*` names, `<name>EventAttributes` keys, string ids, ISO times) with payloads decoded, and nothing added. `--json` is accepted and ignored, because the output is always JSON. The text tree is removed.
+
+  Added following of workflows that continue as new: each next run (`newExecutionRunId`) is read as its own entry with the same `workflowId` (and `parent`, for a child), ordered by start time and counted against the same limits. A parent's events name only a child's first run, so this is how the rest of a child's runs are found. For the workflow you ask for, the chain is followed from the run you start at (`--run-id`, or the latest run).
+
+  Added `--run-id` to read a specific run, defaulting to the latest run. Every entry states the run that was read.
+
+  Added `--profile`, `--address` and `--namespace` to choose the Temporal backend. Connection settings follow Temporal's standard client configuration through `@temporalio/envconfig`: the `--address` and `--namespace` flags, then the `TEMPORAL_*` environment variables, then the profile in `temporal.toml`, then `localhost` on the dev stack's Temporal port (`OUTPUT_TEMPORAL_HOST_PORT`, `7233` by default) and the `default` namespace. The API key and TLS material come only from the profile or the environment.
+
+  Added truncation of decoded payloads, always on. Strings over 1,024 characters keep their first 1,000 and last 24 characters around a `... [N more characters omitted] ...` marker, arrays keep 20 items, objects 50 keys, nesting stops at depth 10 and each payload at 1,000 values. Error stacks keep their first 10 lines. Full payloads stay in Temporal.
+
+  Added limits of 100,000 events and 1,000 pages on reading across the run and all its children. When it is reached, or when a child history was already deleted by Temporal, `complete` is `false`, `warnings` lists what is missing as plain sentences, the workflows that were not read keep an entry with `events` empty, and the command still exits `0`. `status` and the pending lists are read after the events so they are never older than them; a workflow that finishes while it is being read gets a warning that its events stop before the end.
+
+  Added a 30 second deadline on every Temporal call, so an unresponsive server fails the command with `Temporal did not answer within 30s` instead of hanging. A read failure on a child workflow or on a later page, such as a permission or network error, no longer fails the whole command: it becomes a warning with the error message, `complete` is `false`, and the entry keeps the events read so far. Only a failure on the first page of the requested run fails the command. Added the `-r` short flag for `--run-id`, as on `workflow history` and `workflow monitor`.
+
+  Changed errors to follow Unix conventions: a failure (workflow or run not found, Temporal unreachable, missing profile) exits non-zero with the message on stderr and nothing on stdout. Removed the `Fetching debug information...` and `Trace source: ...` messages. The 256 MB trace file limit no longer applies to `workflow debug`.
+
+### Patch Changes
+
+- Updated dependencies [db2d5a9]
+- Updated dependencies [488096d]
+- Updated dependencies [6d6f582]
+  - @outputai/core@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes

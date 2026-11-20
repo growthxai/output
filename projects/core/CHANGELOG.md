@@ -1,5 +1,15 @@
 # @outputai/core
 
+## 0.18.0
+
+### Minor Changes
+
+- db2d5a9: Removed the optional `executionTimeMs` field from `LastOutput` and `LastEval`, and from `LastOutputSchema` and `LastEvalSchema`, in `@outputai/core/evals`. Nothing read it. Dataset files that still contain it load without error, because the schemas ignore unknown keys. TypeScript code that sets the field on a `LastOutput` or `LastEval` must drop it, since it is now an unknown property.
+- 488096d: Added an optional `extractStepCost` function on `registerProvider`. You pass a function that receives each AI SDK step's `providerMetadata` and returns the dollar amount the gateway charged for that step (or `null` when missing). Metering calls it once per step at bill time, sums the amounts, and writes an `LLMGenerationCost` with `pricingSource: "provider"`. When the function is set for a provider, that provider never uses `models.dev`, has no items and never emits the legacy `cost:llm:request` event. Catalog-priced calls now also include `pricingSource: "models.dev"`.
+- 6d6f582: Moved `models.dev` pricing off the LLM billing path onto a Temporal worker background retriever, so LLM call cost calculation are always based on cache. The `pricingFreshness` value `live` was removed, keeping only `cached`, `stale`, or `snapshot`. Until the worker's first successful refresh, costs use the bundled snapshot.
+
+  Updated shutdown logs to include the new service `LLMPricingRetriver` and other small cosmetic message updates.
+
 ## 0.17.0
 
 ### Minor Changes
