@@ -43,7 +43,7 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/growthxai/output-sdk"
+    "url": "https://github.com/growthxai/output"
   },
   "private": true,
   "packageManager": "pnpm@10.30.2",

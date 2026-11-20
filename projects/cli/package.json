@@ -60,6 +60,11 @@
     "orval": "8.37.0"
   },
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/growthxai/output",
+    "directory": "projects/cli"
+  },
   "publishConfig": {
     "access": "public"
   },
