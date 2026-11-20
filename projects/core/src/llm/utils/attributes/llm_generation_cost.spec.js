@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LLMGenerationCost, LLMGenerationCostItem } from './llm_generation_cost.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './llm_generation_usage.js';
-import { Freshness } from '../models_pricing.js';
+import { CacheFreshness } from '../../consts.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
 const MODEL_ID = 'test-model';
@@ -60,38 +60,31 @@ describe( 'LLMGenerationCost', () => {
       expected: LLMGenerationCost.Status.PRECISE
     },
     {
-      name: 'precise with live pricing',
-      usageStatus: LLMGenerationUsage.Status.COMPLETE,
-      itemStatus: LLMGenerationCostItem.Status.OK,
-      pricingFreshness: Freshness.LIVE,
-      expected: LLMGenerationCost.Status.PRECISE
-    },
-    {
       name: 'precise with cached pricing',
       usageStatus: LLMGenerationUsage.Status.COMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
-      pricingFreshness: Freshness.CACHED,
+      pricingFreshness: CacheFreshness.CACHED,
       expected: LLMGenerationCost.Status.PRECISE
     },
     {
       name: 'precise with stale pricing',
       usageStatus: LLMGenerationUsage.Status.COMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
-      pricingFreshness: Freshness.STALE,
+      pricingFreshness: CacheFreshness.STALE,
       expected: LLMGenerationCost.Status.PRECISE
     },
     {
       name: 'imprecise with snapshot pricing',
       usageStatus: LLMGenerationUsage.Status.COMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
-      pricingFreshness: Freshness.SNAPSHOT,
+      pricingFreshness: CacheFreshness.SNAPSHOT,
       expected: LLMGenerationCost.Status.IMPRECISE
     },
     {
       name: 'incomplete over snapshot pricing',
       usageStatus: LLMGenerationUsage.Status.INCOMPLETE,
       itemStatus: LLMGenerationCostItem.Status.OK,
-      pricingFreshness: Freshness.SNAPSHOT,
+      pricingFreshness: CacheFreshness.SNAPSHOT,
       expected: LLMGenerationCost.Status.INCOMPLETE
     }
   ] )( 'sets $name status', ( { usageStatus, itemStatus, amount = 100, pricingFreshness, expected } ) => {

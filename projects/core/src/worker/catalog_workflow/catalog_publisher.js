@@ -3,6 +3,7 @@ import { WorkflowExecutionAlreadyStartedError, WorkflowIdConflictPolicy } from '
 import { WORKFLOW_CATALOG } from '#consts';
 import { catalogId as workflowId, taskQueue } from '../configs.js';
 import { createChildLogger } from '#logger';
+import { CancelableRunner } from '#helpers/cancelable_runner';
 import { sleepCancellable } from '#helpers/promise';
 import { serializeError } from '#helpers/error_serializer';
 
@@ -16,17 +17,10 @@ const RETRY_DELAY = 10_000;
 const WORKFLOW_TASK_TIMEOUT = 30_000;
 
 /** Make sure the latest version of the catalog workflow is running. Stateful. */
-export class CatalogPublisher {
-  #connection = null;
-  #namespace = null;
+export class CatalogPublisher extends CancelableRunner {
   #catalog = null;
   #catalogHash = null;
   #client = null;
-  #signal = null;
-
-  #abortCtrl = new AbortController();
-  #running = false;
-  #execution = null;
 
   async #describe() {
     log.info( 'Checking running catalog hash against worker hash...' );
@@ -58,7 +52,7 @@ export class CatalogPublisher {
     }
   };
 
-  async #start() {
+  async #startWorkflow() {
     log.info( 'Starting catalog workflow...' );
 
     try {
@@ -87,8 +81,7 @@ export class CatalogPublisher {
     }
   }
 
-  /** Run the sequence to start the catalog */
-  async #execute( signal, retries = 0 ) {
+  async #publish( signal, retries = 0 ) {
     if ( signal.aborted ) {
       return;
     }
@@ -104,46 +97,39 @@ export class CatalogPublisher {
         await this.#terminate( description.runId );
       }
 
-      const success = await this.#start();
+      const success = await this.#startWorkflow();
       log.info( success ? 'Catalog workflow started' : 'Found a catalog workflow with matching hashes, start skipped' );
     } catch ( error ) {
       if ( retries < MAX_RETRIES ) {
         log.warn( 'Error while starting catalog workflow, retrying...', { error: serializeError( error, { dropKeys: [ 'stack' ] } ) } );
         await sleepCancellable( RETRY_DELAY, signal );
-        await this.#execute( signal, retries + 1 );
+        await this.#publish( signal, retries + 1 );
       } else {
         throw error;
       }
     }
   }
 
+  /**
+   * @inheritdoc
+   * @param {AbortSignal} signal
+   */
+  async run( signal ) {
+    return this.#publish( signal );
+  }
+
+  /**
+   * @param {object} options
+   * @param {import('@temporalio/client').Connection} options.connection
+   * @param {string} options.namespace
+   * @param {object} options.catalog
+   * @param {string} options.catalogHash
+   * @param {AbortSignal} options.signal
+   */
   constructor( { connection, namespace, catalog, catalogHash, signal } ) {
-    this.#connection = connection;
-    this.#namespace = namespace;
+    super( { signal } );
     this.#catalog = catalog;
     this.#catalogHash = catalogHash;
-    this.#signal = signal;
-    this.#client = new Client( { connection: this.#connection, namespace: this.#namespace } );
-  }
-
-  get running() {
-    return this.#running;
-  }
-
-  run() {
-    if ( this.#execution ) {
-      return this.#execution;
-    }
-
-    const signal = AbortSignal.any( [ this.#signal, this.#abortCtrl.signal ] );
-
-    this.#running = true;
-    this.#execution = this.#execute( signal ).finally( _ => this.#running = false );
-    return this.#execution;
-  }
-
-  interrupt() {
-    this.#abortCtrl.abort();
-    return this.#execution ?? Promise.resolve();
+    this.#client = new Client( { connection, namespace } );
   }
 };

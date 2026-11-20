@@ -1,4 +1,5 @@
 import { sleepCancellable } from '#helpers/promise';
+import { CancelableRunner } from '#helpers/cancelable_runner';
 import { createChildLogger } from '#logger';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -18,20 +19,40 @@ const HEALTHY_LOG_EVERY_LOOPS = 60;
  * Watches the Temporal connection health.
  * Rejects with a ConnectionLostError once the connection is considered lost.
  */
-export class TemporalConnectionMonitor {
+export class TemporalConnectionMonitor extends CancelableRunner {
   #maxFailures = MAX_FAILURES;
   #checkIntervalMs = CHECK_INTERVAL_MS;
   #checkTimeoutMs = CHECK_TIMEOUT_MS;
 
-  #abortCtrl = new AbortController();
   #failures = 0;
   #loops = 0;
-  #running = false;
-  #execution = null;
   #connection = null;
-  #signal = null;
 
-  #watch = async signal => {
+  /**
+   * @param {object} options
+   * @param {import('@temporalio/worker').NativeConnection} options.connection - Temporal connection
+   * @param {AbortSignal} options.signal - stops watching when aborted
+   * @param {object} [options.overrides] - health check tuning, mostly for tests
+   */
+  constructor( { connection, signal, overrides = {} } ) {
+    super( { signal } );
+    this.#connection = connection;
+    if ( Number.isFinite( overrides?.maxFailures ) ) {
+      this.#maxFailures = overrides.maxFailures;
+    }
+    if ( Number.isFinite( overrides?.checkIntervalMs ) ) {
+      this.#checkIntervalMs = overrides.checkIntervalMs;
+    }
+    if ( Number.isFinite( overrides?.checkTimeoutMs ) ) {
+      this.#checkTimeoutMs = overrides.checkTimeoutMs;
+    }
+  }
+
+  /**
+   * @inheritdoc
+   * @param {AbortSignal} signal
+   */
+  async run( signal ) {
     while ( !signal.aborted ) {
       try {
         await Promise.race( [
@@ -58,7 +79,7 @@ export class TemporalConnectionMonitor {
         const failureMessage = error?.message ?? String( error );
         if ( ++this.#failures >= this.#maxFailures ) {
           log.warn( 'Connection lost', { error: failureMessage, failures: this.#failures } );
-          this.#abortCtrl.abort();
+          this.abort();
           throw new ConnectionLostError( 'Connection lost', { cause: error } );
         }
 
@@ -68,62 +89,5 @@ export class TemporalConnectionMonitor {
       this.#loops++;
       await sleepCancellable( this.#checkIntervalMs, signal );
     }
-  };
-
-  /**
-   * @param {object} options
-   * @param {import('@temporalio/worker').NativeConnection} options.connection - Temporal connection
-   * @param {AbortSignal} options.signal - stops watching when aborted
-   * @param {object} [options.overrides] - health check tuning, mostly for tests
-   */
-  constructor( { connection, signal, overrides = {} } ) {
-    this.#connection = connection;
-    this.#signal = signal;
-    if ( Number.isFinite( overrides?.maxFailures ) ) {
-      this.#maxFailures = overrides.maxFailures;
-    }
-    if ( Number.isFinite( overrides?.checkIntervalMs ) ) {
-      this.#checkIntervalMs = overrides.checkIntervalMs;
-    }
-    if ( Number.isFinite( overrides?.checkTimeoutMs ) ) {
-      this.#checkTimeoutMs = overrides.checkTimeoutMs;
-    }
-  }
-
-  /** Returns whether the monitor is watching */
-  get running() {
-    return this.#running;
-  }
-
-  /**
-   * Starts watching the connection. Aborting the signal stops the watch.
-   * @returns {Promise<void>} resolves when the watch has stopped, rejects when the connection is lost
-   */
-  start() {
-    if ( this.#execution ) {
-      return this.#execution;
-    }
-
-    const signal = AbortSignal.any( [ this.#signal, this.#abortCtrl.signal ] );
-
-    if ( signal.aborted ) {
-      return Promise.resolve();
-    }
-
-    this.#running = true;
-    this.#execution = this.#watch( signal ).finally( () => {
-      this.#running = false;
-    } );
-
-    return this.#execution;
-  }
-
-  /**
-   * Stops watching, without reporting a connection loss.
-   * @returns {Promise<void>} resolves when the watch has fully stopped, rejects when it failed
-   */
-  stop() {
-    this.#abortCtrl.abort();
-    return this.#execution ?? Promise.resolve();
   }
 };

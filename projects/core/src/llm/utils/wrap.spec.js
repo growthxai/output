@@ -49,7 +49,7 @@ vi.mock( './metering.js', () => ( {
       this.toolIdsByName = toolIdsByName;
       this.attributes = { usage: null, cost: null, legacy: null };
       this.recordStep = vi.fn();
-      this.bill = vi.fn( async () => {
+      this.bill = vi.fn( () => {
         this.attributes.cost = mocks.billedCost;
       } );
       mocks.meterings.push( this );
@@ -426,23 +426,23 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       } );
     } );
 
-    it( 'bills what the collector holds when the sdk aborts the stream', async () => {
+    it( 'bills what the collector holds when the sdk aborts the stream', () => {
       const abortController = new AbortController();
       const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
       abortController.abort( new DOMException( 'Cancelled by caller', 'AbortError' ) );
 
-      await onAbortHook();
+      onAbortHook();
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       // the signal listener already recorded the abort, so the hook must not add a second error
       expect( tracing.addEventError ).toHaveBeenCalledOnce();
     } );
 
-    it( 'records a timeout abort that never reached the signal', async () => {
+    it( 'records a timeout abort that never reached the signal', () => {
       const abortController = new AbortController();
       const { onAbortHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
 
-      await onAbortHook();
+      onAbortHook();
 
       const [ recorded ] = mocks.mapAiError.mock.calls[0];
       expect( recorded.message ).toBe( 'Streaming timed out.' );
@@ -454,23 +454,24 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         .toBeLessThan( tracing.addEventError.mock.invocationCallOrder[0] );
     } );
 
-    it( 'records a timeout abort when the call carries no signal', async () => {
+    it( 'records a timeout abort when the call carries no signal', () => {
       const { onAbortHook } = hooksFrom( 'streamText' );
 
-      await onAbortHook();
+      onAbortHook();
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).toHaveBeenCalledOnce();
     } );
 
-    it( 'bills onEnd, ends the trace, then awaits the callback', async () => {
+    it( 'bills onEnd, ends the trace, then fires the callback', async () => {
       const response = streamResponse();
       const mergedSources = [ { url: 'https://s.test' } ];
       mocks.extractSources.mockReturnValue( mergedSources );
       const callback = vi.fn();
       const { onEndHook } = hooksFrom( 'Agent.stream' );
 
-      await onEndHook( response, callback );
+      onEndHook( response, callback );
+      await vi.waitFor( () => expect( callback ).toHaveBeenCalledOnce() );
 
       expect( metering().bill ).toHaveBeenCalledExactlyOnceWith( response );
       expect( mocks.extractSources ).toHaveBeenCalledWith( response );
@@ -491,11 +492,11 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( tracing.addEventEnd.mock.invocationCallOrder[0] ).toBeLessThan( callback.mock.invocationCallOrder[0] );
     } );
 
-    it( 'removes the abort listener when the stream ends', async () => {
+    it( 'removes the abort listener when the stream ends', () => {
       const abortController = new AbortController();
       const { onEndHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
 
-      await onEndHook( streamResponse() );
+      onEndHook( streamResponse() );
       abortController.abort( new DOMException( 'Too late', 'AbortError' ) );
 
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
@@ -510,23 +511,25 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         throw new Error( 'user onEnd' );
       } );
 
-      await onEndHook( response, callback );
+      onEndHook( response, callback );
 
       expect( callback.mock.calls[0][0].result ).toBe( response.text );
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
       expect( tracing.addEventError ).not.toHaveBeenCalled();
       expect( mocks.mapAiError ).not.toHaveBeenCalled();
-      expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onEnd() callback failed', {
-        namespace: 'LLM',
-        error: 'user onEnd'
+      await vi.waitFor( () => {
+        expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onEnd() callback failed', {
+          namespace: 'LLM',
+          error: 'user onEnd'
+        } );
       } );
     } );
 
-    it( 'records a response handling failure on the trace without ending it', async () => {
+    it( 'records a response handling failure on the trace without ending it', () => {
       const callback = vi.fn();
       const { onEndHook } = hooksFrom( 'streamText' );
 
-      await expect( onEndHook( null, callback ) ).resolves.toBeUndefined();
+      expect( onEndHook( null, callback ) ).toBeUndefined();
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       expect( callback ).not.toHaveBeenCalled();
@@ -541,11 +544,11 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       expect( tracing.addEventEnd ).not.toHaveBeenCalled();
     } );
 
-    it( 'skips a callback that is not a function', async () => {
+    it( 'skips a callback that is not a function', () => {
       const response = streamResponse();
       const { onEndHook } = hooksFrom( 'streamText' );
 
-      await expect( onEndHook( response, 'not-a-function' ) ).resolves.toBeUndefined();
+      expect( onEndHook( response, 'not-a-function' ) ).toBeUndefined();
 
       expect( tracing.addEventEnd ).toHaveBeenCalledOnce();
       expect( mocks.logger.error ).not.toHaveBeenCalled();
@@ -556,7 +559,8 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       const callback = vi.fn();
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      await onErrorHook( { error: original }, callback );
+      onErrorHook( { error: original }, callback );
+      await vi.waitFor( () => expect( callback ).toHaveBeenCalledWith( mappedError ) );
 
       expect( metering().bill ).toHaveBeenCalledOnce();
       expect( metering().bill.mock.invocationCallOrder[0] )
@@ -566,14 +570,14 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError
       } );
-      expect( callback ).toHaveBeenCalledWith( mappedError );
     } );
 
     it( 'normalizes an error event that carries no error instance', async () => {
       const callback = vi.fn();
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      await onErrorHook( { error: { code: 500 } }, callback );
+      onErrorHook( { error: { code: 500 } }, callback );
+      await vi.waitFor( () => expect( callback ).toHaveBeenCalledWith( mappedError ) );
 
       const [ recorded ] = mocks.mapAiError.mock.calls[0];
       expect( recorded ).toBeInstanceOf( Error );
@@ -583,39 +587,38 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
         id: 'streamText-9000000000-a1b2c3d4',
         details: mappedError
       } );
-      expect( callback ).toHaveBeenCalledWith( mappedError );
     } );
 
-    it( 'bills on every terminal hook and leaves deduplication to the collector', async () => {
+    it( 'bills on every terminal hook and leaves deduplication to the collector', () => {
       const response = streamResponse();
       const { onEndHook, onErrorHook, onStepEndHook } = hooksFrom( 'streamText' );
 
       // The sdk reports the error before the steps that preceded it, so onEnd is the one with usage
-      await onErrorHook( { error: new Error( 'provider chunk failed' ) }, vi.fn() );
-      await onStepEndHook( response.steps[0] );
-      await onEndHook( response );
+      onErrorHook( { error: new Error( 'provider chunk failed' ) }, vi.fn() );
+      onStepEndHook( response.steps[0] );
+      onEndHook( response );
 
       expect( metering().recordStep ).toHaveBeenCalledWith( response.steps[0] );
       expect( metering().bill.mock.calls ).toEqual( [ [], [ response ] ] );
     } );
 
-    it( 'removes the abort listener when the stream reports an error', async () => {
+    it( 'removes the abort listener when the stream reports an error', () => {
       const abortController = new AbortController();
       const { onErrorHook } = hooksFrom( 'streamText', { abortSignal: abortController.signal } );
 
-      await onErrorHook( { error: new Error( 'stream failed' ) } );
+      onErrorHook( { error: new Error( 'stream failed' ) } );
       abortController.abort( new DOMException( 'Too late', 'AbortError' ) );
 
       expect( tracing.addEventError ).toHaveBeenCalledOnce();
       expect( mocks.mapAiError ).toHaveBeenCalledOnce();
     } );
 
-    it( 'swallows throws from the onError callback', async () => {
+    it( 'swallows throws from the onError callback', () => {
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      await expect( onErrorHook( { error: new Error( 'x' ) }, () => {
+      expect( onErrorHook( { error: new Error( 'x' ) }, () => {
         throw new Error( 'user onError' );
-      } ) ).resolves.toBeUndefined();
+      } ) ).toBeUndefined();
 
       expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onError() callback failed', {
         namespace: 'LLM',
@@ -623,19 +626,23 @@ describe( 'wrapTextGeneration / wrapImageGeneration / wrapStream', () => {
       } );
     } );
 
-    it( 'awaits and swallows rejected promises from the onError callback', async () => {
+    it( 'swallows rejected promises from the onError callback', async () => {
       const state = { rejection: null };
       const callback = vi.fn( () => new Promise( ( _, reject ) => {
         state.rejection = reject;
       } ) );
       const { onErrorHook } = hooksFrom( 'streamText' );
 
-      const hookPromise = onErrorHook( { error: new Error( 'x' ) }, callback );
+      expect( onErrorHook( { error: new Error( 'x' ) }, callback ) ).toBeUndefined();
       await Promise.resolve();
 
-      expect( hookPromise ).toBeInstanceOf( Promise );
       state.rejection( new Error( 'async user onError' ) );
-      await expect( hookPromise ).resolves.toBeUndefined();
+      await vi.waitFor( () => {
+        expect( mocks.logger.error ).toHaveBeenCalledWith( 'Stream onError() callback failed', {
+          namespace: 'LLM',
+          error: 'async user onError'
+        } );
+      } );
     } );
 
     it( 'maps a throw from fn onto the llm trace and rethrows', () => {

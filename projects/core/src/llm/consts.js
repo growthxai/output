@@ -4,3 +4,9 @@ export const Role = {
   USER: 'user',
   ASSISTANT: 'assistant'
 };
+
+export const CacheFreshness = {
+  CACHED: 'cached',
+  STALE: 'stale',
+  SNAPSHOT: 'snapshot'
+};

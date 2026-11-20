@@ -109,24 +109,24 @@ The worker logs its budget when shutdown starts, so the numbers are in the log e
 ```text
 [info] Worker: Shutting down { shutdownForceTimeMs: 20000, shutdownGraceTimeMs: 15000, hookFlushTimeoutMs: 5000 }
 [info] Worker Shutdown: Stopping Worker...
-[info] Worker Shutdown: Stopping Worker complete { shutdownDurationMs: 3120 }
+[info] Worker Shutdown: Worker stopped { elapsedMs: 3120 }
 [info] Worker: Flushing hook callbacks...
 [info] Worker: Bye { exitCode: 0, shutdownDurationMs: 3340 }
 ```
 
 The samples use the development format, `[level] namespace: message { fields }`. Production logs are JSON with the same level, namespace, message and fields.
 
-The `Bye` line is the last one, and its `shutdownDurationMs` is the time the whole shutdown took, hook flush included. Compare it with `maxShutdownDelaySeconds` or `terminationGracePeriodSeconds` to see how much margin you have.
+Each service stop line carries `elapsedMs` for that stop only. The `Bye` line is the last one, and its `shutdownDurationMs` is the time the whole shutdown took, hook flush included. Compare it with `maxShutdownDelaySeconds` or `terminationGracePeriodSeconds` to see how much margin you have.
 
 When work was abandoned at force time you see this instead:
 
 ```text
 [warn] Temporal: Worker failed { error: { name: "GracefulShutdownPeriodExpiredError", ... } }
-[warn] Worker Shutdown: Stopping Worker failed { error: { name: "IllegalStateError", message: "Worker still in use: ...", ... }, shutdownDurationMs: 20004 }
+[warn] Worker Shutdown: Worker failed to stop { error: { name: "IllegalStateError", message: "Worker still in use: ...", ... }, elapsedMs: 20004 }
 [info] Worker: Bye { exitCode: 0, shutdownDurationMs: 20190 }
 ```
 
-`Worker failed` is Temporal reporting that the force timer expired. Output logs it as a warning, since an expired force timer is an expected outcome of a deploy. `IllegalStateError: Worker still in use` follows from it: the abandoned steps still hold native calls, so Temporal cannot finish closing the worker. A `shutdownDurationMs` near `shutdownForceTimeMs` on `Stopping Worker failed` confirms the drain hit its bound.
+`Worker failed` is Temporal reporting that the force timer expired. Output logs it as a warning, since an expired force timer is an expected outcome of a deploy. `IllegalStateError: Worker still in use` follows from it: the abandoned steps still hold native calls, so Temporal cannot finish closing the worker. An `elapsedMs` near `shutdownForceTimeMs` on `Worker failed to stop` confirms the drain hit its bound.
 
 `OUTPUT_TEMPORAL_LOG_LEVEL` controls these Temporal logs. At `ERROR` the `Worker failed` warning is not logged, because it is no longer an error.
 

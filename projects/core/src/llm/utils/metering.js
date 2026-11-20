@@ -27,7 +27,7 @@ export class Metering {
     legacy: null
   };
 
-  async #createAttributes( { usage, steps, requestDetails } ) {
+  #createAttributes( { usage, steps, requestDetails } ) {
     const baseUsageArgs = {
       prompt: this.#prompt,
       toolIdsByName: this.#toolIdsByName
@@ -38,11 +38,11 @@ export class Metering {
 
     this.#attributes.usage = totalUsage;
     if ( this.#attributes.usage ) {
-      this.#attributes.cost = await calculateCosts( this.#attributes.usage, stepsUsage );
+      this.#attributes.cost = calculateCosts( this.#attributes.usage, stepsUsage );
 
       if ( this.#attributes.cost ) {
         // @TEMP Preserve the deprecated event and trace attribute for legacy consumers.
-        const legacyCost = await calculateLegacyCosts( this.#attributes.usage );
+        const legacyCost = calculateLegacyCosts( this.#attributes.usage );
         this.#attributes.legacy = convertCostToLegacy( legacyCost );
       }
     }
@@ -103,9 +103,9 @@ export class Metering {
    *
    * @param {object} [response] - AI SDK response, whose aggregate usage and steps take precedence
    *   over the recorded steps; omitted by the paths that end without one
-   * @returns {Promise<void>}
+   * @returns {void}
    */
-  bill = async ( response = null ) => {
+  bill = ( response = null ) => {
     if ( this.#billed ) {
       return;
     }
@@ -127,7 +127,7 @@ export class Metering {
 
       this.#billed = true;
 
-      await this.#createAttributes( { usage, steps, requestDetails } );
+      this.#createAttributes( { usage, steps, requestDetails } );
       this.#attachAttributes();
       this.#emitEvents();
 

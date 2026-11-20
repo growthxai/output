@@ -1,4 +1,4 @@
-import { fetchModelsPricing } from './models_pricing.js';
+import { getPricing } from '../pricing/cache.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 import { resolveWebSearchPpm } from './web_search.js';
 import { Logger } from '#runtime_logger';
@@ -119,16 +119,10 @@ const hasTiers = modelPricing => Array.isArray( modelPricing?.cost?.tiers ) && m
  *
  * @param {LLMGenerationUsage} usage - Normalized LLM generation usage
  * @param {LLMGenerationUsage[]} stepsUsage - Per-request usage for multi-step calls
- * @returns {Promise<LLMGenerationCost | null>} LLM generation cost with input, output, total and breakdown
+ * @returns {LLMGenerationCost} LLM generation cost with input, output, total and breakdown
  */
-export const calculateCosts = async ( usage, stepsUsage ) => {
-  const { models, freshness: pricingFreshness } = await fetchModelsPricing();
-
-  if ( !models ) {
-    Logger.warn( 'Failed to fetch models pricing', { namespace: 'LLM' } );
-    return null;
-  }
-
+export const calculateCosts = ( usage, stepsUsage ) => {
+  const { models, freshness: pricingFreshness } = getPricing();
   const { providerId, modelId } = usage;
 
   const modelPricing = models.get( `${providerId}/${modelId}` );
@@ -150,14 +144,10 @@ export const calculateCosts = async ( usage, stepsUsage ) => {
  * Calculates a cost using the legacy aggregate pricing behavior.
  *
  * @param {LLMGenerationUsage} usage - Normalized aggregate LLM generation usage
- * @returns {Promise<LLMGenerationCost | null>} Cost compatible with the legacy conversion
+ * @returns {LLMGenerationCost} Cost compatible with the legacy conversion
  */
-export const calculateLegacyCosts = async usage => {
-  const { models, freshness: pricingFreshness } = await fetchModelsPricing();
-  if ( !models ) {
-    return null;
-  }
-
+export const calculateLegacyCosts = usage => {
+  const { models, freshness: pricingFreshness } = getPricing();
   const { providerId, modelId } = usage;
   const modelPricing = models.get( `${providerId}/${modelId}` );
   const items = calculateStandardUsage( usage, modelPricing );

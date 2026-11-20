@@ -190,7 +190,7 @@ The IDs match the ones in the provider's own logs and support tools. Requests th
 
 ### Normalized cost
 
-`LLMGenerationCost` contains priced items for the normalized usage. Token rates come from the built-in pricing source and are cached for 24 hours; provider-specific tool rates are maintained locally. Each item total is `(amount / 1_000_000) * ppm`. When the token pricing source is unreachable, its rates come from the last cached copy or from a snapshot bundled with the package, and `pricingFreshness` records which.
+`LLMGenerationCost` contains priced items for the normalized usage. Token rates come from the models.dev catalog, refreshed in the background by the Temporal worker and held in a 24-hour process cache; provider-specific tool rates are maintained locally. Billing reads that cache synchronously and never fetches during a call. Each item total is `(amount / 1_000_000) * ppm`. Until the first successful refresh in the process, rates come from a snapshot bundled with the package, and `pricingFreshness` records which source was used.
 
 For models priced by context size, Output selects the tier separately for every provider request. The request's complete input count, including cache reads and writes, determines the tier; output does not count toward the threshold. A tier applies only when input is greater than its threshold, and its rates price the entire request. Multi-step calls can therefore contain multiple cost items with the same `group` and `label` but different `ppm` and `tier` values. When any step usage is incomplete, Output uses aggregate usage with base pricing and marks token items `uncertain`; this may understate the cost when an individual request crossed a higher-priced tier.
 
@@ -199,7 +199,7 @@ For models priced by context size, Output selects the tier separately for every 
 | `promptName`, `requestDetails` | `string`, `LLMRequestDetails` | Same values as on the usage, with the same absence on older traces. |
 | `input`, `output`, `tools`, `total` | `number \| null` | Aggregate dollar costs for available priced items. `tools` holds charges such as grounding and provider-native web search, and `total` is the sum of `input`, `output`, and `tools`. |
 | `status` | `"precise" \| "imprecise" \| "incomplete"` | Whether all rates were exact, a fallback or uncertain rate was used or the rates came from the bundled snapshot, or usage/pricing was incomplete. A tool charge with no known rate lands `incomplete`. |
-| `pricingFreshness` | `"live" \| "cached" \| "stale" \| "snapshot"` | How current the rate table was: fetched during this call, served from the 24-hour cache, kept past its TTL because a refresh failed, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
+| `pricingFreshness` | `"cached" \| "stale" \| "snapshot"` | How current the rate table was: served from the 24-hour cache, kept past its TTL because a refresh failed or has not run yet after expiry, or read from the point-in-time snapshot bundled with the package. Only `snapshot` downgrades `status` to `imprecise`. |
 | `items[].ppm` | `number \| null` | Applied price per million units, such as tokens, requests, prompts, or queries. |
 | `items[].total` | `number \| null` | Calculated item cost. |
 | `items[].status` | `"ok" \| "fallback" \| "uncertain" \| "missing"` | Whether the exact rate was used, a cache rate fell back to the input rate, the context tier is uncertain, or no rate was available. Reasoning without a listed rate uses the output rate and is `ok`. |

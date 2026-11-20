@@ -84,7 +84,7 @@ describe( 'CatalogPublisher', () => {
     it( 'starts the catalog when nothing is running', async () => {
       const publisher = createPublisher();
 
-      await publisher.run();
+      await publisher.start();
 
       expect( terminateMock ).not.toHaveBeenCalled();
       expect( startMock ).toHaveBeenCalledWith( 'catalog', startArguments );
@@ -96,7 +96,7 @@ describe( 'CatalogPublisher', () => {
     it( 'starts the catalog when the previous one is closed', async () => {
       describeMock.mockResolvedValue( { closeTime: '2024-01-01T00:00:00Z' } );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( terminateMock ).not.toHaveBeenCalled();
       expect( startMock ).toHaveBeenCalledWith( 'catalog', startArguments );
@@ -105,7 +105,7 @@ describe( 'CatalogPublisher', () => {
     it( 'skips the restart when the running hash matches', async () => {
       describeMock.mockResolvedValue( running( catalogHash ) );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( terminateMock ).not.toHaveBeenCalled();
       expect( startMock ).not.toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe( 'CatalogPublisher', () => {
     it( 'terminates and starts when the running catalog carries no memo', async () => {
       describeMock.mockResolvedValue( { closeTime: undefined, runId: 'run-1', memo: undefined } );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( mockLog.warn ).not.toHaveBeenCalled();
       expect( terminateMock ).toHaveBeenCalledOnce();
@@ -125,7 +125,7 @@ describe( 'CatalogPublisher', () => {
     it( 'terminates the pinned run then starts when the running hash differs', async () => {
       describeMock.mockResolvedValue( running( 'old-hash' ) );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( getHandleMock ).toHaveBeenCalledWith( catalogId, 'run-1' );
       expect( terminateMock ).toHaveBeenCalledWith( `Systematic terminating. Superseded by catalog ${catalogHash}` );
@@ -140,7 +140,7 @@ describe( 'CatalogPublisher', () => {
         .mockResolvedValueOnce( running( catalogHash ) );
       startMock.mockRejectedValue( alreadyStarted() );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( startMock ).toHaveBeenCalledOnce();
       expect( terminateMock ).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe( 'CatalogPublisher', () => {
         .mockRejectedValueOnce( alreadyStarted() )
         .mockResolvedValue( undefined );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( sleepMock ).toHaveBeenCalledOnce();
       expect( terminateMock ).toHaveBeenCalledOnce();
@@ -171,7 +171,7 @@ describe( 'CatalogPublisher', () => {
       const error = new Error( 'describe failed' );
       describeMock.mockRejectedValue( error );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( serializeErrorMock ).toHaveBeenCalledWith( error, { dropKeys: [ 'stack' ] } );
       expect( mockLog.warn ).toHaveBeenCalledWith(
@@ -185,7 +185,7 @@ describe( 'CatalogPublisher', () => {
       describeMock.mockResolvedValue( running( 'old-hash' ) );
       terminateMock.mockRejectedValue( new Error( 'terminate failed' ) );
 
-      await createPublisher().run();
+      await createPublisher().start();
 
       expect( mockLog.warn ).toHaveBeenCalledWith(
         'Ignoring error while terminating previous catalog workflow',
@@ -201,7 +201,7 @@ describe( 'CatalogPublisher', () => {
       startMock.mockRejectedValue( error );
       const publisher = createPublisher();
 
-      await expect( publisher.run() ).rejects.toBe( error );
+      await expect( publisher.start() ).rejects.toBe( error );
 
       expect( startMock ).toHaveBeenCalledTimes( 3 );
       expect( sleepMock ).toHaveBeenCalledTimes( 2 );
@@ -211,7 +211,7 @@ describe( 'CatalogPublisher', () => {
     it( 'waits the retry delay with the abort signal between attempts', async () => {
       startMock.mockRejectedValue( new Error( 'start failed' ) );
 
-      await expect( createPublisher().run() ).rejects.toThrow( 'start failed' );
+      await expect( createPublisher().start() ).rejects.toThrow( 'start failed' );
 
       expect( sleepMock ).toHaveBeenCalledWith( RETRY_DELAY, expect.any( AbortSignal ) );
     } );
@@ -222,7 +222,7 @@ describe( 'CatalogPublisher', () => {
       const controller = new AbortController();
       controller.abort();
 
-      await expect( createPublisher( controller.signal ).run() ).resolves.toBeUndefined();
+      await expect( createPublisher( controller.signal ).start() ).resolves.toBeUndefined();
 
       expect( describeMock ).not.toHaveBeenCalled();
       expect( startMock ).not.toHaveBeenCalled();
@@ -233,7 +233,7 @@ describe( 'CatalogPublisher', () => {
       startMock.mockRejectedValue( new Error( 'start failed' ) );
       sleepMock.mockImplementation( async () => controller.abort() );
 
-      await expect( createPublisher( controller.signal ).run() ).resolves.toBeUndefined();
+      await expect( createPublisher( controller.signal ).start() ).resolves.toBeUndefined();
 
       expect( startMock ).toHaveBeenCalledOnce();
       expect( sleepMock ).toHaveBeenCalledOnce();
@@ -243,10 +243,10 @@ describe( 'CatalogPublisher', () => {
       startMock.mockRejectedValue( new Error( 'start failed' ) );
       const publisher = createPublisher();
       sleepMock.mockImplementation( async () => {
-        publisher.interrupt();
+        publisher.stop();
       } );
 
-      await expect( publisher.run() ).resolves.toBeUndefined();
+      await expect( publisher.start() ).resolves.toBeUndefined();
 
       expect( startMock ).toHaveBeenCalledOnce();
     } );
@@ -256,7 +256,7 @@ describe( 'CatalogPublisher', () => {
       describeMock.mockResolvedValue( running( 'old-hash' ) );
       terminateMock.mockImplementation( async () => controller.abort() );
 
-      await createPublisher( controller.signal ).run();
+      await createPublisher( controller.signal ).start();
 
       expect( terminateMock ).toHaveBeenCalledOnce();
       expect( startMock ).toHaveBeenCalledWith( 'catalog', startArguments );
@@ -271,7 +271,7 @@ describe( 'CatalogPublisher', () => {
       } ) );
       const publisher = createPublisher();
 
-      const run = publisher.run();
+      const run = publisher.start();
       await flushPromises();
 
       expect( publisher.running ).toBe( true );
@@ -285,8 +285,8 @@ describe( 'CatalogPublisher', () => {
     it( 'returns the same execution and publishes once when run more than once', async () => {
       const publisher = createPublisher();
 
-      const first = publisher.run();
-      const second = publisher.run();
+      const first = publisher.start();
+      const second = publisher.start();
 
       expect( second ).toBe( first );
 
@@ -299,7 +299,7 @@ describe( 'CatalogPublisher', () => {
     it( 'resolves when interrupted before running', async () => {
       const publisher = createPublisher();
 
-      await expect( publisher.interrupt() ).resolves.toBeUndefined();
+      await expect( publisher.stop() ).resolves.toBeUndefined();
 
       expect( publisher.running ).toBe( false );
       expect( describeMock ).not.toHaveBeenCalled();
@@ -309,9 +309,9 @@ describe( 'CatalogPublisher', () => {
       startMock.mockRejectedValue( new Error( 'start failed' ) );
       const publisher = createPublisher();
 
-      await expect( publisher.run() ).rejects.toThrow( 'start failed' );
+      await expect( publisher.start() ).rejects.toThrow( 'start failed' );
 
-      await expect( publisher.interrupt() ).rejects.toThrow( 'start failed' );
+      await expect( publisher.stop() ).rejects.toThrow( 'start failed' );
     } );
   } );
 } );

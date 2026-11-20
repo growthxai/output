@@ -34,15 +34,17 @@ import { WorkerRunner } from './worker_runner.js';
 import { shutdownServices } from './shutdown.js';
 import { init as initCredentials } from '#credentials/init';
 import { buildWorkerOptions } from './worker_options.js';
+import { LLMPricingRetriever } from '../llm/pricing/job.js';
 
 import './log_hooks.js';
 
 const log = createChildLogger( 'Worker' );
 
 const services = {
+  catalogPublisher: null,
   connection: null,
   connectionMonitor: null,
-  catalogPublisher: null,
+  llmPricingRetriever: null,
   workerRunner: null
 };
 
@@ -96,14 +98,20 @@ const execute = async () => {
   log.info( 'Setting up temporal endpoint...' );
   run( () => setupClientConfig( { connection, namespace } ) );
 
-  log.info( 'Creating catalog publisher...' );
-  services.catalogPublisher = run( () => new CatalogPublisher( { connection, namespace, catalog, catalogHash, signal } ) );
-
   log.info( 'Creating connection monitor...' );
   services.connectionMonitor = run( () => new TemporalConnectionMonitor( { connection, signal } ) );
 
   log.info( 'Publishing catalog workflow...' );
-  await run( () => services.catalogPublisher.run() );
+  await run( () => {
+    services.catalogPublisher = new CatalogPublisher( { connection, namespace, catalog, catalogHash, signal } );
+    return services.catalogPublisher.start();
+  } );
+
+  log.info( 'Starting LLM pricing retriever...' );
+  run( () => {
+    services.llmPricingRetriever = new LLMPricingRetriever( { signal } );
+    services.llmPricingRetriever.start();
+  } );
 
   log.info( 'Creating Temporal worker...' );
   const worker = await run( () => Worker.create( {

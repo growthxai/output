@@ -412,7 +412,7 @@ export interface LLMUsageEvent {
 
 export type LLMGenerationCostItemStatus = 'ok' | 'fallback' | 'uncertain' | 'missing';
 export type LLMGenerationCostStatus = 'precise' | 'imprecise' | 'incomplete';
-export type LLMGenerationCostPricingFreshness = 'live' | 'cached' | 'stale' | 'snapshot';
+export type LLMGenerationCostPricingFreshness = 'cached' | 'stale' | 'snapshot';
 
 /** Context-based pricing tier applied to a normalized cost item. */
 export interface LLMGenerationCostTier {
