@@ -13,7 +13,8 @@ vi.mock( '#helpers/error_serializer', () => ( { serializeError: serializeErrorMo
 const createServices = () => ( {
   workerRunner: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
   connectionMonitor: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
-  catalogPublisher: { running: true, interrupt: vi.fn().mockResolvedValue( undefined ) },
+  catalogPublisher: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
+  llmPricingDataRetriever: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
   connection: { close: vi.fn().mockResolvedValue( undefined ) }
 } );
 
@@ -22,6 +23,7 @@ const createEmptyServices = () => ( {
   workerRunner: null,
   connectionMonitor: null,
   catalogPublisher: null,
+  llmPricingDataRetriever: null,
   connection: null
 } );
 
@@ -37,14 +39,17 @@ describe( 'shutdownServices', () => {
 
     expect( services.workerRunner.stop ).toHaveBeenCalledOnce();
     expect( services.connectionMonitor.stop ).toHaveBeenCalledOnce();
-    expect( services.catalogPublisher.interrupt ).toHaveBeenCalledOnce();
+    expect( services.catalogPublisher.stop ).toHaveBeenCalledOnce();
+    expect( services.llmPricingDataRetriever.stop ).toHaveBeenCalledOnce();
     expect( services.connection.close ).toHaveBeenCalledOnce();
 
     expect( services.workerRunner.stop.mock.invocationCallOrder[0] )
       .toBeLessThan( services.connectionMonitor.stop.mock.invocationCallOrder[0] );
     expect( services.connectionMonitor.stop.mock.invocationCallOrder[0] )
-      .toBeLessThan( services.catalogPublisher.interrupt.mock.invocationCallOrder[0] );
-    expect( services.catalogPublisher.interrupt.mock.invocationCallOrder[0] )
+      .toBeLessThan( services.catalogPublisher.stop.mock.invocationCallOrder[0] );
+    expect( services.catalogPublisher.stop.mock.invocationCallOrder[0] )
+      .toBeLessThan( services.llmPricingDataRetriever.stop.mock.invocationCallOrder[0] );
+    expect( services.llmPricingDataRetriever.stop.mock.invocationCallOrder[0] )
       .toBeLessThan( services.connection.close.mock.invocationCallOrder[0] );
   } );
 
@@ -53,8 +58,9 @@ describe( 'shutdownServices', () => {
 
     expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping Worker...' );
     expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping Connection Monitor...' );
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Interrupting Catalog Publisher...' );
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Closing Connection...' );
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping Catalog Publisher...' );
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping LLM Pricing Retriever...' );
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping Temporal Connection...' );
     expect( mockLog.warn ).not.toHaveBeenCalled();
   } );
 
@@ -103,8 +109,18 @@ describe( 'shutdownServices', () => {
 
     await shutdownServices( services );
 
-    expect( services.catalogPublisher.interrupt ).not.toHaveBeenCalled();
-    expect( mockLog.info ).not.toHaveBeenCalledWith( 'Interrupting Catalog Publisher...' );
+    expect( services.catalogPublisher.stop ).not.toHaveBeenCalled();
+    expect( mockLog.info ).not.toHaveBeenCalledWith( 'Stopping Catalog Publisher...' );
+  } );
+
+  it( 'skips an llm pricing retriever that already finished', async () => {
+    const services = createServices();
+    services.llmPricingDataRetriever.running = false;
+
+    await shutdownServices( services );
+
+    expect( services.llmPricingDataRetriever.stop ).not.toHaveBeenCalled();
+    expect( mockLog.info ).not.toHaveBeenCalledWith( 'Stopping LLM Pricing Retriever...' );
   } );
 
   it( 'reads the state at each turn, so a service stopped by an earlier step is skipped', async () => {
@@ -132,14 +148,20 @@ describe( 'shutdownServices', () => {
     await shutdownServices( services );
 
     expect( services.connection.close ).toHaveBeenCalledOnce();
-    expect( mockLog.info ).toHaveBeenCalledWith( 'Closing Connection...' );
+    expect( mockLog.info ).toHaveBeenCalledWith( 'Stopping Temporal Connection...' );
   } );
 
   it( 'logs how long every service took to stop', async () => {
     await shutdownServices( createServices() );
 
-    [ 'Stopping Worker', 'Stopping Connection Monitor', 'Interrupting Catalog Publisher', 'Closing Connection' ].forEach( label => {
-      expect( mockLog.info ).toHaveBeenCalledWith( `${label} complete`, { shutdownDurationMs: expect.any( Number ) } );
+    [
+      'Worker',
+      'Connection Monitor',
+      'Catalog Publisher',
+      'LLM Pricing Retriever',
+      'Temporal Connection'
+    ].forEach( name => {
+      expect( mockLog.info ).toHaveBeenCalledWith( `${name} stopped`, { elapsedMs: expect.any( Number ) } );
     } );
     expect( mockLog.warn ).not.toHaveBeenCalled();
   } );
@@ -152,12 +174,13 @@ describe( 'shutdownServices', () => {
     await shutdownServices( services );
 
     expect( serializeErrorMock ).toHaveBeenCalledWith( error );
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Stopping Worker failed', {
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Worker failed to stop', {
       error: { name: 'Error', message: 'drain failed' },
-      shutdownDurationMs: expect.any( Number )
+      elapsedMs: expect.any( Number )
     } );
     expect( services.connectionMonitor.stop ).toHaveBeenCalledOnce();
-    expect( services.catalogPublisher.interrupt ).toHaveBeenCalledOnce();
+    expect( services.catalogPublisher.stop ).toHaveBeenCalledOnce();
+    expect( services.llmPricingDataRetriever.stop ).toHaveBeenCalledOnce();
     expect( services.connection.close ).toHaveBeenCalledOnce();
   } );
 
@@ -168,9 +191,9 @@ describe( 'shutdownServices', () => {
 
     await shutdownServices( services );
 
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Closing Connection failed', {
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Temporal Connection failed to stop', {
       error: { name: 'Error', message: 'close failed' },
-      shutdownDurationMs: expect.any( Number )
+      elapsedMs: expect.any( Number )
     } );
   } );
 
@@ -183,9 +206,9 @@ describe( 'shutdownServices', () => {
 
     await shutdownServices( services );
 
-    expect( mockLog.warn ).toHaveBeenCalledWith( 'Stopping Worker failed', {
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Worker failed to stop', {
       error: { name: 'Error', message: 'shutdown blew up' },
-      shutdownDurationMs: expect.any( Number )
+      elapsedMs: expect.any( Number )
     } );
     expect( services.connection.close ).toHaveBeenCalledOnce();
   } );
@@ -199,10 +222,10 @@ describe( 'shutdownServices', () => {
 
     await shutdownServices( services );
 
-    expect( mockLog.warn ).toHaveBeenNthCalledWith( 1, 'Stopping Worker failed', expect.objectContaining( {
+    expect( mockLog.warn ).toHaveBeenNthCalledWith( 1, 'Worker failed to stop', expect.objectContaining( {
       error: { name: 'Error', message: 'drain failed' }
     } ) );
-    expect( mockLog.warn ).toHaveBeenNthCalledWith( 2, 'Closing Connection failed', expect.objectContaining( {
+    expect( mockLog.warn ).toHaveBeenNthCalledWith( 2, 'Temporal Connection failed to stop', expect.objectContaining( {
       error: { name: 'Error', message: 'close failed' }
     } ) );
   } );

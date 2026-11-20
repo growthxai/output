@@ -12,16 +12,15 @@ import perplexityStream from '../fixtures/stream_response_v7_perplexity.js';
 import perplexityText from '../fixtures/text_response_v7_perplexity.js';
 import pricingTable from '../fixtures/models_api_v7_subset.json' with { type: 'json' };
 
-const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
+const mockGetPricing = vi.hoisted( () => vi.fn() );
 
-vi.mock( './models_pricing.js', async importOriginal => ( {
-  ...await importOriginal(),
-  fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
+vi.mock( '../pricing/cache.js', () => ( {
+  getPricing: ( ...args ) => mockGetPricing( ...args )
 } ) );
 
 import { calculateCosts } from './cost.js';
 import { LLMGenerationCost, LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
-import { Freshness } from './models_pricing.js';
+import { CacheFreshness } from '../consts.js';
 import { parseLLMUsage } from './usage.js';
 import { LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
@@ -233,11 +232,11 @@ const cases = [
 
 describe( 'calculateCosts with AI SDK response fixtures', () => {
   beforeEach( () => {
-    mockFetchModelsPricing.mockReset();
-    mockFetchModelsPricing.mockResolvedValue( { models, freshness: Freshness.LIVE } );
+    mockGetPricing.mockReset();
+    mockGetPricing.mockReturnValue( { models, freshness: CacheFreshness.CACHED } );
   } );
 
-  it.each( cases )( 'calculates $name cost', async ( {
+  it.each( cases )( 'calculates $name cost', ( {
     fixture,
     providerId,
     modelId,
@@ -261,7 +260,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       steps: fixture.steps,
       requestDetails
     } );
-    const result = await calculateCosts( usage, [] );
+    const result = calculateCosts( usage, [] );
 
     expect( JSON.parse( JSON.stringify( result ) ) ).toEqual( {
       type: LLMGenerationCost.TYPE,
@@ -274,7 +273,7 @@ describe( 'calculateCosts with AI SDK response fixtures', () => {
       tools,
       total,
       status,
-      pricingFreshness: Freshness.LIVE,
+      pricingFreshness: CacheFreshness.CACHED,
       items: items.map( ( [ group, label, amount, ppm, itemTotal, itemStatus ] ) => ( {
         group,
         label,

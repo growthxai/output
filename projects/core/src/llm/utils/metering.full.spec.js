@@ -12,7 +12,7 @@ import perplexityStream from '../fixtures/stream_response_v7_perplexity.js';
 import perplexityText from '../fixtures/text_response_v7_perplexity.js';
 import pricingTable from '../fixtures/models_api_v7_subset.json' with { type: 'json' };
 
-const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
+const mockGetPricing = vi.hoisted( () => vi.fn() );
 
 vi.mock( '#runtime_logger', () => {
   const createLogger = () => ( { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() } );
@@ -28,16 +28,15 @@ vi.mock( '#bus', () => ( {
   stepEventBus: { emit: vi.fn() }
 } ) );
 
-vi.mock( './models_pricing.js', async importOriginal => ( {
-  ...await importOriginal(),
-  fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
+vi.mock( '../pricing/cache.js', () => ( {
+  getPricing: ( ...args ) => mockGetPricing( ...args )
 } ) );
 
 import { addEventActionWithContext } from '#tracing';
 import { stepEventBus } from '#bus';
 import { Logger } from '#runtime_logger';
 import { Metering } from './metering.js';
-import { Freshness } from './models_pricing.js';
+import { CacheFreshness } from '../consts.js';
 
 const traceId = 'generateText-9000000000-a1b2c3d4';
 
@@ -76,14 +75,14 @@ const toPlain = value => JSON.parse( JSON.stringify( value ) );
 describe( 'Metering with AI SDK response fixtures', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    mockFetchModelsPricing.mockResolvedValue( { models, freshness: Freshness.LIVE } );
+    mockGetPricing.mockReturnValue( { models, freshness: CacheFreshness.CACHED } );
   } );
 
-  it.each( cases )( 'reports the request details of $name', async ( { fixture, providerId, modelId, ids } ) => {
+  it.each( cases )( 'reports the request details of $name', ( { fixture, providerId, modelId, ids } ) => {
     const prompt = { name: 'writer@v1', config: { provider: providerId, model: modelId } };
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( fixture );
+    metering.bill( fixture );
 
     const { usage, cost, legacy } = metering.attributes;
 
@@ -100,11 +99,11 @@ describe( 'Metering with AI SDK response fixtures', () => {
     expect( legacy?.requestDetails ).toBeUndefined();
   } );
 
-  it.each( cases )( 'attaches and emits the same request details for $name', async ( { fixture, providerId, modelId } ) => {
+  it.each( cases )( 'attaches and emits the same request details for $name', ( { fixture, providerId, modelId } ) => {
     const prompt = { name: 'writer@v1', config: { provider: providerId, model: modelId } };
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( fixture );
+    metering.bill( fixture );
 
     const { usage, cost } = metering.attributes;
 

@@ -72,16 +72,16 @@ describe( 'Metering', () => {
   beforeEach( () => {
     vi.clearAllMocks();
     mocks.parseLLMUsage.mockReturnValue( mockUsage );
-    mocks.calculateCosts.mockResolvedValue( mockCost );
-    mocks.calculateLegacyCosts.mockResolvedValue( mockLegacyPricingCost );
+    mocks.calculateCosts.mockReturnValue( mockCost );
+    mocks.calculateLegacyCosts.mockReturnValue( mockLegacyPricingCost );
     mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
   } );
 
-  it( 'bills the response usage and steps', async () => {
+  it( 'bills the response usage and steps', () => {
     const response = { usage: { inputTokens: 2, outputTokens: 1 }, steps: [ step( 2 ) ] };
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( response );
+    metering.bill( response );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
@@ -96,7 +96,7 @@ describe( 'Metering', () => {
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockCost, legacy: mockLegacyCost } );
   } );
 
-  it( 'costs multi-step calls with usage parsed per request', async () => {
+  it( 'costs multi-step calls with usage parsed per request', () => {
     const firstStep = step( 2 );
     const secondStep = step( 3 );
     const firstUsage = { ...mockUsage, input: 2 };
@@ -107,7 +107,7 @@ describe( 'Metering', () => {
       .mockReturnValueOnce( secondUsage );
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( {
+    metering.bill( {
       usage: { inputTokens: 5, outputTokens: 5 },
       steps: [ firstStep, secondStep ]
     } );
@@ -127,14 +127,14 @@ describe( 'Metering', () => {
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ firstUsage, secondUsage ] );
   } );
 
-  it( 'passes unparsed step usage to costing', async () => {
+  it( 'passes unparsed step usage to costing', () => {
     mocks.parseLLMUsage
       .mockReturnValueOnce( mockUsage )
       .mockReturnValueOnce( mockUsage )
       .mockReturnValueOnce( null );
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( {
+    metering.bill( {
       usage: { inputTokens: 5, outputTokens: 5 },
       steps: [ step( 2 ), step( 3 ) ]
     } );
@@ -142,12 +142,12 @@ describe( 'Metering', () => {
     expect( mocks.calculateCosts ).toHaveBeenCalledWith( mockUsage, [ mockUsage, null ] );
   } );
 
-  it( 'passes provider tool ids to usage parsing', async () => {
+  it( 'passes provider tool ids to usage parsing', () => {
     const toolIdsByName = { research: 'openai.web_search' };
     const response = { usage: { inputTokens: 2, outputTokens: 1 }, steps: [ step( 2 ) ] };
     const metering = new Metering( { traceId, prompt, toolIdsByName } );
 
-    await metering.bill( response );
+    metering.bill( response );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
@@ -158,31 +158,31 @@ describe( 'Metering', () => {
     } );
   } );
 
-  it( 'prefers the response steps over the recorded ones', async () => {
+  it( 'prefers the response steps over the recorded ones', () => {
     const responseSteps = [ step( 10 ), step( 20 ) ];
     const metering = new Metering( { traceId, prompt } );
 
     metering.recordStep( step( 1 ) );
-    await metering.bill( { usage: { inputTokens: 30 }, steps: responseSteps } );
+    metering.bill( { usage: { inputTokens: 30 }, steps: responseSteps } );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: responseSteps } ) );
   } );
 
-  it( 'falls back to the recorded steps when the response reports none', async () => {
+  it( 'falls back to the recorded steps when the response reports none', () => {
     const recorded = [ step( 5 ), step( 7 ) ];
     const metering = new Metering( { traceId, prompt } );
 
     recorded.forEach( metering.recordStep );
-    await metering.bill( { usage: { inputTokens: 12 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 12 }, steps: [] } );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: recorded } ) );
   } );
 
-  it( 'bills the collected steps when billed without a response', async () => {
+  it( 'bills the collected steps when billed without a response', () => {
     const metering = new Metering( { traceId, prompt } );
 
     metering.recordStep( step( 5 ) );
-    await metering.bill();
+    metering.bill();
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( {
       prompt,
@@ -196,10 +196,10 @@ describe( 'Metering', () => {
   describe( 'request details', () => {
     const requestDetailsPassed = () => mocks.parseLLMUsage.mock.calls[0][0].requestDetails;
 
-    it( 'reads one request id per step from the response headers, in step order', async () => {
+    it( 'reads one request id per step from the response headers, in step order', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( {
+      metering.bill( {
         usage: { inputTokens: 5 },
         steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ), stepWithHeaders( 3, { 'x-request-id': 'req-2' } ) ]
       } );
@@ -207,10 +207,10 @@ describe( 'Metering', () => {
       expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1', 'req-2' ], 2 ) );
     } );
 
-    it( 'prefers request-id over x-request-id', async () => {
+    it( 'prefers request-id over x-request-id', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( {
+      metering.bill( {
         usage: { inputTokens: 2 },
         steps: [ stepWithHeaders( 2, { 'request-id': 'req-1', 'x-request-id': 'req-x' } ) ]
       } );
@@ -218,10 +218,10 @@ describe( 'Metering', () => {
       expect( requestDetailsPassed().ids ).toEqual( [ 'req-1' ] );
     } );
 
-    it( 'counts steps without headers and generates no id for them', async () => {
+    it( 'counts steps without headers and generates no id for them', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( {
+      metering.bill( {
         usage: { inputTokens: 7 },
         steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ), step( 3 ), stepWithHeaders( 2, {} ) ]
       } );
@@ -229,38 +229,38 @@ describe( 'Metering', () => {
       expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1' ], 3 ) );
     } );
 
-    it( 'reads the ids of the recorded steps when billed without a response', async () => {
+    it( 'reads the ids of the recorded steps when billed without a response', () => {
       const metering = new Metering( { traceId, prompt } );
 
       metering.recordStep( stepWithHeaders( 2, { 'request-id': 'req-1' } ) );
       metering.recordStep( stepWithHeaders( 3, { 'request-id': 'req-2' } ) );
-      await metering.bill();
+      metering.bill();
 
       expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-1', 'req-2' ], 2 ) );
     } );
 
-    it( 'reads the ids of image responses, which have no steps', async () => {
+    it( 'reads the ids of image responses, which have no steps', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( { usage: { inputTokens: 2 }, responses: [ { headers: { 'x-request-id': 'req-img' } } ] } );
+      metering.bill( { usage: { inputTokens: 2 }, responses: [ { headers: { 'x-request-id': 'req-img' } } ] } );
 
       expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [ 'req-img' ], 1 ) );
     } );
 
-    it( 'reports no requests for a response with neither steps nor responses', async () => {
+    it( 'reports no requests for a response with neither steps nor responses', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( { usage: { inputTokens: 2 } } );
+      metering.bill( { usage: { inputTokens: 2 } } );
 
       expect( requestDetailsPassed() ).toEqual( requestDetailsOf( [], 0 ) );
     } );
 
-    it( 'measures the duration from construction until billing starts', async () => {
+    it( 'measures the duration from construction until billing starts', () => {
       const now = vi.spyOn( performance, 'now' );
       now.mockReturnValueOnce( 1000 ).mockReturnValueOnce( 1250 );
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
       now.mockRestore();
 
       expect( requestDetailsPassed().duration ).toBe( 250 );
@@ -270,53 +270,53 @@ describe( 'Metering', () => {
       [ 'rounds up, not to the nearest', 1000, 1250.4, 251 ],
       [ 'never reports zero for a call that took time', 1000, 1000.0001, 1 ],
       [ 'keeps a whole number of milliseconds as is', 1000, 1250, 250 ]
-    ] )( '%s', async ( _, start, end, expected ) => {
+    ] )( '%s', ( _, start, end, expected ) => {
       const now = vi.spyOn( performance, 'now' );
       now.mockReturnValueOnce( start ).mockReturnValueOnce( end );
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
       now.mockRestore();
 
       expect( requestDetailsPassed().duration ).toBe( expected );
     } );
 
-    it( 'keeps the duration of the billing call, not of a retried empty one', async () => {
+    it( 'keeps the duration of the billing call, not of a retried empty one', () => {
       const now = vi.spyOn( performance, 'now' );
       now.mockReturnValueOnce( 0 ).mockReturnValueOnce( 100 ).mockReturnValueOnce( 400 );
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill();
-      await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+      metering.bill();
+      metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
       now.mockRestore();
 
       expect( requestDetailsPassed().duration ).toBe( 400 );
     } );
 
-    it( 'does not give the per-step usages the request details of the call', async () => {
+    it( 'does not give the per-step usages the request details of the call', () => {
       const metering = new Metering( { traceId, prompt } );
 
-      await metering.bill( { usage: { inputTokens: 2 }, steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ) ] } );
+      metering.bill( { usage: { inputTokens: 2 }, steps: [ stepWithHeaders( 2, { 'request-id': 'req-1' } ) ] } );
 
       expect( mocks.parseLLMUsage.mock.calls[0][0] ).toHaveProperty( 'requestDetails' );
       expect( mocks.parseLLMUsage.mock.calls[1][0] ).not.toHaveProperty( 'requestDetails' );
     } );
   } );
 
-  it( 'records steps through a detached method reference', async () => {
+  it( 'records steps through a detached method reference', () => {
     const metering = new Metering( { traceId, prompt } );
     const record = metering.recordStep;
 
     record( step( 9 ) );
-    await metering.bill();
+    metering.bill();
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: [ step( 9 ) ] } ) );
   } );
 
-  it( 'attaches the usage, cost and legacy attributes to the trace', async () => {
+  it( 'attaches the usage, cost and legacy attributes to the trace', () => {
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
 
     expect( addEventActionWithContext ).toHaveBeenCalledTimes( 3 );
     expect( attributesOf( addEventActionWithContext.mock.calls ) ).toEqual( [ mockUsage, mockCost, mockLegacyCost ] );
@@ -326,10 +326,10 @@ describe( 'Metering', () => {
     } );
   } );
 
-  it( 'emits the metering event and the legacy cost event with cloned payloads', async () => {
+  it( 'emits the metering event and the legacy cost event with cloned payloads', () => {
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
 
     expect( eventNames( stepEventBus.emit.mock.calls ) ).toEqual( [ 'sdk:llm:generation:metering', 'sdk:cost:llm:request' ] );
 
@@ -340,62 +340,62 @@ describe( 'Metering', () => {
     expect( legacyPayload ).not.toBe( mockLegacyCost );
   } );
 
-  it( 'bills only once', async () => {
+  it( 'bills only once', () => {
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 1 );
     expect( stepEventBus.emit ).toHaveBeenCalledTimes( 2 );
     expect( addEventActionWithContext ).toHaveBeenCalledTimes( 3 );
   } );
 
-  it( 'ignores records that arrive after billing', async () => {
+  it( 'ignores records that arrive after billing', () => {
     const metering = new Metering( { traceId, prompt } );
 
     metering.recordStep( step( 1 ) );
-    await metering.bill();
+    metering.bill();
 
     metering.recordStep( step( 99 ) );
-    await metering.bill( { usage: { inputTokens: 99 }, steps: [ step( 99 ) ] } );
+    metering.bill( { usage: { inputTokens: 99 }, steps: [ step( 99 ) ] } );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: [ step( 1 ) ] } ) );
   } );
 
-  it( 'stays open when billed before anything was recorded', async () => {
+  it( 'stays open when billed before anything was recorded', () => {
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill();
+    metering.bill();
 
     expect( mocks.parseLLMUsage ).not.toHaveBeenCalled();
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [ step( 2 ) ] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [ step( 2 ) ] } );
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledTimes( 2 );
     expect( metering.attributes.cost ).toBe( mockCost );
   } );
 
-  it( 'stays open when the response reports neither usage nor steps', async () => {
+  it( 'stays open when the response reports neither usage nor steps', () => {
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { steps: [] } );
+    metering.bill( { steps: [] } );
 
     expect( mocks.parseLLMUsage ).not.toHaveBeenCalled();
 
     metering.recordStep( step( 3 ) );
-    await metering.bill();
+    metering.bill();
 
     expect( mocks.parseLLMUsage ).toHaveBeenCalledWith( expect.objectContaining( { steps: [ step( 3 ) ] } ) );
   } );
 
-  it( 'skips costing, attributes and events when the recorded usage cannot be parsed', async () => {
+  it( 'skips costing, attributes and events when the recorded usage cannot be parsed', () => {
     mocks.parseLLMUsage.mockReturnValue( null );
     const metering = new Metering( { traceId, prompt } );
 
     metering.recordStep( step( 2 ) );
-    await metering.bill();
+    metering.bill();
 
     expect( mocks.calculateCosts ).not.toHaveBeenCalled();
     expect( addEventActionWithContext ).not.toHaveBeenCalled();
@@ -403,11 +403,11 @@ describe( 'Metering', () => {
     expect( metering.attributes ).toEqual( { usage: null, cost: null, legacy: null } );
   } );
 
-  it( 'reports usage with a null cost when costing yields nothing', async () => {
-    mocks.calculateCosts.mockResolvedValue( null );
+  it( 'reports usage with a null cost when costing yields nothing', () => {
+    mocks.calculateCosts.mockReturnValue( null );
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
 
     expect( mocks.convertCostToLegacy ).not.toHaveBeenCalled();
     expect( attributesOf( addEventActionWithContext.mock.calls ) ).toEqual( [ mockUsage ] );
@@ -415,48 +415,39 @@ describe( 'Metering', () => {
     expect( stepEventBus.emit.mock.calls[0][1] ).toEqual( { cost: null, usage: mockUsage } );
   } );
 
-  it( 'skips the legacy payload when the conversion yields nothing', async () => {
+  it( 'skips the legacy payload when the conversion yields nothing', () => {
     mocks.convertCostToLegacy.mockReturnValue( null );
     const metering = new Metering( { traceId, prompt } );
 
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
+    metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
 
     expect( attributesOf( addEventActionWithContext.mock.calls ) ).toEqual( [ mockUsage, mockCost ] );
     expect( eventNames( stepEventBus.emit.mock.calls ) ).toEqual( [ 'sdk:llm:generation:metering' ] );
   } );
 
-  it( 'never throws when parsing the usage fails', async () => {
+  it( 'never throws when parsing the usage fails', () => {
     mocks.parseLLMUsage.mockImplementation( () => {
       throw new Error( 'bad usage' );
     } );
     const metering = new Metering( { traceId, prompt } );
 
     metering.recordStep( step( 2 ) );
-    await expect( metering.bill() ).resolves.toBeUndefined();
+    expect( metering.bill() ).toBeUndefined();
 
     expect( mocks.logger.error ).toHaveBeenCalledWith( 'Metering failed', { namespace: 'LLM', error: 'bad usage' } );
     expect( stepEventBus.emit ).not.toHaveBeenCalled();
     expect( addEventActionWithContext ).not.toHaveBeenCalled();
   } );
 
-  it( 'never throws when costing rejects, and reports no cost', async () => {
-    mocks.calculateCosts.mockRejectedValue( new Error( 'pricing unavailable' ) );
+  it( 'never throws when costing throws, and reports no cost', () => {
+    mocks.calculateCosts.mockThrowOnce( new Error( 'pricing unavailable' ) );
     const metering = new Metering( { traceId, prompt } );
 
-    await expect( metering.bill( { usage: { inputTokens: 2 }, steps: [] } ) ).resolves.toBeUndefined();
+    expect( metering.bill( { usage: { inputTokens: 2 }, steps: [] } ) ).toBeUndefined();
 
     expect( mocks.logger.error ).toHaveBeenCalledWith( 'Metering failed', { namespace: 'LLM', error: 'pricing unavailable' } );
     expect( stepEventBus.emit ).not.toHaveBeenCalled();
     expect( addEventActionWithContext ).not.toHaveBeenCalled();
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: null, legacy: null } );
-  } );
-
-  it( 'logs a non-error throw by its string value', async () => {
-    mocks.calculateCosts.mockRejectedValue( 'pricing exploded' );
-    const metering = new Metering( { traceId, prompt } );
-
-    await metering.bill( { usage: { inputTokens: 2 }, steps: [] } );
-
-    expect( mocks.logger.error ).toHaveBeenCalledWith( 'Metering failed', { namespace: 'LLM', error: 'pricing exploded' } );
   } );
 } );

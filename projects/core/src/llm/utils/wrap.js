@@ -81,7 +81,7 @@ export const wrapTextGeneration = async ( { name, prompt, toolIdsByName, fn } ) 
 
   const { result: response, error } = await inlineTryAsync( () => fn( { onStepEndHook } ) );
 
-  await metering.bill( response );
+  metering.bill( response );
 
   if ( error ) {
     throw handleAiSdkError( { traceId, error } );
@@ -128,7 +128,7 @@ export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
     throw handleAiSdkError( { traceId, error } );
   }
 
-  await metering.bill( response );
+  metering.bill( response );
 
   try {
     const { usage, image: result, providerMetadata } = response;
@@ -145,7 +145,7 @@ export const wrapImageGeneration = async ( { name, prompt, fn } ) => {
 };
 
 /** Awaits a consumer callback, logging and swallowing its failures: the hooks are fire and forget */
-const invokeCallback = async ( cb, args, cbName ) => {
+const fireCallback = async ( cb, args, cbName ) => {
   if ( typeof cb === 'function' ) {
     try {
       await cb( ...args );
@@ -211,20 +211,20 @@ export const wrapStream = ( { name, prompt, toolIdsByName, abortSignal, fn } ) =
 
   const onStepEndHook = metering.recordStep;
 
-  const onAbortHook = async () => {
+  const onAbortHook = () => {
     removeAbortListener();
 
-    await metering.bill();
+    metering.bill();
     // abortion was caused by timeout and not signal
     if ( !abortSignal?.aborted ) {
       handleAiSdkError( { traceId, error: new Error( 'Streaming timed out.' ) } );
     }
   };
 
-  const onEndHook = async ( response, callback ) => {
+  const onEndHook = ( response, callback ) => {
     removeAbortListener();
 
-    await metering.bill( response );
+    metering.bill( response );
 
     try {
       const { text: result, finalStep, usage } = response;
@@ -234,20 +234,20 @@ export const wrapStream = ( { name, prompt, toolIdsByName, abortSignal, fn } ) =
       const proxyResponse = createResponseProxy( { response, properties: { cost: metering.attributes.cost, sources, result } } );
       addEventActionWithContext( EventAction.END, { id: traceId, details: { result, usage, providerMetadata, sources } } );
 
-      await invokeCallback( callback, [ proxyResponse ], 'onEnd' );
+      fireCallback( callback, [ proxyResponse ], 'onEnd' );
     } catch ( error ) {
       Logger.error( 'AI SDK response handling failed', { namespace: 'LLM', error: error?.message || String( error ) } );
       handleResponseError( { traceId, error } );
     }
   };
 
-  const onErrorHook = async ( event, callback ) => {
+  const onErrorHook = ( event, callback ) => {
     removeAbortListener();
-    await metering.bill();
+    metering.bill();
 
     const error = event?.error instanceof Error ? event.error : new Error( 'Streaming failed.', { cause: event?.error } );
     const mappedError = handleAiSdkError( { traceId, error } );
-    await invokeCallback( callback, [ mappedError ], 'onError' );
+    fireCallback( callback, [ mappedError ], 'onError' );
   };
 
   const handleStreamError = error => {

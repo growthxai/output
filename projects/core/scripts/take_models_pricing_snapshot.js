@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const url = 'https://models.dev/api.json';
 const timeout = 1000 * 60; // 1 minute
 
-const target = fileURLToPath( new URL( '../src/llm/utils/models_pricing_snapshot.json', import.meta.url ) );
+const target = fileURLToPath( new URL( '../src/llm/pricing/models_pricing_snapshot.json', import.meta.url ) );
 
 // Order maters, keep in alphabetical order
 export const supportedProviders = [

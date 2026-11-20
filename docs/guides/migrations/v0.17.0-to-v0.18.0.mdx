@@ -1,9 +1,9 @@
 ---
 title: "v0.17.0 → v0.18.0"
-description: "Upgrading Output.ai projects from v0.17.0 to v0.18.0: output workflow debug reads Temporal directly and prints JSON grouped by workflow instead of the trace tree, and output workflow dataset generate reads completed runs from Temporal and drops --trace, --download, --limit and executionTimeMs."
+description: "Upgrading Output.ai projects from v0.17.0 to v0.18.0: output workflow debug and dataset generate read Temporal instead of traces, LLM costs no longer LIVE-fetch models.dev on the call path, and worker shutdown service logs use elapsedMs."
 ---
 
-This guide covers two breaking changes in `@outputai/cli`. `output workflow debug` now reads the run from Temporal instead of the API's trace log, and its output is completely different. `output workflow dataset generate` no longer reads traces: it can read a completed run from Temporal, and `--trace`, `--download` and `--limit` are removed. Nothing in your workflow code changes. If you only run the commands by hand, you only need to point them at your Temporal. If a script, a CI job or an agent skill parses the `debug` output or uses the removed flags, update it.
+This guide covers breaking changes in `@outputai/cli` and `@outputai/core`. `output workflow debug` now reads the run from Temporal instead of the API's trace log, and its output is completely different. `output workflow dataset generate` no longer reads traces: it can read a completed run from Temporal, and `--trace`, `--download` and `--limit` are removed. LLM billing no longer fetches models.dev during a call, and worker shutdown service logs rename their timing field. Nothing in your workflow step code needs to change for pricing. If you only run the CLI commands by hand, you only need to point them at your Temporal. If a script, a CI job or an agent skill parses the `debug` output, uses the removed flags, or alerts on shutdown log fields, update it.
 
 ## What changed
 
@@ -182,6 +182,30 @@ The run must be a completed run of `<workflowName>`. A run of another workflow, 
 
 The case name defaults to the workflow id. Generating a case again with the same name replaces its `input` and `last_output` and keeps its other fields, such as `ground_truth`, as the other modes do.
 
+## LLM pricing freshness
+
+Billing no longer fetches [models.dev](https://models.dev) on the LLM call path. The Temporal worker refreshes the catalog in the background and cost calculation reads a process cache synchronously.
+
+| Before | After |
+|--------|-------|
+| `pricingFreshness: "live"` when rates were fetched during the call | Removed. Values are `"cached"`, `"stale"`, or `"snapshot"` only |
+| First call in a process could LIVE-fetch and bill as `precise` | Until the worker's first successful refresh, costs use the bundled snapshot and are `imprecise` |
+
+TypeScript unions that include `"live"` should drop it. Code that treated `"live"` as the healthy path should treat `"cached"` the same way. A brief window of `"snapshot"` / `imprecise` right after worker start is expected until the background retriever fills the cache.
+
+## Worker shutdown service logs
+
+Service stop lines no longer reuse `shutdownDurationMs`. That field stays on `Bye` for the whole shutdown. Each service reports `elapsedMs` for that stop only, and the success/failure messages were renamed.
+
+| Before | After |
+|--------|-------|
+| `Stopping Worker complete { shutdownDurationMs }` | `Worker stopped { elapsedMs }` |
+| `Stopping Worker failed { ..., shutdownDurationMs }` | `Worker failed to stop { ..., elapsedMs }` |
+| `Bye { exitCode, shutdownDurationMs }` | Unchanged |
+| Services stopped | Adds `LLM Pricing Retriever` before `Temporal Connection` |
+
+Update log alerts that matched `complete` / `failed` with `shutdownDurationMs` on service lines. Keep matching `Bye.shutdownDurationMs` for total teardown time. See [Reading the Shutdown Logs](/operations/worker-shutdown#reading-the-shutdown-logs).
+
 ## Checklist
 
 - Bump `@outputai/core` and `@outputai/cli` to `0.18.0`.
@@ -192,3 +216,5 @@ The case name defaults to the workflow id. Generating a case again with the same
 - Pass `--run-id` when you need a run that is not the latest.
 - Replace `dataset generate --trace` and `--download --limit` in scripts and agent skills with `--workflow-id`, one run per command.
 - Drop `executionTimeMs` from any TypeScript code that builds dataset `last_output` values. Existing dataset files need no change.
+- Drop `"live"` from any `pricingFreshness` type unions or switches. Expect `"snapshot"` until the worker cache is warm.
+- Update shutdown log alerts: service lines use `elapsedMs` and `... stopped` / `... failed to stop`; `Bye` still uses `shutdownDurationMs`.

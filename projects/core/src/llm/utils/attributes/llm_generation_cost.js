@@ -1,4 +1,4 @@
-import { Freshness } from '../models_pricing.js';
+import { CacheFreshness } from '../../consts.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './llm_generation_usage.js';
 import Decimal from 'decimal.js';
 import { isNonNegativeNumber } from '#helpers/number';
@@ -79,7 +79,7 @@ export class LLMGenerationCost extends LLMGeneration {
 
     if ( hasMissingItems || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
       this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( hasFallbackItems || pricingFreshness === Freshness.SNAPSHOT || hasUncertainItems ) {
+    } else if ( hasFallbackItems || pricingFreshness === CacheFreshness.SNAPSHOT || hasUncertainItems ) {
       this.status = LLMGenerationCost.Status.IMPRECISE;
     } else {
       this.status = LLMGenerationCost.Status.PRECISE;

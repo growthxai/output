@@ -12,6 +12,7 @@ const {
   hashSourceCodeMock,
   initInterceptorsMock,
   interruption,
+  llmPricingDataRetrieverInstance,
   loadActivitiesMock,
   loadHooksMock,
   loadWorkflowsMock,
@@ -101,8 +102,29 @@ const {
   const catalogPublisherInstance = {
     running: false,
     options: null,
-    run: vi.fn().mockResolvedValue( undefined ),
-    interrupt: vi.fn().mockResolvedValue( undefined )
+    start: vi.fn().mockResolvedValue( undefined ),
+    stop: vi.fn().mockResolvedValue( undefined )
+  };
+
+  /** Background job: start leaves it running until stop or abort. */
+  const llmPricingDataRetrieverInstance = {
+    running: false,
+    options: null,
+    start: vi.fn( () => {
+      llmPricingDataRetrieverInstance.running = true;
+      llmPricingDataRetrieverInstance.options?.signal.addEventListener(
+        'abort',
+        () => {
+          llmPricingDataRetrieverInstance.running = false;
+        },
+        { once: true }
+      );
+      return Promise.resolve();
+    } ),
+    stop: vi.fn( () => {
+      llmPricingDataRetrieverInstance.running = false;
+      return Promise.resolve();
+    } )
   };
 
   class KillSignError extends Error {
@@ -126,6 +148,7 @@ const {
     hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
     initInterceptorsMock: vi.fn().mockReturnValue( [] ),
     interruption,
+    llmPricingDataRetrieverInstance,
     loadActivitiesMock: vi.fn().mockResolvedValue( { activities: {} } ),
     loadHooksMock: vi.fn().mockResolvedValue( undefined ),
     loadWorkflowsMock: vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } ),
@@ -194,6 +217,12 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
     return catalogPublisherInstance;
   } )
 } ) );
+vi.mock( '../llm/pricing/job.js', () => ( {
+  LLMPricingDataRetriever: vi.fn( function ( options ) {
+    llmPricingDataRetrieverInstance.options = options;
+    return llmPricingDataRetrieverInstance;
+  } )
+} ) );
 vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
 vi.mock( './worker_options.js', () => ( { buildWorkerOptions: buildWorkerOptionsMock } ) );
 vi.mock( '@temporalio/worker', () => ( {
@@ -231,6 +260,8 @@ describe( 'worker/index', () => {
     connectionMonitorInstance.options = null;
     catalogPublisherInstance.running = false;
     catalogPublisherInstance.options = null;
+    llmPricingDataRetrieverInstance.running = false;
+    llmPricingDataRetrieverInstance.options = null;
     interruption.controller = null;
     mockConnection.close.mockResolvedValue( undefined );
     process.argv = [ ...originalArgv.slice( 0, 2 ), '/test/caller/dir' ];
@@ -247,6 +278,7 @@ describe( 'worker/index', () => {
       const { NativeConnection, Worker } = await import( '@temporalio/worker' );
       const { TemporalConnectionMonitor } = await import( './connection_monitor.js' );
       const { CatalogPublisher } = await import( './catalog_workflow/catalog_publisher.js' );
+      const { LLMPricingDataRetriever } = await import( '../llm/pricing/job.js' );
       const { WorkerRunner } = await import( './worker_runner.js' );
 
       await bootWorker();
@@ -279,8 +311,10 @@ describe( 'worker/index', () => {
         catalogHash: 'catalog-hash',
         signal
       } );
-      expect( catalogPublisherInstance.run ).toHaveBeenCalledOnce();
+      expect( catalogPublisherInstance.start ).toHaveBeenCalledOnce();
       expect( TemporalConnectionMonitor ).toHaveBeenCalledWith( { connection: mockConnection, signal } );
+      expect( LLMPricingDataRetriever ).toHaveBeenCalledWith( { signal } );
+      expect( llmPricingDataRetrieverInstance.start ).toHaveBeenCalledOnce();
       expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
         connection: mockConnection,
         namespace: configValues.namespace,
@@ -302,8 +336,19 @@ describe( 'worker/index', () => {
       await bootWorker();
 
       // The worker never exists unless its catalog matches its own source code.
-      expect( catalogPublisherInstance.run.mock.invocationCallOrder[0] )
+      expect( catalogPublisherInstance.start.mock.invocationCallOrder[0] )
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
+    } );
+
+    it( 'starts the llm pricing retriever before creating the worker', async () => {
+      const { Worker } = await import( '@temporalio/worker' );
+
+      await bootWorker();
+
+      expect( llmPricingDataRetrieverInstance.start.mock.invocationCallOrder[0] )
+        .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
+      expect( catalogPublisherInstance.start.mock.invocationCallOrder[0] )
+        .toBeLessThan( llmPricingDataRetrieverInstance.start.mock.invocationCallOrder[0] );
     } );
 
     it( 'enables TLS when an apiKey is set', async () => {
@@ -354,6 +399,7 @@ describe( 'worker/index', () => {
         workerRunner: workerRunnerInstance,
         connectionMonitor: connectionMonitorInstance,
         catalogPublisher: catalogPublisherInstance,
+        llmPricingDataRetriever: llmPricingDataRetrieverInstance,
         connection: mockConnection
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
@@ -460,7 +506,7 @@ describe( 'worker/index', () => {
 
     it( 'never creates the worker when publishing the catalog fails', async () => {
       const { Worker } = await import( '@temporalio/worker' );
-      catalogPublisherInstance.run.mockRejectedValueOnce( new Error( 'catalog failed' ) );
+      catalogPublisherInstance.start.mockRejectedValueOnce( new Error( 'catalog failed' ) );
 
       await importWorker();
       await waitForExit();
@@ -484,6 +530,7 @@ describe( 'worker/index', () => {
       expect( workerRunnerInstance.start ).not.toHaveBeenCalled();
       expect( shutdownServicesMock ).toHaveBeenCalledWith( expect.objectContaining( {
         workerRunner: null,
+        llmPricingDataRetriever: llmPricingDataRetrieverInstance,
         connection: mockConnection
       } ) );
       expect( process.exit ).toHaveBeenCalledWith( 1 );

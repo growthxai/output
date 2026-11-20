@@ -1,16 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockFetchModelsPricing = vi.hoisted( () => vi.fn() );
+const mockGetPricing = vi.hoisted( () => vi.fn() );
 
-vi.mock( './models_pricing.js', async importOriginal => ( {
-  ...await importOriginal(),
-  fetchModelsPricing: ( ...args ) => mockFetchModelsPricing( ...args )
+vi.mock( '../pricing/cache.js', () => ( {
+  getPricing: ( ...args ) => mockGetPricing( ...args )
 } ) );
 
 import { Logger } from '#runtime_logger';
 import { calculateCosts, calculateLegacyCosts } from './cost.js';
 import { LLMGenerationCost, LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
-import { Freshness } from './models_pricing.js';
+import { CacheFreshness } from '../consts.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './attributes/llm_generation_usage.js';
 
 const INPUT = LLMGenerationUsageItem.Group.INPUT;
@@ -22,14 +21,14 @@ const PROVIDER_ID = 'test-provider';
 const item = ( group, label, amount ) => new LLMGenerationUsageItem( group, label, amount );
 const usageFor = ( providerId, modelId, items ) => new LLMGenerationUsage( modelId, providerId, null, null, items );
 const usage = items => usageFor( PROVIDER_ID, MODEL_ID, items );
-const table = ( models, freshness = Freshness.LIVE ) => ( { models, freshness } );
+const table = ( models, freshness = CacheFreshness.CACHED ) => ( { models, freshness } );
 const pricing = ( cost, freshness ) =>
   table( new Map( [ [ `${PROVIDER_ID}/${MODEL_ID}`, { cost, reasoning: false } ] ] ), freshness );
 const serialize = value => JSON.parse( JSON.stringify( value ) );
 
 describe( 'calculateCosts', () => {
   beforeEach( () => {
-    mockFetchModelsPricing.mockReset();
+    mockGetPricing.mockReset();
     vi.spyOn( Logger, 'warn' ).mockImplementation( () => {} );
   } );
 
@@ -37,51 +36,39 @@ describe( 'calculateCosts', () => {
     vi.restoreAllMocks();
   } );
 
-  it( 'returns null when model pricing cannot be fetched', async () => {
-    mockFetchModelsPricing.mockResolvedValue( table( null, Freshness.SNAPSHOT ) );
-
-    const result = await calculateCosts( usage( [
-      item( INPUT, null, 100 ),
-      item( OUTPUT, null, 50 )
-    ] ), [] );
-
-    expect( result ).toBeNull();
-    expect( Logger.warn ).toHaveBeenCalledWith( 'Failed to fetch models pricing', { namespace: 'LLM' } );
-  } );
-
-  it( 'carries the prompt name and the request details of the usage', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+  it( 'carries the prompt name and the request details of the usage', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 } ) );
     const requestDetails = { ids: [ 'req-1' ], count: 1, duration: 10 };
     const usageWithDetails = new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, 'writer@v1', requestDetails, [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] );
 
-    const result = await calculateCosts( usageWithDetails, [] );
+    const result = calculateCosts( usageWithDetails, [] );
 
     expect( result ).toMatchObject( { promptName: 'writer@v1', requestDetails } );
   } );
 
-  it( 'leaves the prompt name and the request details out of the legacy cost', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+  it( 'leaves the prompt name and the request details out of the legacy cost', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 } ) );
     const requestDetails = { ids: [ 'req-1' ], count: 1, duration: 10 };
     const usageWithDetails = new LLMGenerationUsage( MODEL_ID, PROVIDER_ID, 'writer@v1', requestDetails, [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] );
 
-    const result = await calculateLegacyCosts( usageWithDetails );
+    const result = calculateLegacyCosts( usageWithDetails );
 
     expect( result ).toMatchObject( { promptName: null, requestDetails: null } );
   } );
 
-  it( 'calculates precise aggregate input and output costs', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'calculates precise aggregate input and output costs', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
     ] ), [] );
@@ -98,7 +85,7 @@ describe( 'calculateCosts', () => {
       tools: null,
       total: 7,
       status: LLMGenerationCost.Status.PRECISE,
-      pricingFreshness: Freshness.LIVE,
+      pricingFreshness: CacheFreshness.CACHED,
       items: [
         {
           group: INPUT,
@@ -120,8 +107,8 @@ describe( 'calculateCosts', () => {
     } );
   } );
 
-  it( 'uses specialized cache and reasoning prices when available', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses specialized cache and reasoning prices when available', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 4,
       cache_read: 1,
       cache_write: 5,
@@ -129,7 +116,7 @@ describe( 'calculateCosts', () => {
       reasoning: 20
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, 'no_cache', 500_000 ),
       item( INPUT, 'cache_read', 400_000 ),
       item( INPUT, 'cache_write', 100_000 ),
@@ -156,8 +143,8 @@ describe( 'calculateCosts', () => {
     { input: 99, inputPpm: 2, outputPpm: 10, tier: undefined },
     { input: 100, inputPpm: 2, outputPpm: 10, tier: undefined },
     { input: 101, inputPpm: 4, outputPpm: 20, tier: { type: 'context', size: 100 } }
-  ] )( 'selects context pricing for $input input tokens', async ( { input, inputPpm, outputPpm, tier } ) => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  ] )( 'selects context pricing for $input input tokens', ( { input, inputPpm, outputPpm, tier } ) => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10,
       tiers: [
@@ -169,7 +156,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, input ),
       item( OUTPUT, null, 10 )
     ] ), [] );
@@ -196,8 +183,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'uses specialized tier rates and falls back within the selected tier', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses specialized tier rates and falls back within the selected tier', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       cache_read: 0.2,
       cache_write: 2.5,
@@ -213,7 +200,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, 'cache_read', 60 ),
       item( INPUT, 'cache_write', 41 ),
       item( OUTPUT, null, 10 ),
@@ -229,9 +216,9 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'prices multi-step usage per request and merges equal tool rates', async () => {
+  it( 'prices multi-step usage per request and merges equal tool rates', () => {
     const providerId = 'anthropic';
-    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+    mockGetPricing.mockReturnValue( table( new Map( [
       [ `${providerId}/${MODEL_ID}`, {
         cost: {
           input: 2,
@@ -258,7 +245,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search', 1 )
     ] );
 
-    const result = await calculateCosts( usageFor( providerId, MODEL_ID, [
+    const result = calculateCosts( usageFor( providerId, MODEL_ID, [
       item( INPUT, null, 151 ),
       item( OUTPUT, null, 30 ),
       item( TOOLS, 'web_search', 2 )
@@ -290,8 +277,8 @@ describe( 'calculateCosts', () => {
     expect( result.total ).toBe( 0.021004 );
   } );
 
-  it( 'uses uncertain base pricing when multi-step usage is incomplete', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses uncertain base pricing when multi-step usage is incomplete', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10,
       tiers: [
@@ -306,7 +293,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 101 )
     ] );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 151 ),
       item( OUTPUT, null, 30 )
     ] ), [ completeUsage, incompleteUsage ] );
@@ -323,8 +310,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'keeps incomplete multi-step pricing uncertain below the tier threshold', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'keeps incomplete multi-step pricing uncertain below the tier threshold', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10,
       tiers: [
@@ -339,7 +326,7 @@ describe( 'calculateCosts', () => {
       item( INPUT, null, 40 )
     ] );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 80 ),
       item( OUTPUT, null, 20 )
     ] ), [ completeUsage, incompleteUsage ] );
@@ -351,8 +338,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'keeps aggregate costing for multi-step models without tiers', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'keeps aggregate costing for multi-step models without tiers', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       cache_read: 1,
       output: 10
@@ -366,7 +353,7 @@ describe( 'calculateCosts', () => {
       item( OUTPUT, 'text', 20 )
     ] );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 151 ),
       item( OUTPUT, null, 30 )
     ] ), [ firstUsage, secondUsage ] );
@@ -377,8 +364,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'selects the highest applicable context tier', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'selects the highest applicable context tier', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 1,
       output: 2,
       tiers: [
@@ -387,7 +374,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 201 ),
       item( OUTPUT, null, 10 )
     ] ), [] );
@@ -396,8 +383,8 @@ describe( 'calculateCosts', () => {
     expect( result.items.every( value => value.tier?.size === 200 ) ).toBe( true );
   } );
 
-  it( 'uses base pricing when tiered usage has no input', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses base pricing when tiered usage has no input', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 1,
       output: 2,
       tiers: [
@@ -405,7 +392,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( OUTPUT, null, 10 )
     ] ), [] );
 
@@ -415,8 +402,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'preserves aggregate base pricing for legacy conversion', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'preserves aggregate base pricing for legacy conversion', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 1,
       output: 2,
       tiers: [
@@ -424,7 +411,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateLegacyCosts( usage( [
+    const result = calculateLegacyCosts( usage( [
       item( INPUT, null, 201 ),
       item( OUTPUT, null, 10 )
     ] ) );
@@ -435,8 +422,8 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'uses base rates and marks the cost imprecise for an unsupported tier', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses base rates and marks the cost imprecise for an unsupported tier', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10,
       tiers: [
@@ -448,7 +435,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 101 ),
       item( OUTPUT, null, 10 )
     ] ), [] );
@@ -458,8 +445,8 @@ describe( 'calculateCosts', () => {
     expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.UNCERTAIN ) ).toBe( true );
   } );
 
-  it( 'marks a matched context tier uncertain when unsupported tiers are also present', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'marks a matched context tier uncertain when unsupported tiers are also present', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10,
       tiers: [
@@ -468,7 +455,7 @@ describe( 'calculateCosts', () => {
       ]
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 101 ),
       item( OUTPUT, null, 10 )
     ] ), [] );
@@ -496,13 +483,13 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'falls back to aggregate prices for unpriced specialized items', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'falls back to aggregate prices for unpriced specialized items', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, 'cache_read', 400_000 ),
       item( INPUT, 'cache_write', 100_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
@@ -521,13 +508,13 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'prices reasoning at the output rate without marking it imprecise when the model has no reasoning rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'prices reasoning at the output rate without marking it imprecise when the model has no reasoning rate', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100_000 ),
       item( OUTPUT, 'text', 50_000 ),
       item( OUTPUT, 'reasoning', 50_000 )
@@ -540,12 +527,12 @@ describe( 'calculateCosts', () => {
     } );
   } );
 
-  it( 'marks cost incomplete while preserving totals for priced items', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'marks cost incomplete while preserving totals for priced items', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] ), [] );
@@ -562,10 +549,10 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'returns an incomplete cost when the model has no pricing reference', async () => {
-    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
+  it( 'returns an incomplete cost when the model has no pricing reference', () => {
+    mockGetPricing.mockReturnValue( table( new Map() ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] ), [] );
@@ -583,13 +570,13 @@ describe( 'calculateCosts', () => {
     );
   } );
 
-  it( 'marks cost incomplete when usage is incomplete', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'marks cost incomplete when usage is incomplete', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 2,
       output: 10
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100 )
     ] ), [] );
 
@@ -602,13 +589,13 @@ describe( 'calculateCosts', () => {
     expect( result.items[0].status ).toBe( LLMGenerationCostItem.Status.OK );
   } );
 
-  it( 'accepts zero-valued prices as precise', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'accepts zero-valued prices as precise', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 0,
       output: 0
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] ), [] );
@@ -622,14 +609,14 @@ describe( 'calculateCosts', () => {
     expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.OK ) ).toBe( true );
   } );
 
-  it( 'prices a Gemini 3 grounding query from the local rate table', async () => {
+  it( 'prices a Gemini 3 grounding query from the local rate table', () => {
     const providerId = 'google-vertex';
     const modelId = 'gemini-3-pro';
-    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+    mockGetPricing.mockReturnValue( table( new Map( [
       [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
     ] ) ) );
 
-    const result = await calculateCosts( usageFor( providerId, modelId, [
+    const result = calculateCosts( usageFor( providerId, modelId, [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_query', 3 )
@@ -648,14 +635,14 @@ describe( 'calculateCosts', () => {
     expect( Logger.warn ).not.toHaveBeenCalled();
   } );
 
-  it( 'prices a Gemini 2 grounding prompt from the local rate table', async () => {
+  it( 'prices a Gemini 2 grounding prompt from the local rate table', () => {
     const providerId = 'google-vertex';
     const modelId = 'gemini-2.5-flash';
-    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+    mockGetPricing.mockReturnValue( table( new Map( [
       [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
     ] ) ) );
 
-    const result = await calculateCosts( usageFor( providerId, modelId, [
+    const result = calculateCosts( usageFor( providerId, modelId, [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding_prompt', 1 )
@@ -671,8 +658,8 @@ describe( 'calculateCosts', () => {
   it.each( [
     { providerId: 'anthropic', modelId: 'claude-haiku-4-5' },
     { providerId: 'openai', modelId: 'gpt-4.1-mini' }
-  ] )( 'prices $providerId web search requests from the local rate table', async ( { providerId, modelId } ) => {
-    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+  ] )( 'prices $providerId web search requests from the local rate table', ( { providerId, modelId } ) => {
+    mockGetPricing.mockReturnValue( table( new Map( [
       [ `${providerId}/${modelId}`, { cost: { input: 2, output: 10 }, reasoning: false } ]
     ] ) ) );
     const providerUsage = new LLMGenerationUsage( modelId, providerId, null, null, [
@@ -681,7 +668,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage, [] );
+    const result = calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       input: 2,
@@ -698,9 +685,9 @@ describe( 'calculateCosts', () => {
   it.each( [
     { name: 'reasoning', reasoning: true, ppm: 10_000, total: 0.03 },
     { name: 'non-reasoning', reasoning: false, ppm: 25_000, total: 0.075 }
-  ] )( 'prices OpenAI preview search for a $name model', async ( { reasoning, ppm, total } ) => {
+  ] )( 'prices OpenAI preview search for a $name model', ( { reasoning, ppm, total } ) => {
     const modelId = 'gpt-model';
-    mockFetchModelsPricing.mockResolvedValue( table( new Map( [
+    mockGetPricing.mockReturnValue( table( new Map( [
       [ `openai/${modelId}`, {
         cost: { input: 2, output: 10 },
         reasoning
@@ -712,7 +699,7 @@ describe( 'calculateCosts', () => {
       item( TOOLS, 'web_search_preview', 3 )
     ] );
 
-    const result = await calculateCosts( providerUsage, [] );
+    const result = calculateCosts( providerUsage, [] );
 
     expect( result ).toMatchObject( {
       tools: total,
@@ -724,11 +711,11 @@ describe( 'calculateCosts', () => {
     );
   } );
 
-  it( 'leaves OpenAI preview search unpriced when model metadata is missing', async () => {
+  it( 'leaves OpenAI preview search unpriced when model metadata is missing', () => {
     const modelId = 'unknown-model';
-    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
+    mockGetPricing.mockReturnValue( table( new Map() ) );
 
-    const result = await calculateCosts( usageFor( 'openai', modelId, [
+    const result = calculateCosts( usageFor( 'openai', modelId, [
       item( TOOLS, 'web_search_preview', 3 )
     ] ), [] );
 
@@ -746,10 +733,10 @@ describe( 'calculateCosts', () => {
     );
   } );
 
-  it( 'never prices a tools item at the input token rate', async () => {
-    mockFetchModelsPricing.mockResolvedValue( table( new Map() ) );
+  it( 'never prices a tools item at the input token rate', () => {
+    mockGetPricing.mockReturnValue( table( new Map() ) );
 
-    const result = await calculateCosts( usageFor( 'google-vertex', 'gemini-3-pro', [
+    const result = calculateCosts( usageFor( 'google-vertex', 'gemini-3-pro', [
       item( TOOLS, 'grounding_query', 2 )
     ] ), [] );
 
@@ -758,10 +745,10 @@ describe( 'calculateCosts', () => {
     ] );
   } );
 
-  it( 'marks an unrated grounded call incomplete and warns', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+  it( 'marks an unrated grounded call incomplete and warns', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 ),
       item( TOOLS, 'grounding', 2 )
@@ -783,10 +770,10 @@ describe( 'calculateCosts', () => {
     );
   } );
 
-  it( 'leaves an ungrounded cost without a tools total', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 } ) );
+  it( 'leaves an ungrounded cost without a tools total', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
     ] ), [] );
@@ -795,48 +782,48 @@ describe( 'calculateCosts', () => {
     expect( result.total ).toBe( 7 );
   } );
 
-  it( 'records the pricing freshness reported by the pricing table', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.CACHED ) );
+  it( 'records the pricing freshness reported by the pricing table', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 }, CacheFreshness.CACHED ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
     ] ), [] );
 
-    expect( result.pricingFreshness ).toBe( Freshness.CACHED );
+    expect( result.pricingFreshness ).toBe( CacheFreshness.CACHED );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
   } );
 
-  it( 'keeps exact rates precise when the cached table is stale', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.STALE ) );
+  it( 'keeps exact rates precise when the cached table is stale', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 }, CacheFreshness.STALE ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
     ] ), [] );
 
-    expect( result.pricingFreshness ).toBe( Freshness.STALE );
+    expect( result.pricingFreshness ).toBe( CacheFreshness.STALE );
     expect( result.status ).toBe( LLMGenerationCost.Status.PRECISE );
   } );
 
-  it( 'marks the cost imprecise when priced from the bundled snapshot', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2, output: 10 }, Freshness.SNAPSHOT ) );
+  it( 'marks the cost imprecise when priced from the bundled snapshot', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2, output: 10 }, CacheFreshness.SNAPSHOT ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1_000_000 ),
       item( OUTPUT, null, 500_000 )
     ] ), [] );
 
-    expect( result.pricingFreshness ).toBe( Freshness.SNAPSHOT );
+    expect( result.pricingFreshness ).toBe( CacheFreshness.SNAPSHOT );
     expect( result.status ).toBe( LLMGenerationCost.Status.IMPRECISE );
     expect( result.total ).toBe( 7 );
     expect( result.items.every( value => value.status === LLMGenerationCostItem.Status.OK ) ).toBe( true );
   } );
 
-  it( 'keeps an incomplete cost incomplete when priced from the bundled snapshot', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( { input: 2 }, Freshness.SNAPSHOT ) );
+  it( 'keeps an incomplete cost incomplete when priced from the bundled snapshot', () => {
+    mockGetPricing.mockReturnValue( pricing( { input: 2 }, CacheFreshness.SNAPSHOT ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 100 ),
       item( OUTPUT, null, 50 )
     ] ), [] );
@@ -844,13 +831,13 @@ describe( 'calculateCosts', () => {
     expect( result.status ).toBe( LLMGenerationCost.Status.INCOMPLETE );
   } );
 
-  it( 'uses decimal arithmetic for fractional prices', async () => {
-    mockFetchModelsPricing.mockResolvedValue( pricing( {
+  it( 'uses decimal arithmetic for fractional prices', () => {
+    mockGetPricing.mockReturnValue( pricing( {
       input: 0.1,
       output: 0.2
     } ) );
 
-    const result = await calculateCosts( usage( [
+    const result = calculateCosts( usage( [
       item( INPUT, null, 1 ),
       item( INPUT, null, 2 ),
       item( OUTPUT, null, 3 )

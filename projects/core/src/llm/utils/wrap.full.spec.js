@@ -96,8 +96,8 @@ const consume = stream => stream.consumeStream();
 describe( 'wrap against the real ai sdk', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    mocks.calculateCosts.mockResolvedValue( mockCost );
-    mocks.calculateLegacyCosts.mockResolvedValue( mockCost );
+    mocks.calculateCosts.mockReturnValue( mockCost );
+    mocks.calculateLegacyCosts.mockReturnValue( mockCost );
     mocks.convertCostToLegacy.mockReturnValue( null );
     vi.spyOn( stepEventBus, 'emit' ).mockImplementation( () => {} );
   } );
