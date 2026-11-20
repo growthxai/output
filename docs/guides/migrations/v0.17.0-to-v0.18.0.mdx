@@ -195,7 +195,7 @@ TypeScript unions that include `"live"` should drop it. Code that treated `"live
 
 ## Provider-reported cost
 
-`registerProvider` accepts an optional `extractStepCost` function: `(providerMetadata) => number | null`. Metering calls it once per step at bill time, sums the dollar amounts, and writes `pricingSource: "provider"` with no models.dev lookup and no legacy `cost:llm:request` / `llm:usage`. Catalog-priced calls gain an additive `pricingSource: "models.dev"` field. See [Provider-reported cost](/packages/core/llm#provider-reported-cost).
+`registerProvider` accepts an optional `extractStepCost` function: `(providerMetadata) => number | null`. Metering calls it once per step at bill time (`response.steps`, or steps recorded before a failure), sums the dollar amounts, and writes `pricingSource: "provider"` with no models.dev lookup and no legacy `cost:llm:request` / `llm:usage`. When there are no steps - for example `generateImage` - it falls back to `response.finalStep`, then to top-level `response.providerMetadata` as a single synthetic step. Catalog-priced calls gain an additive `pricingSource: "models.dev"` field. See [Provider-reported cost](/packages/core/llm#provider-reported-cost).
 
 ## Worker shutdown service logs
 
@@ -223,5 +223,5 @@ Update log alerts that matched `complete` / `failed` with `shutdownDurationMs` o
 - Replace `dataset generate --trace` and `--download --limit` in scripts and agent skills with `--workflow-id`, one run per command.
 - Drop `executionTimeMs` from any TypeScript code that builds dataset `last_output` values. Existing dataset files need no change.
 - Drop `"live"` from any `pricingFreshness` type unions or switches. Expect `"snapshot"` until the worker cache is warm.
-- Accept optional `pricingSource` on `LLMGenerationCost` (`"models.dev"` or `"provider"`). Pass an `extractStepCost` function on `registerProvider` when a gateway reports the charge in step `providerMetadata`.
+- Accept optional `pricingSource` on `LLMGenerationCost` (`"models.dev"` or `"provider"`). Pass an `extractStepCost` function on `registerProvider` when a gateway reports the charge in step (or response) `providerMetadata`; empty-step calls such as `generateImage` use `finalStep` / top-level metadata.
 - Update shutdown log alerts: service lines use `elapsedMs` and `... stopped` / `... failed to stop`; `Bye` still uses `shutdownDurationMs`.

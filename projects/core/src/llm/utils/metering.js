@@ -29,7 +29,7 @@ export class Metering {
     legacy: null
   };
 
-  #createAttributes( { usage, steps, requestDetails } ) {
+  #createAttributes( { usage, steps, requestDetails, response } ) {
     const baseUsageArgs = {
       prompt: this.#prompt,
       toolIdsByName: this.#toolIdsByName
@@ -45,7 +45,12 @@ export class Metering {
     const extractStepCost = getStepCostExtractorForProvider( this.#prompt?.config?.provider );
     if ( extractStepCost ) {
       // Provider-reported path: never models.dev, and legacy cost is unsupported
-      this.#attributes.cost = calculateProviderCosts( this.#attributes.usage, steps, extractStepCost );
+      this.#attributes.cost = calculateProviderCosts( {
+        usage: this.#attributes.usage,
+        steps,
+        response,
+        extractor: extractStepCost
+      } );
       return;
     }
 
@@ -139,7 +144,7 @@ export class Metering {
 
       this.#billed = true;
 
-      this.#createAttributes( { usage, steps, requestDetails } );
+      this.#createAttributes( { usage, steps, requestDetails, response } );
       this.#attachAttributes();
       this.#emitEvents();
 

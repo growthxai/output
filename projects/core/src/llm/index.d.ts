@@ -523,10 +523,11 @@ export type RegisterProviderOptions = {
   /**
    * Function called once per AI SDK step at bill time. Receives that step's `providerMetadata`
    * (or `undefined`) and returns the dollar amount charged for the step, or `null` when missing.
+   * With no steps, metering falls back to `finalStep`, then top-level response `providerMetadata`.
    * When set, metering bills only from this function and never from models.dev; legacy
    * `cost:llm:request` is not emitted.
    */
-  extractStepCost?: ( providerMetadata: Record<string, unknown> | undefined ) => number | null;
+  extractStepCost?: ( providerMetadata: Record<string, any> | undefined ) => number | null; // eslint-disable-line @typescript-eslint/no-explicit-any
 };
 
 /**

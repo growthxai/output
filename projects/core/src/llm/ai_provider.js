@@ -98,7 +98,8 @@ const registerProviderSchema = z.object( {
  * @param {Function} providerFn - Factory function that receives a model id
  * @param {object} [options]
  * @param {(providerMetadata: object|undefined) => number|null} [options.extractStepCost] -
- *   when set, metering bills from this extractor only and never from models.dev
+ *   when set, metering bills from this extractor only and never from models.dev;
+ *   with no steps, falls back to `finalStep` then top-level response `providerMetadata`
  * @returns {void}
  */
 export const registerProvider = ( name, providerFn, options = {} ) => {

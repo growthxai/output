@@ -431,7 +431,12 @@ describe( 'Metering', () => {
     metering.bill( response );
 
     expect( mocks.getStepCostExtractorForProvider ).toHaveBeenCalledWith( 'openrouter' );
-    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( mockUsage, response.steps, extractStepCost );
+    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( {
+      usage: mockUsage,
+      steps: response.steps,
+      response,
+      extractor: extractStepCost
+    } );
     expect( mocks.calculateCosts ).not.toHaveBeenCalled();
     expect( mocks.calculateLegacyCosts ).not.toHaveBeenCalled();
     expect( mocks.convertCostToLegacy ).not.toHaveBeenCalled();
@@ -455,10 +460,39 @@ describe( 'Metering', () => {
     recorded.forEach( metering.recordStep );
     metering.bill();
 
-    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( mockUsage, recorded, extractStepCost );
+    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( {
+      usage: mockUsage,
+      steps: recorded,
+      response: null,
+      extractor: extractStepCost
+    } );
     expect( mocks.calculateCosts ).not.toHaveBeenCalled();
     expect( mocks.calculateLegacyCosts ).not.toHaveBeenCalled();
     expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockProviderCost, legacy: null } );
+  } );
+
+  it( 'passes the response through for provider cost step fallback', () => {
+    const extractStepCost = vi.fn();
+    const response = {
+      usage: { inputTokens: 2 },
+      steps: [],
+      finalStep: { providerMetadata: { openrouter: { usage: { cost: 0.42 } } } }
+    };
+    mocks.getStepCostExtractorForProvider.mockReturnValue( extractStepCost );
+    const metering = new Metering( {
+      traceId,
+      prompt: { name: 'writer@v1', config: { provider: 'openrouter', model: 'deepseek/x' } }
+    } );
+
+    metering.bill( response );
+
+    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( {
+      usage: mockUsage,
+      steps: [],
+      response,
+      extractor: extractStepCost
+    } );
+    expect( mocks.calculateCosts ).not.toHaveBeenCalled();
   } );
 
   it( 'reports usage with a null cost when costing yields nothing', () => {

@@ -266,6 +266,8 @@ Supported image inputs follow the AI SDK shape: `Buffer`, `Uint8Array`, `ArrayBu
 `generateImage` does not upload generated images, download remote images, or normalize provider-specific values like `size: "auto"`. Download or upload files in your workflow/client code, pass image bytes to `images`, and set concrete provider options in prompt front matter (`size`, `n`, `aspectRatio`, `seed`, `providerOptions`).
 </Note>
 
+Image calls have no AI SDK step list. Catalog pricing still uses aggregate `usage`. With [`extractStepCost`](#provider-reported-cost) registered, metering reads top-level `response.providerMetadata` (there is no `finalStep` on image responses).
+
 Common image options can live in prompt front matter:
 
 | Option | Description |
@@ -756,7 +758,7 @@ Built-in providers use Output's default fetch configuration, including longer Un
 
 Some gateways put the dollar amount they actually charged on each generation into the AI SDK step's `providerMetadata` (for example OpenRouter under `providerMetadata.openrouter.usage.cost`). Catalog rates cannot match that: the same model can be routed to different hosts at different prices. For those providers, pass an `extractStepCost` function as the third argument to `registerProvider`. The function receives that step's `providerMetadata` (or `undefined` when the step has none) and returns the dollar amount for the step as a finite non-negative number, or `null` when the charge is missing. `0` is a valid free step; negative and non-numeric values are treated as missing.
 
-At bill time, for every LLM call whose prompt `provider` matches the registered name, metering walks the call's steps (the response `steps` array, or the steps recorded before a failure) and calls your function once per step. It keeps the non-negative amounts, sums them into `cost.total`, and never looks up models.dev for that provider. The legacy `cost:llm:request` event and `llm:usage` trace attribute are not emitted. If your function throws, Output catches it, logs a warning that names `extractStepCost()` and the provider, treats that step as missing, and continues; the LLM call itself is not failed. Re-registering the same name without `extractStepCost` clears the function and returns that provider to catalog pricing.
+At bill time, for every LLM call whose prompt `provider` matches the registered name, metering walks the call's steps (the response `steps` array, or the steps recorded before a failure) and calls your function once per step. When there are no steps - for example `generateImage` - it falls back to `response.finalStep`, then to top-level `response.providerMetadata` as a single synthetic step. It keeps the non-negative amounts, sums them into `cost.total`, and never looks up models.dev for that provider. The legacy `cost:llm:request` event and `llm:usage` trace attribute are not emitted. If your function throws, Output catches it, logs a warning that names `extractStepCost()` and the provider, treats that step as missing, and continues; the LLM call itself is not failed. Re-registering the same name without `extractStepCost` clears the function and returns that provider to catalog pricing.
 
 ```typescript
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
@@ -953,6 +955,8 @@ const { result, toolCalls } = await generateText({
 | `images` | no | Source images for image-to-image |
 | `mask` | no | Inpainting mask; requires `images` |
 | `abortSignal` | no | Cancel the request |
+
+`response.cost` follows the same catalog vs [provider-reported](#provider-reported-cost) rules as text calls. Image responses expose cost metadata on top-level `providerMetadata` only.
 
 ### Agent
 
