@@ -23,27 +23,26 @@ Gather 50-100 representative workflow executions. More traces = more reliable fa
 
 ### From recent runs
 
-List recent workflow executions and pull their traces:
+List recent workflow executions and look at their histories:
 
 ```bash
 # List recent runs for a workflow
 npx output workflow runs list <workflowName>
 
 # Quick look at one run's Temporal history (JSON). Payloads are truncated, so use
-# the trace file in logs/runs/ or `dataset generate --download` below when you need full data
+# `dataset generate --workflow-id` below when you need the full input and result
 npx output workflow debug <workflowId>
 ```
 
-### From production (bulk download)
+### From production runs
 
-Download production traces directly into dataset YAML files:
+Turn completed production runs into dataset YAML files, one command per workflow id taken from `workflow runs list`:
 
 ```bash
-# Download up to 20 recent traces as dataset files
-npx output workflow dataset generate <workflowName> --download --limit 20
+npx output workflow dataset generate <workflowName> --workflow-id <workflowId>
 ```
 
-This creates YAML files in `tests/datasets/` with the `input` and `last_output` fields populated from real executions.
+This creates a YAML file in `tests/datasets/` with the `input` and `last_output` fields populated from the run, read from Temporal. The run must be completed.
 
 ### From scenario-driven generation
 
@@ -153,7 +152,6 @@ last_output:
   output:
     title: "Understanding AI Safety"
     blog_post: "AI safety is super important and stuff..."
-  executionTimeMs: 3200
   date: '2026-03-25T00:00:00.000Z'
 ground_truth:
   # Global ground truth (available to all evaluators)

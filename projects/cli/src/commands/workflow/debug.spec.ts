@@ -6,7 +6,10 @@ import { collectWorkflowDebug } from '#services/workflow_debug.js';
 import { createTemporalClient } from '#services/temporal_client.js';
 
 vi.mock( '#services/workflow_debug.js', () => ( { collectWorkflowDebug: vi.fn() } ) );
-vi.mock( '#services/temporal_client.js', () => ( { createTemporalClient: vi.fn() } ) );
+vi.mock( '#services/temporal_client.js', async importOriginal => ( {
+  ...await importOriginal<typeof import( '#services/temporal_client.js' )>(),
+  createTemporalClient: vi.fn()
+} ) );
 
 describe( 'workflow debug command', () => {
   it( 'takes a required workflow id and an optional run id', () => {

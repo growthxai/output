@@ -196,7 +196,6 @@ last_output:
   output:
     title: "Things That Matter: A Casual Academic Exploration"
     blog_post: "So here's the thing about stuff that matters..."
-  executionTimeMs: 4200
   date: '2026-03-25T00:00:00.000Z'
 ground_truth:
   human_verdict: fail
@@ -225,18 +224,18 @@ ground_truth:
 
 ## Step 6: Supplement with Real Data
 
-If you have production traces available, use them to fill coverage gaps.
+If you have production runs available, use them to fill coverage gaps. Pick completed runs with `npx output workflow runs list blog_generator`, then turn each into a dataset case:
 
 ```bash
-# Download production traces
-npx output workflow dataset generate blog_generator --download --limit 30
+# Read a completed run from Temporal (input and result)
+npx output workflow dataset generate blog_generator --workflow-id <workflowId> --name real_case_1
 ```
 
 ### Stratified sampling
 
-After downloading, check which dimensions are underrepresented:
+After generating cases from real runs, check which dimensions are underrepresented:
 
-1. Review the downloaded datasets
+1. Review the generated datasets
 2. Tag each with its approximate dimension values
 3. Identify gaps (e.g., no ambiguous topics, no contradictory tones)
 4. Generate synthetic datasets specifically for the missing combinations

@@ -1,9 +1,9 @@
 ---
 title: "v0.17.0 → v0.18.0"
-description: "Upgrading Output.ai projects from v0.17.0 to v0.18.0: output workflow debug reads Temporal directly and prints JSON grouped by workflow instead of the trace tree."
+description: "Upgrading Output.ai projects from v0.17.0 to v0.18.0: output workflow debug reads Temporal directly and prints JSON grouped by workflow instead of the trace tree, and output workflow dataset generate reads completed runs from Temporal and drops --trace, --download, --limit and executionTimeMs."
 ---
 
-This guide covers one breaking change in `@outputai/cli`: `output workflow debug` now reads the run from Temporal instead of the API's trace log, and its output is completely different. Nothing in your workflow code changes. If you only run the command by hand, you only need to point it at your Temporal. If a script, a CI job or an agent skill parses its output, update the parser.
+This guide covers two breaking changes in `@outputai/cli`. `output workflow debug` now reads the run from Temporal instead of the API's trace log, and its output is completely different. `output workflow dataset generate` no longer reads traces: it can read a completed run from Temporal, and `--trace`, `--download` and `--limit` are removed. Nothing in your workflow code changes. If you only run the commands by hand, you only need to point them at your Temporal. If a script, a CI job or an agent skill parses the `debug` output or uses the removed flags, update it.
 
 ## What changed
 
@@ -22,7 +22,7 @@ v0.18.0 reads the run's history from Temporal. No API, no trace files, no S3, an
 
 ## Connect to Temporal
 
-The CLI used to need only the API. `workflow debug` now connects to Temporal from the machine that runs it, so that machine must reach your Temporal. Locally nothing changes: `output dev` publishes Temporal on `localhost:7233`, and the command uses it by default. If you override `OUTPUT_TEMPORAL_HOST_PORT`, the default follows it.
+The CLI used to need only the API. `workflow debug` and `workflow dataset generate --workflow-id` now connect to Temporal from the machine that runs them, so that machine must reach your Temporal. Locally nothing changes: `output dev` publishes Temporal on `localhost:7233`, and the commands use it by default. If you override `OUTPUT_TEMPORAL_HOST_PORT`, the default follows it.
 
 For a remote Temporal, use a profile in `temporal.toml`, the file the `temporal` CLI uses. It lives in `temporalio/` under your user config directory (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows).
 
@@ -35,11 +35,12 @@ api_key = "..."
 
 ```bash
 output workflow debug <workflowId> --profile prod
+output workflow dataset generate <workflowName> --workflow-id <workflowId> --profile prod
 ```
 
 You can also use environment variables (`TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY`, `TEMPORAL_PROFILE`) or the `--address` and `--namespace` flags. Highest priority first: flags, environment variables, the profile, then the defaults. The API key and TLS material have no flag, so they never end up in shell history.
 
-`OUTPUT_API_URL` and `OUTPUT_API_AUTH_TOKEN` are not used by this command anymore.
+`OUTPUT_API_URL` and `OUTPUT_API_AUTH_TOKEN` are not used by `workflow debug` anymore, nor by `workflow dataset generate --workflow-id`.
 
 ## Output
 
@@ -153,11 +154,41 @@ output workflow debug <workflowId> | jq -r '.workflows[0].events[] | select(.eve
 
 The Output Claude plugin skills describe the new output. Run `output update --agents` to get them.
 
+## Dataset generation without traces
+
+`output workflow dataset generate` used to build cases from traces: `--trace <file>` read a local trace file, and `--download --limit <n>` fetched the traces of recent runs through the API. The scenario and `--input` modes also read the run's duration from the trace. None of that reads traces any more.
+
+- New: `--workflow-id <id>` reads a completed run from Temporal and saves its start input and result as a case. `--run-id` picks a run other than the latest, and `--profile`, `--address` and `--namespace` choose the Temporal backend, as in `workflow debug`.
+- Removed: `--trace` (`-t`), `--download` (`-d`) and `--limit` (`-l`) on this command. Passing them is now an error.
+- The scenario and `--input` modes work as before, and work with tracing off.
+- Removed: the optional `executionTimeMs` field of `last_output` (and `last_eval`) in dataset files, and in the `@outputai/core` dataset types. Nothing used it. Dataset files that still contain it load without error, and the key disappears the next time the CLI rewrites the file. Remove it from TypeScript code that builds a `LastOutput`, since it is now an unknown property.
+
+```bash
+# Before: from a trace file
+output workflow dataset generate <workflowName> --trace logs/runs/<workflowName>/trace.json --name my_case
+
+# After: from the run, read from Temporal
+output workflow dataset generate <workflowName> --workflow-id <workflowId> --name my_case
+
+# Before: the 10 most recent runs
+output workflow dataset generate <workflowName> --download --limit 10
+
+# After: one command per workflow id (`workflow runs list` prints them)
+output workflow runs list <workflowName> --limit 10
+output workflow dataset generate <workflowName> --workflow-id <workflowId>
+```
+
+The run must be a completed run of `<workflowName>`. A run of another workflow, a run that is not completed, a missing run and an unreachable Temporal stop the command with a message and write nothing. A run that continued as new is not completed, so omit `--run-id` or pass the id of the last run. For a continuation, the case takes the input of the first run of the chain and the result of the run read, and the command prints both run ids.
+
+The case name defaults to the workflow id. Generating a case again with the same name replaces its `input` and `last_output` and keeps its other fields, such as `ground_truth`, as the other modes do.
+
 ## Checklist
 
 - Bump `@outputai/core` and `@outputai/cli` to `0.18.0`.
-- Make sure the machine that runs `output workflow debug` reaches your Temporal. For a remote Temporal, add a profile to `temporal.toml` or set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE` and `TEMPORAL_API_KEY`.
+- Make sure the machine that runs `output workflow debug` or `output workflow dataset generate --workflow-id` reaches your Temporal. For a remote Temporal, add a profile to `temporal.toml` or set `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE` and `TEMPORAL_API_KEY`.
 - Update scripts, CI jobs and agent skills that parse the old text tree or the trace JSON from `--json`. Read `complete`, loop over `workflows[].events[]`, and read steps from `EVENT_TYPE_ACTIVITY_TASK_*` events.
 - Use `workflow cost`, or the trace file, when you need LLM and HTTP call detail, cost or full payloads. `workflow debug` truncates and does not carry them.
 - Handle the exit code and stderr: a failure no longer prints anything to stdout.
 - Pass `--run-id` when you need a run that is not the latest.
+- Replace `dataset generate --trace` and `--download --limit` in scripts and agent skills with `--workflow-id`, one run per command.
+- Drop `executionTimeMs` from any TypeScript code that builds dataset `last_output` values. Existing dataset files need no change.

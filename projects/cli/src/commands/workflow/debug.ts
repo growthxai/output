@@ -1,18 +1,9 @@
 import { Args, Command, Flags } from '@oclif/core';
 import { CLIError } from '@oclif/core/errors';
-import { WorkflowNotFoundError } from '@temporalio/client';
 import { collectWorkflowDebug } from '#services/workflow_debug.js';
-import { createTemporalClient } from '#services/temporal_client.js';
+import { createTemporalClient, formatTemporalError } from '#services/temporal_client.js';
 import { temporalFlags } from '#utils/temporal_flags.js';
 import { createErrorFn, handleCommandError } from '#utils/error_handler.js';
-
-/** Builds the stderr message for a failure; never touches stdout */
-const formatDebugError = ( error: Error ): string => {
-  if ( error instanceof WorkflowNotFoundError ) {
-    return `${error.message.charAt( 0 ).toUpperCase()}${error.message.slice( 1 )}. Check the workflow id, the run id and the namespace.`;
-  }
-  return error.message;
-};
 
 export default class WorkflowDebug extends Command {
   static override description = 'Read a workflow run and its child workflows from Temporal as JSON, one entry per workflow, for debugging';
@@ -61,6 +52,6 @@ export default class WorkflowDebug extends Command {
     if ( error instanceof CLIError ) {
       return handleCommandError( error, errorFn );
     }
-    return errorFn( formatDebugError( error ), { exit: 1 } );
+    return errorFn( formatTemporalError( error ), { exit: 1 } );
   }
 }

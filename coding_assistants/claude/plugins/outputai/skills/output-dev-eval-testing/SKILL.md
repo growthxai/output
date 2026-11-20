@@ -328,7 +328,6 @@ input:
 last_output:
   output:
     result: 15
-  executionTimeMs: 100
   date: '2026-02-13T00:00:00.000Z'
 ```
 
@@ -346,7 +345,6 @@ last_output:
     title: "Stripe: The Modern Payment Processing Platform"
     blog_post: |
       Stripe has revolutionized online payment processing...
-  executionTimeMs: 5000
   date: '2026-02-16T00:00:00.000Z'
 ground_truth:
   notes: "Known good case"
@@ -392,15 +390,15 @@ Lists all datasets for a workflow with their cached status.
 
 ### `output workflow dataset generate <workflow_name> [scenario]`
 
-Generates a new dataset file by running the workflow.
+Generates a new dataset file by running the workflow, or from a completed run read from Temporal.
 
 | Flag | Description |
 |------|-------------|
 | `--input <json>` | Workflow input as a JSON string or file path |
-| `--name <name>` | Dataset filename (defaults to scenario name) |
-| `--trace <path>` | Generate from a local trace file instead of running the workflow |
-| `--download` | Download traces from S3 and convert to datasets |
-| `--limit <n>` | Max traces to download from S3 (default: 5) |
+| `--name <name>` | Dataset filename (defaults to scenario name, or the workflow id with `--workflow-id`) |
+| `--workflow-id <id>` | Read a completed run of the workflow from Temporal instead of running it. Cannot be combined with a scenario or `--input` |
+| `--run-id <runId>` | With `--workflow-id`: the run to read (defaults to the latest run) |
+| `--profile`, `--address`, `--namespace` | With `--workflow-id`: which Temporal to read from |
 
 ### Common Usage
 
@@ -410,6 +408,9 @@ output workflow dataset generate my_workflow --input '{"key": "value"}' --name m
 
 # Generate from a scenario file
 output workflow dataset generate my_workflow basic
+
+# Generate from a completed run (input and result read from Temporal)
+output workflow dataset generate my_workflow --workflow-id <workflowId> --name from_run
 
 # Run evals with cached output (fast, no re-execution)
 output workflow test my_workflow --cached

@@ -128,6 +128,29 @@ describe( 'workflow test command', () => {
       expect( process.exitCode ).toBe( 1 );
     } );
 
+    it( 'saves the fresh output with only the output and the date', async () => {
+      const WorkflowTest = ( await import( './test.js' ) ).default;
+      const { postWorkflowRun } = await import( '#api/generated/api.js' );
+      const { writeDataset } = await import( '#services/datasets.js' );
+
+      const cmd = new WorkflowTest( [ 'simple' ], {} as any );
+      cmd.log = vi.fn();
+      ( cmd as any ).jsonEnabled = vi.fn().mockReturnValue( false );
+      ( cmd as any ).parse = vi.fn().mockResolvedValue( {
+        args: { workflowName: 'simple' },
+        flags: { cached: false, save: true, dataset: undefined }
+      } );
+      vi.mocked( postWorkflowRun )
+        .mockResolvedValueOnce( { data: { output: { result: 7 } }, status: 200, headers: new Headers() } as any )
+        .mockResolvedValueOnce( { data: { output: passingOutput }, status: 200, headers: new Headers() } as any );
+
+      await cmd.run();
+
+      const saved = vi.mocked( writeDataset ).mock.calls[0][0];
+      expect( saved.last_output ).toEqual( { output: { result: 7 }, date: expect.any( String ) } );
+      expect( saved.last_output ).not.toHaveProperty( 'executionTimeMs' );
+    } );
+
     it( 'routes registration, dataset runs, and the eval run to the resolved catalog', async () => {
       const WorkflowTest = ( await import( './test.js' ) ).default;
       const { postWorkflowRun } = await import( '#api/generated/api.js' );

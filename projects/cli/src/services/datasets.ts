@@ -4,7 +4,6 @@ import { resolve, join } from 'node:path';
 import { load as parseYaml, dump as stringifyYaml } from 'js-yaml';
 import { DatasetSchema } from '@outputai/core/evals';
 import type { Dataset } from '@outputai/core/evals';
-import { getTrace } from '#services/trace_reader.js';
 import { sanitizeSecrets } from '#utils/secret_sanitizer.js';
 import { resolveWorkflowDir, WORKFLOWS_PATHS } from '#utils/workflow_dir.js';
 import { getWorkflowsBasePath } from '#utils/paths.js';
@@ -156,22 +155,16 @@ export async function listDatasets(
 export function buildDataset(
   name: string,
   input: Record<string, unknown>,
-  output: unknown,
-  executionTimeMs?: number
+  output: unknown
 ): Dataset {
   return {
     name,
     input: sanitizeSecrets( input ) as Record<string, unknown>,
     last_output: {
       output: sanitizeSecrets( output ),
-      executionTimeMs,
       date: new Date().toISOString()
     }
   };
-}
-
-export function extractDatasetName( tracePathOrKey: string ): string {
-  return tracePathOrKey.replace( /^.*\//, '' ).replace( /\.json$/, '' );
 }
 
 // Resolve the .yml path for a dataset case, sanitizing the name so it can never
@@ -180,18 +173,4 @@ export function extractDatasetName( tracePathOrKey: string ): string {
 export function datasetFilePath( dir: string, name: string ): string {
   const safeName = name.replace( /[^a-zA-Z0-9._-]/g, '_' );
   return join( dir, `${safeName}.yml` );
-}
-
-export function getExecutionTime( workflowId: string | undefined ): Promise<number | undefined> {
-  if ( !workflowId ) {
-    return Promise.resolve( undefined );
-  }
-  return getTrace( workflowId )
-    .then( traceResult => {
-      const root = traceResult.data.root;
-      return ( root.startTime && root.endTime ) ?
-        root.endTime - root.startTime :
-        root.duration;
-    } )
-    .catch( () => undefined );
 }

@@ -91,25 +91,21 @@ export interface GroundTruth {
 
 export interface LastOutput {
   output: unknown;
-  executionTimeMs?: number;
   date: string;
 }
 
 export interface LastEval {
   output: EvalCase;
-  executionTimeMs?: number;
   date: string;
 }
 
 export const LastOutputSchema: z.ZodType<LastOutput> = z.object( {
   output: z.any(),
-  executionTimeMs: z.number().optional(),
   date: z.string()
 } );
 
 export const LastEvalSchema: z.ZodType<LastEval> = z.object( {
   output: EvalCaseSchema,
-  executionTimeMs: z.number().optional(),
   date: z.string()
 } );
 
