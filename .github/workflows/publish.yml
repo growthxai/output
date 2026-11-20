@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,8 +51,6 @@ jobs:
         run: ./ops/publish_api.sh
 
       - name: Publish NPM
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           ./ops/publish_npm.sh
           if [ -f pnpm-publish-summary.json ]; then
