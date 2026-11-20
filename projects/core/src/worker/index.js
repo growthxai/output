@@ -34,7 +34,7 @@ import { WorkerRunner } from './worker_runner.js';
 import { shutdownServices } from './shutdown.js';
 import { init as initCredentials } from '#credentials/init';
 import { buildWorkerOptions } from './worker_options.js';
-import { LLMPricingDataRetriever } from '../llm/pricing/job.js';
+import { LLMPricingRetriever } from '../llm/pricing/job.js';
 
 import './log_hooks.js';
 
@@ -44,7 +44,7 @@ const services = {
   catalogPublisher: null,
   connection: null,
   connectionMonitor: null,
-  llmPricingDataRetriever: null,
+  llmPricingRetriever: null,
   workerRunner: null
 };
 
@@ -107,10 +107,10 @@ const execute = async () => {
     return services.catalogPublisher.start();
   } );
 
-  log.info( 'Starting LLM pricing data retriever...' );
+  log.info( 'Starting LLM pricing retriever...' );
   run( () => {
-    services.llmPricingDataRetriever = new LLMPricingDataRetriever( { signal } );
-    services.llmPricingDataRetriever.start();
+    services.llmPricingRetriever = new LLMPricingRetriever( { signal } );
+    services.llmPricingRetriever.start();
   } );
 
   log.info( 'Creating Temporal worker...' );

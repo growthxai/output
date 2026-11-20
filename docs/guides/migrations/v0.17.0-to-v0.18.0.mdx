@@ -199,10 +199,12 @@ Service stop lines no longer reuse `shutdownDurationMs`. That field stays on `By
 
 | Before | After |
 |--------|-------|
-| `Stopping Worker complete { shutdownDurationMs }` | `Worker stopped { elapsedMs }` |
-| `Stopping Worker failed { ..., shutdownDurationMs }` | `Worker failed to stop { ..., elapsedMs }` |
+| `Stopping Worker...` / `Stopping Worker complete` / `Stopping Worker failed` | `Stopping Worker...` / `Worker stopped` / `Worker failed to stop` (`elapsedMs`) |
+| `Stopping Connection Monitor...` / `... complete` / `... failed` | Same pattern: `Connection Monitor stopped` / `Connection Monitor failed to stop` |
+| `Interrupting Catalog Publisher...` / `... complete` / `... failed` | `Stopping Catalog Publisher...` / `Catalog Publisher stopped` / `Catalog Publisher failed to stop` |
+| `Closing Connection...` / `Closing Connection complete` / `Closing Connection failed` | `Stopping Temporal Connection...` / `Temporal Connection stopped` / `Temporal Connection failed to stop` |
+| (none) | `Stopping LLM Pricing Retriever...` / `LLM Pricing Retriever stopped` / `... failed to stop` (before Temporal Connection) |
 | `Bye { exitCode, shutdownDurationMs }` | Unchanged |
-| Services stopped | Adds `LLM Pricing Retriever` before `Temporal Connection` |
 
 Update log alerts that matched `complete` / `failed` with `shutdownDurationMs` on service lines. Keep matching `Bye.shutdownDurationMs` for total teardown time. See [Reading the Shutdown Logs](/operations/worker-shutdown#reading-the-shutdown-logs).
 

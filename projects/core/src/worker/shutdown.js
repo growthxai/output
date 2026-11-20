@@ -35,8 +35,8 @@ export const shutdownServices = async services => {
   if ( services.catalogPublisher?.running ) {
     await invokeShutdown( () => services.catalogPublisher.stop(), 'Catalog Publisher' );
   }
-  if ( services.llmPricingDataRetriever?.running ) {
-    await invokeShutdown( () => services.llmPricingDataRetriever.stop(), 'LLM Pricing Retriever' );
+  if ( services.llmPricingRetriever?.running ) {
+    await invokeShutdown( () => services.llmPricingRetriever.stop(), 'LLM Pricing Retriever' );
   }
   if ( services.connection ) {
     await invokeShutdown( () => services.connection.close(), 'Temporal Connection' );

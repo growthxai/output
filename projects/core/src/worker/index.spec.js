@@ -12,7 +12,7 @@ const {
   hashSourceCodeMock,
   initInterceptorsMock,
   interruption,
-  llmPricingDataRetrieverInstance,
+  llmPricingRetrieverInstance,
   loadActivitiesMock,
   loadHooksMock,
   loadWorkflowsMock,
@@ -107,22 +107,22 @@ const {
   };
 
   /** Background job: start leaves it running until stop or abort. */
-  const llmPricingDataRetrieverInstance = {
+  const llmPricingRetrieverInstance = {
     running: false,
     options: null,
     start: vi.fn( () => {
-      llmPricingDataRetrieverInstance.running = true;
-      llmPricingDataRetrieverInstance.options?.signal.addEventListener(
+      llmPricingRetrieverInstance.running = true;
+      llmPricingRetrieverInstance.options?.signal.addEventListener(
         'abort',
         () => {
-          llmPricingDataRetrieverInstance.running = false;
+          llmPricingRetrieverInstance.running = false;
         },
         { once: true }
       );
       return Promise.resolve();
     } ),
     stop: vi.fn( () => {
-      llmPricingDataRetrieverInstance.running = false;
+      llmPricingRetrieverInstance.running = false;
       return Promise.resolve();
     } )
   };
@@ -148,7 +148,7 @@ const {
     hashSourceCodeMock: vi.fn().mockResolvedValue( 'catalog-hash' ),
     initInterceptorsMock: vi.fn().mockReturnValue( [] ),
     interruption,
-    llmPricingDataRetrieverInstance,
+    llmPricingRetrieverInstance,
     loadActivitiesMock: vi.fn().mockResolvedValue( { activities: {} } ),
     loadHooksMock: vi.fn().mockResolvedValue( undefined ),
     loadWorkflowsMock: vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/path.js' } ),
@@ -218,9 +218,9 @@ vi.mock( './catalog_workflow/catalog_publisher.js', () => ( {
   } )
 } ) );
 vi.mock( '../llm/pricing/job.js', () => ( {
-  LLMPricingDataRetriever: vi.fn( function ( options ) {
-    llmPricingDataRetrieverInstance.options = options;
-    return llmPricingDataRetrieverInstance;
+  LLMPricingRetriever: vi.fn( function ( options ) {
+    llmPricingRetrieverInstance.options = options;
+    return llmPricingRetrieverInstance;
   } )
 } ) );
 vi.mock( './shutdown.js', () => ( { shutdownServices: shutdownServicesMock } ) );
@@ -260,8 +260,8 @@ describe( 'worker/index', () => {
     connectionMonitorInstance.options = null;
     catalogPublisherInstance.running = false;
     catalogPublisherInstance.options = null;
-    llmPricingDataRetrieverInstance.running = false;
-    llmPricingDataRetrieverInstance.options = null;
+    llmPricingRetrieverInstance.running = false;
+    llmPricingRetrieverInstance.options = null;
     interruption.controller = null;
     mockConnection.close.mockResolvedValue( undefined );
     process.argv = [ ...originalArgv.slice( 0, 2 ), '/test/caller/dir' ];
@@ -278,7 +278,7 @@ describe( 'worker/index', () => {
       const { NativeConnection, Worker } = await import( '@temporalio/worker' );
       const { TemporalConnectionMonitor } = await import( './connection_monitor.js' );
       const { CatalogPublisher } = await import( './catalog_workflow/catalog_publisher.js' );
-      const { LLMPricingDataRetriever } = await import( '../llm/pricing/job.js' );
+      const { LLMPricingRetriever } = await import( '../llm/pricing/job.js' );
       const { WorkerRunner } = await import( './worker_runner.js' );
 
       await bootWorker();
@@ -313,8 +313,8 @@ describe( 'worker/index', () => {
       } );
       expect( catalogPublisherInstance.start ).toHaveBeenCalledOnce();
       expect( TemporalConnectionMonitor ).toHaveBeenCalledWith( { connection: mockConnection, signal } );
-      expect( LLMPricingDataRetriever ).toHaveBeenCalledWith( { signal } );
-      expect( llmPricingDataRetrieverInstance.start ).toHaveBeenCalledOnce();
+      expect( LLMPricingRetriever ).toHaveBeenCalledWith( { signal } );
+      expect( llmPricingRetrieverInstance.start ).toHaveBeenCalledOnce();
       expect( Worker.create ).toHaveBeenCalledWith( expect.objectContaining( {
         connection: mockConnection,
         namespace: configValues.namespace,
@@ -345,10 +345,10 @@ describe( 'worker/index', () => {
 
       await bootWorker();
 
-      expect( llmPricingDataRetrieverInstance.start.mock.invocationCallOrder[0] )
+      expect( llmPricingRetrieverInstance.start.mock.invocationCallOrder[0] )
         .toBeLessThan( Worker.create.mock.invocationCallOrder[0] );
       expect( catalogPublisherInstance.start.mock.invocationCallOrder[0] )
-        .toBeLessThan( llmPricingDataRetrieverInstance.start.mock.invocationCallOrder[0] );
+        .toBeLessThan( llmPricingRetrieverInstance.start.mock.invocationCallOrder[0] );
     } );
 
     it( 'enables TLS when an apiKey is set', async () => {
@@ -399,7 +399,7 @@ describe( 'worker/index', () => {
         workerRunner: workerRunnerInstance,
         connectionMonitor: connectionMonitorInstance,
         catalogPublisher: catalogPublisherInstance,
-        llmPricingDataRetriever: llmPricingDataRetrieverInstance,
+        llmPricingRetriever: llmPricingRetrieverInstance,
         connection: mockConnection
       } );
       expect( mockLog.error ).not.toHaveBeenCalled();
@@ -530,7 +530,7 @@ describe( 'worker/index', () => {
       expect( workerRunnerInstance.start ).not.toHaveBeenCalled();
       expect( shutdownServicesMock ).toHaveBeenCalledWith( expect.objectContaining( {
         workerRunner: null,
-        llmPricingDataRetriever: llmPricingDataRetrieverInstance,
+        llmPricingRetriever: llmPricingRetrieverInstance,
         connection: mockConnection
       } ) );
       expect( process.exit ).toHaveBeenCalledWith( 1 );

@@ -30,7 +30,7 @@ vi.mock( '#runtime_logger', () => ( {
   Logger: { createLogger: () => mockLog }
 } ) );
 
-const { LLMPricingDataRetriever } = await import( './job.js' );
+const { LLMPricingRetriever } = await import( './job.js' );
 
 const pricedTable = {
   openai: {
@@ -60,10 +60,10 @@ const runUntilSleep = async ( signal, controller ) => {
   sleepMock.mockImplementationOnce( async () => {
     controller.abort();
   } );
-  await new LLMPricingDataRetriever( { signal, overrides } ).start();
+  await new LLMPricingRetriever( { signal, overrides } ).start();
 };
 
-describe( 'LLMPricingDataRetriever', () => {
+describe( 'LLMPricingRetriever', () => {
   beforeEach( () => {
     fetchMock.mockReset();
     sleepMock.mockReset();
@@ -102,7 +102,7 @@ describe( 'LLMPricingDataRetriever', () => {
     await runUntilSleep( controller.signal, controller );
 
     expect( updateCacheMock ).not.toHaveBeenCalled();
-    expect( mockLog.error ).toHaveBeenCalledWith( 'Request error', { status: 503 } );
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Request error', { status: 503 } );
     expect( sleepMock ).toHaveBeenCalledWith( INTERVAL_AFTER_ERROR, expect.any( AbortSignal ) );
   } );
 
@@ -114,7 +114,7 @@ describe( 'LLMPricingDataRetriever', () => {
     await runUntilSleep( controller.signal, controller );
 
     expect( updateCacheMock ).not.toHaveBeenCalled();
-    expect( mockLog.error ).toHaveBeenCalledWith( 'Request failure', {
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Request failure', {
       error: 'socket hang up',
       code: 'ECONNRESET'
     } );
@@ -128,7 +128,7 @@ describe( 'LLMPricingDataRetriever', () => {
     await runUntilSleep( controller.signal, controller );
 
     expect( updateCacheMock ).not.toHaveBeenCalled();
-    expect( mockLog.error ).toHaveBeenCalledWith( 'Parsing failure', { error: 'Empty response' } );
+    expect( mockLog.warn ).toHaveBeenCalledWith( 'Parsing failure', { error: 'Empty response' } );
     expect( sleepMock ).toHaveBeenCalledWith( INTERVAL_AFTER_ERROR, expect.any( AbortSignal ) );
   } );
 
@@ -139,9 +139,9 @@ describe( 'LLMPricingDataRetriever', () => {
       throw Object.assign( new Error( 'aborted' ), { name: 'AbortError' } );
     } );
 
-    await new LLMPricingDataRetriever( { signal: controller.signal, overrides } ).start();
+    await new LLMPricingRetriever( { signal: controller.signal, overrides } ).start();
 
-    expect( mockLog.error ).not.toHaveBeenCalled();
+    expect( mockLog.warn ).not.toHaveBeenCalled();
     expect( updateCacheMock ).not.toHaveBeenCalled();
   } );
 
@@ -157,7 +157,7 @@ describe( 'LLMPricingDataRetriever', () => {
         controller.abort();
       } );
 
-    await new LLMPricingDataRetriever( { signal: controller.signal, overrides } ).start();
+    await new LLMPricingRetriever( { signal: controller.signal, overrides } ).start();
     await flushPromises();
 
     expect( fetchMock ).toHaveBeenCalledTimes( 2 );
@@ -170,7 +170,7 @@ describe( 'LLMPricingDataRetriever', () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect( new LLMPricingDataRetriever( { signal: controller.signal, overrides } ).start() )
+    await expect( new LLMPricingRetriever( { signal: controller.signal, overrides } ).start() )
       .resolves.toBeUndefined();
 
     expect( fetchMock ).not.toHaveBeenCalled();

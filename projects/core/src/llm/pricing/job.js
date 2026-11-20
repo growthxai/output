@@ -5,7 +5,7 @@ import { EnvHttpProxyAgent, fetch } from 'undici';
 import { parseModelsDevData } from './parser.js';
 import { sleepCancellable } from '#helpers/promise';
 
-const log = Logger.createLogger( 'LLM' );
+const log = Logger.createLogger( 'LLM Pricing Retriever' );
 
 /* Ignore HTTP/2. Check: https://github.com/growthxai/output/issues/299 */
 const dispatcher = new EnvHttpProxyAgent( { allowH2: false } );
@@ -15,29 +15,35 @@ const INTERVAL_AFTER_SUCCESS = 6 * 60 * 60 * 1000; // 6 hours
 const INTERVAL_AFTER_ERROR = 5 * 60 * 1000; // 5 minutes
 
 const fetchData = async signal => {
-  const state = { res: null };
   try {
-    state.res = await fetch( DATA_SOURCE_URL, { dispatcher, signal } );
+    const response = await fetch( DATA_SOURCE_URL, { dispatcher, signal } );
+    if ( !response.ok ) {
+      log.warn( 'Request error', { status: response.status } );
+      return null;
+    }
+
+    return await response.json();
+
   } catch ( error ) {
     if ( !signal.aborted ) {
-      log.error( 'Request failure', { error: error.message, code: error.code } );
+      log.warn( 'Request failure', { error: error.message, code: error.code } );
     }
-    return false;
+    return null;
   }
+};
 
-  if ( !state.res.ok ) {
-    log.error( 'Request error', { status: state.res.status } );
+const refreshCache = async signal => {
+  const rawJson = await fetchData( signal );
+  if ( !rawJson ) {
     return false;
   }
 
   try {
-    const json = await state.res.json();
-    updateCache( parseModelsDevData( json ) );
+    updateCache( parseModelsDevData( rawJson ) );
     log.info( 'Data acquired' );
-
     return true;
   } catch ( error ) {
-    log.error( 'Parsing failure', { error: error.message } );
+    log.warn( 'Parsing failure', { error: error.message } );
     return false;
   }
 };
@@ -45,7 +51,7 @@ const fetchData = async signal => {
 /**
  * Periodically fetches models pricing from models.dev, parses it and saves to the cache.
  */
-export class LLMPricingDataRetriever extends CancelableRunner {
+export class LLMPricingRetriever extends CancelableRunner {
   #intervalAfterSuccess = INTERVAL_AFTER_SUCCESS;
   #intervalAfterError = INTERVAL_AFTER_ERROR;
 
@@ -70,8 +76,7 @@ export class LLMPricingDataRetriever extends CancelableRunner {
    */
   async run( signal ) {
     while ( !signal.aborted ) {
-      const success = await fetchData( signal );
-
+      const success = await refreshCache( signal );
       await sleepCancellable( success ? this.#intervalAfterSuccess : this.#intervalAfterError, signal );
     }
   }

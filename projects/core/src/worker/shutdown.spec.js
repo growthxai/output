@@ -14,7 +14,7 @@ const createServices = () => ( {
   workerRunner: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
   connectionMonitor: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
   catalogPublisher: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
-  llmPricingDataRetriever: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
+  llmPricingRetriever: { running: true, stop: vi.fn().mockResolvedValue( undefined ) },
   connection: { close: vi.fn().mockResolvedValue( undefined ) }
 } );
 
@@ -23,7 +23,7 @@ const createEmptyServices = () => ( {
   workerRunner: null,
   connectionMonitor: null,
   catalogPublisher: null,
-  llmPricingDataRetriever: null,
+  llmPricingRetriever: null,
   connection: null
 } );
 
@@ -40,7 +40,7 @@ describe( 'shutdownServices', () => {
     expect( services.workerRunner.stop ).toHaveBeenCalledOnce();
     expect( services.connectionMonitor.stop ).toHaveBeenCalledOnce();
     expect( services.catalogPublisher.stop ).toHaveBeenCalledOnce();
-    expect( services.llmPricingDataRetriever.stop ).toHaveBeenCalledOnce();
+    expect( services.llmPricingRetriever.stop ).toHaveBeenCalledOnce();
     expect( services.connection.close ).toHaveBeenCalledOnce();
 
     expect( services.workerRunner.stop.mock.invocationCallOrder[0] )
@@ -48,8 +48,8 @@ describe( 'shutdownServices', () => {
     expect( services.connectionMonitor.stop.mock.invocationCallOrder[0] )
       .toBeLessThan( services.catalogPublisher.stop.mock.invocationCallOrder[0] );
     expect( services.catalogPublisher.stop.mock.invocationCallOrder[0] )
-      .toBeLessThan( services.llmPricingDataRetriever.stop.mock.invocationCallOrder[0] );
-    expect( services.llmPricingDataRetriever.stop.mock.invocationCallOrder[0] )
+      .toBeLessThan( services.llmPricingRetriever.stop.mock.invocationCallOrder[0] );
+    expect( services.llmPricingRetriever.stop.mock.invocationCallOrder[0] )
       .toBeLessThan( services.connection.close.mock.invocationCallOrder[0] );
   } );
 
@@ -115,11 +115,11 @@ describe( 'shutdownServices', () => {
 
   it( 'skips an llm pricing retriever that already finished', async () => {
     const services = createServices();
-    services.llmPricingDataRetriever.running = false;
+    services.llmPricingRetriever.running = false;
 
     await shutdownServices( services );
 
-    expect( services.llmPricingDataRetriever.stop ).not.toHaveBeenCalled();
+    expect( services.llmPricingRetriever.stop ).not.toHaveBeenCalled();
     expect( mockLog.info ).not.toHaveBeenCalledWith( 'Stopping LLM Pricing Retriever...' );
   } );
 
@@ -180,7 +180,7 @@ describe( 'shutdownServices', () => {
     } );
     expect( services.connectionMonitor.stop ).toHaveBeenCalledOnce();
     expect( services.catalogPublisher.stop ).toHaveBeenCalledOnce();
-    expect( services.llmPricingDataRetriever.stop ).toHaveBeenCalledOnce();
+    expect( services.llmPricingRetriever.stop ).toHaveBeenCalledOnce();
     expect( services.connection.close ).toHaveBeenCalledOnce();
   } );
 
