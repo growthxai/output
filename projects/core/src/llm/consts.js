@@ -5,8 +5,15 @@ export const Role = {
   ASSISTANT: 'assistant'
 };
 
-export const CacheFreshness = {
+export const CacheFreshness = Object.freeze( {
   CACHED: 'cached',
   STALE: 'stale',
   SNAPSHOT: 'snapshot'
-};
+} );
+
+/** Where an LLM generation cost total came from */
+export const PricingSource = Object.freeze( {
+  MODELS_DEV: 'models.dev',
+  PROVIDER: 'provider'
+} );
+

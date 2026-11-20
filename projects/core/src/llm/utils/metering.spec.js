@@ -4,6 +4,8 @@ const mocks = vi.hoisted( () => ( {
   parseLLMUsage: vi.fn(),
   calculateCosts: vi.fn(),
   calculateLegacyCosts: vi.fn(),
+  calculateProviderCosts: vi.fn(),
+  getStepCostExtractorForProvider: vi.fn(),
   convertCostToLegacy: vi.fn(),
   logger: { error: vi.fn() }
 } ) );
@@ -19,6 +21,14 @@ vi.mock( './usage.js', () => ( {
 vi.mock( './cost.js', () => ( {
   calculateCosts: mocks.calculateCosts,
   calculateLegacyCosts: mocks.calculateLegacyCosts
+} ) );
+
+vi.mock( './provider_cost.js', () => ( {
+  calculateProviderCosts: mocks.calculateProviderCosts
+} ) );
+
+vi.mock( '../ai_provider.js', () => ( {
+  getStepCostExtractorForProvider: mocks.getStepCostExtractorForProvider
 } ) );
 
 vi.mock( './legacy_cost_attribute.js', () => ( {
@@ -57,6 +67,7 @@ const mockUsage = {
 };
 
 const mockCost = { type: 'llm:generation:cost', total: 0.001, items: [] };
+const mockProviderCost = { type: 'llm:generation:cost', total: 0.42, items: [], pricingSource: 'provider' };
 const mockLegacyPricingCost = { type: 'llm:generation:cost', total: 0.0005, items: [] };
 const mockLegacyCost = { type: 'llm:usage', modelId: 'test-model', usage: [], total: 0.001, tokensUsed: 0 };
 
@@ -74,6 +85,8 @@ describe( 'Metering', () => {
     mocks.parseLLMUsage.mockReturnValue( mockUsage );
     mocks.calculateCosts.mockReturnValue( mockCost );
     mocks.calculateLegacyCosts.mockReturnValue( mockLegacyPricingCost );
+    mocks.calculateProviderCosts.mockReturnValue( mockProviderCost );
+    mocks.getStepCostExtractorForProvider.mockReturnValue( null );
     mocks.convertCostToLegacy.mockReturnValue( mockLegacyCost );
   } );
 
@@ -401,6 +414,51 @@ describe( 'Metering', () => {
     expect( addEventActionWithContext ).not.toHaveBeenCalled();
     expect( stepEventBus.emit ).not.toHaveBeenCalled();
     expect( metering.attributes ).toEqual( { usage: null, cost: null, legacy: null } );
+  } );
+
+  it( 'bills from the provider step cost extractor and skips models.dev and legacy', () => {
+    const extractStepCost = vi.fn();
+    const response = {
+      usage: { inputTokens: 2, outputTokens: 1 },
+      steps: [ { usage: { inputTokens: 2 }, providerMetadata: { openrouter: { usage: { cost: 0.42 } } } } ]
+    };
+    mocks.getStepCostExtractorForProvider.mockReturnValue( extractStepCost );
+    const metering = new Metering( {
+      traceId,
+      prompt: { name: 'writer@v1', config: { provider: 'openrouter', model: 'deepseek/x' } }
+    } );
+
+    metering.bill( response );
+
+    expect( mocks.getStepCostExtractorForProvider ).toHaveBeenCalledWith( 'openrouter' );
+    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( mockUsage, response.steps, extractStepCost );
+    expect( mocks.calculateCosts ).not.toHaveBeenCalled();
+    expect( mocks.calculateLegacyCosts ).not.toHaveBeenCalled();
+    expect( mocks.convertCostToLegacy ).not.toHaveBeenCalled();
+    expect( attributesOf( addEventActionWithContext.mock.calls ) ).toEqual( [ mockUsage, mockProviderCost ] );
+    expect( eventNames( stepEventBus.emit.mock.calls ) ).toEqual( [ 'sdk:llm:generation:metering' ] );
+    expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockProviderCost, legacy: null } );
+  } );
+
+  it( 'bills provider cost from recorded steps when there is no response', () => {
+    const extractStepCost = vi.fn();
+    const recorded = [
+      { usage: { inputTokens: 2 }, providerMetadata: { openrouter: { usage: { cost: 0.1 } } } },
+      { usage: { inputTokens: 1 }, providerMetadata: { openrouter: { usage: { cost: 0.2 } } } }
+    ];
+    mocks.getStepCostExtractorForProvider.mockReturnValue( extractStepCost );
+    const metering = new Metering( {
+      traceId,
+      prompt: { name: 'writer@v1', config: { provider: 'openrouter', model: 'deepseek/x' } }
+    } );
+
+    recorded.forEach( metering.recordStep );
+    metering.bill();
+
+    expect( mocks.calculateProviderCosts ).toHaveBeenCalledWith( mockUsage, recorded, extractStepCost );
+    expect( mocks.calculateCosts ).not.toHaveBeenCalled();
+    expect( mocks.calculateLegacyCosts ).not.toHaveBeenCalled();
+    expect( metering.attributes ).toEqual( { usage: mockUsage, cost: mockProviderCost, legacy: null } );
   } );
 
   it( 'reports usage with a null cost when costing yields nothing', () => {

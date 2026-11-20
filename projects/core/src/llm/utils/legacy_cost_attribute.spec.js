@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { LLMUsageLegacy, convertCostToLegacy } from './legacy_cost_attribute.js';
+import { LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
 
 const MODEL_ID = 'test-model';
 const INPUT = 'input';
 const OUTPUT = 'output';
 const TOOLS = 'tools';
-const OK = 'ok';
-const FALLBACK = 'fallback';
-const MISSING = 'missing';
+const { OK, FALLBACK, MISSING } = LLMGenerationCostItem.Status;
 
 const item = ( group, label, amount, ppm, total, status = OK ) => ( {
   group,

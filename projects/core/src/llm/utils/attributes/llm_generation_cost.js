@@ -1,8 +1,14 @@
-import { CacheFreshness } from '../../consts.js';
+import { CacheFreshness, PricingSource } from '../../consts.js';
 import { LLMGenerationUsage, LLMGenerationUsageItem } from './llm_generation_usage.js';
 import Decimal from 'decimal.js';
 import { isNonNegativeNumber } from '#helpers/number';
 import { LLMGeneration } from './llm_generation.js';
+
+const LLMGenerationCostStatus = Object.freeze( {
+  PRECISE: 'precise',
+  IMPRECISE: 'imprecise',
+  INCOMPLETE: 'incomplete'
+} );
 
 export class LLMGenerationCostItem {
   static Status = Object.freeze( {
@@ -36,13 +42,52 @@ export class LLMGenerationCostItem {
   }
 }
 
+const groupItems = rawItems => Map.groupBy( rawItems, e => e.key )
+  .values()
+  .toArray()
+  .map( items => {
+    if ( items.length === 1 ) {
+      return items[0];
+    }
+
+    const { group, label, ppm, status: itemStatus, tier } = items[0];
+    const amount = items.reduce( ( sum, item ) => sum + item.amount, 0 );
+    const itemTotal = isNonNegativeNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
+    return new LLMGenerationCostItem( group, label, amount, ppm, itemTotal, itemStatus, tier );
+  } );
+
+const resolveStatus = ( { items, usageStatus, pricingFreshness } ) => {
+  const statuses = items.filter( i => i.amount > 0 ).reduce( ( summary, item ) =>
+    Object.assign( summary, { [item.status]: true } ), {} );
+
+  const hasMissing = statuses[LLMGenerationCostItem.Status.MISSING];
+  const hasFallback = statuses[LLMGenerationCostItem.Status.FALLBACK];
+  const hasUncertain = statuses[LLMGenerationCostItem.Status.UNCERTAIN];
+  const isIncomplete = usageStatus === LLMGenerationUsage.Status.INCOMPLETE;
+  const isSnapshot = pricingFreshness === CacheFreshness.SNAPSHOT;
+
+  if ( hasMissing || isIncomplete ) {
+    return LLMGenerationCostStatus.INCOMPLETE;
+  }
+
+  if ( hasFallback || hasUncertain || isSnapshot ) {
+    return LLMGenerationCostStatus.IMPRECISE;
+  }
+
+  return LLMGenerationCostStatus.PRECISE;
+};
+
+/**
+ * Sum item totals. If totals have value 0, return 0. If there are no items with total, return null
+ */
+const sumItemsByGroup = ( items, group ) => {
+  const meaningfulItems = items.filter( p => p.group === group && isNonNegativeNumber( p.total ) );
+  return meaningfulItems.length > 0 ? meaningfulItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber() : null;
+};
+
 export class LLMGenerationCost extends LLMGeneration {
   static TYPE = 'llm:generation:cost';
-  static Status = Object.freeze( {
-    PRECISE: 'precise',
-    IMPRECISE: 'imprecise',
-    INCOMPLETE: 'incomplete'
-  } );
+  static Status = LLMGenerationCostStatus;
 
   input = null;
   output = null;
@@ -50,50 +95,40 @@ export class LLMGenerationCost extends LLMGeneration {
   total = null;
   status = LLMGenerationCost.Status.INCOMPLETE;
   pricingFreshness = null;
+  pricingSource;
   items = [];
 
-  constructor( modelId, providerId, promptName, requestDetails, items, usageStatus, pricingFreshness ) {
+  static buildFromProvider( { modelId, providerId, promptName, requestDetails, total, status } ) {
+    const instance = new LLMGenerationCost( modelId, providerId, promptName, requestDetails );
+    instance.pricingSource = PricingSource.PROVIDER;
+    instance.total = total;
+    instance.status = status;
+    return instance;
+  }
+
+  static buildFromModelsDev( { modelId, providerId, promptName, requestDetails, items: rawItems, usageStatus, pricingFreshness } ) {
+    const items = groupItems( rawItems );
+    const status = resolveStatus( { items, usageStatus, pricingFreshness } );
+    const input = sumItemsByGroup( items, LLMGenerationUsageItem.Group.INPUT );
+    const output = sumItemsByGroup( items, LLMGenerationUsageItem.Group.OUTPUT );
+    const tools = sumItemsByGroup( items, LLMGenerationUsageItem.Group.TOOLS );
+
+    const totals = [ input, output, tools ].filter( isNonNegativeNumber );
+    const total = totals.length > 0 ? totals.reduce( ( s, v ) => s.add( v ), Decimal( 0 ) ).toNumber() : null;
+
+    const instance = new LLMGenerationCost( modelId, providerId, promptName, requestDetails );
+    instance.pricingSource = PricingSource.MODELS_DEV;
+    instance.pricingFreshness = pricingFreshness;
+    instance.items = items;
+    instance.status = status;
+    instance.input = input;
+    instance.output = output;
+    instance.tools = tools;
+    instance.total = total;
+    return instance;
+  }
+
+  constructor( modelId, providerId, promptName, requestDetails = null ) {
     super( LLMGenerationCost.TYPE, modelId, providerId, promptName, requestDetails );
-
-    // group items with the same key, summing amount
-    this.items = Map.groupBy( items, e => e.key )
-      .values()
-      .toArray()
-      .map( items => {
-        if ( items.length === 1 ) {
-          return items[0];
-        }
-
-        const { group, label, ppm, status, tier } = items[0];
-        const amount = items.reduce( ( sum, item ) => sum + item.amount, 0 );
-        const total = isNonNegativeNumber( ppm ) ? Decimal( amount ).div( 1_000_000 ).mul( ppm ).toNumber() : null;
-        return new LLMGenerationCostItem( group, label, amount, ppm, total, status, tier );
-      } );
-
-    this.pricingFreshness = pricingFreshness;
-
-    const meaningfulItems = this.items.filter( v => v.amount > 0 );
-    const hasMissingItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.MISSING );
-    const hasFallbackItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.FALLBACK );
-    const hasUncertainItems = meaningfulItems.some( v => v.status === LLMGenerationCostItem.Status.UNCERTAIN );
-
-    if ( hasMissingItems || usageStatus === LLMGenerationUsage.Status.INCOMPLETE ) {
-      this.status = LLMGenerationCost.Status.INCOMPLETE;
-    } else if ( hasFallbackItems || pricingFreshness === CacheFreshness.SNAPSHOT || hasUncertainItems ) {
-      this.status = LLMGenerationCost.Status.IMPRECISE;
-    } else {
-      this.status = LLMGenerationCost.Status.PRECISE;
-    }
-
-    const sumGroup = group => {
-      const groupItems = this.items.filter( p => p.group === group && isNonNegativeNumber( p.total ) );
-      return groupItems.length > 0 ? groupItems.reduce( ( s, p ) => s.add( p.total ), Decimal( 0 ) ).toNumber() : null;
-    };
-    this.input = sumGroup( LLMGenerationUsageItem.Group.INPUT );
-    this.output = sumGroup( LLMGenerationUsageItem.Group.OUTPUT );
-    this.tools = sumGroup( LLMGenerationUsageItem.Group.TOOLS );
-    if ( isNonNegativeNumber( this.input ) || isNonNegativeNumber( this.output ) || isNonNegativeNumber( this.tools ) ) {
-      this.total = Decimal( this.input ?? 0 ).add( this.output ?? 0 ).add( this.tools ?? 0 ).toNumber();
-    }
   }
 }

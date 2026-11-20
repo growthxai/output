@@ -137,7 +137,15 @@ export const calculateCosts = ( usage, stepsUsage ) => {
     Logger.warn( 'Tool call with no rate for model', { namespace: 'LLM', modelId, providerId, type: unrated.label } );
   }
 
-  return new LLMGenerationCost( modelId, providerId, usage.promptName, usage.requestDetails, items, usage.status, pricingFreshness );
+  return LLMGenerationCost.buildFromModelsDev( {
+    modelId,
+    providerId,
+    promptName: usage.promptName,
+    requestDetails: usage.requestDetails,
+    items,
+    usageStatus: usage.status,
+    pricingFreshness
+  } );
 };
 
 /**
@@ -147,10 +155,16 @@ export const calculateCosts = ( usage, stepsUsage ) => {
  * @returns {LLMGenerationCost} Cost compatible with the legacy conversion
  */
 export const calculateLegacyCosts = usage => {
-  const { models, freshness: pricingFreshness } = getPricing();
+  const { models } = getPricing();
   const { providerId, modelId } = usage;
   const modelPricing = models.get( `${providerId}/${modelId}` );
   const items = calculateStandardUsage( usage, modelPricing );
 
-  return new LLMGenerationCost( modelId, providerId, null, null, items, usage.status, pricingFreshness );
+  return LLMGenerationCost.buildFromModelsDev( {
+    modelId,
+    providerId,
+    promptName: null,
+    requestDetails: null,
+    items
+  } );
 };

@@ -1,7 +1,9 @@
 import { BaseAttribute } from '#trace_attribute';
 import Decimal from 'decimal.js';
+import { LLMGenerationCostItem } from './attributes/llm_generation_cost.js';
 
 const exists = v => Number.isFinite( v );
+const { FALLBACK, MISSING } = LLMGenerationCostItem.Status;
 
 /** Legacy priced usage attribute retained for trace compatibility. */
 export class LLMUsageLegacy extends BaseAttribute {
@@ -30,7 +32,7 @@ export class LLMUsageLegacy extends BaseAttribute {
 }
 
 export const convertCostToLegacy = cost => {
-  if ( !cost || cost.items.every( v => v.status === 'missing' ) ) {
+  if ( !cost || cost.items.every( v => v.status === MISSING ) ) {
     return null;
   }
 
@@ -55,7 +57,7 @@ export const convertCostToLegacy = cost => {
     }
 
     if ( cacheReadItem ) {
-      const ppm = [ 'fallback', 'missing' ].includes( cacheReadItem.status ) ? 0 : cacheReadItem.ppm;
+      const ppm = [ FALLBACK, MISSING ].includes( cacheReadItem.status ) ? 0 : cacheReadItem.ppm;
       usage.push( { type: 'input_cached', ppm, amount: cacheReadItem.amount } );
     }
   }

@@ -232,11 +232,26 @@ describe( 'registerProvider', () => {
     expect( getProviderNames() ).toContain( 'custom' );
   } );
 
+  it( 'stores and clears an extractStepCost extractor on the registration', async () => {
+    const { getProvider, getStepCostExtractorForProvider, registerProvider } = await importWithMockedProviders();
+    const providerFn = vi.fn();
+    const extractStepCost = vi.fn();
+
+    registerProvider( 'openrouter', providerFn, { extractStepCost } );
+    expect( getProvider( 'openrouter' ) ).toBe( providerFn );
+    expect( getStepCostExtractorForProvider( 'openrouter' ) ).toBe( extractStepCost );
+
+    registerProvider( 'openrouter', providerFn );
+    expect( getStepCostExtractorForProvider( 'openrouter' ) ).toBeNull();
+  } );
+
   it( 'validates provider registration arguments', async () => {
     const { registerProvider } = await importWithMockedProviders();
 
     expect( () => registerProvider( '', vi.fn() ) ).toThrow( 'Provider name must be a non-empty string' );
     expect( () => registerProvider( 'custom', 'not-a-function' ) ).toThrow( 'expected function, received string' );
+    expect( () => registerProvider( 'custom', vi.fn(), { extractStepCost: 'nope' } ) )
+      .toThrow( 'expected function, received string' );
   } );
 
   it.each( [
