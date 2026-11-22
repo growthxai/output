@@ -1,7 +1,5 @@
-import { defaultPayloadConverter, type Client } from '@temporalio/client';
+import { defaultPayloadConverter, type Client, type Payload } from '@temporalio/client';
 import { callTemporal } from '#services/temporal_client.js';
-
-type TemporalPayload = Parameters<typeof defaultPayloadConverter.fromPayload>[0];
 
 export interface WorkflowRunDataOptions {
   /** The workflow type the run must have */
@@ -48,7 +46,7 @@ const fetchStartedAttributes = async ( client: Client, workflowId: string, runId
 const decodeInput = ( started: StartedAttributes ): unknown => {
   const payload = started.input?.payloads?.[0];
   // No payload, or a payload that encodes "nothing", means the workflow started without input
-  const input = payload ? defaultPayloadConverter.fromPayload( payload as TemporalPayload ) : undefined;
+  const input = payload ? defaultPayloadConverter.fromPayload( payload as Payload ) : undefined;
   return input === undefined ? {} : input;
 };
 
