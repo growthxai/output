@@ -1,7 +1,6 @@
-import { WorkflowNotFoundError, type Client } from '@temporalio/client';
-import { defaultPayloadConverter } from '@temporalio/common';
-import { historyToJSON, JSONToPayload, type JSONPayload } from '@temporalio/common/lib/proto-utils.js';
+import { WorkflowNotFoundError, defaultPayloadConverter, type Client } from '@temporalio/client';
 import { callTemporal } from '#services/temporal_client.js';
+import { serializeHistoryEvent } from '#utils/history_serializer.js';
 import { truncateStack, truncateValue } from '#utils/payload_truncator.js';
 
 const PAGE_SIZE = 1000;
@@ -70,16 +69,30 @@ const RUNNING_STATUS = 'WORKFLOW_EXECUTION_STATUS_RUNNING';
 
 const isObject = ( value: unknown ): value is Json => value !== null && typeof value === 'object' && !Array.isArray( value );
 
-const isPayload = ( value: unknown ): value is JSONPayload => {
+/** Payload shape from Message.toJSON / Temporal history JSON: metadata and data are base64 strings */
+interface JsonPayload {
+  metadata: Record<string, string>;
+  data?: string;
+}
+
+const isPayload = ( value: unknown ): value is JsonPayload => {
   if ( !isObject( value ) || !Object.keys( value ).every( key => key === 'metadata' || key === 'data' ) ) {
     return false;
   }
   return isObject( value.metadata ) && typeof value.metadata.encoding === 'string';
 };
 
-const decodePayload = ( payload: JSONPayload ): unknown => {
+/** Rebuilds a Temporal Payload from history JSON without protobufjs protojson (avoids duplicate-instance TypeError) */
+const payloadFromJson = ( payload: JsonPayload ) => ( {
+  metadata: Object.fromEntries(
+    Object.entries( payload.metadata ).map( ( [ key, value ] ) => [ key, Buffer.from( value, 'base64' ) ] )
+  ),
+  ...( payload.data === undefined ? {} : { data: Buffer.from( payload.data, 'base64' ) } )
+} );
+
+const decodePayload = ( payload: JsonPayload ): unknown => {
   try {
-    const decoded = defaultPayloadConverter.fromPayload( JSONToPayload( payload ) );
+    const decoded = defaultPayloadConverter.fromPayload( payloadFromJson( payload ) );
     return decoded instanceof Uint8Array ? `[Binary Payload: ${decoded.byteLength} bytes]` : decoded;
   } catch {
     const encoding = Buffer.from( payload.metadata?.encoding ?? '', 'base64' ).toString();
@@ -166,8 +179,9 @@ const fetchPage = async ( client: Client, target: Target ): Promise<FetchedPage>
     nextPageToken: target.nextPageToken
   } ) );
   const events = response.history?.events ?? [];
-  const json = ( JSON.parse( historyToJSON( { events } ) ).events ?? [] ) as Json[];
-  const tagged = json.map( ( event, i ) => Object.assign( event, { timeKey: buildTimeKey( events[i].eventTime as Json ) } ) );
+  const tagged = events.map( event => Object.assign( serializeHistoryEvent( event ), {
+    timeKey: buildTimeKey( ( event as { eventTime?: Json } ).eventTime )
+  } ) );
   return { events: tagged, nextPageToken: response.nextPageToken?.length ? response.nextPageToken : undefined };
 };
 

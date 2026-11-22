@@ -33,7 +33,6 @@
     "@oclif/plugin-help": "6.2.45",
     "@outputai/core": "workspace:",
     "@temporalio/client": "catalog:",
-    "@temporalio/common": "catalog:",
     "@temporalio/envconfig": "catalog:",
     "change-case": "5.4.4",
     "cli-progress": "3.12.0",
@@ -51,6 +50,8 @@
     "undici": "catalog:"
   },
   "devDependencies": {
+    "@temporalio/common": "catalog:",
+    "@temporalio/proto": "catalog:",
     "@types/cli-progress": "3.11.6",
     "@types/debug": "4.1.13",
     "@types/js-yaml": "catalog:",

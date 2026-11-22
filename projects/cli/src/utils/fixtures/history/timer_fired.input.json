@@ -1,0 +1,12 @@
+{
+  "eventId": "1",
+  "eventTime": {
+    "seconds": "10",
+    "nanos": 500000000
+  },
+  "eventType": "EVENT_TYPE_TIMER_FIRED",
+  "timerFiredEventAttributes": {
+    "timerId": "timer-1",
+    "startedEventId": "3"
+  }
+}

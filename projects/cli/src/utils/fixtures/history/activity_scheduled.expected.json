@@ -1,0 +1,28 @@
+{
+  "eventId": "2",
+  "eventTime": "1970-01-01T00:00:11Z",
+  "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+  "activityTaskScheduledEventAttributes": {
+    "activityId": "step-1",
+    "activityType": {
+      "name": "do_work"
+    },
+    "taskQueue": {
+      "name": "default"
+    },
+    "input": {
+      "payloads": [
+        {
+          "metadata": {
+            "encoding": "anNvbi9wbGFpbg=="
+          },
+          "data": "eyJhIjoxfQ=="
+        }
+      ]
+    },
+    "scheduleToCloseTimeout": "60s",
+    "startToCloseTimeout": "30.500s",
+    "heartbeatTimeout": "0s",
+    "workflowTaskCompletedEventId": "1"
+  }
+}
