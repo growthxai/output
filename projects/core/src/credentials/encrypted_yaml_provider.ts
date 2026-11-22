@@ -33,19 +33,6 @@ const resolveKey = ( environment?: string ): string => {
   throw new MissingKeyError( environment );
 };
 
-/** Requires a key for the same credentials file loadGlobal would decrypt, if any */
-export const checkEnvironmentKey = ( environment?: string ): void => {
-  const baseDir = resolveBaseDir();
-  const envPath = environment ? resolveCredentialsPath( baseDir, environment ) : undefined;
-  if ( envPath && existsSync( envPath ) ) {
-    resolveKey( environment );
-    return;
-  }
-  if ( existsSync( resolveCredentialsPath( baseDir, undefined ) ) ) {
-    resolveKey( undefined );
-  }
-};
-
 const resolveWorkflowKey = ( workflowName: string, workflowDir: string ): string => {
   const envVarName = resolveWorkflowKeyEnvVar( workflowName );
 

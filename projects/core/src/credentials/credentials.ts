@@ -26,6 +26,14 @@ const loadGlobal = (): Record<string, unknown> => {
   return data;
 };
 
+/**
+ * Loads and caches global credentials for the current environment.
+ * Decrypts when an encrypted file is present, so a missing or invalid key fails here.
+ *
+ * @returns The global credentials object (empty when no credentials file exists)
+ */
+export const loadGlobalCredentials = (): Record<string, unknown> => loadGlobal();
+
 const loadForWorkflow = ( workflowName: string, workflowDir: string | undefined ): Record<string, unknown> => {
   if ( cache.has( workflowName ) ) {
     return cache.get( workflowName )!;

@@ -105,6 +105,19 @@ describe( 'credentials module', () => {
 
       expect( init ).not.toThrow();
     } );
+
+    it( 'should throw InvalidCredentialsKeyError when the key does not match the file', async () => {
+      process.env.OUTPUT_CREDENTIALS_KEY_PRODUCTION = generateKey();
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'config/credentials/production.yml.enc' )
+      } ) );
+
+      const { init } = await import( './init.js' );
+      const { InvalidCredentialsKeyError } = await import( './errors.js' );
+
+      expect( init ).toThrow( InvalidCredentialsKeyError );
+    } );
   } );
 
   describe( 'get', () => {
