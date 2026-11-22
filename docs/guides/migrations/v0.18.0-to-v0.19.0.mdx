@@ -1,0 +1,56 @@
+---
+title: "v0.18.0 → v0.19.0"
+description: "Upgrading Output.ai projects from v0.18.0 to v0.19.0: worker boot fails when the credentials file the worker would load exists without a decryption key."
+---
+
+This guide covers one behavior change in `@outputai/core` credentials init. Nothing in your workflow code needs to change. If a deploy ships the encrypted credentials file the worker would decrypt, without the matching key, the worker will refuse to start instead of running until the first credential read.
+
+## What changed
+
+At worker startup, credentials init resolves a key for the same file `loadGlobal` would decrypt:
+
+1. `config/credentials/<NODE_ENV>.yml.enc` when `NODE_ENV` is `production` or `development` and that file exists
+2. otherwise `config/credentials.yml.enc` when that file exists
+
+If a file is selected and neither the matching environment variable nor key file supplies a key, init throws `MissingKeyError` and the process exits. Custom providers set with `setProvider()` skip this check.
+
+| Scenario | v0.18.0 | v0.19.0 |
+| --- | --- | --- |
+| Env-scoped enc file present, env key set | Boots | Unchanged |
+| Env-scoped enc file present, env key missing | Boots; fails later on the first credential read | Fails at boot with `MissingKeyError` |
+| Only the default `config/credentials.yml.enc`, global key set | Boots | Unchanged |
+| Only the default `config/credentials.yml.enc`, global key missing | Boots; fails later on credential read | Fails at boot with `MissingKeyError` |
+| No credentials enc file | Boots | Unchanged |
+| Custom credentials provider via `setProvider()` | N/A | Boot check is skipped |
+
+The error names the expected env var and key file for the file that would be loaded, for example:
+
+```text
+No credentials key found. Set OUTPUT_CREDENTIALS_KEY_PRODUCTION env var or create config/credentials/production.key.
+```
+
+or, when only the default file is present:
+
+```text
+No credentials key found. Set OUTPUT_CREDENTIALS_KEY env var or create config/credentials.key.
+```
+
+See [Deploying to Production](/packages/core/credentials#deploying-to-production).
+
+## Deploys that withhold the key on purpose
+
+Some images copy an encrypted credentials file into the image and rely on never reading credentials in that environment, or on setting the key later. After v0.19.0 those workers crash-loop at boot whenever that file is the one the worker would load.
+
+Pick one:
+
+1. **Provide the key** - set the env var or mount the key file that matches the file on disk (`OUTPUT_CREDENTIALS_KEY_PRODUCTION` / `config/credentials/production.key` for the env-scoped file, or `OUTPUT_CREDENTIALS_KEY` / `config/credentials.key` for the default file). An env-scoped file does not fall back to the global key.
+2. **Remove or rename the enc file** in images that must not decrypt credentials, so the boot check does not run.
+3. **Use a custom provider** - call `setProvider()` before credentials init; the encrypted-YAML boot check runs only for the default provider.
+
+Option 1 is the normal path. Options 2 and 3 are for environments that intentionally never decrypt that file.
+
+## Checklist
+
+- Bump `@outputai/core` to `0.19.0`.
+- Confirm every worker deploy that includes `config/credentials/production.yml.enc`, `config/credentials/development.yml.enc`, or `config/credentials.yml.enc` also supplies the matching key for the file that will be loaded.
+- If a deploy must ship an enc file without a key, remove that file from the image or switch to a custom credentials provider before upgrade.

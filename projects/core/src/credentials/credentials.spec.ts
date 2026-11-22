@@ -83,10 +83,22 @@ describe( 'credentials module', () => {
       expect( init ).toThrow( MissingKeyError );
     } );
 
-    it( 'should initialize without a key when the environment credentials file is absent', async () => {
+    it( 'should throw MissingKeyError when only the default credentials file has no key', async () => {
       vi.doMock( 'node:fs', () => ( {
         readFileSync: () => ciphertext,
         existsSync: ( path: string ) => path.endsWith( 'config/credentials.yml.enc' )
+      } ) );
+
+      const { init } = await import( './init.js' );
+      const { MissingKeyError } = await import( './errors.js' );
+
+      expect( init ).toThrow( MissingKeyError );
+    } );
+
+    it( 'should initialize without a key when no credentials file exists', async () => {
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: () => false
       } ) );
 
       const { init } = await import( './init.js' );

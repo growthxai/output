@@ -33,9 +33,16 @@ const resolveKey = ( environment?: string ): string => {
   throw new MissingKeyError( environment );
 };
 
+/** Requires a key for the same credentials file loadGlobal would decrypt, if any */
 export const checkEnvironmentKey = ( environment?: string ): void => {
-  if ( environment && existsSync( resolveCredentialsPath( resolveBaseDir(), environment ) ) ) {
+  const baseDir = resolveBaseDir();
+  const envPath = environment ? resolveCredentialsPath( baseDir, environment ) : undefined;
+  if ( envPath && existsSync( envPath ) ) {
     resolveKey( environment );
+    return;
+  }
+  if ( existsSync( resolveCredentialsPath( baseDir, undefined ) ) ) {
+    resolveKey( undefined );
   }
 };
 
