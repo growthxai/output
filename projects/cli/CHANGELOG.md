@@ -1,5 +1,12 @@
 # @outputai/cli
 
+## 0.18.1
+
+### Patch Changes
+
+- 4838959: Fixed `workflow debug` failing with `type must be a Type` when the install has more than one `protobufjs` copy. History events still use Temporal's JSON form (ISO times, duration strings, decoded payloads).
+  - @outputai/core@0.18.1
+
 ## 0.18.0
 
 ### Minor Changes
