@@ -10,9 +10,11 @@ const isObject = ( value: unknown ): value is JsonObject => value !== null && ty
 /** True when the value is only the protobuf seconds/nanos pair used by Timestamp and Duration */
 const isSecondsNanos = ( value: JsonObject ): boolean => Object.keys( value ).every( key => key === 'seconds' || key === 'nanos' );
 
-const isDurationKey = ( key: string ): boolean => /(?:Timeout|Duration|Interval|Backoff|Delay)$/.test( key );
+/** True when the field name is treated as a google.protobuf.Duration in Temporal history JSON */
+export const isDurationKey = ( key: string ): boolean => /(?:Timeout|Duration|Interval|Backoff|Delay)$/i.test( key );
 
-const isTimestampKey = ( key: string ): boolean => /(?:Time|Timestamp)$/.test( key );
+/** True when the field name is treated as a google.protobuf.Timestamp in Temporal history JSON */
+export const isTimestampKey = ( key: string ): boolean => /(?:Time|Timestamp)$/i.test( key );
 
 /** int64 ids Temporal tools print as strings; Message.toJSON already does this, plain fixtures may not */
 const isInt64IdKey = ( key: string ): boolean => key === 'eventId' || key.endsWith( 'EventId' );

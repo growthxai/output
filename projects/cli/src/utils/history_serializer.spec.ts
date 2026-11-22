@@ -36,6 +36,14 @@ describe( 'serializeHistoryEvent', () => {
     } );
   } );
 
+  it( 'treats a lowercase duration field as a Duration', () => {
+    expect( serializeHistoryEvent( {
+      fastForwardConfig: { duration: { seconds: '5' } }
+    } ) ).toEqual( {
+      fastForwardConfig: { duration: '5s' }
+    } );
+  } );
+
   it( 'keeps negative durations signed', () => {
     expect( serializeHistoryEvent( {
       backoffInterval: { seconds: -2, nanos: -500_000_000 }
