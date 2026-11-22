@@ -33,6 +33,12 @@ const resolveKey = ( environment?: string ): string => {
   throw new MissingKeyError( environment );
 };
 
+export const checkEnvironmentKey = ( environment?: string ): void => {
+  if ( environment && existsSync( resolveCredentialsPath( resolveBaseDir(), environment ) ) ) {
+    resolveKey( environment );
+  }
+};
+
 const resolveWorkflowKey = ( workflowName: string, workflowDir: string ): string => {
   const envVarName = resolveWorkflowKeyEnvVar( workflowName );
 

@@ -8,7 +8,7 @@ const getNestedValue = ( obj: Record<string, unknown>, dotPath: string ): unknow
   dotPath.split( '.' ).reduce( ( acc: unknown, part: string ) =>
     ( acc as Record<string, unknown> )?.[part], obj );
 
-const detectEnvironment = (): string | undefined => {
+export const detectEnvironment = (): string | undefined => {
   const env = process.env.NODE_ENV;
   return ( env === 'production' || env === 'development' ) ? env : undefined;
 };

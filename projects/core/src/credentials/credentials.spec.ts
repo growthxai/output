@@ -65,6 +65,36 @@ describe( 'credentials module', () => {
     process.argv[2] = SAVED_ARGV2;
   } );
 
+  describe( 'init', () => {
+    beforeEach( () => {
+      process.env.NODE_ENV = 'production';
+      vi.resetModules();
+    } );
+
+    it( 'should throw MissingKeyError when the environment credentials file has no key', async () => {
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'config/credentials/production.yml.enc' )
+      } ) );
+
+      const { init } = await import( './init.js' );
+      const { MissingKeyError } = await import( './errors.js' );
+
+      expect( init ).toThrow( MissingKeyError );
+    } );
+
+    it( 'should initialize without a key when the environment credentials file is absent', async () => {
+      vi.doMock( 'node:fs', () => ( {
+        readFileSync: () => ciphertext,
+        existsSync: ( path: string ) => path.endsWith( 'config/credentials.yml.enc' )
+      } ) );
+
+      const { init } = await import( './init.js' );
+
+      expect( init ).not.toThrow();
+    } );
+  } );
+
   describe( 'get', () => {
     it( 'should return nested value from decrypted YAML', async () => {
       process.env.OUTPUT_CREDENTIALS_KEY = key;
