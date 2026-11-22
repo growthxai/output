@@ -1,5 +1,4 @@
-import type { Client } from '@temporalio/client';
-import { defaultPayloadConverter, type Payload } from '@temporalio/common';
+import { defaultPayloadConverter, type Client, type Payload } from '@temporalio/client';
 import { callTemporal } from '#services/temporal_client.js';
 
 export interface WorkflowRunDataOptions {

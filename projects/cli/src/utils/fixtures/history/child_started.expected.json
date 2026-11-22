@@ -1,0 +1,16 @@
+{
+  "eventId": "4",
+  "eventTime": "1970-01-01T00:00:13.250Z",
+  "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+  "childWorkflowExecutionStartedEventAttributes": {
+    "namespace": "default",
+    "initiatedEventId": "2",
+    "workflowExecution": {
+      "workflowId": "wf-child-1",
+      "runId": "run-child-1"
+    },
+    "workflowType": {
+      "name": "child_workflow"
+    }
+  }
+}

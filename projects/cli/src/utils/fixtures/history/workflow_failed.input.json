@@ -1,0 +1,19 @@
+{
+  "eventId": "3",
+  "eventTime": {
+    "seconds": "12"
+  },
+  "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_FAILED",
+  "workflowExecutionFailedEventAttributes": {
+    "failure": {
+      "message": "boom",
+      "stackTrace": "Error: boom\n    at step (workflow.js:1:1)",
+      "applicationFailureInfo": {
+        "type": "Error",
+        "nonRetryable": true
+      }
+    },
+    "retryState": "RETRY_STATE_NON_RETRYABLE_FAILURE",
+    "workflowTaskCompletedEventId": "2"
+  }
+}

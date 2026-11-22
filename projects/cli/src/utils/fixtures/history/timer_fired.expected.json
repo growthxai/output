@@ -1,0 +1,9 @@
+{
+  "eventId": "1",
+  "eventTime": "1970-01-01T00:00:10.500Z",
+  "eventType": "EVENT_TYPE_TIMER_FIRED",
+  "timerFiredEventAttributes": {
+    "timerId": "timer-1",
+    "startedEventId": "3"
+  }
+}
