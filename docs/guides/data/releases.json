@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "0.18.1",
+      "date": "2026-11-22",
+      "level": "patch",
+      "changes": [
+        {
+          "id": "fix-workflow-debug-protobufjs",
+          "packages": [
+            {
+              "name": "@outputai/cli",
+              "bump": "patch"
+            }
+          ],
+          "summary": "Fixed `workflow debug` failing with `type must be a Type` when the install has more than one `protobufjs` copy. History events still use Temporal's JSON form (ISO times, duration strings, decoded payloads)."
+        }
+      ]
+    },
+    {
       "version": "0.18.0",
       "date": "2026-11-20",
       "level": "minor",

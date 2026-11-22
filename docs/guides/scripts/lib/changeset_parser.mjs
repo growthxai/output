@@ -13,7 +13,7 @@ export function parseFrontmatter( text ) {
     .split( '\n' )
     .map( line => line.trim() )
     .filter( Boolean )
-    .map( line => line.match( /^"([^"]+)":\s*(patch|minor|major)$/ ) )
+    .map( line => line.match( /^["']([^"']+)["']:\s*(patch|minor|major)$/ ) )
     .filter( Boolean )
     .map( ( [ , name, bump ] ) => ( { name, bump } ) );
 }
