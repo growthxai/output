@@ -8,7 +8,7 @@ const getNestedValue = ( obj: Record<string, unknown>, dotPath: string ): unknow
   dotPath.split( '.' ).reduce( ( acc: unknown, part: string ) =>
     ( acc as Record<string, unknown> )?.[part], obj );
 
-export const detectEnvironment = (): string | undefined => {
+const detectEnvironment = (): string | undefined => {
   const env = process.env.NODE_ENV;
   return ( env === 'production' || env === 'development' ) ? env : undefined;
 };
@@ -16,7 +16,13 @@ export const detectEnvironment = (): string | undefined => {
 const GLOBAL_CACHE_KEY = Symbol( 'global' );
 const cache = new Map<string | symbol, Record<string, unknown>>();
 
-const loadGlobal = (): Record<string, unknown> => {
+/**
+ * Loads and caches global credentials for the current environment.
+ * Decrypts when an encrypted file is present, so a missing or invalid key fails here.
+ *
+ * @returns The global credentials object (empty when no credentials file exists)
+ */
+export const loadGlobal = (): Record<string, unknown> => {
   if ( cache.has( GLOBAL_CACHE_KEY ) ) {
     return cache.get( GLOBAL_CACHE_KEY )!;
   }
@@ -25,14 +31,6 @@ const loadGlobal = (): Record<string, unknown> => {
   cache.set( GLOBAL_CACHE_KEY, data );
   return data;
 };
-
-/**
- * Loads and caches global credentials for the current environment.
- * Decrypts when an encrypted file is present, so a missing or invalid key fails here.
- *
- * @returns The global credentials object (empty when no credentials file exists)
- */
-export const loadGlobalCredentials = (): Record<string, unknown> => loadGlobal();
 
 const loadForWorkflow = ( workflowName: string, workflowDir: string | undefined ): Record<string, unknown> => {
   if ( cache.has( workflowName ) ) {

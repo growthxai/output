@@ -55,7 +55,7 @@ const apiKey = credentials.require('anthropic.api_key');
 | `InvalidCredentialsKeyError` | Key doesn't match the encrypted file, or the file is corrupted | Use the key the file was encrypted with |
 | `MalformedCredentialsKeyError` | Key isn't exactly 64 hex characters | Check the key for typos, whitespace, or truncation |
 
-All four extend `FatalError`, so a step that throws one fails without retries. A key error while resolving `credential:` env vars stops the worker at startup.
+All four extend `FatalError`, so a step that throws one fails without retries. At startup the worker loads global credentials the same way later reads do, so a missing, wrong, or malformed key (or corrupt ciphertext) fails boot whenever that credentials file exists — even with no `credential:` references. Custom providers set with `setProvider()` skip this eager load.
 
 ## CLI Commands
 

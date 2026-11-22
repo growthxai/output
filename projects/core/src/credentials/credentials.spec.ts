@@ -65,61 +65,6 @@ describe( 'credentials module', () => {
     process.argv[2] = SAVED_ARGV2;
   } );
 
-  describe( 'init', () => {
-    beforeEach( () => {
-      process.env.NODE_ENV = 'production';
-      vi.resetModules();
-    } );
-
-    it( 'should throw MissingKeyError when the environment credentials file has no key', async () => {
-      vi.doMock( 'node:fs', () => ( {
-        readFileSync: () => ciphertext,
-        existsSync: ( path: string ) => path.endsWith( 'config/credentials/production.yml.enc' )
-      } ) );
-
-      const { init } = await import( './init.js' );
-      const { MissingKeyError } = await import( './errors.js' );
-
-      expect( init ).toThrow( MissingKeyError );
-    } );
-
-    it( 'should throw MissingKeyError when only the default credentials file has no key', async () => {
-      vi.doMock( 'node:fs', () => ( {
-        readFileSync: () => ciphertext,
-        existsSync: ( path: string ) => path.endsWith( 'config/credentials.yml.enc' )
-      } ) );
-
-      const { init } = await import( './init.js' );
-      const { MissingKeyError } = await import( './errors.js' );
-
-      expect( init ).toThrow( MissingKeyError );
-    } );
-
-    it( 'should initialize without a key when no credentials file exists', async () => {
-      vi.doMock( 'node:fs', () => ( {
-        readFileSync: () => ciphertext,
-        existsSync: () => false
-      } ) );
-
-      const { init } = await import( './init.js' );
-
-      expect( init ).not.toThrow();
-    } );
-
-    it( 'should throw InvalidCredentialsKeyError when the key does not match the file', async () => {
-      process.env.OUTPUT_CREDENTIALS_KEY_PRODUCTION = generateKey();
-      vi.doMock( 'node:fs', () => ( {
-        readFileSync: () => ciphertext,
-        existsSync: ( path: string ) => path.endsWith( 'config/credentials/production.yml.enc' )
-      } ) );
-
-      const { init } = await import( './init.js' );
-      const { InvalidCredentialsKeyError } = await import( './errors.js' );
-
-      expect( init ).toThrow( InvalidCredentialsKeyError );
-    } );
-  } );
-
   describe( 'get', () => {
     it( 'should return nested value from decrypted YAML', async () => {
       process.env.OUTPUT_CREDENTIALS_KEY = key;
