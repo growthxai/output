@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "createdAt": "2026-11-20T14:09:45.720Z"
+    "createdAt": "2026-11-23T06:16:58.472Z"
   },
   "amazon-bedrock": {
     "models": {
@@ -2394,6 +2394,13 @@
           "cache_write": 2.31
         },
         "reasoning": true
+      },
+      "writer.palmyra-vision-7b": {
+        "cost": {
+          "input": 0.15,
+          "output": 0.6
+        },
+        "reasoning": false
       },
       "writer.palmyra-x4-v1:0": {
         "cost": {
