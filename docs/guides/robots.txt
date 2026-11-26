@@ -1,0 +1,9 @@
+User-agent: *
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Disallow: /cdn-cgi/
+Allow: /_next/image
+Disallow: /_next/
+Allow: /mintlify-assets/_next/image
+Disallow: /mintlify-assets/_next/
+
+Sitemap: https://docs.output.ai/sitemap.xml
