@@ -9,9 +9,9 @@ import { FatalError, TransparentFatalError } from '#errors';
 import { serializeError } from '#helpers/error_serializer';
 import { enforceActivityOptions } from '#helpers/activity_options';
 
-// these are a dynamic generated file with activity configs overwrites and workflow options
-import activityOptionsMap from '../temp/__activity_options.js';
-import workflowOptionsMap from '../temp/__workflow_options.js';
+// Webpack fills these modules with options for the current bundle.
+import activityOptionsMap from '../bundle_modules/activity_options.js';
+import workflowOptionsMap from '../bundle_modules/workflow_options.js';
 
 /*
   This interceptor adds Memo and serialized workflowInfo() to the Activity invocation headers.

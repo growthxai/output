@@ -1,9 +1,6 @@
 export const ACTIVITY_GET_TRACE_DESTINATIONS = '__internal#getTraceDestinations';
-export const ACTIVITY_OPTIONS_FILENAME = '__activity_options.js';
 export const ACTIVITY_SEND_HTTP_REQUEST = '__internal#sendHttpRequest';
 export const WORKFLOW_CATALOG = '$catalog';
-export const WORKFLOW_OPTIONS_FILENAME = '__workflow_options.js';
-export const WORKFLOWS_INDEX_FILENAME = '__workflows_entrypoint.js';
 
 export const INVOKE_ACTIVITY_SYMBOL = Symbol.for( '@outputai/core:__invoke_activity' );
 export const METADATA_ACCESS_SYMBOL = Symbol( '__metadata' );

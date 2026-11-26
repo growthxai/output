@@ -1,16 +1,16 @@
 import { EOL } from 'node:os';
-import { writeFileInTempDir, findWorkflowsInNodeModules, importComponents, matchFiles } from './tools.js';
+import { findWorkflowsInNodeModules, importComponents, matchFiles } from './tools.js';
 import { staticMatchers } from './matchers.js';
-import { WORKFLOWS_INDEX_FILENAME, WORKFLOW_CATALOG, WORKFLOW_OPTIONS_FILENAME } from '#consts';
+import { WORKFLOW_CATALOG } from '#consts';
 import { createChildLogger } from '#logger';
 import { ValidationError } from '#errors';
 
 const log = createChildLogger( 'Workflow Loader' );
 
 /**
- * Creates a temporary index file importing all workflows for Temporal.
+ * Generates an index importing all workflows for Temporal.
  * @param {object[]} workflows
- * @returns {string} Filename
+ * @returns {string} Entrypoint JavaScript.
  */
 const createWorkflowsEntrypoint = workflows => {
   // default system catalog workflow
@@ -34,9 +34,7 @@ async function _${name}( ...args ) {
 export { _${name} as ${name} };` );
 
   // The catalog stays static: it is the framework's own workflow, small, and always loaded.
-  const content = [ ...lazyExports, `export { default as ${catalog.name} } from '${catalog.path}';` ].join( EOL );
-
-  return writeFileInTempDir( content, WORKFLOWS_INDEX_FILENAME );
+  return [ ...lazyExports, `export { default as ${catalog.name} } from '${catalog.path}';` ].join( EOL );
 };
 
 /**
@@ -51,8 +49,8 @@ export { _${name} as ${name} };` );
 /**
  * @typedef LoadWorkflowsResult
  * @property {Workflow[]} workflows - Loaded workflows
- * @property {string} entrypoint - Index file loading all workflows
- * @property {string} optionsFile - File exporting options for each workflow and their aliases
+ * @property {string} entrypoint - Entrypoint JavaScript loading all workflows
+ * @property {Record<string, object>} workflowOptions - Options for workflows and aliases
  */
 /**
  * Scan and find workflow.js files and import them.
@@ -101,9 +99,5 @@ Workflow names and aliases must be unique.` );
 
   workflowOptions.set( WORKFLOW_CATALOG, { disableTrace: true } );
 
-  // writes down the static workflow options, currently only disable trace
-  const optionsContent = `export default ${JSON.stringify( Object.fromEntries( workflowOptions ), undefined, 2 )};`;
-  const optionsFile = writeFileInTempDir( optionsContent, WORKFLOW_OPTIONS_FILENAME );
-
-  return { workflows, entrypoint: createWorkflowsEntrypoint( workflows ), optionsFile };
+  return { workflows, entrypoint: createWorkflowsEntrypoint( workflows ), workflowOptions: Object.fromEntries( workflowOptions ) };
 };

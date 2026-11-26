@@ -66,10 +66,10 @@ const deepMergeMock = vi.fn( ( a, b ) => ( { ...( a || {} ), ...( b || {} ) } ) 
 vi.mock( '#helpers/object', () => ( { deepMerge: ( ...args ) => deepMergeMock( ...args ) } ) );
 
 const activityOptionsDefault = {};
-vi.mock( '../temp/__activity_options.js', () => ( { default: activityOptionsDefault } ) );
+vi.mock( '../bundle_modules/activity_options.js', () => ( { default: activityOptionsDefault } ) );
 
 const workflowOptionsDefault = {};
-vi.mock( '../temp/__workflow_options.js', () => ( { default: workflowOptionsDefault } ) );
+vi.mock( '../bundle_modules/workflow_options.js', () => ( { default: workflowOptionsDefault } ) );
 
 describe( 'workflow interceptors', () => {
   beforeEach( () => {

@@ -1,7 +1,7 @@
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { loadWorkflows } from './loader/workflows.js';
 import { loadActivities } from './loader/activities.js';
-import { webpackConfigHook } from './bundler_options.js';
+import { workflowBundleOptions } from './bundler_options.js';
 import { workflowInterceptorModules } from './interceptors/modules.js';
 
 /**
@@ -18,9 +18,7 @@ import { workflowInterceptorModules } from './interceptors/modules.js';
  * @returns {Promise<import('@temporalio/worker').WorkflowBundleWithSourceMap>}
  */
 export async function bundleWorkflows( rootDir ) {
-  const { workflows, entrypoint: workflowsPath } = await loadWorkflows( rootDir );
-  // Writes worker/temp/__activity_options.js, which the workflow interceptor module
-  // imports — the worker generates it via loadActivities() before Worker.create bundles.
-  await loadActivities( rootDir, workflows );
-  return bundleWorkflowCode( { workflowsPath, workflowInterceptorModules, webpackConfigHook } );
+  const { workflows, entrypoint, workflowOptions } = await loadWorkflows( rootDir );
+  const { activityOptions } = await loadActivities( rootDir, workflows );
+  return bundleWorkflowCode( { ...workflowBundleOptions( { entrypoint, workflowOptions, activityOptions } ), workflowInterceptorModules } );
 }
