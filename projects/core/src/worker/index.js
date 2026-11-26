@@ -35,6 +35,7 @@ import { shutdownServices } from './shutdown.js';
 import { init as initCredentials } from '#credentials/init';
 import { buildWorkerOptions } from './worker_options.js';
 import { LLMPricingRetriever } from '../llm/pricing/job.js';
+import { parseWorkerArguments } from './arguments.js';
 
 import './log_hooks.js';
 
@@ -48,8 +49,7 @@ const services = {
   workerRunner: null
 };
 
-// Get caller directory from command line arguments
-const callerDir = process.argv[2];
+const { callerDir, workflowBundlePath } = parseWorkerArguments();
 
 const abortController = new AbortController();
 const { signal } = abortController;
@@ -114,16 +114,21 @@ const execute = async () => {
   } );
 
   log.info( 'Creating Temporal worker...' );
-  const { workflowsPath, webpackConfigHook } = workflowBundleOptions( { entrypoint, workflowOptions, activityOptions } );
+  const { workflowModules, ...runtimeInterceptors } = initInterceptors( { activities, workflows } );
+  const { workflowsPath, webpackConfigHook } = workflowBundlePath ?
+    {} :
+    workflowBundleOptions( { entrypoint, workflowOptions, activityOptions } );
+  const bundle = workflowBundlePath ?
+    { workflowBundle: { codePath: workflowBundlePath }, interceptors: runtimeInterceptors } :
+    { workflowsPath, bundlerOptions: { webpackConfigHook }, interceptors: { workflowModules, ...runtimeInterceptors } };
+
   const worker = await run( () => Worker.create( {
     connection,
     namespace,
     taskQueue,
-    workflowsPath,
     activities,
     sinks,
-    interceptors: initInterceptors( { activities, workflows } ),
-    bundlerOptions: { webpackConfigHook },
+    ...bundle,
     ...buildWorkerOptions()
   } ) );
 

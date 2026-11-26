@@ -21,12 +21,5 @@ script_dir="$(cd "$(dirname "$real_script")" && pwd)"
 # SDK dir is the parent (node_modules/output-core)
 sdk_dir="$(dirname "$script_dir")"
 
-cd ${sdk_dir}
-
-# Route `output-worker --check` to the bundle-check entry, which validates the
-# workflow bundle without a Temporal connection or worker config.
-if [[ " $* " == *" --check "* ]]; then
-  exec node "${sdk_dir}/src/worker/check.js" "${invocation_dir}"
-fi
-
-exec node "${sdk_dir}/src/worker/index.js" "${invocation_dir}" "${@:2}"
+cd "${sdk_dir}"
+exec node "${sdk_dir}/src/worker/cli.js" "${invocation_dir}" "$@"
