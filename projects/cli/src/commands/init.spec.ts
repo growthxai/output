@@ -48,7 +48,7 @@ describe( 'init command', () => {
       Object.defineProperty( cmd, 'parse', {
         value: vi.fn().mockResolvedValue( {
           args: { folderName: undefined, ...parsedArgs },
-          flags: { 'skip-env': false, 'skip-git': false, ...flags }
+          flags: { 'skip-env': false, 'skip-git': false, 'scaffold-only': false, ...flags }
         } ),
         configurable: true
       } );
@@ -70,7 +70,7 @@ describe( 'init command', () => {
       const cmd = createTestCommand();
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, undefined );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, undefined, false );
     } );
 
     it( 'should handle UserCancelledError', async () => {
@@ -117,21 +117,28 @@ describe( 'init command', () => {
       const cmd = createTestCommand( [], { 'skip-env': true } );
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( true, false, undefined );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( true, false, undefined, false );
     } );
 
     it( 'should pass skip-git flag to runInit when --skip-git is provided', async () => {
       const cmd = createTestCommand( [], { 'skip-git': true } );
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, true, undefined );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, true, undefined, false );
+    } );
+
+    it( 'passes scaffold-only mode to runInit', async () => {
+      const cmd = createTestCommand( [], { 'scaffold-only': true }, { folderName: 'my-project' } );
+      await cmd.run();
+
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, 'my-project', true );
     } );
 
     it( 'should pass folder name to runInit when provided', async () => {
       const cmd = createTestCommand( [], {}, { folderName: 'my-project' } );
       await cmd.run();
 
-      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, 'my-project' );
+      expect( projectScaffold.runInit ).toHaveBeenCalledWith( false, false, 'my-project', false );
     } );
   } );
 } );
