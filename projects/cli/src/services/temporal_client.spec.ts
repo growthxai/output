@@ -56,6 +56,21 @@ describe( 'temporal client', () => {
       expect( buildConnectionConfig() ).toMatchObject( { address: `localhost:${config.ports.temporal}`, namespace: 'default' } );
     } );
 
+    it( 'treats an empty environment API key as unset for local Temporal', () => {
+      process.env.TEMPORAL_API_KEY = '';
+      expect( buildConnectionConfig().connectionOptions ).toMatchObject( { apiKey: undefined, tls: undefined } );
+    } );
+
+    it( 'keeps the profile key and explicit TLS config when the environment key is empty', () => {
+      process.env.TEMPORAL_API_KEY = '';
+      useConfigFile( `${profileFile}\n[profile.prod.tls]\nserver_name = "prod.example"\n` );
+
+      expect( buildConnectionConfig( { profile: 'prod' } ).connectionOptions ).toMatchObject( {
+        apiKey: 'secret',
+        tls: { serverNameOverride: 'prod.example' }
+      } );
+    } );
+
     it( 'reads the profile named by --profile, including its API key', () => {
       const result = buildConnectionConfig( { profile: 'prod' } );
 

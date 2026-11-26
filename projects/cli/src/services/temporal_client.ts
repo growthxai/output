@@ -35,7 +35,11 @@ export interface TemporalClientHandle {
  * @returns The effective address and namespace, and the options to open the connection with
  */
 export function buildConnectionConfig( flags: TemporalFlags = {} ): TemporalConnectionConfig {
-  const profile = loadClientConfigProfile( flags.profile ? { profile: flags.profile } : {} );
+  const { TEMPORAL_API_KEY, ...envWithoutApiKey } = process.env;
+  const profile = loadClientConfigProfile( {
+    profile: flags.profile,
+    overrideEnvVars: TEMPORAL_API_KEY === '' ? envWithoutApiKey as Record<string, string> : undefined
+  } );
   const { connectionOptions, namespace } = toClientOptions( {
     ...profile,
     ...( flags.address ? { address: flags.address } : {} ),
