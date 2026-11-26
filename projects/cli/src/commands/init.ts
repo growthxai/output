@@ -26,6 +26,10 @@ export default class Init extends Command {
     'skip-git': Flags.boolean( {
       description: 'Skip git repository initialization',
       default: false
+    } ),
+    'scaffold-only': Flags.boolean( {
+      description: 'Write project files without installing dependencies or setting up tools. Requires a folder name.',
+      default: false
     } )
   };
 
@@ -33,7 +37,7 @@ export default class Init extends Command {
     try {
       const { args, flags } = await this.parse( Init );
 
-      await runInit( flags['skip-env'], flags['skip-git'], args.folderName );
+      await runInit( flags['skip-env'], flags['skip-git'], args.folderName, flags['scaffold-only'] );
     } catch ( error: unknown ) {
       if ( error instanceof UserCancelledError ) {
         this.log( error.message );

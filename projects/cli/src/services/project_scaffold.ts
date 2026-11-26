@@ -258,13 +258,20 @@ interface RunInitState {
 /**
  * Run the init command workflow
  * @param skipEnv - Whether to skip environment configuration prompts
+ * @param skipGit - Whether to skip Git initialization
  * @param folderName - Optional folder name to skip folder name prompt
+ * @param scaffoldOnly - Whether to generate files without interactive setup
  */
 export async function runInit(
   skipEnv: boolean = false,
   skipGit: boolean = false,
-  folderName?: string
+  folderName?: string,
+  scaffoldOnly: boolean = false
 ): Promise<void> {
+  if ( scaffoldOnly && !folderName ) {
+    throw new Error( '--scaffold-only requires a folder name.' );
+  }
+
   // Track state for SIGINT cleanup using an object to avoid let
   const state: RunInitState = {
     projectFolderCreated: false,
@@ -280,8 +287,9 @@ export async function runInit(
   process.on( 'SIGINT', sigintHandler );
 
   try {
-    // Check dependencies first
-    await checkDependencies();
+    if ( !scaffoldOnly ) {
+      await checkDependencies();
+    }
 
     const config = await getProjectConfig( folderName );
     state.projectPath = config.projectPath;
@@ -305,6 +313,10 @@ export async function runInit(
     ux.stdout( `Created ${filesCreated.length} project files` );
 
     await createCredentialsTemplate( config.projectPath );
+    if ( scaffoldOnly ) {
+      ux.stdout( 'Project files are ready.' );
+      return;
+    }
     initCredentialsAtPath( config.projectPath );
     ux.stdout( 'Credentials initialized' );
 
