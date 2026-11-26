@@ -16,7 +16,13 @@ const detectEnvironment = (): string | undefined => {
 const GLOBAL_CACHE_KEY = Symbol( 'global' );
 const cache = new Map<string | symbol, Record<string, unknown>>();
 
-const loadGlobal = (): Record<string, unknown> => {
+/**
+ * Loads and caches global credentials for the current environment.
+ * Decrypts when an encrypted file is present, so a missing or invalid key fails here.
+ *
+ * @returns The global credentials object (empty when no credentials file exists)
+ */
+export const loadGlobal = (): Record<string, unknown> => {
   if ( cache.has( GLOBAL_CACHE_KEY ) ) {
     return cache.get( GLOBAL_CACHE_KEY )!;
   }

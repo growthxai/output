@@ -180,7 +180,8 @@
                   "migrations/v0.14.0-to-v0.15.0",
                   "migrations/v0.15.0-to-v0.16.0",
                   "migrations/v0.16.0-to-v0.17.0",
-                  "migrations/v0.17.0-to-v0.18.0"
+                  "migrations/v0.17.0-to-v0.18.0",
+                  "migrations/v0.18.0-to-v0.19.0"
                 ]
               }
             ]
