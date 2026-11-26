@@ -70,6 +70,24 @@ When you run `output dev`, the CLI starts Docker Compose which launches a worker
 
 Publishing the catalog gates step 5. If the worker cannot publish a catalog matching its own source code, it retries and then exits rather than serving requests against an outdated catalog.
 
+### Prepare a workflow bundle before starting the worker
+
+For generated projects, prepare the bundle after compiling the project and copying its assets:
+
+```bash
+npm ci
+npm run output:worker:build
+npx output-worker --bundle-out .output/workflow-bundle.cjs
+```
+
+Start the worker with that file to skip Webpack during startup:
+
+```bash
+npx output-worker --workflow-bundle .output/workflow-bundle.cjs
+```
+
+Bundle preparation does not connect to Temporal. The running worker still needs its standard Temporal configuration, project files, and dependencies. Keep the bundle with the compiled files and installed dependency versions from the same build. Regenerate it after changing workflow source, assets, or dependencies. The plain `output-worker` command continues to bundle at startup.
+
 ### Shutdown
 
 `SIGTERM`, `SIGINT`, and `SIGUSR2` start a graceful shutdown: the worker stops polling, lets in-flight activities run for `TEMPORAL_SHUTDOWN_GRACE_TIME` before asking them to cancel, gives up draining after `TEMPORAL_SHUTDOWN_FORCE_TIME`, closes its Temporal connection, then awaits pending hook callbacks for up to `OUTPUT_HOOK_FLUSH_TIMEOUT_MS`. A second signal forces an immediate exit.

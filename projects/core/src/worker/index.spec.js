@@ -332,6 +332,26 @@ describe( 'worker/index', () => {
       expect( WorkerRunner ).toHaveBeenCalledWith( { worker: mockWorker, signal } );
     } );
 
+    it( 'uses a prepared workflow bundle with activity interceptors and no Webpack configuration', async () => {
+      const { Worker } = await import( '@temporalio/worker' );
+      const { workflowBundleOptions } = await import( './bundler_options.js' );
+      process.argv.push( '--workflow-bundle', '.output/bundle with space.cjs' );
+
+      await bootWorker();
+
+      expect( workflowBundleOptions ).not.toHaveBeenCalled();
+      const [ options ] = Worker.create.mock.calls[0];
+      const { workflowModules, ...runtimeInterceptors } = initInterceptorsMock.mock.results[0].value;
+      expect( options ).toEqual( expect.objectContaining( {
+        workflowBundle: { codePath: '/test/caller/dir/.output/bundle with space.cjs' },
+        interceptors: runtimeInterceptors,
+        activities: {}
+      } ) );
+      expect( options ).not.toHaveProperty( 'workflowsPath' );
+      expect( options ).not.toHaveProperty( 'bundlerOptions' );
+      expect( options.interceptors ).not.toHaveProperty( 'workflowModules' );
+    } );
+
     it( 'publishes the catalog before creating the worker', async () => {
       const { Worker } = await import( '@temporalio/worker' );
 
