@@ -95,7 +95,7 @@ This starts:
 | `--image-pull-policy` | `always` | Image pull policy: `always`, `missing`, or `never` |
 
 <Note>
-Worker hot-reload does not watch `package.json`. After adding or changing dependencies, run `npm install`, then bring the stack down and start `output dev` again so the worker container reinstalls into its `node_modules` volume. Quitting a foreground `output dev` that owns the stack tears it down and is enough; if the stack is still running (an attached session, or one started with `output dev -d`), run `output dev down` first, then `output dev` again.
+Worker hot-reload does not watch `package.json`. After changing dependencies, update the lockfile, then stop and restart the stack to refresh the worker's `node_modules` volume. If you use prepared mode, restart in locked mode for the refresh. Quitting a foreground session that owns the stack stops it. For a detached or attached stack, run `output dev down` first.
 </Note>
 
 #### Running multiple dev stacks
@@ -119,6 +119,32 @@ OUTPUT_TEMPORAL_HOST_PORT=7234
 `DOCKER_SERVICE_NAME` isolates Docker networks, volumes, and container names so the stacks don't interfere with each other. `OUTPUT_CATALOG_ID` keeps each stack's workflow catalog separate. The three `OUTPUT_*_HOST_PORT` vars control which ports are exposed on your machine — the container-internal ports are unchanged, so workers in either stack still reach Temporal at `temporal:7233`.
 
 Run `npx output dev` in each project directory. Project A's API is at `http://localhost:3001` and Project B's at `http://localhost:3002`. If a port is already in use, `output dev` names the conflicting port and the env var to override.
+
+#### Reusing worker dependencies
+
+With a committed `package-lock.json`, use the locked mode to populate the worker's Docker volume. Once you stop the stack, start it in prepared mode to reuse that volume:
+
+```bash
+OUTPUT_WORKER_INSTALL_MODE=locked npx output dev -d
+npx output dev down
+OUTPUT_WORKER_INSTALL_MODE=prepared npx output dev -d
+```
+
+Locked mode runs `npm ci`. Prepared mode starts the watcher using the installed dependency tree. Recreate the install with locked mode if the manifest, lockfile, install settings, or worker image changes. Use the same Compose project name for setup and launch. Use the default mode if your project relies on a custom `output:worker:install` script.
+
+To populate the volume in a setup job without starting any services, export the Compose file first:
+
+```bash
+npx output dev eject
+docker compose run --rm --no-deps worker npm ci
+OUTPUT_WORKER_INSTALL_MODE=prepared npx output dev -f docker-compose.yml -d
+```
+
+For headless sessions running a worker directly, use `npm ci` and `npm run output:worker:build` in setup. Carry forward the compiled files and the `node_modules` tree for the same lockfile, Node version, operating system, and architecture. For a disposable local Temporal server, run `temporal server start-dev --headless` in another process. Start the worker with a task queue for this session:
+
+```bash
+TEMPORAL_ADDRESS=127.0.0.1:7233 OUTPUT_CATALOG_ID=agent-probe npm run output:worker:start
+```
 
 #### Attaching to a running stack
 
@@ -1023,4 +1049,5 @@ OUTPUT_CLI_ENV=.env.staging output workflow run lead_enrichment acme
 | `OUTPUT_TEMPORAL_HOST_PORT` | `7233` | Host port for the Temporal gRPC endpoint. Override to run multiple dev stacks side-by-side. `workflow debug` and `workflow dataset generate --workflow-id` use it for their default address |
 | `OUTPUT_API_VERSION` | Installed CLI version | API Docker image tag. Set to `dev` for local builds |
 | `OUTPUT_WORKFLOWS_DIR` | `.` | Workflows subdirectory relative to project root. Set to `test_workflows` for monorepo dev |
+| `OUTPUT_WORKER_INSTALL_MODE` | `default` | How the stock Compose worker gets dependencies. Use `default` for the project's install script, `locked` for `npm ci`, or `prepared` for an existing locked install |
 | `ANTHROPIC_API_KEY` | — | Anthropic API key for AI-assisted workflow generation (`workflow plan`, `workflow generate`) |
