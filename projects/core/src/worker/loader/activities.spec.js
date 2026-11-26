@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock( '#consts', () => ( {
   ACTIVITY_SEND_HTTP_REQUEST: '__internal#sendHttpRequest',
   ACTIVITY_GET_TRACE_DESTINATIONS: '__internal#getTraceDestinations',
-  WORKFLOWS_INDEX_FILENAME: '__workflows_entrypoint.js',
-  WORKFLOW_CATALOG: 'catalog',
-  ACTIVITY_OPTIONS_FILENAME: '__activity_options.js'
+  WORKFLOW_CATALOG: 'catalog'
 } ) );
 
 const sendHttpRequestMock = vi.fn();
@@ -15,11 +13,10 @@ vi.mock( '#internal_activities', () => ( {
   getTraceDestinations: getTraceDestinationsMock
 } ) );
 
-const { importComponentsMock, findSharedActivitiesFromWorkflowsMock, matchFilesMock, writeFileInTempDirMock } = vi.hoisted( () => ( {
+const { importComponentsMock, findSharedActivitiesFromWorkflowsMock, matchFilesMock } = vi.hoisted( () => ( {
   importComponentsMock: vi.fn(),
   findSharedActivitiesFromWorkflowsMock: vi.fn(),
-  matchFilesMock: vi.fn(),
-  writeFileInTempDirMock: vi.fn()
+  matchFilesMock: vi.fn()
 } ) );
 
 const { buildActivityMatcherMock, activityMatcherMock, sharedStepsDirMock, sharedEvaluatorsDirMock } = vi.hoisted( () => ( {
@@ -32,8 +29,7 @@ const { buildActivityMatcherMock, activityMatcherMock, sharedStepsDirMock, share
 vi.mock( './tools.js', () => ( {
   importComponents: importComponentsMock,
   findSharedActivitiesFromWorkflows: findSharedActivitiesFromWorkflowsMock,
-  matchFiles: matchFilesMock,
-  writeFileInTempDir: writeFileInTempDirMock
+  matchFiles: matchFilesMock
 } ) );
 
 vi.mock( './matchers.js', () => ( {
@@ -53,13 +49,11 @@ describe( 'loadActivities', () => {
     findSharedActivitiesFromWorkflowsMock.mockReturnValue( [] );
     matchFilesMock.mockReset();
     matchFilesMock.mockReturnValue( [] );
-    writeFileInTempDirMock.mockReset();
-    writeFileInTempDirMock.mockReturnValue( '/tmp/__activity_options.js' );
     buildActivityMatcherMock.mockReset();
     buildActivityMatcherMock.mockReturnValue( activityMatcherMock );
   } );
 
-  it( 'loadActivities returns map including system activity and writes options file', async () => {
+  it( 'loadActivities returns map including system activity and activity options', async () => {
     const { loadActivities } = await import( './activities.js' );
 
     importComponentsMock.mockImplementationOnce( async function *() {} );
@@ -72,16 +66,10 @@ describe( 'loadActivities', () => {
     } );
 
     const workflows = [ { name: 'A', path: '/a/workflow.js' } ];
-    const { activities, optionsFile } = await loadActivities( '/root', workflows );
+    const { activities, activityOptions } = await loadActivities( '/root', workflows );
     expect( activities['A#Act1'] ).toBeTypeOf( 'function' );
     expect( activities['__internal#sendHttpRequest'] ).toBe( sendHttpRequestMock );
-    expect( optionsFile ).toBe( '/tmp/__activity_options.js' );
-
-    expect( writeFileInTempDirMock ).toHaveBeenCalledTimes( 1 );
-    const [ contents, filename ] = writeFileInTempDirMock.mock.calls[0];
-    expect( filename ).toBe( '__activity_options.js' );
-    expect( contents ).toContain( 'export default' );
-    expect( JSON.parse( contents.replace( /^export default\s*/, '' ).replace( /;\s*$/, '' ) ) ).toEqual( {
+    expect( activityOptions ).toEqual( {
       'A#Act1': { retry: { maximumAttempts: 3 } }
     } );
   } );
@@ -94,12 +82,9 @@ describe( 'loadActivities', () => {
       yield { fn: () => {}, metadata: { name: 'EmptyOptions', options: {} }, path: '/a/steps2.js' };
     } );
 
-    await loadActivities( '/root', [ { name: 'A', path: '/a/workflow.js' } ] );
-    const written = JSON.parse(
-      writeFileInTempDirMock.mock.calls[0][0].replace( /^export default\s*/, '' ).replace( /;\s*$/, '' )
-    );
-    expect( written['A#NoOptions'] ).toBeUndefined();
-    expect( written['A#EmptyOptions'] ).toBeUndefined();
+    const { activityOptions } = await loadActivities( '/root', [ { name: 'A', path: '/a/workflow.js' } ] );
+    expect( activityOptions['A#NoOptions'] ).toBeUndefined();
+    expect( activityOptions['A#EmptyOptions'] ).toBeUndefined();
   } );
 
   it( 'loadActivities throws when two activities in the same workflow share a name', async () => {
@@ -164,17 +149,14 @@ Activity names must be unique within a workflow.'
       };
     } );
 
-    const { activities } = await loadActivities( '/root', [ localWorkflow, externalWorkflow ] );
+    const { activities, activityOptions } = await loadActivities( '/root', [ localWorkflow, externalWorkflow ] );
 
     expect( findSharedActivitiesFromWorkflowsMock ).toHaveBeenCalledWith( [ externalWorkflow ] );
     expect( importComponentsMock ).toHaveBeenNthCalledWith( 1, externalSharedFiles );
     expect( activities['Local#ExternalShared'] ).toBeTypeOf( 'function' );
     expect( activities['External#ExternalShared'] ).toBeTypeOf( 'function' );
-    const written = JSON.parse(
-      writeFileInTempDirMock.mock.calls[0][0].replace( /^export default\s*/, '' ).replace( /;\s*$/, '' )
-    );
-    expect( written['Local#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
-    expect( written['External#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
+    expect( activityOptions['Local#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
+    expect( activityOptions['External#ExternalShared'] ).toEqual( { retry: { maximumAttempts: 2 } } );
   } );
 
   it( 'loadActivities includes nested workflow steps and shared evaluators', async () => {

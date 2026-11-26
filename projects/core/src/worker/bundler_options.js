@@ -62,3 +62,31 @@ export const webpackConfigHook = config => {
   } );
   return config;
 };
+
+/**
+ * Keep Webpack module paths stable while giving each compiler its own generated source.
+ * A changed temporary path would change Temporal's default build ID on every startup.
+ */
+export const workflowBundleOptions = ( { entrypoint, workflowOptions, activityOptions } ) => {
+  const modulesDir = join( workerDir, 'bundle_modules' );
+  const workflowsPath = join( modulesDir, 'entrypoint.js' );
+  const sources = {
+    [workflowsPath]: entrypoint,
+    [join( modulesDir, 'workflow_options.js' )]: `export default ${JSON.stringify( workflowOptions )};`,
+    [join( modulesDir, 'activity_options.js' )]: `export default ${JSON.stringify( activityOptions )};`
+  };
+
+  return {
+    workflowsPath,
+    webpackConfigHook: config => {
+      const configured = webpackConfigHook( config );
+      for ( const [ path, content ] of Object.entries( sources ) ) {
+        configured.module.rules.push( {
+          resource: resource => resource === path,
+          use: [ { loader: join( workerDir, 'webpack_loaders/generated_module.cjs' ), options: { content } } ]
+        } );
+      }
+      return configured;
+    }
+  };
+};

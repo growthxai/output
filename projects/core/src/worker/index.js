@@ -16,7 +16,7 @@ import { hashSourceCode } from './loader/tools.js';
 import { sinks } from './sinks.js';
 import { createCatalog } from './catalog_workflow/index.js';
 import { init as initTracing } from '#tracing';
-import { webpackConfigHook } from './bundler_options.js';
+import { workflowBundleOptions } from './bundler_options.js';
 import { initInterceptors } from './interceptors/index.js';
 import { createChildLogger } from '#logger';
 import { setupInterruptionHandler, KillSignError } from './interruption.js';
@@ -70,10 +70,10 @@ const execute = async () => {
   await run( () => loadHooks( callerDir ) );
 
   log.info( 'Loading workflows...', { callerDir } );
-  const { workflows, entrypoint: workflowsPath } = await run( () => loadWorkflows( callerDir ) );
+  const { workflows, entrypoint, workflowOptions } = await run( () => loadWorkflows( callerDir ) );
 
   log.info( 'Loading activities...', { callerDir } );
-  const { activities } = await run( () => loadActivities( callerDir, workflows ) );
+  const { activities, activityOptions } = await run( () => loadActivities( callerDir, workflows ) );
 
   log.info( 'Initializing credentials...' );
   run( initCredentials );
@@ -114,6 +114,7 @@ const execute = async () => {
   } );
 
   log.info( 'Creating Temporal worker...' );
+  const { workflowsPath, webpackConfigHook } = workflowBundleOptions( { entrypoint, workflowOptions, activityOptions } );
   const worker = await run( () => Worker.create( {
     connection,
     namespace,

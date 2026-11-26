@@ -8,19 +8,21 @@ vi.mock( '@temporalio/worker', () => ( {
 } ) );
 
 vi.mock( './loader/workflows.js', () => ( {
-  loadWorkflows: vi.fn().mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/entrypoint.js' } )
+  loadWorkflows: vi.fn().mockResolvedValue( { workflows: [], entrypoint: 'entrypoint source', workflowOptions: {} } )
 } ) );
 
 vi.mock( './loader/activities.js', () => ( {
-  loadActivities: vi.fn().mockResolvedValue( { activities: {} } )
+  loadActivities: vi.fn().mockResolvedValue( { activities: {}, activityOptions: {} } )
 } ) );
 
-vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
+vi.mock( './bundler_options.js', () => ( {
+  workflowBundleOptions: vi.fn( () => ( { workflowsPath: '/fake/workflows/entrypoint.js', webpackConfigHook: vi.fn() } ) )
+} ) );
 
 import { bundleWorkflowCode } from '@temporalio/worker';
 import { loadWorkflows } from './loader/workflows.js';
 import { loadActivities } from './loader/activities.js';
-import { webpackConfigHook } from './bundler_options.js';
+import { workflowBundleOptions } from './bundler_options.js';
 import { initInterceptors } from './interceptors/index.js';
 import { workflowInterceptorModules } from './interceptors/modules.js';
 import { bundleWorkflows } from './bundle.js';
@@ -28,8 +30,8 @@ import { bundleWorkflows } from './bundle.js';
 describe( 'output-worker --check parity', () => {
   beforeEach( () => {
     vi.clearAllMocks();
-    loadWorkflows.mockResolvedValue( { workflows: [], entrypoint: '/fake/workflows/entrypoint.js' } );
-    loadActivities.mockResolvedValue( { activities: {} } );
+    loadWorkflows.mockResolvedValue( { workflows: [], entrypoint: 'entrypoint source', workflowOptions: {} } );
+    loadActivities.mockResolvedValue( { activities: {}, activityOptions: {} } );
     bundleWorkflowCode.mockResolvedValue( { code: '', sourceMap: '' } );
   } );
 
@@ -44,10 +46,11 @@ describe( 'output-worker --check parity', () => {
 
     expect( loadWorkflows ).toHaveBeenCalledWith( '/project' );
     expect( loadActivities ).toHaveBeenCalledWith( '/project', [] );
+    expect( workflowBundleOptions ).toHaveBeenCalledWith( { entrypoint: 'entrypoint source', workflowOptions: {}, activityOptions: {} } );
     expect( bundleWorkflowCode ).toHaveBeenCalledWith( {
       workflowsPath: '/fake/workflows/entrypoint.js',
       workflowInterceptorModules,
-      webpackConfigHook
+      webpackConfigHook: expect.any( Function )
     } );
   } );
 } );

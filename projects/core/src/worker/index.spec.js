@@ -188,7 +188,9 @@ vi.mock( './loader/hooks.js', () => ( { loadHooks: loadHooksMock } ) );
 vi.mock( './loader/tools.js', () => ( { hashSourceCode: hashSourceCodeMock } ) );
 vi.mock( './sinks.js', () => ( { sinks: {} } ) );
 vi.mock( './catalog_workflow/index.js', () => ( { createCatalog: createCatalogMock } ) );
-vi.mock( './bundler_options.js', () => ( { webpackConfigHook: vi.fn() } ) );
+vi.mock( './bundler_options.js', () => ( {
+  workflowBundleOptions: vi.fn( () => ( { workflowsPath: '/fake/workflows/path.js', webpackConfigHook: vi.fn() } ) )
+} ) );
 vi.mock( './interceptors/index.js', () => ( { initInterceptors: initInterceptorsMock } ) );
 vi.mock( './telemetry.js', () => ( { setupTelemetry: setupTelemetryMock, logIsolateSizing: logIsolateSizingMock } ) );
 vi.mock( './global_functions.js', () => ( { bindGlobalFunctions: bindGlobalFunctionsMock } ) );

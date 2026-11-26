@@ -1,8 +1,8 @@
 import { dirname } from 'node:path';
 import { getTraceDestinations, sendHttpRequest } from '#internal_activities';
-import { findSharedActivitiesFromWorkflows, importComponents, matchFiles, writeFileInTempDir } from './tools.js';
+import { findSharedActivitiesFromWorkflows, importComponents, matchFiles } from './tools.js';
 import { buildActivityMatcher, staticMatchers } from './matchers.js';
-import { ACTIVITY_SEND_HTTP_REQUEST, ACTIVITY_OPTIONS_FILENAME, ACTIVITY_GET_TRACE_DESTINATIONS } from '#consts';
+import { ACTIVITY_SEND_HTTP_REQUEST, ACTIVITY_GET_TRACE_DESTINATIONS } from '#consts';
 import { createChildLogger } from '#logger';
 import { ValidationError } from '#errors';
 
@@ -80,12 +80,8 @@ export async function loadActivities( rootDir, workflows ) {
     }
   }
 
-  // writes down the activity option overrides
-  const optionsContent = `export default ${JSON.stringify( Object.fromEntries( activityOptions ), undefined, 2 )};`;
-  const optionsFile = writeFileInTempDir( optionsContent, ACTIVITY_OPTIONS_FILENAME );
-
   // system activities
   activities.set( ACTIVITY_SEND_HTTP_REQUEST, sendHttpRequest );
   activities.set( ACTIVITY_GET_TRACE_DESTINATIONS, getTraceDestinations );
-  return { activities: Object.fromEntries( activities ), optionsFile };
+  return { activities: Object.fromEntries( activities ), activityOptions: Object.fromEntries( activityOptions ) };
 };

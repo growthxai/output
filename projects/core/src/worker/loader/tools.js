@@ -1,7 +1,7 @@
-import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { METADATA_ACCESS_SYMBOL } from '#consts';
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { hashElement } from 'folder-hash';
 import { staticMatchers } from './matchers.js';
 
@@ -264,18 +264,4 @@ export const hashSourceCode = async rootDir => {
   } catch ( error ) {
     throw new Error( `Error calculating hash from "${error}": ${error.message}`, { cause: error } );
   }
-};
-
-/**
- * Creates a file in the temp folder and returns its path
- * @returns {string} Folder
- */
-export const writeFileInTempDir = ( content, name ) => {
-  const here = dirname( fileURLToPath( import.meta.url ) );
-  const tempDir = join( here, '..', 'temp' );
-  mkdirSync( tempDir, { recursive: true } );
-
-  const filename = join( tempDir, name );
-  writeFileSync( filename, content, 'utf-8' );
-  return filename;
 };
